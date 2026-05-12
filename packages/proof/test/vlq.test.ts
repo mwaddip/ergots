@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag } from '../src/scorex/vlq';
 import { ByteReader } from '../src/scorex/reader';
 import { ProofParseError } from '../src/errors';
+import { hexToBytes } from './helpers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,14 +16,6 @@ interface VlqFixtures { u64: VlqCase[]; i64: VlqCase[]; }
 const fixture: VlqFixtures = JSON.parse(
   readFileSync(resolve(__dirname, 'fixtures/vlq.json'), 'utf8')
 );
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}
 
 describe('VLQ unsigned', () => {
   for (const c of fixture.u64) {
