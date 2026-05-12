@@ -19,5 +19,6 @@ fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(fixtures_dir())?;
     write_json("vlq.json", &cmds::vlq::generate()?)?;
     write_json("blake2b256.json", &cmds::blake2b::generate()?)?;
+    write_json("autolykos_solution.json", &cmds::autolykos_solution::generate()?)?;
     Ok(())
 }
