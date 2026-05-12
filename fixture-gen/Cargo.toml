@@ -6,11 +6,12 @@ publish = false
 
 [dependencies]
 # Local-fork path deps. The fork lives at ~/projects/sigma-rust/sigma-rust/,
-# and these point to its workspace member crates. The fork is the source of
-# truth for byte-for-byte fixtures; ergo-node-rust currently pins
-# https://github.com/mwaddip/sigma-rust.git rev 46e94c21 — keep the local
-# fork at a compatible head (HEAD as of 2026-05-12 is 47249922; if behavior
-# diverges from that ref, regenerate fixtures from a known-good checkout).
+# checked out on branch `ergo-node-integration` (HEAD 46e94c21 as of
+# 2026-05-12), which matches exactly the rev ergo-node-rust pins. These
+# entries point to that fork's workspace member crates, so byte-for-byte
+# fixtures generated here are equivalent to what ergo-node-rust would produce.
+# If the local fork's branch or HEAD changes, regenerate fixtures and
+# re-verify equivalence against a known-good ergo-node-rust build.
 ergo-chain-types = { path = "../../sigma-rust/sigma-rust/ergo-chain-types" }
 ergo-nipopow = { path = "../../sigma-rust/sigma-rust/ergo-nipopow" }
 sigma-ser = { path = "../../sigma-rust/sigma-rust/sigma-ser" }
