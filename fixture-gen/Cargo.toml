@@ -13,6 +13,7 @@ publish = false
 # If the local fork's branch or HEAD changes, regenerate fixtures and
 # re-verify equivalence against a known-good ergo-node-rust build.
 ergo-chain-types = { path = "../../sigma-rust/sigma-rust/ergo-chain-types" }
+ergo-merkle-tree = { path = "../../sigma-rust/sigma-rust/ergo-merkle-tree" }
 ergo-nipopow = { path = "../../sigma-rust/sigma-rust/ergo-nipopow" }
 sigma-ser = { path = "../../sigma-rust/sigma-rust/sigma-ser" }
 # The sigma-rust workspace declares ergotree-ir with default-features = false

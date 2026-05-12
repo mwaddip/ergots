@@ -22,5 +22,6 @@ fn main() -> anyhow::Result<()> {
     write_json("autolykos_solution.json", &cmds::autolykos_solution::generate()?)?;
     write_json("nbits.json", &cmds::nbits::generate()?)?;
     write_json("header.json", &cmds::header::generate()?)?;
+    write_json("batch_merkle.json", &cmds::batch_merkle::generate()?)?;
     Ok(())
 }
