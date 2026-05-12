@@ -46,10 +46,9 @@ export function encodeVlqZigZag(value: bigint): Uint8Array {
 
 export function decodeVlqZigZag(reader: ByteReader): bigint {
   const zz = decodeVlqU(reader);
-  const result = (zz >> 1n) ^ -(zz & 1n);
-  // Sign-extend from u64 -> i64 (values above i64::MAX represent negatives).
-  if (result >= (1n << 63n)) {
-    return result - (1n << 64n);
-  }
-  return result;
+  // BigInt XOR with `-(zz & 1n)` performs sign extension natively when
+  // the LSB of zz is set: -(1n) = -1n in arbitrary precision, and XOR
+  // with -1n flips every bit yielding the negative value directly. No
+  // u64 → i64 conversion is needed.
+  return (zz >> 1n) ^ -(zz & 1n);
 }

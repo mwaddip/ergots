@@ -40,8 +40,21 @@ describe('VLQ unsigned', () => {
     expect(() => decodeVlqU(r)).toThrow(ProofParseError);
   });
 
+  test('decode of overlong input throws ProofParseError with vlq-overflow', () => {
+    const overlong = new Uint8Array(11).fill(0x80);
+    overlong[10] = 0x01; // terminator after 10 continuation bytes (would represent a value > u64)
+    const r = new ByteReader(overlong);
+    try {
+      decodeVlqU(r);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('vlq-overflow');
+    }
+  });
+
   test('encode rejects negative', () => {
-    expect(() => encodeVlqU(-1n)).toThrow();
+    expect(() => encodeVlqU(-1n)).toThrow(/negative/);
   });
 });
 
