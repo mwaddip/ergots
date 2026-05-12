@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+.DS_Store
+*.log
+
+# Reference checkout (per-developer; not committed)
+.reference/
+
+# Per-developer
+.vscode/
+.idea/

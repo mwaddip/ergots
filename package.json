@@ -1,0 +1,20 @@
+{
+  "name": "ergots",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pure-TypeScript Ergo NiPoPoW — proof verifier, gossip layer, light client.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "fixtures": "cd fixture-gen && cargo run --release"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
