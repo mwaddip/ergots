@@ -27,6 +27,8 @@ ergots/
 
 ## Quick start
 
+Until at least one workspace package and the `fixture-gen/` Rust crate exist, `npm test`, `npm run build`, and `npm run fixtures` exit non-zero. See `docs/plans/2026-05-12-ergots-proof-implementation.md` for the bootstrap order (Tasks 1–3 set up the workspace; later tasks build the proof package).
+
 ```bash
 npm install
 npm run fixtures       # regenerate fixtures (requires Rust toolchain)
