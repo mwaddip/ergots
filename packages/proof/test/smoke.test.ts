@@ -14,4 +14,10 @@ describe('package smoke', () => {
     const x = (1n << 64n) - 1n;
     expect(x.toString(16)).toBe('ffffffffffffffff');
   });
+
+  test('@noble/hashes blake2b resolves and exports a function', async () => {
+    // v2.x ships ./blake2.js (not ./blake2b); Task 6 must import from here
+    const { blake2b } = await import('@noble/hashes/blake2.js');
+    expect(typeof blake2b).toBe('function');
+  });
 });
