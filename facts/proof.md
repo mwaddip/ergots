@@ -37,7 +37,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 
 - **Precondition:** `bytes.length >= 1` and `bytes.length <= 2_000_000`. (The 2 MB cap mirrors JVM `SizeLimit`; envelope-level cap already enforced this if the caller went through the envelope codec.)
 - **Postcondition (success):** Returns a `NipopowProof` whose serialization is byte-identical to the input. See `Round-trip invariant` below.
-- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`). The function does NOT silently produce a partial proof.
+- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`). The function does NOT silently produce a partial proof.
 
 #### `serializeProof(proof)`
 

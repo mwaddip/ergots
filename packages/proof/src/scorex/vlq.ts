@@ -52,3 +52,15 @@ export function decodeVlqZigZag(reader: ByteReader): bigint {
   // u64 → i64 conversion is needed.
   return (zz >> 1n) ^ -(zz & 1n);
 }
+
+/**
+ * Read a VLQ-encoded u32 (plain unsigned, not zigzag).
+ * Throws ProofParseError with 'vlq-overflow' if the decoded value exceeds u32 range.
+ */
+export function readVlqU32(reader: ByteReader, name: string): number {
+  const v = decodeVlqU(reader);
+  if (v > 0xffffffffn) {
+    throw new ProofParseError(`${name}: VLQ value exceeds u32 range`, 'vlq-overflow');
+  }
+  return Number(v);
+}

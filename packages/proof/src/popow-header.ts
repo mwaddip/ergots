@@ -24,7 +24,7 @@
 
 import { ByteReader } from './scorex/reader.ts';
 import { ByteWriter } from './scorex/writer.ts';
-import { decodeVlqU, encodeVlqU } from './scorex/vlq.ts';
+import { encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
 import { parseHeader, serializeHeader, type Header } from './header.ts';
 import { parseBatchMerkleProof, serializeBatchMerkleProof, type BatchMerkleProof } from './merkle.ts';
 import { ProofParseError } from './errors.ts';
@@ -44,15 +44,6 @@ const MAX_HEADER_BYTES = 10_000;
 // Protocol bound: ⌊log₂(height)⌋ + 1 ≤ 33 at height 2^32. 64 gives headroom.
 const MAX_INTERLINKS = 64;
 const MAX_PROOF_BYTES = 1_000_000;
-
-/** Read a VLQ-encoded u32 size/count field. Uses sigma-ser VLQ (put_u32 is VLQ). */
-function readVlqU32(r: ByteReader, name: string): number {
-  const v = decodeVlqU(r);
-  if (v > 0xffffffffn) {
-    throw new ProofParseError(`${name}: VLQ value exceeds u32 range`, 'oversized');
-  }
-  return Number(v);
-}
 
 /** Write a VLQ-encoded u32 size/count field. */
 function writeVlqU32(w: ByteWriter, v: number): void {

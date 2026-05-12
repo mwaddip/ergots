@@ -35,7 +35,7 @@
 
 import { ByteReader } from './scorex/reader.ts';
 import { ByteWriter } from './scorex/writer.ts';
-import { decodeVlqU, encodeVlqU } from './scorex/vlq.ts';
+import { encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
 import { parsePoPowHeader, serializePoPowHeader, type PoPowHeader } from './popow-header.ts';
 import { parseHeader, serializeHeader, type Header } from './header.ts';
 import { ProofParseError } from './errors.ts';
@@ -59,15 +59,6 @@ const MAX_ELEMENTS = 20_000;
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Read a VLQ-encoded u32 (put_u32 = VLQ unsigned, not zigzag). */
-function readVlqU32(r: ByteReader, name: string): number {
-  const v = decodeVlqU(r);
-  if (v > 0xffffffffn) {
-    throw new ProofParseError(`${name}: VLQ value exceeds u32 range`, 'vlq-overflow');
-  }
-  return Number(v);
-}
 
 /** Write a VLQ-encoded u32. */
 function writeVlqU32(w: ByteWriter, v: number): void {
@@ -111,30 +102,55 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
     throw new ProofParseError(`prefix_length ${prefixLen} exceeds sanity limit`, 'oversized');
   }
 
-  // Parse prefix entries: each preceded by a VLQ u32 size prefix (read & discard).
+  // Parse prefix entries: each preceded by a VLQ u32 size prefix bounding the element.
   const prefix: PoPowHeader[] = [];
   for (let i = 0; i < prefixLen; i++) {
-    // size: VLQ u32 (byte count of the following PoPowHeader; discarded)
-    readVlqU32(r, `prefix[${i}].size`);
-    // PoPowHeader: parsed inline (not from a sub-slice)
+    // size: VLQ u32 (byte count of the following PoPowHeader)
+    const sz = readVlqU32(r, `prefix[${i}].size`);
+    let elemBytes: Uint8Array;
     try {
-      prefix.push(parsePoPowHeader(r));
+      elemBytes = r.readBytes(sz);
+    } catch {
+      throw new ProofParseError(`prefix[${i}]: declared size ${sz} but input truncated`, 'truncated');
+    }
+    const subR = new ByteReader(elemBytes);
+    let popowHeader: PoPowHeader;
+    try {
+      popowHeader = parsePoPowHeader(subR);
     } catch (e) {
       if (e instanceof ProofParseError) throw e;
       throw new ProofParseError(`prefix[${i}]: ${String(e)}`, 'truncated');
     }
+    if (!subR.isExhausted) {
+      throw new ProofParseError(
+        `prefix[${i}]: declared size ${sz} but ${subR.remaining} bytes unused`,
+        'oversized',
+      );
+    }
+    prefix.push(popowHeader);
   }
 
-  // suffix_head_size: VLQ u32 (discarded)
-  readVlqU32(r, 'suffix_head.size');
-
-  // suffix_head: PoPowHeader
+  // suffix_head_size: VLQ u32 bounding the suffix_head element
+  const shSz = readVlqU32(r, 'suffix_head.size');
+  let shBytes: Uint8Array;
+  try {
+    shBytes = r.readBytes(shSz);
+  } catch {
+    throw new ProofParseError(`suffix_head: declared size ${shSz} but input truncated`, 'truncated');
+  }
+  const shSubR = new ByteReader(shBytes);
   let suffixHead: PoPowHeader;
   try {
-    suffixHead = parsePoPowHeader(r);
+    suffixHead = parsePoPowHeader(shSubR);
   } catch (e) {
     if (e instanceof ProofParseError) throw e;
     throw new ProofParseError(`suffix_head: ${String(e)}`, 'truncated');
+  }
+  if (!shSubR.isExhausted) {
+    throw new ProofParseError(
+      `suffix_head: declared size ${shSz} but ${shSubR.remaining} bytes unused`,
+      'oversized',
+    );
   }
 
   // suffix_tail_length: VLQ u32 (explicit count, NOT k-1)
@@ -143,17 +159,32 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
     throw new ProofParseError(`suffix_tail_length ${tailLen} exceeds sanity limit`, 'oversized');
   }
 
-  // Parse suffix_tail entries: each preceded by a VLQ u32 size prefix (discarded).
+  // Parse suffix_tail entries: each preceded by a VLQ u32 size prefix bounding the element.
   const suffixTail: Header[] = [];
   for (let i = 0; i < tailLen; i++) {
-    // size: VLQ u32 (discarded)
-    readVlqU32(r, `suffix_tail[${i}].size`);
+    // size: VLQ u32 (byte count of the following Header)
+    const stSz = readVlqU32(r, `suffix_tail[${i}].size`);
+    let stBytes: Uint8Array;
     try {
-      suffixTail.push(parseHeader(r));
+      stBytes = r.readBytes(stSz);
+    } catch {
+      throw new ProofParseError(`suffix_tail[${i}]: declared size ${stSz} but input truncated`, 'truncated');
+    }
+    const stSubR = new ByteReader(stBytes);
+    let tailHeader: Header;
+    try {
+      tailHeader = parseHeader(stSubR);
     } catch (e) {
       if (e instanceof ProofParseError) throw e;
       throw new ProofParseError(`suffix_tail[${i}]: ${String(e)}`, 'truncated');
     }
+    if (!stSubR.isExhausted) {
+      throw new ProofParseError(
+        `suffix_tail[${i}]: declared size ${stSz} but ${stSubR.remaining} bytes unused`,
+        'oversized',
+      );
+    }
+    suffixTail.push(tailHeader);
   }
 
   return { m, k, prefix, suffixHead, suffixTail };
