@@ -20,6 +20,10 @@
     "target_decimal": "0"
   },
   {
+    "n_bits": 41882164,
+    "target_decimal": "32530"
+  },
+  {
     "n_bits": 50331648,
     "target_decimal": "0"
   }
