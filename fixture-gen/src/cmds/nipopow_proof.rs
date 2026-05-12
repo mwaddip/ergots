@@ -29,6 +29,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 #[derive(Serialize)]
+pub struct ConnectionMutation {
+    pub label: String,
+    pub mutated_bytes_hex: String,
+    /// Always false — mutations intentionally break has_valid_connections.
+    pub expected_valid: bool,
+}
+
+#[derive(Serialize)]
 pub struct ProofCase {
     pub label: String,
     pub m: u32,
@@ -44,6 +52,8 @@ pub struct ProofCase {
     pub packed_leaves_per_popow_header: Vec<Vec<(String, String)>>,
     /// Interlinks Merkle roots per PoPowHeader (prefix entries + suffix_head, in order).
     pub interlinks_roots_per_popow_header: Vec<String>,
+    /// Mutated variants: parse successfully but have broken parent-linkage.
+    pub connection_mutations: Vec<ConnectionMutation>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,6 +328,88 @@ fn popow_header_merkle_info(popow: &PoPowHeader) -> (Vec<(String, String)>, Stri
     (packed_leaves, root_hex)
 }
 
+/// A 32-byte BlockId filled with a recognizable junk value.
+/// Using 0xBA (= 186 decimal, "bad") makes it obvious in hex dumps.
+fn junk_block_id(fill: u8) -> BlockId {
+    BlockId(Digest32::from([fill; 32]))
+}
+
+/// Mutation 1: break prefix connections by replacing suffix_head's interlinks
+/// with a single junk BlockId, and replacing suffix_head's header.parent_id with
+/// a second junk BlockId. Neither value matches any prefix entry's header.id,
+/// so `has_valid_connections` must return false for the suffix_head's check.
+///
+/// The serialized bytes remain parseable because the wire format only cares about
+/// byte counts and structure, not semantic validity.
+fn mutation_break_prefix_connections(proof: &NipopowProof) -> anyhow::Result<ConnectionMutation> {
+    let mut mutated = proof.clone();
+
+    // Replace suffix_head's interlinks with a single junk id
+    mutated.suffix_head.interlinks = vec![junk_block_id(0xBA)];
+
+    // Replace suffix_head's header.parent_id with a different junk id
+    // so neither the interlinks check nor the parent_id check can save it.
+    mutated.suffix_head.header.parent_id = junk_block_id(0xDE);
+    // Recompute suffix_head.header.id since parent_id is part of serialization.
+    {
+        let bytes = mutated.suffix_head.header.scorex_serialize_bytes()
+            .map_err(|e| anyhow::anyhow!("re-serialize header: {e:?}"))?;
+        let reparsed = Header::scorex_parse_bytes(&bytes)
+            .map_err(|e| anyhow::anyhow!("re-parse header: {e:?}"))?;
+        mutated.suffix_head.header.id = reparsed.id;
+    }
+
+    // Rebuild the interlinks_proof to match the new (junk) interlinks so the
+    // element is well-formed at the parse level. The proof won't validate under
+    // check_interlinks_proof, but it will parse fine in TypeScript — which is
+    // what we need: a parseable proof that fails has_valid_connections.
+    {
+        let ext = ExtensionCandidate::new(
+            NipopowAlgos::pack_interlinks(mutated.suffix_head.interlinks.clone())
+        ).map_err(|e| anyhow::anyhow!("ExtensionCandidate: {e}"))?;
+        mutated.suffix_head.interlinks_proof =
+            NipopowAlgos::proof_for_interlink_vector(&ext)
+                .ok_or_else(|| anyhow::anyhow!("proof_for_interlink_vector returned None"))?;
+    }
+
+    let bytes = mutated.scorex_serialize_bytes()
+        .map_err(|e| anyhow::anyhow!("serialize mutated proof: {e:?}"))?;
+
+    Ok(ConnectionMutation {
+        label: "break-prefix-connections".to_string(),
+        mutated_bytes_hex: hex::encode(&bytes),
+        expected_valid: false,
+    })
+}
+
+/// Mutation 2: break suffix connections by replacing suffix_tail[0].parent_id
+/// with a junk BlockId that does not match suffix_head.id.
+/// Only applicable when suffix_tail is non-empty (i.e. k >= 2).
+fn mutation_break_suffix_connections(proof: &NipopowProof) -> Option<anyhow::Result<ConnectionMutation>> {
+    if proof.suffix_tail.is_empty() {
+        return None;
+    }
+    let mut mutated = proof.clone();
+    mutated.suffix_tail[0].parent_id = junk_block_id(0xCC);
+    // Recompute the tail header's id since parent_id changed.
+    let result = (|| {
+        let bytes = mutated.suffix_tail[0].scorex_serialize_bytes()
+            .map_err(|e| anyhow::anyhow!("re-serialize tail header: {e:?}"))?;
+        let reparsed = Header::scorex_parse_bytes(&bytes)
+            .map_err(|e| anyhow::anyhow!("re-parse tail header: {e:?}"))?;
+        mutated.suffix_tail[0].id = reparsed.id;
+
+        let proof_bytes = mutated.scorex_serialize_bytes()
+            .map_err(|e| anyhow::anyhow!("serialize mutated proof: {e:?}"))?;
+        Ok(ConnectionMutation {
+            label: "break-suffix-connections".to_string(),
+            mutated_bytes_hex: hex::encode(&proof_bytes),
+            expected_valid: false,
+        })
+    })();
+    Some(result)
+}
+
 fn proof_to_case(
     label: &str,
     m: u32,
@@ -340,6 +432,13 @@ fn proof_to_case(
         roots_per.push(root);
     }
 
+    // Build connection mutations
+    let mut connection_mutations = Vec::new();
+    connection_mutations.push(mutation_break_prefix_connections(proof)?);
+    if let Some(res) = mutation_break_suffix_connections(proof) {
+        connection_mutations.push(res?);
+    }
+
     Ok(ProofCase {
         label: label.to_string(),
         m,
@@ -352,6 +451,7 @@ fn proof_to_case(
         bytes_hex: hex::encode(&bytes),
         packed_leaves_per_popow_header: packed_leaves_per,
         interlinks_roots_per_popow_header: roots_per,
+        connection_mutations,
     })
 }
 
