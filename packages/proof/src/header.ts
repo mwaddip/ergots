@@ -27,9 +27,6 @@ import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
 import type { AutolykosSolution } from './autolykos-solution.ts';
 
-// Re-export the interface type for downstream modules (PoPowHeader, NipopowProof)
-export type { AutolykosSolution } from './autolykos-solution.ts';
-
 const VOTES_LEN = 3;
 const NBITS_LEN = 4; // raw big-endian u32
 
@@ -80,7 +77,7 @@ export function parseHeader(reader: ByteReader): Header {
   if (version > 1) {
     const unparsedLen = reader.readU8();
     if (unparsedLen > 0) {
-      unparsedBytes = readFixed(reader, unparsedLen, 'unparsedBytes').slice();
+      unparsedBytes = readFixed(reader, unparsedLen, 'unparsedBytes');
     }
   }
 
