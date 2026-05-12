@@ -214,6 +214,14 @@ function bestArg(chain: Header[], m: number): bigint {
 
   let level = 1;
   for (;;) {
+    // NOTE: sigma-rust's best_arg casts max_level_of's i32 to u32 before
+    // comparing >= level. A negative i32 wraps to a huge u32, passing the
+    // check for every level. We use signed comparison here — equivalent on
+    // all reachable inputs because a negative max_level_of requires hit > ORDER
+    // (~2^-128 probability per header) AND any such header would have failed
+    // PoW validation before reaching compareProofs. The signed semantics are
+    // arguably more correct: KMZ17 §4.3 specifies the algorithm semantically,
+    // not the Rust casting artifact.
     const args = chain.filter(h => maxLevelOf(h) >= level);
     if (args.length >= m) {
       // Prepend to accumulator (sigma-rust does acc.insert(0, ...))
@@ -269,8 +277,9 @@ function maxLevelOf(header: Header): number {
   if (realF64 <= 0) return -1; // degenerate: hit is 0
 
   const level = Math.log2(requiredF64) - Math.log2(realF64);
-  // Truncate toward zero via bitwise OR (same as Rust's `as i32` truncation for positive values).
-  // For our range (level is typically small and positive), Math.floor(level) matches i32 truncation.
+  // For positive values, Math.floor matches Rust's `as i32` truncation
+  // (round toward zero). Negative levels are excluded by the >= check in
+  // bestArg, so the floor-vs-trunc difference is immaterial.
   return Math.floor(level);
 }
 

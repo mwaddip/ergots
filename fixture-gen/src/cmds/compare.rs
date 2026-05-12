@@ -318,9 +318,11 @@ pub fn generate() -> anyhow::Result<Vec<CompareCase>> {
         cases.push(compare_pair("mainnet-real-m2k2-vs-itself", &proof, &proof)?);
     }
 
-    // ─── Case 6: Same chain, m=2 k=2, chain-20 vs chain-64 ──────────────────
-    // Proofs from different chains share no common headers → LCA = None → both false.
-    // This documents the "cross-chain" behavior.
+    // ─── Case 6: cross-length comparison on synthetic chains that share a genesis ──
+    // build(20) and build(64) both start from BlockId(Digest32::zero()) with the
+    // same n_bits and timestamp for height 1, producing the same genesis ID.
+    // LCA succeeds at genesis; the longer chain (64) has more headers above
+    // LCA, so b > a per best-arg scoring.
     {
         let chain20 = SynthChain::build(20)?;
         let chain64 = SynthChain::build(64)?;

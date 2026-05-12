@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { compareProofs } from '../src/compare.ts';
+import { ProofParseError } from '../src/errors.ts';
 import { hexToBytes } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,5 +44,18 @@ describe('compareProofs', () => {
       const aBytes = hexToBytes(c.a_hex);
       expect(compareProofs(aBytes, aBytes), `${c.label}: a compared to itself`).toBe(false);
     }
+  });
+
+  // facts/proof.md: parse failures MUST throw; do NOT silently return false.
+  test('compareProofs throws ProofParseError on malformed a', () => {
+    const valid = hexToBytes(fixtures[0]!.a_hex);
+    const malformed = new Uint8Array([0xff, 0xff, 0xff]);
+    expect(() => compareProofs(malformed, valid)).toThrow(ProofParseError);
+  });
+
+  test('compareProofs throws ProofParseError on malformed b', () => {
+    const valid = hexToBytes(fixtures[0]!.a_hex);
+    const malformed = new Uint8Array([0xff, 0xff, 0xff]);
+    expect(() => compareProofs(valid, malformed)).toThrow(ProofParseError);
   });
 });
