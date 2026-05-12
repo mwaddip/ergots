@@ -6,3 +6,4 @@ pub mod header;
 pub mod batch_merkle;
 pub mod popow_header;
 pub mod nipopow_proof;
+pub mod autolykos_v2;
