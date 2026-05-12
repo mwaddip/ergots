@@ -1,0 +1,36 @@
+[package]
+name = "fixture-gen"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Local-fork path deps. The fork lives at ~/projects/sigma-rust/sigma-rust/,
+# and these point to its workspace member crates. The fork is the source of
+# truth for byte-for-byte fixtures; ergo-node-rust currently pins
+# https://github.com/mwaddip/sigma-rust.git rev 46e94c21 — keep the local
+# fork at a compatible head (HEAD as of 2026-05-12 is 47249922; if behavior
+# diverges from that ref, regenerate fixtures from a known-good checkout).
+ergo-chain-types = { path = "../../sigma-rust/sigma-rust/ergo-chain-types" }
+ergo-nipopow = { path = "../../sigma-rust/sigma-rust/ergo-nipopow" }
+sigma-ser = { path = "../../sigma-rust/sigma-rust/sigma-ser" }
+# The sigma-rust workspace declares ergotree-ir with default-features = false
+# (it's a no_std-capable crate). ergo-nipopow uses ergotree-ir via workspace
+# inheritance. When we reference sigma-rust crates as path deps from outside
+# the workspace, resolver v2 inherits that default-features = false, so std
+# doesn't activate automatically. Force it here so ergotree-ir compiles cleanly.
+ergotree-ir = { path = "../../sigma-rust/sigma-rust/ergotree-ir", features = ["std", "json"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+anyhow = "1"
+
+[patch.crates-io]
+# core2 v0.4.0 is yanked on crates.io. ergo-chain-types requires it transitively
+# (via sigma-ser). The source is present in the local cargo registry cache from the
+# sigma-rust workspace build. We patch it here so cargo can resolve outside that
+# workspace. If you see "no matching package", run:
+#   cargo build -p ergo-chain-types  (from sigma-rust workspace)
+# to repopulate the cache, then retry here.
+core2 = { path = "/home/mwaddip/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core2-0.4.0" }
