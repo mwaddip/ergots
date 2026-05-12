@@ -1,0 +1,55 @@
+import { ByteReader, ReaderError } from './reader.ts';
+import { ProofParseError } from '../errors.ts';
+
+const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
+
+export function encodeVlqU(value: bigint): Uint8Array {
+  if (value < 0n) {
+    throw new Error('encodeVlqU: negative value');
+  }
+  const out: number[] = [];
+  let v = value;
+  while (v >= 0x80n) {
+    out.push(Number((v & 0x7fn) | 0x80n));
+    v >>= 7n;
+  }
+  out.push(Number(v));
+  return new Uint8Array(out);
+}
+
+export function decodeVlqU(reader: ByteReader): bigint {
+  let result = 0n;
+  let shift = 0n;
+  try {
+    for (let i = 0; i < MAX_VLQ_BYTES; i++) {
+      const byte = reader.readU8();
+      result |= BigInt(byte & 0x7f) << shift;
+      if ((byte & 0x80) === 0) return result;
+      shift += 7n;
+    }
+  } catch (e) {
+    if (e instanceof ReaderError) {
+      throw new ProofParseError(`decodeVlqU: truncated input (${e.message})`, 'vlq-truncated');
+    }
+    throw e;
+  }
+  throw new ProofParseError('decodeVlqU: VLQ exceeds 10 bytes (overflow)', 'vlq-overflow');
+}
+
+export function encodeVlqZigZag(value: bigint): Uint8Array {
+  // Two's-complement i64 zigzag: (v << 1) ^ (v >> 63), with sign-aware shift.
+  const masked = value & 0xffffffffffffffffn; // emulate i64
+  const sign = value < 0n ? 0xffffffffffffffffn : 0n;
+  const zz = ((masked << 1n) & 0xffffffffffffffffn) ^ sign;
+  return encodeVlqU(zz);
+}
+
+export function decodeVlqZigZag(reader: ByteReader): bigint {
+  const zz = decodeVlqU(reader);
+  const result = (zz >> 1n) ^ -(zz & 1n);
+  // Sign-extend from u64 -> i64 (values above i64::MAX represent negatives).
+  if (result >= (1n << 63n)) {
+    return result - (1n << 64n);
+  }
+  return result;
+}
