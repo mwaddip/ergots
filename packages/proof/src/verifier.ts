@@ -14,7 +14,9 @@
  *   'parse-failed'           bytes do not parse (wraps ProofParseError)
  *   'invalid-connections'    hasValidConnections returns false
  *   'non-increasing-heights' any consecutive pair violates strict monotonicity
- *   'empty-proof'            proof has no headers (defensive; should never happen)
+ *   'empty-proof'            defensive dead-code guard — NipopowProof always has
+ *                            at least suffixHead, so this branch is unreachable for
+ *                            any proof that passes parseProof successfully
  *   'pow-failed'             Autolykos v2 rejects a header (when checkPoW: true)
  */
 
@@ -37,35 +39,27 @@ export interface VerificationResult {
 }
 
 /**
- * Verify a NiPoPoW proof from raw bytes.
+ * Verify an already-parsed NiPoPoW proof in-memory.
  *
- * Composes: parse → hasValidConnections → monotonic-height walk → optional PoW.
+ * Composes: hasValidConnections → monotonic-height walk → optional PoW.
+ * This is the inner logic that `verifyProof` delegates to after parsing.
+ * Exported for unit-testing logical invariants (heights, connections) without
+ * requiring round-trip serialization.
  *
- * @param bytes  Raw wire bytes of the proof (must be ≥ 1 and ≤ 2_000_000 bytes).
+ * @param proof  A parsed NipopowProof.
  * @param opts   `{ checkPoW?: boolean }` — defaults to `{ checkPoW: true }`.
  * @returns      VerificationResult on success.
  * @throws       ProofVerificationError on any validation failure.
  */
-export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): VerificationResult {
+export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {}): VerificationResult {
   const checkPoW = opts.checkPoW ?? true;
 
-  // ── Step 1: Parse ──────────────────────────────────────────────────────────
-  let proof: NipopowProof;
-  try {
-    proof = parseProof(bytes);
-  } catch (e) {
-    if (e instanceof ProofParseError) {
-      throw new ProofVerificationError(`parse failed: ${e.message}`, 'parse-failed');
-    }
-    throw e; // unexpected error — bubble up as-is
-  }
-
-  // ── Step 2: Connections ────────────────────────────────────────────────────
+  // ── Step 1: Connections ────────────────────────────────────────────────────
   if (!hasValidConnections(proof)) {
     throw new ProofVerificationError('invalid connections', 'invalid-connections');
   }
 
-  // ── Step 3: Build header list ──────────────────────────────────────────────
+  // ── Step 2: Build header list ──────────────────────────────────────────────
   // [prefix[0].header, ..., prefix[last].header, suffixHead.header, ...suffixTail]
   const allHeaders: Header[] = [
     ...proof.prefix.map(p => p.header),
@@ -74,12 +68,12 @@ export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): Verifi
   ];
 
   if (allHeaders.length === 0) {
-    // Defensive; NipopowProof always has at least suffixHead, so this branch
-    // should never be reached with a well-formed proof.
+    // Defensive dead-code guard: NipopowProof always has suffixHead, so this
+    // branch is unreachable for any proof successfully returned by parseProof.
     throw new ProofVerificationError('empty proof headers chain', 'empty-proof');
   }
 
-  // ── Step 4: Monotonic-height + optional PoW ────────────────────────────────
+  // ── Step 3: Monotonic-height + optional PoW ────────────────────────────────
   let lastHeight: number | null = null;
   for (const h of allHeaders) {
     // Strictly increasing heights
@@ -103,4 +97,33 @@ export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): Verifi
     continuous: false,
     headers: allHeaders,
   };
+}
+
+/**
+ * Verify a NiPoPoW proof from raw bytes.
+ *
+ * Composes: parse → verifyParsedProof (connections + heights + optional PoW).
+ *
+ * @param bytes  Raw wire bytes of the proof (must be ≥ 1 and ≤ 2_000_000 bytes).
+ * @param opts   `{ checkPoW?: boolean }` — defaults to `{ checkPoW: true }`.
+ * @returns      VerificationResult on success.
+ * @throws       ProofVerificationError on any validation failure.
+ */
+export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): VerificationResult {
+  // ── Step 1: Parse ──────────────────────────────────────────────────────────
+  let proof: NipopowProof;
+  try {
+    proof = parseProof(bytes);
+  } catch (e) {
+    if (e instanceof ProofParseError) {
+      throw new ProofVerificationError(
+        `parse failed: ${e.message}`,
+        'parse-failed',
+        { cause: e },
+      );
+    }
+    throw e; // unexpected error — bubble up as-is
+  }
+
+  return verifyParsedProof(proof, opts);
 }
