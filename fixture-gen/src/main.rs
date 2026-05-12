@@ -24,5 +24,6 @@ fn main() -> anyhow::Result<()> {
     write_json("header.json", &cmds::header::generate()?)?;
     write_json("batch_merkle.json", &cmds::batch_merkle::generate()?)?;
     write_json("popow_header.json", &cmds::popow_header::generate()?)?;
+    write_json("nipopow_proof.json", &cmds::nipopow_proof::generate()?)?;
     Ok(())
 }

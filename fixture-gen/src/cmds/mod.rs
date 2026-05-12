@@ -5,3 +5,4 @@ pub mod nbits;
 pub mod header;
 pub mod batch_merkle;
 pub mod popow_header;
+pub mod nipopow_proof;

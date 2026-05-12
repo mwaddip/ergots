@@ -1,0 +1,207 @@
+/**
+ * NipopowProof parse/serialize.
+ *
+ * NipopowProof = (m, k, prefix: PoPowHeader[], suffixHead: PoPowHeader, suffixTail: Header[])
+ *
+ * WIRE FORMAT (ScorexSerializable — sigma-rust ergo-nipopow/src/nipopow_proof.rs,
+ * NipopowProof::scorex_serialize / scorex_parse):
+ *
+ *   m:                      VLQ u32  (put_u32 = VLQ, plain unsigned — NOT zigzag)
+ *   k:                      VLQ u32
+ *   prefix_length:          VLQ u32  (number of prefix PoPowHeader entries)
+ *   for each prefix entry:
+ *     size:                 VLQ u32  (byte length of the PoPowHeader; read & discarded on parse)
+ *     PoPowHeader bytes:    (header_size: VLQ u32 + header_bytes + interlinks_count: VLQ u32 +
+ *                            interlink_bytes + proof_size: VLQ u32 + proof_bytes)
+ *   suffix_head_size:       VLQ u32  (byte length of suffix_head PoPowHeader; read & discarded)
+ *   suffix_head:            PoPowHeader
+ *   suffix_tail_length:     VLQ u32  (number of tail Header entries)
+ *   for each suffix_tail:
+ *     size:                 VLQ u32  (byte length of the Header; read & discarded on parse)
+ *     Header bytes:         full serialized Header
+ *
+ * KEY FINDING (STEP 0 inspection of sigma-rust source):
+ *   - m and k are plain VLQ u32 (put_u32), NOT zigzag VLQ.
+ *   - The facts/nipopow.md "ZigZag VLQ" comment applies to the P2P ENVELOPE's
+ *     GetNipopowProof message (code 90), NOT to the inner proof's m/k fields.
+ *   - Every size/length/count field uses VLQ u32.
+ *   - Each element (both PoPowHeader and Header in suffix_tail) is preceded by
+ *     a VLQ u32 size prefix that is written but DISCARDED on parse (the parser
+ *     does not use it to bound the read; it just reads the next item inline).
+ *   - suffix_tail length is explicit (VLQ u32), NOT implicit from k-1.
+ *
+ * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs lines 203-261.
+ */
+
+import { ByteReader } from './scorex/reader.ts';
+import { ByteWriter } from './scorex/writer.ts';
+import { decodeVlqU, encodeVlqU } from './scorex/vlq.ts';
+import { parsePoPowHeader, serializePoPowHeader, type PoPowHeader } from './popow-header.ts';
+import { parseHeader, serializeHeader, type Header } from './header.ts';
+import { ProofParseError } from './errors.ts';
+
+export interface NipopowProof {
+  m: number;
+  k: number;
+  prefix: PoPowHeader[];
+  suffixHead: PoPowHeader;
+  suffixTail: Header[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_PROOF_BYTES = 2_000_000;
+/** Upper bound matching sigma-rust MAX_NIPOPOW_PROOF_ELEMENTS = 20_000. */
+const MAX_ELEMENTS = 20_000;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Read a VLQ-encoded u32 (put_u32 = VLQ unsigned, not zigzag). */
+function readVlqU32(r: ByteReader, name: string): number {
+  const v = decodeVlqU(r);
+  if (v > 0xffffffffn) {
+    throw new ProofParseError(`${name}: VLQ value exceeds u32 range`, 'vlq-overflow');
+  }
+  return Number(v);
+}
+
+/** Write a VLQ-encoded u32. */
+function writeVlqU32(w: ByteWriter, v: number): void {
+  if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) {
+    throw new Error(`writeVlqU32: value out of u32 range: ${v}`);
+  }
+  w.writeBytes(encodeVlqU(BigInt(v)));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Parse
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Parse a NipopowProof from its ScorexSerializable wire encoding.
+ *
+ * The returned proof's serialization is byte-identical to the input
+ * (round-trip invariant).
+ *
+ * @throws ProofParseError on empty/oversized input, truncation, or VLQ overflow.
+ */
+export function parseProof(bytes: Uint8Array): NipopowProof {
+  if (bytes.length === 0) {
+    throw new ProofParseError('empty proof bytes', 'empty-proof');
+  }
+  if (bytes.length > MAX_PROOF_BYTES) {
+    throw new ProofParseError(`proof bytes too large: ${bytes.length}`, 'oversized');
+  }
+
+  const r = new ByteReader(bytes);
+
+  // m: VLQ u32 (plain unsigned)
+  const m = readVlqU32(r, 'm');
+
+  // k: VLQ u32 (plain unsigned)
+  const k = readVlqU32(r, 'k');
+
+  // prefix_length: VLQ u32
+  const prefixLen = readVlqU32(r, 'prefix_length');
+  if (prefixLen > MAX_ELEMENTS) {
+    throw new ProofParseError(`prefix_length ${prefixLen} exceeds sanity limit`, 'oversized');
+  }
+
+  // Parse prefix entries: each preceded by a VLQ u32 size prefix (read & discard).
+  const prefix: PoPowHeader[] = [];
+  for (let i = 0; i < prefixLen; i++) {
+    // size: VLQ u32 (byte count of the following PoPowHeader; discarded)
+    readVlqU32(r, `prefix[${i}].size`);
+    // PoPowHeader: parsed inline (not from a sub-slice)
+    try {
+      prefix.push(parsePoPowHeader(r));
+    } catch (e) {
+      if (e instanceof ProofParseError) throw e;
+      throw new ProofParseError(`prefix[${i}]: ${String(e)}`, 'truncated');
+    }
+  }
+
+  // suffix_head_size: VLQ u32 (discarded)
+  readVlqU32(r, 'suffix_head.size');
+
+  // suffix_head: PoPowHeader
+  let suffixHead: PoPowHeader;
+  try {
+    suffixHead = parsePoPowHeader(r);
+  } catch (e) {
+    if (e instanceof ProofParseError) throw e;
+    throw new ProofParseError(`suffix_head: ${String(e)}`, 'truncated');
+  }
+
+  // suffix_tail_length: VLQ u32 (explicit count, NOT k-1)
+  const tailLen = readVlqU32(r, 'suffix_tail_length');
+  if (tailLen > MAX_ELEMENTS) {
+    throw new ProofParseError(`suffix_tail_length ${tailLen} exceeds sanity limit`, 'oversized');
+  }
+
+  // Parse suffix_tail entries: each preceded by a VLQ u32 size prefix (discarded).
+  const suffixTail: Header[] = [];
+  for (let i = 0; i < tailLen; i++) {
+    // size: VLQ u32 (discarded)
+    readVlqU32(r, `suffix_tail[${i}].size`);
+    try {
+      suffixTail.push(parseHeader(r));
+    } catch (e) {
+      if (e instanceof ProofParseError) throw e;
+      throw new ProofParseError(`suffix_tail[${i}]: ${String(e)}`, 'truncated');
+    }
+  }
+
+  return { m, k, prefix, suffixHead, suffixTail };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Serialize
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Serialize a NipopowProof to its ScorexSerializable wire encoding.
+ *
+ * For any proof returned by parseProof(b), serializeProof(parseProof(b)) === b
+ * byte-for-byte (round-trip invariant).
+ */
+export function serializeProof(p: NipopowProof): Uint8Array {
+  const w = new ByteWriter();
+
+  // m: VLQ u32
+  writeVlqU32(w, p.m);
+
+  // k: VLQ u32
+  writeVlqU32(w, p.k);
+
+  // prefix_length: VLQ u32
+  writeVlqU32(w, p.prefix.length);
+
+  // prefix entries: each preceded by VLQ u32 size prefix
+  for (const ph of p.prefix) {
+    const phBytes = serializePoPowHeader(ph);
+    writeVlqU32(w, phBytes.length);
+    w.writeBytes(phBytes);
+  }
+
+  // suffix_head: preceded by VLQ u32 size prefix
+  const shBytes = serializePoPowHeader(p.suffixHead);
+  writeVlqU32(w, shBytes.length);
+  w.writeBytes(shBytes);
+
+  // suffix_tail_length: VLQ u32
+  writeVlqU32(w, p.suffixTail.length);
+
+  // suffix_tail entries: each preceded by VLQ u32 size prefix
+  for (const h of p.suffixTail) {
+    const hBytes = serializeHeader(h);
+    writeVlqU32(w, hBytes.length);
+    w.writeBytes(hBytes);
+  }
+
+  return w.toBytes();
+}
