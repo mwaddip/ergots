@@ -1,5 +1,9 @@
 /**
- * hasValidConnections — parent-linkage check for NipopowProof.
+ * Parent-linkage check for NipopowProof connections.
+ *
+ * Mirrors sigma-rust's `NipopowProof::has_valid_connections`. Walks prefix +
+ * suffixHead with an 11-entry lookback window, accepting either interlink
+ * presence OR direct parent-id match. Suffix tail uses strict parent-id chain.
  *
  * Direct port of sigma-rust ergo-nipopow/src/nipopow_proof.rs
  * `NipopowProof::has_valid_connections`, which is itself a direct port of the
@@ -25,6 +29,10 @@
  *    For each adjacent pair (prev, next) in [suffixHead.header, ...suffixTail]:
  *      next.parentId == prev.id
  *    (Direct parent-chain; no tolerance.)
+ *
+ * Note: Task 15's verifyProof will also need `packInterlinks` (the inverse
+ * of sigma-rust's `pack_interlinks`) for `checkInterlinksProof`. That helper
+ * is not implemented here — it belongs in Task 15 or a separate utility module.
  *
  * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs:134-176.
  * JVM: ergo-core/.../popow/NipopowProof.scala, lines ~128-148.
@@ -113,7 +121,7 @@ function checkSuffixConnections(proof: NipopowProof): boolean {
   return true;
 }
 
-/** Constant-time-ish byte equality for Uint8Array (short arrays; not crypto-sensitive here). */
+/** Early-exit byte equality for Uint8Array. Not timing-safe; do not use in crypto-sensitive contexts. */
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
