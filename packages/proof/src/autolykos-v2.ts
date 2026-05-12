@@ -20,9 +20,8 @@
 
 import { blake2b256 } from './crypto/blake2b256';
 import { decodeCompactBits } from './nbits';
+import { serializeHeaderWithoutPow } from './header';
 import type { Header } from './header';
-import { ByteWriter } from './scorex/writer';
-import { encodeVlqU } from './scorex/vlq';
 
 // ---------------------------------------------------------------------------
 // secp256k1 curve order (constant)
@@ -75,50 +74,10 @@ export function calcBigN(version: number, height: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// serializeWithoutPow: replicates Header::serialize_without_pow
-//
-// version (u8) || parentId (32) || adProofsRoot (32) || transactionRoot (32)
-// || stateRoot (33) || timestamp (VLQ u64) || extensionRoot (32)
-// || n_bits (4 bytes BE) || height (VLQ u32) || votes (3)
-// || [if version > 1: unparsed_len (u8) || unparsed_bytes]
-// ---------------------------------------------------------------------------
-function serializeWithoutPow(header: Header): Uint8Array {
-  const w = new ByteWriter();
-
-  w.writeU8(header.version);
-  w.writeBytes(header.parentId);
-  w.writeBytes(header.adProofsRoot);
-  w.writeBytes(header.transactionRoot);
-  w.writeBytes(header.stateRoot);
-  w.writeBytes(encodeVlqU(BigInt(header.timestamp)));
-  w.writeBytes(header.extensionRoot);
-
-  // n_bits: 4 bytes big-endian
-  const nBitsBytes = new Uint8Array(4);
-  nBitsBytes[0] = (header.nBits >>> 24) & 0xff;
-  nBitsBytes[1] = (header.nBits >>> 16) & 0xff;
-  nBitsBytes[2] = (header.nBits >>> 8) & 0xff;
-  nBitsBytes[3] = header.nBits & 0xff;
-  w.writeBytes(nBitsBytes);
-
-  w.writeBytes(encodeVlqU(BigInt(header.height)));
-  w.writeBytes(header.votes);
-
-  if (header.version > 1) {
-    w.writeU8(header.unparsedBytes.length);
-    if (header.unparsedBytes.length > 0) {
-      w.writeBytes(header.unparsedBytes);
-    }
-  }
-
-  return w.toBytes();
-}
-
-// ---------------------------------------------------------------------------
 // autolykosMessage: msg = blake2b256(serialize_without_pow(header))
 // ---------------------------------------------------------------------------
 export function autolykosMessage(header: Header): Uint8Array {
-  return blake2b256(serializeWithoutPow(header));
+  return blake2b256(serializeHeaderWithoutPow(header));
 }
 
 // ---------------------------------------------------------------------------

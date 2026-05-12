@@ -28,6 +28,7 @@ import {
 } from '../src/autolykos-v2';
 import { parseHeader } from '../src/header';
 import { ByteReader } from '../src/scorex/reader';
+import { blake2b256 } from '../src/crypto/blake2b256';
 import { hexToBytes, bytesToHex } from './helpers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -165,17 +166,23 @@ describe('Autolykos v2 — step 6: sum + hit', () => {
     });
 
     test(`${c.label}: hit matches fixture`, () => {
-      // hit = blake2b256(as_unsigned_byte_array_32(sum))
-      // tested by verifyAutolykosV2 for real headers; for synthetic we just check the field
-      // Re-derive hit from the sum and compare to fixture
-      // (skipped here — the full verifyAutolykosV2 test covers this)
-      expect(c.hit_hex).toHaveLength(64); // sanity: 32 bytes hex
+      // hit = blake2b256(asUnsignedByteArray(32, sum))
+      // Inline the 32-byte big-endian conversion to keep asUnsignedByteArray internal.
+      const sum = BigInt(c.sum_decimal);
+      const sumBytes = new Uint8Array(32);
+      let v = sum;
+      for (let i = 31; i >= 0; i--) {
+        sumBytes[i] = Number(v & 0xffn);
+        v >>= 8n;
+      }
+      const hit = blake2b256(sumBytes);
+      expect(bytesToHex(hit)).toBe(c.hit_hex);
     });
 
     test(`${c.label}: is_valid matches fixture (hit < target)`, () => {
       if (c.header_bytes_hex === '') {
-        // synthetic: no real header; is_valid is whatever the fixture says
-        expect(typeof c.is_valid).toBe('boolean');
+        // synthetic: n_bits=0x02010000 is set to make this always-invalid
+        expect(c.is_valid).toBe(false);
         return;
       }
       const headerBytes = hexToBytes(c.header_bytes_hex);
@@ -226,5 +233,13 @@ describe('Autolykos v2 — verifyAutolykosV2 full verification', () => {
       nBits: 0x01000000, // target = 0 → always fail
     };
     expect(verifyAutolykosV2(mutated)).toBe(false);
+  });
+
+  test('verifyAutolykosV2 throws on version 1 header', () => {
+    const c = realFixtures[0]!;
+    const headerBytes = hexToBytes(c.header_bytes_hex);
+    const header = parseHeader(new ByteReader(headerBytes));
+    const v1 = { ...header, version: 1 };
+    expect(() => verifyAutolykosV2(v1)).toThrow('Autolykos v1 is not supported');
   });
 });

@@ -108,11 +108,13 @@ export function parseHeader(reader: ByteReader): Header {
 }
 
 /**
- * Serialize a Header to its canonical byte representation.
- * Field order matches sigma-rust's `scorex_serialize` (serialize_without_pow + autolykos).
- * The `id` field is NOT included in the output (it is derived, not stored).
+ * Serialize a Header without the AutolykosSolution (PoW) appendage.
+ * This is the byte range that is hashed to produce the Autolykos message
+ * (autolykosMessage = blake2b256(serializeHeaderWithoutPow(header))).
+ *
+ * Field order matches sigma-rust's `Header::serialize_without_pow`.
  */
-export function serializeHeader(header: Header): Uint8Array {
+export function serializeHeaderWithoutPow(header: Header): Uint8Array {
   const w = new ByteWriter();
 
   w.writeU8(header.version);
@@ -148,10 +150,21 @@ export function serializeHeader(header: Header): Uint8Array {
     }
   }
 
-  // AutolykosSolution (v2: minerPk + nonce)
-  w.writeBytes(serializeAutolykosSolution(header.autolykosSolution));
-
   return w.toBytes();
+}
+
+/**
+ * Serialize a Header to its canonical byte representation.
+ * Field order matches sigma-rust's `scorex_serialize` (serialize_without_pow + autolykos).
+ * The `id` field is NOT included in the output (it is derived, not stored).
+ */
+export function serializeHeader(header: Header): Uint8Array {
+  const withoutPow = serializeHeaderWithoutPow(header);
+  const solutionBytes = serializeAutolykosSolution(header.autolykosSolution);
+  const out = new Uint8Array(withoutPow.length + solutionBytes.length);
+  out.set(withoutPow, 0);
+  out.set(solutionBytes, withoutPow.length);
+  return out;
 }
 
 /**
