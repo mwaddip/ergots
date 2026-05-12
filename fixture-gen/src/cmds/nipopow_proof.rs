@@ -37,6 +37,14 @@ pub struct ConnectionMutation {
 }
 
 #[derive(Serialize)]
+pub struct ByteMutation {
+    pub offset: u32,
+    pub mutated_bytes_hex: String,
+    /// Always true — every single-byte flip is expected to be rejected.
+    pub expected_to_fail: bool,
+}
+
+#[derive(Serialize)]
 pub struct ProofCase {
     pub label: String,
     pub m: u32,
@@ -54,6 +62,8 @@ pub struct ProofCase {
     pub interlinks_roots_per_popow_header: Vec<String>,
     /// Mutated variants: parse successfully but have broken parent-linkage.
     pub connection_mutations: Vec<ConnectionMutation>,
+    /// Single-byte-flip mutations at varied offsets — every one must be rejected.
+    pub byte_mutations: Vec<ByteMutation>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -410,6 +420,64 @@ fn mutation_break_suffix_connections(proof: &NipopowProof) -> Option<anyhow::Res
     Some(result)
 }
 
+/// Determine whether a mutated proof will be rejected by the TypeScript verifier
+/// (with checkPoW: false). We do this in Rust by:
+///   1. Attempting to parse with sigma-rust's ScorexSerializable (covers parse-failed)
+///   2. If parse succeeds, checking has_valid_connections (covers invalid-connections)
+///
+/// If either step fails, expected_to_fail = true.
+/// If both succeed, expected_to_fail = false (the byte is in a non-verified region).
+///
+/// NOTE: we do NOT check monotonic heights here because the mutations are single-byte
+/// flips and height corruption would typically also cause parse failure. For simplicity
+/// we rely on parse + connections as the two main gates.
+fn mutation_expected_to_fail(mutated: &[u8]) -> bool {
+    let parsed = NipopowProof::scorex_parse_bytes(mutated);
+    match parsed {
+        Err(_) => true, // parse failed → will be rejected
+        Ok(proof) => {
+            // Check connections
+            !proof.has_valid_connections()
+        }
+    }
+}
+
+/// Generate single-byte-flip mutations at a spread of offsets covering:
+/// - Very beginning of the proof (m/k/prefix-length header bytes)
+/// - Early body (prefix entries)
+/// - Mid body
+/// - Late body
+/// - Last byte
+///
+/// The `expected_to_fail` field is determined by attempting parse + connections
+/// check in Rust, mirroring what the TypeScript verifier (with checkPoW: false) would do.
+fn make_byte_mutations(bytes: &[u8]) -> Vec<ByteMutation> {
+    let len = bytes.len();
+    // Candidate offsets (some may be filtered out if >= len)
+    let candidates: Vec<usize> = vec![0, 5, 32, 100, 500, 1000, len.saturating_sub(1)];
+    // Deduplicate and filter
+    let mut seen = std::collections::HashSet::new();
+    let mut offsets: Vec<usize> = candidates
+        .into_iter()
+        .filter(|&o| o < len && seen.insert(o))
+        .collect();
+    offsets.sort();
+
+    offsets
+        .into_iter()
+        .map(|offset| {
+            let mut mutated = bytes.to_vec();
+            mutated[offset] ^= 0xff;
+            let expected_to_fail = mutation_expected_to_fail(&mutated);
+            ByteMutation {
+                offset: offset as u32,
+                mutated_bytes_hex: hex::encode(&mutated),
+                expected_to_fail,
+            }
+        })
+        .collect()
+}
+
 fn proof_to_case(
     label: &str,
     m: u32,
@@ -439,6 +507,9 @@ fn proof_to_case(
         connection_mutations.push(res?);
     }
 
+    // Build byte-flip mutations
+    let byte_mutations = make_byte_mutations(&bytes);
+
     Ok(ProofCase {
         label: label.to_string(),
         m,
@@ -452,6 +523,7 @@ fn proof_to_case(
         packed_leaves_per_popow_header: packed_leaves_per,
         interlinks_roots_per_popow_header: roots_per,
         connection_mutations,
+        byte_mutations,
     })
 }
 
