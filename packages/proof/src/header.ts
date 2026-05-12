@@ -81,10 +81,9 @@ export function parseHeader(reader: ByteReader): Header {
     }
   }
 
-  // AutolykosSolution: v2 for version >= 2 (minerPk 33 bytes + nonce 8 bytes)
-  // For v1 the format includes pow_onetime_pk and pow_distance — but all mainnet
-  // blocks ≥ height ~417792 are v2+. The autolykos-solution module handles v2.
-  const autolykosSolution = parseAutolykosSolution(reader);
+  // AutolykosSolution: pass version so the parser can handle both v1 and v2.
+  // v1 has additional pow_onetime_pk and pow_distance fields on the wire.
+  const autolykosSolution = parseAutolykosSolution(reader, version);
 
   // Derive ID: blake2b256 of the full serialized bytes
   const header: Header = {
@@ -160,7 +159,7 @@ export function serializeHeaderWithoutPow(header: Header): Uint8Array {
  */
 export function serializeHeader(header: Header): Uint8Array {
   const withoutPow = serializeHeaderWithoutPow(header);
-  const solutionBytes = serializeAutolykosSolution(header.autolykosSolution);
+  const solutionBytes = serializeAutolykosSolution(header.autolykosSolution, header.version);
   const out = new Uint8Array(withoutPow.length + solutionBytes.length);
   out.set(withoutPow, 0);
   out.set(solutionBytes, withoutPow.length);

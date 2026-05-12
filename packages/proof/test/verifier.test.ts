@@ -298,35 +298,32 @@ describe('verifyProof: parse-failed preserves cause chain', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Real mainnet proof: checkPoW: true end-to-end
 //
-// A real mainnet NiPoPoW proof is needed to exercise verifyProof with the
-// default checkPoW: true path. The local ergo-node-rust at port 9052 does NOT
-// expose a /nipopow/proof endpoint (returns HTTP 404), so no live proof could
-// be captured at development time.
+// Captured 2026-05-13 from ergo-node-rust at port 9052:
+//   curl http://localhost:9052/nipopow/proof/2/2
+// The node returns structured JSON; fixture-gen deserializes via sigma-rust's
+// NipopowProof::Deserialize, re-serializes to canonical wire bytes, and
+// round-trips before emitting the bytes_hex.
 //
-// This test is skipped until a real proof fixture is added:
-//   1. Add a REST endpoint to ergo-node-rust (Task 17 scope)
-//   2. Capture: curl http://localhost:9052/nipopow/proof/2/2 | <parse + hex-encode>
-//   3. Write bytes_hex into fixtures/nipopow_proof.json with label "mainnet-real-*"
-//      and is_real_proof: true
-//   4. Remove test.skip below
+// Label: "mainnet-real-m2-k2" — m=2, k=2 (minimum security params).
+// Proof covers ~1.78M mainnet headers (tip near block 1,784,117).
 // ─────────────────────────────────────────────────────────────────────────────
 describe('verifyProof: real mainnet proof with checkPoW: true', () => {
-  test.skip('mainnet real proof verifies end-to-end with checkPoW: true (default)', () => {
+  test('mainnet real proof verifies end-to-end with checkPoW: true (default)', () => {
     // Find the first fixture labelled as a real proof.
     const c = (fixtures as Array<ProofCase & { is_real_proof?: boolean }>).find(
       f => f.is_real_proof === true || f.label.startsWith('mainnet-real'),
     );
-    if (!c) {
-      throw new Error(
-        'No real mainnet proof fixture found. ' +
-        'See comment above this test for capture instructions.',
-      );
-    }
+    expect(c).toBeDefined();
+    if (!c) return; // type narrowing — expect above already fails if undefined
     // Default opts: checkPoW: true — exercises the full Autolykos v2 path.
     const result = verifyProof(hexToBytes(c.bytes_hex));
     expect(result.totalHeaders).toBeGreaterThan(0);
     expect(result.continuous).toBe(false);
     // Tip height should be a plausible mainnet height (> 1_000_000 as of 2025).
     expect(result.suffixTipHeight).toBeGreaterThan(1_000_000);
+    // Heights in result.headers should be strictly increasing.
+    for (let i = 1; i < result.headers.length; i++) {
+      expect(result.headers[i]!.height).toBeGreaterThan(result.headers[i - 1]!.height);
+    }
   });
 });

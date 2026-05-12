@@ -26,13 +26,13 @@ describe('AutolykosSolution', () => {
     const c = fixtures[i]!;
     test(`case ${i}: parse + round-trip`, () => {
       const r = new ByteReader(hexToBytes(c.bytes_hex));
-      const parsed = parseAutolykosSolution(r);
+      const parsed = parseAutolykosSolution(r, 2);
       expect(bytesToHex(parsed.minerPk)).toBe(c.miner_pk_hex);
       expect(parsed.powOnetimePk).toBe(null);
       expect(bytesToHex(parsed.nonce)).toBe(c.nonce_hex);
       expect(parsed.powDistance).toBe(null);
 
-      const re = serializeAutolykosSolution(parsed);
+      const re = serializeAutolykosSolution(parsed, 2);
       expect(bytesToHex(re)).toBe(c.bytes_hex);
     });
   }
@@ -40,7 +40,7 @@ describe('AutolykosSolution', () => {
   test('truncated input throws ProofParseError', () => {
     const r = new ByteReader(hexToBytes('00'.repeat(32))); // 32 bytes — short by 9
     try {
-      parseAutolykosSolution(r);
+      parseAutolykosSolution(r, 2);
       throw new Error('expected throw');
     } catch (e) {
       expect(e).toBeInstanceOf(ProofParseError);

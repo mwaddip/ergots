@@ -528,6 +528,85 @@ fn proof_to_case(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Real mainnet proof fixture
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Deserialize a real mainnet NiPoPoW proof captured from
+/// `GET http://localhost:9052/nipopow/proof/2/2`.
+///
+/// The node returns structured JSON (not raw bytes). We deserialize via
+/// sigma-rust's `serde::Deserialize` impl for `NipopowProof` and then
+/// re-serialize to canonical wire bytes. A round-trip check confirms the
+/// captured JSON produces stable bytes.
+fn mainnet_real_proof_case() -> anyhow::Result<ProofCase> {
+    // JSON captured 2026-05-13 from ergo-node-rust at port 9052.
+    // m=2, k=2 (minimum security params; smallest proof).
+    let json_bytes: &[u8] =
+        include_bytes!("mainnet_nipopow_m2k2.json");
+
+    let proof: NipopowProof = serde_json::from_slice(json_bytes)
+        .map_err(|e| anyhow::anyhow!("JSON deserialize NipopowProof: {e}"))?;
+
+    // Serialize to canonical wire bytes.
+    let bytes = proof
+        .scorex_serialize_bytes()
+        .map_err(|e| anyhow::anyhow!("scorex_serialize: {e:?}"))?;
+
+    // Round-trip: parse back and re-serialize. Both byte vecs must match.
+    let reparsed = NipopowProof::scorex_parse_bytes(&bytes)
+        .map_err(|e| anyhow::anyhow!("scorex_parse (round-trip): {e:?}"))?;
+    let reser = reparsed
+        .scorex_serialize_bytes()
+        .map_err(|e| anyhow::anyhow!("scorex_serialize (round-trip): {e:?}"))?;
+    if reser != bytes {
+        return Err(anyhow::anyhow!(
+            "mainnet real proof: round-trip mismatch ({} vs {} bytes)",
+            bytes.len(),
+            reser.len()
+        ));
+    }
+
+    let prefix_heights: Vec<u32> = proof.prefix.iter().map(|p| p.header.height).collect();
+    let suffix_head_height = proof.suffix_head.header.height;
+    let suffix_tail_heights: Vec<u32> = proof.suffix_tail.iter().map(|h| h.height).collect();
+
+    // Merkle info for all PoPowHeaders (prefix + suffix_head).
+    let mut packed_leaves_per = Vec::new();
+    let mut roots_per = Vec::new();
+    for ph in proof.prefix.iter().chain(std::iter::once(&proof.suffix_head)) {
+        let (leaves, root) = popow_header_merkle_info(ph);
+        packed_leaves_per.push(leaves);
+        roots_per.push(root);
+    }
+
+    // Connection mutations: same as for synthetic proofs.
+    let mut connection_mutations = Vec::new();
+    connection_mutations.push(mutation_break_prefix_connections(&proof)?);
+    if let Some(res) = mutation_break_suffix_connections(&proof) {
+        connection_mutations.push(res?);
+    }
+
+    // Byte mutations: use the same spread as synthetic proofs.
+    let byte_mutations = make_byte_mutations(&bytes);
+
+    Ok(ProofCase {
+        label: "mainnet-real-m2-k2".into(),
+        m: proof.m,
+        k: proof.k,
+        chain_size: 0, // not applicable for a real proof
+        anchor: None,
+        prefix_heights,
+        suffix_head_height,
+        suffix_tail_heights,
+        bytes_hex: hex::encode(&bytes),
+        packed_leaves_per_popow_header: packed_leaves_per,
+        interlinks_roots_per_popow_header: roots_per,
+        connection_mutations,
+        byte_mutations,
+    })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -587,6 +666,9 @@ pub fn generate() -> anyhow::Result<Vec<ProofCase>> {
             &proof,
         )?);
     }
+
+    // ─── Case 5: real mainnet proof (m=2, k=2) ───────────────────────────────
+    cases.push(mainnet_real_proof_case()?);
 
     Ok(cases)
 }

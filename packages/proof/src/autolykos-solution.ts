@@ -1,12 +1,14 @@
-// Wire format for Autolykos v2 (header context):
+// Wire format for AutolykosSolution (header context):
+//
+// Autolykos v1 (header version == 1):
+//   [minerPk: 33 bytes][powOnetimePk: 33 bytes][nonce: 8 bytes]
+//   [d_len: 1 byte][d_bytes: d_len bytes]
+//
+// Autolykos v2 (header version >= 2):
 //   [minerPk: 33 bytes][nonce: 8 bytes] = 41 bytes total
 //
-// This matches sigma-rust AutolykosSolution::serialize_bytes(version=2, w):
-//   self.miner_pk.scorex_serialize(w)  // 33 bytes compressed secp256k1
-//   w.write_all(&self.nonce)           // 8 bytes
-//
-// pow_onetime_pk and pow_distance are Autolykos v1 only; they are absent in v2
-// header wire format. The parser always sets them to null.
+// This matches sigma-rust AutolykosSolution::serialize_bytes(version, w).
+// The `version` is the enclosing Header's version field.
 
 import { ByteReader } from './scorex/reader.ts';
 import { ByteWriter } from './scorex/writer.ts';
@@ -14,22 +16,59 @@ import { readFixed, writeFixed, EC_POINT_LEN } from './digests.ts';
 
 export interface AutolykosSolution {
   minerPk: Uint8Array;            // 33 bytes
-  powOnetimePk: Uint8Array | null;
+  powOnetimePk: Uint8Array | null; // v1 only: 33 bytes
   nonce: Uint8Array;              // 8 bytes
-  powDistance: bigint | null;
+  powDistance: bigint | null;     // v1 only: big-endian unsigned int from d_bytes
 }
 
 const NONCE_LEN = 8;
 
-export function parseAutolykosSolution(reader: ByteReader): AutolykosSolution {
+export function parseAutolykosSolution(reader: ByteReader, version: number): AutolykosSolution {
   const minerPk = readFixed(reader, EC_POINT_LEN, 'minerPk');
-  const nonce = readFixed(reader, NONCE_LEN, 'nonce');
-  return { minerPk, powOnetimePk: null, nonce, powDistance: null };
+  if (version === 1) {
+    // Autolykos v1: additional fields
+    const powOnetimePk = readFixed(reader, EC_POINT_LEN, 'powOnetimePk');
+    const nonce = readFixed(reader, NONCE_LEN, 'nonce');
+    const dLen = reader.readU8();
+    let powDistance = 0n;
+    if (dLen > 0) {
+      const dBytes = readFixed(reader, dLen, 'powDistance');
+      for (const b of dBytes) {
+        powDistance = (powDistance << 8n) | BigInt(b);
+      }
+    }
+    return { minerPk, powOnetimePk, nonce, powDistance };
+  } else {
+    // Autolykos v2: only minerPk + nonce
+    const nonce = readFixed(reader, NONCE_LEN, 'nonce');
+    return { minerPk, powOnetimePk: null, nonce, powDistance: null };
+  }
 }
 
-export function serializeAutolykosSolution(s: AutolykosSolution): Uint8Array {
+export function serializeAutolykosSolution(s: AutolykosSolution, version: number): Uint8Array {
   const w = new ByteWriter();
   writeFixed(w, s.minerPk, EC_POINT_LEN, 'minerPk');
-  writeFixed(w, s.nonce, NONCE_LEN, 'nonce');
+  if (version === 1) {
+    // Autolykos v1: write powOnetimePk, nonce, d_len, d_bytes
+    if (!s.powOnetimePk) throw new Error('AutolykosSolution v1: powOnetimePk is required');
+    writeFixed(w, s.powOnetimePk, EC_POINT_LEN, 'powOnetimePk');
+    writeFixed(w, s.nonce, NONCE_LEN, 'nonce');
+    if (s.powDistance === null || s.powDistance === 0n) {
+      w.writeU8(0);
+    } else {
+      // Encode BigInt as big-endian bytes, minimal length
+      let d = s.powDistance;
+      const dBytes: number[] = [];
+      while (d > 0n) {
+        dBytes.unshift(Number(d & 0xffn));
+        d >>= 8n;
+      }
+      w.writeU8(dBytes.length);
+      w.writeBytes(new Uint8Array(dBytes));
+    }
+  } else {
+    // Autolykos v2: only nonce
+    writeFixed(w, s.nonce, NONCE_LEN, 'nonce');
+  }
   return w.toBytes();
 }

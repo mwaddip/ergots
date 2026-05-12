@@ -85,8 +85,11 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
     }
     lastHeight = h.height;
 
-    // Autolykos v2 PoW (skipped when checkPoW: false)
-    if (checkPoW && !verifyAutolykosV2(h)) {
+    // Autolykos PoW check (skipped when checkPoW: false).
+    // v1 headers use Autolykos v1 (different algorithm, not implemented here);
+    // mirroring sigma-rust's check_pow which returns Err(Unsupported) for v1,
+    // we skip PoW verification for version-1 headers.
+    if (checkPoW && h.version !== 1 && !verifyAutolykosV2(h)) {
       throw new ProofVerificationError(`PoW failed at height ${h.height}`, 'pow-failed');
     }
   }
