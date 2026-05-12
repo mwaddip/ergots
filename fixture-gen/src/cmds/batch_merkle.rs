@@ -103,5 +103,22 @@ pub fn generate() -> anyhow::Result<Vec<MerkleCase>> {
         cases.push(make_case("two-leaf-runlength", interlinks)?);
     }
 
+    // Case 4: four distinct interlinks → four distinct packed fields → four leaves.
+    // interlinks = [genesis_id, level1_id, level2_id, level3_id].
+    // pack_interlinks produces:
+    //   field 0: key=[0x01,0x00], val=[0x01 || genesis_id_32]
+    //   field 1: key=[0x01,0x01], val=[0x01 || level1_id_32]
+    //   field 2: key=[0x01,0x02], val=[0x01 || level2_id_32]
+    //   field 3: key=[0x01,0x03], val=[0x01 || level3_id_32]
+    // Four leaves exercises deeper recursion in validateMultiproof (two rounds).
+    {
+        let genesis_id = BlockId(Digest32::zero());
+        let level1_id = BlockId(Digest32::from([0x11u8; 32]));
+        let level2_id = BlockId(Digest32::from([0x22u8; 32]));
+        let level3_id = BlockId(Digest32::from([0x33u8; 32]));
+        let interlinks = vec![genesis_id, level1_id, level2_id, level3_id];
+        cases.push(make_case("four-leaf-distinct", interlinks)?);
+    }
+
     Ok(cases)
 }

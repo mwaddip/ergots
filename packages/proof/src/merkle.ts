@@ -25,6 +25,7 @@
 
 import { blake2b256 } from './crypto/blake2b256';
 import { ByteReader } from './scorex/reader';
+import { ProofParseError } from './errors';
 
 // Leaf prefix byte: 0 = leaf node
 const LEAF_PREFIX = 0x00;
@@ -66,34 +67,49 @@ export interface ExtensionKV {
 // Parse
 // ─────────────────────────────────────────────────────────────────────────────
 
-function readU32BE(r: ByteReader): number {
-  const b = r.readBytes(4);
-  return (b[0]! << 24 | b[1]! << 16 | b[2]! << 8 | b[3]!) >>> 0;
+function readU32BE(r: ByteReader, name: string): number {
+  try {
+    const b = r.readBytes(4);
+    return ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0;
+  } catch {
+    throw new ProofParseError(`${name}: truncated`, 'truncated');
+  }
 }
 
 /** Parse a BatchMerkleProof from its ScorexSerializable wire encoding. */
 export function parseBatchMerkleProof(r: ByteReader): BatchMerkleProof {
-  const indicesLen = readU32BE(r);
-  const proofsLen = readU32BE(r);
+  const indicesLen = readU32BE(r, 'indices_len');
+  const proofsLen = readU32BE(r, 'proofs_len');
 
   const indices: BatchMerkleProofIndex[] = [];
   for (let i = 0; i < indicesLen; i++) {
-    const index = readU32BE(r);
-    const hash = r.readBytes(32).slice(); // copy out of the backing buffer
-    indices.push({ index, hash });
+    const index = readU32BE(r, 'index');
+    let hashBytes: Uint8Array;
+    try {
+      hashBytes = r.readBytes(32);
+    } catch {
+      throw new ProofParseError(`index entry ${i}: truncated`, 'truncated');
+    }
+    indices.push({ index, hash: hashBytes.slice() }); // copy out of the backing buffer
   }
 
   const proofs: LevelNode[] = [];
   for (let i = 0; i < proofsLen; i++) {
-    const hashBytes = r.readBytes(32);
-    const side = r.readU8() as NodeSide;
+    let hashBytes: Uint8Array;
+    let side: number;
+    try {
+      hashBytes = r.readBytes(32);
+      side = r.readU8();
+    } catch {
+      throw new ProofParseError(`proof entry ${i}: truncated`, 'truncated');
+    }
     if (side !== NodeSide.Left && side !== NodeSide.Right) {
-      throw new Error(`parseBatchMerkleProof: invalid side byte ${side}`);
+      throw new ProofParseError(`invalid NodeSide byte: ${side}`, 'invalid-side');
     }
     const allZero = hashBytes.every(b => b === 0);
     proofs.push({
       hash: allZero ? null : hashBytes.slice(),
-      side,
+      side: side as NodeSide,
     });
   }
 
@@ -149,36 +165,27 @@ export function hashExtensionLeaf(kv: ExtensionKV): Uint8Array {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Port of sigma-rust BatchMerkleProof::valid().
+ * Verify a BatchMerkleProof against the supplied leaves and expected merkle root.
  *
- * Takes the proof, the ordered list of (key, value) leaf pairs from the
- * extension candidate, and the expected 32-byte extension root.
- * Returns true iff the proof is valid.
+ * The `leaves` array is used to recompute each leaf hash and check it matches
+ * the corresponding `proof.indices[i].hash`. This is an additional integrity
+ * check beyond sigma-rust's `valid()`, which trusts the stored hashes.
  *
- * The `leaves` array provides the leaf data so we can compute leaf hashes.
- * The proof's `indices` store the pre-computed leaf hashes (they are the
- * hashes stored in BatchMerkleProofIndex.hash), so the caller doesn't need to
- * re-hash unless they want to verify the hash against the raw leaf data.
- *
- * Note: in practice, the indices' hashes ARE the leaf hashes; we use them
- * directly in the multi-proof verification (same as sigma-rust does).
- * The `leaves` parameter is only used to verify the leaf hashes if desired
- * (here we use it for interface consistency per the task spec).
+ * Returns true iff every leaf hashes correctly AND the proof's reconstructed
+ * root matches `expectedRoot`.
  */
 export function verifyBatchMerkleProof(
   proof: BatchMerkleProof,
   leaves: ExtensionKV[],
   expectedRoot: Uint8Array,
 ): boolean {
-  // Empty proof is a special case: vacuously true (no interlinks = empty proof).
+  // Empty proof is a special case: vacuously true only when leaves are also empty.
   // sigma-rust check_interlinks_proof short-circuits when all three are empty.
   if (
     proof.indices.length === 0 &&
-    proof.proofs.length === 0
+    proof.proofs.length === 0 &&
+    leaves.length === 0
   ) {
-    // An empty proof doesn't correspond to a root; return true only if the
-    // caller knows there are no interlinks (the proof is semantically empty).
-    // For the fixture test this is the non-fixture test case; skip root check.
     return true;
   }
 
@@ -273,9 +280,10 @@ function validateMultiproof(
 
   // Recurse if there's more tree to process.
   if ((m.length > 0 || eNew.length > 1) && aNew.length > 0) {
-    // Build e for the next level: pair up aNew indices with eNew hashes.
-    // (aNew may be shorter than eNew if duplicates were merged; eNew is
-    //  already deduplicated by the pairing logic above.)
+    // `aNew` is the deduplicated sibling-hash list for the next level;
+    // `eNew` is one entry per parent in the next level (no dedup needed).
+    // They have the same length because every parent contributes exactly one
+    // entry to each.
     return validateMultiproof(aNew, eNew, m);
   }
 
