@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { parseBatchMerkleProof, verifyBatchMerkleProof } from '../src/merkle';
+import { parseBatchMerkleProof, serializeBatchMerkleProof, verifyBatchMerkleProof } from '../src/merkle';
 import type { BatchMerkleProof } from '../src/merkle';
 import { ByteReader } from '../src/scorex/reader';
-import { hexToBytes } from './helpers';
+import { hexToBytes, bytesToHex } from './helpers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +51,15 @@ describe('BatchMerkleProof', () => {
     const nonEmptyLeaves = [{ key: new Uint8Array([0, 1]), value: new Uint8Array(32) }];
     const nonZeroRoot = new Uint8Array(32).fill(0xff);
     expect(verifyBatchMerkleProof(emptyProof, nonEmptyLeaves, nonZeroRoot)).toBe(false);
+  });
+
+  test('round-trip: serialize(parse(bytes)) === bytes', () => {
+    for (const c of fixtures) {
+      const original = hexToBytes(c.proof_bytes_hex);
+      const proof = parseBatchMerkleProof(new ByteReader(original));
+      const reserialized = serializeBatchMerkleProof(proof);
+      expect(bytesToHex(reserialized)).toBe(c.proof_bytes_hex);
+    }
   });
 
   test('mutated proof byte makes verify return false', () => {

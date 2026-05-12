@@ -25,6 +25,7 @@
 
 import { blake2b256 } from './crypto/blake2b256';
 import { ByteReader } from './scorex/reader';
+import { ByteWriter } from './scorex/writer';
 import { ProofParseError } from './errors';
 
 // Leaf prefix byte: 0 = leaf node
@@ -114,6 +115,57 @@ export function parseBatchMerkleProof(r: ByteReader): BatchMerkleProof {
   }
 
   return { indices, proofs };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Serialize
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Write a 4-byte big-endian u32. */
+function writeU32BE(w: ByteWriter, v: number): void {
+  if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) {
+    throw new Error(`writeU32BE: out of range: ${v}`);
+  }
+  const b = new Uint8Array(4);
+  b[0] = (v >>> 24) & 0xff;
+  b[1] = (v >>> 16) & 0xff;
+  b[2] = (v >>> 8) & 0xff;
+  b[3] = v & 0xff;
+  w.writeBytes(b);
+}
+
+/**
+ * Serialize a BatchMerkleProof to its ScorexSerializable wire encoding.
+ *
+ * Wire format (inverse of parseBatchMerkleProof, matches sigma-rust batchmerkleproof.rs):
+ *   4 bytes BE u32: indices_len
+ *   4 bytes BE u32: proofs_len
+ *   for each index: 4 bytes BE u32 (leaf index) + 32 bytes (leaf hash)
+ *   for each proof: 32 bytes (hash, all-zero if null) + 1 byte (side: 0=Left, 1=Right)
+ */
+export function serializeBatchMerkleProof(proof: BatchMerkleProof): Uint8Array {
+  const w = new ByteWriter();
+  writeU32BE(w, proof.indices.length);
+  writeU32BE(w, proof.proofs.length);
+  for (const idx of proof.indices) {
+    writeU32BE(w, idx.index);
+    if (idx.hash.length !== 32) {
+      throw new Error(`indices[].hash: expected 32 bytes, got ${idx.hash.length}`);
+    }
+    w.writeBytes(idx.hash);
+  }
+  for (const p of proof.proofs) {
+    if (p.hash === null) {
+      w.writeBytes(new Uint8Array(32)); // all-zero sentinel for empty sibling
+    } else {
+      if (p.hash.length !== 32) {
+        throw new Error(`proofs[].hash: expected 32 bytes, got ${p.hash.length}`);
+      }
+      w.writeBytes(p.hash);
+    }
+    w.writeU8(p.side); // 0 = Left, 1 = Right
+  }
+  return w.toBytes();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
