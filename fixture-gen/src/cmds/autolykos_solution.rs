@@ -1,4 +1,4 @@
-use ergo_chain_types::{AutolykosSolution, EcPoint};
+use ergo_chain_types::{ec_point, AutolykosSolution, EcPoint};
 use serde::Serialize;
 use sigma_ser::ScorexSerializable;
 
@@ -24,6 +24,14 @@ pub fn generate() -> anyhow::Result<Vec<SolutionCase>> {
             miner_pk: pk.clone(),
             pow_onetime_pk: None,
             nonce: (1u32.to_be_bytes()).repeat(2),
+            pow_distance: None,
+        },
+        // Case 3: non-identity pk — catches byte-boundary off-by-one bugs in parsers
+        // that all-zero pk wouldn't detect. Uses secp256k1 generator G.
+        AutolykosSolution {
+            miner_pk: Box::new(ec_point::generator()),
+            pow_onetime_pk: None,
+            nonce: vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89],
             pow_distance: None,
         },
     ];

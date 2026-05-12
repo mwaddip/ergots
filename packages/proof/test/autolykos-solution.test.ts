@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { parseAutolykosSolution, serializeAutolykosSolution } from '../src/autolykos-solution';
+import { ProofParseError } from '../src/errors';
 import { ByteReader } from '../src/scorex/reader';
 import { hexToBytes, bytesToHex } from './helpers';
 
@@ -35,4 +36,15 @@ describe('AutolykosSolution', () => {
       expect(bytesToHex(re)).toBe(c.bytes_hex);
     });
   }
+
+  test('truncated input throws ProofParseError', () => {
+    const r = new ByteReader(hexToBytes('00'.repeat(32))); // 32 bytes — short by 9
+    try {
+      parseAutolykosSolution(r);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as InstanceType<typeof ProofParseError>).code).toBe('truncated');
+    }
+  });
 });
