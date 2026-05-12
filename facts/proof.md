@@ -54,7 +54,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
   - `headers` heights are strictly increasing
   - `headers[headers.length - 1].height === suffixTipHeight`
   - `continuous === false`
-  - If `checkPoW === true`, every `header` in `headers` has a valid Autolykos v2 solution under its `nBits` target
+  - If `checkPoW === true`, every version >= 2 `header` has a valid Autolykos v2 solution under its `nBits` target; version 1 headers are structurally accepted (Autolykos v1 PoW is not verified, mirroring sigma-rust's `Unsupported` behavior)
   - Parent-linkage connections (`has_valid_connections` in the Rust) hold across the proof
 - **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`).
 - **Invariant:** Stateless. No filesystem, network, or `globalThis` access. Same inputs → same result, every call.

@@ -1,13 +1,15 @@
 /**
  * verifyProof: public entry point composing parseProof + hasValidConnections +
- * monotonic-heights + per-header Autolykos v2.
+ * monotonic-heights + per-header Autolykos PoW (v2 only; v1 skipped as Unsupported per sigma-rust).
  *
  * facts/proof.md postconditions:
  *   - headers.length === totalHeaders
  *   - headers heights are strictly increasing
  *   - headers[last].height === suffixTipHeight
  *   - continuous === false
- *   - If checkPoW === true, every header has a valid Autolykos v2 solution
+ *   - If checkPoW === true, every version >= 2 header has a valid Autolykos v2 solution;
+ *     version 1 headers are structurally accepted (Autolykos v1 PoW is not verified,
+ *     mirroring sigma-rust's Unsupported behavior)
  *   - has_valid_connections holds across the proof
  *
  * Failure modes (all throw ProofVerificationError):
@@ -17,7 +19,7 @@
  *   'empty-proof'            defensive dead-code guard — NipopowProof always has
  *                            at least suffixHead, so this branch is unreachable for
  *                            any proof that passes parseProof successfully
- *   'pow-failed'             Autolykos v2 rejects a header (when checkPoW: true)
+ *   'pow-failed'             Autolykos v2 rejects a version >= 2 header (when checkPoW: true)
  */
 
 import { parseProof } from './proof.ts';

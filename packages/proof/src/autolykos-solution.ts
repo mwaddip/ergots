@@ -51,9 +51,10 @@ export function serializeAutolykosSolution(s: AutolykosSolution, version: number
   if (version === 1) {
     // Autolykos v1: write powOnetimePk, nonce, d_len, d_bytes
     if (!s.powOnetimePk) throw new Error('AutolykosSolution v1: powOnetimePk is required');
+    if (s.powDistance === null) throw new Error('AutolykosSolution v1: powDistance is required');
     writeFixed(w, s.powOnetimePk, EC_POINT_LEN, 'powOnetimePk');
     writeFixed(w, s.nonce, NONCE_LEN, 'nonce');
-    if (s.powDistance === null || s.powDistance === 0n) {
+    if (s.powDistance === 0n) {
       w.writeU8(0);
     } else {
       // Encode BigInt as big-endian bytes, minimal length

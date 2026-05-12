@@ -13,7 +13,7 @@
 //   height:           VLQ u32
 //   votes:            3 bytes
 //   [if version > 1:  unparsed_bytes_len: u8, then unparsed_bytes]
-//   autolykos v2:     miner_pk (33 bytes) + nonce (8 bytes)
+//   autolykos:        see autolykos-solution.ts (v1: minerPk + powOnetimePk + nonce + d; v2: minerPk + nonce)
 //
 // ID = blake2b256(all bytes above) — computed in scorex_parse, not stored on wire.
 //
