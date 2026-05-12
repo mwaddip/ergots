@@ -18,5 +18,6 @@ fn write_json<T: serde::Serialize>(name: &str, value: &T) -> anyhow::Result<()> 
 fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(fixtures_dir())?;
     write_json("vlq.json", &cmds::vlq::generate()?)?;
+    write_json("blake2b256.json", &cmds::blake2b::generate()?)?;
     Ok(())
 }
