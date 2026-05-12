@@ -8,6 +8,10 @@ export class ByteWriter {
 
   writeU8(byte: number): void {
     if (!Number.isInteger(byte) || byte < 0 || byte > 0xff) {
+      // Programming error, not user input — serializers must never pass an
+      // out-of-range byte. Plain Error matches facts/proof.md's taxonomy for
+      // internal contract violations. Do NOT introduce a typed WriterError
+      // class; the asymmetry with ReaderError is intentional.
       throw new Error(`writeU8: out of range: ${byte}`);
     }
     this.chunks.push(new Uint8Array([byte]));
@@ -15,7 +19,9 @@ export class ByteWriter {
   }
 
   writeBytes(bytes: Uint8Array): void {
-    this.chunks.push(bytes);
+    // Defensive copy: avoid aliasing the caller's buffer so a later mutation
+    // of `bytes` doesn't silently corrupt our accumulated output.
+    this.chunks.push(bytes.slice());
     this._length += bytes.length;
   }
 

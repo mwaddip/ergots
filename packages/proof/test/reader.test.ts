@@ -26,6 +26,13 @@ describe('ByteReader', () => {
     expect(() => r.readBytes(3)).toThrow(ReaderError);
   });
 
+  test('readBytes(0) returns empty slice without advancing position', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3]));
+    expect(r.readBytes(0)).toEqual(new Uint8Array([]));
+    expect(r.position).toBe(0);
+    expect(r.readU8()).toBe(1); // next read still sees byte 0
+  });
+
   test('remaining returns count of unread bytes', () => {
     const r = new ByteReader(new Uint8Array([1, 2, 3]));
     r.readU8();
