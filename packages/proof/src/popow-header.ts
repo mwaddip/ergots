@@ -41,14 +41,15 @@ export interface PoPowHeader {
 
 const BLOCK_ID_LEN = 32;
 const MAX_HEADER_BYTES = 10_000;
-const MAX_INTERLINKS = 10_000;
+// Protocol bound: ⌊log₂(height)⌋ + 1 ≤ 33 at height 2^32. 64 gives headroom.
+const MAX_INTERLINKS = 64;
 const MAX_PROOF_BYTES = 1_000_000;
 
 /** Read a VLQ-encoded u32 size/count field. Uses sigma-ser VLQ (put_u32 is VLQ). */
 function readVlqU32(r: ByteReader, name: string): number {
   const v = decodeVlqU(r);
   if (v > 0xffffffffn) {
-    throw new ProofParseError(`${name}: VLQ value exceeds u32 range`, 'overflow');
+    throw new ProofParseError(`${name}: VLQ value exceeds u32 range`, 'oversized');
   }
   return Number(v);
 }
@@ -70,7 +71,7 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   // VLQ u32: header byte length
   const headerSize = readVlqU32(reader, 'header_size');
   if (headerSize > MAX_HEADER_BYTES) {
-    throw new ProofParseError(`header_size ${headerSize} exceeds sanity limit`, 'overflow');
+    throw new ProofParseError(`header_size ${headerSize} exceeds sanity limit`, 'oversized');
   }
   // Read exactly headerSize bytes, then parse from a sub-reader
   let headerBytes: Uint8Array;
@@ -85,7 +86,7 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   // VLQ u32: interlinks count
   const interlinksCount = readVlqU32(reader, 'interlinks_count');
   if (interlinksCount > MAX_INTERLINKS) {
-    throw new ProofParseError(`interlinks_count ${interlinksCount} exceeds sanity limit`, 'overflow');
+    throw new ProofParseError(`interlinks_count ${interlinksCount} exceeds sanity limit`, 'oversized');
   }
   const interlinks: Uint8Array[] = [];
   for (let i = 0; i < interlinksCount; i++) {
@@ -99,7 +100,7 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   // VLQ u32: proof byte length
   const proofSize = readVlqU32(reader, 'proof_size');
   if (proofSize > MAX_PROOF_BYTES) {
-    throw new ProofParseError(`proof_size ${proofSize} exceeds sanity limit`, 'overflow');
+    throw new ProofParseError(`proof_size ${proofSize} exceeds sanity limit`, 'oversized');
   }
   let proofBytes: Uint8Array;
   try {

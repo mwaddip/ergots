@@ -1,4 +1,5 @@
 use ergo_chain_types::{ADDigest, AutolykosSolution, BlockId, Digest32, EcPoint, ExtensionCandidate, Header, Votes};
+use ergo_merkle_tree::{MerkleNode, MerkleTree};
 use ergo_nipopow::{NipopowAlgos, PoPowHeader};
 use serde::Serialize;
 use sigma_ser::ScorexSerializable;
@@ -16,6 +17,14 @@ pub struct PoPowHeaderCase {
     pub interlinks_hex: Vec<String>,
     /// The BatchMerkleProof bytes alone (for cross-reference with merkle fixture), hex.
     pub interlinks_proof_bytes_hex: String,
+    /// Packed interlink extension KV pairs (key_hex, value_hex) — output of pack_interlinks.
+    /// Used by TS tests to verify the interlinks_proof without needing a TS pack_interlinks impl.
+    pub packed_leaves: Vec<(String, String)>,
+    /// Merkle root of the interlinks extension tree (hex).
+    /// This is the root that interlinks_proof verifies against, computed from packed_leaves
+    /// via the same MerkleTree construction as sigma-rust's check_interlinks_proof.
+    /// Note: for synthetic fixtures this differs from header.extension_root (which is zero32).
+    pub interlinks_root_hex: String,
 }
 
 fn make_synthetic_header(
@@ -71,6 +80,26 @@ fn build_popow_header(header: Header, interlinks: Vec<BlockId>) -> anyhow::Resul
 fn make_case(label: &str, popow: &PoPowHeader) -> anyhow::Result<PoPowHeaderCase> {
     let bytes = popow.scorex_serialize_bytes()?;
     let proof_bytes = popow.interlinks_proof.scorex_serialize_bytes()?;
+    let fields = NipopowAlgos::pack_interlinks(popow.interlinks.clone());
+    let packed_leaves: Vec<(String, String)> = fields
+        .iter()
+        .map(|(k, v)| (hex::encode(k), hex::encode(v)))
+        .collect();
+    // Compute the interlinks Merkle root using the same construction as
+    // sigma-rust's check_interlinks_proof (nipopow_proof.rs:309-321):
+    //   kv_to_leaf(k, v) = [2u8] ++ k ++ v, then MerkleNode::from_bytes
+    let merkle_nodes: Vec<MerkleNode> = fields
+        .iter()
+        .map(|(k, v)| {
+            let leaf_data: Vec<u8> = std::iter::once(2u8)
+                .chain(k.iter().copied())
+                .chain(v.iter().copied())
+                .collect();
+            MerkleNode::from_bytes(leaf_data)
+        })
+        .collect();
+    let tree = MerkleTree::new(merkle_nodes);
+    let interlinks_root_hex = hex::encode(tree.root_hash());
     Ok(PoPowHeaderCase {
         label: label.to_string(),
         bytes_hex: hex::encode(&bytes),
@@ -82,6 +111,8 @@ fn make_case(label: &str, popow: &PoPowHeader) -> anyhow::Result<PoPowHeaderCase
             .map(|id| hex::encode(&id.0 .0))
             .collect(),
         interlinks_proof_bytes_hex: hex::encode(proof_bytes),
+        packed_leaves,
+        interlinks_root_hex,
     })
 }
 
@@ -107,6 +138,10 @@ pub fn generate() -> anyhow::Result<Vec<PoPowHeaderCase>> {
     // We manually specify interlinks = [genesis_id, level1_id, level2_id, level3_id]
     // mirroring the four-leaf fixture in batch_merkle.json. The interlinks_proof
     // is computed by build_popow_header so it is consistent with the interlinks vector.
+    //
+    // We construct interlinks manually rather than calling update_interlinks
+    // because that function requires a full chain reader; for fixture purposes
+    // the proof structure is the same regardless of how interlinks were derived.
     {
         let h5 = make_synthetic_header(5, genesis.id, 1_180_000, n_bits);
         let level1_id = BlockId(Digest32::from([0x11u8; 32]));
