@@ -127,18 +127,633 @@ export interface SigmaBoolean {
 export interface Closure {
   /** Argument value ids; binds `ValUse.id` references inside `body`. */
   argIds: number[]
-  /** Function body — an Expr (placeholder type until Task 9). */
+  /** Function body — an Expr. */
   body: Expr
   /** Lexical environment captured at definition time, keyed by ValId. */
   capturedEnv: Record<number, SValue>
 }
 
+// ---------------------------------------------------------------------------
+// MIR expression discriminated union.
+//
+// Mirrors sigma-rust's `Expr` enum in `ergotree-ir/src/mir/expr.rs`. Each
+// variant is a discriminated interface keyed by `tag`. Per-variant shapes
+// follow sigma-rust's `mir/<variant>.rs` struct fields (renamed snake_case →
+// camelCase, `Box<Expr>` → `Expr`, `Option<X>` → `X | null`, `Vec<X>` → `X[]`,
+// `u8`/`u16`/`u32` → `number`, `u64` → `bigint`).
+//
+// Sub-opcodes for `BinOp` and `UnaryOp`-style nodes are captured by separate
+// `*Kind` literal unions below. `Collection` and `GlobalVars` are modeled with
+// `kind` sub-discriminators because each has multiple opcode bytes mapping to
+// the same expression node (matching sigma-rust's nested enums).
+// ---------------------------------------------------------------------------
+
 /**
- * Placeholder Expr type — Task 9 replaces this with the full ~80-variant
- * MIR discriminated union. Loose `{ tag: string }` keeps forward references
- * (notably `Closure.body`) compiling in phases 2a–2c.
+ * Arithmetic sub-opcode for {@link BinOp}. Mirrors sigma-rust
+ * `mir/bin_op.rs::ArithOp`. Each kind maps to a distinct opcode byte
+ * (`OP_PLUS`, `OP_MINUS`, …).
  */
-export type Expr = { tag: string }
+export type ArithOp =
+  | 'Plus'
+  | 'Minus'
+  | 'Multiply'
+  | 'Divide'
+  | 'Max'
+  | 'Min'
+  | 'Modulo'
+
+/**
+ * Relational sub-opcode for {@link BinOp}. Mirrors sigma-rust
+ * `mir/bin_op.rs::RelationOp` (`==`, `!=`, `>=`, `>`, `<=`, `<`).
+ */
+export type RelationOp = 'Eq' | 'NEq' | 'Ge' | 'Gt' | 'Le' | 'Lt'
+
+/**
+ * Logical sub-opcode for {@link BinOp}. Mirrors sigma-rust
+ * `mir/bin_op.rs::LogicalOp` (binary `&&`, `||`, `^`).
+ */
+export type LogicalOp = 'And' | 'Or' | 'Xor'
+
+/**
+ * Bitwise sub-opcode for {@link BinOp}. Mirrors sigma-rust
+ * `mir/bin_op.rs::BitOp` (`|`, `&`, `^`, `<<`, `>>`, `>>>`).
+ */
+export type BitOp =
+  | 'BitOr'
+  | 'BitAnd'
+  | 'BitXor'
+  | 'BitShiftLeft'
+  | 'BitShiftRight'
+  | 'BitShiftRightZeroed'
+
+/**
+ * Tagged union over the four sub-opcode families a `BinOp` can carry.
+ * Mirrors sigma-rust `mir/bin_op.rs::BinOpKind`.
+ */
+export type BinOpKind =
+  | { kind: 'Arith'; op: ArithOp }
+  | { kind: 'Relation'; op: RelationOp }
+  | { kind: 'Logical'; op: LogicalOp }
+  | { kind: 'Bit'; op: BitOp }
+
+// Append: concatenation of two collections. sigma-rust mir/coll_append.rs.
+export interface Append {
+  tag: 'Append'
+  input: Expr
+  col2: Expr
+}
+
+// Const: a constant value (type + literal). sigma-rust mir/constant.rs.
+// On the wire a `Const` is emitted as `(SType, SValue)` with the SType byte
+// acting as the opcode (in the FIRST_DATA_TYPE..LAST_CONSTANT_CODE range).
+export interface Const {
+  tag: 'Const'
+  tpe: SType
+  value: SValue
+}
+
+// ConstPlaceholder: zero-based index into ErgoTree.constants. sigma-rust
+// mir/constant/constant_placeholder.rs (opcode CONSTANT_PLACEHOLDER = 0x03).
+export interface ConstPlaceholder {
+  tag: 'ConstPlaceholder'
+  id: number
+  tpe: SType
+}
+
+// SubstConstants: substitute constants in a serialized ergo tree.
+// sigma-rust mir/subst_const.rs.
+export interface SubstConstants {
+  tag: 'SubstConstants'
+  scriptBytes: Expr
+  positions: Expr
+  newValues: Expr
+}
+
+// ByteArrayToLong / ByteArrayToBigInt: conversions on Coll[Byte].
+// sigma-rust mir/byte_array_to_long.rs, mir/byte_array_to_bigint.rs.
+export interface ByteArrayToLong {
+  tag: 'ByteArrayToLong'
+  input: Expr
+}
+export interface ByteArrayToBigInt {
+  tag: 'ByteArrayToBigInt'
+  input: Expr
+}
+
+// LongToByteArray: SLong → Coll[Byte]. sigma-rust mir/long_to_byte_array.rs.
+export interface LongToByteArray {
+  tag: 'LongToByteArray'
+  input: Expr
+}
+
+/**
+ * Collection literal. Mirrors sigma-rust `mir/collection.rs::Collection`,
+ * an enum with two arms each carrying its own opcode:
+ *  - `Exprs` → `OP_COLL` (general collection of expressions)
+ *  - `BoolConstants` → `OP_COLL_OF_BOOL_CONST` (packed booleans optimization)
+ * Modeled here as one `tag: 'Collection'` variant with a `kind` field so the
+ * serializer can pick the right opcode at emit time.
+ */
+export type Collection =
+  | { tag: 'Collection'; kind: 'Exprs'; elemTpe: SType; items: Expr[] }
+  | { tag: 'Collection'; kind: 'BoolConstants'; items: boolean[] }
+
+// Tuple: heterogeneous fixed-arity tuple. sigma-rust mir/tuple.rs.
+export interface Tuple {
+  tag: 'Tuple'
+  items: Expr[]
+}
+
+// CalcBlake2b256 / CalcSha256: cryptographic hash functions.
+// sigma-rust mir/calc_blake2b256.rs, mir/calc_sha256.rs.
+export interface CalcBlake2b256 {
+  tag: 'CalcBlake2b256'
+  input: Expr
+}
+export interface CalcSha256 {
+  tag: 'CalcSha256'
+  input: Expr
+}
+
+// Context: nullary "the context" expression (opcode CONTEXT).
+// sigma-rust `Expr::Context` (unit variant).
+export interface Context {
+  tag: 'Context'
+}
+
+// Global: nullary "the Global object" expression (opcode GLOBAL).
+// sigma-rust `Expr::Global` (unit variant).
+export interface Global {
+  tag: 'Global'
+}
+
+/**
+ * GlobalVars: predefined global variables. Mirrors sigma-rust
+ * `mir/global_vars.rs::GlobalVars` (an enum with 6 variants, each backed by a
+ * distinct opcode: HEIGHT, INPUTS, OUTPUTS, SELF_BOX, MINER_PUBKEY,
+ * GROUP_GENERATOR). Modeled here as one variant with a `kind` field so the
+ * serializer can pick the right opcode at emit time.
+ */
+export interface GlobalVars {
+  tag: 'GlobalVars'
+  kind: 'Height' | 'Inputs' | 'Outputs' | 'SelfBox' | 'MinerPubKey' | 'GroupGenerator'
+}
+
+// FuncArg: an argument descriptor for FuncValue. sigma-rust
+// mir/func_value.rs::FuncArg.
+export interface FuncArg {
+  /** ValId (sigma-rust `u32`), bound by ValDef-style scoping. */
+  id: number
+  tpe: SType
+}
+
+// FuncValue: user-defined function (lambda). sigma-rust
+// mir/func_value.rs::FuncValue.
+export interface FuncValue {
+  tag: 'FuncValue'
+  args: FuncArg[]
+  body: Expr
+}
+
+// Apply: function application. sigma-rust mir/apply.rs::Apply.
+export interface Apply {
+  tag: 'Apply'
+  func: Expr
+  args: Expr[]
+}
+
+/**
+ * MethodCall: invoke a method on an object. sigma-rust mir/method_call.rs.
+ * `method` is deferred: sigma-rust resolves via `SMethod` (a type-companion
+ * + method id pair). For now we keep the on-wire identifiers raw — the full
+ * method resolver is implemented alongside the per-method dispatch.
+ *
+ * `explicitTypeArgs` mirrors sigma-rust's `HashMap<STypeVar, SType>` used
+ * for methods like `Box.getReg[T]()` where the return type is not derivable
+ * from arg types alone.
+ */
+export interface MethodCall {
+  tag: 'MethodCall'
+  obj: Expr
+  /** Type companion id (Rust `SMethod.obj_type_id`). */
+  typeId: number
+  /** Method id within the type (Rust `SMethod.method_raw.method_id`). */
+  methodId: number
+  args: Expr[]
+  /** Explicit type arguments by STypeVar name. */
+  explicitTypeArgs: Record<string, SType>
+}
+
+// PropertyCall: invoke a property (zero-arg method) on an object.
+// sigma-rust mir/property_call.rs.
+export interface PropertyCall {
+  tag: 'PropertyCall'
+  obj: Expr
+  typeId: number
+  methodId: number
+}
+
+// BlockValue: a sequence of statements followed by a result expression.
+// sigma-rust mir/block.rs::BlockValue.
+export interface BlockValue {
+  tag: 'BlockValue'
+  items: Expr[]
+  result: Expr
+}
+
+// ValDef: let-bound expression `let x = rhs`. sigma-rust mir/val_def.rs.
+export interface ValDef {
+  tag: 'ValDef'
+  id: number
+  rhs: Expr
+}
+
+// ValUse: reference to a previously-defined ValDef. sigma-rust mir/val_use.rs.
+export interface ValUse {
+  tag: 'ValUse'
+  valId: number
+  tpe: SType
+}
+
+// If: ternary, non-lazy evaluation of both branches.
+// sigma-rust mir/if_op.rs::If.
+export interface If {
+  tag: 'If'
+  condition: Expr
+  trueBranch: Expr
+  falseBranch: Expr
+}
+
+// BinOp: binary operation (arith / relational / logical / bitwise).
+// sigma-rust mir/bin_op.rs::BinOp.
+export interface BinOp {
+  tag: 'BinOp'
+  op: BinOpKind
+  left: Expr
+  right: Expr
+}
+
+// And / Or / Xor / Atleast: logical / threshold connectives on Coll[Boolean]
+// or Coll[SigmaProp]. sigma-rust mir/and.rs, or.rs, xor.rs, atleast.rs.
+export interface And {
+  tag: 'And'
+  input: Expr
+}
+export interface Or {
+  tag: 'Or'
+  input: Expr
+}
+export interface Xor {
+  tag: 'Xor'
+  left: Expr
+  right: Expr
+}
+export interface Atleast {
+  tag: 'Atleast'
+  bound: Expr
+  input: Expr
+}
+
+// LogicalNot / Negation / BitInversion: unary operations.
+// sigma-rust mir/logical_not.rs, negation.rs, bit_inversion.rs.
+export interface LogicalNot {
+  tag: 'LogicalNot'
+  input: Expr
+}
+export interface Negation {
+  tag: 'Negation'
+  input: Expr
+}
+export interface BitInversion {
+  tag: 'BitInversion'
+  input: Expr
+}
+
+// OptionGet / OptionIsDefined / OptionGetOrElse: SOption combinators.
+// sigma-rust mir/option_get.rs, option_is_defined.rs, option_get_or_else.rs.
+export interface OptionGet {
+  tag: 'OptionGet'
+  input: Expr
+}
+export interface OptionIsDefined {
+  tag: 'OptionIsDefined'
+  input: Expr
+}
+export interface OptionGetOrElse {
+  tag: 'OptionGetOrElse'
+  input: Expr
+  default: Expr
+}
+
+// ExtractAmount / ExtractRegisterAs / ExtractBytes / ExtractBytesWithNoRef /
+// ExtractScriptBytes / ExtractCreationInfo / ExtractId: Box accessors.
+// sigma-rust mir/extract_amount.rs, extract_reg_as.rs, extract_bytes.rs,
+// extract_bytes_with_no_ref.rs, extract_script_bytes.rs,
+// extract_creation_info.rs, extract_id.rs.
+export interface ExtractAmount {
+  tag: 'ExtractAmount'
+  input: Expr
+}
+export interface ExtractRegisterAs {
+  tag: 'ExtractRegisterAs'
+  input: Expr
+  /** Register id (sigma-rust `i8`; valid range 0..=9 for R0..R9 plus internal). */
+  registerId: number
+  /** Element type wrapped in SOption (sigma-rust stores `Arc<SType>`). */
+  elemTpe: SType
+}
+export interface ExtractBytes {
+  tag: 'ExtractBytes'
+  input: Expr
+}
+export interface ExtractBytesWithNoRef {
+  tag: 'ExtractBytesWithNoRef'
+  input: Expr
+}
+export interface ExtractScriptBytes {
+  tag: 'ExtractScriptBytes'
+  input: Expr
+}
+export interface ExtractCreationInfo {
+  tag: 'ExtractCreationInfo'
+  input: Expr
+}
+export interface ExtractId {
+  tag: 'ExtractId'
+  input: Expr
+}
+
+// ByIndex: collection index access with optional default.
+// sigma-rust mir/coll_by_index.rs::ByIndex.
+export interface ByIndex {
+  tag: 'ByIndex'
+  input: Expr
+  index: Expr
+  /** `Coll.getOrElse` default; `null` means strict `Coll.apply`. */
+  default: Expr | null
+}
+
+// SizeOf: collection size. sigma-rust mir/coll_size.rs.
+export interface SizeOf {
+  tag: 'SizeOf'
+  input: Expr
+}
+
+// Slice: collection slice `[from, until)`. sigma-rust mir/coll_slice.rs.
+export interface Slice {
+  tag: 'Slice'
+  input: Expr
+  from: Expr
+  until: Expr
+}
+
+// Fold / Map / Filter / Exists / ForAll: collection higher-order combinators.
+// sigma-rust mir/coll_fold.rs, coll_map.rs, coll_filter.rs, coll_exists.rs,
+// coll_forall.rs.
+export interface Fold {
+  tag: 'Fold'
+  input: Expr
+  zero: Expr
+  foldOp: Expr
+}
+export interface Map {
+  tag: 'Map'
+  input: Expr
+  mapper: Expr
+}
+export interface Filter {
+  tag: 'Filter'
+  input: Expr
+  condition: Expr
+}
+export interface Exists {
+  tag: 'Exists'
+  input: Expr
+  condition: Expr
+}
+export interface ForAll {
+  tag: 'ForAll'
+  input: Expr
+  condition: Expr
+}
+
+// SelectField: tuple field access (1-based). sigma-rust mir/select_field.rs.
+export interface SelectField {
+  tag: 'SelectField'
+  input: Expr
+  /** 1-based index; sigma-rust enforces `>= 1`. */
+  fieldIndex: number
+}
+
+// BoolToSigmaProp / Upcast / Downcast: type conversions.
+// sigma-rust mir/bool_to_sigma.rs, upcast.rs, downcast.rs.
+export interface BoolToSigmaProp {
+  tag: 'BoolToSigmaProp'
+  input: Expr
+}
+export interface Upcast {
+  tag: 'Upcast'
+  input: Expr
+  tpe: SType
+}
+export interface Downcast {
+  tag: 'Downcast'
+  input: Expr
+  tpe: SType
+}
+
+// CreateProveDlog / CreateProveDhTuple: build sigma-protocol propositions
+// from GroupElements. sigma-rust mir/create_provedlog.rs,
+// create_prove_dh_tuple.rs.
+export interface CreateProveDlog {
+  tag: 'CreateProveDlog'
+  input: Expr
+}
+export interface CreateProveDhTuple {
+  tag: 'CreateProveDhTuple'
+  g: Expr
+  h: Expr
+  u: Expr
+  v: Expr
+}
+
+// SigmaPropBytes / SigmaPropIsProven: SigmaProp accessors.
+// sigma-rust mir/sigma_prop_bytes.rs, sigma_prop_is_proven.rs.
+export interface SigmaPropBytes {
+  tag: 'SigmaPropBytes'
+  input: Expr
+}
+export interface SigmaPropIsProven {
+  tag: 'SigmaPropIsProven'
+  input: Expr
+}
+
+/**
+ * ZkProofBlock: explicit Zero Knowledge scope. sigma-rust
+ * mir/zk_proof.rs::ZkProofBlock. Has no canonical opcode in sigma-rust
+ * (Scala's `OpCodes.Undefined`); serialization fails with `NotSupported`.
+ * Modeled for AST parity but the serializer will throw, mirroring Rust.
+ */
+export interface ZkProofBlock {
+  tag: 'ZkProofBlock'
+  input: Expr
+}
+
+// DecodePoint: byte array → GroupElement. sigma-rust mir/decode_point.rs.
+export interface DecodePoint {
+  tag: 'DecodePoint'
+  input: Expr
+}
+
+// SigmaAnd / SigmaOr: AND/OR conjunctions over SigmaProp propositions.
+// sigma-rust mir/sigma_and.rs, sigma_or.rs.
+export interface SigmaAnd {
+  tag: 'SigmaAnd'
+  items: Expr[]
+}
+export interface SigmaOr {
+  tag: 'SigmaOr'
+  items: Expr[]
+}
+
+// GetVar: extract a context variable by id. sigma-rust mir/get_var.rs.
+export interface GetVar {
+  tag: 'GetVar'
+  varId: number
+  varTpe: SType
+}
+
+// DeserializeRegister / DeserializeContext: extract serialized scripts from
+// register / context-extension and inline them. sigma-rust
+// mir/deserialize_register.rs, deserialize_context.rs.
+export interface DeserializeRegister {
+  tag: 'DeserializeRegister'
+  /** Register number 0..9. */
+  reg: number
+  tpe: SType
+  default: Expr | null
+}
+export interface DeserializeContext {
+  tag: 'DeserializeContext'
+  tpe: SType
+  id: number
+}
+
+// MultiplyGroup / Exponentiate: GroupElement arithmetic.
+// sigma-rust mir/multiply_group.rs, exponentiate.rs.
+export interface MultiplyGroup {
+  tag: 'MultiplyGroup'
+  left: Expr
+  right: Expr
+}
+export interface Exponentiate {
+  tag: 'Exponentiate'
+  left: Expr
+  right: Expr
+}
+
+// XorOf: XOR over a Coll[Boolean]. sigma-rust mir/xor_of.rs.
+export interface XorOf {
+  tag: 'XorOf'
+  input: Expr
+}
+
+// TreeLookup: AVL+ tree key lookup. sigma-rust mir/tree_lookup.rs.
+export interface TreeLookup {
+  tag: 'TreeLookup'
+  tree: Expr
+  key: Expr
+  proof: Expr
+}
+
+// CreateAvlTree: construct an AVL tree value. sigma-rust mir/create_avl_tree.rs.
+export interface CreateAvlTree {
+  tag: 'CreateAvlTree'
+  flags: Expr
+  digest: Expr
+  keyLength: Expr
+  /** Optional value-length expr; sigma-rust uses `Option<Box<Expr>>`. */
+  valueLength: Expr | null
+}
+
+/**
+ * Full ErgoTree MIR expression union. 68 variants, one per sigma-rust
+ * `Expr` enum arm. Discriminated on `tag`.
+ *
+ * Adding a new variant requires a corresponding handler in both
+ * `wire/parse.ts` (opcode → constructor) and `wire/serialize.ts`
+ * (`tag` → opcode + payload). Both files use exhaustive switches over the
+ * opcode byte / `tag` respectively to make additions compile-time-visible.
+ */
+export type Expr =
+  | Append
+  | Const
+  | ConstPlaceholder
+  | SubstConstants
+  | ByteArrayToLong
+  | ByteArrayToBigInt
+  | LongToByteArray
+  | Collection
+  | Tuple
+  | CalcBlake2b256
+  | CalcSha256
+  | Context
+  | Global
+  | GlobalVars
+  | FuncValue
+  | Apply
+  | MethodCall
+  | PropertyCall
+  | BlockValue
+  | ValDef
+  | ValUse
+  | If
+  | BinOp
+  | And
+  | Or
+  | Xor
+  | Atleast
+  | LogicalNot
+  | Negation
+  | BitInversion
+  | OptionGet
+  | OptionIsDefined
+  | OptionGetOrElse
+  | ExtractAmount
+  | ExtractRegisterAs
+  | ExtractBytes
+  | ExtractBytesWithNoRef
+  | ExtractScriptBytes
+  | ExtractCreationInfo
+  | ExtractId
+  | ByIndex
+  | SizeOf
+  | Slice
+  | Fold
+  | Map
+  | Filter
+  | Exists
+  | ForAll
+  | SelectField
+  | BoolToSigmaProp
+  | Upcast
+  | Downcast
+  | CreateProveDlog
+  | CreateProveDhTuple
+  | SigmaPropBytes
+  | SigmaPropIsProven
+  | ZkProofBlock
+  | DecodePoint
+  | SigmaAnd
+  | SigmaOr
+  | GetVar
+  | DeserializeRegister
+  | DeserializeContext
+  | MultiplyGroup
+  | Exponentiate
+  | XorOf
+  | TreeLookup
+  | CreateAvlTree
 
 /**
  * Runtime value union. Variants mirror sigma-rust's `Value<'ctx>` enum in

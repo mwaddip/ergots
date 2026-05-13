@@ -69,10 +69,11 @@ describe('ErgoTree envelope', () => {
     })
 
     it('reaches body parser for header with no size + no segregation', () => {
-      // Header 0x00 + a body opcode byte 0xFF. Envelope parses header
-      // successfully, then parseExpr (stub) reads opcode 0xFF and throws
-      // not-implemented-yet. This proves the envelope wiring delivered
-      // control to the body parser with the cursor at the right spot.
+      // Header 0x00 + a body opcode byte 0xFF (= XOR_OF, a real sigma-rust
+      // opcode). Envelope parses header successfully, then parseExpr
+      // dispatches the XOR_OF case and throws not-implemented-yet. This
+      // proves the envelope wiring delivered control to the body parser
+      // with the cursor at the right spot.
       const bytes = new Uint8Array([0x00, 0xff])
       try {
         parseTree(bytes)
@@ -80,25 +81,32 @@ describe('ErgoTree envelope', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
-        expect((e as Error).message).toContain('0xff')
+        // Assert on the variant name (XorOf) rather than the raw byte —
+        // the dispatch table identifies opcodes by name in its messages.
+        expect((e as Error).message).toContain('XorOf')
       }
     })
 
     it('parses header bits correctly: version=1, hasSize, segregation', () => {
       // 0x19 = 0b0001_1001 = version 1 (0b001), hasSize (bit 3), segregation
       // (bit 4). Body size = 3 bytes (constants_count=0 byte + opcode + 1
-      // arbitrary byte), constants_count = 0 (VLQ), then opcode 0xAB +
-      // arbitrary byte 0xCD. The envelope-only path is: read header, read
-      // size=3, slice inner buffer of 3 bytes, read constants_count=0,
-      // then dispatch to body which throws on opcode 0xAB.
-      const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xab, 0xcd])
+      // arbitrary byte), constants_count = 0 (VLQ), then opcode 0xFE
+      // (CONTEXT, a real sigma-rust opcode that's still unimplemented) and
+      // an arbitrary filler byte 0xCD. The envelope-only path is: read
+      // header, read size=3, slice inner buffer of 3 bytes, read
+      // constants_count=0, then dispatch to body which throws
+      // not-implemented-yet on opcode 0xFE (Context).
+      const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xfe, 0xcd])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
-        expect((e as Error).message).toContain('0xab')
+        // The thrown error's message names the upcoming task; assert on
+        // the variant name rather than the byte to make the test robust to
+        // formatting changes in the error message.
+        expect((e as Error).message).toContain('Context')
       }
     })
 
@@ -120,8 +128,9 @@ describe('ErgoTree envelope', () => {
     it('parses a single SBoolean constant (true)', () => {
       // Header 0x10 (segregation, no size, v0), count=1 (VLQ 0x01),
       // SType SBoolean (0x01), SValue true (0x01), then body byte 0xff
-      // which the stub will throw on. The envelope reaching that throw
-      // proves: header parsed, count parsed, SType parsed, SValue parsed.
+      // (= XOR_OF) on which parseExpr throws not-implemented-yet. The
+      // envelope reaching that throw proves: header parsed, count parsed,
+      // SType parsed, SValue parsed.
       const bytes = new Uint8Array([0x10, 0x01, 0x01, 0x01, 0xff])
       try {
         parseTree(bytes)
@@ -129,7 +138,7 @@ describe('ErgoTree envelope', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
-        expect((e as Error).message).toContain('0xff')
+        expect((e as Error).message).toContain('XorOf')
       }
     })
 
@@ -165,7 +174,10 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [],
       constants: [],
-      body: { tag: 'TODO' }
+      // Body is a Context (smallest no-payload variant). Its serializer
+      // is `not-implemented-yet` until Task 16, so this still triggers the
+      // throw we want to assert against.
+      body: { tag: 'Context' }
     }
     expect(() => serializeTree(tree)).toThrow(/not implemented yet/)
   })
@@ -180,7 +192,10 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [{ tag: 'SBoolean' }],
       constants: [], // arity mismatch
-      body: { tag: 'TODO' }
+      // Body is a Context (smallest no-payload variant). Its serializer
+      // is `not-implemented-yet` until Task 16, so this still triggers the
+      // throw we want to assert against.
+      body: { tag: 'Context' }
     }
     expect(() => serializeTree(tree)).toThrow(ErgoTreeSerializeError)
     try {
@@ -207,7 +222,10 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [],
       constants: [],
-      body: { tag: 'TODO' }
+      // Body is a Context (smallest no-payload variant). Its serializer
+      // is `not-implemented-yet` until Task 16, so this still triggers the
+      // throw we want to assert against.
+      body: { tag: 'Context' }
     }
     expect(() => serializeTree(tree)).toThrow(ErgoTreeSerializeError)
     try {
