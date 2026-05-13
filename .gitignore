@@ -15,3 +15,7 @@ package-lock.json
 # Per-developer
 .vscode/
 .idea/
+
+# Local-only session/handoff state (per-developer)
+SESSION_CONTEXT.md
+HANDOFF_PROMPT.md
