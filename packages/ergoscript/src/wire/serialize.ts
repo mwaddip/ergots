@@ -79,6 +79,8 @@ import { serializeSigmaPropIsProven } from './mir/sigma-prop-is-proven'
 import { serializeSigmaAnd } from './mir/sigma-and'
 import { serializeSigmaOr } from './mir/sigma-or'
 import { serializeSubstConstants } from './mir/subst-const'
+import { serializeDeserializeContext } from './mir/deserialize-context'
+import { serializeDeserializeRegister } from './mir/deserialize-register'
 
 export { ExprSerializeError } from './errors'
 
@@ -344,15 +346,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeGetVar(e, w)
       return
     case 'DeserializeRegister':
-      throw new ExprSerializeError(
-        'DeserializeRegister serialization not implemented yet (Task 26)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_DESERIALIZE_REGISTER)
+      serializeDeserializeRegister(e, w)
+      return
     case 'DeserializeContext':
-      throw new ExprSerializeError(
-        'DeserializeContext serialization not implemented yet (Task 26)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_DESERIALIZE_CONTEXT)
+      serializeDeserializeContext(e, w)
+      return
     case 'MultiplyGroup':
       w.writeU8(OP.OP_MULTIPLY_GROUP)
       serializeMultiplyGroup(e, w)

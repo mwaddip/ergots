@@ -101,6 +101,8 @@ import { parseSigmaPropIsProven } from './mir/sigma-prop-is-proven'
 import { parseSigmaAnd } from './mir/sigma-and'
 import { parseSigmaOr } from './mir/sigma-or'
 import { parseSubstConstants } from './mir/subst-const'
+import { parseDeserializeContext } from './mir/deserialize-context'
+import { parseDeserializeRegister } from './mir/deserialize-register'
 
 export { ExprParseError } from './errors'
 
@@ -315,15 +317,9 @@ export function parseExprWithFirstByte(
     case OP.OP_BOOL_TO_SIGMA_PROP:
       return parseBoolToSigmaProp(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_DESERIALIZE_CONTEXT:
-      throw new ExprParseError(
-        'DeserializeContext opcode not implemented yet (Task 26)',
-        'not-implemented-yet'
-      )
+      return parseDeserializeContext(r)
     case OP.OP_DESERIALIZE_REGISTER:
-      throw new ExprParseError(
-        'DeserializeRegister opcode not implemented yet (Task 26)',
-        'not-implemented-yet'
-      )
+      return parseDeserializeRegister(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_VAL_DEF:
       return parseValDef(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BLOCK_VALUE:
