@@ -1,0 +1,682 @@
+{
+  "entries": [
+    {
+      "name": "SBoolean",
+      "tpe": {
+        "tag": "SBoolean"
+      },
+      "bytes_hex": "01"
+    },
+    {
+      "name": "SByte",
+      "tpe": {
+        "tag": "SByte"
+      },
+      "bytes_hex": "02"
+    },
+    {
+      "name": "SShort",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "bytes_hex": "03"
+    },
+    {
+      "name": "SInt",
+      "tpe": {
+        "tag": "SInt"
+      },
+      "bytes_hex": "04"
+    },
+    {
+      "name": "SLong",
+      "tpe": {
+        "tag": "SLong"
+      },
+      "bytes_hex": "05"
+    },
+    {
+      "name": "SBigInt",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "bytes_hex": "06"
+    },
+    {
+      "name": "SGroupElement",
+      "tpe": {
+        "tag": "SGroupElement"
+      },
+      "bytes_hex": "07"
+    },
+    {
+      "name": "SSigmaProp",
+      "tpe": {
+        "tag": "SSigmaProp"
+      },
+      "bytes_hex": "08"
+    },
+    {
+      "name": "SAny",
+      "tpe": {
+        "tag": "SAny"
+      },
+      "bytes_hex": "61"
+    },
+    {
+      "name": "SUnit",
+      "tpe": {
+        "tag": "SUnit"
+      },
+      "bytes_hex": "62"
+    },
+    {
+      "name": "SBox",
+      "tpe": {
+        "tag": "SBox"
+      },
+      "bytes_hex": "63"
+    },
+    {
+      "name": "SAvlTree",
+      "tpe": {
+        "tag": "SAvlTree"
+      },
+      "bytes_hex": "64"
+    },
+    {
+      "name": "SContext",
+      "tpe": {
+        "tag": "SContext"
+      },
+      "bytes_hex": "65"
+    },
+    {
+      "name": "SString",
+      "tpe": {
+        "tag": "SString"
+      },
+      "bytes_hex": "66"
+    },
+    {
+      "name": "SHeader",
+      "tpe": {
+        "tag": "SHeader"
+      },
+      "bytes_hex": "68"
+    },
+    {
+      "name": "SPreHeader",
+      "tpe": {
+        "tag": "SPreHeader"
+      },
+      "bytes_hex": "69"
+    },
+    {
+      "name": "SGlobal",
+      "tpe": {
+        "tag": "SGlobal"
+      },
+      "bytes_hex": "6a"
+    },
+    {
+      "name": "SColl[SBoolean]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SBoolean"
+        }
+      },
+      "bytes_hex": "0d"
+    },
+    {
+      "name": "SColl[SByte]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SByte"
+        }
+      },
+      "bytes_hex": "0e"
+    },
+    {
+      "name": "SColl[SShort]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SShort"
+        }
+      },
+      "bytes_hex": "0f"
+    },
+    {
+      "name": "SColl[SInt]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SInt"
+        }
+      },
+      "bytes_hex": "10"
+    },
+    {
+      "name": "SColl[SLong]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SLong"
+        }
+      },
+      "bytes_hex": "11"
+    },
+    {
+      "name": "SColl[SBigInt]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SBigInt"
+        }
+      },
+      "bytes_hex": "12"
+    },
+    {
+      "name": "SColl[SGroupElement]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SGroupElement"
+        }
+      },
+      "bytes_hex": "13"
+    },
+    {
+      "name": "SColl[SSigmaProp]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SSigmaProp"
+        }
+      },
+      "bytes_hex": "14"
+    },
+    {
+      "name": "SColl[SColl[SByte]]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SByte"
+          }
+        }
+      },
+      "bytes_hex": "1a"
+    },
+    {
+      "name": "SColl[SColl[SInt]]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SInt"
+          }
+        }
+      },
+      "bytes_hex": "1c"
+    },
+    {
+      "name": "SColl[SColl[SLong]]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SLong"
+          }
+        }
+      },
+      "bytes_hex": "1d"
+    },
+    {
+      "name": "SColl[SBox]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SBox"
+        }
+      },
+      "bytes_hex": "0c63"
+    },
+    {
+      "name": "SColl[SUnit]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SUnit"
+        }
+      },
+      "bytes_hex": "0c62"
+    },
+    {
+      "name": "SColl[SColl[SBox]]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SBox"
+          }
+        }
+      },
+      "bytes_hex": "0c0c63"
+    },
+    {
+      "name": "SColl[SColl[SColl[SByte]]]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SColl",
+            "elem": {
+              "tag": "SByte"
+            }
+          }
+        }
+      },
+      "bytes_hex": "0c1a"
+    },
+    {
+      "name": "SOption[SBoolean]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SBoolean"
+        }
+      },
+      "bytes_hex": "25"
+    },
+    {
+      "name": "SOption[SInt]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SInt"
+        }
+      },
+      "bytes_hex": "28"
+    },
+    {
+      "name": "SOption[SLong]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SLong"
+        }
+      },
+      "bytes_hex": "29"
+    },
+    {
+      "name": "SOption[SGroupElement]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SGroupElement"
+        }
+      },
+      "bytes_hex": "2b"
+    },
+    {
+      "name": "SOption[SColl[SByte]]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SByte"
+          }
+        }
+      },
+      "bytes_hex": "32"
+    },
+    {
+      "name": "SOption[SColl[SInt]]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SInt"
+          }
+        }
+      },
+      "bytes_hex": "34"
+    },
+    {
+      "name": "SOption[SBox]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SBox"
+        }
+      },
+      "bytes_hex": "2463"
+    },
+    {
+      "name": "SOption[SAvlTree]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SAvlTree"
+        }
+      },
+      "bytes_hex": "2464"
+    },
+    {
+      "name": "SOption[SColl[SBox]]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SBox"
+          }
+        }
+      },
+      "bytes_hex": "240c63"
+    },
+    {
+      "name": "SOption[STuple[SInt,SInt]]",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "STuple",
+          "items": [
+            {
+              "tag": "SInt"
+            },
+            {
+              "tag": "SInt"
+            }
+          ]
+        }
+      },
+      "bytes_hex": "2458"
+    },
+    {
+      "name": "STuple[SInt,SInt]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SInt"
+          },
+          {
+            "tag": "SInt"
+          }
+        ]
+      },
+      "bytes_hex": "58"
+    },
+    {
+      "name": "STuple[SLong,SLong]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SLong"
+          }
+        ]
+      },
+      "bytes_hex": "59"
+    },
+    {
+      "name": "STuple[SBoolean,SBoolean]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SBoolean"
+          },
+          {
+            "tag": "SBoolean"
+          }
+        ]
+      },
+      "bytes_hex": "55"
+    },
+    {
+      "name": "STuple[SInt,SBox]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SInt"
+          },
+          {
+            "tag": "SBox"
+          }
+        ]
+      },
+      "bytes_hex": "4063"
+    },
+    {
+      "name": "STuple[SByte,SLong]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SByte"
+          },
+          {
+            "tag": "SLong"
+          }
+        ]
+      },
+      "bytes_hex": "3e05"
+    },
+    {
+      "name": "STuple[SBox,SInt]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SBox"
+          },
+          {
+            "tag": "SInt"
+          }
+        ]
+      },
+      "bytes_hex": "4c63"
+    },
+    {
+      "name": "STuple[SBox,SAvlTree]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SBox"
+          },
+          {
+            "tag": "SAvlTree"
+          }
+        ]
+      },
+      "bytes_hex": "3c6364"
+    },
+    {
+      "name": "STuple[SColl[SLong],SColl[SLong]]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SColl",
+            "elem": {
+              "tag": "SLong"
+            }
+          },
+          {
+            "tag": "SColl",
+            "elem": {
+              "tag": "SLong"
+            }
+          }
+        ]
+      },
+      "bytes_hex": "3c1111"
+    },
+    {
+      "name": "STuple[SLong,SLong,SByte]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SByte"
+          }
+        ]
+      },
+      "bytes_hex": "48050502"
+    },
+    {
+      "name": "STuple[SLong,SLong,SByte,SBoolean]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SByte"
+          },
+          {
+            "tag": "SBoolean"
+          }
+        ]
+      },
+      "bytes_hex": "5405050201"
+    },
+    {
+      "name": "STuple[SLong,SLong,SByte,SBoolean,SInt]",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SLong"
+          },
+          {
+            "tag": "SByte"
+          },
+          {
+            "tag": "SBoolean"
+          },
+          {
+            "tag": "SInt"
+          }
+        ]
+      },
+      "bytes_hex": "60050505020104"
+    },
+    {
+      "name": "STypeVar[T]",
+      "tpe": {
+        "tag": "STypeVar",
+        "name": "T"
+      },
+      "bytes_hex": "670154"
+    },
+    {
+      "name": "STypeVar[IV]",
+      "tpe": {
+        "tag": "STypeVar",
+        "name": "IV"
+      },
+      "bytes_hex": "67024956"
+    },
+    {
+      "name": "SFunc[(SInt)=>SBoolean]",
+      "tpe": {
+        "tag": "SFunc",
+        "args": [
+          {
+            "tag": "SInt"
+          }
+        ],
+        "result": {
+          "tag": "SBoolean"
+        },
+        "tpeParams": []
+      },
+      "bytes_hex": "7001040100"
+    },
+    {
+      "name": "SFunc[()=>SUnit]",
+      "tpe": {
+        "tag": "SFunc",
+        "args": [],
+        "result": {
+          "tag": "SUnit"
+        },
+        "tpeParams": []
+      },
+      "bytes_hex": "70006200"
+    },
+    {
+      "name": "SFunc[(SInt,SLong)=>SBoolean]",
+      "tpe": {
+        "tag": "SFunc",
+        "args": [
+          {
+            "tag": "SInt"
+          },
+          {
+            "tag": "SLong"
+          }
+        ],
+        "result": {
+          "tag": "SBoolean"
+        },
+        "tpeParams": []
+      },
+      "bytes_hex": "700204050100"
+    },
+    {
+      "name": "SFunc[(T)=>T,tpeParams:[T]]",
+      "tpe": {
+        "tag": "SFunc",
+        "args": [
+          {
+            "tag": "STypeVar",
+            "name": "T"
+          }
+        ],
+        "result": {
+          "tag": "STypeVar",
+          "name": "T"
+        },
+        "tpeParams": [
+          {
+            "name": "T"
+          }
+        ]
+      },
+      "bytes_hex": "700167015467015401670154"
+    }
+  ]
+}

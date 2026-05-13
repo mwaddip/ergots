@@ -1,0 +1,419 @@
+{
+  "entries": [
+    {
+      "name": "Const SInt 42",
+      "description": "inline SInt constant — opcode byte is the SType (0x04), payload is the ZigZag VLQ value",
+      "expr_hex": "0454"
+    },
+    {
+      "name": "Const SLong 1000000",
+      "description": "inline SLong constant — opcode 0x05, payload ZigZag VLQ",
+      "expr_hex": "0580897a"
+    },
+    {
+      "name": "Const SBoolean true",
+      "description": "inline SBoolean constant — emitted as OP_TRUE (0x7f) by the special boolean path",
+      "expr_hex": "0101"
+    },
+    {
+      "name": "Const SBoolean false",
+      "description": "inline SBoolean constant — emitted as OP_FALSE (0x80)",
+      "expr_hex": "0100"
+    },
+    {
+      "name": "Const SColl[SByte] [1,2,3]",
+      "description": "inline byte-array constant — opcode 0x0e (SColl[SByte]), VLQ-u16 length + raw bytes",
+      "expr_hex": "0e03010203"
+    },
+    {
+      "name": "GlobalVars Height",
+      "description": "opcode 0xa3 — predefined global HEIGHT (SInt)",
+      "expr_hex": "a3"
+    },
+    {
+      "name": "GlobalVars SelfBox",
+      "description": "opcode 0xa7 — predefined global SELF (SBox)",
+      "expr_hex": "a7"
+    },
+    {
+      "name": "GlobalVars Inputs",
+      "description": "opcode 0xa4 — predefined global INPUTS (Coll[SBox])",
+      "expr_hex": "a4"
+    },
+    {
+      "name": "GlobalVars Outputs",
+      "description": "opcode 0xa5 — predefined global OUTPUTS (Coll[SBox])",
+      "expr_hex": "a5"
+    },
+    {
+      "name": "GlobalVars MinerPubKey",
+      "description": "opcode 0xac — predefined global MINER_PUBKEY (Coll[SByte])",
+      "expr_hex": "ac"
+    },
+    {
+      "name": "GlobalVars GroupGenerator",
+      "description": "opcode 0x82 — predefined global GROUP_GENERATOR (SGroupElement)",
+      "expr_hex": "82"
+    },
+    {
+      "name": "Context",
+      "description": "opcode 0xfe — the Context object (SContext)",
+      "expr_hex": "fe"
+    },
+    {
+      "name": "Global",
+      "description": "opcode 0xdd — the Global namespace (SGlobal)",
+      "expr_hex": "dd"
+    },
+    {
+      "name": "If(true, 1, 0)",
+      "description": "opcode 0x95 — If with three Expr children: condition, true-branch, false-branch",
+      "expr_hex": "95010104020400"
+    },
+    {
+      "name": "BinOp Plus(1, 2)",
+      "description": "opcode 0x9a — Plus arith op on two SInt operands",
+      "expr_hex": "9a04020404"
+    },
+    {
+      "name": "BinOp Minus(10, 4)",
+      "description": "opcode 0x99 — Minus",
+      "expr_hex": "9904140408"
+    },
+    {
+      "name": "BinOp Multiply(2, 3)",
+      "description": "opcode 0x9c — Multiply",
+      "expr_hex": "9c04040406"
+    },
+    {
+      "name": "BinOp Divide(20, 5)",
+      "description": "opcode 0x9d — Divide",
+      "expr_hex": "9d0428040a"
+    },
+    {
+      "name": "BinOp Modulo(7, 3)",
+      "description": "opcode 0x9e — Modulo",
+      "expr_hex": "9e040e0406"
+    },
+    {
+      "name": "BinOp Max(1, 2)",
+      "description": "opcode 0xa2 — Max",
+      "expr_hex": "a204020404"
+    },
+    {
+      "name": "BinOp Min(1, 2)",
+      "description": "opcode 0xa1 — Min",
+      "expr_hex": "a104020404"
+    },
+    {
+      "name": "BinOp Eq(1, 1)",
+      "description": "opcode 0x93 — Eq (returns SBoolean)",
+      "expr_hex": "9304020402"
+    },
+    {
+      "name": "BinOp NEq(1, 2)",
+      "description": "opcode 0x94 — NEq",
+      "expr_hex": "9404020404"
+    },
+    {
+      "name": "BinOp Ge(2, 1)",
+      "description": "opcode 0x92 — Ge",
+      "expr_hex": "9204040402"
+    },
+    {
+      "name": "BinOp Gt(2, 1)",
+      "description": "opcode 0x91 — Gt",
+      "expr_hex": "9104040402"
+    },
+    {
+      "name": "BinOp Le(1, 2)",
+      "description": "opcode 0x90 — Le",
+      "expr_hex": "9004020404"
+    },
+    {
+      "name": "BinOp Lt(1, 2)",
+      "description": "opcode 0x8f — Lt",
+      "expr_hex": "8f04020404"
+    },
+    {
+      "name": "BinOp BinAnd(true, false)",
+      "description": "opcode 0xed — binary BinAnd (NOT the And-over-collection opcode 0x96)",
+      "expr_hex": "ed8501"
+    },
+    {
+      "name": "BinOp BinOr(true, false)",
+      "description": "opcode 0xec — binary BinOr",
+      "expr_hex": "ec8501"
+    },
+    {
+      "name": "BinOp BinXor(true, true)",
+      "description": "opcode 0xf4 — binary BinXor",
+      "expr_hex": "f48503"
+    },
+    {
+      "name": "BinOp BitOr(1, 2)",
+      "description": "opcode 0xf2 — BitOr",
+      "expr_hex": "f204020404"
+    },
+    {
+      "name": "BinOp BitAnd(1, 3)",
+      "description": "opcode 0xf3 — BitAnd",
+      "expr_hex": "f304020406"
+    },
+    {
+      "name": "BinOp BitXor(1, 1)",
+      "description": "opcode 0xf5 — BitXor",
+      "expr_hex": "f504020402"
+    },
+    {
+      "name": "BinOp BitShiftLeft(1, 2)",
+      "description": "opcode 0xf7 — BitShiftLeft",
+      "expr_hex": "f704020404"
+    },
+    {
+      "name": "BinOp BitShiftRight(8, 2)",
+      "description": "opcode 0xf6 — BitShiftRight (arithmetic)",
+      "expr_hex": "f604100404"
+    },
+    {
+      "name": "BinOp BitShiftRightZeroed(8, 2)",
+      "description": "opcode 0xf8 — BitShiftRightZeroed (logical)",
+      "expr_hex": "f804100404"
+    },
+    {
+      "name": "And(Coll[Boolean])",
+      "description": "opcode 0x96 — And conjunction over a Coll[Boolean] (the BoolConstants variant)",
+      "expr_hex": "96850305"
+    },
+    {
+      "name": "Or(Coll[Boolean])",
+      "description": "opcode 0x97 — Or disjunction over a Coll[Boolean]",
+      "expr_hex": "97850305"
+    },
+    {
+      "name": "Xor(Coll[Byte], Coll[Byte])",
+      "description": "opcode 0x9b — byte-wise XOR of two Coll[SByte]",
+      "expr_hex": "9b0e02aaaa0e025555"
+    },
+    {
+      "name": "Atleast(2, Coll[SigmaProp])",
+      "description": "opcode 0x98 — threshold combinator: ≥ N of the SigmaProps in the input collection",
+      "expr_hex": "98040483010808cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+    },
+    {
+      "name": "LogicalNot(true)",
+      "description": "opcode 0xef — boolean negation",
+      "expr_hex": "ef0101"
+    },
+    {
+      "name": "Negation(SInt 1)",
+      "description": "opcode 0xf0 — numeric negation",
+      "expr_hex": "f00402"
+    },
+    {
+      "name": "BitInversion(SLong 1)",
+      "description": "opcode 0xf1 — bitwise complement on a numeric value",
+      "expr_hex": "f10502"
+    },
+    {
+      "name": "ExtractAmount(SELF)",
+      "description": "opcode 0xc1 — SELF.value (SLong)",
+      "expr_hex": "c1a7"
+    },
+    {
+      "name": "ExtractId(SELF)",
+      "description": "opcode 0xc5 — SELF.id (Coll[SByte], 32 bytes)",
+      "expr_hex": "c5a7"
+    },
+    {
+      "name": "ExtractScriptBytes(SELF)",
+      "description": "opcode 0xc2 — SELF.propositionBytes (Coll[SByte])",
+      "expr_hex": "c2a7"
+    },
+    {
+      "name": "ExtractBytes(SELF)",
+      "description": "opcode 0xc3 — SELF.bytes (Coll[SByte])",
+      "expr_hex": "c3a7"
+    },
+    {
+      "name": "ExtractBytesWithNoRef(SELF)",
+      "description": "opcode 0xc4 — SELF.bytesWithoutRef (Coll[SByte])",
+      "expr_hex": "c4a7"
+    },
+    {
+      "name": "ExtractCreationInfo(SELF)",
+      "description": "opcode 0xc7 — SELF.creationInfo ((SInt, Coll[SByte]))",
+      "expr_hex": "c7a7"
+    },
+    {
+      "name": "ExtractRegisterAs(SELF, R4, SOption[SInt])",
+      "description": "opcode 0xc6 — SELF.RX[T] (returns SOption[T]); register-id i8 + SType byte",
+      "expr_hex": "c6a70404"
+    },
+    {
+      "name": "Collection Exprs SInt [1,2,3]",
+      "description": "opcode 0x83 (COLL) — Collection of three SInt expressions; payload is VLQ-u16 length + SType byte + each Expr",
+      "expr_hex": "830304040204040406"
+    },
+    {
+      "name": "Collection BoolConstants [T,F,T]",
+      "description": "opcode 0x85 (COLL_OF_BOOL_CONST) — packed boolean collection; payload is VLQ-u16 length + bit-packed bools",
+      "expr_hex": "850305"
+    },
+    {
+      "name": "SizeOf(MINER_PUBKEY)",
+      "description": "opcode 0xb1 — Coll.size",
+      "expr_hex": "b1ac"
+    },
+    {
+      "name": "ByIndex(MINER_PUBKEY, 0, None)",
+      "description": "opcode 0xb2 — Coll.apply(index); default branch is Option<Expr> (None here)",
+      "expr_hex": "b2ac040000"
+    },
+    {
+      "name": "Append(MINER_PUBKEY, MINER_PUBKEY)",
+      "description": "opcode 0xb3 — Coll.append",
+      "expr_hex": "b3acac"
+    },
+    {
+      "name": "Tuple(SInt 1, SBoolean true)",
+      "description": "opcode 0x86 — Tuple of mixed types; payload is u8 length + each Expr",
+      "expr_hex": "860204020101"
+    },
+    {
+      "name": "SelectField(Tuple, 1)",
+      "description": "opcode 0x8c — tuple field selector; field index is 1-based u8",
+      "expr_hex": "8c86020402010101"
+    },
+    {
+      "name": "BoolToSigmaProp(true)",
+      "description": "opcode 0xd1 — wrap an SBoolean into an SSigmaProp",
+      "expr_hex": "d10101"
+    },
+    {
+      "name": "SigmaPropBytes(ProveDlog)",
+      "description": "opcode 0xd0 — serialized bytes of a SigmaProp value",
+      "expr_hex": "d008cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+    },
+    {
+      "name": "SigmaPropIsProven(ProveDlog)",
+      "description": "opcode 0xcf — SigmaProp.isProven (returns SBoolean)",
+      "expr_hex": "cf08cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+    },
+    {
+      "name": "SigmaAnd([ProveDlog])",
+      "description": "opcode 0xea — AND conjunction over a non-empty list of SigmaProps",
+      "expr_hex": "ea0108cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+    },
+    {
+      "name": "SigmaOr([ProveDlog])",
+      "description": "opcode 0xeb — OR conjunction over a non-empty list of SigmaProps",
+      "expr_hex": "eb0108cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+    },
+    {
+      "name": "BlockValue([ValDef 1 = 42], ValUse 1)",
+      "description": "opcode 0xd8 (BLOCK_VALUE) wrapping ValDef (0xd6) and ValUse (0x72)",
+      "expr_hex": "d801d60104547201"
+    },
+    {
+      "name": "OptionGet(SELF.R4[SInt])",
+      "description": "opcode 0xe4 — Option.get",
+      "expr_hex": "e4c6a70404"
+    },
+    {
+      "name": "OptionIsDefined(SELF.R4[SInt])",
+      "description": "opcode 0xe6 — Option.isDefined (returns SBoolean)",
+      "expr_hex": "e6c6a70404"
+    },
+    {
+      "name": "OptionGetOrElse(SELF.R4[SInt], 0)",
+      "description": "opcode 0xe5 — Option.getOrElse(default)",
+      "expr_hex": "e5c6a704040400"
+    },
+    {
+      "name": "CalcBlake2b256(Coll[Byte])",
+      "description": "opcode 0xcb — blake2b256",
+      "expr_hex": "cb0e03010203"
+    },
+    {
+      "name": "CalcSha256(Coll[Byte])",
+      "description": "opcode 0xcc — sha256",
+      "expr_hex": "cc0e03010203"
+    },
+    {
+      "name": "Upcast(SInt 1, SLong)",
+      "description": "opcode 0x7e — numeric widening; target SType follows the opcode",
+      "expr_hex": "7e040205"
+    },
+    {
+      "name": "Downcast(SLong 1, SInt)",
+      "description": "opcode 0x7d — numeric narrowing",
+      "expr_hex": "7d050204"
+    },
+    {
+      "name": "DecodePoint(zeros33)",
+      "description": "opcode 0xee — byte-array to GroupElement",
+      "expr_hex": "ee0e21000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "LongToByteArray(SLong 1)",
+      "description": "opcode 0x7a — SLong → Coll[SByte]",
+      "expr_hex": "7a0502"
+    },
+    {
+      "name": "ByteArrayToLong(Coll[Byte])",
+      "description": "opcode 0x7c — Coll[SByte] → SLong",
+      "expr_hex": "7c0e080000000000000000"
+    },
+    {
+      "name": "ByteArrayToBigInt(Coll[Byte])",
+      "description": "opcode 0x7b — Coll[SByte] → SBigInt",
+      "expr_hex": "7b0e0101"
+    },
+    {
+      "name": "SubstConstants(script, [0], [42])",
+      "description": "opcode 0x74 — substitute constants in a serialized script. Three Expr children: script bytes, positions, new values.",
+      "expr_hex": "740e02000183010404008301040454"
+    },
+    {
+      "name": "DeserializeContext(SInt, varId=1)",
+      "description": "opcode 0xd4 — type byte + u8 varId; inlines script from context extension at the given id",
+      "expr_hex": "d40401"
+    },
+    {
+      "name": "DeserializeRegister(SInt, R4, None)",
+      "description": "opcode 0xd5 — type byte + u8 register-id + Option<default>",
+      "expr_hex": "d5040400"
+    },
+    {
+      "name": "MultiplyGroup(GROUP_GENERATOR, GROUP_GENERATOR)",
+      "description": "opcode 0xa0 — group multiplication of two SGroupElement operands",
+      "expr_hex": "a08282"
+    },
+    {
+      "name": "Exponentiate(GROUP_GENERATOR, BigInt(1))",
+      "description": "opcode 0x9f — group exponentiation (SGroupElement, SBigInt) → SGroupElement",
+      "expr_hex": "9f82060101"
+    },
+    {
+      "name": "XorOf(Coll[Boolean])",
+      "description": "opcode 0xff — XOR of all booleans in the collection",
+      "expr_hex": "ff850305"
+    },
+    {
+      "name": "GetVar[SInt](1)",
+      "description": "opcode 0xe3 — context-variable lookup; payload is u8 varId + SType byte",
+      "expr_hex": "e30104"
+    },
+    {
+      "name": "FuncValue((x:Int) => x + 1)",
+      "description": "opcode 0xd9 — user function literal: list of args (id, tpe) + body Expr",
+      "expr_hex": "d90102049a72020402"
+    },
+    {
+      "name": "Apply(FuncValue, [Int 7])",
+      "description": "opcode 0xda — function application: callee Expr + arg list",
+      "expr_hex": "dad90102049a7202040201040e"
+    }
+  ]
+}

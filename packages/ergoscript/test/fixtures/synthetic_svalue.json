@@ -1,0 +1,850 @@
+{
+  "entries": [
+    {
+      "name": "SBoolean true",
+      "tpe": {
+        "tag": "SBoolean"
+      },
+      "value": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "bytes_hex": "01"
+    },
+    {
+      "name": "SBoolean false",
+      "tpe": {
+        "tag": "SBoolean"
+      },
+      "value": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SByte 0",
+      "tpe": {
+        "tag": "SByte"
+      },
+      "value": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SByte 1",
+      "tpe": {
+        "tag": "SByte"
+      },
+      "value": {
+        "kind": "Byte",
+        "value": 1
+      },
+      "bytes_hex": "01"
+    },
+    {
+      "name": "SByte -1",
+      "tpe": {
+        "tag": "SByte"
+      },
+      "value": {
+        "kind": "Byte",
+        "value": -1
+      },
+      "bytes_hex": "ff"
+    },
+    {
+      "name": "SByte 127",
+      "tpe": {
+        "tag": "SByte"
+      },
+      "value": {
+        "kind": "Byte",
+        "value": 127
+      },
+      "bytes_hex": "7f"
+    },
+    {
+      "name": "SByte -128",
+      "tpe": {
+        "tag": "SByte"
+      },
+      "value": {
+        "kind": "Byte",
+        "value": -128
+      },
+      "bytes_hex": "80"
+    },
+    {
+      "name": "SShort 0",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "value": {
+        "kind": "Short",
+        "value": 0
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SShort 1",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "value": {
+        "kind": "Short",
+        "value": 1
+      },
+      "bytes_hex": "02"
+    },
+    {
+      "name": "SShort -1",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "value": {
+        "kind": "Short",
+        "value": -1
+      },
+      "bytes_hex": "01"
+    },
+    {
+      "name": "SShort 64",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "value": {
+        "kind": "Short",
+        "value": 64
+      },
+      "bytes_hex": "8001"
+    },
+    {
+      "name": "SShort i16::MAX",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "value": {
+        "kind": "Short",
+        "value": 32767
+      },
+      "bytes_hex": "feff03"
+    },
+    {
+      "name": "SShort i16::MIN",
+      "tpe": {
+        "tag": "SShort"
+      },
+      "value": {
+        "kind": "Short",
+        "value": -32768
+      },
+      "bytes_hex": "ffff03"
+    },
+    {
+      "name": "SInt 0",
+      "tpe": {
+        "tag": "SInt"
+      },
+      "value": {
+        "kind": "Int",
+        "value": 0
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SInt 42",
+      "tpe": {
+        "tag": "SInt"
+      },
+      "value": {
+        "kind": "Int",
+        "value": 42
+      },
+      "bytes_hex": "54"
+    },
+    {
+      "name": "SInt -1",
+      "tpe": {
+        "tag": "SInt"
+      },
+      "value": {
+        "kind": "Int",
+        "value": -1
+      },
+      "bytes_hex": "01"
+    },
+    {
+      "name": "SInt i32::MAX",
+      "tpe": {
+        "tag": "SInt"
+      },
+      "value": {
+        "kind": "Int",
+        "value": 2147483647
+      },
+      "bytes_hex": "feffffffffffffffff01"
+    },
+    {
+      "name": "SInt i32::MIN",
+      "tpe": {
+        "tag": "SInt"
+      },
+      "value": {
+        "kind": "Int",
+        "value": -2147483648
+      },
+      "bytes_hex": "ffffffffffffffffff01"
+    },
+    {
+      "name": "SLong 0",
+      "tpe": {
+        "tag": "SLong"
+      },
+      "value": {
+        "kind": "Long",
+        "value": "0"
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SLong 1",
+      "tpe": {
+        "tag": "SLong"
+      },
+      "value": {
+        "kind": "Long",
+        "value": "1"
+      },
+      "bytes_hex": "02"
+    },
+    {
+      "name": "SLong -1",
+      "tpe": {
+        "tag": "SLong"
+      },
+      "value": {
+        "kind": "Long",
+        "value": "-1"
+      },
+      "bytes_hex": "01"
+    },
+    {
+      "name": "SLong i64::MAX",
+      "tpe": {
+        "tag": "SLong"
+      },
+      "value": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "bytes_hex": "feffffffffffffffff01"
+    },
+    {
+      "name": "SLong i64::MIN",
+      "tpe": {
+        "tag": "SLong"
+      },
+      "value": {
+        "kind": "Long",
+        "value": "-9223372036854775808"
+      },
+      "bytes_hex": "ffffffffffffffffff01"
+    },
+    {
+      "name": "SBigInt 0",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "0"
+      },
+      "bytes_hex": "0100"
+    },
+    {
+      "name": "SBigInt 1",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "1"
+      },
+      "bytes_hex": "0101"
+    },
+    {
+      "name": "SBigInt 127",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "127"
+      },
+      "bytes_hex": "017f"
+    },
+    {
+      "name": "SBigInt 128",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "128"
+      },
+      "bytes_hex": "020080"
+    },
+    {
+      "name": "SBigInt 255",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "255"
+      },
+      "bytes_hex": "0200ff"
+    },
+    {
+      "name": "SBigInt 256",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "256"
+      },
+      "bytes_hex": "020100"
+    },
+    {
+      "name": "SBigInt -1",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "bytes_hex": "01ff"
+    },
+    {
+      "name": "SBigInt -128",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "-128"
+      },
+      "bytes_hex": "0180"
+    },
+    {
+      "name": "SBigInt -129",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "-129"
+      },
+      "bytes_hex": "02ff7f"
+    },
+    {
+      "name": "SBigInt -256",
+      "tpe": {
+        "tag": "SBigInt"
+      },
+      "value": {
+        "kind": "BigInt",
+        "value": "-256"
+      },
+      "bytes_hex": "02ff00"
+    },
+    {
+      "name": "SGroupElement compressed",
+      "tpe": {
+        "tag": "SGroupElement"
+      },
+      "value": {
+        "kind": "GroupElement",
+        "bytes_hex": "02abababababababababababababababababababababababababababababababab"
+      },
+      "bytes_hex": "02abababababababababababababababababababababababababababababababab"
+    },
+    {
+      "name": "SGroupElement infinity",
+      "tpe": {
+        "tag": "SGroupElement"
+      },
+      "value": {
+        "kind": "GroupElement",
+        "bytes_hex": "000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "bytes_hex": "000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "SUnit",
+      "tpe": {
+        "tag": "SUnit"
+      },
+      "value": {
+        "kind": "Unit"
+      },
+      "bytes_hex": ""
+    },
+    {
+      "name": "SSigmaProp ProveDlog",
+      "tpe": {
+        "tag": "SSigmaProp"
+      },
+      "value": {
+        "kind": "SigmaProp",
+        "raw_hex": "cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+      },
+      "bytes_hex": "cd02764ea2b0b9b06b5730a4257bba71fd7797eb1ec12bc3ae6025a01d7fba53830e"
+    },
+    {
+      "name": "SColl[SInt] []",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SInt"
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": []
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SColl[SInt] [1,2,3]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SInt"
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          }
+        ]
+      },
+      "bytes_hex": "03020406"
+    },
+    {
+      "name": "SColl[SByte] empty",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SByte"
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": []
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SColl[SByte] [0x00, 0xff, 0x7f, 0x80]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SByte"
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 0
+          },
+          {
+            "kind": "Byte",
+            "value": -1
+          },
+          {
+            "kind": "Byte",
+            "value": 127
+          },
+          {
+            "kind": "Byte",
+            "value": -128
+          }
+        ]
+      },
+      "bytes_hex": "0400ff7f80"
+    },
+    {
+      "name": "SColl[SBoolean] [T,F,T,T,F]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SBoolean"
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SBoolean"
+        },
+        "items": [
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          }
+        ]
+      },
+      "bytes_hex": "050d"
+    },
+    {
+      "name": "SColl[SBoolean] 9 elems (cross byte boundary)",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SBoolean"
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SBoolean"
+        },
+        "items": [
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          }
+        ]
+      },
+      "bytes_hex": "090001"
+    },
+    {
+      "name": "SColl[SColl[SInt]] [[1],[],[2,3]]",
+      "tpe": {
+        "tag": "SColl",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SInt"
+          }
+        }
+      },
+      "value": {
+        "kind": "Coll",
+        "elem": {
+          "tag": "SColl",
+          "elem": {
+            "tag": "SInt"
+          }
+        },
+        "items": [
+          {
+            "kind": "Coll",
+            "elem": {
+              "tag": "SInt"
+            },
+            "items": [
+              {
+                "kind": "Int",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "kind": "Coll",
+            "elem": {
+              "tag": "SInt"
+            },
+            "items": []
+          },
+          {
+            "kind": "Coll",
+            "elem": {
+              "tag": "SInt"
+            },
+            "items": [
+              {
+                "kind": "Int",
+                "value": 2
+              },
+              {
+                "kind": "Int",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "bytes_hex": "03010200020406"
+    },
+    {
+      "name": "SOption[SInt] None",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SInt"
+        }
+      },
+      "value": {
+        "kind": "Option",
+        "elem": {
+          "tag": "SInt"
+        },
+        "value": null
+      },
+      "bytes_hex": "00"
+    },
+    {
+      "name": "SOption[SInt] Some(42)",
+      "tpe": {
+        "tag": "SOption",
+        "elem": {
+          "tag": "SInt"
+        }
+      },
+      "value": {
+        "kind": "Option",
+        "elem": {
+          "tag": "SInt"
+        },
+        "value": {
+          "kind": "Int",
+          "value": 42
+        }
+      },
+      "bytes_hex": "0154"
+    },
+    {
+      "name": "STuple[SInt,SBoolean] (1,true)",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SInt"
+          },
+          {
+            "tag": "SBoolean"
+          }
+        ]
+      },
+      "value": {
+        "kind": "Tuple",
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          }
+        ]
+      },
+      "bytes_hex": "0201"
+    },
+    {
+      "name": "STuple[SInt,SInt,SInt] (1,2,3)",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SInt"
+          },
+          {
+            "tag": "SInt"
+          },
+          {
+            "tag": "SInt"
+          }
+        ]
+      },
+      "value": {
+        "kind": "Tuple",
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          }
+        ]
+      },
+      "bytes_hex": "020406"
+    },
+    {
+      "name": "STuple[SByte x4] (1,2,3,4)",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SByte"
+          },
+          {
+            "tag": "SByte"
+          },
+          {
+            "tag": "SByte"
+          },
+          {
+            "tag": "SByte"
+          }
+        ]
+      },
+      "value": {
+        "kind": "Tuple",
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 1
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 3
+          },
+          {
+            "kind": "Byte",
+            "value": 4
+          }
+        ]
+      },
+      "bytes_hex": "01020304"
+    },
+    {
+      "name": "STuple[SBoolean x5] (T,F,T,F,T)",
+      "tpe": {
+        "tag": "STuple",
+        "items": [
+          {
+            "tag": "SBoolean"
+          },
+          {
+            "tag": "SBoolean"
+          },
+          {
+            "tag": "SBoolean"
+          },
+          {
+            "tag": "SBoolean"
+          },
+          {
+            "tag": "SBoolean"
+          }
+        ]
+      },
+      "value": {
+        "kind": "Tuple",
+        "items": [
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          }
+        ]
+      },
+      "bytes_hex": "0100010001"
+    }
+  ]
+}
