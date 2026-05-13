@@ -8,6 +8,7 @@ Per-project instructions for Claude. Read these alongside the user's global `~/p
    - `facts/proof.md` — `@mwaddip/ergots-proof` interface
 2. **`docs/specs/`** — design specs (the *why* and *how-we-chose*; rationale, validation strategy, risks). Current:
    - `2026-05-12-nipopow-proof-verifier-design.md` — `@mwaddip/ergots-proof` v1 design
+   - `2026-05-13-no-gossip-decision.md` — why phase 2 is not a gossip layer; new phase plan
 3. **`PLAN.md`** (when it exists) — implementation plan for the package currently being built. Source of truth for "what comes next."
 4. **`SESSION_CONTEXT.md`** (when it exists) — current state and last session's progress.
 
@@ -18,10 +19,11 @@ If `SESSION_CONTEXT.md` and `PLAN.md` disagree, `SESSION_CONTEXT.md` is more cur
 - Repo name `ergots` is intentional. Pattern follows the user's `frots` repo (pure-TS port of an audited Rust crate, validated byte-for-byte).
 - Goal: a pure-TypeScript, browser-compatible implementation of Ergo NiPoPoW (Non-Interactive Proofs of Proof-of-Work).
 - Structure: multi-package monorepo under npm workspaces. Naming convention `@mwaddip/ergots-*`.
-- Packages planned:
-  - `@mwaddip/ergots-proof` — NiPoPoW proof parser + verifier + P2P envelope codec. **v1 focus.**
-  - `@mwaddip/ergots-gossip` — future. WebSocket-based gossip layer that replicates the *behavior* of Ergo P2P (peer discovery, message gossip) using WebSockets so browser and Node instances can find each other. Not a binary-level port of the JVM P2P protocol.
-  - `@mwaddip/ergots-light-client` — future. Bootstraps from a verified NiPoPoW proof, then follows tip.
+- Packages planned (updated 2026-05-13 after gossip-rejection brainstorm):
+  - `@mwaddip/ergots-proof` — NiPoPoW proof parser + verifier + P2P envelope codec. ✅ v1 shipped (305 tests; not yet `npm publish`-ed).
+  - `@mwaddip/ergots-ergoscript` — TS ErgoTree parser + interpreter, validated byte-for-byte against `sigma-rust`'s `ergotree-interpreter` crate. Standalone-useful (tooling, simulators, DApp frontends) as well as a dependency of the next package. Adds `@noble/curves` as a runtime dep (secp256k1 for Sigma propositions). **Next focus.**
+  - Wallet / transaction-broadcaster (naming TBD) — future. Browser bootstraps state from a verified proof, locally verifies a user-constructed transaction using `ergots-ergoscript`, broadcasts via any conformant Ergo node. HTTP-client / data-fetching layer is internal, not a separate package.
+  - **Considered and rejected:** `@mwaddip/ergots-gossip` (WebSocket "gossip" layer for browser/Node peer discovery). See `docs/specs/2026-05-13-no-gossip-decision.md`. Browsers cannot peer (no inbound, no raw TCP); existing node REST endpoints cover what's needed; any future TS full-node would speak JVM-P2P directly.
 - Reference implementations:
   - `~/projects/ergo-node-rust/chain/src/nipopow_proof.rs` — `build_nipopow_proof`, `verify_nipopow_proof_bytes`, `compare_nipopow_proof_bytes`
   - `~/projects/ergo-node-rust/src/nipopow_serve.rs` — P2P envelope (codes 90/91) parsing
@@ -67,7 +69,7 @@ The verifier MUST run unchanged in a browser. These rules are enforced by the te
 - **Never copy-port code from `sigma-rust` or `ergo-node-rust` verbatim**. This is a clean-room TypeScript implementation guided by the wire spec and validated by fixtures. The Rust code is the reference for *behavior*, not the source for line-by-line translation.
 - **Never reach across package boundaries inside the monorepo** with relative imports (`../../proof/src/...`). Cross-package use goes through published package names so the dependency graph stays explicit.
 - **Never use `--no-verify`, `--no-gpg-sign`, or any hook-bypassing flag** on git operations.
-- **Never refactor `packages/proof/src/` for "future flexibility"** to accommodate gossip or light-client needs that haven't been spec'd yet. Wait until those packages exist.
+- **Never refactor `packages/proof/src/` for "future flexibility"** to accommodate ergoscript or wallet needs that haven't been spec'd yet. Wait until those packages exist.
 
 ## Confidence escalation (extra-strict on the crypto path)
 
@@ -105,7 +107,7 @@ Rules that follow from the Iron Law in this project:
 
 ## Workflow expectations
 
-- **One package at a time.** v1 is `@mwaddip/ergots-proof`. Don't scaffold gossip or light-client packages until the proof package is stable and tested.
+- **One package at a time.** v1 (`@mwaddip/ergots-proof`) is shipped; the next focus is `@mwaddip/ergots-ergoscript`. Don't scaffold the wallet package until ergoscript is stable and tested.
 - **Spec before code.** Every new package gets its own design spec in `docs/specs/` before implementation starts. Brainstorm → spec → plan → red-green-refactor → implementation.
 - **Drive forward through a phase** once started. Don't ask permission for small reversible decisions mid-phase.
 - **Stop at natural milestones** (a PLAN.md step done, a non-trivial decision needed). Present status + options + recommendation; let the user pick.
