@@ -57,6 +57,8 @@ import { parseBoolToSigmaProp } from './mir/bool-to-sigma-prop'
 import { parseLogicalNot } from './mir/logical-not'
 import { parseNegation } from './mir/negation'
 import { parseBitInversion } from './mir/bit-inversion'
+import { parseUpcast } from './mir/upcast'
+import { parseDowncast } from './mir/downcast'
 
 export { ExprParseError } from './errors'
 
@@ -152,15 +154,9 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_DOWNCAST:
-      throw new ExprParseError(
-        'Downcast opcode not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      return parseDowncast(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_UPCAST:
-      throw new ExprParseError(
-        'Upcast opcode not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      return parseUpcast(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_GROUP_GENERATOR:
       throw new ExprParseError(
         'GroupGenerator (GlobalVars) opcode not implemented yet (Task 16)',

@@ -37,6 +37,8 @@ import { serializeBoolToSigmaProp } from './mir/bool-to-sigma-prop'
 import { serializeLogicalNot } from './mir/logical-not'
 import { serializeNegation } from './mir/negation'
 import { serializeBitInversion } from './mir/bit-inversion'
+import { serializeUpcast } from './mir/upcast'
+import { serializeDowncast } from './mir/downcast'
 
 export { ExprSerializeError } from './errors'
 
@@ -280,15 +282,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeBoolToSigmaProp(e, w)
       return
     case 'Upcast':
-      throw new ExprSerializeError(
-        'Upcast serialization not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_UPCAST)
+      serializeUpcast(e, w)
+      return
     case 'Downcast':
-      throw new ExprSerializeError(
-        'Downcast serialization not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_DOWNCAST)
+      serializeDowncast(e, w)
+      return
     case 'CreateProveDlog':
       throw new ExprSerializeError(
         'CreateProveDlog serialization not implemented yet (Task 23)',
