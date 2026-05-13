@@ -27,6 +27,8 @@ const proof = parseProof(proofBytesA);
 const aIsBetter = compareProofs(proofBytesA, proofBytesB);
 ```
 
+See [API.md](./API.md) for the full reference (every export, its signature, error codes, and type definitions).
+
 ## P2P envelope codec
 
 The wire envelope for Ergo's P2P message codes 90 (`GetNipopowProof`) and 91 (`NipopowProof`) ships under a subpath:
