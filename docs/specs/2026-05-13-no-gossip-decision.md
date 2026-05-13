@@ -40,6 +40,20 @@ The choice between "structural verification only" and "full ErgoScript execution
 - **Validation strategy extends naturally.** `fixture-gen/` already calls into sigma-rust at a pinned rev. Adding `ergotree-interpreter` fixtures (ErgoTree bytes + context + expected stack/result) follows the same byte-equality pattern that worked for the verifier.
 - **Sizing for phase 2.** sigma-rust's `ergotree-interpreter` crate is tens of thousands of LOC. Porting all of it is a months-long effort. Scoping for v1 (e.g., Sigma propositions + DLOG signatures first, full VM later) is the first question of the phase-2 brainstorm.
 
+## What could revisit this decision
+
+Adding 2026-05-13 (same day, after-the-fact): **libp2p exists and partially refutes the "browsers can't peer" framing.** libp2p's WebRTC and WebTransport transports plus circuit-relay let browsers participate as limited peers in a libp2p mesh — inbound through a relay, NAT-traversed via signaling, with gossipsub providing a working pub/sub primitive (Ethereum consensus, IPFS, Filecoin all run on it in production). So bullet 1 of the reasoning above is too strong as written; the accurate version is "browsers can peer in libp2p, but they can't peer in *Ergo's* P2P network."
+
+What libp2p does not change is bullet 4: libp2p is not protocol-compatible with Ergo P2P. The JVM Ergo node and `~/projects/sigma-rust/sigma-rust/ergo-p2p/` both speak the Scorex P2P protocol over TCP. A libp2p-based browser network would be a *parallel* network, not a way for browsers to talk to existing Ergo peers. "Browser-friendly Ergo P2P" via libp2p means building a libp2p ↔ Scorex bridge somewhere in the topology — a meaningful new component, not a trivial protocol re-skin.
+
+**The decision still stands** for the current scope (bootstrap from a NiPoPoW proof + broadcast a tx via REST). What would justify revisiting:
+
+- A use case appears that needs actual browser-to-browser behavior — e.g., a mesh of Ergo light clients sharing tip headers without trusting any single node operator, or browsers exchanging proofs directly when a central REST endpoint isn't available.
+- The Ergo network grows a libp2p-speaking node tier (either by JVM-side adoption or via a parallel TS-implemented full node that picks libp2p as its native transport).
+- A specific privacy or censorship-resistance requirement makes "trust a few REST endpoints" unacceptable.
+
+None of those are visible from the wallet/light-client roadmap as currently scoped. If one becomes load-bearing later, the work is "design a libp2p ↔ Ergo P2P bridge + a thin browser libp2p client," not "design our own gossip protocol from scratch."
+
 ## Process lesson
 
 The gossip framing came from a handoff that committed to a phase structure. This brainstorm initially designed *within* that framing for several turns before the user broke the spell ("i'm wondering if we're not massively overthinking this"). The right first question would have been "is this framing right?" before "how do we build within it?" Captured as memory `feedback-question-framing-first`.
@@ -48,4 +62,4 @@ The gossip framing came from a handoff that committed to a phase structure. This
 
 - `facts/proof.md` — verifier interface contract
 - `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — verifier design rationale (the template phase 2's spec will follow)
-- `~/projects/sigma-rust/sigma-rust/` (branch `ergo-node-integration`, HEAD `46e94c21`) — reference implementation for the upcoming `ergots-ergoscript` work
+- `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`, HEAD `ed5452cf` — composition of `ergo-node-integration` cost-parity fixes + upstream PR #862's compiler conformance and Significant-15 corpus, merged 2026-05-13) — reference implementation for the upcoming `ergots-ergoscript` work
