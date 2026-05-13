@@ -2,7 +2,7 @@
   "name": "ergots",
   "private": true,
   "version": "0.0.0",
-  "description": "Pure-TypeScript Ergo NiPoPoW — proof verifier, gossip layer, light client.",
+  "description": "Pure-TypeScript Ergo libraries — NiPoPoW verifier, ErgoScript interpreter, browser wallet.",
   "license": "MIT",
   "type": "module",
   "workspaces": [
