@@ -1,6 +1,9 @@
 {
   "name": "@mwaddip/ergots-proof",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Pure-TypeScript Ergo NiPoPoW proof verifier — parse, serialize, verify, compare; plus the P2P envelope codec.",
   "type": "module",
   "license": "MIT",
