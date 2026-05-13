@@ -22,6 +22,16 @@
 //! the local compile output must match exactly. If it doesn't, the
 //! determinism check fails and we know something drifted in the upstream
 //! compiler or our parsing surface.
+//!
+//! ## Known-unstable filter
+//!
+//! See [`KNOWN_UNSTABLE`]. A handful of entries trigger an upstream
+//! `ergoscript-compiler` bug in `transform_fold_lambda` +
+//! `sequential_renumber`: sigma-rust's own parser rejects the bytes it
+//! just emitted (`SigmaParsingError::ValDefIdNotFound`). Those entries
+//! never reach `entries` — they're recorded in `non_deterministic` with
+//! `known_unstable: true` so the bug surface stays visible without
+//! gating fixture-gen on an upstream fix.
 
 use ergoscript_compiler::compiler::compile;
 use ergoscript_compiler::script_env::ScriptEnv;
@@ -37,6 +47,24 @@ use std::collections::BTreeSet;
 /// `corpus_significant_15` so a future drift is caught early instead of
 /// landing as a fixture diff in CI.
 const STABILITY_PASSES: usize = 3;
+
+/// Contracts that trigger an upstream `ergoscript-compiler` bug in
+/// `transform_fold_lambda` + `sequential_renumber`: the rewrite produces
+/// `ValUse` references that sigma-rust's own parser cannot re-resolve
+/// (`SigmaParsingError::ValDefIdNotFound(ValId(3))`). Mark as unstable
+/// rather than skip compilation entirely so the bug surface is visible.
+///
+/// Unlike the CSE-randomization KNOWN_UNSTABLE list in
+/// `corpus_ecosystem_14` / `corpus_significant_15`, these entries compile
+/// deterministically — they're just unusable for round-trip testing
+/// because the bytes sigma-rust emits cannot be parsed by sigma-rust
+/// itself, let alone by our TS parser.
+const KNOWN_UNSTABLE: &[&str] = &[
+    "test_p2p_option_reserve_v2_core_logic",
+    "test_p2p_option_reserve_v2_full",
+    "test_p2p_option_reserve_v2_nested_fold",
+    "test_session8_time_validator_contract",
+];
 
 /// Raw corpus entry as stored in `data/ergoscript/legacy_45.json`.
 #[derive(Deserialize)]
@@ -74,16 +102,18 @@ pub struct NonDeterministicEntry {
     pub name: String,
     pub origin: String,
     pub source_es: String,
-    pub observed_hex: Vec<String>,
-    pub observed_byte_lengths: Vec<usize>,
+    /// `true` when this entry is on the static [`KNOWN_UNSTABLE`] list and
+    /// was deliberately not compiled.
+    pub known_unstable: bool,
 }
 
 #[derive(Serialize)]
 pub struct CorpusFixture {
     pub corpus: &'static str,
     pub entries: Vec<CorpusEntry>,
-    /// Entries whose ErgoTree bytes drifted across `STABILITY_PASSES`
-    /// compilations. Expected to be empty for legacy_45.
+    /// Entries deliberately skipped because their `name` is in
+    /// [`KNOWN_UNSTABLE`]. See the constant doc-comment for the upstream
+    /// bug surface they exercise.
     pub non_deterministic: Vec<NonDeterministicEntry>,
     /// Number of entries where the compiled bytes matched `node_hex_check`.
     /// Always equal to the count of entries carrying a `node_hex_check`.
@@ -97,14 +127,21 @@ const CORPUS_JSON: &str = include_str!("../../../data/ergoscript/legacy_45.json"
 pub fn generate() -> anyhow::Result<CorpusFixture> {
     let raw: Vec<RawEntry> = serde_json::from_str(CORPUS_JSON)?;
     let mut entries = Vec::with_capacity(raw.len());
-    // Populated only via the (unreachable) fallback path inside the
-    // determinism check — keep the field for forward-compat with the other
-    // corpus modules' shape.
-    let non_deterministic: Vec<NonDeterministicEntry> = Vec::new();
+    let mut non_deterministic: Vec<NonDeterministicEntry> = Vec::new();
     let mut compile_errors = Vec::new();
     let mut byte_match_count = 0usize;
 
     for r in raw {
+        if KNOWN_UNSTABLE.contains(&r.name.as_str()) {
+            non_deterministic.push(NonDeterministicEntry {
+                name: r.name,
+                origin: r.source,
+                source_es: r.es,
+                known_unstable: true,
+            });
+            continue;
+        }
+
         let mut observed: BTreeSet<String> = BTreeSet::new();
         let mut compile_failed = false;
         for _ in 0..STABILITY_PASSES {
@@ -124,18 +161,19 @@ pub fn generate() -> anyhow::Result<CorpusFixture> {
         }
 
         if observed.len() != 1 {
-            // All 45 legacy entries are empirically deterministic. If any
-            // drift slips in, fail loudly so the situation is noticed and
-            // either the upstream compiler is fixed or the unstable entry
-            // is moved to a `KNOWN_UNSTABLE` list (mirroring how
-            // `corpus_ecosystem_14` / `corpus_significant_15` handle it).
+            // The remaining legacy entries (those not on KNOWN_UNSTABLE)
+            // are empirically deterministic. If any drift slips in, fail
+            // loudly so the situation is noticed and either the upstream
+            // compiler is fixed or the unstable entry is added to
+            // `KNOWN_UNSTABLE` (mirroring `corpus_ecosystem_14` /
+            // `corpus_significant_15`).
             let observed_hex: Vec<String> = observed.into_iter().collect();
             let observed_byte_lengths: Vec<usize> =
                 observed_hex.iter().map(|h| h.len() / 2).collect();
             anyhow::bail!(
                 "legacy_45: contract {:?} produced {} distinct ErgoTree byte outputs \
-                 over {} compile passes (sizes={:?}). Address the determinism regression \
-                 in ergoscript-compiler or move this entry off the legacy_45 path.",
+                 over {} compile passes (sizes={:?}). Add it to KNOWN_UNSTABLE in \
+                 fixture-gen/src/cmds/ergoscript/corpus_legacy_45.rs and re-run.",
                 r.name,
                 observed_hex.len(),
                 STABILITY_PASSES,

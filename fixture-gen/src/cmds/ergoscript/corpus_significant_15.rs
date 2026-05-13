@@ -29,7 +29,10 @@
 //! list can be updated.
 //!
 //! As of 2026-05-14: `oracle_refresh`, `paideia_stake_state`, and
-//! `sigmausd_bank` are on the unstable list; the other 12 are stable.
+//! `sigmausd_bank` are on the unstable list for CSE non-determinism;
+//! `rosen_event_trigger` and `gluon_box_guard` are on it for the upstream
+//! `transform_fold_lambda` + `sequential_renumber` parser bug (see the
+//! `KNOWN_UNSTABLE` doc-comment); the other 10 are stable.
 
 use ergoscript_compiler::compiler::compile;
 use ergoscript_compiler::script_env::ScriptEnv;
@@ -39,10 +42,30 @@ use std::collections::BTreeSet;
 
 const STABILITY_PASSES: usize = 4;
 
-/// Contracts on the upstream compiler's CSE-non-determinism block-list.
-/// See the equivalent constant in `corpus_ecosystem_14.rs` for the
-/// rationale (`std::collections::HashMap` randomization in CSE).
-const KNOWN_UNSTABLE: &[&str] = &["oracle_refresh", "paideia_stake_state", "sigmausd_bank"];
+/// Contracts on the upstream compiler's block-list.
+///
+/// Two failure modes share this list:
+///
+/// 1. **CSE non-determinism.** `oracle_refresh`, `paideia_stake_state`,
+///    and `sigmausd_bank` produce different ErgoTree bytes across runs
+///    because `ergoscript-compiler`'s CSE pass iterates
+///    `std::collections::HashMap` with RandomState — see the equivalent
+///    constant in `corpus_ecosystem_14.rs`.
+///
+/// 2. **Upstream parser round-trip bug.** `rosen_event_trigger` and
+///    `gluon_box_guard` trigger an `ergoscript-compiler` bug in
+///    `transform_fold_lambda` + `sequential_renumber`: the rewrite
+///    produces `ValUse` references that sigma-rust's own parser cannot
+///    re-resolve (`SigmaParsingError::ValDefIdNotFound(ValId(3))`). Mark
+///    as unstable rather than skip compilation entirely so the bug
+///    surface is visible.
+const KNOWN_UNSTABLE: &[&str] = &[
+    "oracle_refresh",
+    "paideia_stake_state",
+    "sigmausd_bank",
+    "rosen_event_trigger",
+    "gluon_box_guard",
+];
 
 #[derive(Deserialize)]
 struct RawEntry {
