@@ -60,6 +60,10 @@ import { serializeCollForall } from './mir/coll-forall'
 import { serializeCollMap } from './mir/coll-map'
 import { serializeCollSize } from './mir/coll-size'
 import { serializeCollSlice } from './mir/coll-slice'
+import { serializeMethodCall } from './mir/method-call'
+import { serializePropertyCall } from './mir/property-call'
+import { serializeCreateAvlTree } from './mir/create-avl-tree'
+import { serializeTreeLookup } from './mir/tree-lookup'
 
 export { ExprSerializeError } from './errors'
 
@@ -142,15 +146,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeApply(e, w)
       return
     case 'MethodCall':
-      throw new ExprSerializeError(
-        'MethodCall serialization not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_METHOD_CALL)
+      serializeMethodCall(e, w)
+      return
     case 'PropertyCall':
-      throw new ExprSerializeError(
-        'PropertyCall serialization not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_PROPERTY_CALL)
+      serializePropertyCall(e, w)
+      return
     case 'BlockValue':
       w.writeU8(OP.OP_BLOCK_VALUE)
       serializeBlockValue(e, w)
@@ -364,15 +366,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeXorOf(e, w)
       return
     case 'TreeLookup':
-      throw new ExprSerializeError(
-        'TreeLookup serialization not implemented yet (Task 25)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_AVL_TREE_GET)
+      serializeTreeLookup(e, w)
+      return
     case 'CreateAvlTree':
-      throw new ExprSerializeError(
-        'CreateAvlTree serialization not implemented yet (Task 25)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_AVL_TREE)
+      serializeCreateAvlTree(e, w)
+      return
     default: {
       // Every case throws above; TypeScript will narrow `e` to `never` here.
       // Adding a new Expr variant in mir/types.ts without a corresponding

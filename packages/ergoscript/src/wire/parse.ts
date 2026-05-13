@@ -82,6 +82,10 @@ import { parseCollForall } from './mir/coll-forall'
 import { parseCollMap } from './mir/coll-map'
 import { parseCollSize } from './mir/coll-size'
 import { parseCollSlice } from './mir/coll-slice'
+import { parseMethodCall } from './mir/method-call'
+import { parsePropertyCall } from './mir/property-call'
+import { parseCreateAvlTree } from './mir/create-avl-tree'
+import { parseTreeLookup } from './mir/tree-lookup'
 
 export { ExprParseError } from './errors'
 
@@ -282,15 +286,9 @@ export function parseExprWithFirstByte(
     case OP.OP_FILTER:
       return parseCollFilter(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_AVL_TREE:
-      throw new ExprParseError(
-        'CreateAvlTree opcode not implemented yet (Task 25)',
-        'not-implemented-yet'
-      )
+      return parseCreateAvlTree(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_AVL_TREE_GET:
-      throw new ExprParseError(
-        'TreeLookup opcode not implemented yet (Task 25)',
-        'not-implemented-yet'
-      )
+      return parseTreeLookup(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_AMOUNT:
       return parseExtractAmount(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_SCRIPT_BYTES:
@@ -356,15 +354,9 @@ export function parseExprWithFirstByte(
     case OP.OP_APPLY:
       return parseApply(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_PROPERTY_CALL:
-      throw new ExprParseError(
-        'PropertyCall opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      return parsePropertyCall(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_METHOD_CALL:
-      throw new ExprParseError(
-        'MethodCall opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      return parseMethodCall(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_GLOBAL:
       return parseGlobal()
     case OP.OP_GET_VAR:
