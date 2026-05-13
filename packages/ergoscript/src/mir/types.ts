@@ -167,3 +167,84 @@ export type SValue =
   | { kind: 'Tuple'; items: SValue[] }
   | { kind: 'Option'; elem: SType; value: SValue | null }
   | { kind: 'Lambda'; closure: Closure }
+
+// ---------------------------------------------------------------------------
+// ErgoTree envelope.
+//
+// Mirrors sigma-rust's `ergotree-ir/src/ergo_tree/tree_header.rs::ErgoTreeHeader`
+// and `ergotree-ir/src/ergo_tree.rs::ParsedErgoTree`. The wire layout:
+//
+//   header byte:
+//     bits 2..0 — language version (0..7)
+//     bit 3     — has-size: a VLQ-u32 size of (constants + body) follows the
+//                 header byte (mandatory for v1+)
+//     bit 4     — constant-segregation: a VLQ-u32 count + that many
+//                 `(SType, SValue)` constants precede the body
+//     bit 5     — reserved (context-dependent costing; must be 0)
+//     bit 6     — reserved (GZIP compression; must be 0)
+//     bit 7     — reserved (extended header; must be 0 in current versions)
+//
+//   then, in order:
+//     if has-size: VLQ-u32 size of (constants + body) — bytes following the
+//                  size prefix
+//     if constant-segregation: VLQ-u32 constant count + each `(SType, SValue)`
+//     body: Expr serialized form
+//
+// The size prefix (when present) covers the constants section AND the body —
+// see sigma-rust `ergo_tree.rs:380-404` where `data` is filled with constants
+// then root and `bytes.len()` is emitted as the size.
+// ---------------------------------------------------------------------------
+
+/**
+ * Parsed ErgoTree header (one byte on the wire). `rawHeader` is the original
+ * byte; the boolean / number fields are derived projections kept on the
+ * struct so callers don't need to re-decode bits. Serialization writes
+ * `rawHeader` directly to preserve any reserved bits the parser tolerated
+ * (currently none — they're all 0).
+ */
+export interface TreeHeader {
+  /** ErgoTree language version (bits 0..2 of `rawHeader`). 0..7. */
+  version: number
+  /** Bit 3: a VLQ-u32 size of (constants + body) follows the header byte. */
+  hasSize: boolean
+  /** Bit 4: a VLQ-u32 count + that many `(SType, SValue)` constants precede the body. */
+  constantSegregation: boolean
+  /** Original header byte. Used for byte-exact serialization round-trip. */
+  rawHeader: number
+}
+
+/**
+ * Parsed ErgoTree envelope. Mirrors sigma-rust's `ParsedErgoTree`:
+ *
+ *   header     — the parsed header byte fields
+ *   constants  — segregated constant values (empty when `header.constantSegregation === false`)
+ *   body       — the root expression (an `Expr`)
+ *
+ * Extra fields beyond sigma-rust:
+ *   - `constantTypes` — parallel to `constants[]`. Carries the per-constant
+ *     `SType` recovered from the wire. Necessary because a parsed `SValue`
+ *     does not unambiguously encode its `SType` for some edge cases (e.g.
+ *     empty `Coll` items, `None` for `SOption`); we cannot reconstruct the
+ *     original type-driven encoding from `SValue` alone. Sigma-rust avoids
+ *     this because its `Constant { tpe, v }` couples them at the struct
+ *     level.
+ *   - `bodyByteLength` — the size prefix value at parse time when
+ *     `header.hasSize`. Stored so serialization can produce byte-exact
+ *     output even for trees whose body parser is not yet implemented
+ *     (during the bring-up phase of the Expr dispatch in Task 9+).
+ */
+export interface ErgoTree {
+  header: TreeHeader
+  /** Parallel to `constants[]`; required for byte-exact re-serialization. */
+  constantTypes: SType[]
+  /** Segregated constant values; empty when `header.constantSegregation` is false. */
+  constants: SValue[]
+  /** Root expression. */
+  body: Expr
+  /**
+   * Size of (constants + body) bytes as read from the `hasSize` prefix; 0
+   * when `header.hasSize` is false. Used so re-serialization can match the
+   * input byte-for-byte while the body parser is still partial.
+   */
+  bodyByteLength: number
+}
