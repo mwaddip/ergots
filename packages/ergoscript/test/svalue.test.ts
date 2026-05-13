@@ -46,7 +46,7 @@ describe('SValue (variant smoke tests)', () => {
  *  - SColl[SByte]    → VLQ-u16 length + raw bytes (NativeColl special case)
  *  - SColl[SBoolean] → VLQ-u16 length + LSB-first bit-packed bytes
  *  - SColl[T] other  → VLQ-u16 length + each item serialized as T
- *  - SOption[T]      → 1-byte tag (0 None, 1 Some) + (if Some) inner
+ *  - SOption[T]      → 1-byte tag (1 Some, anything else None) + (if Some) inner
  *  - STuple[T..]     → items in order, NO length prefix
  */
 interface RoundTripCase {
@@ -367,5 +367,19 @@ describe('SValue serialize: type-mismatch detection', () => {
         w
       )
     ).toThrow(SValueSerializeError)
+  })
+})
+
+describe('SValue SOption tag semantics', () => {
+  it('SOption: tag byte ≠ {0,1} is treated as None (matches sigma-rust)', () => {
+    // [0x02, 0x42] — bogus tag, plus a junk byte that should NOT be consumed.
+    // sigma-rust's `get_option` reads only the tag byte and returns None for
+    // anything other than `1`; the cursor must stop at +1, leaving the 0x42
+    // for the next read.
+    const r = new ByteReader(new Uint8Array([0x02, 0x42]))
+    const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, r)
+    expect(result).toEqual({ kind: 'Option', elem: { tag: 'SInt' }, value: null })
+    // The 0x42 byte should NOT have been consumed — cursor stops after tag.
+    expect(r.remaining).toBe(1)
   })
 })

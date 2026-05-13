@@ -31,11 +31,14 @@
  *         (`ceil(len/8)` bytes; trailing bits zero-padded). Mirrors
  *         sigma-rust's `WriteSigmaVlqExt::put_bits` / `get_bits` via
  *         `bitvec::BitVec<u8, Lsb0>`.
- *   - SOption[T]: 1-byte tag (0 = None, anything else = Some) + (if Some)
- *     inner value parsed by T. Available for serialization only on
- *     ErgoTreeVersion::V3+ in sigma-rust; older trees return
- *     `NotSupported`. We accept either at the parser level — the caller is
- *     responsible for tree-version enforcement.
+ *   - SOption[T]: 1-byte tag (1 = Some, anything else = None) + (if Some)
+ *     inner value parsed by T. Mirrors sigma-rust's `get_option` in
+ *     `sigma-ser/src/vlq_encode.rs`: only the exact byte `1` triggers the
+ *     inner read; every other byte (including `0`, `2`, `0xff`) is treated
+ *     as None and the cursor advances by exactly one byte. Available for
+ *     serialization only on ErgoTreeVersion::V3+ in sigma-rust; older trees
+ *     return `NotSupported`. We accept either at the parser level — the
+ *     caller is responsible for tree-version enforcement.
  *   - STuple[T1, T2, ...]: items in order, NO length prefix on the wire.
  *     The arity is recoverable from the SType.
  *
@@ -171,15 +174,18 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
     }
 
     case 'SOption': {
-      // 1-byte tag: 0 → None, anything else → Some (sigma-rust matches
-      // exactly `1` for Some, but the `_` arm reads any other byte as None;
-      // we mirror that permissive behavior).
+      // 1-byte tag: exactly `1` means Some (parse inner via `t.elem`); any
+      // other byte means None (cursor stops at the tag, no further read).
+      // Mirrors sigma-rust's `get_option` in `sigma-ser/src/vlq_encode.rs`:
+      // `match is_opt { 1 => Some(get_value(self)?), _ => None }`. Critical
+      // for adversarial inputs: a byte like `0x02` reads as None with the
+      // cursor at +1, NOT as Some-with-recurse into inner parsing.
       const tag = r.readU8()
-      if (tag === 0) {
-        return { kind: 'Option', elem: t.elem, value: null }
+      if (tag === 1) {
+        const inner = parseSValue(t.elem, r)
+        return { kind: 'Option', elem: t.elem, value: inner }
       }
-      const inner = parseSValue(t.elem, r)
-      return { kind: 'Option', elem: t.elem, value: inner }
+      return { kind: 'Option', elem: t.elem, value: null }
     }
 
     case 'STuple': {
