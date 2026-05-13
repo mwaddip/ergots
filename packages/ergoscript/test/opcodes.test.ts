@@ -175,13 +175,16 @@ describe('parseExpr dispatch shell', () => {
     }
   })
 
-  it('CONTEXT (0xfe) is a known opcode → not-implemented-yet', () => {
-    // CONTEXT lands in Task 16. Until then it's the canary for "named in
-    // sigma-rust's opcode table but no TS handler yet" — we use it the way
-    // earlier task suites used XOR_OF (which is now implemented in Task 14).
-    const e = parseOne(OP.OP_CONTEXT)
+  it('LAST_BLOCK_UTXO_ROOT_HASH (0xa6) is a known opcode → not-implemented-yet', () => {
+    // LAST_BLOCK_UTXO_ROOT_HASH is in sigma-rust's opcode table but is NOT
+    // dispatched at the top level — it's reached via a PropertyCall on the
+    // SContext companion (method id 9). Until PropertyCall lands, this byte
+    // is the canary for "named in sigma-rust's opcode table but no TS
+    // handler yet" — earlier task suites used XOR_OF (landed in Task 14)
+    // and CONTEXT (landed in Task 17) for the same purpose.
+    const e = parseOne(OP.OP_LAST_BLOCK_UTXO_ROOT_HASH)
     expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('Context')
+    expect(e.message).toContain('LastBlockUtxoRootHash')
   })
 
   it('unknown opcode 0xab (shift 59, reserved) throws unknown-opcode', () => {

@@ -47,6 +47,8 @@ import { serializeExtractId } from './mir/extract-id'
 import { serializeExtractRegisterAs } from './mir/extract-register-as'
 import { serializeExtractScriptBytes } from './mir/extract-script-bytes'
 import { serializeSelectField } from './mir/select-field'
+import { serializeGlobalVars } from './mir/global-vars'
+import { serializeGetVar } from './mir/get-var'
 
 export { ExprSerializeError } from './errors'
 
@@ -107,20 +109,22 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'Context':
-      throw new ExprSerializeError(
-        'Context serialization not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      // Context is a unit-variant Expr arm (sigma-rust `Expr::Context`); the
+      // entire encoding is the single OP_CONTEXT opcode byte.
+      w.writeU8(OP.OP_CONTEXT)
+      return
     case 'Global':
-      throw new ExprSerializeError(
-        'Global serialization not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      // Global is a unit-variant Expr arm (sigma-rust `Expr::Global`); the
+      // entire encoding is the single OP_GLOBAL opcode byte.
+      w.writeU8(OP.OP_GLOBAL)
+      return
     case 'GlobalVars':
-      throw new ExprSerializeError(
-        'GlobalVars serialization not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      // GlobalVars emits its own opcode (derived from the `kind`
+      // discriminator) — there is no single fixed `OP_*` constant for the
+      // `'GlobalVars'` tag. The six kinds each map to a unique opcode byte;
+      // see `wire/mir/global-vars.ts::globalVarsOpcode`.
+      serializeGlobalVars(e, w)
+      return
     case 'FuncValue':
       w.writeU8(OP.OP_FUNC_VALUE)
       serializeFuncValue(e, w)
@@ -332,10 +336,9 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'GetVar':
-      throw new ExprSerializeError(
-        'GetVar serialization not implemented yet (Task 26)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_GET_VAR)
+      serializeGetVar(e, w)
+      return
     case 'DeserializeRegister':
       throw new ExprSerializeError(
         'DeserializeRegister serialization not implemented yet (Task 26)',

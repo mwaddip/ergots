@@ -67,6 +67,10 @@ import { parseExtractId } from './mir/extract-id'
 import { parseExtractRegisterAs } from './mir/extract-register-as'
 import { parseExtractScriptBytes } from './mir/extract-script-bytes'
 import { parseSelectField } from './mir/select-field'
+import { buildGlobalVarsFromOpcode } from './mir/global-vars'
+import { parseContext } from './mir/context'
+import { parseGlobal } from './mir/global'
+import { parseGetVar } from './mir/get-var'
 
 export { ExprParseError } from './errors'
 
@@ -166,10 +170,7 @@ export function parseExprWithFirstByte(
     case OP.OP_UPCAST:
       return parseUpcast(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_GROUP_GENERATOR:
-      throw new ExprParseError(
-        'GroupGenerator (GlobalVars) opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      return buildGlobalVarsFromOpcode(opcode)
     case OP.OP_COLL:
       throw new ExprParseError(
         'Collection opcode not implemented yet (Task 18)',
@@ -251,30 +252,15 @@ export function parseExprWithFirstByte(
         valDefTypes
       )
     case OP.OP_HEIGHT:
-      throw new ExprParseError(
-        'Height (GlobalVars) opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
     case OP.OP_INPUTS:
-      throw new ExprParseError(
-        'Inputs (GlobalVars) opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
     case OP.OP_OUTPUTS:
-      throw new ExprParseError(
-        'Outputs (GlobalVars) opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
     case OP.OP_SELF_BOX:
-      throw new ExprParseError(
-        'SelfBox (GlobalVars) opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
     case OP.OP_MINER_PUBKEY:
-      throw new ExprParseError(
-        'MinerPubKey (GlobalVars) opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      // GlobalVars: six unit-variant opcodes that all collapse to a single
+      // `Expr.tag === 'GlobalVars'` node with a `kind` discriminator (Task 17).
+      // GROUP_GENERATOR (0x82) is dispatched separately above because it lives
+      // in a different opcode region. Centralized in `buildGlobalVarsFromOpcode`.
+      return buildGlobalVarsFromOpcode(opcode)
     case OP.OP_MAP:
       throw new ExprParseError(
         'Map opcode not implemented yet (Task 20)',
@@ -405,15 +391,9 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_GLOBAL:
-      throw new ExprParseError(
-        'Global opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      return parseGlobal()
     case OP.OP_GET_VAR:
-      throw new ExprParseError(
-        'GetVar opcode not implemented yet (Task 26)',
-        'not-implemented-yet'
-      )
+      return parseGetVar(r)
     case OP.OP_OPTION_GET:
       throw new ExprParseError(
         'OptionGet opcode not implemented yet (Task 21)',
@@ -480,10 +460,7 @@ export function parseExprWithFirstByte(
         valDefTypes
       )
     case OP.OP_CONTEXT:
-      throw new ExprParseError(
-        'Context opcode not implemented yet (Task 16)',
-        'not-implemented-yet'
-      )
+      return parseContext()
     case OP.OP_XOR_OF:
       return parseXorOf(r, constantTypes, constantValues, valDefTypes)
     // Named-but-unhandled opcodes — present in sigma-rust's `op_code.rs`
@@ -509,8 +486,15 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_LAST_BLOCK_UTXO_ROOT_HASH:
+      // Sigma-rust does NOT dispatch this opcode as a top-level Expr arm —
+      // `Context.LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY` is reached via a
+      // PropertyCall on the SContext companion (method id 9, see
+      // `types/scontext.rs:136`). We surface it as `not-implemented-yet`
+      // pending the property/method-call port; encountering this byte at
+      // the top level would be unusual (sigma-rust's serializer never emits
+      // it as a top-level opcode either).
       throw new ExprParseError(
-        'LastBlockUtxoRootHash (GlobalVars) opcode not implemented (deferred — not currently modeled in GlobalVars.kind)',
+        'LastBlockUtxoRootHash opcode not dispatched at top level — reached via PropertyCall on SContext (method id 9) in sigma-rust',
         'not-implemented-yet'
       )
     case OP.OP_SELECT_1:
