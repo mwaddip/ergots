@@ -4,6 +4,11 @@ target/
 .DS_Store
 *.log
 
+# Library convention: published package strips package-lock.json from the tarball,
+# and consumers generate their own lock based on their app. Keeping it untracked
+# avoids PR noise on transitive dev-dep updates.
+package-lock.json
+
 # Reference checkout (per-developer; not committed)
 .reference/
 
