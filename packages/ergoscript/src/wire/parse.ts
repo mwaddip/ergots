@@ -59,6 +59,14 @@ import { parseNegation } from './mir/negation'
 import { parseBitInversion } from './mir/bit-inversion'
 import { parseUpcast } from './mir/upcast'
 import { parseDowncast } from './mir/downcast'
+import { parseExtractAmount } from './mir/extract-amount'
+import { parseExtractBytes } from './mir/extract-bytes'
+import { parseExtractBytesWithNoRef } from './mir/extract-bytes-with-no-ref'
+import { parseExtractCreationInfo } from './mir/extract-creation-info'
+import { parseExtractId } from './mir/extract-id'
+import { parseExtractRegisterAs } from './mir/extract-register-as'
+import { parseExtractScriptBytes } from './mir/extract-script-bytes'
+import { parseSelectField } from './mir/select-field'
 
 export { ExprParseError } from './errors'
 
@@ -178,10 +186,7 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_SELECT_FIELD:
-      throw new ExprParseError(
-        'SelectField opcode not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      return parseSelectField(r, constantTypes, constantValues, valDefTypes)
     // ---- BinOp comparison opcodes (Task 13) ----
     // ~22 wire opcodes collapse onto a single `Expr.tag === 'BinOp'` with the
     // discriminator carried by `op: BinOpKind`. Dispatch is centralized in
@@ -326,40 +331,19 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_EXTRACT_AMOUNT:
-      throw new ExprParseError(
-        'ExtractAmount opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractAmount(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_SCRIPT_BYTES:
-      throw new ExprParseError(
-        'ExtractScriptBytes opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractScriptBytes(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_BYTES:
-      throw new ExprParseError(
-        'ExtractBytes opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractBytes(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_BYTES_WITH_NO_REF:
-      throw new ExprParseError(
-        'ExtractBytesWithNoRef opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractBytesWithNoRef(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_ID:
-      throw new ExprParseError(
-        'ExtractId opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractId(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_REGISTER_AS:
-      throw new ExprParseError(
-        'ExtractRegisterAs opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractRegisterAs(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXTRACT_CREATION_INFO:
-      throw new ExprParseError(
-        'ExtractCreationInfo opcode not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      return parseExtractCreationInfo(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_CALC_BLAKE2B256:
       throw new ExprParseError(
         'CalcBlake2b256 opcode not implemented yet (Task 22)',

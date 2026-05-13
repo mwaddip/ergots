@@ -39,6 +39,14 @@ import { serializeNegation } from './mir/negation'
 import { serializeBitInversion } from './mir/bit-inversion'
 import { serializeUpcast } from './mir/upcast'
 import { serializeDowncast } from './mir/downcast'
+import { serializeExtractAmount } from './mir/extract-amount'
+import { serializeExtractBytes } from './mir/extract-bytes'
+import { serializeExtractBytesWithNoRef } from './mir/extract-bytes-with-no-ref'
+import { serializeExtractCreationInfo } from './mir/extract-creation-info'
+import { serializeExtractId } from './mir/extract-id'
+import { serializeExtractRegisterAs } from './mir/extract-register-as'
+import { serializeExtractScriptBytes } from './mir/extract-script-bytes'
+import { serializeSelectField } from './mir/select-field'
 
 export { ExprSerializeError } from './errors'
 
@@ -198,40 +206,33 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'ExtractAmount':
-      throw new ExprSerializeError(
-        'ExtractAmount serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_AMOUNT)
+      serializeExtractAmount(e, w)
+      return
     case 'ExtractRegisterAs':
-      throw new ExprSerializeError(
-        'ExtractRegisterAs serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_REGISTER_AS)
+      serializeExtractRegisterAs(e, w)
+      return
     case 'ExtractBytes':
-      throw new ExprSerializeError(
-        'ExtractBytes serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_BYTES)
+      serializeExtractBytes(e, w)
+      return
     case 'ExtractBytesWithNoRef':
-      throw new ExprSerializeError(
-        'ExtractBytesWithNoRef serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_BYTES_WITH_NO_REF)
+      serializeExtractBytesWithNoRef(e, w)
+      return
     case 'ExtractScriptBytes':
-      throw new ExprSerializeError(
-        'ExtractScriptBytes serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_SCRIPT_BYTES)
+      serializeExtractScriptBytes(e, w)
+      return
     case 'ExtractCreationInfo':
-      throw new ExprSerializeError(
-        'ExtractCreationInfo serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_CREATION_INFO)
+      serializeExtractCreationInfo(e, w)
+      return
     case 'ExtractId':
-      throw new ExprSerializeError(
-        'ExtractId serialization not implemented yet (Task 24)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXTRACT_ID)
+      serializeExtractId(e, w)
+      return
     case 'ByIndex':
       throw new ExprSerializeError(
         'ByIndex serialization not implemented yet (Task 19)',
@@ -273,10 +274,9 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'SelectField':
-      throw new ExprSerializeError(
-        'SelectField serialization not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SELECT_FIELD)
+      serializeSelectField(e, w)
+      return
     case 'BoolToSigmaProp':
       w.writeU8(OP.OP_BOOL_TO_SIGMA_PROP)
       serializeBoolToSigmaProp(e, w)
