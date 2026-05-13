@@ -81,6 +81,9 @@ import { serializeSigmaOr } from './mir/sigma-or'
 import { serializeSubstConstants } from './mir/subst-const'
 import { serializeDeserializeContext } from './mir/deserialize-context'
 import { serializeDeserializeRegister } from './mir/deserialize-register'
+import { serializeOptionGet } from './mir/option-get'
+import { serializeOptionGetOrElse } from './mir/option-get-or-else'
+import { serializeOptionIsDefined } from './mir/option-is-defined'
 
 export { ExprSerializeError } from './errors'
 
@@ -216,20 +219,17 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeBitInversion(e, w)
       return
     case 'OptionGet':
-      throw new ExprSerializeError(
-        'OptionGet serialization not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_OPTION_GET)
+      serializeOptionGet(e, w)
+      return
     case 'OptionIsDefined':
-      throw new ExprSerializeError(
-        'OptionIsDefined serialization not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_OPTION_IS_DEFINED)
+      serializeOptionIsDefined(e, w)
+      return
     case 'OptionGetOrElse':
-      throw new ExprSerializeError(
-        'OptionGetOrElse serialization not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_OPTION_GET_OR_ELSE)
+      serializeOptionGetOrElse(e, w)
+      return
     case 'ExtractAmount':
       w.writeU8(OP.OP_EXTRACT_AMOUNT)
       serializeExtractAmount(e, w)

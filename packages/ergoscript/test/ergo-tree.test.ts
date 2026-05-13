@@ -170,11 +170,18 @@ describe('ErgoTree envelope', () => {
 })
 
 describe('ErgoTree serialization', () => {
-  it('serializes a header-only tree (delegates body to stub which throws)', () => {
-    // Build an ErgoTree with no segregation, no size, and a still-stubbed
-    // body. The serializer will reach `serializeExpr(body, w)` and throw
-    // because the chosen variant has no implementation yet. This is OK for
-    // Task 8 — round-trip tests with real bodies arrive in Task 10.
+  it('serializes a header-only tree whose body is `ZkProofBlock` (the lone non-canonical variant) and rejects it as not-supported', () => {
+    // Task 8's original placeholder picked whichever Expr variant still had
+    // a "not implemented yet" serializer stub, and the choice rotated
+    // (Context → SubstConstants → OptionGet) as serializers landed. Task 26
+    // wired the last per-variant serializer, so no `not-implemented-yet`
+    // serializer arms remain — every concrete Expr variant now has a
+    // working serializer.
+    //
+    // The sole remaining throw-on-serialize variant is `ZkProofBlock`, which
+    // sigma-rust marks `OpCodes.Undefined` and refuses to serialize. We
+    // mirror that with the `not-supported` error code — see the comment in
+    // `wire/serialize.ts` at the `ZkProofBlock` case.
     const tree: ErgoTree = {
       header: {
         version: 0,
@@ -184,18 +191,12 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [],
       constants: [],
-      // Body is an `OptionGet` (smallest still-unimplemented variant
-      // whose serializer throws `not implemented yet`). Marker has rotated
-      // as serializers land: until Task 17 this used `Context`; until
-      // Task 24 it used `SubstConstants`. SubstConstants is now wired so we
-      // picked `OptionGet`, whose port is still pending (Task 25's option
-      // combinators sub-block).
       body: {
-        tag: 'OptionGet',
+        tag: 'ZkProofBlock',
         input: { tag: 'Context' }
       }
     }
-    expect(() => serializeTree(tree)).toThrow(/not implemented yet/)
+    expect(() => serializeTree(tree)).toThrow(/no canonical opcode/)
   })
 
   it('throws on constantTypes/constants arity mismatch', () => {

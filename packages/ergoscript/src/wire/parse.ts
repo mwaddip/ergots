@@ -103,6 +103,9 @@ import { parseSigmaOr } from './mir/sigma-or'
 import { parseSubstConstants } from './mir/subst-const'
 import { parseDeserializeContext } from './mir/deserialize-context'
 import { parseDeserializeRegister } from './mir/deserialize-register'
+import { parseOptionGet } from './mir/option-get'
+import { parseOptionGetOrElse } from './mir/option-get-or-else'
+import { parseOptionIsDefined } from './mir/option-is-defined'
 
 export { ExprParseError } from './errors'
 
@@ -337,20 +340,11 @@ export function parseExprWithFirstByte(
     case OP.OP_GET_VAR:
       return parseGetVar(r)
     case OP.OP_OPTION_GET:
-      throw new ExprParseError(
-        'OptionGet opcode not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      return parseOptionGet(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_OPTION_GET_OR_ELSE:
-      throw new ExprParseError(
-        'OptionGetOrElse opcode not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      return parseOptionGetOrElse(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_OPTION_IS_DEFINED:
-      throw new ExprParseError(
-        'OptionIsDefined opcode not implemented yet (Task 21)',
-        'not-implemented-yet'
-      )
+      return parseOptionIsDefined(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SIGMA_AND:
       return parseSigmaAnd(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SIGMA_OR:
