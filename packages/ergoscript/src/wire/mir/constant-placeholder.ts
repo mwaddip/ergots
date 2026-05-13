@@ -26,7 +26,7 @@
 import type { ConstPlaceholder, SType } from '../../mir/types'
 import { ByteReader } from '../reader'
 import { ByteWriter } from '../writer'
-import { ExprParseError } from '../parse'
+import { ExprParseError } from '../errors'
 
 /**
  * Parse a `ConstantPlaceholder` payload (the opcode byte was consumed by the

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
-import { ExprParseError } from '../../src/wire/parse'
+import { expectParseError } from './_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**
@@ -77,16 +77,10 @@ describe('ConstantPlaceholder variant', () => {
     // body OP_CONSTANT_PLACEHOLDER (0x73) + id=0x00. id=0 is out of range
     // when no constants exist.
     const bytes = new Uint8Array([0x10, 0x00, 0x73, 0x00])
-    expect(() => parseTree(bytes)).toThrow(ExprParseError)
-    try {
-      parseTree(bytes)
-      throw new Error('parseTree should have thrown')
-    } catch (e) {
-      expect(e).toBeInstanceOf(ExprParseError)
-      expect((e as ExprParseError).code).toBe(
-        'invalid-constant-placeholder-id'
-      )
-    }
+    expectParseError(
+      () => parseTree(bytes),
+      'invalid-constant-placeholder-id'
+    )
   })
 })
 

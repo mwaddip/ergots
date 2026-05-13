@@ -33,24 +33,16 @@
 import type { Expr, SType, SValue } from '../mir/types'
 import { ByteReader } from './reader'
 import * as OP from '../mir/opcodes'
-// Per-variant parsers live in `wire/mir/<variant>.ts`. The dispatch below
-// delegates to them; the centralized error type lives in this module so all
-// variant parsers throw a uniform `ExprParseError`. Variant modules import
-// `ExprParseError` from here — that's a circular import at the module-graph
-// level, but it's safe in ESM because the references are at function-call
-// time (after hoisting), not at module-evaluation time.
+// Per-variant parsers live in `wire/mir/<variant>.ts`. The centralized error
+// type lives in `./errors` (a leaf module) so variant parsers can import it
+// without creating a circular import back into this dispatcher. Re-exported
+// below for backward compatibility with consumers that imported it from
+// `wire/parse`.
+import { ExprParseError } from './errors'
 import { parseConstFromByte } from './mir/const'
 import { parseConstantPlaceholder } from './mir/constant-placeholder'
 
-export class ExprParseError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message)
-    this.name = 'ExprParseError'
-  }
-}
+export { ExprParseError } from './errors'
 
 /**
  * Parse a single Expr node from the reader.

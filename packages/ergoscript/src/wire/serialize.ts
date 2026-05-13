@@ -13,21 +13,16 @@
 import type { Expr } from '../mir/types'
 import { ByteWriter } from './writer'
 import * as OP from '../mir/opcodes'
-// Per-variant serializers live in `wire/mir/<variant>.ts`. The dispatch
-// below delegates to them; the centralized error type stays here so all
-// variant serializers throw a uniform `ExprSerializeError`.
+// Per-variant serializers live in `wire/mir/<variant>.ts`. The centralized
+// error type lives in `./errors` (a leaf module) so variant serializers can
+// import it without creating a circular import back into this dispatcher.
+// Re-exported below for backward compatibility with consumers that imported
+// it from `wire/serialize`.
+import { ExprSerializeError } from './errors'
 import { serializeConst } from './mir/const'
 import { serializeConstantPlaceholder } from './mir/constant-placeholder'
 
-export class ExprSerializeError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message)
-    this.name = 'ExprSerializeError'
-  }
-}
+export { ExprSerializeError } from './errors'
 
 export function serializeExpr(e: Expr, w: ByteWriter): void {
   switch (e.tag) {
