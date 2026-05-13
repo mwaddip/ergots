@@ -316,6 +316,11 @@ export function parseExpr(
         'CreateAvlTree opcode not implemented yet (Task 25)',
         'not-implemented-yet'
       )
+    case OP.OP_AVL_TREE_GET:
+      throw new ExprParseError(
+        'TreeLookup opcode not implemented yet (Task 25)',
+        'not-implemented-yet'
+      )
     case OP.OP_EXTRACT_AMOUNT:
       throw new ExprParseError(
         'ExtractAmount opcode not implemented yet (Task 24)',
@@ -534,6 +539,128 @@ export function parseExpr(
     case OP.OP_XOR_OF:
       throw new ExprParseError(
         'XorOf opcode not implemented yet (Task 14)',
+        'not-implemented-yet'
+      )
+    // Named-but-unhandled opcodes — present in sigma-rust's `op_code.rs`
+    // table but with no current TS handler. Distinguished from truly
+    // unknown bytes (which fall to the `default` arm below) so that the
+    // documented taxonomy holds: `not-implemented-yet` means "named in
+    // sigma-rust but no TS handler yet"; `unknown-opcode` means "byte
+    // not in sigma-rust's table". No Task number — these are rarely used
+    // in production trees and don't correspond to a specific later task.
+    case OP.OP_TRUE:
+      throw new ExprParseError(
+        'OpTrue opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_FALSE:
+      throw new ExprParseError(
+        'OpFalse opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_UNIT_CONSTANT:
+      throw new ExprParseError(
+        'UnitConstant opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_LAST_BLOCK_UTXO_ROOT_HASH:
+      throw new ExprParseError(
+        'LastBlockUtxoRootHash (GlobalVars) opcode not implemented (deferred — not currently modeled in GlobalVars.kind)',
+        'not-implemented-yet'
+      )
+    case OP.OP_SELECT_1:
+      throw new ExprParseError(
+        'Select1 opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_SELECT_2:
+      throw new ExprParseError(
+        'Select2 opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_SELECT_3:
+      throw new ExprParseError(
+        'Select3 opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_SELECT_4:
+      throw new ExprParseError(
+        'Select4 opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_SELECT_5:
+      throw new ExprParseError(
+        'Select5 opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_FLAT_MAP:
+      throw new ExprParseError(
+        'FlatMap opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_FUN_DEF:
+      throw new ExprParseError(
+        'FunDef opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_SOME_VALUE:
+      throw new ExprParseError(
+        'SomeValue opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_NONE_VALUE:
+      throw new ExprParseError(
+        'NoneValue opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_TRIVIAL_PROP_FALSE:
+      throw new ExprParseError(
+        'TrivialPropFalse opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_TRIVIAL_PROP_TRUE:
+      throw new ExprParseError(
+        'TrivialPropTrue opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_MOD_Q:
+      throw new ExprParseError(
+        'ModQ opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_PLUS_MOD_Q:
+      throw new ExprParseError(
+        'PlusModQ opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_MINUS_MOD_Q:
+      throw new ExprParseError(
+        'MinusModQ opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_COLL_SHIFT_RIGHT:
+      throw new ExprParseError(
+        'CollShiftRight opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_COLL_SHIFT_LEFT:
+      throw new ExprParseError(
+        'CollShiftLeft opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_COLL_SHIFT_RIGHT_ZEROED:
+      throw new ExprParseError(
+        'CollShiftRightZeroed opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_COLL_ROTATE_LEFT:
+      throw new ExprParseError(
+        'CollRotateLeft opcode not implemented (deferred — rarely used in production trees)',
+        'not-implemented-yet'
+      )
+    case OP.OP_COLL_ROTATE_RIGHT:
+      throw new ExprParseError(
+        'CollRotateRight opcode not implemented (deferred — rarely used in production trees)',
         'not-implemented-yet'
       )
     default:
