@@ -78,6 +78,7 @@ import { serializeSigmaPropBytes } from './mir/sigma-prop-bytes'
 import { serializeSigmaPropIsProven } from './mir/sigma-prop-is-proven'
 import { serializeSigmaAnd } from './mir/sigma-and'
 import { serializeSigmaOr } from './mir/sigma-or'
+import { serializeSubstConstants } from './mir/subst-const'
 
 export { ExprSerializeError } from './errors'
 
@@ -97,10 +98,9 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeConstantPlaceholder(e, w)
       return
     case 'SubstConstants':
-      throw new ExprSerializeError(
-        'SubstConstants serialization not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SUBST_CONSTANTS)
+      serializeSubstConstants(e, w)
+      return
     case 'ByteArrayToLong':
       w.writeU8(OP.OP_BYTE_ARRAY_TO_LONG)
       serializeByteArrayToLong(e, w)

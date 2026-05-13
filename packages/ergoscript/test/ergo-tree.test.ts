@@ -184,17 +184,15 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [],
       constants: [],
-      // Body is a `SubstConstants` (smallest still-unimplemented variant
+      // Body is an `OptionGet` (smallest still-unimplemented variant
       // whose serializer throws `not implemented yet`). Marker has rotated
-      // as serializers land: until Task 17 this used `Context`; Context's
-      // serializer is now wired so we picked a variant whose port is still
-      // pending. SubstConstants will land in Task 17's nominal "remaining"
-      // sub-block / Task 17+ — until then it throws.
+      // as serializers land: until Task 17 this used `Context`; until
+      // Task 24 it used `SubstConstants`. SubstConstants is now wired so we
+      // picked `OptionGet`, whose port is still pending (Task 25's option
+      // combinators sub-block).
       body: {
-        tag: 'SubstConstants',
-        scriptBytes: { tag: 'Context' },
-        positions: { tag: 'Context' },
-        newValues: { tag: 'Context' }
+        tag: 'OptionGet',
+        input: { tag: 'Context' }
       }
     }
     expect(() => serializeTree(tree)).toThrow(/not implemented yet/)

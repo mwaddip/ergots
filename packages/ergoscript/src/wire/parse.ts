@@ -100,6 +100,7 @@ import { parseSigmaPropBytes } from './mir/sigma-prop-bytes'
 import { parseSigmaPropIsProven } from './mir/sigma-prop-is-proven'
 import { parseSigmaAnd } from './mir/sigma-and'
 import { parseSigmaOr } from './mir/sigma-or'
+import { parseSubstConstants } from './mir/subst-const'
 
 export { ExprParseError } from './errors'
 
@@ -175,10 +176,7 @@ export function parseExprWithFirstByte(
     case OP.OP_CONSTANT_PLACEHOLDER:
       return parseConstantPlaceholder(r, constantTypes)
     case OP.OP_SUBST_CONSTANTS:
-      throw new ExprParseError(
-        'SubstConstants opcode not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      return parseSubstConstants(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_LONG_TO_BYTE_ARRAY:
       return parseLongToByteArray(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BYTE_ARRAY_TO_BIGINT:
