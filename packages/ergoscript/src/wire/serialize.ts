@@ -21,6 +21,9 @@ import * as OP from '../mir/opcodes'
 import { ExprSerializeError } from './errors'
 import { serializeConst } from './mir/const'
 import { serializeConstantPlaceholder } from './mir/constant-placeholder'
+import { serializeBlockValue } from './mir/block-value'
+import { serializeValDef } from './mir/val-def'
+import { serializeValUse } from './mir/val-use'
 
 export { ExprSerializeError } from './errors'
 
@@ -116,20 +119,17 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'BlockValue':
-      throw new ExprSerializeError(
-        'BlockValue serialization not implemented yet (Task 11)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_BLOCK_VALUE)
+      serializeBlockValue(e, w)
+      return
     case 'ValDef':
-      throw new ExprSerializeError(
-        'ValDef serialization not implemented yet (Task 11)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_VAL_DEF)
+      serializeValDef(e, w)
+      return
     case 'ValUse':
-      throw new ExprSerializeError(
-        'ValUse serialization not implemented yet (Task 11)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_VAL_USE)
+      serializeValUse(e, w)
+      return
     case 'If':
       throw new ExprSerializeError(
         'If serialization not implemented yet (Task 12)',

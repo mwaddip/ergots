@@ -137,10 +137,19 @@ describe('parseExpr dispatch shell', () => {
     }
   })
 
-  it('VAL_USE (0x72) is a known opcode → not-implemented-yet', () => {
-    const e = parseOne(OP.OP_VAL_USE)
-    expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('ValUse')
+  it('VAL_USE (0x72) is wired to parseValUse → val-use-unknown-id on bare input', () => {
+    // Task 11 ports VAL_USE. With no enclosing ValDef scope (the default
+    // val-def-type-store is empty) any valId is unknown — the parser must
+    // throw `val-use-unknown-id`. We feed `[OP_VAL_USE, 0x00]` so the
+    // reader doesn't run out before the lookup runs.
+    const r = new ByteReader(new Uint8Array([OP.OP_VAL_USE, 0x00]))
+    try {
+      parseExpr(r, [], [])
+      throw new Error('parseExpr should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ExprParseError)
+      expect((e as ExprParseError).code).toBe('val-use-unknown-id')
+    }
   })
 
   it('IF (0x95) is a known opcode → not-implemented-yet', () => {

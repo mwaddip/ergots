@@ -41,6 +41,9 @@ import * as OP from '../mir/opcodes'
 import { ExprParseError } from './errors'
 import { parseConstFromByte } from './mir/const'
 import { parseConstantPlaceholder } from './mir/constant-placeholder'
+import { parseBlockValue } from './mir/block-value'
+import { parseValDef } from './mir/val-def'
+import { parseValUse } from './mir/val-use'
 
 export { ExprParseError } from './errors'
 
@@ -54,12 +57,21 @@ export { ExprParseError } from './errors'
  * (it becomes relevant if/when the interpreter substitutes placeholders
  * with their values at parse time — sigma-rust gates that on a
  * `substitute_placeholders` flag).
+ *
+ * `valDefTypes` is a shared scope-wide map from `ValId` to `SType`,
+ * populated by {@link parseValDef} (when a let-binding is parsed) and read
+ * by {@link parseValUse} (which uses the recorded type because ValUse's
+ * `tpe` is NOT serialized on the wire — see `wire/mir/val-use.ts`). Mirrors
+ * sigma-rust's `SigmaByteReader.val_def_type_store`
+ * (`serialization/sigma_byte_reader.rs:16`). The outer envelope
+ * (`wire/ergo-tree.ts`) creates a fresh empty map per tree; recursive
+ * descent shares the same map across the whole Expr graph.
  */
 export function parseExpr(
   r: ByteReader,
   constantTypes: SType[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _constantValues: SValue[]
+  constantValues: SValue[],
+  valDefTypes: Map<number, SType> = new Map()
 ): Expr {
   const opcode = r.readU8()
 
@@ -76,10 +88,7 @@ export function parseExpr(
   // ports the real parser; the comments name the upcoming task per variant.
   switch (opcode) {
     case OP.OP_VAL_USE:
-      throw new ExprParseError(
-        'ValUse opcode not implemented yet (Task 11)',
-        'not-implemented-yet'
-      )
+      return parseValUse(r, valDefTypes)
     case OP.OP_CONSTANT_PLACEHOLDER:
       return parseConstantPlaceholder(r, constantTypes)
     case OP.OP_SUBST_CONSTANTS:
@@ -398,15 +407,9 @@ export function parseExpr(
         'not-implemented-yet'
       )
     case OP.OP_VAL_DEF:
-      throw new ExprParseError(
-        'ValDef opcode not implemented yet (Task 11)',
-        'not-implemented-yet'
-      )
+      return parseValDef(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BLOCK_VALUE:
-      throw new ExprParseError(
-        'BlockValue opcode not implemented yet (Task 11)',
-        'not-implemented-yet'
-      )
+      return parseBlockValue(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_FUNC_VALUE:
       throw new ExprParseError(
         'FuncValue opcode not implemented yet (Task 15)',
