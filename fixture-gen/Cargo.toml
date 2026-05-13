@@ -6,12 +6,14 @@ publish = false
 
 [dependencies]
 # Local-fork path deps. The fork lives at ~/projects/sigma-rust/sigma-rust/,
-# checked out on branch `ergo-node-integration` (HEAD 46e94c21 as of
-# 2026-05-12), which matches exactly the rev ergo-node-rust pins. These
-# entries point to that fork's workspace member crates, so byte-for-byte
-# fixtures generated here are equivalent to what ergo-node-rust would produce.
-# If the local fork's branch or HEAD changes, regenerate fixtures and
-# re-verify equivalence against a known-good ergo-node-rust build.
+# checked out on branch `integration/ergots` (HEAD ed5452cf as of 2026-05-13),
+# which is `ergo-node-integration` (cost-parity fixes) merged with upstream
+# PR #862 head (`ergoscript-compiler-v2`, language conformance + Significant-15
+# corpus + core2→core3 migration). These entries point to that fork's workspace
+# member crates, so byte-for-byte fixtures generated here are equivalent to what
+# ergo-node-rust would produce. If the local fork's branch or HEAD changes,
+# regenerate fixtures and re-verify equivalence against a known-good
+# ergo-node-rust build.
 ergo-chain-types = { path = "../../sigma-rust/sigma-rust/ergo-chain-types" }
 ergo-merkle-tree = { path = "../../sigma-rust/sigma-rust/ergo-merkle-tree" }
 ergo-nipopow = { path = "../../sigma-rust/sigma-rust/ergo-nipopow" }
@@ -30,12 +32,3 @@ hex = "0.4"
 anyhow = "1"
 num-bigint = "0.4"
 num-traits = "0.2"
-
-[patch.crates-io]
-# core2 v0.4.0 is yanked on crates.io. ergo-chain-types requires it transitively
-# (via sigma-ser). The source is present in the local cargo registry cache from the
-# sigma-rust workspace build. We patch it here so cargo can resolve outside that
-# workspace. If you see "no matching package", run:
-#   cargo build -p ergo-chain-types  (from sigma-rust workspace)
-# to repopulate the cache, then retry here.
-core2 = { path = "/home/mwaddip/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core2-0.4.0" }
