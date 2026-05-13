@@ -52,5 +52,11 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("synthetic_svalue.json", &cmds::ergoscript::synthetic_svalue::generate()?)?;
     write_ergoscript_json("synthetic_expr.json", &cmds::ergoscript::synthetic_expr::generate()?)?;
 
+    // Ergoscript real-world corpora (Task 29).
+    write_ergoscript_json("corpus_legacy_45.json", &cmds::ergoscript::corpus_legacy_45::generate()?)?;
+    write_ergoscript_json("corpus_ecosystem_14.json", &cmds::ergoscript::corpus_ecosystem_14::generate()?)?;
+    write_ergoscript_json("corpus_significant_15.json", &cmds::ergoscript::corpus_significant_15::generate()?)?;
+    write_ergoscript_json("mainnet_boxes.json", &cmds::ergoscript::mainnet_boxes::generate()?)?;
+
     Ok(())
 }
