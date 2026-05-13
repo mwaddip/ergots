@@ -71,6 +71,8 @@ import { buildGlobalVarsFromOpcode } from './mir/global-vars'
 import { parseContext } from './mir/context'
 import { parseGlobal } from './mir/global'
 import { parseGetVar } from './mir/get-var'
+import { parseTuple } from './mir/tuple'
+import { parseCollection, parseCollectionOfBoolConst } from './mir/collection'
 
 export { ExprParseError } from './errors'
 
@@ -172,20 +174,11 @@ export function parseExprWithFirstByte(
     case OP.OP_GROUP_GENERATOR:
       return buildGlobalVarsFromOpcode(opcode)
     case OP.OP_COLL:
-      throw new ExprParseError(
-        'Collection opcode not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      return parseCollection(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_COLL_OF_BOOL_CONST:
-      throw new ExprParseError(
-        'CollOfBoolConst opcode not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      return parseCollectionOfBoolConst(r)
     case OP.OP_TUPLE:
-      throw new ExprParseError(
-        'Tuple opcode not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      return parseTuple(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SELECT_FIELD:
       return parseSelectField(r, constantTypes, constantValues, valDefTypes)
     // ---- BinOp comparison opcodes (Task 13) ----

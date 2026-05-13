@@ -49,6 +49,8 @@ import { serializeExtractScriptBytes } from './mir/extract-script-bytes'
 import { serializeSelectField } from './mir/select-field'
 import { serializeGlobalVars } from './mir/global-vars'
 import { serializeGetVar } from './mir/get-var'
+import { serializeTuple } from './mir/tuple'
+import { serializeCollection } from './mir/collection'
 
 export { ExprSerializeError } from './errors'
 
@@ -89,15 +91,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'Collection':
-      throw new ExprSerializeError(
-        'Collection serialization not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      w.writeU8(e.kind === 'Exprs' ? OP.OP_COLL : OP.OP_COLL_OF_BOOL_CONST)
+      serializeCollection(e, w)
+      return
     case 'Tuple':
-      throw new ExprSerializeError(
-        'Tuple serialization not implemented yet (Task 18)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_TUPLE)
+      serializeTuple(e, w)
+      return
     case 'CalcBlake2b256':
       throw new ExprSerializeError(
         'CalcBlake2b256 serialization not implemented yet (Task 22)',
