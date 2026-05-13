@@ -28,6 +28,15 @@ import { serializeIf } from './mir/if'
 import { serializeFuncValue } from './mir/func-value'
 import { serializeApply } from './mir/apply'
 import { serializeBinOp } from './mir/bin-op'
+import { serializeAnd } from './mir/and'
+import { serializeOr } from './mir/or'
+import { serializeXor } from './mir/xor'
+import { serializeXorOf } from './mir/xor-of'
+import { serializeAtleast } from './mir/atleast'
+import { serializeBoolToSigmaProp } from './mir/bool-to-sigma-prop'
+import { serializeLogicalNot } from './mir/logical-not'
+import { serializeNegation } from './mir/negation'
+import { serializeBitInversion } from './mir/bit-inversion'
 
 export { ExprSerializeError } from './errors'
 
@@ -144,40 +153,33 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeBinOp(e, w)
       return
     case 'And':
-      throw new ExprSerializeError(
-        'And serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_AND)
+      serializeAnd(e, w)
+      return
     case 'Or':
-      throw new ExprSerializeError(
-        'Or serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_OR)
+      serializeOr(e, w)
+      return
     case 'Xor':
-      throw new ExprSerializeError(
-        'Xor serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_XOR)
+      serializeXor(e, w)
+      return
     case 'Atleast':
-      throw new ExprSerializeError(
-        'Atleast serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_ATLEAST)
+      serializeAtleast(e, w)
+      return
     case 'LogicalNot':
-      throw new ExprSerializeError(
-        'LogicalNot serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_LOGICAL_NOT)
+      serializeLogicalNot(e, w)
+      return
     case 'Negation':
-      throw new ExprSerializeError(
-        'Negation serialization not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_NEGATION)
+      serializeNegation(e, w)
+      return
     case 'BitInversion':
-      throw new ExprSerializeError(
-        'BitInversion serialization not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_BIT_INVERSION)
+      serializeBitInversion(e, w)
+      return
     case 'OptionGet':
       throw new ExprSerializeError(
         'OptionGet serialization not implemented yet (Task 21)',
@@ -274,10 +276,9 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'BoolToSigmaProp':
-      throw new ExprSerializeError(
-        'BoolToSigmaProp serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_BOOL_TO_SIGMA_PROP)
+      serializeBoolToSigmaProp(e, w)
+      return
     case 'Upcast':
       throw new ExprSerializeError(
         'Upcast serialization not implemented yet (Task 21)',
@@ -356,10 +357,9 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'XorOf':
-      throw new ExprSerializeError(
-        'XorOf serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_XOR_OF)
+      serializeXorOf(e, w)
+      return
     case 'TreeLookup':
       throw new ExprSerializeError(
         'TreeLookup serialization not implemented yet (Task 25)',

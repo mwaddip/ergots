@@ -175,10 +175,13 @@ describe('parseExpr dispatch shell', () => {
     }
   })
 
-  it('XOR_OF (0xff) is a known opcode → not-implemented-yet', () => {
-    const e = parseOne(OP.OP_XOR_OF)
+  it('CONTEXT (0xfe) is a known opcode → not-implemented-yet', () => {
+    // CONTEXT lands in Task 16. Until then it's the canary for "named in
+    // sigma-rust's opcode table but no TS handler yet" — we use it the way
+    // earlier task suites used XOR_OF (which is now implemented in Task 14).
+    const e = parseOne(OP.OP_CONTEXT)
     expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('XorOf')
+    expect(e.message).toContain('Context')
   })
 
   it('unknown opcode 0xab (shift 59, reserved) throws unknown-opcode', () => {

@@ -69,21 +69,24 @@ describe('ErgoTree envelope', () => {
     })
 
     it('reaches body parser for header with no size + no segregation', () => {
-      // Header 0x00 + a body opcode byte 0xFF (= XOR_OF, a real sigma-rust
+      // Header 0x00 + a body opcode byte 0xFE (= CONTEXT, a real sigma-rust
       // opcode). Envelope parses header successfully, then parseExpr
-      // dispatches the XOR_OF case and throws not-implemented-yet. This
+      // dispatches the CONTEXT case and throws not-implemented-yet. This
       // proves the envelope wiring delivered control to the body parser
       // with the cursor at the right spot.
-      const bytes = new Uint8Array([0x00, 0xff])
+      //
+      // (We previously used 0xff = XOR_OF as the marker but XOR_OF landed
+      // in Task 14; CONTEXT remains stubbed until Task 16.)
+      const bytes = new Uint8Array([0x00, 0xfe])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
-        // Assert on the variant name (XorOf) rather than the raw byte —
+        // Assert on the variant name (Context) rather than the raw byte —
         // the dispatch table identifies opcodes by name in its messages.
-        expect((e as Error).message).toContain('XorOf')
+        expect((e as Error).message).toContain('Context')
       }
     })
 
@@ -127,18 +130,21 @@ describe('ErgoTree envelope', () => {
   describe('segregated constants parsing', () => {
     it('parses a single SBoolean constant (true)', () => {
       // Header 0x10 (segregation, no size, v0), count=1 (VLQ 0x01),
-      // SType SBoolean (0x01), SValue true (0x01), then body byte 0xff
-      // (= XOR_OF) on which parseExpr throws not-implemented-yet. The
+      // SType SBoolean (0x01), SValue true (0x01), then body byte 0xfe
+      // (= CONTEXT) on which parseExpr throws not-implemented-yet. The
       // envelope reaching that throw proves: header parsed, count parsed,
       // SType parsed, SValue parsed.
-      const bytes = new Uint8Array([0x10, 0x01, 0x01, 0x01, 0xff])
+      //
+      // (We previously used 0xff = XOR_OF as the marker but XOR_OF landed
+      // in Task 14; CONTEXT remains stubbed until Task 16.)
+      const bytes = new Uint8Array([0x10, 0x01, 0x01, 0x01, 0xfe])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
-        expect((e as Error).message).toContain('XorOf')
+        expect((e as Error).message).toContain('Context')
       }
     })
 

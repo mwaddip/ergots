@@ -48,6 +48,15 @@ import { parseIf } from './mir/if'
 import { parseFuncValue } from './mir/func-value'
 import { parseApply } from './mir/apply'
 import { parseBinOpFromByte } from './mir/bin-op'
+import { parseAnd } from './mir/and'
+import { parseOr } from './mir/or'
+import { parseXor } from './mir/xor'
+import { parseXorOf } from './mir/xor-of'
+import { parseAtleast } from './mir/atleast'
+import { parseBoolToSigmaProp } from './mir/bool-to-sigma-prop'
+import { parseLogicalNot } from './mir/logical-not'
+import { parseNegation } from './mir/negation'
+import { parseBitInversion } from './mir/bit-inversion'
 
 export { ExprParseError } from './errors'
 
@@ -200,20 +209,11 @@ export function parseExprWithFirstByte(
     case OP.OP_IF:
       return parseIf(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_AND:
-      throw new ExprParseError(
-        'And opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseAnd(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_OR:
-      throw new ExprParseError(
-        'Or opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseOr(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_ATLEAST:
-      throw new ExprParseError(
-        'Atleast opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseAtleast(r, constantTypes, constantValues, valDefTypes)
     // BinOp arithmetic opcodes (Task 13) — see comment above on shared dispatch.
     case OP.OP_MINUS:
     case OP.OP_PLUS:
@@ -228,10 +228,7 @@ export function parseExprWithFirstByte(
         valDefTypes
       )
     case OP.OP_XOR:
-      throw new ExprParseError(
-        'Xor opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseXor(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXPONENTIATE:
       throw new ExprParseError(
         'Exponentiate opcode not implemented yet (Task 23)',
@@ -398,10 +395,7 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_BOOL_TO_SIGMA_PROP:
-      throw new ExprParseError(
-        'BoolToSigmaProp opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseBoolToSigmaProp(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_DESERIALIZE_CONTEXT:
       throw new ExprParseError(
         'DeserializeContext opcode not implemented yet (Task 26)',
@@ -481,20 +475,11 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_LOGICAL_NOT:
-      throw new ExprParseError(
-        'LogicalNot opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseLogicalNot(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_NEGATION:
-      throw new ExprParseError(
-        'Negation opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
+      return parseNegation(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BIT_INVERSION:
-      throw new ExprParseError(
-        'BitInversion opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
+      return parseBitInversion(r, constantTypes, constantValues, valDefTypes)
     // BinOp bitwise + remaining logical XOR opcodes (Task 13) — shared dispatch.
     // Note: OP_BIN_XOR (0xf4) is the *logical* XOR (LogicalOp::Xor); OP_BIT_XOR
     // (0xf5) is the *bitwise* XOR (BitOp::BitXor). They occupy adjacent opcode
@@ -520,10 +505,7 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_XOR_OF:
-      throw new ExprParseError(
-        'XorOf opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseXorOf(r, constantTypes, constantValues, valDefTypes)
     // Named-but-unhandled opcodes — present in sigma-rust's `op_code.rs`
     // table but with no current TS handler. Distinguished from truly
     // unknown bytes (which fall to the `default` arm below) so that the
