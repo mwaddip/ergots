@@ -70,6 +70,8 @@ import { serializeByteArrayToBigInt } from './mir/byte-array-to-bigint'
 import { serializeByteArrayToLong } from './mir/byte-array-to-long'
 import { serializeDecodePoint } from './mir/decode-point'
 import { serializeLongToByteArray } from './mir/long-to-byte-array'
+import { serializeExponentiate } from './mir/exponentiate'
+import { serializeMultiplyGroup } from './mir/multiply-group'
 
 export { ExprSerializeError } from './errors'
 
@@ -352,15 +354,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'MultiplyGroup':
-      throw new ExprSerializeError(
-        'MultiplyGroup serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_MULTIPLY_GROUP)
+      serializeMultiplyGroup(e, w)
+      return
     case 'Exponentiate':
-      throw new ExprSerializeError(
-        'Exponentiate serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXPONENTIATE)
+      serializeExponentiate(e, w)
+      return
     case 'XorOf':
       w.writeU8(OP.OP_XOR_OF)
       serializeXorOf(e, w)

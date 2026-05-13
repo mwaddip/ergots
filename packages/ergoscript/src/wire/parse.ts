@@ -92,6 +92,8 @@ import { parseByteArrayToBigInt } from './mir/byte-array-to-bigint'
 import { parseByteArrayToLong } from './mir/byte-array-to-long'
 import { parseDecodePoint } from './mir/decode-point'
 import { parseLongToByteArray } from './mir/long-to-byte-array'
+import { parseExponentiate } from './mir/exponentiate'
+import { parseMultiplyGroup } from './mir/multiply-group'
 
 export { ExprParseError } from './errors'
 
@@ -235,15 +237,9 @@ export function parseExprWithFirstByte(
     case OP.OP_XOR:
       return parseXor(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXPONENTIATE:
-      throw new ExprParseError(
-        'Exponentiate opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseExponentiate(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_MULTIPLY_GROUP:
-      throw new ExprParseError(
-        'MultiplyGroup opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseMultiplyGroup(r, constantTypes, constantValues, valDefTypes)
     // BinOp arithmetic opcodes Min/Max (Task 13) — shared dispatch.
     case OP.OP_MIN:
     case OP.OP_MAX:
