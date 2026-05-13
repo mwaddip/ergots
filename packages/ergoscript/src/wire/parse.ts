@@ -94,6 +94,12 @@ import { parseDecodePoint } from './mir/decode-point'
 import { parseLongToByteArray } from './mir/long-to-byte-array'
 import { parseExponentiate } from './mir/exponentiate'
 import { parseMultiplyGroup } from './mir/multiply-group'
+import { parseCreateProveDlog } from './mir/create-prove-dlog'
+import { parseCreateProveDhTuple } from './mir/create-prove-dh-tuple'
+import { parseSigmaPropBytes } from './mir/sigma-prop-bytes'
+import { parseSigmaPropIsProven } from './mir/sigma-prop-is-proven'
+import { parseSigmaAnd } from './mir/sigma-and'
+import { parseSigmaOr } from './mir/sigma-or'
 
 export { ExprParseError } from './errors'
 
@@ -301,25 +307,13 @@ export function parseExprWithFirstByte(
     case OP.OP_CALC_SHA256:
       return parseCalcSha256(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_PROVE_DLOG:
-      throw new ExprParseError(
-        'CreateProveDlog opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseCreateProveDlog(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_PROVE_DIFFIE_HELLMAN_TUPLE:
-      throw new ExprParseError(
-        'CreateProveDhTuple opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseCreateProveDhTuple(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SIGMA_PROP_IS_PROVEN:
-      throw new ExprParseError(
-        'SigmaPropIsProven opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseSigmaPropIsProven(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SIGMA_PROP_BYTES:
-      throw new ExprParseError(
-        'SigmaPropBytes opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseSigmaPropBytes(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BOOL_TO_SIGMA_PROP:
       return parseBoolToSigmaProp(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_DESERIALIZE_CONTEXT:
@@ -364,15 +358,9 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_SIGMA_AND:
-      throw new ExprParseError(
-        'SigmaAnd opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseSigmaAnd(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SIGMA_OR:
-      throw new ExprParseError(
-        'SigmaOr opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      return parseSigmaOr(r, constantTypes, constantValues, valDefTypes)
     // BinOp logical opcodes (Task 13) — shared dispatch.
     case OP.OP_BIN_OR:
     case OP.OP_BIN_AND:

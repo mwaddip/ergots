@@ -72,6 +72,12 @@ import { serializeDecodePoint } from './mir/decode-point'
 import { serializeLongToByteArray } from './mir/long-to-byte-array'
 import { serializeExponentiate } from './mir/exponentiate'
 import { serializeMultiplyGroup } from './mir/multiply-group'
+import { serializeCreateProveDlog } from './mir/create-prove-dlog'
+import { serializeCreateProveDhTuple } from './mir/create-prove-dh-tuple'
+import { serializeSigmaPropBytes } from './mir/sigma-prop-bytes'
+import { serializeSigmaPropIsProven } from './mir/sigma-prop-is-proven'
+import { serializeSigmaAnd } from './mir/sigma-and'
+import { serializeSigmaOr } from './mir/sigma-or'
 
 export { ExprSerializeError } from './errors'
 
@@ -299,25 +305,21 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeDowncast(e, w)
       return
     case 'CreateProveDlog':
-      throw new ExprSerializeError(
-        'CreateProveDlog serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_PROVE_DLOG)
+      serializeCreateProveDlog(e, w)
+      return
     case 'CreateProveDhTuple':
-      throw new ExprSerializeError(
-        'CreateProveDhTuple serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_PROVE_DIFFIE_HELLMAN_TUPLE)
+      serializeCreateProveDhTuple(e, w)
+      return
     case 'SigmaPropBytes':
-      throw new ExprSerializeError(
-        'SigmaPropBytes serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SIGMA_PROP_BYTES)
+      serializeSigmaPropBytes(e, w)
+      return
     case 'SigmaPropIsProven':
-      throw new ExprSerializeError(
-        'SigmaPropIsProven serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SIGMA_PROP_IS_PROVEN)
+      serializeSigmaPropIsProven(e, w)
+      return
     case 'ZkProofBlock':
       // ZkProofBlock has no canonical opcode (Scala's `OpCodes.Undefined`);
       // sigma-rust's serializer rejects it. We mirror that error path.
@@ -330,15 +332,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeDecodePoint(e, w)
       return
     case 'SigmaAnd':
-      throw new ExprSerializeError(
-        'SigmaAnd serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SIGMA_AND)
+      serializeSigmaAnd(e, w)
+      return
     case 'SigmaOr':
-      throw new ExprSerializeError(
-        'SigmaOr serialization not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SIGMA_OR)
+      serializeSigmaOr(e, w)
+      return
     case 'GetVar':
       w.writeU8(OP.OP_GET_VAR)
       serializeGetVar(e, w)
