@@ -41,4 +41,52 @@ describe('SType helpers', () => {
     expect(sTypeEquals(a, b)).toBe(true)
     expect(sTypeEquals(a, c)).toBe(false)
   })
+
+  it('equates SFunc by args + result + tpeParams', () => {
+    const a: SType = { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SBoolean' }, tpeParams: [] }
+    const b: SType = { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SBoolean' }, tpeParams: [] }
+    expect(sTypeEquals(a, b)).toBe(true)
+
+    // Different args
+    const c: SType = { tag: 'SFunc', args: [{ tag: 'SLong' }], result: { tag: 'SBoolean' }, tpeParams: [] }
+    expect(sTypeEquals(a, c)).toBe(false)
+
+    // Different result
+    const d: SType = { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SLong' }, tpeParams: [] }
+    expect(sTypeEquals(a, d)).toBe(false)
+
+    // Different arg arity
+    const e: SType = { tag: 'SFunc', args: [{ tag: 'SInt' }, { tag: 'SInt' }], result: { tag: 'SBoolean' }, tpeParams: [] }
+    expect(sTypeEquals(a, e)).toBe(false)
+  })
+
+  it('equates SFunc by tpeParams names', () => {
+    const a: SType = {
+      tag: 'SFunc',
+      args: [{ tag: 'STypeVar', name: 'T' }],
+      result: { tag: 'STypeVar', name: 'T' },
+      tpeParams: [{ name: 'T' }]
+    }
+    const b: SType = {
+      tag: 'SFunc',
+      args: [{ tag: 'STypeVar', name: 'T' }],
+      result: { tag: 'STypeVar', name: 'T' },
+      tpeParams: [{ name: 'T' }]
+    }
+    expect(sTypeEquals(a, b)).toBe(true)
+
+    // Different tpeParams names
+    const c: SType = {
+      tag: 'SFunc',
+      args: [{ tag: 'STypeVar', name: 'T' }],
+      result: { tag: 'STypeVar', name: 'T' },
+      tpeParams: [{ name: 'U' }]
+    }
+    expect(sTypeEquals(a, c)).toBe(false)
+  })
+
+  it('equates STypeVar by name', () => {
+    expect(sTypeEquals({ tag: 'STypeVar', name: 'T' }, { tag: 'STypeVar', name: 'T' })).toBe(true)
+    expect(sTypeEquals({ tag: 'STypeVar', name: 'T' }, { tag: 'STypeVar', name: 'U' })).toBe(false)
+  })
 })

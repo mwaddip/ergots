@@ -75,8 +75,46 @@ export function sTypeEquals(a: SType, b: SType): boolean {
     }
     case 'STypeVar':
       return a.name === (b as { tag: 'STypeVar'; name: string }).name
-    default:
-      // Primitive — only tag matters, and tags already match.
+    // Primitives — only tag matters, and tags already match. Enumerated
+    // explicitly so adding a new SType variant becomes a compile-time error
+    // via the `_exhaust: never` default below.
+    case 'SBoolean':
       return true
+    case 'SByte':
+      return true
+    case 'SShort':
+      return true
+    case 'SInt':
+      return true
+    case 'SLong':
+      return true
+    case 'SBigInt':
+      return true
+    case 'SGroupElement':
+      return true
+    case 'SSigmaProp':
+      return true
+    case 'SBox':
+      return true
+    case 'SAvlTree':
+      return true
+    case 'SUnit':
+      return true
+    case 'SAny':
+      return true
+    case 'SHeader':
+      return true
+    case 'SPreHeader':
+      return true
+    case 'SContext':
+      return true
+    case 'SGlobal':
+      return true
+    case 'SString':
+      return true
+    default: {
+      const _exhaust: never = a
+      return _exhaust
+    }
   }
 }
