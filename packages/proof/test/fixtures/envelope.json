@@ -1,0 +1,45 @@
+{
+  "get_requests": [
+    {
+      "label": "m6-k10-no-anchor",
+      "m": 6,
+      "k": 10,
+      "header_id_hex": null,
+      "bytes_hex": "0c140000"
+    },
+    {
+      "label": "m2-k2-with-anchor",
+      "m": 2,
+      "k": 2,
+      "header_id_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+      "bytes_hex": "040401424242424242424242424242424242424242424242424242424242424242424200"
+    },
+    {
+      "label": "m6-k10-no-anchor-with-pad",
+      "m": 6,
+      "k": 10,
+      "header_id_hex": null,
+      "bytes_hex": "0c140004ffffffff"
+    }
+  ],
+  "proof_envelopes": [
+    {
+      "label": "tiny-payload-100-bytes",
+      "inner_proof_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bytes_hex": "64aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00",
+      "parse_only": false
+    },
+    {
+      "label": "minimal-1-byte",
+      "inner_proof_hex": "01",
+      "bytes_hex": "010100",
+      "parse_only": false
+    },
+    {
+      "label": "payload-with-pad",
+      "inner_proof_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bytes_hex": "32bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb03000000",
+      "parse_only": true
+    }
+  ]
+}

@@ -8,3 +8,4 @@ pub mod popow_header;
 pub mod nipopow_proof;
 pub mod autolykos_v2;
 pub mod compare;
+pub mod envelope;
