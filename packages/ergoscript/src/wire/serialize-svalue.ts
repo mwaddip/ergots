@@ -56,15 +56,36 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       return
     }
 
-    case 'SShort':
+    case 'SShort': {
       assertKind(t, v, 'Short')
-      w.writeVlqS(v.value)
+      // sigma-rust: `put_u32(encode_i32(v as i32) as u32)` —
+      // sign-extend i16 → i32, ZigZag-encode in i32 space, truncate to u32,
+      // then VLQ-encode as a u64 with the upper 32 bits zeroed.
+      // JS bitwise ops are 32-bit signed; mask to u32 before writing.
+      const i32 = v.value | 0 // already in i16 range; JS cast for explicitness
+      const zz = ((i32 << 1) ^ (i32 >> 31)) >>> 0 // u32
+      w.writeVlqBigInt(BigInt(zz))
       return
+    }
 
-    case 'SInt':
+    case 'SInt': {
       assertKind(t, v, 'Int')
-      w.writeVlqS(v.value)
+      // sigma-rust: `put_u64(encode_i32(v))` — ZigZag-encode in i32 space and
+      // emit the result as a u64. The `as u64` cast in Rust sign-extends the
+      // i32-bit-pattern result above bit 31, so values like i32::MAX/MIN
+      // produce 10-byte VLQ encodings. We replicate by zigzagging in i32
+      // space and then sign-extending to a 64-bit BigInt before writing.
+      const i32 = v.value | 0
+      const zz32 = ((i32 << 1) ^ (i32 >> 31)) | 0 // i32 bit pattern (signed)
+      // Sign-extend the i32 result to u64: if the top bit of the i32 is set
+      // (i.e. zz32 < 0 as i32), prepend 0xFFFFFFFF to the upper 32 bits.
+      const u64: bigint =
+        zz32 < 0
+          ? 0xffffffff00000000n | BigInt(zz32 >>> 0)
+          : BigInt(zz32 >>> 0)
+      w.writeVlqBigInt(u64)
       return
+    }
 
     case 'SLong':
       assertKind(t, v, 'Long')

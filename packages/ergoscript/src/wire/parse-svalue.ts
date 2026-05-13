@@ -98,15 +98,36 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
     }
 
     case 'SShort': {
-      // ZigZag VLQ via the i32 path; sigma-rust bounds-checks the result
-      // into i16. We don't enforce that here because phase 2a fixtures
-      // are valid; bounds enforcement can be added when wallet construction
-      // surfaces malicious inputs.
-      return { kind: 'Short', value: r.readVlqS() }
+      // sigma-rust serializes SShort via `put_i16` →
+      // `put_u32(encode_i32(v as i32) as u32)` (sigma-ser/src/vlq_encode.rs:52).
+      // The `as u32` truncation discards sign-extension above i32, so wire
+      // bytes never exceed the u32 range. We mirror sigma-rust's decode path:
+      // read the raw VLQ u64, truncate to u32, ZigZag-decode in i32 space,
+      // then narrow to i16 via shift sign-extension.
+      const raw = r.readVlqBigInt()
+      const u32 = Number(raw & 0xffffffffn)
+      const i32 = (u32 >>> 1) ^ -(u32 & 1)
+      // i16 narrow: `(x << 16) >> 16` — left-shift to put bit 15 in the JS
+      // sign bit, then arithmetic right-shift to sign-extend.
+      const i16 = (i32 << 16) >> 16
+      return { kind: 'Short', value: i16 }
     }
 
-    case 'SInt':
-      return { kind: 'Int', value: r.readVlqS() }
+    case 'SInt': {
+      // sigma-rust serializes SInt via `put_i32` → `put_u64(encode_i32(v))`
+      // (sigma-ser/src/vlq_encode.rs:74). `encode_i32` returns u64 with the
+      // upper 32 bits sign-extended from the i32 ZigZag result (because the
+      // intermediate i32 expression is cast to u64). Decoding via the i64
+      // ZigZag path would lose precision near i32::MAX/MIN — sigma-rust's
+      // `decode_u32` truncates to u32 *first*, then ZigZag-decodes in i32
+      // space (sigma-ser/src/zig_zag_encode.rs:20).
+      const raw = r.readVlqBigInt()
+      const u32 = Number(raw & 0xffffffffn)
+      // ZigZag i32 decode: `(u32 >>> 1) ^ -(u32 & 1)`. `>>>` and `|0`/binary
+      // ops in JS operate on 32-bit integers, so the result is naturally i32.
+      const decoded = (u32 >>> 1) ^ -(u32 & 1)
+      return { kind: 'Int', value: decoded | 0 }
+    }
 
     case 'SLong':
       // i64-range signed VLQ — number is too narrow.

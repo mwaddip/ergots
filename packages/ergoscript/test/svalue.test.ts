@@ -68,16 +68,38 @@ const cases: RoundTripCase[] = [
   { name: 'SByte 127',  t: { tag: 'SByte' }, v: { kind: 'Byte', value: 127  }, bytes: [0x7f] },
   { name: 'SByte -128', t: { tag: 'SByte' }, v: { kind: 'Byte', value: -128 }, bytes: [0x80] },
 
-  // -- SShort (ZigZag VLQ via i32 path) --
+  // -- SShort (ZigZag VLQ via i32 path; final wire bytes go through `as u32`) --
   { name: 'SShort 0',  t: { tag: 'SShort' }, v: { kind: 'Short', value: 0  }, bytes: [0x00] },
   { name: 'SShort 1',  t: { tag: 'SShort' }, v: { kind: 'Short', value: 1  }, bytes: [0x02] },
   { name: 'SShort -1', t: { tag: 'SShort' }, v: { kind: 'Short', value: -1 }, bytes: [0x01] },
   { name: 'SShort 64', t: { tag: 'SShort' }, v: { kind: 'Short', value: 64 }, bytes: [0x80, 0x01] },
+  // Boundary cases — i16::MAX / i16::MIN. sigma-rust `put_i16` does
+  // `put_u32(encode_i32(v as i32) as u32)`, so the wire stays within 5 bytes
+  // (no sign-extension past i32). Verified against fixture-gen output.
+  { name: 'SShort i16::MAX',
+    t: { tag: 'SShort' }, v: { kind: 'Short', value: 32767 },
+    bytes: [0xfe, 0xff, 0x03] }, // ZigZag(32767) = 65534 = 0xfffe → VLQ
+  { name: 'SShort i16::MIN',
+    t: { tag: 'SShort' }, v: { kind: 'Short', value: -32768 },
+    bytes: [0xff, 0xff, 0x03] }, // ZigZag(-32768) = 65535 = 0xffff → VLQ
 
-  // -- SInt (ZigZag VLQ) --
+  // -- SInt (ZigZag VLQ via i32 path; final wire bytes go through `as u64`) --
   { name: 'SInt 0',  t: { tag: 'SInt' }, v: { kind: 'Int', value: 0  }, bytes: [0x00] },
   { name: 'SInt 42', t: { tag: 'SInt' }, v: { kind: 'Int', value: 42 }, bytes: [0x54] }, // ZigZag(42) = 84 = 0x54
   { name: 'SInt -1', t: { tag: 'SInt' }, v: { kind: 'Int', value: -1 }, bytes: [0x01] }, // ZigZag(-1) = 1
+  // Boundary cases — i32::MAX / i32::MIN. sigma-rust `put_i32` does
+  // `put_u64(encode_i32(v))` where `encode_i32` casts the i32 ZigZag result
+  // to u64 (i32 → u64 sign-extends in Rust). So `i32::MAX` ZigZags to
+  // `0xFFFFFFFE` as i32 which becomes `0xFFFFFFFFFFFFFFFE` as u64, encoded
+  // as 10 VLQ bytes. A naive i64-zigzag decoder would mis-narrow this to
+  // `i64::MAX = 9223372036854775807`; the correct decoder u32-truncates
+  // before ZigZag-decoding in i32 space.
+  { name: 'SInt i32::MAX',
+    t: { tag: 'SInt' }, v: { kind: 'Int', value: 2147483647 },
+    bytes: [0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01] },
+  { name: 'SInt i32::MIN',
+    t: { tag: 'SInt' }, v: { kind: 'Int', value: -2147483648 },
+    bytes: [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01] },
 
   // -- SLong (ZigZag VLQ i64) --
   { name: 'SLong 0',  t: { tag: 'SLong' }, v: { kind: 'Long', value: 0n  }, bytes: [0x00] },
