@@ -115,7 +115,8 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
   const outer = new ByteReader(bytes)
   const rawHeader = outer.readU8()
   const header: TreeHeader = {
-    version: rawHeader & VERSION_MASK,
+    // `rawHeader & 0x07` always yields 0..7, so the narrow type is safe.
+    version: (rawHeader & VERSION_MASK) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
     hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
     constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
     rawHeader
@@ -126,9 +127,8 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
   // inner reader. We mirror that to (a) match the wire semantics
   // byte-for-byte and (b) bound memory against an adversarial size field.
   let inner: ByteReader
-  let bodyByteLength = 0
   if (header.hasSize) {
-    bodyByteLength = outer.readVlqU()
+    const bodyByteLength = outer.readVlqU()
     if (bodyByteLength > outer.remaining) {
       throw new ErgoTreeParseError(
         `declared body size ${bodyByteLength} exceeds remaining bytes ${outer.remaining}`,
@@ -170,8 +170,7 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
     header,
     constantTypes,
     constants,
-    body,
-    bodyByteLength
+    body
   }
 }
 
@@ -189,6 +188,25 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
  * approach (`ergo_tree.rs:379-405`).
  */
 export function serializeTree(tree: ErgoTree): Uint8Array {
+  // Defensive: verify rawHeader matches the projected boolean/number fields.
+  // Without this, a hand-constructed ErgoTree with inconsistent fields
+  // (e.g. rawHeader=0x00 but hasSize=true) would emit non-round-trippable
+  // bytes — the header byte would say "no size prefix" while the writer
+  // still emitted one. Parsing the result would either fail or, worse,
+  // succeed with a misaligned cursor.
+  const expectedRaw =
+    tree.header.version |
+    (tree.header.hasSize ? HAS_SIZE_FLAG : 0) |
+    (tree.header.constantSegregation ? CONSTANT_SEGREGATION_FLAG : 0)
+  if (tree.header.rawHeader !== expectedRaw) {
+    throw new ErgoTreeSerializeError(
+      `rawHeader 0x${tree.header.rawHeader.toString(16).padStart(2, '0')} ` +
+        `does not match derived 0x${expectedRaw.toString(16).padStart(2, '0')} ` +
+        `from version=${tree.header.version}, hasSize=${tree.header.hasSize}, segregation=${tree.header.constantSegregation}`,
+      'header-inconsistent'
+    )
+  }
+
   if (tree.constantTypes.length !== tree.constants.length) {
     throw new ErgoTreeSerializeError(
       `constantTypes length ${tree.constantTypes.length} does not match constants length ${tree.constants.length}`,

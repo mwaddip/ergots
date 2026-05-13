@@ -165,8 +165,7 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [],
       constants: [],
-      body: { tag: 'TODO' },
-      bodyByteLength: 0
+      body: { tag: 'TODO' }
     }
     expect(() => serializeTree(tree)).toThrow(/not implemented yet/)
   })
@@ -181,8 +180,7 @@ describe('ErgoTree serialization', () => {
       },
       constantTypes: [{ tag: 'SBoolean' }],
       constants: [], // arity mismatch
-      body: { tag: 'TODO' },
-      bodyByteLength: 0
+      body: { tag: 'TODO' }
     }
     expect(() => serializeTree(tree)).toThrow(ErgoTreeSerializeError)
     try {
@@ -191,6 +189,35 @@ describe('ErgoTree serialization', () => {
       expect((e as ErgoTreeSerializeError).code).toBe(
         'constants-arity-mismatch'
       )
+    }
+  })
+
+  it('rejects ErgoTree with inconsistent header projections', () => {
+    // rawHeader=0x00 declares no flags, but hasSize=true is set on the
+    // projected struct. Serializer must reject — emitting these bytes
+    // would produce a non-round-trippable result (writer would emit a
+    // size VLQ, but a parser reading the rawHeader byte would not look
+    // for one, leaving the cursor misaligned).
+    const tree: ErgoTree = {
+      header: {
+        version: 0,
+        hasSize: true,
+        constantSegregation: false,
+        rawHeader: 0x00
+      },
+      constantTypes: [],
+      constants: [],
+      body: { tag: 'TODO' }
+    }
+    expect(() => serializeTree(tree)).toThrow(ErgoTreeSerializeError)
+    try {
+      serializeTree(tree)
+    } catch (e) {
+      expect((e as ErgoTreeSerializeError).code).toBe('header-inconsistent')
+      // Message should surface both the actual and expected header bytes
+      // so misuse is debuggable from the throw alone.
+      expect((e as Error).message).toContain('0x00')
+      expect((e as Error).message).toContain('0x08')
     }
   })
 })

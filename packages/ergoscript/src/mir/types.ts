@@ -204,7 +204,7 @@ export type SValue =
  */
 export interface TreeHeader {
   /** ErgoTree language version (bits 0..2 of `rawHeader`). 0..7. */
-  version: number
+  version: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
   /** Bit 3: a VLQ-u32 size of (constants + body) follows the header byte. */
   hasSize: boolean
   /** Bit 4: a VLQ-u32 count + that many `(SType, SValue)` constants precede the body. */
@@ -228,10 +228,6 @@ export interface TreeHeader {
  *     original type-driven encoding from `SValue` alone. Sigma-rust avoids
  *     this because its `Constant { tpe, v }` couples them at the struct
  *     level.
- *   - `bodyByteLength` — the size prefix value at parse time when
- *     `header.hasSize`. Stored so serialization can produce byte-exact
- *     output even for trees whose body parser is not yet implemented
- *     (during the bring-up phase of the Expr dispatch in Task 9+).
  */
 export interface ErgoTree {
   header: TreeHeader
@@ -241,10 +237,4 @@ export interface ErgoTree {
   constants: SValue[]
   /** Root expression. */
   body: Expr
-  /**
-   * Size of (constants + body) bytes as read from the `hasSize` prefix; 0
-   * when `header.hasSize` is false. Used so re-serialization can match the
-   * input byte-for-byte while the body parser is still partial.
-   */
-  bodyByteLength: number
 }
