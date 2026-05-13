@@ -73,6 +73,15 @@ import { parseGlobal } from './mir/global'
 import { parseGetVar } from './mir/get-var'
 import { parseTuple } from './mir/tuple'
 import { parseCollection, parseCollectionOfBoolConst } from './mir/collection'
+import { parseCollAppend } from './mir/coll-append'
+import { parseCollByIndex } from './mir/coll-by-index'
+import { parseCollExists } from './mir/coll-exists'
+import { parseCollFilter } from './mir/coll-filter'
+import { parseCollFold } from './mir/coll-fold'
+import { parseCollForall } from './mir/coll-forall'
+import { parseCollMap } from './mir/coll-map'
+import { parseCollSize } from './mir/coll-size'
+import { parseCollSlice } from './mir/coll-slice'
 
 export { ExprParseError } from './errors'
 
@@ -255,50 +264,23 @@ export function parseExprWithFirstByte(
       // in a different opcode region. Centralized in `buildGlobalVarsFromOpcode`.
       return buildGlobalVarsFromOpcode(opcode)
     case OP.OP_MAP:
-      throw new ExprParseError(
-        'Map opcode not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      return parseCollMap(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_EXISTS:
-      throw new ExprParseError(
-        'Exists opcode not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      return parseCollExists(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_FOR_ALL:
-      throw new ExprParseError(
-        'ForAll opcode not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      return parseCollForall(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_FOLD:
-      throw new ExprParseError(
-        'Fold opcode not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      return parseCollFold(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SIZE_OF:
-      throw new ExprParseError(
-        'SizeOf opcode not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      return parseCollSize(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BY_INDEX:
-      throw new ExprParseError(
-        'ByIndex opcode not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      return parseCollByIndex(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_APPEND:
-      throw new ExprParseError(
-        'Append opcode not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      return parseCollAppend(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_SLICE:
-      throw new ExprParseError(
-        'Slice opcode not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      return parseCollSlice(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_FILTER:
-      throw new ExprParseError(
-        'Filter opcode not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      return parseCollFilter(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_AVL_TREE:
       throw new ExprParseError(
         'CreateAvlTree opcode not implemented yet (Task 25)',

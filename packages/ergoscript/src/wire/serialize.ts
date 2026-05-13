@@ -51,16 +51,24 @@ import { serializeGlobalVars } from './mir/global-vars'
 import { serializeGetVar } from './mir/get-var'
 import { serializeTuple } from './mir/tuple'
 import { serializeCollection } from './mir/collection'
+import { serializeCollAppend } from './mir/coll-append'
+import { serializeCollByIndex } from './mir/coll-by-index'
+import { serializeCollExists } from './mir/coll-exists'
+import { serializeCollFilter } from './mir/coll-filter'
+import { serializeCollFold } from './mir/coll-fold'
+import { serializeCollForall } from './mir/coll-forall'
+import { serializeCollMap } from './mir/coll-map'
+import { serializeCollSize } from './mir/coll-size'
+import { serializeCollSlice } from './mir/coll-slice'
 
 export { ExprSerializeError } from './errors'
 
 export function serializeExpr(e: Expr, w: ByteWriter): void {
   switch (e.tag) {
     case 'Append':
-      throw new ExprSerializeError(
-        'Append serialization not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_APPEND)
+      serializeCollAppend(e, w)
+      return
     case 'Const':
       // serializeConst emits the SType (whose first byte is the inline-
       // constant "opcode") followed by the SValue. No separate opcode prefix.
@@ -238,45 +246,37 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeExtractId(e, w)
       return
     case 'ByIndex':
-      throw new ExprSerializeError(
-        'ByIndex serialization not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_BY_INDEX)
+      serializeCollByIndex(e, w)
+      return
     case 'SizeOf':
-      throw new ExprSerializeError(
-        'SizeOf serialization not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SIZE_OF)
+      serializeCollSize(e, w)
+      return
     case 'Slice':
-      throw new ExprSerializeError(
-        'Slice serialization not implemented yet (Task 19)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_SLICE)
+      serializeCollSlice(e, w)
+      return
     case 'Fold':
-      throw new ExprSerializeError(
-        'Fold serialization not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_FOLD)
+      serializeCollFold(e, w)
+      return
     case 'Map':
-      throw new ExprSerializeError(
-        'Map serialization not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_MAP)
+      serializeCollMap(e, w)
+      return
     case 'Filter':
-      throw new ExprSerializeError(
-        'Filter serialization not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_FILTER)
+      serializeCollFilter(e, w)
+      return
     case 'Exists':
-      throw new ExprSerializeError(
-        'Exists serialization not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_EXISTS)
+      serializeCollExists(e, w)
+      return
     case 'ForAll':
-      throw new ExprSerializeError(
-        'ForAll serialization not implemented yet (Task 20)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_FOR_ALL)
+      serializeCollForall(e, w)
+      return
     case 'SelectField':
       w.writeU8(OP.OP_SELECT_FIELD)
       serializeSelectField(e, w)
