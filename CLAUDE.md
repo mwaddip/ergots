@@ -58,6 +58,7 @@ The verifier MUST run unchanged in a browser. These rules are enforced by the te
 - **No `Buffer`** anywhere in `packages/*/src/`. Use `Uint8Array`. `Buffer` is fine in `test/` setup if needed but never in source.
 - **No `process`, `fs`, `path`, `os`, `node:*`** imports outside test files.
 - **No `node:crypto` / `globalThis.crypto.subtle`**. Hashing is `@noble/hashes` only — consistent behavior across runtimes, no async surface.
+- **No WASM.** No `.wasm` blobs anywhere in `packages/*/`, no direct or transitive WASM dependencies (`ergo-lib-wasm-*`, `sigma-rust-wasm`, or anything wrapping them). The all-TS approach is the project identity — substituting WASM defeats the reason these projects exist. Audit any new dependency for transitive WASM before adding. See memory `feedback-pure-typescript-no-wasm`.
 - **ESM only.** No CJS exports.
 - **No top-level await** in published code (breaks older bundlers).
 
