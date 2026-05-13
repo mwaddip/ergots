@@ -1,4 +1,17 @@
-// Public API is wired up in Task 18 per the implementation plan.
-// All internal modules (proof, header, verifier, etc.) are accessible to
-// in-package tests via direct relative imports.
-export {};
+// Primary export: parsing, serialization, verification, comparison
+export { parseProof, serializeProof, type NipopowProof } from './proof.ts';
+export {
+  verifyProof,
+  verifyParsedProof,
+  type VerifyOptions,
+  type VerificationResult,
+} from './verifier.ts';
+export { compareProofs } from './compare.ts';
+
+// Type exports for downstream consumers
+export type { Header } from './header.ts';
+export type { PoPowHeader } from './popow-header.ts';
+export type { AutolykosSolution } from './autolykos-solution.ts';
+
+// Error classes
+export { ProofParseError, ProofVerificationError } from './errors.ts';
