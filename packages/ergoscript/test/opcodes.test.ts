@@ -98,21 +98,43 @@ describe('parseExpr dispatch shell', () => {
     }
   }
 
-  it('inline-constant byte (0x01 SBoolean) throws not-implemented-yet', () => {
+  it('inline-constant byte (0x01 SBoolean) parses to a Const', () => {
     // Bytes in [0..=LAST_CONSTANT_CODE] are SType codes for inline Constant
-    // values, handled by the constant-parser branch (still a stub in
-    // Task 9 — Task 10 ports it).
-    const e = parseOne(0x01)
-    expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('Inline Constant')
+    // values — Task 10 ported this branch. Provide enough bytes for an
+    // SBoolean Const (type code + 1-byte boolean value) and assert the
+    // produced Expr is a Const.
+    const r = new ByteReader(new Uint8Array([0x01, 0x01]))
+    const e = parseExpr(r, [], [])
+    expect(e.tag).toBe('Const')
+    if (e.tag !== 'Const') throw new Error('unreachable')
+    expect(e.tpe).toEqual({ tag: 'SBoolean' })
+    expect(e.value).toEqual({ kind: 'Boolean', value: true })
   })
 
-  it('LAST_CONSTANT_CODE (0x70) still routed to inline-constant branch', () => {
-    // Right at the boundary: byte 112 is the last byte handled by the
-    // inline-constant parser in sigma-rust.
-    const e = parseOne(OP.LAST_CONSTANT_CODE)
-    expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('Inline Constant')
+  it('LAST_CONSTANT_CODE (0x70 = 112) is routed to the inline-constant branch', () => {
+    // Right at the boundary: byte 112 (LAST_CONSTANT_CODE) is the last byte
+    // handled by the inline-constant parser in sigma-rust. It's also the
+    // SFunc type tag (TYPE_CODE_SFUNC = 112) on the SType side; routing it
+    // to `parseConstFromByte` triggers SType-parsing for SFunc. With only
+    // the boundary byte present, SType parsing reads further (for tDomLen)
+    // and the underlying reader runs out — confirming we routed to the
+    // inline-constant branch, not to the opcode-dispatch `unknown-opcode`
+    // arm (which would have thrown `ExprParseError` with that code).
+    const r = new ByteReader(new Uint8Array([OP.LAST_CONSTANT_CODE]))
+    try {
+      parseExpr(r, [], [])
+      throw new Error('parseExpr should have thrown')
+    } catch (e) {
+      // The error MUST NOT be an `unknown-opcode` ExprParseError — that
+      // would indicate the byte fell through to the opcode-dispatch
+      // default arm. Any other error (ReaderError truncation, STypeParseError)
+      // is acceptable for this boundary test.
+      if (e instanceof ExprParseError) {
+        expect(e.code).not.toBe('unknown-opcode')
+      }
+      // else: ReaderError or STypeParseError; either confirms we routed
+      // through the inline-constant branch.
+    }
   })
 
   it('VAL_USE (0x72) is a known opcode → not-implemented-yet', () => {

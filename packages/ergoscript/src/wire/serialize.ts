@@ -12,6 +12,12 @@
 
 import type { Expr } from '../mir/types'
 import { ByteWriter } from './writer'
+import * as OP from '../mir/opcodes'
+// Per-variant serializers live in `wire/mir/<variant>.ts`. The dispatch
+// below delegates to them; the centralized error type stays here so all
+// variant serializers throw a uniform `ExprSerializeError`.
+import { serializeConst } from './mir/const'
+import { serializeConstantPlaceholder } from './mir/constant-placeholder'
 
 export class ExprSerializeError extends Error {
   constructor(
@@ -23,11 +29,7 @@ export class ExprSerializeError extends Error {
   }
 }
 
-export function serializeExpr(
-  e: Expr,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _w: ByteWriter
-): void {
+export function serializeExpr(e: Expr, w: ByteWriter): void {
   switch (e.tag) {
     case 'Append':
       throw new ExprSerializeError(
@@ -35,15 +37,14 @@ export function serializeExpr(
         'not-implemented-yet'
       )
     case 'Const':
-      throw new ExprSerializeError(
-        'Const serialization not implemented yet (Task 10)',
-        'not-implemented-yet'
-      )
+      // serializeConst emits the SType (whose first byte is the inline-
+      // constant "opcode") followed by the SValue. No separate opcode prefix.
+      serializeConst(e, w)
+      return
     case 'ConstPlaceholder':
-      throw new ExprSerializeError(
-        'ConstPlaceholder serialization not implemented yet (Task 10)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_CONSTANT_PLACEHOLDER)
+      serializeConstantPlaceholder(e, w)
+      return
     case 'SubstConstants':
       throw new ExprSerializeError(
         'SubstConstants serialization not implemented yet (Task 17)',

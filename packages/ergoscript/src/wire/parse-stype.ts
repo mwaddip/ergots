@@ -98,6 +98,22 @@ export class STypeParseError extends Error {
  */
 export function parseSType(r: ByteReader): SType {
   const c = r.readU8()
+  return parseSTypeWithFirstByte(c, r)
+}
+
+/**
+ * Parse an SType when the first byte (`c`) has already been consumed from a
+ * surrounding stream — for example, by the {@link parseExpr} dispatch byte
+ * for inline `Const` nodes (where the SType's first byte doubles as the
+ * "opcode" the dispatcher reads). Returns the same result as `parseSType`
+ * given the same logical input bytes.
+ *
+ * Mirrors sigma-rust's `SType::parse_with_tag` (`serialization/types.rs`),
+ * which is the lookahead-friendly counterpart to `SType::sigma_parse`. Used
+ * by `Constant::parse_with_tag` to consume the rest of the type+value pair
+ * after the Expr-dispatch has peeked at the type code.
+ */
+export function parseSTypeWithFirstByte(c: number, r: ByteReader): SType {
   if (c === 0) {
     throw new STypeParseError(`invalid type code 0`, 'invalid-type-code')
   }

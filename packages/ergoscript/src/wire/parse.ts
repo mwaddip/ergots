@@ -33,6 +33,14 @@
 import type { Expr, SType, SValue } from '../mir/types'
 import { ByteReader } from './reader'
 import * as OP from '../mir/opcodes'
+// Per-variant parsers live in `wire/mir/<variant>.ts`. The dispatch below
+// delegates to them; the centralized error type lives in this module so all
+// variant parsers throw a uniform `ExprParseError`. Variant modules import
+// `ExprParseError` from here — that's a circular import at the module-graph
+// level, but it's safe in ESM because the references are at function-call
+// time (after hoisting), not at module-evaluation time.
+import { parseConstFromByte } from './mir/const'
+import { parseConstantPlaceholder } from './mir/constant-placeholder'
 
 export class ExprParseError extends Error {
   constructor(
@@ -48,14 +56,16 @@ export class ExprParseError extends Error {
  * Parse a single Expr node from the reader.
  *
  * `constantTypes` and `constantValues` are the parallel-indexed segregated
- * constant arrays from the surrounding ErgoTree envelope. They will be
- * consumed by the {@link OP.OP_CONSTANT_PLACEHOLDER} handler once Task 10
- * lands; until then they're forwarded but unused.
+ * constant arrays from the surrounding ErgoTree envelope. The
+ * {@link OP.OP_CONSTANT_PLACEHOLDER} handler uses `constantTypes` to recover
+ * a placeholder's SType from its id; `constantValues` is currently unused
+ * (it becomes relevant if/when the interpreter substitutes placeholders
+ * with their values at parse time — sigma-rust gates that on a
+ * `substitute_placeholders` flag).
  */
 export function parseExpr(
   r: ByteReader,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _constantTypes: SType[],
+  constantTypes: SType[],
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _constantValues: SValue[]
 ): Expr {
@@ -63,14 +73,11 @@ export function parseExpr(
 
   // Inline-constant range: bytes in [0..LAST_CONSTANT_CODE] are SType codes
   // for embedded `Constant` values, not opcodes. Sigma-rust handles these in
-  // `Constant::parse_with_tag`. Task 10 ports this branch (an inline Const
-  // shares parseStype / parseSValue infrastructure already built in
-  // Tasks 6-7).
+  // `Constant::parse_with_tag` (`serialization/expr.rs:88-93`). We route the
+  // opcode byte to `parseConstFromByte`, which re-uses it as the first byte
+  // of the SType encoding before parsing the SValue payload.
   if (opcode <= OP.LAST_CONSTANT_CODE) {
-    throw new ExprParseError(
-      `Inline Constant (opcode byte 0x${opcode.toString(16).padStart(2, '0')}) not implemented yet (Task 10)`,
-      'not-implemented-yet'
-    )
+    return parseConstFromByte(opcode, r)
   }
 
   // Opcode-based dispatch. Each `case` throws until its per-variant task
@@ -82,10 +89,7 @@ export function parseExpr(
         'not-implemented-yet'
       )
     case OP.OP_CONSTANT_PLACEHOLDER:
-      throw new ExprParseError(
-        'ConstantPlaceholder opcode not implemented yet (Task 10)',
-        'not-implemented-yet'
-      )
+      return parseConstantPlaceholder(r, constantTypes)
     case OP.OP_SUBST_CONSTANTS:
       throw new ExprParseError(
         'SubstConstants opcode not implemented yet (Task 17)',
