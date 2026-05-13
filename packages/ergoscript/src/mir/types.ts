@@ -49,3 +49,121 @@ export type SType =
   | { tag: 'SOption'; elem: SType }
   | { tag: 'SFunc'; args: SType[]; result: SType; tpeParams: STypeVar[] }
   | { tag: 'STypeVar'; name: string }
+
+// ---------------------------------------------------------------------------
+// Composite-type stubs (filled in later phases).
+//
+// These are forward declarations so the `SValue` discriminated union below
+// can compile in phase 2a. Full shapes — parsing, validation, additional
+// fields — come in the package phases that need them.
+// ---------------------------------------------------------------------------
+
+/**
+ * Stub: on-chain box. Mirrors sigma-rust `ergotree-ir/src/chain/ergo_box.rs`
+ * `ErgoBox` fields. ErgoTree is held as raw bytes here (deferred parse — the
+ * interpreter `parseTree` lives in a later phase).
+ */
+export interface ErgoBox {
+  /** nanoErg value (Rust `BoxValue`, a u64 wrapper). */
+  value: bigint
+  /** Guarding script as raw bytes; parse with `parseTree` if needed. */
+  ergoTreeBytes: Uint8Array
+  /**
+   * Non-mandatory registers R4..R9 (and mandatory views as needed in later
+   * phases). Sparse: a missing register key yields `undefined`.
+   */
+  registers: Record<number, SValue | undefined>
+  /** Secondary tokens (id is 32-byte token-id, amount is u64 packed as bigint). */
+  tokens: { id: Uint8Array; amount: bigint }[]
+  /** Block height at which the box was created (Rust `u32`). */
+  creationHeight: number
+  /** 32-byte transaction id that produced this box. */
+  txId: Uint8Array
+  /** Index of this box in the producing transaction's outputs (Rust `u16`). */
+  index: number
+}
+
+/**
+ * Stub: AVL+ tree authenticator. Mirrors sigma-rust
+ * `ergotree-ir/src/mir/avl_tree_data.rs` `AvlTreeData`.
+ *
+ * `digest` is the JVM/Rust `ADDigest` = `Digest<33>` — 32 bytes of root hash
+ * concatenated with 1 byte of tree height (33 bytes total).
+ *
+ * `treeFlags` is the serialized `AvlTreeFlags` byte: bit 0 = insert allowed,
+ * bit 1 = update allowed, bit 2 = remove allowed.
+ */
+export interface AvlTreeData {
+  /** Root hash (32 bytes) + tree-height byte = 33 bytes total. */
+  digest: Uint8Array
+  /** Enabled-operations bitfield (u8). */
+  treeFlags: number
+  /** Common key length (Rust `u32`). */
+  keyLength: number
+  /** If non-null, all values share this length (Rust `Option<u32>`). */
+  valueLengthOpt: number | null
+}
+
+/**
+ * Forward declaration — full sigma-protocol tree structure is filled in
+ * phase 2g (sigma-protocol evaluation). Phase 2a treats this as opaque,
+ * carrying the raw on-wire bytes so SValue can hold a SigmaProp variant.
+ */
+export interface SigmaBoolean {
+  /** Serialized sigma-protocol tree; structure deferred to phase 2g. */
+  raw: Uint8Array
+}
+
+/**
+ * Forward declaration — proper user-function representation lands in phase 2d
+ * (FuncValue / Apply). For now this captures the data the evaluator will need:
+ * argument ids (matching the body's `ValUse.id` references), the body
+ * expression, and the lexical environment captured at function definition.
+ *
+ * Mirrors sigma-rust `Lambda { args: Vec<FuncArg>, body: Box<Expr> }` from
+ * `ergotree-ir/src/mir/value.rs`, plus an explicit `capturedEnv` (Rust uses
+ * `EvalContext.env` for this implicitly).
+ */
+export interface Closure {
+  /** Argument value ids; binds `ValUse.id` references inside `body`. */
+  argIds: number[]
+  /** Function body — an Expr (placeholder type until Task 9). */
+  body: Expr
+  /** Lexical environment captured at definition time, keyed by ValId. */
+  capturedEnv: Record<number, SValue>
+}
+
+/**
+ * Placeholder Expr type — Task 9 replaces this with the full ~80-variant
+ * MIR discriminated union. Loose `{ tag: string }` keeps forward references
+ * (notably `Closure.body`) compiling in phases 2a–2c.
+ */
+export type Expr = { tag: string }
+
+/**
+ * Runtime value union. Variants mirror sigma-rust's `Value<'ctx>` enum in
+ * `ergotree-ir/src/mir/value.rs`, narrowed to the set the interpreter needs:
+ * - `String`, `Header`, `PreHeader`, `Context`, `Global` are SType-only
+ *   (no runtime value form in v5 ErgoScript — see design spec §3).
+ * - `UnsignedBigInt` is v6-only and rejected by the v5 verifier (see
+ *   spec §2 on `check_v6_type`).
+ *
+ * No embedded `SType`: the type of a primitive is recoverable from `kind`,
+ * and composite variants (`Coll`, `Option`) carry an explicit element type.
+ */
+export type SValue =
+  | { kind: 'Boolean'; value: boolean }
+  | { kind: 'Byte'; value: number }
+  | { kind: 'Short'; value: number }
+  | { kind: 'Int'; value: number }
+  | { kind: 'Long'; value: bigint }
+  | { kind: 'BigInt'; value: bigint }
+  | { kind: 'GroupElement'; value: Uint8Array }
+  | { kind: 'SigmaProp'; value: SigmaBoolean }
+  | { kind: 'Box'; value: ErgoBox }
+  | { kind: 'AvlTree'; value: AvlTreeData }
+  | { kind: 'Unit' }
+  | { kind: 'Coll'; elem: SType; items: SValue[] }
+  | { kind: 'Tuple'; items: SValue[] }
+  | { kind: 'Option'; elem: SType; value: SValue | null }
+  | { kind: 'Lambda'; closure: Closure }
