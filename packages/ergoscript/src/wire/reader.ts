@@ -43,6 +43,26 @@ export class ByteReader {
     return this._position >= this.bytes.length;
   }
 
+  /**
+   * Return a view (no copy) of the underlying byte buffer from `start`
+   * (inclusive) to `end` (exclusive). Bounds are not re-validated against
+   * the cursor — callers typically capture `position` before and after a
+   * structural read and pass those offsets here.
+   *
+   * Used by composite parsers that want to retain the exact raw bytes of
+   * a parsed sub-structure (e.g. SigmaBoolean payloads) without re-deriving
+   * the byte layout in the parser.
+   */
+  slice(start: number, end: number): Uint8Array {
+    if (start < 0 || end < start || end > this.bytes.length) {
+      throw new ReaderError(
+        `slice(${start}, ${end}) out of bounds for buffer length ${this.bytes.length}`,
+        'slice-out-of-bounds'
+      );
+    }
+    return this.bytes.subarray(start, end);
+  }
+
   readU8(): number {
     if (this._position >= this.bytes.length) {
       throw new ReaderError(`readU8: EOF at ${this._position}`, 'truncated');

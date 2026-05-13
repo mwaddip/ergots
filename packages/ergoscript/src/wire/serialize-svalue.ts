@@ -194,13 +194,28 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       return
     }
 
+    case 'SSigmaProp': {
+      assertKind(t, v, 'SigmaProp')
+      // Emit the raw sigma-protocol bytes verbatim. The reader and the
+      // writer are dual: `parseSigmaBoolean` captures exactly the bytes
+      // that produced a given SigmaBoolean, so writing them back gives a
+      // byte-identical round-trip.
+      if (v.value.raw.length === 0) {
+        throw new SValueSerializeError(
+          'SigmaBoolean.raw is empty',
+          'sigma-boolean-empty'
+        )
+      }
+      w.writeBytes(v.value.raw)
+      return
+    }
+
     // ---------------------------------------------------------------------
     // Deferred kinds: same set as parseSValue's deferred arms. No inline
     // `Const(_)` of these types appears in phase 2a corpora.
     // ---------------------------------------------------------------------
     case 'SBox':
     case 'SAvlTree':
-    case 'SSigmaProp':
     case 'SHeader':
     case 'SPreHeader':
     case 'SContext':

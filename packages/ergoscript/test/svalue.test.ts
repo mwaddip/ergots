@@ -312,10 +312,13 @@ describe('SValue wire round-trip', () => {
 describe('SValue deferred-kind errors', () => {
   // Kinds that have no inline Const(SValue) wire form in phase 2a.
   // parseSValue must throw `SValueParseError` with code `not-implemented-phase-2a`.
+  //
+  // SSigmaProp is supported (added in Task 27 for address derivation); it
+  // does not appear in this deferred list. Its parse/serialize behavior
+  // is covered by `describe('SValue SSigmaProp …')` below.
   const deferred: SType[] = [
     { tag: 'SBox' },
     { tag: 'SAvlTree' },
-    { tag: 'SSigmaProp' },
     { tag: 'SHeader' },
     { tag: 'SPreHeader' },
     { tag: 'SContext' },
@@ -337,6 +340,44 @@ describe('SValue deferred-kind errors', () => {
       }
     })
   }
+})
+
+describe('SValue SSigmaProp parse + serialize', () => {
+  // A minimal ProveDlog SigmaBoolean payload: opcode 0xcd + 33-byte
+  // compressed pubkey. The reader returns it as opaque raw bytes
+  // (`SigmaBoolean.raw`); the writer emits the same bytes back.
+  const proveDlog33Pk = new Uint8Array([
+    0x02, 0x76, 0x4e, 0xa2, 0xb0, 0xb9, 0xb0, 0x6b, 0x57, 0x30, 0xa4, 0x25, 0x7b, 0xba, 0x71,
+    0xfd, 0x77, 0x97, 0xeb, 0x1e, 0xc1, 0x2b, 0xc3, 0xae, 0x60, 0x25, 0xa0, 0x1d, 0x7f, 0xba,
+    0x53, 0x83, 0x0e
+  ])
+  const rawProveDlog = new Uint8Array(34)
+  rawProveDlog[0] = 0xcd
+  rawProveDlog.set(proveDlog33Pk, 1)
+
+  it('parses an SSigmaProp value containing a ProveDlog', () => {
+    const r = new ByteReader(rawProveDlog)
+    const v = parseSValue({ tag: 'SSigmaProp' }, r)
+    expect(v.kind).toBe('SigmaProp')
+    if (v.kind === 'SigmaProp') {
+      expect(Array.from(v.value.raw)).toEqual(Array.from(rawProveDlog))
+    }
+    expect(r.isExhausted).toBe(true)
+  })
+
+  it('round-trips an SSigmaProp value byte-exactly', () => {
+    const r = new ByteReader(rawProveDlog)
+    const v = parseSValue({ tag: 'SSigmaProp' }, r)
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SSigmaProp' }, v, w)
+    expect(Array.from(w.toBytes())).toEqual(Array.from(rawProveDlog))
+  })
+
+  it('rejects unknown SigmaBoolean opcode', () => {
+    const garbage = new Uint8Array([0xff, 0x00])
+    const r = new ByteReader(garbage)
+    expect(() => parseSValue({ tag: 'SSigmaProp' }, r)).toThrow()
+  })
 })
 
 describe('SValue serialize: type-mismatch detection', () => {

@@ -62,6 +62,7 @@
 
 import type { SType, SValue } from '../mir/types'
 import { ByteReader } from './reader'
+import { parseSigmaBoolean } from './sigma-boolean'
 
 export class SValueParseError extends Error {
   constructor(
@@ -197,6 +198,18 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       return { kind: 'Tuple', items }
     }
 
+    case 'SSigmaProp':
+      // Inline `Const(SSigmaProp, _)` is the canonical wire form for P2PK
+      // ErgoTrees (the address `9f…` form deserializes to a tree whose
+      // body is `Const(SSigmaProp, ProveDlog(EcPoint))`). The value
+      // parser delegates to `parseSigmaBoolean`, which stores the
+      // sigma-protocol tree as opaque bytes. Structural decode of the
+      // tree shape (Cand/Cor/Cthreshold composition) is deferred to the
+      // phase that actually evaluates sigma protocols; the raw-bytes
+      // representation is sufficient for round-trip and for the
+      // P2PK-shape check in `src/address.ts`.
+      return { kind: 'SigmaProp', value: parseSigmaBoolean(r) }
+
     // ---------------------------------------------------------------------
     // Deferred kinds. These appear in `Expr.tpe` slots but not as inline
     // `Const(_)` values in phase 2a corpora. If a phase 2a fixture trips
@@ -205,7 +218,6 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
     // ---------------------------------------------------------------------
     case 'SBox':
     case 'SAvlTree':
-    case 'SSigmaProp':
     case 'SHeader':
     case 'SPreHeader':
     case 'SContext':
