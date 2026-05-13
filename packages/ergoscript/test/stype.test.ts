@@ -374,6 +374,13 @@ describe('SType wire format', () => {
     expect(() => parseSType(r)).toThrow(STypeParseError)
   })
 
+  it('parser rejects STypeVar with invalid UTF-8', () => {
+    // [tag=103, len=1, byte=0xff] — 0xff is an invalid UTF-8 lead byte
+    // (it's never valid as either a single-byte ASCII or a multi-byte lead).
+    const bytes = new Uint8Array([103, 1, 0xff])
+    expect(() => parseSType(new ByteReader(bytes))).toThrow(STypeParseError)
+  })
+
   it('serializer rejects STypeVar with empty name', () => {
     const w = new ByteWriter()
     expect(() => serializeSType({ tag: 'STypeVar', name: '' }, w)).toThrow(STypeSerializeError)

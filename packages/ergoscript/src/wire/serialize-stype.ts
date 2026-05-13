@@ -22,16 +22,7 @@ const TUPLE_PAIR2_TYPECODE = PRIM_RANGE * 6 // 72
 const TUPLE_PAIR_SYMMETRIC_TYPECODE = PRIM_RANGE * 7 // 84
 const TUPLE_TYPECODE = PRIM_RANGE * 8 // 96
 
-const TYPE_CODE_SANY = 97
-const TYPE_CODE_SUNIT = 98
-const TYPE_CODE_SBOX = 99
-const TYPE_CODE_SAVL_TREE = 100
-const TYPE_CODE_SCONTEXT = 101
-const TYPE_CODE_SSTRING = 102
 const TYPE_CODE_STYPE_VAR = 103
-const TYPE_CODE_SHEADER = 104
-const TYPE_CODE_SPRE_HEADER = 105
-const TYPE_CODE_SGLOBAL = 106
 const TYPE_CODE_SFUNC = 112
 
 export class STypeSerializeError extends Error {
@@ -49,6 +40,9 @@ export class STypeSerializeError extends Error {
  * Otherwise return `null`. Matches sigma-rust's
  * `TypeCode::from_primitive_type` for the embeddable subset (lines 129-156
  * of `serialization/types.rs`), restricted to types we support.
+ *
+ * Used by composite serializers (`serializeSColl`, `serializeSOption`,
+ * `serializePair`) to detect compact-form encodings like `[12 + primId]`.
  */
 function embeddablePrimitiveCode(t: SType): number | null {
   switch (t.tag) {
@@ -74,79 +68,96 @@ function embeddablePrimitiveCode(t: SType): number | null {
 }
 
 /**
- * If `t` is a non-embeddable primitive (one of `SAny`, `SUnit`, …,
- * `SHeader`, `SPreHeader`, `SGlobal`, `SString`), return its type code.
- * Otherwise return `null`.
- */
-function nonEmbeddablePrimitiveCode(t: SType): number | null {
-  switch (t.tag) {
-    case 'SAny':
-      return TYPE_CODE_SANY
-    case 'SUnit':
-      return TYPE_CODE_SUNIT
-    case 'SBox':
-      return TYPE_CODE_SBOX
-    case 'SAvlTree':
-      return TYPE_CODE_SAVL_TREE
-    case 'SContext':
-      return TYPE_CODE_SCONTEXT
-    case 'SString':
-      return TYPE_CODE_SSTRING
-    case 'SHeader':
-      return TYPE_CODE_SHEADER
-    case 'SPreHeader':
-      return TYPE_CODE_SPRE_HEADER
-    case 'SGlobal':
-      return TYPE_CODE_SGLOBAL
-    default:
-      return null
-  }
-}
-
-/**
  * Serialize `t` into `w`. Throws {@link STypeSerializeError} on any
  * argument-bounds violation (e.g. STuple of <2 or >255 items, SFunc with
  * t_dom > 255, STypeVar name length outside [1, 254]). Byte output is
  * byte-identical to sigma-rust's `SType::sigma_serialize` for every well-
  * formed input.
+ *
+ * Implemented as a single exhaustive switch on `t.tag` covering all 22
+ * variants. Primitive variants emit their type code directly; composite
+ * variants delegate to dedicated helpers (`serializeSColl`, etc.) that
+ * handle compact-form short-circuits.
  */
 export function serializeSType(t: SType, w: ByteWriter): void {
-  // 1. Embeddable primitives: single-byte type code.
-  const embCode = embeddablePrimitiveCode(t)
-  if (embCode !== null) {
-    w.writeU8(embCode)
-    return
-  }
-
-  // 2. Non-embeddable primitives: single-byte type code.
-  const neCode = nonEmbeddablePrimitiveCode(t)
-  if (neCode !== null) {
-    w.writeU8(neCode)
-    return
-  }
-
-  // 3. Composites.
   switch (t.tag) {
+    // --- Embeddable primitives (codes 1..8) ---
+    case 'SBoolean':
+      w.writeU8(1)
+      return
+    case 'SByte':
+      w.writeU8(2)
+      return
+    case 'SShort':
+      w.writeU8(3)
+      return
+    case 'SInt':
+      w.writeU8(4)
+      return
+    case 'SLong':
+      w.writeU8(5)
+      return
+    case 'SBigInt':
+      w.writeU8(6)
+      return
+    case 'SGroupElement':
+      w.writeU8(7)
+      return
+    case 'SSigmaProp':
+      w.writeU8(8)
+      return
+
+    // --- Non-embeddable primitives (codes 97..106) ---
+    case 'SAny':
+      w.writeU8(97)
+      return
+    case 'SUnit':
+      w.writeU8(98)
+      return
+    case 'SBox':
+      w.writeU8(99)
+      return
+    case 'SAvlTree':
+      w.writeU8(100)
+      return
+    case 'SContext':
+      w.writeU8(101)
+      return
+    case 'SString':
+      w.writeU8(102)
+      return
+    case 'SHeader':
+      w.writeU8(104)
+      return
+    case 'SPreHeader':
+      w.writeU8(105)
+      return
+    case 'SGlobal':
+      w.writeU8(106)
+      return
+
+    // --- Composites ---
     case 'SColl':
-      serializeColl(t.elem, w)
+      serializeSColl(t.elem, w)
       return
     case 'SOption':
-      serializeOption(t.elem, w)
+      serializeSOption(t.elem, w)
       return
     case 'STuple':
-      serializeTuple(t.items, w)
+      serializeSTuple(t.items, w)
       return
     case 'STypeVar':
-      serializeTypeVar(t.name, w)
+      serializeSTypeVar(t.name, w)
       return
     case 'SFunc':
-      serializeFunc(t.args, t.result, t.tpeParams, w)
+      serializeSFunc(t.args, t.result, t.tpeParams, w)
       return
+
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
       const _exhaust: never = t
       throw new STypeSerializeError(
-        `unreachable: unmatched SType ${JSON.stringify(_exhaust)}`,
+        `Unreachable SType variant: ${JSON.stringify(_exhaust)}`,
         'unreachable'
       )
     }
@@ -159,7 +170,7 @@ export function serializeSType(t: SType, w: ByteWriter): void {
  *   - elem = SColl[embeddable primitive p] → single byte `NESTED_COLL + p`
  *   - else → `COLL` byte, then `serialize(elem)`
  */
-function serializeColl(elem: SType, w: ByteWriter): void {
+function serializeSColl(elem: SType, w: ByteWriter): void {
   const elemPrim = embeddablePrimitiveCode(elem)
   if (elemPrim !== null) {
     w.writeU8(COLL_TYPECODE + elemPrim)
@@ -182,7 +193,7 @@ function serializeColl(elem: SType, w: ByteWriter): void {
  *   - elem = SColl[embeddable primitive p] → single byte `OPTION_COLL + p`
  *   - else → `OPTION` byte, then `serialize(elem)`
  */
-function serializeOption(elem: SType, w: ByteWriter): void {
+function serializeSOption(elem: SType, w: ByteWriter): void {
   const elemPrim = embeddablePrimitiveCode(elem)
   if (elemPrim !== null) {
     w.writeU8(OPTION_TYPECODE + elemPrim)
@@ -211,7 +222,7 @@ function serializeOption(elem: SType, w: ByteWriter): void {
  *   - 4 items → `PAIR_SYMMETRIC` byte (a.k.a. QuadrupleTypeCode), serialize each
  *   - 5..=255 items → `TUPLE` byte, u8 length, serialize each
  */
-function serializeTuple(items: readonly SType[], w: ByteWriter): void {
+function serializeSTuple(items: readonly SType[], w: ByteWriter): void {
   if (items.length < 2) {
     throw new STypeSerializeError(
       `STuple must have ≥ 2 items, got ${items.length}`,
@@ -287,7 +298,7 @@ function serializePair(t1: SType, t2: SType, w: ByteWriter): void {
  * BoundedVec invariant 1..=254 from sigma-rust is enforced here on the
  * UTF-8 byte length (NOT the JS string length — multi-byte chars matter).
  */
-function serializeTypeVar(name: string, w: ByteWriter): void {
+function serializeSTypeVar(name: string, w: ByteWriter): void {
   const bytes = new TextEncoder().encode(name)
   if (bytes.length < 1 || bytes.length > 254) {
     throw new STypeSerializeError(
@@ -307,7 +318,7 @@ function serializeTypeVar(name: string, w: ByteWriter): void {
  *
  * Per sigma-rust both lengths are bounded ≤ 255 (u8 fields).
  */
-function serializeFunc(
+function serializeSFunc(
   args: readonly SType[],
   result: SType,
   tpeParams: readonly STypeVar[],
@@ -333,6 +344,6 @@ function serializeFunc(
   serializeSType(result, w)
   w.writeU8(tpeParams.length)
   for (const tp of tpeParams) {
-    serializeTypeVar(tp.name, w)
+    serializeSTypeVar(tp.name, w)
   }
 }
