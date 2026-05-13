@@ -34,6 +34,7 @@ import {
 } from './scorex/vlq.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN } from './digests.ts';
 import { EnvelopeParseError } from './errors.ts';
+export { EnvelopeParseError } from './errors.ts';
 
 /** P2P message code: peer requests a NiPoPoW proof from us. */
 export const GET_NIPOPOW_PROOF = 90 as const;

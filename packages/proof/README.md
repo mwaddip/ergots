@@ -13,17 +13,18 @@ npm install @mwaddip/ergots-proof
 ```ts
 import { verifyProof, parseProof, compareProofs } from '@mwaddip/ergots-proof';
 
-const proofBytes: Uint8Array = /* receive from peer or REST API */;
+const proofBytesA: Uint8Array = /* first proof from peer A */;
+const proofBytesB: Uint8Array = /* second proof from peer B */;
 
 // Verify (default checks Autolykos v2 PoW per header):
-const result = verifyProof(proofBytes);
+const result = verifyProof(proofBytesA);
 console.log(result.suffixTipHeight, 'headers in proof:', result.totalHeaders);
 
 // Or parse without verification:
-const proof = parseProof(proofBytes);
+const proof = parseProof(proofBytesA);
 
-// Compare two proofs:
-const aBetter = compareProofs(a, b);
+// Compare two proofs from different peers:
+const aIsBetter = compareProofs(proofBytesA, proofBytesB);
 ```
 
 ## P2P envelope codec

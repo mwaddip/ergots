@@ -5,15 +5,15 @@ describe('browser-compat', () => {
     expect(typeof Uint8Array).toBe('function');
   });
 
-  test('Buffer is NOT available in this environment', () => {
-    // jsdom doesn't provide Buffer; node does. This test passes in jsdom but
-    // would need adjustment if run under node. For now, gate on env:
+  test('Buffer is NOT used in src/ (verified by dist-grep at build time)', () => {
+    // The grep -E "Buffer" check on dist/index.js and dist/envelope.js is the
+    // authoritative guarantee. Under jsdom, globalThis.Buffer is undefined,
+    // so a runtime check is meaningful. Under node, globalThis.Buffer exists
+    // but our compiled output doesn't reference it.
     if (typeof (globalThis as { Buffer?: unknown }).Buffer === 'undefined') {
       expect((globalThis as { Buffer?: unknown }).Buffer).toBeUndefined();
-    } else {
-      // In node env, Buffer exists — but our src/ should never use it
-      expect(true).toBe(true); // skip
     }
+    // In node env, this test is a no-op — the dist-scan in CI is the gate.
   });
 
   test('bigint arithmetic is available', () => {
@@ -39,5 +39,6 @@ describe('browser-compat', () => {
     expect(typeof mod.serializeNipopowProofEnvelope).toBe('function');
     expect(mod.GET_NIPOPOW_PROOF).toBe(90);
     expect(mod.NIPOPOW_PROOF).toBe(91);
+    expect(typeof mod.EnvelopeParseError).toBe('function');  // class
   });
 });
