@@ -86,6 +86,12 @@ import { parseMethodCall } from './mir/method-call'
 import { parsePropertyCall } from './mir/property-call'
 import { parseCreateAvlTree } from './mir/create-avl-tree'
 import { parseTreeLookup } from './mir/tree-lookup'
+import { parseCalcBlake2b256 } from './mir/calc-blake2b256'
+import { parseCalcSha256 } from './mir/calc-sha256'
+import { parseByteArrayToBigInt } from './mir/byte-array-to-bigint'
+import { parseByteArrayToLong } from './mir/byte-array-to-long'
+import { parseDecodePoint } from './mir/decode-point'
+import { parseLongToByteArray } from './mir/long-to-byte-array'
 
 export { ExprParseError } from './errors'
 
@@ -166,20 +172,11 @@ export function parseExprWithFirstByte(
         'not-implemented-yet'
       )
     case OP.OP_LONG_TO_BYTE_ARRAY:
-      throw new ExprParseError(
-        'LongToByteArray opcode not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      return parseLongToByteArray(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BYTE_ARRAY_TO_BIGINT:
-      throw new ExprParseError(
-        'ByteArrayToBigInt opcode not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      return parseByteArrayToBigInt(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_BYTE_ARRAY_TO_LONG:
-      throw new ExprParseError(
-        'ByteArrayToLong opcode not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      return parseByteArrayToLong(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_DOWNCAST:
       return parseDowncast(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_UPCAST:
@@ -304,15 +301,9 @@ export function parseExprWithFirstByte(
     case OP.OP_EXTRACT_CREATION_INFO:
       return parseExtractCreationInfo(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_CALC_BLAKE2B256:
-      throw new ExprParseError(
-        'CalcBlake2b256 opcode not implemented yet (Task 22)',
-        'not-implemented-yet'
-      )
+      return parseCalcBlake2b256(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_CALC_SHA256:
-      throw new ExprParseError(
-        'CalcSha256 opcode not implemented yet (Task 22)',
-        'not-implemented-yet'
-      )
+      return parseCalcSha256(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_PROVE_DLOG:
       throw new ExprParseError(
         'CreateProveDlog opcode not implemented yet (Task 23)',
@@ -397,10 +388,7 @@ export function parseExprWithFirstByte(
         valDefTypes
       )
     case OP.OP_DECODE_POINT:
-      throw new ExprParseError(
-        'DecodePoint opcode not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      return parseDecodePoint(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_LOGICAL_NOT:
       return parseLogicalNot(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_NEGATION:

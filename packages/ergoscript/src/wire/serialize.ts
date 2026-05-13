@@ -64,6 +64,12 @@ import { serializeMethodCall } from './mir/method-call'
 import { serializePropertyCall } from './mir/property-call'
 import { serializeCreateAvlTree } from './mir/create-avl-tree'
 import { serializeTreeLookup } from './mir/tree-lookup'
+import { serializeCalcBlake2b256 } from './mir/calc-blake2b256'
+import { serializeCalcSha256 } from './mir/calc-sha256'
+import { serializeByteArrayToBigInt } from './mir/byte-array-to-bigint'
+import { serializeByteArrayToLong } from './mir/byte-array-to-long'
+import { serializeDecodePoint } from './mir/decode-point'
+import { serializeLongToByteArray } from './mir/long-to-byte-array'
 
 export { ExprSerializeError } from './errors'
 
@@ -88,20 +94,17 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'ByteArrayToLong':
-      throw new ExprSerializeError(
-        'ByteArrayToLong serialization not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_BYTE_ARRAY_TO_LONG)
+      serializeByteArrayToLong(e, w)
+      return
     case 'ByteArrayToBigInt':
-      throw new ExprSerializeError(
-        'ByteArrayToBigInt serialization not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_BYTE_ARRAY_TO_BIGINT)
+      serializeByteArrayToBigInt(e, w)
+      return
     case 'LongToByteArray':
-      throw new ExprSerializeError(
-        'LongToByteArray serialization not implemented yet (Task 17)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_LONG_TO_BYTE_ARRAY)
+      serializeLongToByteArray(e, w)
+      return
     case 'Collection':
       w.writeU8(e.kind === 'Exprs' ? OP.OP_COLL : OP.OP_COLL_OF_BOOL_CONST)
       serializeCollection(e, w)
@@ -111,15 +114,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeTuple(e, w)
       return
     case 'CalcBlake2b256':
-      throw new ExprSerializeError(
-        'CalcBlake2b256 serialization not implemented yet (Task 22)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_CALC_BLAKE2B256)
+      serializeCalcBlake2b256(e, w)
+      return
     case 'CalcSha256':
-      throw new ExprSerializeError(
-        'CalcSha256 serialization not implemented yet (Task 22)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_CALC_SHA256)
+      serializeCalcSha256(e, w)
+      return
     case 'Context':
       // Context is a unit-variant Expr arm (sigma-rust `Expr::Context`); the
       // entire encoding is the single OP_CONTEXT opcode byte.
@@ -323,10 +324,9 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-supported'
       )
     case 'DecodePoint':
-      throw new ExprSerializeError(
-        'DecodePoint serialization not implemented yet (Task 23)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_DECODE_POINT)
+      serializeDecodePoint(e, w)
+      return
     case 'SigmaAnd':
       throw new ExprSerializeError(
         'SigmaAnd serialization not implemented yet (Task 14)',
