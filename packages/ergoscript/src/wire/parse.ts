@@ -44,6 +44,10 @@ import { parseConstantPlaceholder } from './mir/constant-placeholder'
 import { parseBlockValue } from './mir/block-value'
 import { parseValDef } from './mir/val-def'
 import { parseValUse } from './mir/val-use'
+import { parseIf } from './mir/if'
+import { parseFuncValue } from './mir/func-value'
+import { parseApply } from './mir/apply'
+import { parseBinOpFromByte } from './mir/bin-op'
 
 export { ExprParseError } from './errors'
 
@@ -74,7 +78,34 @@ export function parseExpr(
   valDefTypes: Map<number, SType> = new Map()
 ): Expr {
   const opcode = r.readU8()
+  return parseExprWithFirstByte(
+    opcode,
+    r,
+    constantTypes,
+    constantValues,
+    valDefTypes
+  )
+}
 
+/**
+ * Parse a single Expr node when the opcode byte has already been consumed
+ * by the caller. Mirrors sigma-rust's `Expr::parse_with_tag` in
+ * `serialization/expr.rs:97`.
+ *
+ * This is exported to support the `BinOp` parser's bool-pair lookahead:
+ * after reading a BinOp opcode, the parser peeks the next byte. If it's
+ * `OP_COLL_OF_BOOL_CONST` it takes the fast path; otherwise the peeked byte
+ * is the first byte of the left operand and must be fed back into the Expr
+ * dispatch. Doing that without re-seeking the reader requires accepting a
+ * pre-consumed first byte here.
+ */
+export function parseExprWithFirstByte(
+  opcode: number,
+  r: ByteReader,
+  constantTypes: SType[],
+  constantValues: SValue[],
+  valDefTypes: Map<number, SType>
+): Expr {
   // Inline-constant range: bytes in [0..LAST_CONSTANT_CODE] are SType codes
   // for embedded `Constant` values, not opcodes. Sigma-rust handles these in
   // `Constant::parse_with_tag` (`serialization/expr.rs:88-93`). We route the
@@ -146,41 +177,28 @@ export function parseExpr(
         'SelectField opcode not implemented yet (Task 18)',
         'not-implemented-yet'
       )
+    // ---- BinOp comparison opcodes (Task 13) ----
+    // ~22 wire opcodes collapse onto a single `Expr.tag === 'BinOp'` with the
+    // discriminator carried by `op: BinOpKind`. Dispatch is centralized in
+    // `parseBinOpFromByte` which maps opcode → kind and handles the bool-pair
+    // packing optimization (BinOp over two `Const(SBoolean)` operands is
+    // encoded via `OP_COLL_OF_BOOL_CONST` rather than two full Const Exprs;
+    // sigma-rust `serialization/bin_op.rs:20-45`).
     case OP.OP_LT:
-      throw new ExprParseError(
-        'BinOp Lt opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_LE:
-      throw new ExprParseError(
-        'BinOp Le opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_GT:
-      throw new ExprParseError(
-        'BinOp Gt opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_GE:
-      throw new ExprParseError(
-        'BinOp Ge opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_EQ:
-      throw new ExprParseError(
-        'BinOp Eq opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_NEQ:
-      throw new ExprParseError(
-        'BinOp NEq opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
+      return parseBinOpFromByte(
+        opcode,
+        r,
+        constantTypes,
+        constantValues,
+        valDefTypes
       )
     case OP.OP_IF:
-      throw new ExprParseError(
-        'If opcode not implemented yet (Task 12)',
-        'not-implemented-yet'
-      )
+      return parseIf(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_AND:
       throw new ExprParseError(
         'And opcode not implemented yet (Task 14)',
@@ -196,34 +214,22 @@ export function parseExpr(
         'Atleast opcode not implemented yet (Task 14)',
         'not-implemented-yet'
       )
+    // BinOp arithmetic opcodes (Task 13) — see comment above on shared dispatch.
     case OP.OP_MINUS:
-      throw new ExprParseError(
-        'BinOp Minus opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_PLUS:
-      throw new ExprParseError(
-        'BinOp Plus opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
+    case OP.OP_MULTIPLY:
+    case OP.OP_DIVISION:
+    case OP.OP_MODULO:
+      return parseBinOpFromByte(
+        opcode,
+        r,
+        constantTypes,
+        constantValues,
+        valDefTypes
       )
     case OP.OP_XOR:
       throw new ExprParseError(
         'Xor opcode not implemented yet (Task 14)',
-        'not-implemented-yet'
-      )
-    case OP.OP_MULTIPLY:
-      throw new ExprParseError(
-        'BinOp Multiply opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
-    case OP.OP_DIVISION:
-      throw new ExprParseError(
-        'BinOp Division opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
-    case OP.OP_MODULO:
-      throw new ExprParseError(
-        'BinOp Modulo opcode not implemented yet (Task 13)',
         'not-implemented-yet'
       )
     case OP.OP_EXPONENTIATE:
@@ -236,15 +242,15 @@ export function parseExpr(
         'MultiplyGroup opcode not implemented yet (Task 23)',
         'not-implemented-yet'
       )
+    // BinOp arithmetic opcodes Min/Max (Task 13) — shared dispatch.
     case OP.OP_MIN:
-      throw new ExprParseError(
-        'BinOp Min opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_MAX:
-      throw new ExprParseError(
-        'BinOp Max opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
+      return parseBinOpFromByte(
+        opcode,
+        r,
+        constantTypes,
+        constantValues,
+        valDefTypes
       )
     case OP.OP_HEIGHT:
       throw new ExprParseError(
@@ -411,15 +417,9 @@ export function parseExpr(
     case OP.OP_BLOCK_VALUE:
       return parseBlockValue(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_FUNC_VALUE:
-      throw new ExprParseError(
-        'FuncValue opcode not implemented yet (Task 15)',
-        'not-implemented-yet'
-      )
+      return parseFuncValue(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_APPLY:
-      throw new ExprParseError(
-        'Apply opcode not implemented yet (Task 15)',
-        'not-implemented-yet'
-      )
+      return parseApply(r, constantTypes, constantValues, valDefTypes)
     case OP.OP_PROPERTY_CALL:
       throw new ExprParseError(
         'PropertyCall opcode not implemented yet (Task 16)',
@@ -465,15 +465,15 @@ export function parseExpr(
         'SigmaOr opcode not implemented yet (Task 14)',
         'not-implemented-yet'
       )
+    // BinOp logical opcodes (Task 13) — shared dispatch.
     case OP.OP_BIN_OR:
-      throw new ExprParseError(
-        'BinOp Or (logical) opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIN_AND:
-      throw new ExprParseError(
-        'BinOp And (logical) opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
+      return parseBinOpFromByte(
+        opcode,
+        r,
+        constantTypes,
+        constantValues,
+        valDefTypes
       )
     case OP.OP_DECODE_POINT:
       throw new ExprParseError(
@@ -495,40 +495,24 @@ export function parseExpr(
         'BitInversion opcode not implemented yet (Task 13)',
         'not-implemented-yet'
       )
+    // BinOp bitwise + remaining logical XOR opcodes (Task 13) — shared dispatch.
+    // Note: OP_BIN_XOR (0xf4) is the *logical* XOR (LogicalOp::Xor); OP_BIT_XOR
+    // (0xf5) is the *bitwise* XOR (BitOp::BitXor). They occupy adjacent opcode
+    // bytes but route to different BinOpKind sub-arms — the discrimination is
+    // handled inside `parseBinOpFromByte` via BIN_OP_OPCODE_TO_KIND.
     case OP.OP_BIT_OR:
-      throw new ExprParseError(
-        'BinOp BitOr opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIT_AND:
-      throw new ExprParseError(
-        'BinOp BitAnd opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIN_XOR:
-      throw new ExprParseError(
-        'BinOp Xor (logical) opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIT_XOR:
-      throw new ExprParseError(
-        'BinOp BitXor opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIT_SHIFT_RIGHT:
-      throw new ExprParseError(
-        'BinOp BitShiftRight opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIT_SHIFT_LEFT:
-      throw new ExprParseError(
-        'BinOp BitShiftLeft opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
     case OP.OP_BIT_SHIFT_RIGHT_ZEROED:
-      throw new ExprParseError(
-        'BinOp BitShiftRightZeroed opcode not implemented yet (Task 13)',
-        'not-implemented-yet'
+      return parseBinOpFromByte(
+        opcode,
+        r,
+        constantTypes,
+        constantValues,
+        valDefTypes
       )
     case OP.OP_CONTEXT:
       throw new ExprParseError(

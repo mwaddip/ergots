@@ -20,7 +20,7 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/expr.rs:252-325
  */
 
-import type { Expr, SType } from './types'
+import type { Expr, SType, STypeVar } from './types'
 
 export class ExprTpeError extends Error {
   constructor(
@@ -48,6 +48,35 @@ export function exprTpe(e: Expr): SType {
       return exprTpe(e.rhs)
     case 'ValUse':
       return e.tpe
+    case 'If':
+      // sigma-rust `mir/if_op.rs::If::tpe` (line 27): the type of an If is
+      // the type of its true branch. Well-typed trees have matching branch
+      // types; sigma-rust does not enforce this at the IR layer.
+      return exprTpe(e.trueBranch)
+    case 'FuncValue': {
+      // sigma-rust `mir/func_value.rs::FuncValue::new` (lines 62-75):
+      // FuncValue's type is an `SFunc { t_dom = args.map(_.tpe), t_range = body.tpe, tpe_params = [] }`.
+      // We mirror that.
+      const args = e.args.map((a) => a.tpe)
+      const result = exprTpe(e.body)
+      const tpeParams: STypeVar[] = []
+      return { tag: 'SFunc', args, result, tpeParams }
+    }
+    case 'Apply': {
+      // sigma-rust `mir/apply.rs::Apply::new` (lines 32-54): Apply's type is
+      // the `t_range` of the func's `SFunc` type. We compute the func's tpe
+      // and project the `result` field. If the func's tpe is NOT an SFunc,
+      // this is a malformed AST — sigma-rust panics-on-unwrap there; we
+      // surface a typed error so the caller can localize the issue.
+      const ft = exprTpe(e.func)
+      if (ft.tag !== 'SFunc') {
+        throw new ExprTpeError(
+          `Apply.func has tpe ${ft.tag}, expected SFunc`,
+          'apply-func-not-sfunc'
+        )
+      }
+      return ft.result
+    }
     default:
       // Reachable today for any Expr variant whose parser/serializer is
       // not yet implemented. Once Tasks 12-26 land, each new tag gets its

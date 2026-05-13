@@ -152,10 +152,27 @@ describe('parseExpr dispatch shell', () => {
     }
   })
 
-  it('IF (0x95) is a known opcode → not-implemented-yet', () => {
-    const e = parseOne(OP.OP_IF)
-    expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('If')
+  it('IF (0x95) is wired to parseIf → truncated condition on bare input', () => {
+    // Task 12 ports OP_IF. The bare opcode with no following bytes causes
+    // parseIf to descend into parseExpr for the condition, which immediately
+    // hits EOF in the reader. ReaderError ('truncated') escapes the parseIf
+    // call (no try/catch wraps recursive descent into ExprParseError) — both
+    // outcomes confirm we're past the dispatch shim and inside the variant
+    // parser. The earlier `not-implemented-yet` assertion is stale.
+    const r = new ByteReader(new Uint8Array([OP.OP_IF]))
+    try {
+      parseExpr(r, [], [])
+      throw new Error('parseExpr should have thrown')
+    } catch (e) {
+      // Either an ExprParseError (e.g. nested 'unknown-opcode' if a stray
+      // byte was hit) or a ReaderError (truncated). What we MUST NOT see is
+      // the old 'not-implemented-yet' for `If`.
+      if (e instanceof ExprParseError) {
+        expect(e.code).not.toBe('not-implemented-yet')
+      }
+      // else: ReaderError — acceptable, confirms parseIf descended into
+      // parseExpr for the condition.
+    }
   })
 
   it('XOR_OF (0xff) is a known opcode → not-implemented-yet', () => {

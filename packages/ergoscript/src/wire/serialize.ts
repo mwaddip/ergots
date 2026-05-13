@@ -24,6 +24,10 @@ import { serializeConstantPlaceholder } from './mir/constant-placeholder'
 import { serializeBlockValue } from './mir/block-value'
 import { serializeValDef } from './mir/val-def'
 import { serializeValUse } from './mir/val-use'
+import { serializeIf } from './mir/if'
+import { serializeFuncValue } from './mir/func-value'
+import { serializeApply } from './mir/apply'
+import { serializeBinOp } from './mir/bin-op'
 
 export { ExprSerializeError } from './errors'
 
@@ -99,15 +103,13 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
         'not-implemented-yet'
       )
     case 'FuncValue':
-      throw new ExprSerializeError(
-        'FuncValue serialization not implemented yet (Task 15)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_FUNC_VALUE)
+      serializeFuncValue(e, w)
+      return
     case 'Apply':
-      throw new ExprSerializeError(
-        'Apply serialization not implemented yet (Task 15)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_APPLY)
+      serializeApply(e, w)
+      return
     case 'MethodCall':
       throw new ExprSerializeError(
         'MethodCall serialization not implemented yet (Task 16)',
@@ -131,15 +133,16 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
       serializeValUse(e, w)
       return
     case 'If':
-      throw new ExprSerializeError(
-        'If serialization not implemented yet (Task 12)',
-        'not-implemented-yet'
-      )
+      w.writeU8(OP.OP_IF)
+      serializeIf(e, w)
+      return
     case 'BinOp':
-      throw new ExprSerializeError(
-        'BinOp serialization not implemented yet (Task 13)',
-        'not-implemented-yet'
-      )
+      // Unlike most variants, BinOp emits its own opcode (derived from the
+      // BinOpKind discriminator) — there is no single fixed `OP_*` constant
+      // for the `'BinOp'` tag. The serializer also handles the bool-pair
+      // packing optimization for `(Const SBoolean, Const SBoolean)` operands.
+      serializeBinOp(e, w)
+      return
     case 'And':
       throw new ExprSerializeError(
         'And serialization not implemented yet (Task 14)',
