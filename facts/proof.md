@@ -93,14 +93,18 @@ const NIPOPOW_PROOF_MAX_SIZE: 2_000_000
 
 #### Round-trip invariant
 
-For every well-formed input `body`:
+For code-90 (`GetNipopowProof`), the round-trip is byte-exact — including any future-padding:
 
 ```
 serializeGetNipopowProof(parseGetNipopowProof(body)) === body  (byte-equal)
-serializeNipopowProofEnvelope(parseNipopowProofEnvelope(body)) === body  (byte-equal)
 ```
 
-Future-padding bytes (the `future_pad_length` field) are preserved on round-trip — the codec does not strip them silently.
+For code-91 (`NipopowProof`), the round-trip preserves the *inner proof bytes* only.
+`parseNipopowProofEnvelope` strips future-padding (it is wire noise; verifiers do not need it),
+so `serializeNipopowProofEnvelope(parseNipopowProofEnvelope(body))` produces a normalized
+envelope (`pad_length=0`) rather than a byte-identical copy. This is intentional —
+code-91 is a framing codec, and its output is always passed to `parseProof`, never
+re-emitted verbatim.
 
 ## Type invariants
 

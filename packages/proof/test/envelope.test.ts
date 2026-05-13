@@ -15,6 +15,8 @@ import {
 } from '../src/envelope.ts';
 import { EnvelopeParseError } from '../src/errors.ts';
 import { hexToBytes, bytesToHex } from './helpers.ts';
+import { ByteWriter } from '../src/scorex/writer.ts';
+import { encodeVlqZigZag, encodeVlqU } from '../src/scorex/vlq.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -92,6 +94,30 @@ describe('GetNipopowProof envelope (code 90)', () => {
     const body = new Uint8Array([0x0c, 0x14, 0xff, 0x00]);
     expect(() => parseGetNipopowProof(body)).toThrow(EnvelopeParseError);
   });
+
+  test('m + k > 1000 throws EnvelopeParseError (invalid-mk)', () => {
+    // m=501, k=500 (sum = 1001 > 1000)
+    const w = new ByteWriter();
+    w.writeBytes(encodeVlqZigZag(BigInt(501)));
+    w.writeBytes(encodeVlqZigZag(BigInt(500)));
+    w.writeU8(0);  // no header_id
+    w.writeU8(0);  // pad = 0
+    const body = w.toBytes();
+    expect(() => parseGetNipopowProof(body)).toThrow(EnvelopeParseError);
+  });
+
+  test('m + k == 1000 boundary passes (invalid-mk)', () => {
+    // m=500, k=500 → sum = 1000, exactly at the limit (should pass)
+    const w = new ByteWriter();
+    w.writeBytes(encodeVlqZigZag(BigInt(500)));
+    w.writeBytes(encodeVlqZigZag(BigInt(500)));
+    w.writeU8(0);  // no header_id
+    w.writeU8(0);  // pad = 0
+    const body = w.toBytes();
+    const parsed = parseGetNipopowProof(body);
+    expect(parsed.m).toBe(500);
+    expect(parsed.k).toBe(500);
+  });
 });
 
 describe('NipopowProof envelope (code 91)', () => {
@@ -125,6 +151,16 @@ describe('NipopowProof envelope (code 91)', () => {
   test('truncated proof (declared length > remaining) throws EnvelopeParseError', () => {
     // VLQ of 5 is 0x05, but we only provide 2 bytes of proof
     const body = new Uint8Array([0x05, 0x01, 0x02]);
+    expect(() => parseNipopowProofEnvelope(body)).toThrow(EnvelopeParseError);
+  });
+
+  test('proof bytes with no trailing pad-length field throws EnvelopeParseError (truncated)', () => {
+    // Body: proof_length VLQ(50) + 50 proof bytes, no trailing pad-length field
+    const w = new ByteWriter();
+    w.writeBytes(encodeVlqU(BigInt(50)));  // proof_length = 50
+    w.writeBytes(new Uint8Array(50));      // proof bytes (all zeros)
+    // Deliberately no pad-length field
+    const body = w.toBytes();
     expect(() => parseNipopowProofEnvelope(body)).toThrow(EnvelopeParseError);
   });
 });

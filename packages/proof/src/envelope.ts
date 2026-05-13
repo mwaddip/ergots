@@ -208,8 +208,12 @@ export function serializeGetNipopowProof(req: GetNipopowProofRequest): Uint8Arra
  * Parse a `NipopowProof` (code 91) message body.
  * Returns the raw inner proof bytes, suitable for passing to `parseProof`.
  *
- * @throws {EnvelopeParseError} with codes: 'oversized', 'invalid-length',
- *   'truncated'
+ * Round-trip note: future-padding bytes are intentionally stripped. Code-91
+ * is a framing codec — the output is passed to `parseProof`, never re-emitted
+ * verbatim. Use `serializeNipopowProofEnvelope(inner)` to produce a normalized
+ * envelope (pad_length=0). See `facts/proof.md` § Round-trip invariant.
+ *
+ * @throws {EnvelopeParseError} with codes: 'oversized', 'invalid-length', 'truncated'
  */
 export function parseNipopowProofEnvelope(body: Uint8Array): Uint8Array {
   if (body.length > NIPOPOW_PROOF_MAX_SIZE) {
@@ -249,27 +253,23 @@ export function parseNipopowProofEnvelope(body: Uint8Array): Uint8Array {
   }
   const inner = r.readBytes(proofLen).slice();
 
-  // future_pad_length + skip padding (not preserved — callers only use inner bytes)
-  if (!r.isExhausted) {
-    let padLen: number;
-    try {
-      padLen = Number(decodeVlqU(r));
-    } catch (e) {
-      throw new EnvelopeParseError(
-        `NipopowProof: failed to read future_pad_length: ${(e as Error).message}`,
-        'truncated',
-      );
-    }
-    if (padLen > 0) {
-      if (padLen > r.remaining) {
-        throw new EnvelopeParseError(
-          `NipopowProof: future_pad_length ${padLen} exceeds remaining body bytes (${r.remaining})`,
-          'truncated',
-        );
-      }
-      r.readBytes(padLen);
-    }
+  // future_pad_length is always present per the wire spec (may be 0).
+  let padLen: number;
+  try {
+    padLen = Number(decodeVlqU(r));
+  } catch (e) {
+    throw new EnvelopeParseError(
+      `NipopowProof: failed to read future_pad_length: ${(e as Error).message}`,
+      'truncated',
+    );
   }
+  if (padLen > r.remaining) {
+    throw new EnvelopeParseError(
+      `NipopowProof: future_pad_length ${padLen} exceeds remaining body bytes (${r.remaining})`,
+      'truncated',
+    );
+  }
+  if (padLen > 0) r.readBytes(padLen);
 
   return inner;
 }
