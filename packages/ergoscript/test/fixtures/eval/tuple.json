@@ -1,0 +1,47 @@
+{
+  "corpus": "eval_tuple",
+  "entries": [
+    {
+      "name": "tuple_pair_int_long",
+      "tree_bytes_hex": "008602040205c801",
+      "opts_json": {},
+      "expected_value_json": {
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Long",
+            "value": "100"
+          }
+        ],
+        "kind": "Tuple"
+      },
+      "expected_cost": 25
+    },
+    {
+      "name": "tuple_triple_bool_byte_short",
+      "tree_bytes_hex": "0086030101020703a413",
+      "opts_json": {},
+      "expected_value_json": {
+        "items": [
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Short",
+            "value": 1234
+          }
+        ],
+        "kind": "Tuple"
+      },
+      "expected_cost": 30
+    }
+  ]
+}

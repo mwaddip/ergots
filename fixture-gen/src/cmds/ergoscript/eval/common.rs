@@ -52,6 +52,14 @@ pub fn value_to_json(v: &Value) -> JsonValue {
         // |x| > 2^53 - 1 exactly; the TS side rehydrates with BigInt(...).
         Long(n) => json!({ "kind": "Long", "value": n.to_string() }),
         BigInt(b) => json!({ "kind": "BigInt", "value": b.to_string() }),
+        // Tuple: heterogeneous fixed-arity. Mirrors `SValue` Tuple variant
+        // (`packages/ergoscript/src/mir/types.ts`): `{ kind: "Tuple", items: SValue[] }`.
+        // Recurse on each item; per-item encoding (incl. Long/BigInt → string)
+        // matches the top-level rules above so the TS hydrator works uniformly.
+        Tup(items) => json!({
+            "kind": "Tuple",
+            "items": items.iter().map(value_to_json).collect::<Vec<_>>(),
+        }),
         // Other variants extended as later arm tasks need them.
         _ => panic!(
             "value_to_json: unsupported variant for current phase-2b arm: {:?}",
