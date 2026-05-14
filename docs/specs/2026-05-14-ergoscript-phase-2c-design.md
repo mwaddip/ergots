@@ -43,9 +43,10 @@ internal arm growth. No npm publish.
   alongside the numeric-poly arms.
 - **Structured SigmaProp.** `SValue.kind: 'SigmaProp'` stays opaque
   (`{ raw: Uint8Array }`). Structural decode of `SigmaBoolean` lands
-  in phase 2g (sigma protocol). `BoolToSigmaProp` constructs canonical
-  `TrivialProp` wire bytes via a localised helper; no structural
-  representation introduced.
+  in phase 2g (sigma protocol). `BoolToSigmaProp` constructs the
+  canonical single-byte `TrivialProp` wire encoding inline using the
+  `SIGMA_OP_TRIVIAL_PROP_*` constants already exported from
+  `wire/sigma-boolean.ts`; no structural representation introduced.
 - **Box/AvlTree equality.** `Eq`/`NEq` on `Box` / `AvlTree` operands
   throws `'not-implemented-yet'`. Those SValue shapes don't exist at
   runtime yet (chain-state model is phase 2e; AVL+ is phase 2h).
@@ -234,9 +235,13 @@ integers are NOT locked in this spec — the fixture-gen output is the
 source of truth.
 
 **BoolToSigmaProp encoding.** The wire bytes for `TrivialProp(b)` are
-1 opcode byte + 1 bool byte. The exact opcode comes from sigma-rust's
-`ergotree-ir/src/sigma_protocol/sigma_boolean.rs` codec — implementer
-reads the source. Resulting SValue is `{ kind: 'SigmaProp', value: { raw: <2 bytes> } }`.
+a single opcode byte — `TRIVIAL_PROP_FALSE = 0xd2` or
+`TRIVIAL_PROP_TRUE = 0xd3` — with an empty payload (the opcode itself
+discriminates the boolean). Our existing
+`packages/ergoscript/src/wire/sigma-boolean.ts` already re-exports
+both constants as `SIGMA_OP_TRIVIAL_PROP_FALSE` /
+`SIGMA_OP_TRIVIAL_PROP_TRUE`; the BoolToSigmaProp arm imports those.
+Resulting SValue is `{ kind: 'SigmaProp', value: { raw: <1 byte> } }`.
 
 ## Validation strategy
 
