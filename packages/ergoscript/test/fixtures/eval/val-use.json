@@ -1,0 +1,40 @@
+{
+  "corpus": "eval_val_use",
+  "entries": [
+    {
+      "name": "val_use_int_42",
+      "tree_bytes_hex": "00d801d60504547205",
+      "val_id": 5,
+      "tpe_json": {
+        "tag": "SInt"
+      },
+      "env_bindings": [
+        [
+          5,
+          {
+            "kind": "Int",
+            "value": 42
+          }
+        ]
+      ],
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 42
+      },
+      "expected_cost": 17,
+      "expected_error_code": null
+    },
+    {
+      "name": "val_use_unbound",
+      "tree_bytes_hex": "",
+      "val_id": 99,
+      "tpe_json": {
+        "tag": "SInt"
+      },
+      "env_bindings": [],
+      "expected_value_json": null,
+      "expected_cost": 5,
+      "expected_error_code": "val-use-unbound"
+    }
+  ]
+}

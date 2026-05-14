@@ -20,6 +20,7 @@ import { EvalError } from './eval-context'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalValDef } from './val-def'
+import { evalValUse } from './val-use'
 
 export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {
@@ -29,6 +30,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalConstPlaceholder(e, env, ctx)
     case 'ValDef':
       return evalValDef(e, env, ctx)
+    case 'ValUse':
+      return evalValUse(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.

@@ -68,6 +68,8 @@ fn main() -> anyhow::Result<()> {
     )?;
     let vd_fixture = cmds::ergoscript::eval::val_def::generate()?;
     write_ergoscript_json("eval/val-def.json", &vd_fixture)?;
+    let vu_fixture = cmds::ergoscript::eval::val_use::generate()?;
+    write_ergoscript_json("eval/val-use.json", &vu_fixture)?;
 
     Ok(())
 }
