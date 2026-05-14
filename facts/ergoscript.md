@@ -2,7 +2,11 @@
 
 The boundary contract for the ErgoScript / ErgoTree wire-format package. Other packages in this monorepo (the future wallet / transaction-broadcaster) read this file to know what they may rely on. The narrative rationale lives in `docs/specs/2026-05-13-ergoscript-interpreter-design.md`; this file is *only* the interface.
 
-**Phase 2a complete.** This contract pins the *wire-format surface* — parse and serialize for every ErgoTree variant defined in the sigma-rust `ergotree-ir` crate, plus address ↔ ErgoTree round-trip helpers. The package has not been `npm publish`-ed; downstream consumers in the monorepo currently import it through the workspace alias. Later phases (2b: type system + constant evaluation; 2c–2j: evaluator, sigma protocol, AVL+, cost) extend this surface additively. Anything not in this document is implementation detail and may change without notice.
+**Phase 2a complete.** Pins the *wire-format surface* — parse and serialize for every ErgoTree variant defined in the sigma-rust `ergotree-ir` crate, plus address ↔ ErgoTree round-trip helpers.
+
+**Phase 2b complete (v0.2.0).** Adds an *evaluator scaffold* — `evaluate` / `evaluateWith` with an `EvalContext` (cost accumulator + optional limit), an `Env` for val-bindings, and 8 of ~70 `Expr` arms wired (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`). Every other `Expr` variant throws `EvalError 'not-implemented-yet'`. Phases 2c–2j extend this surface additively; the public function signatures and error class are stable from v0.2.0 onward.
+
+The package has not been `npm publish`-ed; downstream consumers in the monorepo currently import it through the workspace alias. Anything not in this document is implementation detail and may change without notice.
 
 Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`, `ergotree-ir/src/serialization/`, and `ergotree-ir/src/mir/` (branch `integration/ergots`, HEAD `ed5452cf` at time of writing). Where this file is silent, those are canonical.
 
@@ -47,7 +51,7 @@ base58Encode(bytes: Uint8Array): string
 base58Decode(s: string): Uint8Array
 
 const MAX_TREE_SIZE: 1_048_576    // 1 MB
-const VERSION: '0.0.1'
+const VERSION: '0.2.0'
 
 type Network = 'mainnet' | 'testnet'
 type AddressType = 'P2PK' | 'P2S'
@@ -250,9 +254,91 @@ No other error classes are emitted by this package. Internal panics (e.g. a bug 
 (Detail in `docs/specs/2026-05-13-ergoscript-interpreter-design.md` § Validation strategy.)
 
 1. **Layer 1 — Parse + round-trip on every fixture**: `test/corpus.test.ts` loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip. Current state: 255 passing fixtures + 1 mainnet stub + 6 fixtures flagged `known_unstable` (upstream sigma-rust itself does not round-trip them; tracked in `fixture-gen/known_unstable.json`).
-2. **Layer 2 — Evaluation correctness**: deferred to phase 2b+. Phase 2a has no evaluator.
+2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the 8 implemented arms — phase 2b ships with 18 / 173 such fixtures filterable; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). Phase 2c+ will progressively unlock more fixtures as arms land.
 3. **Layer 3 — Mutation tests**: `test/parse-mutation.test.ts` performs single-byte flips at varied offsets across every fixture and asserts each mutation either throws one of the typed error classes above OR is byte-identical (a flip that lands in a tolerated padding region). Current state: 6221 mutations exercised; 66% throw a typed error class, 0 throw an untyped error, 100% taxonomy coverage (every error class above is hit at least once).
-4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1074/1074 tests pass in both runtimes.
+4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1319/1319 tests pass in both runtimes.
+
+## v0.2.0 — Evaluator surface (phase 2b)
+
+The phase 2b release adds a public evaluator entry point and the supporting context / cost / error types. Wire-format parse + serialize are unchanged from v0.1.0 (phase 2a); this section is purely additive.
+
+### Public exports added in v0.2.0
+
+```ts
+evaluate(tree: ErgoTree, opts?: EvalOpts): SValue
+evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue
+
+makeContext(opts?: EvalOpts): EvalContext
+
+class EvalError extends Error { code: string }
+
+interface EvalOpts {
+  jitCostLimit?: number          // undefined = unlimited (signing-style)
+  constants?: SValue[]           // overrides tree.constants for ConstPlaceholder
+}
+
+interface EvalContext extends EvalOpts {
+  jitCost: number                                                  // mutable accumulator
+  addCost(amount: number): void
+  addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void
+}
+```
+
+`Env`, `evalExpr`, and the per-arm functions (`evalConst`, `evalIf`, `evalBlockValue`, …) are intentionally NOT exported — they are internal to the evaluator and may change without notice. Callers compose evaluation via the four entry points above.
+
+#### `evaluate(tree, opts?)`
+
+- **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
+- **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` (so callers who want the tree's segregated constants picked up automatically don't need to do anything extra) and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
+- **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised from inside the recursive evaluator (e.g. an unhandled variant deep inside a `BlockValue`) bubble up unwrapped — `evaluate` does not catch and rewrap.
+- **Coverage caveat:** Only 8 of ~70 `Expr` variants currently have implemented arms (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2c–2g add the remaining arms; the `evaluate` signature itself is stable.
+
+#### `evaluateWith(tree, ctx)`
+
+- **Precondition:** `tree` is a valid `ErgoTree`. `ctx` is a caller-constructed `EvalContext` (typically from `makeContext(opts)`); the caller is responsible for setting `ctx.constants` if `ConstantPlaceholder` resolution is desired (`evaluateWith` does NOT default it from `tree.constants`, in contrast with `evaluate`).
+- **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under the supplied `ctx`. The context is mutated in place — after the call returns, callers may inspect `ctx.jitCost` to read the total cost charged. This is the entry point used by tests and tooling that need post-eval cost telemetry.
+- **Postcondition (failure):** Same `EvalError` taxonomy as `evaluate`. The context's `jitCost` reflects all cost charged up to (and including) the point of the throw — partial costs are NOT rolled back.
+
+#### `makeContext(opts?)`
+
+- **Precondition:** `opts` is a (possibly empty) `EvalOpts`.
+- **Postcondition:** Returns a fresh `EvalContext` with `jitCost: 0`, `jitCostLimit: opts.jitCostLimit`, `constants: opts.constants`, and the `addCost` / `addPerItemCost` methods bound to the returned object.
+- **Determinism:** Pure constructor; no I/O, no clock, no PRNG. Same opts in, structurally equivalent context out.
+
+#### `EvalContext.addCost(amount)`
+
+- **Semantics:** Saturating add — `ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)`. The clamp is a defensive guard; in practice the cost limit (if set) trips long before saturation matters.
+- **Limit enforcement:** If `ctx.jitCostLimit !== undefined` and the new total exceeds it, throws `EvalError 'cost-limit-exceeded'`. The throw happens *after* the cost is added to `jitCost` — callers inspecting `jitCost` after a cost-limit failure see the over-limit total, not the pre-add value.
+- **Mirror of:** sigma-rust `Context::add_jit_cost` (`ergotree-ir/src/chain/context.rs:77-86`).
+
+#### `EvalContext.addPerItemCost(base, perChunk, chunkSize, nItems)`
+
+- **Semantics:** Composite charge — `addCost(base + ceil(nItems / chunkSize) * perChunk)`. Used by `BlockValue` envelope (`addPerItemCost(1, 1, 10, items.length)`); will be reused by phase 2f's collection HOFs.
+- **Limit enforcement:** Inherits from `addCost`; the *total* composite charge is checked against `jitCostLimit` after addition (not split into base + per-chunk sub-checks).
+- **Mirror of:** sigma-rust `Context::add_per_item_jit_cost` (`ergotree-ir/src/chain/context.rs:88-99`).
+
+### `EvalError` taxonomy (v0.2.0)
+
+`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
+
+- **`'not-implemented-yet'`** — central dispatch (`eval/eval.ts`) hit an `Expr` variant with no arm yet (60+ variants in v0.2.0). The arm tasks in phases 2c-2g progressively replace these with explicit cases. Message includes the offending `tag`.
+- **`'cost-limit-exceeded'`** — `EvalContext.addCost` (and therefore `addPerItemCost`) detected `ctx.jitCost > ctx.jitCostLimit` after a charge. Only raised when the caller set `jitCostLimit` (the default of `undefined` skips the check entirely). Message includes the configured limit.
+- **`'val-def-outside-block'`** — the `ValDef` arm was reached at the top level (or as an arbitrary sub-expression). `ValDef` is only structurally valid as an item inside `BlockValue.items`; reaching it elsewhere is a malformed-tree error. Mirrors sigma-rust's `EvalError::UnexpectedExpr` rejection in `eval.rs:66-68`.
+- **`'val-use-unbound'`** — `ValUse(id)` referenced a `valId` with no binding in the current `Env`. The cost (5) is charged BEFORE the env lookup, mirroring sigma-rust, so an unbound `ValUse` still consumes 5 jitCost. Message includes the missing `valId`.
+- **`'const-placeholder-id-out-of-range'`** — `ConstPlaceholder(id)` referenced an `id >= ctx.constants.length`. Message includes both `id` and `constants.length`.
+- **`'const-placeholder-no-constants'`** — `ConstPlaceholder` was reached but `ctx.constants` is `undefined`. Most commonly hit when calling `evaluateWith` without setting `ctx.constants` (the higher-level `evaluate` defaults it from `tree.constants`).
+- **`'if-condition-not-boolean'`** — the `If` arm's `condition` evaluated to an `SValue` whose `kind !== 'Boolean'`. Message includes the actual `kind`. Sigma-rust raises `EvalError::TryExtractFrom` here; we surface it as a typed code for cleaner programmatic dispatch.
+- **`'collection-elem-kind-mismatch'`** — inside the `Collection` arm with `kind: 'Exprs'`, an evaluated item's `kind` did not match the declared `elemTpe`. This is a fail-fast guard that sigma-rust does not perform at eval time (the upstream type checker is supposed to have caught it); we add it as a defensive check on the verifier path. Only primitive types are validated; composite types (`SColl`, `STuple`, etc.) and chain-state types (`SBox`, `SAvlTree`, …) currently always match (deferred to later phases). Message includes the offending index, the actual `kind`, and the expected `tag`.
+- **`'block-item-not-val-def'`** — inside the `BlockValue` arm, `items[i].tag !== 'ValDef'`. Mirrors sigma-rust's `EvalError::UnexpectedExpr` rejection in `block.rs:13-65`. Message includes the offending index and tag.
+
+No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
+
+### Coverage and stability
+
+- **8 / ~70 `Expr` variants** have arms in v0.2.0. Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the 8 supported variants are exercised against the sigma-rust eval oracle for byte-equality.
+- **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
+- **`EvalOpts` is open for additive growth.** Phase 2e introduces chain-state fields (`height`, `selfBox`, `inputs`, `outputs`, `dataInputs`, `preHeader`, `headers`, `extension`, `treeVersion`); they will be added as optional properties so existing callers remain source-compatible.
+- **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.
 
 ## Cross-references
 

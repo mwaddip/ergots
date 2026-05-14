@@ -16,4 +16,10 @@ export {
 } from './address'
 export type { Network, AddressType } from './address'
 export type { ErgoTree, TreeHeader, SType, SValue, Expr } from './mir/types'
-export const VERSION = '0.0.1'
+
+// v0.2.0 (phase 2b) — evaluator surface
+export { evaluate, evaluateWith } from './eval/evaluate'
+export { makeContext, EvalError } from './eval/eval-context'
+export type { EvalOpts, EvalContext } from './eval/eval-context'
+
+export const VERSION = '0.2.0'
