@@ -44,3 +44,9 @@ hex = "0.4"
 anyhow = "1"
 num-bigint = "0.4"
 num-traits = "0.2"
+# Layer C2 (Task 16) needs a *deterministic* synthetic Context across
+# fixture-gen runs so JSON diffs stay clean. `sigma_test_util::force_any_val`
+# uses `TestRunner::default()` which seeds from the OS RNG; we substitute
+# `TestRunner::deterministic()` (fixed seed) for the mainnet_boxes corpus.
+# Pinned to the version sigma-rust transitively pulls in.
+proptest = "1.6"

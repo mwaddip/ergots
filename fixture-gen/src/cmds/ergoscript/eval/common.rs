@@ -90,10 +90,14 @@ pub fn value_to_json(v: &Value) -> JsonValue {
             }),
         },
         // Other variants extended as later arm tasks need them.
-        _ => panic!(
-            "value_to_json: unsupported variant for current phase-2b arm: {:?}",
-            v
-        ),
+        // Fallback: capture variants we haven't formally encoded yet
+        // (SigmaProp, GroupElement, Box, AvlTree, Lambda, etc.).
+        // Phase 2b's TS arms don't decode these; only used for the
+        // mainnet_boxes Layer C2 corpus where value isn't asserted
+        // (only cost is, on the eval-able subset). The debug-string
+        // representation needs to be stable across regenerations so
+        // fixture diffs stay deterministic.
+        v => json!({ "kind": "Opaque", "debug": format!("{:?}", v) }),
     }
 }
 
