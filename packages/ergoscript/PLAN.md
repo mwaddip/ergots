@@ -1,16 +1,24 @@
-# Phase 2b Implementation Plan — `@mwaddip/ergots-ergoscript`
+# Phase 2c Implementation Plan — `@mwaddip/ergots-ergoscript`
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the smallest evaluator slice — central exhaustive dispatch, `Env`, `EvalContext`, `evaluate()` public surface, and 8 per-variant evaluator arms (Const, ConstPlaceholder, ValDef, ValUse, Tuple, Collection, If, BlockValue) — with cost values copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`) and asserted via fixture-gen from day one (layer C1). Layer C2 captures whole-tree synthetic-context cost on the existing 173-tree mainnet_boxes corpus.
+**Goal:** Ship the first half of the operator surface — `BinOp` (all 22 sub-ops across Arith/Relation/Logical/Bit families), `LogicalNot`, `BoolToSigmaProp` — wired into phase 2b's central exhaustive dispatch. 24 distinct evaluable behaviours across 6 new arm modules. Public surface unchanged from v0.2.0; internal additive growth only.
 
-**Architecture:** Per-variant module under `src/eval/<variant>.ts`, exporting a single function `eval<Variant>(e, env, ctx) => SValue`. Central exhaustive switch in `src/eval/eval.ts` with `_exhaust: never` discriminant — adding a new Expr variant to `mir/types.ts` becomes a compile-time error here until an arm exists. Arms not in 2b's set throw `EvalError 'not-implemented-yet'`. Layout mirrors phase 2a's `wire/mir/<variant>.ts` pattern. Cost charges happen inline in arms via `ctx.addCost(N)` / `ctx.addPerItemCost(...)`; cost values are real (sigma-rust's `Constant = Fixed(5)` etc.), copied with `eval/<variant>.rs:LINE` cross-references in arm header comments.
+**Architecture:** One `BinOp` central dispatcher (`src/eval/bin-op.ts`) that switches on `e.kind.kind` and delegates to one of four per-family sub-arms under `src/eval/bin-op/`. Two further per-variant arms (`logical-not.ts`, `bool-to-sigma-prop.ts`) at the standard 2b grain. Compute in `bigint` everywhere for arithmetic to enable single-path overflow checking. `sValueEquals(a, b)` recursive comparer lives in `bin-op/relation.ts` (evaluator semantic, not a test helper). Costs copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`); asserted via Layer C1 fixture-gen oracles from day one.
 
-**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at branch `integration/ergots@ed5452cf`. No new runtime deps; no new dev deps.
+**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf` via the `arbitrary` feature + `try_eval_out::<Value<'static>>` wedge (same pattern as 2b). No new runtime deps; no new dev deps.
 
-**Source-first discipline:** Read sigma-rust per arm (`~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/<arm>.rs`) before writing any TS. The full design rationale lives in `docs/specs/2026-05-14-ergoscript-phase-2b-design.md`.
+**Source-first discipline:** Read sigma-rust per arm before writing any TS. Authoritative sources for 2c:
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (BinOp dispatch + all 4 families)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/data_value_comparer.rs` (Eq/NEq structural comparison)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/logical_not.rs`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bool_to_sigma.rs`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/costs.rs` (per-op cost values)
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean.rs` (TrivialProp opcode)
 
-**TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each per-arm task is a single red-green-refactor cycle.
+Full design rationale: `docs/specs/2026-05-14-ergoscript-phase-2c-design.md`.
+
+**TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each per-arm task follows red → green → cost-assert → corpus-check → commit.
 
 ---
 
@@ -20,921 +28,396 @@
 
 | Path | Responsibility |
 |---|---|
-| `packages/ergoscript/src/eval/eval.ts` | Central exhaustive switch on `Expr.tag`; exports `evalExpr(e, env, ctx)` |
-| `packages/ergoscript/src/eval/eval-context.ts` | `EvalOpts` + `EvalContext` interfaces, `EvalError` class, `makeContext()` constructor |
-| `packages/ergoscript/src/eval/env.ts` | `Env` class (immutable extend `Map<ValId, SValue>`) |
-| `packages/ergoscript/src/eval/const.ts` | `evalConst` arm |
-| `packages/ergoscript/src/eval/const-placeholder.ts` | `evalConstPlaceholder` arm |
-| `packages/ergoscript/src/eval/val-def.ts` | `evalValDef` arm (throws — top-level rejection) |
-| `packages/ergoscript/src/eval/val-use.ts` | `evalValUse` arm |
-| `packages/ergoscript/src/eval/tuple.ts` | `evalTuple` arm |
-| `packages/ergoscript/src/eval/collection.ts` | `evalCollection` arm (handles `kind: 'Exprs'` + `kind: 'BoolConstants'`) |
-| `packages/ergoscript/src/eval/if.ts` | `evalIf` arm |
-| `packages/ergoscript/src/eval/block-value.ts` | `evalBlockValue` arm (depends on `evalExpr` + `Env.extend`) |
-| `packages/ergoscript/src/eval/evaluate.ts` | Public `evaluate(tree, opts?)` and `evaluateWith(tree, ctx)` functions |
-| `packages/ergoscript/test/eval/eval-context.test.ts` | EvalContext + addCost + addPerItemCost + cost-limit-exceeded tests |
-| `packages/ergoscript/test/eval/env.test.ts` | Env extend/get/has/empty tests |
-| `packages/ergoscript/test/eval/dispatch.test.ts` | Central switch dispatches to arms; `not-implemented-yet` for unported variants |
-| `packages/ergoscript/test/eval/const.test.ts` | Const arm fixture-driven test |
-| `packages/ergoscript/test/eval/const-placeholder.test.ts` | ConstPlaceholder arm fixture-driven test |
-| `packages/ergoscript/test/eval/val-def.test.ts` | ValDef top-level rejection test |
-| `packages/ergoscript/test/eval/val-use.test.ts` | ValUse arm fixture-driven test |
-| `packages/ergoscript/test/eval/tuple.test.ts` | Tuple arm fixture-driven test |
-| `packages/ergoscript/test/eval/collection.test.ts` | Collection arm fixture-driven test |
-| `packages/ergoscript/test/eval/if.test.ts` | If arm fixture-driven test (incl short-circuit semantics) |
-| `packages/ergoscript/test/eval/block-value.test.ts` | BlockValue arm fixture-driven test |
-| `packages/ergoscript/test/eval/evaluate.test.ts` | Public `evaluate` / `evaluateWith` tests |
-| `packages/ergoscript/test/corpus-eval.test.ts` | Layer C2: mainnet_boxes corpus eval-filter |
+| `packages/ergoscript/src/eval/bin-op.ts` | `evalBinOp` central dispatcher: one-of-four switch on `e.kind.kind` |
+| `packages/ergoscript/src/eval/bin-op/arith.ts` | `evalArithOp` + `checkedNumericArith` helper + numeric range constants |
+| `packages/ergoscript/src/eval/bin-op/relation.ts` | `evalRelationOp` (ordering + Eq/NEq dispatch) + `sValueEquals` recursive comparer |
+| `packages/ergoscript/src/eval/bin-op/logical.ts` | `evalLogicalOp` (And/Or short-circuit + Xor eager) |
+| `packages/ergoscript/src/eval/bin-op/bit.ts` | `evalBitOp` + bitwise helpers + shift validation |
+| `packages/ergoscript/src/eval/logical-not.ts` | `evalLogicalNot` arm |
+| `packages/ergoscript/src/eval/bool-to-sigma-prop.ts` | `evalBoolToSigmaProp` arm + inline `TrivialProp(b)` byte helper |
+| `packages/ergoscript/test/eval/logical-not.test.ts` | LogicalNot arm fixture-driven test |
+| `packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts` | BoolToSigmaProp arm fixture-driven test + wire-bytes round-trip assertion |
+| `packages/ergoscript/test/eval/bin-op.test.ts` | BinOp central dispatch test (each kind routes correctly; unported sub-arms throw `'not-implemented-yet'` during incremental landing) |
+| `packages/ergoscript/test/eval/bin-op-bit.test.ts` | Bit family fixture-driven test |
+| `packages/ergoscript/test/eval/bin-op-logical.test.ts` | Logical family fixture-driven test + short-circuit assertions |
+| `packages/ergoscript/test/eval/bin-op-relation.test.ts` | Relation family fixture-driven test (ordering + Eq/NEq) |
+| `packages/ergoscript/test/eval/bin-op-arith.test.ts` | Arith family fixture-driven test (incl overflow + divide-by-zero) |
+| `packages/ergoscript/test/fixtures/eval/logical-not.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/bool-to-sigma-prop.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/bin-op-bit.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/bin-op-logical.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/bin-op-relation.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/bin-op-arith.json` | Generated by fixture-gen |
 
 **New files (Rust fixture-gen):**
 
 | Path | Responsibility |
 |---|---|
-| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Re-exports per-arm fixture commands |
-| `fixture-gen/src/cmds/ergoscript/eval/common.rs` | Shared `EvalFixture` struct + `EvalFixtureFile` wrapper + helper that runs sigma-rust eval and captures `(value_json, jit_cost)` |
-| `fixture-gen/src/cmds/ergoscript/eval/const_arm.rs` | Const fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/const_placeholder.rs` | ConstPlaceholder fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/val_def.rs` | ValDef top-level rejection fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/val_use.rs` | ValUse fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/tuple.rs` | Tuple fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/collection.rs` | Collection fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/if_arm.rs` | If fixtures (incl short-circuit) |
-| `fixture-gen/src/cmds/ergoscript/eval/block_value.rs` | BlockValue fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/logical_not.rs` | LogicalNot fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs` | BoolToSigmaProp fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs` | Bit family fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/bin_op_logical.rs` | Logical family fixtures + short-circuit guard cases |
+| `fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs` | Relation family fixtures (ordering + Eq/NEq) |
+| `fixture-gen/src/cmds/ergoscript/eval/bin_op_arith.rs` | Arith family fixtures (incl overflow + divide-by-zero error entries) |
 
 **Modified files:**
 
 | Path | Modification |
 |---|---|
-| `packages/ergoscript/src/index.ts` | Add public exports: `evaluate`, `evaluateWith`, `makeContext`, `EvalError`, types `EvalOpts`/`EvalContext` |
-| `packages/ergoscript/package.json` | Bump version `0.1.0` → `0.2.0` |
-| `fixture-gen/src/cmds/ergoscript/mod.rs` | Wire `eval` submodule |
-| `fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs` | Extend each entry's output with `sigma_rust_eval` block (synthetic-context whole-tree eval — Layer C2) |
-| `fixture-gen/src/main.rs` | Wire eval fixture commands into the generator pipeline |
-| `facts/ergoscript.md` | Add v0.2.0 surface section: `evaluate` / `evaluateWith` / `EvalContext` / `EvalError` codes |
+| `packages/ergoscript/src/eval/eval.ts` | Add 3 `case` lines to central dispatch: `BinOp` → `evalBinOp`, `LogicalNot` → `evalLogicalNot`, `BoolToSigmaProp` → `evalBoolToSigmaProp` |
+| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Re-export the 6 new per-arm modules |
+| `fixture-gen/src/main.rs` | Wire 6 new eval fixture commands into the generator pipeline |
+| `facts/ergoscript.md` | Extend v0.2.0 EvalError taxonomy with the 6 new codes (additive, no breaking changes) |
+
+**Unchanged (deliberately):**
+
+- `packages/ergoscript/src/index.ts` — public surface unchanged; no version bump in `package.json` (no publish during phase 2 progression)
+- `packages/ergoscript/test/_helpers/index.ts` — shared `hexToBytes` / `hydrateSValue` already cover every new test file
 
 ---
 
-## Stage 1 — Chassis (Tasks 1–6)
+## Conventions and workflow
 
-The chassis is everything except the 8 arms: error class, EvalContext, Env, central dispatch, public surface. No arm-specific logic yet — all dispatch arms throw `'not-implemented-yet'`. The chassis is testable on its own (the dispatch test asserts that *every* Expr variant currently throws `'not-implemented-yet'`).
+These apply to every task. Don't repeat them per-task.
 
-### Task 1: Scaffold `eval/` directory + `EvalError` class
+**Per-task arc:**
+1. Read sigma-rust source for the arm (cited path/line in each task).
+2. Write the fixture-gen Rust module.
+3. Run `cargo run --release -p fixture-gen` from repo root; verify the new fixture file is committed.
+4. Write the failing TS test (red).
+5. Run `npx vitest run packages/ergoscript/test/eval/<arm>.test.ts`; verify FAIL with expected reason.
+6. Write the minimal TS arm implementation (green).
+7. Wire the arm into central dispatch if not already done.
+8. Run the per-arm test; verify PASS.
+9. Run the full ergoscript suite: `npx vitest run packages/ergoscript/`; verify all previous tests still pass.
+10. Run `npx tsc --noEmit -p packages/ergoscript`; verify zero errors.
+11. Commit fixture-gen + fixtures + TS in one commit per task (matching 2b's pattern).
+
+**Fixture-gen execution:** Always `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Output goes to `packages/ergoscript/test/fixtures/eval/<arm>.json`. Two consecutive runs must produce byte-identical output (determinism check); if they don't, investigate before commit.
+
+**Cost values:** Read from `sigma-rust/.../ergotree-interpreter/src/eval/costs.rs` per arm. Each TS arm's header comment cites `eval/<file>.rs:LINE`. Don't hardcode cost integers in the spec — the fixture-gen `expected_cost` field is the source of truth.
+
+**Browser compatibility checks:** Every new TS module follows the existing hard rules (no `Buffer`, no `node:*` outside test files, no `globalThis.crypto`, no WASM, ESM only, no top-level await). The existing browser-compat scan in tests already covers `dist/`; no plan changes needed.
+
+**Commit message style:** `feat(ergoscript): <arm> eval arm (phase 2c task N)` for arm tasks; `chore(fixture-gen): <arm> fixtures (phase 2c task N)` if fixture-gen-only; reuse 2b's pattern. Co-author trailer mandatory.
+
+---
+
+## Stage 1 — Standalone unary arms (Tasks 1–2)
+
+These are the simplest arms — no BinOp dispatch complexity, no polymorphism. Each establishes the 2c arm-task template.
+
+### Task 1: `LogicalNot` arm + fixture
 
 **Files:**
-- Create: `packages/ergoscript/src/eval/eval-context.ts` (EvalError class only — interfaces in Task 2)
-- Create: `packages/ergoscript/test/eval/eval-context.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/logical_not.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/logical-not.json`
+- Create: `packages/ergoscript/src/eval/logical-not.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/logical-not.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/logical_not.rs` (43 LOC).
 
-`packages/ergoscript/test/eval/eval-context.test.ts`:
+Key behavior: input must evaluate to `SBoolean`; return inverted boolean. Cost: `Fixed(1)` per `costs.rs`.
 
-```ts
-import { describe, it, expect } from 'vitest'
-import { EvalError } from '../../src/eval/eval-context'
+- [ ] **Step 1: Read sigma-rust source**
 
-describe('EvalError', () => {
-  it('extends Error and carries a code', () => {
-    const e = new EvalError('something went wrong', 'cost-limit-exceeded')
-    expect(e).toBeInstanceOf(Error)
-    expect(e).toBeInstanceOf(EvalError)
-    expect(e.message).toBe('something went wrong')
-    expect(e.code).toBe('cost-limit-exceeded')
-    expect(e.name).toBe('EvalError')
-  })
-})
-```
+Read `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/logical_not.rs` and note the exact cost (line ~15) and the bool extraction pattern.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Write the fixture-gen Rust module**
 
-Run: `npx vitest run test/eval/eval-context.test.ts`
-Expected: FAIL with `Cannot find module '../../src/eval/eval-context'`
+`fixture-gen/src/cmds/ergoscript/eval/logical_not.rs`:
 
-- [ ] **Step 3: Write minimal implementation**
+```rust
+//! LogicalNot eval fixtures. Source: ergotree-interpreter/src/eval/logical_not.rs
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::logical_not::LogicalNot;
+use ergotree_ir::mir::constant::Constant;
+use ergotree_ir::ergo_tree::ErgoTree;
+use ergotree_ir::serialization::SigmaSerializable;
+use serde_json::json;
 
-`packages/ergoscript/src/eval/eval-context.ts`:
+use super::common::{run_eval_capture, EvalFixtureFile, EvalFixtureEntry};
 
-```ts
-/**
- * Evaluator error class. Single class with a `code` field for programmatic
- * dispatch — same shape as `ProofParseError`/`ErgoTreeParseError` from
- * earlier phases. Codes enumerated in
- * `docs/specs/2026-05-14-ergoscript-phase-2b-design.md` § Error taxonomy.
- */
-export class EvalError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message)
-    this.name = 'EvalError'
-  }
+pub fn generate() -> EvalFixtureFile {
+    let mut entries = Vec::new();
+
+    for input_val in [true, false] {
+        let expr: Expr = LogicalNot {
+            input: Box::new(Constant::from(input_val).into()),
+        }.into();
+        let tree = ErgoTree::try_from(expr.clone()).expect("build tree");
+        let bytes_hex = hex::encode(tree.sigma_serialize_bytes().expect("serialize"));
+
+        let capture = run_eval_capture(&tree, &json!({}));
+        entries.push(EvalFixtureEntry {
+            name: format!("not_{}", input_val),
+            tree_bytes_hex: bytes_hex,
+            opts_json: json!({}),
+            expected_value_json: capture.value_json,
+            expected_cost: capture.jit_cost,
+            expected_error_code: None,
+        });
+    }
+
+    EvalFixtureFile {
+        corpus: "logical-not".into(),
+        entries,
+    }
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+(Subagent: adapt to the `common.rs` helper signatures actually in the codebase — read `fixture-gen/src/cmds/ergoscript/eval/common.rs` first. The shape above mirrors phase 2b's per-arm modules.)
 
-Run: `npx vitest run test/eval/eval-context.test.ts`
-Expected: PASS
+- [ ] **Step 3: Wire into fixture-gen pipeline**
 
-- [ ] **Step 5: Commit**
+Add to `fixture-gen/src/cmds/ergoscript/eval/mod.rs`:
 
-```bash
-git add packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/test/eval/eval-context.test.ts
-git commit -m "feat(ergoscript): scaffold eval/ + EvalError class (phase 2b task 1)"
+```rust
+pub mod logical_not;
 ```
 
----
+Add the command invocation in `fixture-gen/src/main.rs` alongside the existing eval-arm commands (follow the pattern of `const_arm`, `tuple`, etc.).
 
-### Task 2: `EvalContext` + `EvalOpts` interfaces + `makeContext` + `addCost`
+- [ ] **Step 4: Run fixture-gen and verify determinism**
 
-**Files:**
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (add interfaces + `makeContext`)
-- Modify: `packages/ergoscript/test/eval/eval-context.test.ts` (add tests)
+From repo root:
 
-- [ ] **Step 1: Write the failing tests**
+```bash
+cargo run --release -p fixture-gen
+```
 
-Append to `packages/ergoscript/test/eval/eval-context.test.ts`:
+Verify `packages/ergoscript/test/fixtures/eval/logical-not.json` exists and contains 2 entries. Run a second time and confirm byte-identical output:
+
+```bash
+md5sum packages/ergoscript/test/fixtures/eval/logical-not.json
+cargo run --release -p fixture-gen
+md5sum packages/ergoscript/test/fixtures/eval/logical-not.json
+```
+
+Both md5s must match. If not, investigate non-determinism before proceeding (likely `TestRunner::default()` vs `::deterministic()` — see memory `project_fixture_gen_cargo_gotchas`).
+
+- [ ] **Step 5: Write the failing TS test**
+
+`packages/ergoscript/test/eval/logical-not.test.ts`:
 
 ```ts
+import { describe, it, expect } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
+import { hexToBytes, hydrateSValue } from '../_helpers'
 
-describe('makeContext', () => {
-  it('returns an EvalContext with default cost state', () => {
-    const ctx = makeContext()
-    expect(ctx.jitCost).toBe(0)
-    expect(ctx.jitCostLimit).toBeUndefined()
-    expect(ctx.constants).toBeUndefined()
-  })
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const fixturePath = path.join(__dirname, '../fixtures/eval/logical-not.json')
 
-  it('accepts jitCostLimit and constants in opts', () => {
-    const ctx = makeContext({ jitCostLimit: 1000, constants: [{ kind: 'Boolean', value: true }] })
-    expect(ctx.jitCostLimit).toBe(1000)
-    expect(ctx.constants).toEqual([{ kind: 'Boolean', value: true }])
-  })
-})
+interface EvalFixture {
+  name: string
+  tree_bytes_hex: string
+  opts_json: { jitCostLimit?: number }
+  expected_value_json: { kind: string; value?: unknown }
+  expected_cost: number
+}
 
-describe('EvalContext.addCost', () => {
-  it('accumulates jitCost', () => {
-    const ctx = makeContext()
-    ctx.addCost(5)
-    ctx.addCost(10)
-    expect(ctx.jitCost).toBe(15)
-  })
+const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
+  corpus: string
+  entries: EvalFixture[]
+}
 
-  it('throws cost-limit-exceeded when jitCost exceeds jitCostLimit', () => {
-    const ctx = makeContext({ jitCostLimit: 10 })
-    ctx.addCost(5)
-    expect(() => ctx.addCost(6)).toThrow(EvalError)
-    try {
-      ctx.addCost(100)
-    } catch (e) {
-      expect(e).toBeInstanceOf(EvalError)
-      expect((e as EvalError).code).toBe('cost-limit-exceeded')
-    }
-  })
-
-  it('does not throw when jitCostLimit is undefined', () => {
-    const ctx = makeContext()
-    expect(() => ctx.addCost(Number.MAX_SAFE_INTEGER)).not.toThrow()
-  })
-
-  it('saturates at MAX_SAFE_INTEGER (mirrors sigma-rust saturating_add)', () => {
-    const ctx = makeContext()
-    ctx.addCost(Number.MAX_SAFE_INTEGER)
-    ctx.addCost(1000)
-    expect(ctx.jitCost).toBe(Number.MAX_SAFE_INTEGER)
-  })
+describe('LogicalNot arm — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(`${entry.name}: value + cost`, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext()
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
 })
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 6: Run test, verify FAIL**
 
-Run: `npx vitest run test/eval/eval-context.test.ts`
-Expected: FAIL with `makeContext is not a function` or import error.
+```bash
+npx vitest run packages/ergoscript/test/eval/logical-not.test.ts
+```
 
-- [ ] **Step 3: Write minimal implementation**
+Expected: FAIL with `EvalError: not yet supported: variant 'LogicalNot'` (the central dispatch's default arm).
 
-Replace contents of `packages/ergoscript/src/eval/eval-context.ts`:
+- [ ] **Step 7: Write the arm implementation**
+
+`packages/ergoscript/src/eval/logical-not.ts`:
 
 ```ts
 /**
- * EvalContext + EvalOpts + EvalError. The runtime state passed through
- * every evaluator arm. Cost lives on Context (mirrors sigma-rust's
- * `Context::add_jit_cost` posture); `EvalContext extends EvalOpts` so
- * phase 2e can grow `EvalOpts` with chain-state fields and `EvalContext`
- * inherits them.
+ * LogicalNot arm — unary `!` on Boolean.
  *
- * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/context.rs:77-99
+ * Sigma-rust ref: ergotree-interpreter/src/eval/logical_not.rs
+ * Cost: Fixed(1) per costs.rs (verify line number when reading source).
  */
-
-import type { SValue } from '../mir/types'
-
-export class EvalError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message)
-    this.name = 'EvalError'
-  }
-}
-
-export interface EvalOpts {
-  /** undefined = unlimited (signing-style) */
-  jitCostLimit?: number
-  /** Overrides tree.constants if set. Used by ConstPlaceholder resolution. */
-  constants?: SValue[]
-  // Phase 2e adds: height, selfBox, inputs, outputs, dataInputs,
-  // preHeader, headers, extension, treeVersion, ...
-}
-
-export interface EvalContext extends EvalOpts {
-  /** Mutable accumulator. */
-  jitCost: number
-  /**
-   * Saturating add. Throws `EvalError 'cost-limit-exceeded'` if
-   * `jitCostLimit` is set and the new total exceeds it.
-   * Mirrors sigma-rust `Context::add_jit_cost`.
-   */
-  addCost(amount: number): void
-}
-
-export function makeContext(opts: EvalOpts = {}): EvalContext {
-  const ctx: EvalContext = {
-    jitCost: 0,
-    jitCostLimit: opts.jitCostLimit,
-    constants: opts.constants,
-    addCost(amount: number): void {
-      ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
-      if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {
-        throw new EvalError(
-          `JIT cost limit (${ctx.jitCostLimit}) exceeded`,
-          'cost-limit-exceeded'
-        )
-      }
-    },
-  }
-  return ctx
-}
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run test/eval/eval-context.test.ts`
-Expected: PASS (5 tests in this file now)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/test/eval/eval-context.test.ts
-git commit -m "feat(ergoscript): EvalContext + EvalOpts + addCost (phase 2b task 2)"
-```
-
----
-
-### Task 3: `addPerItemCost` on EvalContext
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (add `addPerItemCost`)
-- Modify: `packages/ergoscript/test/eval/eval-context.test.ts` (add test)
-
-- [ ] **Step 1: Write the failing test**
-
-Append to `packages/ergoscript/test/eval/eval-context.test.ts`:
-
-```ts
-describe('EvalContext.addPerItemCost', () => {
-  // Mirrors sigma-rust's add_per_item_jit_cost(base, per_chunk, chunk_size, n_items)
-  // formula: base + ceil(n_items / chunk_size) * per_chunk
-  it('charges base + ceil(nItems/chunkSize) * perChunk', () => {
-    const ctx = makeContext()
-    // BlockValue's call: addPerItemCost(1, 1, 10, items.length)
-    ctx.addPerItemCost(1, 1, 10, 0)   // 1 + ceil(0/10)*1 = 1
-    expect(ctx.jitCost).toBe(1)
-    ctx.addPerItemCost(1, 1, 10, 5)   // 1 + ceil(5/10)*1 = 2
-    expect(ctx.jitCost).toBe(3)
-    ctx.addPerItemCost(1, 1, 10, 10)  // 1 + 1 = 2
-    expect(ctx.jitCost).toBe(5)
-    ctx.addPerItemCost(1, 1, 10, 11)  // 1 + 2 = 3
-    expect(ctx.jitCost).toBe(8)
-    ctx.addPerItemCost(1, 1, 10, 25)  // 1 + 3 = 4
-    expect(ctx.jitCost).toBe(12)
-  })
-})
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run test/eval/eval-context.test.ts -t "addPerItemCost"`
-Expected: FAIL with `ctx.addPerItemCost is not a function`
-
-- [ ] **Step 3: Write minimal implementation**
-
-In `packages/ergoscript/src/eval/eval-context.ts`, add to `EvalContext` interface:
-
-```ts
-  /**
-   * Composite per-item charge: `base + ceil(nItems / chunkSize) * perChunk`.
-   * Mirrors sigma-rust `Context::add_per_item_jit_cost`
-   * (`ergotree-ir/src/chain/context.rs:88-99`). Used by BlockValue
-   * envelope cost; will be reused by 2f's collection HOFs.
-   */
-  addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void
-```
-
-And in the `makeContext` returned object literal, add:
-
-```ts
-    addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void {
-      const chunks = Math.ceil(nItems / chunkSize)
-      ctx.addCost(base + chunks * perChunk)
-    },
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest run test/eval/eval-context.test.ts`
-Expected: PASS (6 tests)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/test/eval/eval-context.test.ts
-git commit -m "feat(ergoscript): EvalContext.addPerItemCost (phase 2b task 3)"
-```
-
----
-
-### Task 4: `Env` class
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/env.ts`
-- Create: `packages/ergoscript/test/eval/env.test.ts`
-
-- [ ] **Step 1: Write the failing tests**
-
-`packages/ergoscript/test/eval/env.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { Env } from '../../src/eval/env'
-
-describe('Env', () => {
-  it('Env.empty() has no bindings', () => {
-    const env = Env.empty()
-    expect(env.has(0)).toBe(false)
-    expect(env.get(0)).toBeUndefined()
-  })
-
-  it('extend returns a new Env with the binding', () => {
-    const env = Env.empty()
-    const extended = env.extend(5, { kind: 'Int', value: 42 })
-    expect(extended.has(5)).toBe(true)
-    expect(extended.get(5)).toEqual({ kind: 'Int', value: 42 })
-  })
-
-  it('extend does NOT mutate the original Env', () => {
-    const env = Env.empty()
-    env.extend(5, { kind: 'Int', value: 42 })
-    expect(env.has(5)).toBe(false)
-  })
-
-  it('extend supports overwriting existing bindings (last-write-wins)', () => {
-    const env = Env.empty()
-      .extend(1, { kind: 'Int', value: 10 })
-      .extend(1, { kind: 'Int', value: 20 })
-    expect(env.get(1)).toEqual({ kind: 'Int', value: 20 })
-  })
-
-  it('extend chains build a multi-binding scope', () => {
-    const env = Env.empty()
-      .extend(1, { kind: 'Int', value: 1 })
-      .extend(2, { kind: 'Int', value: 2 })
-      .extend(3, { kind: 'Int', value: 3 })
-    expect(env.get(1)).toEqual({ kind: 'Int', value: 1 })
-    expect(env.get(2)).toEqual({ kind: 'Int', value: 2 })
-    expect(env.get(3)).toEqual({ kind: 'Int', value: 3 })
-  })
-})
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `npx vitest run test/eval/env.test.ts`
-Expected: FAIL with `Cannot find module '../../src/eval/env'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-`packages/ergoscript/src/eval/env.ts`:
-
-```ts
-/**
- * Env — val-def binding store. Immutable extend (clones internally on
- * each extension; original is never mutated). Mirrors sigma-rust's
- * `Env::extend` (`ergotree-interpreter/src/eval/env.rs:28-32`).
- *
- * Our immutable variant naturally implements nested-block scoping (a
- * new Env from `extend` goes out of scope when the function returns).
- * Sigma-rust uses a mutable `&mut Env` and has to manually save/restore
- * shadowed bindings; we don't.
- */
-
-import type { SValue } from '../mir/types'
-
-export class Env {
-  private constructor(private readonly store: Map<number, SValue>) {}
-
-  static empty(): Env {
-    return new Env(new Map())
-  }
-
-  extend(id: number, v: SValue): Env {
-    const next = new Map(this.store)
-    next.set(id, v)
-    return new Env(next)
-  }
-
-  get(id: number): SValue | undefined {
-    return this.store.get(id)
-  }
-
-  has(id: number): boolean {
-    return this.store.has(id)
-  }
-}
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run test/eval/env.test.ts`
-Expected: PASS (5 tests)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/env.ts packages/ergoscript/test/eval/env.test.ts
-git commit -m "feat(ergoscript): Env class with immutable extend (phase 2b task 4)"
-```
-
----
-
-### Task 5: Central dispatch chassis (`evalExpr` with `not-implemented-yet` for all variants)
-
-This task creates the central switch with NO arms implemented yet — just the dispatch mechanism that throws `'not-implemented-yet'` for every variant. Subsequent tasks (8–15) replace each `default` fall-through with an explicit `case` calling its arm.
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/dispatch.test.ts`
-
-- [ ] **Step 1: Write the failing test**
-
-`packages/ergoscript/test/eval/dispatch.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { evalExpr } from '../../src/eval/eval'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { Expr } from '../../src/mir/types'
-
-describe('evalExpr (central dispatch — chassis only)', () => {
-  it('throws not-implemented-yet for any variant in 2b chassis state', () => {
-    // Use Const as a representative — we know the tag is in the union but
-    // no arm is wired yet. Will be replaced as Tasks 8+ wire each arm.
-    const e: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } }
-    expect(() => evalExpr(e, Env.empty(), makeContext())).toThrow(EvalError)
-    try {
-      evalExpr(e, Env.empty(), makeContext())
-    } catch (err) {
-      expect(err).toBeInstanceOf(EvalError)
-      expect((err as EvalError).code).toBe('not-implemented-yet')
-      expect((err as EvalError).message).toContain("'Const'")
-    }
-  })
-})
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run test/eval/dispatch.test.ts`
-Expected: FAIL with `Cannot find module '../../src/eval/eval'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-`packages/ergoscript/src/eval/eval.ts`:
-
-```ts
-/**
- * Central evaluator dispatch — exhaustive switch on `Expr.tag`. Adding a
- * new Expr variant to `mir/types.ts` becomes a compile-time error here
- * via the `_exhaust: never` discriminant until an arm exists.
- *
- * Phase 2b ships 8 arms (Const, ConstPlaceholder, BlockValue, ValDef,
- * ValUse, Tuple, Collection, If). Every other variant currently throws
- * `EvalError 'not-implemented-yet'` — Phase 2c+ replaces each with an
- * explicit case calling its arm. The chassis itself is correct from
- * this commit forward.
- *
- * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs
- */
-
-import type { Expr, SValue } from '../mir/types'
+import type { LogicalNot, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
-
-export function evalExpr(e: Expr, _env: Env, _ctx: EvalContext): SValue {
-  // Chassis-only: no arms wired yet. Each per-arm task (8-15) inserts an
-  // explicit `case` returning the arm's eval function before this throw.
-  throw new EvalError(
-    `not yet supported: variant '${(e as { tag: string }).tag}'`,
-    'not-implemented-yet'
-  )
-}
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest run test/eval/dispatch.test.ts`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/eval.ts packages/ergoscript/test/eval/dispatch.test.ts
-git commit -m "feat(ergoscript): central evalExpr dispatch chassis (phase 2b task 5)"
-```
-
----
-
-### Task 6: Public surface — `evaluate` + `evaluateWith`
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/evaluate.ts`
-- Create: `packages/ergoscript/test/eval/evaluate.test.ts`
-
-- [ ] **Step 1: Write the failing tests**
-
-`packages/ergoscript/test/eval/evaluate.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { evaluate, evaluateWith } from '../../src/eval/evaluate'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { ErgoTree } from '../../src/mir/types'
-
-const treeWithConstBody = (): ErgoTree => ({
-  header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
-  constantTypes: [],
-  constants: [],
-  body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
-})
-
-describe('evaluate', () => {
-  it('routes through dispatch — currently throws not-implemented-yet for Const (chassis-only state)', () => {
-    expect(() => evaluate(treeWithConstBody())).toThrow(EvalError)
-    try {
-      evaluate(treeWithConstBody())
-    } catch (e) {
-      expect((e as EvalError).code).toBe('not-implemented-yet')
-    }
-  })
-
-  it('accepts EvalOpts with jitCostLimit + constants', () => {
-    expect(() =>
-      evaluate(treeWithConstBody(), { jitCostLimit: 1000, constants: [] })
-    ).toThrow(EvalError)  // still 'not-implemented-yet' until Task 8
-  })
-})
-
-describe('evaluateWith', () => {
-  it('takes a pre-built EvalContext (caller can inspect ctx.jitCost after)', () => {
-    const ctx = makeContext()
-    expect(() => evaluateWith(treeWithConstBody(), ctx)).toThrow(EvalError)
-    // ctx.jitCost remains 0 because dispatch threw before any addCost
-    expect(ctx.jitCost).toBe(0)
-  })
-})
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `npx vitest run test/eval/evaluate.test.ts`
-Expected: FAIL with module-not-found.
-
-- [ ] **Step 3: Write minimal implementation**
-
-`packages/ergoscript/src/eval/evaluate.ts`:
-
-```ts
-/**
- * Public evaluator entry points.
- *
- * `evaluate(tree, opts?)` is the ergonomic happy path — constructs an
- * EvalContext from `opts` (defaulting `constants` to `tree.constants` if
- * not overridden) and dispatches on the tree body. `evaluateWith(tree,
- * ctx)` takes a pre-built EvalContext, useful for tests and tooling that
- * need to inspect `ctx.jitCost` after evaluation completes.
- */
-
-import type { ErgoTree, SValue } from '../mir/types'
-import { Env } from './env'
 import { evalExpr } from './eval'
-import { makeContext } from './eval-context'
-import type { EvalContext, EvalOpts } from './eval-context'
 
-export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
-  const ctx = makeContext({
-    jitCostLimit: opts.jitCostLimit,
-    constants: opts.constants ?? tree.constants,
-  })
-  return evalExpr(tree.body, Env.empty(), ctx)
-}
+const LOGICAL_NOT_COST = 1
 
-export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
-  // Caller-supplied ctx is honored verbatim. If they want tree.constants
-  // resolution they must set it themselves before calling.
-  return evalExpr(tree.body, Env.empty(), ctx)
+export function evalLogicalNot(e: LogicalNot, env: Env, ctx: EvalContext): SValue {
+  ctx.addCost(LOGICAL_NOT_COST)
+  const input = evalExpr(e.input, env, ctx)
+  if (input.kind !== 'Boolean') {
+    throw new EvalError(
+      `LogicalNot: operand kind must be Boolean, got '${input.kind}'`,
+      'bin-op-not-boolean'
+    )
+  }
+  return { kind: 'Boolean', value: !input.value }
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 8: Wire into central dispatch**
 
-Run: `npx vitest run test/eval/evaluate.test.ts`
-Expected: PASS (3 tests)
+In `packages/ergoscript/src/eval/eval.ts`, add the import and case:
 
-- [ ] **Step 5: Commit**
+```ts
+import { evalLogicalNot } from './logical-not'
+
+// inside the switch in evalExpr:
+    case 'LogicalNot':         return evalLogicalNot(e, env, ctx)
+```
+
+- [ ] **Step 9: Run test, verify PASS**
 
 ```bash
-git add packages/ergoscript/src/eval/evaluate.ts packages/ergoscript/test/eval/evaluate.test.ts
-git commit -m "feat(ergoscript): public evaluate + evaluateWith surface (phase 2b task 6)"
+npx vitest run packages/ergoscript/test/eval/logical-not.test.ts
+```
+
+Expected: PASS, 2 tests.
+
+- [ ] **Step 10: Run full ergoscript suite**
+
+```bash
+npx vitest run packages/ergoscript/
+```
+
+Expected: 1321 passing (was 1319; +2 from LogicalNot fixture). Zero failures.
+
+- [ ] **Step 11: Typecheck**
+
+```bash
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Expected: zero output.
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/logical-not.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/logical-not.test.ts \
+        packages/ergoscript/test/fixtures/eval/logical-not.json \
+        fixture-gen/src/cmds/ergoscript/eval/logical_not.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): LogicalNot eval arm (phase 2c task 1)
+
+Unary boolean negation. Cost Fixed(1) per sigma-rust costs.rs.
+Throws 'bin-op-not-boolean' on non-Boolean operand.
+
+Layer C1 fixture asserts value + cost across both truth-table cells.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
 
 ---
 
-## Stage 2 — Per-arm implementations (Tasks 7–14)
-
-Each per-arm task follows this pattern:
-
-1. **Add the fixture-gen Rust command** — emits one JSON fixture file with multiple entries. Sigma-rust is the oracle.
-2. **Wire it into the fixture-gen pipeline** — `fixture-gen/src/cmds/ergoscript/eval/mod.rs` and `fixture-gen/src/main.rs`.
-3. **Run fixture-gen** — verify the new JSON appears under `packages/ergoscript/test/fixtures/eval/<arm>.json`.
-4. **Write the TS test** — load the fixture, call `evaluateWith`, assert value + cost.
-5. **Verify RED** — test fails with `'not-implemented-yet'`.
-6. **Implement the arm** — single function in `src/eval/<arm>.ts`.
-7. **Wire it into the central dispatch** — replace the `default` fall-through for this tag with an explicit `case`.
-8. **Verify GREEN** — test passes.
-9. **Commit.**
-
-Before Task 7 starts, set up the fixture-gen `eval/` subdirectory and shared infrastructure.
-
-### Task 7: Fixture-gen `eval/` subdirectory + shared `EvalFixture` type
+### Task 2: `BoolToSigmaProp` arm + fixture
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/common.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/mod.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/bool-to-sigma-prop.json`
+- Create: `packages/ergoscript/src/eval/bool-to-sigma-prop.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts`
 
-- [ ] **Step 1: Read the existing wire layout**
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bool_to_sigma.rs` (97 LOC).
 
-Run:
-```bash
-cat fixture-gen/src/cmds/ergoscript/mod.rs
-cat fixture-gen/src/main.rs | head -40
-```
+**TrivialProp encoding:** Single byte — `0xd2` for `TrivialProp(false)`, `0xd3` for `TrivialProp(true)`. The opcode itself encodes the boolean; payload is empty. Already exported from `packages/ergoscript/src/wire/sigma-boolean.ts` as `SIGMA_OP_TRIVIAL_PROP_FALSE` / `SIGMA_OP_TRIVIAL_PROP_TRUE`.
 
-Confirm the existing pattern (e.g., `pub mod mainnet_boxes;` exports + `main.rs` calls `generate()` per command).
+Key behavior: input must evaluate to `SBoolean`; result is a `SigmaProp` whose `.raw` is a 1-byte `Uint8Array` with the appropriate TrivialProp opcode. Cost: `Fixed(1)` per `costs.rs`.
 
-- [ ] **Step 2: Create `fixture-gen/src/cmds/ergoscript/eval/common.rs`**
+- [ ] **Step 1: Read sigma-rust source**
+
+Read `eval/bool_to_sigma.rs` to confirm the input-extraction pattern and cost. The TrivialProp opcodes are already pinned in our codebase (`SIGMA_OP_TRIVIAL_PROP_*` in `wire/sigma-boolean.ts`); no need to re-derive them.
+
+- [ ] **Step 2: Write the fixture-gen Rust module**
+
+`fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs`:
 
 ```rust
-//! Shared types for phase 2b eval fixtures.
-//!
-//! Each per-arm command emits a `EvalFixtureFile` containing a `Vec<EvalFixture>`.
-//! Sigma-rust is the oracle: each fixture's `expected_value_json` and
-//! `expected_cost` come from running `expr.eval(env, ctx)` against a
-//! synthetic Context built from `opts_json`.
-
-use ergotree_interpreter::eval::env::Env;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
+//! BoolToSigmaProp eval fixtures.
+//! Source: ergotree-interpreter/src/eval/bool_to_sigma.rs
 use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde::Serialize;
-use serde_json::Value as JsonValue;
-
-#[derive(Serialize)]
-pub struct EvalFixture {
-    pub name: String,
-    pub tree_bytes_hex: String,
-    /// EvalOpts for the TS side. Currently `{ jitCostLimit?, constants? }`;
-    /// schema grows additively with later phases.
-    pub opts_json: JsonValue,
-    /// Sigma-rust's Value after eval, encoded as JSON. Schema matches
-    /// the SValue hydrator in test/corpus.test.ts.
-    pub expected_value_json: JsonValue,
-    /// `ctx.jit_cost_value()` after eval.
-    pub expected_cost: u64,
-}
-
-#[derive(Serialize)]
-pub struct EvalFixtureFile {
-    pub corpus: &'static str,
-    pub entries: Vec<EvalFixture>,
-}
-
-/// Convenience helper: encode a sigma-rust `Value` as our SValue JSON.
-/// Use this in each arm's fixture command.
-pub fn value_to_json(v: &Value) -> JsonValue {
-    // Stub for task 7. Actual encoding logic added incrementally as each
-    // arm's fixture command requires more SValue variants. Most early
-    // arms only need Boolean / Byte / Short / Int / Long / BigInt /
-    // Coll / Tuple. Box / SigmaProp / GroupElement are deferred to 2g+.
-    serde_json::to_value(format!("{:?}", v)).unwrap()
-}
-```
-
-(Note: `value_to_json` will need real implementations during arm tasks. For task 7 we ship the stub so the module compiles; each arm task extends the function's switch with its specific kind.)
-
-- [ ] **Step 3: Create `fixture-gen/src/cmds/ergoscript/eval/mod.rs`**
-
-```rust
-//! Phase 2b evaluator fixtures.
-
-pub mod common;
-// Per-arm modules added in tasks 8-15:
-// pub mod const_arm;
-// pub mod const_placeholder;
-// ...
-```
-
-- [ ] **Step 4: Wire eval submodule into `fixture-gen/src/cmds/ergoscript/mod.rs`**
-
-Edit `fixture-gen/src/cmds/ergoscript/mod.rs` — add at the end:
-
-```rust
-pub mod eval;
-```
-
-- [ ] **Step 5: Verify it builds**
-
-Run: `cd fixture-gen && cargo build --release`
-Expected: clean build.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add fixture-gen/src/cmds/ergoscript/eval/
-git add fixture-gen/src/cmds/ergoscript/mod.rs
-git commit -m "feat(fixture-gen): scaffold eval/ subdir + EvalFixture type (phase 2b task 7)"
-```
-
----
-
-### Task 8: `Const` arm
-
-Sigma-rust reference: `eval.rs:21-24` — `Expr::Const(c) => { ctx.add_jit_cost(5); Ok(Value::from(c.v.clone())) }`. Cost: 5.
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/const_arm.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (add `pub mod const_arm;`)
-- Modify: `fixture-gen/src/main.rs` (call `eval::const_arm::generate()`)
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/common.rs` (extend `value_to_json` with Boolean/Byte/Short/Int/Long branches as needed by these fixtures)
-- Create: `packages/ergoscript/src/eval/const.ts`
-- Create: `packages/ergoscript/test/eval/const.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts` (wire `case 'Const':`)
-
-- [ ] **Step 1: Add fixture-gen Rust command**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/const_arm.rs`:
-
-```rust
-//! Const arm — fixtures for `Expr::Const(...)` evaluation.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval.rs:21-24
-//! Cost: Constant = Fixed(5)
-
-use ergotree_interpreter::eval::env::Env;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
+use ergotree_ir::mir::bool_to_sigma::BoolToSigmaProp;
 use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::serialization::SigmaSerializable;
 use serde_json::json;
-use sigma_test_util::force_any_val;
 
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
+use super::common::{run_eval_capture, EvalFixtureFile, EvalFixtureEntry};
 
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+pub fn generate() -> EvalFixtureFile {
     let mut entries = Vec::new();
 
-    // Each entry: build an Expr::Const, wrap as ErgoTree (no segregation),
-    // serialize, then run sigma-rust eval against an empty synthetic Context.
-    let cases: Vec<(&str, Constant)> = vec![
-        ("const_bool_true", true.into()),
-        ("const_bool_false", false.into()),
-        ("const_byte_0", 0i8.into()),
-        ("const_byte_42", 42i8.into()),
-        ("const_short_0", 0i16.into()),
-        ("const_short_neg1", (-1i16).into()),
-        ("const_int_0", 0i32.into()),
-        ("const_int_max", i32::MAX.into()),
-        ("const_int_min", i32::MIN.into()),
-        ("const_long_0", 0i64.into()),
-        ("const_long_max", i64::MAX.into()),
-    ];
+    for input_val in [true, false] {
+        let expr: Expr = BoolToSigmaProp {
+            input: Box::new(Constant::from(input_val).into()),
+        }.into();
+        let tree = ErgoTree::try_from(expr.clone()).expect("build tree");
+        let bytes_hex = hex::encode(tree.sigma_serialize_bytes().expect("serialize"));
 
-    for (name, c) in cases {
-        let expr: Expr = c.into();
-        // Header: v0, no segregation. ErgoTree::new with no segregation just
-        // wraps the expr verbatim; tree.constants is empty.
-        let header = ergotree_ir::ergo_tree::ErgoTreeHeader::v0(/* segregation */ false);
-        let tree = ErgoTree::new(header, &expr)?;
-        let tree_bytes = tree.sigma_serialize_bytes()?;
-        let tree_bytes_hex = hex::encode(&tree_bytes);
-
-        // Run sigma-rust eval. Evaluable::eval is implemented for Expr
-        // (and per-variant); see ergotree-interpreter/src/eval.rs:14-19.
-        let ctx = force_any_val::<Context>();
-        let mut env = Env::empty();
-        let val = tree.proposition()?.eval(&mut env, &ctx)?;
-        let cost = ctx.jit_cost_value();
-
-        entries.push(EvalFixture {
-            name: name.to_string(),
-            tree_bytes_hex,
+        let capture = run_eval_capture(&tree, &json!({}));
+        entries.push(EvalFixtureEntry {
+            name: format!("bool_to_sigma_{}", input_val),
+            tree_bytes_hex: bytes_hex,
             opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: cost,
+            expected_value_json: capture.value_json,
+            expected_cost: capture.jit_cost,
+            expected_error_code: None,
         });
     }
 
-    Ok(EvalFixtureFile {
-        corpus: "eval_const",
+    EvalFixtureFile {
+        corpus: "bool-to-sigma-prop".into(),
         entries,
-    })
-}
-```
-
-(Note: the exact sigma-rust API for `expr.eval_eval(&env, &ctx)` may need a small adapter — when implementing, check `ergotree-interpreter/src/eval.rs::Evaluable::eval` and the `Spanned<Expr>` wrapping. The principle is: run sigma-rust's evaluator and capture both result and cost.)
-
-Also extend `value_to_json` in `common.rs` to handle the SValue kinds these fixtures produce. Replace the stub with:
-
-```rust
-pub fn value_to_json(v: &Value) -> JsonValue {
-    use ergotree_ir::mir::value::Value::*;
-    match v {
-        Boolean(b) => json!({ "kind": "Boolean", "value": b }),
-        Byte(n) => json!({ "kind": "Byte", "value": n }),
-        Short(n) => json!({ "kind": "Short", "value": n }),
-        Int(n) => json!({ "kind": "Int", "value": n }),
-        Long(n) => json!({ "kind": "Long", "value": n.to_string() }),  // bigint as string for JSON
-        BigInt(b) => json!({ "kind": "BigInt", "value": b.to_string() }),
-        // Other variants extended as later arm tasks need them.
-        _ => panic!("value_to_json: unsupported variant for phase 2b: {:?}", v),
     }
 }
 ```
 
-- [ ] **Step 2: Wire into fixture-gen module + main.rs**
+Note: sigma-rust's `value_to_json` may render the resulting SigmaProp as `{ kind: "SigmaProp", raw_hex: "<2 bytes hex>" }` or as `{ kind: "Opaque", ... }`. If the latter, the C2 corpus-eval test's Opaque-tolerance handling already covers it; for THIS fixture we want byte-equality on raw bytes, so verify the JSON shape by inspecting the generated fixture file before proceeding.
 
-In `fixture-gen/src/cmds/ergoscript/eval/mod.rs`:
+- [ ] **Step 3: Wire into pipeline + run fixture-gen + determinism check**
 
-```rust
-pub mod common;
-pub mod const_arm;
-```
+Same pattern as Task 1 Steps 3–4. Verify two consecutive `cargo run --release -p fixture-gen` produce byte-identical `bool-to-sigma-prop.json`.
 
-In `fixture-gen/src/main.rs`, find the existing call sites for ergoscript fixtures (e.g. `cmds::ergoscript::mainnet_boxes::generate()`) and add a sibling call:
+- [ ] **Step 4: Write the failing TS test**
 
-```rust
-// Phase 2b eval fixtures
-let const_fixture = cmds::ergoscript::eval::const_arm::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/const.json",
-    &const_fixture,
-)?;
-```
-
-(If `eval/` subdir doesn't exist under `test/fixtures/`, the write helper should create it. If not, add a `std::fs::create_dir_all` call.)
-
-- [ ] **Step 3: Run fixture-gen**
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: among the existing output, see `wrote /home/mwaddip/projects/ergots/packages/ergoscript/test/fixtures/eval/const.json`.
-
-Verify the file exists and contains 11 entries:
-```bash
-node -e "console.log(JSON.parse(require('fs').readFileSync('packages/ergoscript/test/fixtures/eval/const.json')).entries.length)"
-```
-Expected: `11`
-
-- [ ] **Step 4: Write the TS test (red)**
-
-`packages/ergoscript/test/eval/const.test.ts`:
+`packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -945,16 +428,19 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
+import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { ByteReader } from '../../src/wire/reader'
+import { hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/const.json')
+const fixturePath = path.join(__dirname, '../fixtures/eval/bool-to-sigma-prop.json')
 
 interface EvalFixture {
   name: string
   tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number; constants?: unknown[] }
-  expected_value_json: { kind: string; value?: unknown }
+  opts_json: { jitCostLimit?: number }
+  expected_value_json: any
   expected_cost: number
 }
 
@@ -963,230 +449,389 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: EvalFixture[]
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  }
-  return out
-}
-
-function hydrateExpectedValue(j: { kind: string; value?: unknown }): unknown {
-  // Long/BigInt are encoded as decimal strings (JSON has no bigint literal).
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) }
-  }
-  return j
-}
-
-describe('Const arm — fixture-driven', () => {
+describe('BoolToSigmaProp arm — fixture-driven', () => {
   for (const entry of fixture.entries) {
     it(`${entry.name}: value + cost`, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext({ ...entry.opts_json })
+      const ctx = makeContext()
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateExpectedValue(entry.expected_value_json))
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+
+  it('produced bytes round-trip through parseSigmaBoolean', () => {
+    // Sanity: the bytes we construct for TrivialProp(true/false) MUST be
+    // parseable by our existing SigmaBoolean reader. This guards against
+    // mistyping the opcode.
+    const tree = parseTree(hexToBytes(fixture.entries[0]!.tree_bytes_hex))
+    const ctx = makeContext()
+    const value = evaluateWith(tree, ctx)
+    expect(value.kind).toBe('SigmaProp')
+    if (value.kind !== 'SigmaProp') return
+    const reader = new ByteReader(value.value.raw)
+    const sb = parseSigmaBoolean(reader)
+    expect(sb).toBeDefined()
+    expect(reader.remaining).toBe(0)
+  })
+})
+```
+
+- [ ] **Step 5: Run test, verify FAIL**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts
+```
+
+Expected: FAIL with `not yet supported: variant 'BoolToSigmaProp'`.
+
+- [ ] **Step 6: Write the arm implementation**
+
+`packages/ergoscript/src/eval/bool-to-sigma-prop.ts`:
+
+```ts
+/**
+ * BoolToSigmaProp arm — wraps a Boolean as TrivialProp(b) SigmaBoolean leaf.
+ *
+ * Sigma-rust ref: eval/bool_to_sigma.rs (eval logic + cost).
+ *
+ * SigmaProp stays opaque in 2c — we construct the canonical single-byte
+ * encoding: TRIVIAL_PROP_FALSE (0xd2) or TRIVIAL_PROP_TRUE (0xd3). The
+ * opcode itself discriminates the boolean; payload is empty.
+ * Structural decode is 2g territory.
+ *
+ * Cost: Fixed(1) per costs.rs.
+ */
+import type { BoolToSigmaProp, SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
+import { evalExpr } from './eval'
+import {
+  SIGMA_OP_TRIVIAL_PROP_FALSE,
+  SIGMA_OP_TRIVIAL_PROP_TRUE,
+} from '../wire/sigma-boolean'
+
+const BOOL_TO_SIGMA_PROP_COST = 1
+
+export function evalBoolToSigmaProp(
+  e: BoolToSigmaProp,
+  env: Env,
+  ctx: EvalContext,
+): SValue {
+  ctx.addCost(BOOL_TO_SIGMA_PROP_COST)
+  const input = evalExpr(e.input, env, ctx)
+  if (input.kind !== 'Boolean') {
+    throw new EvalError(
+      `BoolToSigmaProp: operand kind must be Boolean, got '${input.kind}'`,
+      'bin-op-not-boolean'
+    )
+  }
+  const raw = new Uint8Array([
+    input.value ? SIGMA_OP_TRIVIAL_PROP_TRUE : SIGMA_OP_TRIVIAL_PROP_FALSE,
+  ])
+  return { kind: 'SigmaProp', value: { raw } }
+}
+```
+
+The opcode constants are already exported from `wire/sigma-boolean.ts` — verified against sigma-rust at HEAD `ed5452cf`. The fixture's `raw_hex` field captures the canonical bytes; if the encoding ever drifts, the value-equality assertion will fail with a clear hex diff.
+
+- [ ] **Step 7: Wire into central dispatch**
+
+In `packages/ergoscript/src/eval/eval.ts`:
+
+```ts
+import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
+
+// inside the switch:
+    case 'BoolToSigmaProp':    return evalBoolToSigmaProp(e, env, ctx)
+```
+
+- [ ] **Step 8: Run test, verify PASS**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts
+```
+
+Expected: PASS, 3 tests (2 fixture-driven + 1 round-trip sanity).
+
+- [ ] **Step 9: Run full ergoscript suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Expected: full pass; zero typecheck output.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bool-to-sigma-prop.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts \
+        packages/ergoscript/test/fixtures/eval/bool-to-sigma-prop.json \
+        fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): BoolToSigmaProp eval arm (phase 2c task 2)
+
+Wraps Boolean in canonical TrivialProp(b) SigmaBoolean leaf. SigmaProp
+stays opaque in 2c — structural decode is 2g. Cost Fixed(1) per
+sigma-rust costs.rs.
+
+Layer C1 fixture asserts value (incl byte-exact raw_hex) + cost on
+both truth-table cells; sanity test rounds the produced bytes back
+through parseSigmaBoolean.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Stage 2 — BinOp dispatcher + Bit family (Tasks 3–4)
+
+Land the BinOp dispatch infrastructure, then the simplest sub-arm (Bit — no overflow, no short-circuit, no equality polymorphism). Establishes the per-family pattern that tasks 5–8 follow.
+
+### Task 3: `BinOp` central dispatcher + skeleton sub-arms
+
+**Files:**
+- Create: `packages/ergoscript/src/eval/bin-op.ts`
+- Create: `packages/ergoscript/src/eval/bin-op/arith.ts` (skeleton — throws)
+- Create: `packages/ergoscript/src/eval/bin-op/relation.ts` (skeleton — throws)
+- Create: `packages/ergoscript/src/eval/bin-op/logical.ts` (skeleton — throws)
+- Create: `packages/ergoscript/src/eval/bin-op/bit.ts` (skeleton — throws)
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/bin-op.test.ts`
+
+No fixture-gen in this task — the skeletons throw `'not-implemented-yet'`; tasks 4–8 implement them. The test asserts the dispatch routes correctly.
+
+- [ ] **Step 1: Write the failing test**
+
+`packages/ergoscript/test/eval/bin-op.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest'
+
+import { evalExpr } from '../../src/eval/eval'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import type { BinOp, Expr } from '../../src/mir/types'
+
+const intConst = (v: number): Expr =>
+  ({ tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: v } })
+const boolConst = (b: boolean): Expr =>
+  ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: b } })
+
+describe('BinOp central dispatch — routes to per-family sub-arms', () => {
+  const cases: Array<{ name: string; expr: BinOp }> = [
+    {
+      name: 'Arith routes to evalArithOp',
+      expr: { tag: 'BinOp', kind: { kind: 'Arith', op: 'Plus' }, left: intConst(1), right: intConst(2) },
+    },
+    {
+      name: 'Relation routes to evalRelationOp',
+      expr: { tag: 'BinOp', kind: { kind: 'Relation', op: 'Eq' }, left: intConst(1), right: intConst(1) },
+    },
+    {
+      name: 'Logical routes to evalLogicalOp',
+      expr: { tag: 'BinOp', kind: { kind: 'Logical', op: 'And' }, left: boolConst(true), right: boolConst(false) },
+    },
+    {
+      name: 'Bit routes to evalBitOp',
+      expr: { tag: 'BinOp', kind: { kind: 'Bit', op: 'BitAnd' }, left: intConst(0xff), right: intConst(0x0f) },
+    },
+  ]
+
+  for (const { name, expr } of cases) {
+    it(name, () => {
+      const ctx = makeContext()
+      // All four families currently throw 'not-implemented-yet' from skeletons.
+      // The test asserts the routing happens — i.e., evalBinOp dispatches, no
+      // raw "variant 'BinOp' not implemented" from the central evalExpr default.
+      expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
+      try {
+        evalExpr(expr, Env.empty(), ctx)
+      } catch (e) {
+        const code = (e as EvalError).code
+        const message = (e as EvalError).message
+        expect(code).toBe('not-implemented-yet')
+        // Message must come from the family skeleton, not from the central
+        // dispatch's default. Each family says its own name.
+        expect(message).toMatch(/Arith|Relation|Logical|Bit/)
+      }
     })
   }
 })
 ```
 
-- [ ] **Step 5: Run test, verify RED**
+- [ ] **Step 2: Run test, verify FAIL**
 
-Run: `npx vitest run test/eval/const.test.ts`
-Expected: 11 FAIL — each throws `EvalError 'not-implemented-yet'` because `evalExpr` still has the chassis-only default arm.
+```bash
+npx vitest run packages/ergoscript/test/eval/bin-op.test.ts
+```
 
-- [ ] **Step 6: Implement the arm**
+Expected: FAIL — `not yet supported: variant 'BinOp'` from the central dispatch default arm.
 
-`packages/ergoscript/src/eval/const.ts`:
+- [ ] **Step 3: Write the family skeletons**
+
+`packages/ergoscript/src/eval/bin-op/arith.ts`:
 
 ```ts
 /**
- * Const arm — return the literal value, charge cost.
+ * Arith family of BinOp. Phase 2c task 8 implements this.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval.rs:21-24
- *   Expr::Const(c) => { ctx.add_jit_cost(5); Ok(Value::from(c.v.clone())) }
- * Cost: Constant = Fixed(5)
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Arith arm).
  */
+import type { BinOp, SValue } from '../../mir/types'
+import type { Env } from '../env'
+import type { EvalContext } from '../eval-context'
+import { EvalError } from '../eval-context'
 
-import type { Const, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-
-export function evalConst(e: Const, _env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(5)
-  return e.value
-}
-```
-
-- [ ] **Step 7: Wire into central dispatch**
-
-Edit `packages/ergoscript/src/eval/eval.ts` — add an explicit `case 'Const'` BEFORE the throw. Replace:
-
-```ts
-export function evalExpr(e: Expr, _env: Env, _ctx: EvalContext): SValue {
+export function evalArithOp(_e: BinOp, _env: Env, _ctx: EvalContext): SValue {
   throw new EvalError(
-    `not yet supported: variant '${(e as { tag: string }).tag}'`,
+    'BinOp.Arith: not yet implemented in this slice',
     'not-implemented-yet'
   )
 }
 ```
 
-With:
+Repeat for `relation.ts`, `logical.ts`, `bit.ts` — same shape with the family name in the message string. Replace each in turn during tasks 4–8.
+
+- [ ] **Step 4: Write the BinOp central dispatcher**
+
+`packages/ergoscript/src/eval/bin-op.ts`:
 
 ```ts
-import { evalConst } from './const'
+/**
+ * BinOp central dispatcher. Switches on `e.kind.kind` and delegates to
+ * one of four per-family sub-arms under `bin-op/`.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs
+ */
+import type { BinOp, SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { evalArithOp } from './bin-op/arith'
+import { evalRelationOp } from './bin-op/relation'
+import { evalLogicalOp } from './bin-op/logical'
+import { evalBitOp } from './bin-op/bit'
 
-export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
-  switch (e.tag) {
-    case 'Const':
-      return evalConst(e, env, ctx)
-    default:
-      throw new EvalError(
-        `not yet supported: variant '${(e as { tag: string }).tag}'`,
-        'not-implemented-yet'
-      )
+export function evalBinOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
+  switch (e.kind.kind) {
+    case 'Arith':    return evalArithOp(e, env, ctx)
+    case 'Relation': return evalRelationOp(e, env, ctx)
+    case 'Logical':  return evalLogicalOp(e, env, ctx)
+    case 'Bit':      return evalBitOp(e, env, ctx)
+    default: {
+      const _exhaust: never = e.kind
+      throw new Error(`evalBinOp: unreachable kind ${JSON.stringify(_exhaust)}`)
+    }
   }
 }
 ```
 
-(Note: parameter names lose the `_` prefix now that they're used.)
+- [ ] **Step 5: Wire into central evalExpr dispatch**
 
-- [ ] **Step 8: Run test, verify GREEN**
+In `packages/ergoscript/src/eval/eval.ts`, add the import + case:
 
-Run: `npx vitest run test/eval/const.test.ts`
-Expected: PASS (11 tests).
+```ts
+import { evalBinOp } from './bin-op'
 
-Also run the full suite to confirm no regression:
-```bash
-npx vitest run
+// inside the switch:
+    case 'BinOp':              return evalBinOp(e, env, ctx)
 ```
-Expected: PASS (1247 + 11 + chassis tests = ~1265 passing; previously-passing tests unaffected).
 
-- [ ] **Step 9: typecheck + commit**
+- [ ] **Step 6: Run test, verify PASS**
 
 ```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/const.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/const.test.ts
-git add packages/ergoscript/test/fixtures/eval/const.json
-git commit -m "feat(ergoscript): Const eval arm + per-arm fixture infra (phase 2b task 8)"
+npx vitest run packages/ergoscript/test/eval/bin-op.test.ts
+```
+
+Expected: PASS, 4 tests. Each family's skeleton throws with its own message.
+
+- [ ] **Step 7: Run full suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Expected: full pass; zero typecheck output.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bin-op.ts \
+        packages/ergoscript/src/eval/bin-op/ \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/bin-op.test.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): BinOp central dispatcher + family skeletons (phase 2c task 3)
+
+Adds evalBinOp routing on e.kind.kind to per-family sub-arms under
+bin-op/. All four family arms currently throw 'not-implemented-yet';
+tasks 4-8 land Bit, Logical, Relation, Arith implementations.
+
+Test asserts the central evalExpr routes BinOp → evalBinOp →
+{Arith,Relation,Logical,Bit} skeleton, NOT via the central default.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
 
 ---
 
-### Task 9: `ConstPlaceholder` arm
-
-Sigma-rust reference: `eval.rs:52-64` — `Expr::ConstPlaceholder(cp) => { ctx.add_jit_cost(1); ctx.constants.get(cp.id).map(...) }`. Cost: 1.
+### Task 4: `evalBitOp` + fixture
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/const_placeholder.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (add `pub mod const_placeholder;`)
-- Modify: `fixture-gen/src/main.rs` (call `eval::const_placeholder::generate()`)
-- Create: `packages/ergoscript/src/eval/const-placeholder.ts`
-- Create: `packages/ergoscript/test/eval/const-placeholder.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts` (wire `case 'ConstPlaceholder':`)
+- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-bit.json`
+- Replace: `packages/ergoscript/src/eval/bin-op/bit.ts` (skeleton → real impl)
+- Create: `packages/ergoscript/test/eval/bin-op-bit.test.ts`
 
-- [ ] **Step 1: Add fixture-gen command**
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Bit family arms).
 
-`fixture-gen/src/cmds/ergoscript/eval/const_placeholder.rs`:
+Six ops: `BitOr`, `BitAnd`, `BitXor`, `BitShiftLeft`, `BitShiftRight`, `BitShiftRightZeroed`. Operate on Byte/Short/Int/Long/BigInt.
 
-```rust
-//! ConstPlaceholder arm — fixtures for `Expr::ConstPlaceholder(cp)` evaluation.
-//!
-//! These trees use constant segregation: the body is a ConstPlaceholder
-//! that references the tree.constants[id]. Cost: ConstantPlaceholder = Fixed(1).
-//!
-//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
+**Bit-widths for shift validation:**
+- `Byte`: 8
+- `Short`: 16
+- `Int`: 32
+- `Long`: 64
+- `BigInt`: 256
 
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde_json::json;
-use sigma_test_util::force_any_val;
+Throw `'bit-shift-out-of-range'` when shift amount is negative or ≥ bit-width. Throw `'bin-op-kind-mismatch'` if operand kinds differ. Throw `'bin-op-not-numeric'` if either operand is non-numeric.
 
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
+Cost: `Fixed(1)` per `costs.rs` (verify exact line).
 
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
+- [ ] **Step 1: Read sigma-rust source**
 
-    let cases: Vec<(&str, Constant)> = vec![
-        ("placeholder_int_42", 42i32.into()),
-        ("placeholder_long_max", i64::MAX.into()),
-        ("placeholder_bool_true", true.into()),
-        ("placeholder_byte_neg1", (-1i8).into()),
-    ];
+Read the Bit arms in `bin_op.rs`. Note specifically: how does sigma-rust handle shift amounts? Are they `i32`? Where is the bit-width check? What error type does sigma-rust raise for shift-out-of-range? Read until you can map each behaviour to a TS line.
 
-    for (name, c) in cases {
-        // Build a segregated-constants ErgoTree. ErgoTree::new with a
-        // v0 header that has segregation=true automatically extracts the
-        // Const into tree.constants and replaces the body with a
-        // ConstantPlaceholder pointing at index 0. See
-        // ergotree-ir/src/ergo_tree.rs:205-242 for the constructor's
-        // segregation handling.
-        let header = ergotree_ir::ergo_tree::ErgoTreeHeader::v0(/* segregation */ true);
-        let expr: Expr = c.clone().into();  // regular Const; ErgoTree::new substitutes
-        let tree = ErgoTree::new(header, &expr)?;
-        let tree_bytes = tree.sigma_serialize_bytes()?;
-        let tree_bytes_hex = hex::encode(&tree_bytes);
+- [ ] **Step 2: Write the fixture-gen Rust module**
 
-        // Eval against a synthetic context. tree.proposition() resolves
-        // the ConstantPlaceholder back to a Const for evaluation.
-        // try_eval_out runs sigma-rust's evaluator with an empty Env and
-        // extracts the result as Value<'static> (a trivial self-extract).
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-        let cost = ctx.jit_cost_value();
+Cover at minimum:
+- Each of 6 ops × at least 2 numeric kinds (e.g., Int + Long); spot-check Byte/Short/BigInt with 1 example each.
+- Shift ops: include valid shift, negative shift (must produce error fixture entry with `expected_error_code: "bit-shift-out-of-range"`), shift = bit-width (also error), shift = bit-width − 1 (valid edge).
+- Type mismatch: one entry with Int left + Long right for `BitAnd` to capture `bin-op-kind-mismatch`.
+- Non-numeric: one entry with `Boolean` left + `Boolean` right for `BitAnd` to capture `bin-op-not-numeric` (if sigma-rust raises this — verify by source-reading).
 
-        entries.push(EvalFixture {
-            name: name.to_string(),
-            tree_bytes_hex,
-            // The TS evaluate() function defaults `constants` to `tree.constants`,
-            // so opts_json is empty here — the fixture's tree carries its own.
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: cost,
-        });
-    }
+`fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs`: follow the structure of Task 1 / Task 2 fixture-gen modules. Use the `BinOp { kind: BinOpKind::Bit(BitOp::*), left: ..., right: ... }` shape on the Rust side. ~15 entries total.
 
-    Ok(EvalFixtureFile {
-        corpus: "eval_const_placeholder",
-        entries,
-    })
-}
-```
+- [ ] **Step 3: Wire + generate + determinism check**
 
-(Note: when implementing, look up the exact sigma-rust API for building a segregated-constants ErgoTree. The pattern likely involves `ErgoTree::new` with a header byte that has the segregation bit set, plus a `Vec<Constant>` for the constants section. Check `ergotree-ir/src/ergo_tree.rs`.)
+Same as previous tasks. Two consecutive `cargo run --release -p fixture-gen` must produce byte-identical `bin-op-bit.json`.
 
-- [ ] **Step 2: Wire into module + main.rs**
+- [ ] **Step 4: Write the failing TS test**
 
-In `fixture-gen/src/cmds/ergoscript/eval/mod.rs` add: `pub mod const_placeholder;`
-
-In `fixture-gen/src/main.rs` add:
-```rust
-let cp_fixture = cmds::ergoscript::eval::const_placeholder::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/const-placeholder.json",
-    &cp_fixture,
-)?;
-```
-
-- [ ] **Step 3: Run fixture-gen**
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: `wrote .../test/fixtures/eval/const-placeholder.json` with 4 entries.
-
-- [ ] **Step 4: Write the TS test (red)**
-
-`packages/ergoscript/test/eval/const-placeholder.test.ts`:
+`packages/ergoscript/test/eval/bin-op-bit.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -1197,586 +842,41 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/const-placeholder.json')
+const fixturePath = path.join(__dirname, '../fixtures/eval/bin-op-bit.json')
 
 interface EvalFixture {
   name: string
   tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number; constants?: unknown[] }
-  expected_value_json: { kind: string; value?: unknown }
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  }
-  return out
-}
-
-function hydrateExpectedValue(j: { kind: string; value?: unknown }): unknown {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) }
-  }
-  return j
-}
-
-describe('ConstPlaceholder arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      // evaluate() defaults constants to tree.constants, so we use the
-      // public API here for ergonomic verification. evaluateWith for cost.
-      const ctx = makeContext({ constants: tree.constants })
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateExpectedValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-
-describe('ConstPlaceholder arm — error cases', () => {
-  it('throws const-placeholder-no-constants when ctx.constants is undefined', () => {
-    // Hand-construct an ErgoTree-equivalent: just dispatch through evalExpr directly
-    // is cleaner. Need a Const tree to exercise dispatch + a ConstPlaceholder body.
-    // Use the first fixture's bytes but construct a context without constants.
-    const tree = parseTree(hexToBytes(fixture.entries[0]!.tree_bytes_hex))
-    const ctx = makeContext()  // no constants
-    expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
-    try {
-      evaluateWith(tree, ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('const-placeholder-no-constants')
-    }
-  })
-
-  it('throws const-placeholder-id-out-of-range when id >= constants.length', () => {
-    const tree = parseTree(hexToBytes(fixture.entries[0]!.tree_bytes_hex))
-    const ctx = makeContext({ constants: [] })  // empty constants
-    expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
-    try {
-      evaluateWith(tree, ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('const-placeholder-id-out-of-range')
-    }
-  })
-})
-```
-
-- [ ] **Step 5: Run test, verify RED**
-
-Run: `npx vitest run test/eval/const-placeholder.test.ts`
-Expected: all FAIL with `'not-implemented-yet'`.
-
-- [ ] **Step 6: Implement the arm**
-
-`packages/ergoscript/src/eval/const-placeholder.ts`:
-
-```ts
-/**
- * ConstPlaceholder arm — resolve via ctx.constants[id], charge cost.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval.rs:52-64
- *   Expr::ConstPlaceholder(cp) => {
- *     ctx.add_jit_cost(1);
- *     let constant = ctx.constants.and_then(|cs| cs.get(cp.id as usize))
- *       .ok_or_else(...)?;
- *     Ok(Value::from(constant.v.clone()))
- *   }
- * Cost: ConstantPlaceholder = Fixed(1) per Scala
- */
-
-import type { ConstPlaceholder, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-
-export function evalConstPlaceholder(e: ConstPlaceholder, _env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(1)
-  if (ctx.constants === undefined) {
-    throw new EvalError(
-      `ConstPlaceholder(${e.id}): ctx.constants is undefined; cannot resolve`,
-      'const-placeholder-no-constants'
-    )
-  }
-  if (e.id >= ctx.constants.length) {
-    throw new EvalError(
-      `ConstPlaceholder(${e.id}): id out of range (constants.length=${ctx.constants.length})`,
-      'const-placeholder-id-out-of-range'
-    )
-  }
-  return ctx.constants[e.id]!
-}
-```
-
-- [ ] **Step 7: Wire into central dispatch**
-
-In `packages/ergoscript/src/eval/eval.ts`, add inside the switch (after the `Const` case):
-
-```ts
-import { evalConstPlaceholder } from './const-placeholder'
-
-// ... in the switch:
-    case 'ConstPlaceholder':
-      return evalConstPlaceholder(e, env, ctx)
-```
-
-- [ ] **Step 8: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/const-placeholder.test.ts`
-Expected: all PASS.
-
-Full suite: `npx vitest run` — expect prior tests still passing.
-
-- [ ] **Step 9: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/const_placeholder.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/const-placeholder.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/const-placeholder.test.ts
-git add packages/ergoscript/test/fixtures/eval/const-placeholder.json
-git commit -m "feat(ergoscript): ConstPlaceholder eval arm (phase 2b task 9)"
-```
-
----
-
-### Task 10: `ValDef` arm (top-level rejection)
-
-Sigma-rust reference: `eval.rs:66-68` — `Expr::ValDef(_) => Err(EvalError::UnexpectedExpr("ValDef should be evaluated in BlockValue".to_string()))`. ValDef at top level is rejected; it's only valid inside `BlockValue.items`.
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/val_def.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `main.rs`
-- Create: `packages/ergoscript/src/eval/val-def.ts`
-- Create: `packages/ergoscript/test/eval/val-def.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-
-- [ ] **Step 1: Add fixture-gen command**
-
-`fixture-gen/src/cmds/ergoscript/eval/val_def.rs`:
-
-```rust
-//! ValDef arm — verifies that a top-level ValDef returns an error.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval.rs:66-68
-//! Sigma-rust returns EvalError::UnexpectedExpr; we throw EvalError
-//! with code 'val-def-outside-block'. Fixture asserts the error case.
-//!
-//! This task only builds a tree to assert rejection on the TS side;
-//! no actual sigma-rust eval is invoked. (test_util is therefore not
-//! needed here — the 'arbitrary' feature is irrelevant.)
-
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::val_def::ValDef;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde::Serialize;
-use serde_json::json;
-
-#[derive(Serialize)]
-pub struct ValDefErrorFixture {
-    pub name: String,
-    pub tree_bytes_hex: String,
-    pub opts_json: serde_json::Value,
-    /// Expected: a thrown EvalError with this code.
-    pub expected_error_code: String,
-}
-
-#[derive(Serialize)]
-pub struct ValDefErrorFile {
-    pub corpus: &'static str,
-    pub entries: Vec<ValDefErrorFixture>,
-}
-
-pub fn generate() -> anyhow::Result<ValDefErrorFile> {
-    // Build a tree whose body is a top-level ValDef.
-    let val_def_expr: Expr = ValDef {
-        id: 0.into(),
-        rhs: Box::new(Expr::Const(42i32.into())),
-    }
-    .into();
-    let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &val_def_expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-    Ok(ValDefErrorFile {
-        corpus: "eval_val_def",
-        entries: vec![ValDefErrorFixture {
-            name: "valdef_top_level_throws".to_string(),
-            tree_bytes_hex,
-            opts_json: json!({}),
-            expected_error_code: "val-def-outside-block".to_string(),
-        }],
-    })
-}
-```
-
-- [ ] **Step 2: Wire into module + main.rs**
-
-In `eval/mod.rs`: `pub mod val_def;`
-
-In `main.rs`:
-```rust
-let vd_fixture = cmds::ergoscript::eval::val_def::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/val-def.json",
-    &vd_fixture,
-)?;
-```
-
-- [ ] **Step 3: Run fixture-gen**
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: `wrote .../test/fixtures/eval/val-def.json` with 1 entry.
-
-- [ ] **Step 4: Write the TS test (red)**
-
-`packages/ergoscript/test/eval/val-def.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluate } from '../../src/eval/evaluate'
-import { EvalError } from '../../src/eval/eval-context'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/val-def.json')
-
-interface ValDefErrorFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number; constants?: unknown[] }
-  expected_error_code: string
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: ValDefErrorFixture[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return out
-}
-
-describe('ValDef arm — top-level rejection', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: throws ${entry.expected_error_code}`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      expect(() => evaluate(tree, entry.opts_json)).toThrow(EvalError)
-      try {
-        evaluate(tree, entry.opts_json)
-      } catch (e) {
-        expect((e as EvalError).code).toBe(entry.expected_error_code)
-      }
-    })
-  }
-})
-```
-
-- [ ] **Step 5: Run test, verify RED**
-
-Run: `npx vitest run test/eval/val-def.test.ts`
-Expected: FAIL — current chassis throws `'not-implemented-yet'` not `'val-def-outside-block'`.
-
-- [ ] **Step 6: Implement the arm**
-
-`packages/ergoscript/src/eval/val-def.ts`:
-
-```ts
-/**
- * ValDef arm — top-level rejection. ValDef is only valid as an item
- * inside `BlockValue.items`; reaching it as a top-level Expr is a
- * structural error.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval.rs:66-68
- *   Expr::ValDef(_) => Err(EvalError::UnexpectedExpr(
- *     ("ValDef should be evaluated in BlockValue").to_string(),
- *   ))
- */
-
-import type { SValue, ValDef } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-
-export function evalValDef(e: ValDef, _env: Env, _ctx: EvalContext): SValue {
-  throw new EvalError(
-    `ValDef(id=${e.id}) should be evaluated inside BlockValue, not at top level`,
-    'val-def-outside-block'
-  )
-}
-```
-
-- [ ] **Step 7: Wire into central dispatch**
-
-In `eval.ts`:
-
-```ts
-import { evalValDef } from './val-def'
-
-// in the switch:
-    case 'ValDef':
-      return evalValDef(e, env, ctx)
-```
-
-- [ ] **Step 8: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/val-def.test.ts`
-Expected: PASS.
-
-Full suite: `npx vitest run` — expect no regression.
-
-- [ ] **Step 9: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/val_def.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/val-def.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/val-def.test.ts
-git add packages/ergoscript/test/fixtures/eval/val-def.json
-git commit -m "feat(ergoscript): ValDef top-level rejection arm (phase 2b task 10)"
-```
-
----
-
-### Task 11: `ValUse` arm
-
-Sigma-rust reference: `eval/val_use.rs:15` — `_ctx.add_jit_cost(5); env.get(self.val_id).cloned().ok_or_else(...)`. Cost: 5.
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/val_use.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `main.rs`
-- Create: `packages/ergoscript/src/eval/val-use.ts`
-- Create: `packages/ergoscript/test/eval/val-use.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-
-ValUse can't be exercised in isolation at top level (it requires a binding in Env, which sigma-rust populates inside BlockValue). The fixture-gen for this arm builds a `BlockValue { items: [ValDef(0, Const(42))], result: ValUse(0) }` tree and runs sigma-rust eval on it. The captured cost includes the BlockValue envelope + ValDef rhs eval + ADD_TO_ENV + ValUse — all charged together. The TS test asserts the same total. (Once Task 14 ports BlockValue, this fixture will fully eval; but for THIS task we'll verify the ValUse arm in isolation by hand-constructing an `Env` with a binding and dispatching `evalExpr` on a bare `ValUse` expression — bypassing the parser. The fixture still goes through fixture-gen for the cost-of-ValUse-alone capture.)
-
-- [ ] **Step 1: Add fixture-gen command**
-
-`fixture-gen/src/cmds/ergoscript/eval/val_use.rs`:
-
-```rust
-//! ValUse arm — fixtures for `Expr::ValUse(...)` evaluation.
-//!
-//! ValUse can't be exercised at top level because it requires a binding
-//! in Env. Sigma-rust's `Evaluable::eval` is pub(crate); we can only
-//! invoke the evaluator via `test_util::try_eval_out`, which always uses
-//! an empty Env. So we exercise ValUse by wrapping it in a BlockValue
-//! that defines the binding, then capture the *total* cost of the
-//! wrapping block. The TS test side reproduces the same wrapping to
-//! match costs byte-for-byte.
-//!
-//! (Capturing ValUse's cost in isolation requires synthesizing the
-//! per-arm number from sigma-rust's source — `ValUse = Fixed(5)` — and
-//! is done in the TS-side per-arm unit test, not via this fixture.)
-//!
-//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::block::BlockValue;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::val_def::ValDef;
-use ergotree_ir::mir::val_use::ValUse;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::stype::SType;
-use serde::Serialize;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::value_to_json;
-
-#[derive(Serialize)]
-pub struct ValUseFixture {
-    pub name: String,
-    /// Wrapping-block tree for sigma-rust eval. TS test parses this,
-    /// runs `evaluate()`, and asserts (value, cost) — same total as
-    /// the fixture's expected_cost.
-    pub tree_bytes_hex: String,
-    /// Extracted ValUse expression metadata for the TS-side per-arm
-    /// unit test which hand-constructs an Env with a binding and
-    /// dispatches `evalExpr` directly on a bare ValUse.
-    pub val_id: u32,
-    pub tpe_json: serde_json::Value,
-    pub env_bindings: Vec<(u32, serde_json::Value)>,
-    pub expected_value_json: serde_json::Value,
-    pub expected_cost: u64,
-    pub expected_error_code: Option<String>,  // for unbound case
-}
-
-#[derive(Serialize)]
-pub struct ValUseFile {
-    pub corpus: &'static str,
-    pub entries: Vec<ValUseFixture>,
-}
-
-pub fn generate() -> anyhow::Result<ValUseFile> {
-    let mut entries = Vec::new();
-
-    // Case 1: ValUse(id=5) bound to Int 42 — wrap in BlockValue and
-    // run the full eval through test_util.
-    let block: Expr = BlockValue {
-        items: vec![
-            ValDef {
-                id: 5.into(),
-                rhs: Box::new(Expr::Const(42i32.into())),
-            }
-            .into(),
-        ],
-        result: Box::new(
-            ValUse {
-                val_id: 5.into(),
-                tpe: SType::SInt,
-            }
-            .into(),
-        ),
-    }
-    .into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &block)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-    let ctx = force_any_val::<Context>();
-    let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-
-    entries.push(ValUseFixture {
-        name: "val_use_int_42".to_string(),
-        tree_bytes_hex,
-        val_id: 5,
-        tpe_json: json!({ "tag": "SInt" }),
-        env_bindings: vec![(5, value_to_json(&Value::Int(42)))],
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-        expected_error_code: None,
-    });
-
-    // Case 2: ValUse(id=99) unbound — TS-side hand-dispatch only;
-    // sigma-rust never sees this case because we can't construct an
-    // unbound Env from outside the interpreter crate. Cost/value left
-    // as null because evaluation isn't reached.
-    entries.push(ValUseFixture {
-        name: "val_use_unbound".to_string(),
-        tree_bytes_hex: String::new(),  // not used for this case
-        val_id: 99,
-        tpe_json: json!({ "tag": "SInt" }),
-        env_bindings: vec![],
-        expected_value_json: json!(null),
-        expected_cost: 0,  // not reached
-        expected_error_code: Some("val-use-unbound".to_string()),
-    });
-
-    Ok(ValUseFile {
-        corpus: "eval_val_use",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 2: Wire + run fixture-gen**
-
-In `eval/mod.rs`: `pub mod val_use;`
-
-In `main.rs`:
-```rust
-let vu_fixture = cmds::ergoscript::eval::val_use::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/val-use.json",
-    &vu_fixture,
-)?;
-```
-
-Run: `cd fixture-gen && cargo run --release`
-
-- [ ] **Step 3: Write TS test (red)**
-
-`packages/ergoscript/test/eval/val-use.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { evalExpr } from '../../src/eval/eval'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { SType, SValue, ValUse } from '../../src/mir/types'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/val-use.json')
-
-interface ValUseFixture {
-  name: string
-  val_id: number
-  tpe_json: SType
-  env_bindings: Array<[number, { kind: string; value?: unknown }]>
-  expected_value_json: { kind: string; value?: unknown } | null
+  opts_json: { jitCostLimit?: number }
+  expected_value_json: any
   expected_cost: number
   expected_error_code: string | null
 }
 
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   corpus: string
-  entries: ValUseFixture[]
+  entries: EvalFixture[]
 }
 
-function hydrateValue(j: { kind: string; value?: unknown }): SValue {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  return j as SValue
-}
-
-function buildEnv(bindings: Array<[number, { kind: string; value?: unknown }]>): Env {
-  let env = Env.empty()
-  for (const [id, v] of bindings) {
-    env = env.extend(id, hydrateValue(v))
-  }
-  return env
-}
-
-describe('ValUse arm', () => {
+describe('BinOp.Bit family — fixture-driven', () => {
   for (const entry of fixture.entries) {
-    it(`${entry.name}`, () => {
-      const expr: ValUse = { tag: 'ValUse', id: entry.val_id, tpe: entry.tpe_json }
-      const env = buildEnv(entry.env_bindings)
+    it(`${entry.name}: ${entry.expected_error_code ?? 'value + cost'}`, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext()
-
       if (entry.expected_error_code) {
-        expect(() => evalExpr(expr, env, ctx)).toThrow(EvalError)
+        expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
         try {
-          evalExpr(expr, env, ctx)
+          evaluateWith(tree, ctx)
         } catch (e) {
           expect((e as EvalError).code).toBe(entry.expected_error_code)
         }
       } else {
-        const value = evalExpr(expr, env, ctx)
-        expect(value).toEqual(hydrateValue(entry.expected_value_json!))
+        const value = evaluateWith(tree, ctx)
+        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
         expect(ctx.jitCost).toBe(entry.expected_cost)
       }
     })
@@ -1784,1652 +884,1156 @@ describe('ValUse arm', () => {
 })
 ```
 
-- [ ] **Step 4: Run test, verify RED**
+- [ ] **Step 5: Run test, verify FAIL**
 
-Run: `npx vitest run test/eval/val-use.test.ts`
-Expected: FAIL with `'not-implemented-yet'` for the bound case (chassis throws); the unbound case actually passes the error-code check coincidentally only if `'not-implemented-yet'` matches — it doesn't, so both fail.
+```bash
+npx vitest run packages/ergoscript/test/eval/bin-op-bit.test.ts
+```
 
-- [ ] **Step 5: Implement the arm**
+Expected: FAIL on every entry with `BinOp.Bit: not yet implemented in this slice` (the skeleton from Task 3).
 
-`packages/ergoscript/src/eval/val-use.ts`:
+- [ ] **Step 6: Write the arm implementation**
+
+Replace `packages/ergoscript/src/eval/bin-op/bit.ts` with the real implementation:
 
 ```ts
 /**
- * ValUse arm — env lookup, charge cost.
+ * BinOp.Bit family. Six ops on numeric operands:
+ * BitOr, BitAnd, BitXor, BitShiftLeft, BitShiftRight, BitShiftRightZeroed.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/val_use.rs:15
- *   _ctx.add_jit_cost(5);
- *   env.get(self.val_id).cloned().ok_or_else(|| EvalError::NotFound(...))
- * Cost: ValUse = Fixed(5)
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Bit arm).
+ *
+ * Strategy: promote operands to bigint (uniform path across Byte/Short/Int/
+ * Long/BigInt), apply the op as bigint, narrow back to the operand kind
+ * with masking, range-check if needed.
+ *
+ * Cost: Fixed(1) per costs.rs.
  */
+import type { BinOp, SValue, BitOp } from '../../mir/types'
+import type { Env } from '../env'
+import type { EvalContext } from '../eval-context'
+import { EvalError } from '../eval-context'
+import { evalExpr } from '../eval'
 
-import type { SValue, ValUse } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
+const BIT_OP_COST = 1
 
-export function evalValUse(e: ValUse, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(5)
-  const v = env.get(e.id)
-  if (v === undefined) {
+const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
+type NumericKind = (typeof NUMERIC_KINDS)[number]
+const BIT_WIDTH: Record<NumericKind, number> = {
+  Byte: 8,
+  Short: 16,
+  Int: 32,
+  Long: 64,
+  BigInt: 256,
+}
+
+function isNumeric(kind: SValue['kind']): kind is NumericKind {
+  return (NUMERIC_KINDS as readonly string[]).includes(kind)
+}
+
+function valueToBigInt(v: SValue): bigint {
+  switch (v.kind) {
+    case 'Byte':
+    case 'Short':
+    case 'Int':
+      return BigInt(v.value)
+    case 'Long':
+    case 'BigInt':
+      return v.value
+    default:
+      throw new EvalError(`BinOp.Bit: non-numeric operand kind ${v.kind}`, 'bin-op-not-numeric')
+  }
+}
+
+function bigIntToValue(kind: NumericKind, n: bigint): SValue {
+  switch (kind) {
+    case 'Byte':   return { kind: 'Byte',   value: Number(n) }
+    case 'Short':  return { kind: 'Short',  value: Number(n) }
+    case 'Int':    return { kind: 'Int',    value: Number(n) }
+    case 'Long':   return { kind: 'Long',   value: n }
+    case 'BigInt': return { kind: 'BigInt', value: n }
+  }
+}
+
+export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
+  if (e.kind.kind !== 'Bit') throw new Error('evalBitOp: wrong kind')
+  ctx.addCost(BIT_OP_COST)
+
+  const left = evalExpr(e.left, env, ctx)
+  const right = evalExpr(e.right, env, ctx)
+
+  if (!isNumeric(left.kind)) {
+    throw new EvalError(`BinOp.Bit: non-numeric left operand kind ${left.kind}`, 'bin-op-not-numeric')
+  }
+  if (!isNumeric(right.kind)) {
+    throw new EvalError(`BinOp.Bit: non-numeric right operand kind ${right.kind}`, 'bin-op-not-numeric')
+  }
+  if (left.kind !== right.kind) {
     throw new EvalError(
-      `ValUse(id=${e.id}): no binding in env`,
-      'val-use-unbound'
+      `BinOp.Bit: kind mismatch ${left.kind} vs ${right.kind}`,
+      'bin-op-kind-mismatch'
     )
   }
-  return v
-}
-```
 
-- [ ] **Step 6: Wire dispatch**
-
-In `eval.ts`:
-
-```ts
-import { evalValUse } from './val-use'
-
-// in the switch:
-    case 'ValUse':
-      return evalValUse(e, env, ctx)
-```
-
-- [ ] **Step 7: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/val-use.test.ts`
-Expected: PASS.
-
-Note: sigma-rust charges cost (5) BEFORE checking the binding (per `val_use.rs:15`). Our impl does the same (`addCost` before `env.get`). For the unbound case, `expected_cost: 0` in the fixture is wrong — actual cost would be 5 by the time we throw. Adjust the fixture's unbound case to either omit cost assertion or set `expected_cost: 5`. Update the fixture-gen command if needed and regenerate.
-
-(Reviewer note: when reading sigma-rust again to confirm the order of operations, also check whether `add_jit_cost` is fallible — if the cost limit is exceeded it returns Err before the env lookup. That edge case is covered by the addCost test in Task 2.)
-
-- [ ] **Step 8: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/val_use.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/val-use.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/val-use.test.ts
-git add packages/ergoscript/test/fixtures/eval/val-use.json
-git commit -m "feat(ergoscript): ValUse eval arm (phase 2b task 11)"
-```
-
----
-
-### Task 12: `Tuple` arm
-
-Sigma-rust reference: `eval/tuple.rs:15` — `ctx.add_jit_cost(15); items.try_mapped_ref(|i| i.eval(env, ctx))`. Cost: 15 (envelope) + recursive eval per item.
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/tuple.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `main.rs`
-- Create: `packages/ergoscript/src/eval/tuple.ts`
-- Create: `packages/ergoscript/test/eval/tuple.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/common.rs` (extend `value_to_json` with Tuple variant)
-
-- [ ] **Step 1: Add fixture-gen command**
-
-`fixture-gen/src/cmds/ergoscript/eval/tuple.rs`:
-
-```rust
-//! Tuple arm — fixtures for `Expr::Tuple(items)` evaluation.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/tuple.rs:15
-//! Cost: Tuple = Fixed(15) (envelope) + sum of item costs (e.g. 5 per Const)
-//!
-//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::tuple::Tuple;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    let cases: Vec<(&str, Vec<Expr>)> = vec![
-        ("tuple_pair_int_long", vec![
-            Expr::Const(1i32.into()),
-            Expr::Const(100i64.into()),
-        ]),
-        ("tuple_triple_bool_byte_short", vec![
-            Expr::Const(true.into()),
-            Expr::Const(7i8.into()),
-            Expr::Const(1234i16.into()),
-        ]),
-    ];
-
-    for (name, items) in cases {
-        let tuple_expr: Expr = Tuple::new(items)?.into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &tuple_expr)?;
-        let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-        let cost = ctx.jit_cost_value();
-
-        entries.push(EvalFixture {
-            name: name.to_string(),
-            tree_bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: cost,
-        });
-    }
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_tuple",
-        entries,
-    })
-}
-```
-
-Extend `value_to_json` in `common.rs` to handle `Value::Tup`:
-
-```rust
-        Tup(items) => json!({
-            "kind": "Tuple",
-            "items": items.iter().map(value_to_json).collect::<Vec<_>>(),
-        }),
-```
-
-- [ ] **Step 2: Wire + run fixture-gen**
-
-In `fixture-gen/src/cmds/ergoscript/eval/mod.rs`, add:
-
-```rust
-pub mod tuple;
-```
-
-In `fixture-gen/src/main.rs`, add (alongside the existing per-arm calls):
-
-```rust
-let tuple_fixture = cmds::ergoscript::eval::tuple::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/tuple.json",
-    &tuple_fixture,
-)?;
-```
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: among existing output, `wrote /home/mwaddip/projects/ergots/packages/ergoscript/test/fixtures/eval/tuple.json` with 2 entries.
-
-- [ ] **Step 3: Write TS test (red)**
-
-`packages/ergoscript/test/eval/tuple.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
-import type { SValue } from '../../src/mir/types'
-
-// (loadFixture + hexToBytes + hydrateValue helpers as before; consider
-// extracting to test/eval/_helpers.ts after Task 12 if duplication grows.)
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/tuple.json')
-
-interface EvalFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: { kind: string; items?: Array<{ kind: string; value?: unknown }> }
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return out
-}
-
-function hydrateValue(j: { kind: string; value?: unknown; items?: Array<unknown> }): SValue {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  if (j.kind === 'Tuple') {
-    return {
-      kind: 'Tuple',
-      items: (j.items ?? []).map((it) => hydrateValue(it as { kind: string; value?: unknown })),
-    } as SValue
-  }
-  return j as SValue
-}
-
-describe('Tuple arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 4: Run test, verify RED**
-
-Run: `npx vitest run test/eval/tuple.test.ts`
-Expected: FAIL with `'not-implemented-yet'`.
-
-- [ ] **Step 5: Implement the arm**
-
-`packages/ergoscript/src/eval/tuple.ts`:
-
-```ts
-/**
- * Tuple arm — eval each item, wrap as Tuple value.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/tuple.rs:15
- *   ctx.add_jit_cost(15);
- *   let items_v = self.items.try_mapped_ref(|i| i.eval(env, ctx));
- *   Ok(Value::Tup(items_v?))
- * Cost: Tuple = Fixed(15) (envelope); per-item costs added recursively.
- */
-
-import type { SValue, Tuple } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { evalExpr } from './eval'
-
-export function evalTuple(e: Tuple, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(15)
-  const items = e.items.map((item) => evalExpr(item, env, ctx))
-  return { kind: 'Tuple', items }
-}
-```
-
-- [ ] **Step 6: Wire dispatch**
-
-In `eval.ts`:
-
-```ts
-import { evalTuple } from './tuple'
-
-// in the switch:
-    case 'Tuple':
-      return evalTuple(e, env, ctx)
-```
-
-- [ ] **Step 7: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/tuple.test.ts`
-Expected: PASS.
-
-Full suite — no regression.
-
-- [ ] **Step 8: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/tuple.rs
-git add fixture-gen/src/cmds/ergoscript/eval/common.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/tuple.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/tuple.test.ts
-git add packages/ergoscript/test/fixtures/eval/tuple.json
-git commit -m "feat(ergoscript): Tuple eval arm (phase 2b task 12)"
-```
-
----
-
-### Task 13: `Collection` arm
-
-Sigma-rust reference: `eval/collection.rs:22` — `ctx.add_jit_cost(20)`. Cost: 20.
-
-Two sub-variants in our TS Collection union: `kind: 'Exprs'` (general — eval each, wrap with `elemTpe`) and `kind: 'BoolConstants'` (specialized — `items: boolean[]` already evaluated, just wrap as `Coll(SBoolean, [Boolean])`).
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/collection.rs`
-- Modify: `eval/mod.rs` + `main.rs` + `common.rs` (extend `value_to_json` for `Value::Coll`)
-- Create: `packages/ergoscript/src/eval/collection.ts`
-- Create: `packages/ergoscript/test/eval/collection.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-
-- [ ] **Step 1: Add fixture-gen command**
-
-`fixture-gen/src/cmds/ergoscript/eval/collection.rs`:
-
-```rust
-//! Collection arm — fixtures for both `kind: 'Exprs'` and `kind: 'BoolConstants'`.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/collection.rs:22
-//! Cost: ConcreteCollection = Fixed(20) + recursive item costs.
-//!
-//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::collection::Collection;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::stype::SType;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    // Case 1: BoolConstants kind — Coll[Boolean] of literals
-    {
-        let coll: Expr = Collection::from_bools(vec![true, false, true]).into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &coll)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "coll_bool_constants_3".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    // Case 2: Exprs kind — Coll[Int] from Const exprs
-    {
-        let items: Vec<Expr> = vec![
-            Expr::Const(1i32.into()),
-            Expr::Const(2i32.into()),
-            Expr::Const(3i32.into()),
-        ];
-        let coll: Expr = Collection::new(SType::SInt, items)?.into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &coll)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "coll_exprs_int_3".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    // Case 3: empty Coll[Long]
-    {
-        let coll: Expr = Collection::new(SType::SLong, vec![])?.into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &coll)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "coll_empty_long".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_collection",
-        entries,
-    })
-}
-```
-
-Extend `value_to_json` in `common.rs` to handle `Value::Coll`:
-
-```rust
-        Coll(coll_kind) => match coll_kind {
-            CollKind::WrappedColl { elem_tpe, items } => json!({
-                "kind": "Coll",
-                "elem": stype_to_json(elem_tpe),
-                "items": items.iter().map(value_to_json).collect::<Vec<_>>(),
-            }),
-            CollKind::NativeColl(NativeColl::CollByte(bytes)) => json!({
-                "kind": "Coll",
-                "elem": { "tag": "SByte" },
-                "items": bytes.iter().map(|b| json!({ "kind": "Byte", "value": *b as i32 })).collect::<Vec<_>>(),
-            }),
-        },
-```
-
-(`stype_to_json` is a small helper that maps `SType` to our TS shape `{ tag: 'SInt' }` etc. Add to common.rs as needed.)
-
-- [ ] **Step 2: Wire + run fixture-gen**
-
-In `fixture-gen/src/cmds/ergoscript/eval/mod.rs`, add:
-
-```rust
-pub mod collection;
-```
-
-In `fixture-gen/src/main.rs`, add:
-
-```rust
-let collection_fixture = cmds::ergoscript::eval::collection::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/collection.json",
-    &collection_fixture,
-)?;
-```
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: `wrote .../test/fixtures/eval/collection.json` with 3 entries.
-
-- [ ] **Step 3: Write TS test (red)**
-
-`packages/ergoscript/test/eval/collection.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
-import type { SValue } from '../../src/mir/types'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/collection.json')
-
-interface EvalFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: {
-    kind: string
-    elem?: { tag: string }
-    items?: Array<{ kind: string; value?: unknown }>
-  }
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return out
-}
-
-function hydrateValue(j: any): SValue {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  if (j.kind === 'Coll') {
-    return {
-      kind: 'Coll',
-      elem: j.elem,
-      items: (j.items ?? []).map(hydrateValue),
-    } as SValue
-  }
-  if (j.kind === 'Tuple') {
-    return { kind: 'Tuple', items: (j.items ?? []).map(hydrateValue) } as SValue
-  }
-  return j as SValue
-}
-
-describe('Collection arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 4: Run test, verify RED**
-
-Run: `npx vitest run test/eval/collection.test.ts`
-Expected: FAIL with `'not-implemented-yet'`.
-
-- [ ] **Step 5: Implement the arm**
-
-`packages/ergoscript/src/eval/collection.ts`:
-
-```ts
-/**
- * Collection arm — handles both `kind: 'Exprs'` and `kind: 'BoolConstants'`.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/collection.rs:22
- *   ctx.add_jit_cost(20);
- *   match self {
- *     Collection::BoolConstants(bools) => bools.into(),
- *     Collection::Exprs { elem_tpe, items } => {
- *       let items_v = items.iter().map(|i| i.eval(env, ctx)).collect();
- *       // ... NativeColl optimization for SByte; otherwise WrappedColl
- *     }
- *   }
- * Cost: ConcreteCollection = Fixed(20) + recursive item costs.
- */
-
-import type { Collection, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-
-export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(20)
-  if (e.kind === 'BoolConstants') {
-    return {
-      kind: 'Coll',
-      elem: { tag: 'SBoolean' },
-      items: e.items.map((b) => ({ kind: 'Boolean', value: b }) as SValue),
-    }
-  }
-  // kind === 'Exprs'
-  const items = e.items.map((item) => evalExpr(item, env, ctx))
-  // Defensive kind-check: each item's kind should match e.elemTpe.
-  // Sigma-rust's Collection::new validates this at construction; mirror
-  // the assertion at runtime so contract violations are loud.
-  for (let i = 0; i < items.length; i++) {
-    if (!kindMatchesType(items[i]!, e.elemTpe)) {
-      throw new EvalError(
-        `Collection.items[${i}] kind '${items[i]!.kind}' inconsistent with elemTpe '${e.elemTpe.tag}'`,
-        'collection-elem-kind-mismatch'
-      )
-    }
-  }
-  return { kind: 'Coll', elem: e.elemTpe, items }
-}
-
-function kindMatchesType(v: SValue, t: { tag: string }): boolean {
-  // Surface mapping: SValue.kind == 'Boolean' iff SType.tag == 'SBoolean', etc.
-  // Composite types (SColl, STuple, SOption, SFunc) don't appear in
-  // 2b's evaluable subset — punt on them with `true` for now (they'd
-  // fail at deeper levels).
-  switch (t.tag) {
-    case 'SBoolean': return v.kind === 'Boolean'
-    case 'SByte':    return v.kind === 'Byte'
-    case 'SShort':   return v.kind === 'Short'
-    case 'SInt':     return v.kind === 'Int'
-    case 'SLong':    return v.kind === 'Long'
-    case 'SBigInt':  return v.kind === 'BigInt'
-    case 'SUnit':    return v.kind === 'Unit'
-    default:         return true  // Composite or chain-state types — defer
-  }
-}
-```
-
-- [ ] **Step 6: Wire dispatch**
-
-In `eval.ts`:
-
-```ts
-import { evalCollection } from './collection'
-
-// in the switch:
-    case 'Collection':
-      return evalCollection(e, env, ctx)
-```
-
-- [ ] **Step 7: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/collection.test.ts`
-Expected: PASS.
-
-- [ ] **Step 8: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/collection.rs
-git add fixture-gen/src/cmds/ergoscript/eval/common.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/collection.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/collection.test.ts
-git add packages/ergoscript/test/fixtures/eval/collection.json
-git commit -m "feat(ergoscript): Collection eval arm (phase 2b task 13)"
-```
-
----
-
-### Task 14: `If` arm
-
-Sigma-rust reference: `eval/if_op.rs:16` — `ctx.add_jit_cost(10); let cond = self.condition.eval(env, ctx)?; if cond.try_extract_into::<bool>()? { self.true_branch.eval(...) } else { self.false_branch.eval(...) }`. Cost: 10. Short-circuits.
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/if_arm.rs`
-- Modify: `eval/mod.rs` + `main.rs`
-- Create: `packages/ergoscript/src/eval/if.ts`
-- Create: `packages/ergoscript/test/eval/if.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-
-- [ ] **Step 1: Add fixture-gen command**
-
-`fixture-gen/src/cmds/ergoscript/eval/if_arm.rs`:
-
-```rust
-//! If arm — fixtures for `Expr::If(...)` evaluation.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/if_op.rs:16
-//! Cost: If = Fixed(10) (envelope) + condition eval cost + ONLY taken branch's cost.
-//! Short-circuit: non-taken branch is never evaluated.
-//!
-//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::if_op::If;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    // Case 1: condition true → true branch (Const Int 1)
-    {
-        let if_expr: Expr = If {
-            condition: Expr::Const(true.into()).into(),
-            true_branch: Expr::Const(1i32.into()).into(),
-            false_branch: Expr::Const(2i32.into()).into(),
-        }
-        .into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &if_expr)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "if_true_branch".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    // Case 2: condition false → false branch (Const Int 2)
-    {
-        let if_expr: Expr = If {
-            condition: Expr::Const(false.into()).into(),
-            true_branch: Expr::Const(1i32.into()).into(),
-            false_branch: Expr::Const(2i32.into()).into(),
-        }
-        .into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &if_expr)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "if_false_branch".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_if",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 2: Wire + run fixture-gen**
-
-In `fixture-gen/src/cmds/ergoscript/eval/mod.rs`, add:
-
-```rust
-pub mod if_arm;
-```
-
-In `fixture-gen/src/main.rs`, add:
-
-```rust
-let if_fixture = cmds::ergoscript::eval::if_arm::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/if.json",
-    &if_fixture,
-)?;
-```
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: `wrote .../test/fixtures/eval/if.json` with 2 entries.
-
-- [ ] **Step 3: Write TS test (red)**
-
-`packages/ergoscript/test/eval/if.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { evalExpr } from '../../src/eval/eval'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { Expr, SValue } from '../../src/mir/types'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/if.json')
-
-interface EvalFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: { kind: string; value?: unknown }
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return out
-}
-
-function hydrate(j: { kind: string; value?: unknown }): SValue {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  return j as SValue
-}
-
-describe('If arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrate(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-
-describe('If arm — non-Boolean condition', () => {
-  it('throws if-condition-not-boolean when condition evaluates to non-Boolean', () => {
-    const expr: Expr = {
-      tag: 'If',
-      condition: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
-      trueBranch: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } },
-      falseBranch: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 2 } },
-    }
-    const ctx = makeContext()
-    expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
-    try {
-      evalExpr(expr, Env.empty(), ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('if-condition-not-boolean')
-    }
-  })
-})
-
-describe('If arm — short-circuit', () => {
-  it('does NOT evaluate the false branch when condition is true', () => {
-    // false branch is a ConstPlaceholder with id=99 (out of range) — would throw if evaluated.
-    const expr: Expr = {
-      tag: 'If',
-      condition: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } },
-      trueBranch: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } },
-      falseBranch: { tag: 'ConstPlaceholder', id: 99, tpe: { tag: 'SInt' } },
-    }
-    const ctx = makeContext({ constants: [] })
-    const value = evalExpr(expr, Env.empty(), ctx)
-    expect(value).toEqual({ kind: 'Int', value: 1 })
-  })
-
-  it('does NOT evaluate the true branch when condition is false', () => {
-    const expr: Expr = {
-      tag: 'If',
-      condition: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: false } },
-      trueBranch: { tag: 'ConstPlaceholder', id: 99, tpe: { tag: 'SInt' } },
-      falseBranch: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 2 } },
-    }
-    const ctx = makeContext({ constants: [] })
-    const value = evalExpr(expr, Env.empty(), ctx)
-    expect(value).toEqual({ kind: 'Int', value: 2 })
-  })
-})
-```
-
-- [ ] **Step 4: Run test, verify RED**
-
-Run: `npx vitest run test/eval/if.test.ts`
-Expected: FAIL with `'not-implemented-yet'`.
-
-- [ ] **Step 5: Implement the arm**
-
-`packages/ergoscript/src/eval/if.ts`:
-
-```ts
-/**
- * If arm — eval condition, branch on its boolean value.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/if_op.rs:16
- *   ctx.add_jit_cost(10);
- *   let cond_v = self.condition.eval(env, ctx)?;
- *   if cond_v.try_extract_into::<bool>()? {
- *     self.true_branch.eval(env, ctx)
- *   } else {
- *     self.false_branch.eval(env, ctx)
- *   }
- *
- * Cost: If = Fixed(10) (envelope) + condition eval cost + taken branch eval cost.
- * Short-circuit semantics: the non-taken branch is NEVER evaluated, so its
- * cost is NOT charged.
- */
-
-import type { If, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-
-export function evalIf(e: If, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(10)
-  const cond = evalExpr(e.condition, env, ctx)
-  if (cond.kind !== 'Boolean') {
-    throw new EvalError(
-      `If.condition evaluated to '${cond.kind}', expected Boolean`,
-      'if-condition-not-boolean'
-    )
-  }
-  return cond.value ? evalExpr(e.trueBranch, env, ctx) : evalExpr(e.falseBranch, env, ctx)
-}
-```
-
-- [ ] **Step 6: Wire dispatch**
-
-In `eval.ts`:
-
-```ts
-import { evalIf } from './if'
-
-// in the switch:
-    case 'If':
-      return evalIf(e, env, ctx)
-```
-
-- [ ] **Step 7: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/if.test.ts`
-Expected: PASS (4 tests).
-
-- [ ] **Step 8: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/if_arm.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/if.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/if.test.ts
-git add packages/ergoscript/test/fixtures/eval/if.json
-git commit -m "feat(ergoscript): If eval arm with short-circuit (phase 2b task 14)"
-```
-
----
-
-### Task 15: `BlockValue` arm
-
-Sigma-rust reference: `ergotree-interpreter/src/eval/block.rs:13-65`.
-
-Behavior:
-1. Charge envelope: `ctx.add_per_item_jit_cost(1, 1, 10, items.length)`.
-2. Iterate `e.items`. Every item MUST be a `ValDef` — sigma-rust uses `try_extract_into::<Spanned<ValDef>>` which errors otherwise.
-3. For each ValDef item: eval its `rhs` (charges rhs's own cost), charge `ADD_TO_ENV_COST` (5), then `env = env.extend(rhs.id, value)`.
-4. After items: `evalExpr(e.result, env, ctx)` and return.
-
-Our immutable Env naturally implements nested-scope correctness — sigma-rust's save/restore dance for shadowed bindings (`block.rs:35-62`) is unnecessary for us.
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/block_value.rs`
-- Modify: `eval/mod.rs` + `main.rs`
-- Create: `packages/ergoscript/src/eval/block-value.ts`
-- Create: `packages/ergoscript/test/eval/block-value.test.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-
-- [ ] **Step 1: Add fixture-gen command**
-
-`fixture-gen/src/cmds/ergoscript/eval/block_value.rs`:
-
-```rust
-//! BlockValue arm — fixtures with let-bindings + result.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/block.rs
-//! Cost: addPerItemCost(1, 1, 10, items.length) envelope
-//!     + for each ValDef: rhs eval cost + 5 (ADD_TO_ENV_COST)
-//!     + result eval cost
-//! NOTE: block.rs:85-89 documents the parity-gap fix that ensures
-//! ADD_TO_ENV_COST is charged per ValDef.
-//!
-//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::block::BlockValue;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::val_def::ValDef;
-use ergotree_ir::mir::val_use::ValUse;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::stype::SType;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    // Case 1: BlockValue { items: [ValDef(0, Const(42))], result: ValUse(0) }
-    {
-        let block: Expr = BlockValue {
-            items: vec![
-                ValDef {
-                    id: 0.into(),
-                    rhs: Box::new(Expr::Const(42i32.into())),
-                }
-                .into(),
-            ],
-            result: Box::new(
-                ValUse {
-                    val_id: 0.into(),
-                    tpe: SType::SInt,
-                }
-                .into(),
-            ),
-        }
-        .into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &block)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "block_one_valdef_one_valuse".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    // Case 2: 4 ValDefs (validates ADD_TO_ENV_COST × 4 + envelope), result is last ValUse
-    // (Mirrors the parity test in block.rs:90-134.)
-    {
-        let block: Expr = BlockValue {
-            items: (1..=4)
-                .map(|i| {
-                    ValDef {
-                        id: i.into(),
-                        rhs: Box::new(Expr::Const((i as i32).into())),
-                    }
-                    .into()
-                })
-                .collect(),
-            result: Box::new(
-                ValUse {
-                    val_id: 4.into(),
-                    tpe: SType::SInt,
-                }
-                .into(),
-            ),
-        }
-        .into();
-        let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &block)?;
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-        let ctx = force_any_val::<Context>();
-        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-
-        entries.push(EvalFixture {
-            name: "block_4_valdefs".to_string(),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: value_to_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-        });
-    }
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_block_value",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 2: Wire + run fixture-gen**
-
-In `fixture-gen/src/cmds/ergoscript/eval/mod.rs`, add:
-
-```rust
-pub mod block_value;
-```
-
-In `fixture-gen/src/main.rs`, add:
-
-```rust
-let block_value_fixture = cmds::ergoscript::eval::block_value::generate()?;
-write_fixture(
-    "packages/ergoscript/test/fixtures/eval/block-value.json",
-    &block_value_fixture,
-)?;
-```
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: `wrote .../test/fixtures/eval/block-value.json` with 2 entries.
-
-- [ ] **Step 3: Write TS test (red)**
-
-`packages/ergoscript/test/eval/block-value.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { evalExpr } from '../../src/eval/eval'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { BlockValue, Expr, SValue } from '../../src/mir/types'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/block-value.json')
-
-interface EvalFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: { kind: string; value?: unknown }
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return out
-}
-
-function hydrate(j: { kind: string; value?: unknown }): SValue {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  return j as SValue
-}
-
-describe('BlockValue arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrate(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-
-describe('BlockValue arm — strictness', () => {
-  it('throws block-item-not-val-def when items contains a non-ValDef', () => {
-    const block: BlockValue = {
-      tag: 'BlockValue',
-      items: [
-        { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } } as Expr,
-      ],
-      result: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
-    }
-    const ctx = makeContext()
-    expect(() => evalExpr(block, Env.empty(), ctx)).toThrow(EvalError)
-    try {
-      evalExpr(block, Env.empty(), ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('block-item-not-val-def')
-    }
-  })
-})
-```
-
-- [ ] **Step 4: Run test, verify RED**
-
-Run: `npx vitest run test/eval/block-value.test.ts`
-Expected: FAIL with `'not-implemented-yet'`.
-
-- [ ] **Step 5: Implement the arm**
-
-`packages/ergoscript/src/eval/block-value.ts`:
-
-```ts
-/**
- * BlockValue arm — let-bindings + result.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/block.rs:13-65
- *   ctx.add_per_item_jit_cost(1, 1, 10, self.items.len() as u32);
- *   for item in &self.items {
- *     let val_def = item.try_extract_into::<Spanned<ValDef>>()?;  // STRICT: error if not ValDef
- *     let v = val_def.expr().rhs.eval(env, ctx)?;
- *     ctx.add_jit_cost(5);  // ADD_TO_ENV_COST per Scala reference
- *     env.insert(val_def.id, v);
- *   }
- *   self.result.eval(env, ctx)
- *
- * Cost: addPerItemCost(1, 1, 10, items.length) (envelope)
- *     + per ValDef: rhs eval cost + 5 (ADD_TO_ENV_COST)
- *     + result eval cost.
- *
- * Sigma-rust uses a mutable Env and has to manually save/restore
- * shadowed bindings for nested blocks (block.rs:35-62). Our immutable
- * Env naturally implements correct nested scoping — the new Env from
- * `extend` goes out of scope when this function returns, so the
- * caller's Env is unchanged.
- */
-
-import type { BlockValue, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-
-export function evalBlockValue(e: BlockValue, env: Env, ctx: EvalContext): SValue {
-  ctx.addPerItemCost(1, 1, 10, e.items.length)
-  let scope = env
-  for (let i = 0; i < e.items.length; i++) {
-    const item = e.items[i]!
-    if (item.tag !== 'ValDef') {
-      throw new EvalError(
-        `BlockValue.items[${i}] has tag '${item.tag}', expected 'ValDef'`,
-        'block-item-not-val-def'
-      )
-    }
-    const v = evalExpr(item.rhs, scope, ctx)
-    ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust block.rs:30
-    scope = scope.extend(item.id, v)
-  }
-  return evalExpr(e.result, scope, ctx)
-}
-```
-
-- [ ] **Step 6: Wire dispatch**
-
-In `eval.ts`:
-
-```ts
-import { evalBlockValue } from './block-value'
-
-// in the switch:
-    case 'BlockValue':
-      return evalBlockValue(e, env, ctx)
-```
-
-- [ ] **Step 7: Run test, verify GREEN**
-
-Run: `npx vitest run test/eval/block-value.test.ts`
-Expected: PASS (3 tests).
-
-Full suite: `npx vitest run`. All 8 arms now exercised; the central dispatch should cover them.
-
-- [ ] **Step 8: typecheck + commit**
-
-```bash
-npm run typecheck
-git add fixture-gen/src/cmds/ergoscript/eval/block_value.rs
-git add fixture-gen/src/cmds/ergoscript/eval/mod.rs
-git add fixture-gen/src/main.rs
-git add packages/ergoscript/src/eval/block-value.ts
-git add packages/ergoscript/src/eval/eval.ts
-git add packages/ergoscript/test/eval/block-value.test.ts
-git add packages/ergoscript/test/fixtures/eval/block-value.json
-git commit -m "feat(ergoscript): BlockValue eval arm + ADD_TO_ENV_COST (phase 2b task 15)"
-```
-
----
-
-## Stage 3 — Layer C2 corpus integration + public surface (Tasks 16–18)
-
-### Task 16: Extend `mainnet_boxes.rs` to capture sigma-rust eval (Layer C2)
-
-**Files:**
-- Modify: `fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs`
-
-- [ ] **Step 1: Read the existing mainnet_boxes.rs**
-
-Run: `cat fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs`. Currently emits `CorpusEntry { box_id, ergo_tree_hex, byte_length, block_height, round_trip_ok }`. We extend with a `sigma_rust_eval: Option<SigmaRustEval>` field.
-
-- [ ] **Step 2: Add `SigmaRustEval` struct + capture logic**
-
-Edit `fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs`:
-
-Add the struct (near the top, before `CorpusEntry`):
-
-```rust
-#[derive(Serialize)]
-#[serde(tag = "context_kind", rename_all = "kebab-case")]
-pub enum SigmaRustEval {
-    SyntheticEmpty {
-        ok: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        value_json: Option<serde_json::Value>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        jit_cost: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        error_kind: Option<String>,
-    },
-    // RealOnChain variant added in C3 (phase 2j or earlier).
-}
-```
-
-Modify `CorpusEntry` to include the new optional field:
-
-```rust
-#[derive(Serialize)]
-pub struct CorpusEntry {
-    pub box_id: String,
-    pub ergo_tree_hex: String,
-    pub byte_length: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub block_height: Option<i64>,
-    pub round_trip_ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sigma_rust_eval: Option<SigmaRustEval>,
-}
-```
-
-In the `for r in raw` loop, AFTER the `round_trip_ok` block, attempt sigma-rust eval against a synthetic context:
-
-```rust
-// Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
-let sigma_rust_eval = if round_trip_ok {
-    use ergotree_interpreter::eval::test_util::try_eval_out;
-    use ergotree_ir::chain::context::Context;
-    use ergotree_ir::mir::value::Value;
-    use sigma_test_util::force_any_val;
-
-    let ctx = force_any_val::<Context>();  // synthetic; height=0, empty inputs/outputs
-    match ErgoTree::sigma_parse_bytes(&bytes) {
-        Ok(tree) => match tree.proposition() {
-            Ok(expr) => match try_eval_out::<Value<'static>>(&expr, &ctx) {
-                Ok(val) => Some(SigmaRustEval::SyntheticEmpty {
-                    ok: true,
-                    value_json: Some(super::eval::common::value_to_json(&val)),
-                    jit_cost: Some(ctx.jit_cost_value()),
-                    error_kind: None,
-                }),
-                Err(e) => Some(SigmaRustEval::SyntheticEmpty {
-                    ok: false,
-                    value_json: None,
-                    jit_cost: None,
-                    error_kind: Some(format!("{:?}", e)),
-                }),
-            },
-            Err(e) => Some(SigmaRustEval::SyntheticEmpty {
-                ok: false,
-                value_json: None,
-                jit_cost: None,
-                error_kind: Some(format!("proposition: {:?}", e)),
-            }),
-        },
-        Err(_) => None,  // already failed round-trip
-    }
-} else {
-    None
-};
-```
-
-And include `sigma_rust_eval` in the entry being pushed.
-
-- [ ] **Step 3: Run fixture-gen**
-
-Run: `cd fixture-gen && cargo run --release`
-Expected: existing fixture files regenerated; `mainnet_boxes.json` now has `sigma_rust_eval` blocks on each entry.
-
-Spot-check: `node -e "const j = JSON.parse(require('fs').readFileSync('packages/ergoscript/test/fixtures/mainnet_boxes.json')); const okEvals = j.entries.filter(e => e.sigma_rust_eval?.ok); console.log('eval succeeded:', okEvals.length, '/', j.entries.length); console.log('sample:', okEvals[0]?.box_id, 'cost:', okEvals[0]?.sigma_rust_eval?.jit_cost)"`
-
-- [ ] **Step 4: Verify existing tests still pass**
-
-Run: `npx vitest run test/corpus.test.ts`
-Expected: PASS — schema additions are backwards-compatible (existing tests don't read `sigma_rust_eval`).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs
-git add packages/ergoscript/test/fixtures/mainnet_boxes.json
-git commit -m "feat(fixture-gen): capture sigma-rust eval on mainnet_boxes (Layer C2; task 16)"
-```
-
----
-
-### Task 17: `corpus-eval.test.ts` — Layer C2 TS-side assertion
-
-**Files:**
-- Create: `packages/ergoscript/test/corpus-eval.test.ts`
-
-- [ ] **Step 1: Write the test**
-
-`packages/ergoscript/test/corpus-eval.test.ts`:
-
-```ts
-/**
- * Layer C2 — mainnet_boxes corpus eval-filter.
- *
- * Walks the existing 173-tree mainnet_boxes corpus from phase 2a. For each
- * tree where sigma-rust's synthetic-context eval succeeded, asserts our
- * `evaluate` produces the same value AND cost. For trees that hit phase
- * 2b's not-implemented arms, asserts the failure code is in the documented
- * taxonomy. Tally is logged so we can track the evaluable subset growing
- * across 2c/2d/2e/2f.
- */
-
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../src/wire/ergo-tree'
-import { evaluateWith } from '../src/eval/evaluate'
-import { makeContext, EvalError } from '../src/eval/eval-context'
-import type { SValue } from '../src/mir/types'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, 'fixtures/mainnet_boxes.json')
-
-interface SigmaRustEval {
-  context_kind: 'synthetic-empty'
-  ok: boolean
-  value_json?: unknown
-  jit_cost?: number
-  error_kind?: string
-}
-
-interface CorpusEntry {
-  box_id: string
-  ergo_tree_hex: string
-  byte_length: number
-  block_height?: number
-  round_trip_ok: boolean
-  sigma_rust_eval?: SigmaRustEval
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: CorpusEntry[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return out
-}
-
-function hydrate(j: any): SValue {
-  if (j === null || j === undefined) return j
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  if (j.kind === 'Coll') {
-    return {
-      kind: 'Coll',
-      elem: j.elem,
-      items: (j.items ?? []).map(hydrate),
-    } as SValue
-  }
-  if (j.kind === 'Tuple') {
-    return { kind: 'Tuple', items: (j.items ?? []).map(hydrate) } as SValue
-  }
-  return j as SValue
-}
-
-describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
-  let evalSuccess = 0
-  let notImplYet = 0
-  let other = 0
-  const otherCodes = new Map<string, number>()
-
-  for (const entry of fixture.entries) {
-    if (!entry.sigma_rust_eval || !entry.sigma_rust_eval.ok) continue
-
-    it(`box ${entry.box_id}: TS eval matches sigma-rust (or hits documented not-impl)`, () => {
-      const tree = parseTree(hexToBytes(entry.ergo_tree_hex))
-      const ctx = makeContext()
-      try {
-        const value = evaluateWith(tree, ctx)
-        // Successfully evaluated — assert value AND cost match sigma-rust.
-        expect(value).toEqual(hydrate(entry.sigma_rust_eval!.value_json))
-        expect(ctx.jitCost).toBe(entry.sigma_rust_eval!.jit_cost)
-        evalSuccess++
-      } catch (e) {
-        // Did not eval — must be a documented EvalError.
-        expect(e).toBeInstanceOf(EvalError)
-        const code = (e as EvalError).code
-        if (code === 'not-implemented-yet') {
-          notImplYet++
-        } else {
-          other++
-          otherCodes.set(code, (otherCodes.get(code) ?? 0) + 1)
-        }
+  const kind = left.kind as NumericKind
+  const a = valueToBigInt(left)
+  const b = valueToBigInt(right)
+  const op: BitOp = e.kind.op
+  const width = BIT_WIDTH[kind]
+  const mask = (1n << BigInt(width)) - 1n
+
+  let result: bigint
+  switch (op) {
+    case 'BitOr':  result = (a | b) & mask;  break
+    case 'BitAnd': result = (a & b) & mask;  break
+    case 'BitXor': result = (a ^ b) & mask;  break
+    case 'BitShiftLeft':
+    case 'BitShiftRight':
+    case 'BitShiftRightZeroed': {
+      if (b < 0n || b >= BigInt(width)) {
+        throw new EvalError(
+          `BinOp.Bit.${op}: shift amount ${b} out of [0, ${width})`,
+          'bit-shift-out-of-range'
+        )
       }
-    })
+      const shift = Number(b)
+      if (op === 'BitShiftLeft') {
+        result = (a << BigInt(shift)) & mask
+      } else if (op === 'BitShiftRightZeroed') {
+        result = (a & mask) >> BigInt(shift)
+      } else {
+        result = a >> BigInt(shift)
+      }
+      break
+    }
+    default: {
+      const _exhaust: never = op
+      throw new Error(`evalBitOp: unreachable op ${JSON.stringify(_exhaust)}`)
+    }
   }
 
-  it('aggregate (informational)', () => {
-    console.log(
-      `[corpus-eval] sigma-rust-evaluable: ${fixture.entries.filter((e) => e.sigma_rust_eval?.ok).length} / ${fixture.entries.length}`
-    )
-    console.log(
-      `[corpus-eval] phase 2b TS eval: success=${evalSuccess} not-impl=${notImplYet} other=${other}`
-    )
-    if (otherCodes.size > 0) {
-      console.log('[corpus-eval] other error codes:')
-      for (const [code, n] of otherCodes) console.log(`  ${code}: ${n}`)
-    }
-    // No assertion — informational only. Failures from per-entry tests are the gate.
-    expect(true).toBe(true)
-  })
-})
+  // For signed kinds, re-sign the masked result.
+  if (kind !== 'BigInt') {
+    const signBit = 1n << BigInt(width - 1)
+    if (result & signBit) result -= 1n << BigInt(width)
+  }
+
+  return bigIntToValue(kind, result)
+}
 ```
 
-- [ ] **Step 2: Run the test**
+The masking + re-signing logic mirrors sigma-rust's behaviour for signed types — verify against `bin_op.rs` Bit arm during implementation. The exact handling of `BitShiftRight` vs `BitShiftRightZeroed` is the key place to be careful: signed arithmetic shift right preserves the sign bit; zeroed right shift fills with zeros. JS BigInt `>>` is signed arithmetic for negative values, so we mask first for zero-fill.
 
-Run: `npx vitest run test/corpus-eval.test.ts`
-Expected: PASS for all individual entries (each either matches sigma-rust value+cost OR throws a documented `EvalError`). Aggregate `console.log` reports the breakdown.
-
-If any entries fail with `'not-implemented-yet'`, that's expected (most trees use operators / accessors not in 2b's set). If any fail with an undocumented error class, investigate — that's a regression.
-
-- [ ] **Step 3: typecheck + commit**
+- [ ] **Step 7: Run test, verify PASS**
 
 ```bash
-npm run typecheck
-git add packages/ergoscript/test/corpus-eval.test.ts
-git commit -m "test(ergoscript): mainnet_boxes corpus eval-filter (Layer C2; task 17)"
+npx vitest run packages/ergoscript/test/eval/bin-op-bit.test.ts
 ```
 
----
+Expected: all entries PASS. If any fixture asserts a different bit-pattern than your implementation produces, the diff message will show the offending bytes — fix and re-run.
 
-### Task 18: Wire public exports + bump version + update facts
+- [ ] **Step 8: Run full suite + typecheck**
 
-**Files:**
-- Modify: `packages/ergoscript/src/index.ts`
-- Modify: `packages/ergoscript/package.json` (`version: 0.1.0` → `0.2.0`)
-- Modify: `facts/ergoscript.md`
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
 
-- [ ] **Step 1: Read current `src/index.ts`**
+Expected: full pass; zero typecheck output. Update the bin-op.test.ts assertion: the Bit-case will no longer throw `'not-implemented-yet'` — instead it will compute and return. Adjust that case in `bin-op.test.ts` to assert the computed value (e.g., `0xff & 0x0f === 0x0f`).
 
-Run: `cat packages/ergoscript/src/index.ts`. Note existing exports (parseTree, serializeTree, isP2PK, etc.).
+- [ ] **Step 9: Update `bin-op.test.ts` Bit case to assert correct behavior**
 
-- [ ] **Step 2: Add v0.2.0 exports**
-
-Edit `packages/ergoscript/src/index.ts` — append (or merge with existing structure):
+In `packages/ergoscript/test/eval/bin-op.test.ts`, the Bit case currently asserts a `'not-implemented-yet'` throw. With the Bit family now implemented, change it to assert the computed value:
 
 ```ts
-// v0.2.0 (phase 2b) — evaluator surface
-export { evaluate, evaluateWith } from './eval/evaluate'
-export { makeContext, EvalError } from './eval/eval-context'
-export type { EvalOpts, EvalContext } from './eval/eval-context'
+// Update the existing test loop:
+// For the 'Bit routes to evalBitOp' case, the assertion shape changes —
+// either skip it from the throw-assertion loop, or split that case out
+// into its own `it()` that asserts a computed value of Int(0x0f).
 ```
 
-(Do NOT re-export `Env`, `evalExpr`, or per-arm functions — those are internal implementation details.)
+Simplest: remove the Bit case from the throw-asserting loop and add a separate `it('Bit returns computed value (0xff & 0x0f = 0x0f)')` test.
 
-- [ ] **Step 3: Bump package version**
+- [ ] **Step 10: Commit**
 
-Edit `packages/ergoscript/package.json` — change `"version": "0.1.0"` to `"version": "0.2.0"`.
-
-- [ ] **Step 4: Update `facts/ergoscript.md` with v0.2.0 surface**
-
-Edit `facts/ergoscript.md` — add a new section "v0.2.0 — Evaluator surface (phase 2b)" after the existing public surface section. Document:
-- `evaluate(tree, opts?)` postconditions (returns SValue; throws `EvalError`)
-- `evaluateWith(tree, ctx)` postconditions
-- `makeContext(opts?)` constructor
-- `EvalContext.addCost` / `addPerItemCost` semantics (saturating add, throws `'cost-limit-exceeded'` if limit set)
-- `EvalError` taxonomy: `'not-implemented-yet'`, `'cost-limit-exceeded'`, `'val-def-outside-block'`, `'val-use-unbound'`, `'const-placeholder-id-out-of-range'`, `'const-placeholder-no-constants'`, `'if-condition-not-boolean'`, `'collection-elem-kind-mismatch'`, `'block-item-not-val-def'`
-- Coverage note: only 8 of ~70 Expr variants have arms in 2b; everything else throws `'not-implemented-yet'`.
-
-The exact wording follows the structure of the existing `## Public surface` section in `facts/ergoscript.md`.
-
-- [ ] **Step 5: Verify build + typecheck**
-
-Run:
 ```bash
-npm run typecheck
-npm run build
+git add packages/ergoscript/src/eval/bin-op/bit.ts \
+        packages/ergoscript/test/eval/bin-op-bit.test.ts \
+        packages/ergoscript/test/eval/bin-op.test.ts \
+        packages/ergoscript/test/fixtures/eval/bin-op-bit.json \
+        fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): BinOp.Bit family eval arm (phase 2c task 4)
+
+Six ops (BitOr/BitAnd/BitXor/BitShiftLeft/BitShiftRight/
+BitShiftRightZeroed) on Byte/Short/Int/Long/BigInt. Bigint internally
+with kind-specific masking + re-signing. Throws bit-shift-out-of-range
+for shift < 0 or >= bit-width.
+
+Cost Fixed(1) per sigma-rust costs.rs. Layer C1 fixture covers each
+op across two numeric kinds, plus shift-bounds + kind-mismatch +
+non-numeric error fixtures.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
-Expected: clean. `dist/index.js` should now include the eval exports.
 
-Verify no Node-only references in dist:
-```bash
-grep -E "Buffer|process\.|require\(|node:" packages/ergoscript/dist/index.js | head
+---
+
+## Stage 3 — Logical + Relation ordering + Equality (Tasks 5–7)
+
+### Task 5: `evalLogicalOp` + fixture
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_logical.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-logical.json`
+- Replace: `packages/ergoscript/src/eval/bin-op/logical.ts`
+- Create: `packages/ergoscript/test/eval/bin-op-logical.test.ts`
+
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Logical arm — note the `eval_op_lazy` path for And/Or).
+
+Three ops: `And`, `Or`, `Xor`. Operate on Boolean.
+
+**Short-circuit:** `And` short-circuits on `false` (no right-side eval, no right-side cost). `Or` short-circuits on `true` (same). `Xor` is eager (always evaluates both).
+
+**Non-Boolean operand:** throws `'bin-op-not-boolean'`.
+
+Cost: `Fixed(1)` per `costs.rs` (envelope; short-circuited branch cost NOT charged).
+
+- [ ] **Step 1: Read sigma-rust source**
+
+Read the Logical arm in `bin_op.rs`, specifically the difference between `eval_op_lazy` (And/Or) and the eager Xor path. Confirm short-circuit cost behaviour.
+
+- [ ] **Step 2: Write fixture-gen module**
+
+Cover:
+- Truth table for And (4 entries), Or (4), Xor (4) = 12 baseline.
+- **Short-circuit assertion fixtures (3 entries):** for `And`, build a tree where right-side is a `ConstPlaceholder(99)` (out of range — would throw `'const-placeholder-id-out-of-range'` if evaluated). With left = `false`, sigma-rust should NOT evaluate right, so the tree must succeed with cost reflecting only the left-eval. Capture this and assert it on the TS side.
+- Mirror entry for `Or` with left = `true` + bogus right.
+- For `Xor`, an entry where one side is `Const(true)` and the other is `Const(false)` — both eval, cost reflects both.
+- Type-mismatch / non-Boolean error fixtures: 2–3 entries.
+
+~15 entries.
+
+- [ ] **Step 3: Wire + generate + determinism check**
+
+Same as previous tasks.
+
+- [ ] **Step 4: Write failing TS test**
+
+`packages/ergoscript/test/eval/bin-op-logical.test.ts`: follow the Bit-family test's structure. Loop over fixture entries; for error entries assert code; for value entries assert `value` + `cost`.
+
+Add one additional `it` outside the fixture loop that hand-constructs a tree with `LogicalOp.And, left: false, right: ConstPlaceholder(99)` and an empty `constants` array — asserts the tree evaluates to `false` WITHOUT throwing. This is a redundant assertion (fixture captures it too) but documents the short-circuit semantic at the test-name level.
+
+- [ ] **Step 5: Run test, verify FAIL**
+
+Same pattern as previous tasks.
+
+- [ ] **Step 6: Write `evalLogicalOp`**
+
+`packages/ergoscript/src/eval/bin-op/logical.ts`:
+
+```ts
+/**
+ * BinOp.Logical family — Boolean binary And/Or/Xor.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Logical arm).
+ *
+ * And, Or short-circuit: if the left side determines the result, the
+ * right is NOT evaluated and its cost is NOT charged. Xor is eager —
+ * both sides always evaluate.
+ *
+ * Cost: Fixed(1) per costs.rs (envelope only).
+ */
+import type { BinOp, SValue, LogicalOp } from '../../mir/types'
+import type { Env } from '../env'
+import type { EvalContext } from '../eval-context'
+import { EvalError } from '../eval-context'
+import { evalExpr } from '../eval'
+
+const LOGICAL_OP_COST = 1
+
+function asBoolean(v: SValue, side: 'left' | 'right'): boolean {
+  if (v.kind !== 'Boolean') {
+    throw new EvalError(
+      `BinOp.Logical: ${side} operand kind must be Boolean, got '${v.kind}'`,
+      'bin-op-not-boolean'
+    )
+  }
+  return v.value
+}
+
+export function evalLogicalOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
+  if (e.kind.kind !== 'Logical') throw new Error('evalLogicalOp: wrong kind')
+  ctx.addCost(LOGICAL_OP_COST)
+
+  const left = asBoolean(evalExpr(e.left, env, ctx), 'left')
+  const op: LogicalOp = e.kind.op
+
+  switch (op) {
+    case 'And':
+      if (!left) return { kind: 'Boolean', value: false }
+      return { kind: 'Boolean', value: asBoolean(evalExpr(e.right, env, ctx), 'right') }
+    case 'Or':
+      if (left) return { kind: 'Boolean', value: true }
+      return { kind: 'Boolean', value: asBoolean(evalExpr(e.right, env, ctx), 'right') }
+    case 'Xor': {
+      const right = asBoolean(evalExpr(e.right, env, ctx), 'right')
+      return { kind: 'Boolean', value: left !== right }
+    }
+    default: {
+      const _exhaust: never = op
+      throw new Error(`evalLogicalOp: unreachable op ${JSON.stringify(_exhaust)}`)
+    }
+  }
+}
 ```
-Expected: zero matches.
 
-- [ ] **Step 6: Run full test suite**
-
-Run: `cd packages/ergoscript && npm test`
-Expected: all tests passing. Test count grew by ~30-50 (eval tests + corpus-eval).
-
-Also from repo root: `npm test` (proof package + ergoscript) — both pass.
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Run test, verify PASS**
 
 ```bash
-git add packages/ergoscript/src/index.ts
-git add packages/ergoscript/package.json
+npx vitest run packages/ergoscript/test/eval/bin-op-logical.test.ts
+```
+
+Expected: all entries PASS, including the short-circuit-guarded entries (the bogus right-side `ConstPlaceholder` is NEVER evaluated).
+
+- [ ] **Step 8: Run full suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Adjust `bin-op.test.ts`'s Logical-case assertion as in Task 4 Step 9 — Logical now returns a value, not a throw.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bin-op/logical.ts \
+        packages/ergoscript/test/eval/bin-op-logical.test.ts \
+        packages/ergoscript/test/eval/bin-op.test.ts \
+        packages/ergoscript/test/fixtures/eval/bin-op-logical.json \
+        fixture-gen/src/cmds/ergoscript/eval/bin_op_logical.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): BinOp.Logical family eval arm (phase 2c task 5)
+
+Three ops (And/Or/Xor) on Boolean. And/Or short-circuit; the non-
+evaluated branch's cost is NOT charged. Xor is eager. Throws
+bin-op-not-boolean on non-Boolean operand.
+
+Cost Fixed(1) envelope per costs.rs. Layer C1 fixture covers full
+truth tables + dedicated short-circuit-guard entries (right side is
+out-of-range ConstPlaceholder; tree must succeed when left determines
+the result).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 6: `evalRelationOp` — ordering ops only (Lt/Le/Gt/Ge)
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-relation.json`
+- Replace: `packages/ergoscript/src/eval/bin-op/relation.ts` (partial — Eq/NEq still throw `'not-implemented-yet'`)
+- Create: `packages/ergoscript/test/eval/bin-op-relation.test.ts`
+
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Relation arm, ordering subset).
+
+Four ordering ops: `Lt`, `Le`, `Gt`, `Ge`. Operate on Byte/Short/Int/Long/BigInt. Operands must share kind and be numeric.
+
+Non-numeric / kind-mismatch: throws `'bin-op-not-numeric'` / `'bin-op-kind-mismatch'`.
+
+Eq/NEq: deferred to Task 7 — Relation skeleton throws `'not-implemented-yet'` for those two ops in this task.
+
+Cost: `Fixed(1)` per `costs.rs`.
+
+- [ ] **Step 1: Read sigma-rust source**
+
+Note the ordering implementation: for primitive kinds it's a direct comparison; for BigInt it uses BigInt's `Ord` impl.
+
+- [ ] **Step 2: Write fixture-gen module**
+
+Cover:
+- 4 ordering ops × 2 kinds (Int + Long minimum, BigInt + Byte/Short as spot-check). ~20 baseline entries.
+- Kind-mismatch error fixtures: 2 entries.
+- Non-numeric error fixtures: 2 entries (e.g., Boolean vs Boolean for Lt).
+- Eq/NEq: DO NOT include in this fixture file. Task 7 will rerun fixture-gen to extend it.
+
+~25 entries.
+
+- [ ] **Step 3: Wire + generate + determinism check**
+
+- [ ] **Step 4: Write failing TS test**
+
+`packages/ergoscript/test/eval/bin-op-relation.test.ts`: same fixture-driven structure as Bit / Logical tests.
+
+- [ ] **Step 5: Run test, verify FAIL**
+
+Expected: every entry FAILs with `'not-implemented-yet'` from the Relation skeleton.
+
+- [ ] **Step 6: Write `evalRelationOp` (ordering only)**
+
+Replace `packages/ergoscript/src/eval/bin-op/relation.ts`:
+
+```ts
+/**
+ * BinOp.Relation family — Eq, NEq, Lt, Le, Gt, Ge.
+ *
+ * This file ships ordering ops (Lt/Le/Gt/Ge) in phase 2c task 6.
+ * Eq/NEq are added in task 7 alongside the sValueEquals helper.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Relation arm).
+ * Cost: Fixed(1) per costs.rs.
+ */
+import type { BinOp, SValue, RelationOp } from '../../mir/types'
+import type { Env } from '../env'
+import type { EvalContext } from '../eval-context'
+import { EvalError } from '../eval-context'
+import { evalExpr } from '../eval'
+
+const RELATION_OP_COST = 1
+
+const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
+type NumericKind = (typeof NUMERIC_KINDS)[number]
+
+function isNumeric(kind: SValue['kind']): kind is NumericKind {
+  return (NUMERIC_KINDS as readonly string[]).includes(kind)
+}
+
+function valueToBigInt(v: SValue): bigint {
+  switch (v.kind) {
+    case 'Byte':
+    case 'Short':
+    case 'Int':
+      return BigInt(v.value)
+    case 'Long':
+    case 'BigInt':
+      return v.value
+    default:
+      throw new EvalError(
+        `BinOp.Relation ordering: non-numeric operand kind ${v.kind}`,
+        'bin-op-not-numeric'
+      )
+  }
+}
+
+export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
+  if (e.kind.kind !== 'Relation') throw new Error('evalRelationOp: wrong kind')
+  ctx.addCost(RELATION_OP_COST)
+
+  const op: RelationOp = e.kind.op
+  const left = evalExpr(e.left, env, ctx)
+  const right = evalExpr(e.right, env, ctx)
+
+  if (op === 'Eq' || op === 'NEq') {
+    throw new EvalError(
+      `BinOp.Relation.${op}: not yet implemented in this slice`,
+      'not-implemented-yet'
+    )
+  }
+
+  // Ordering ops: numeric only, same-kind only.
+  if (!isNumeric(left.kind)) {
+    throw new EvalError(
+      `BinOp.Relation.${op}: non-numeric left operand kind ${left.kind}`,
+      'bin-op-not-numeric'
+    )
+  }
+  if (!isNumeric(right.kind)) {
+    throw new EvalError(
+      `BinOp.Relation.${op}: non-numeric right operand kind ${right.kind}`,
+      'bin-op-not-numeric'
+    )
+  }
+  if (left.kind !== right.kind) {
+    throw new EvalError(
+      `BinOp.Relation.${op}: kind mismatch ${left.kind} vs ${right.kind}`,
+      'bin-op-kind-mismatch'
+    )
+  }
+
+  const a = valueToBigInt(left)
+  const b = valueToBigInt(right)
+  let result: boolean
+  switch (op) {
+    case 'Lt': result = a < b;  break
+    case 'Le': result = a <= b; break
+    case 'Gt': result = a > b;  break
+    case 'Ge': result = a >= b; break
+    default: {
+      const _exhaust: never = op
+      throw new Error(`evalRelationOp ordering: unreachable op ${JSON.stringify(_exhaust)}`)
+    }
+  }
+  return { kind: 'Boolean', value: result }
+}
+```
+
+- [ ] **Step 7: Run test, verify PASS**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/bin-op-relation.test.ts
+```
+
+Expected: all ordering entries PASS; if the test loops include Eq/NEq entries by accident, they fail — and the fixture must be regenerated without them (or skipped explicitly in the test).
+
+- [ ] **Step 8: Run full suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Adjust `bin-op.test.ts`'s Relation case (it currently asserts a throw — change to assert `true` for `Eq(1, 1)` once Task 7 lands, or skip for now and re-update in Task 7).
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bin-op/relation.ts \
+        packages/ergoscript/test/eval/bin-op-relation.test.ts \
+        packages/ergoscript/test/fixtures/eval/bin-op-relation.json \
+        fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): BinOp.Relation ordering ops (phase 2c task 6)
+
+Lt/Le/Gt/Ge on Byte/Short/Int/Long/BigInt. Bigint internal compare;
+requires same-kind numeric operands. Throws bin-op-not-numeric /
+bin-op-kind-mismatch on violations.
+
+Eq/NEq still throw 'not-implemented-yet' — Task 7 lands them alongside
+the sValueEquals recursive comparer. Cost Fixed(1) per costs.rs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 7: `sValueEquals` + `BinOp.Relation.Eq`/`NEq`
+
+**Files:**
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs` (extend with Eq/NEq entries)
+- Re-generate: `packages/ergoscript/test/fixtures/eval/bin-op-relation.json`
+- Modify: `packages/ergoscript/src/eval/bin-op/relation.ts` (replace Eq/NEq throw with full impl)
+- Modify: `packages/ergoscript/test/eval/bin-op-relation.test.ts` (no change if loop-over-fixtures; just regenerate the fixture)
+
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/data_value_comparer.rs` (8.2 KB).
+
+This is the largest task in 2c. The structural equality logic is recursive across the entire SValue union. Different `kind` → `false`. Box / AvlTree → `'not-implemented-yet'` (their runtime shapes aren't in scope until 2e/2h).
+
+- [ ] **Step 1: Read sigma-rust source**
+
+Read `data_value_comparer.rs` end-to-end. Note specifically: cross-type comparison rules (Int vs Long — sigma-rust returns false on different types or coerces?), Coll/Tuple/Option recursion, SigmaProp comparison (opaque structural or byte-equality?), and any cost-charging it does (sigma-rust may charge per-comparison cost inside the comparer — affects fixture's expected_cost).
+
+- [ ] **Step 2: Extend fixture-gen module**
+
+Add to `bin_op_relation.rs`:
+- Eq + NEq across each primitive kind (Boolean, Byte, Short, Int, Long, BigInt, GroupElement, Unit) — both equal and not-equal cases. ~16 entries.
+- Eq on `Coll[Int]` — empty vs empty, [1,2] vs [1,2], [1,2] vs [1,3], [1] vs [1,2]. ~4 entries.
+- Eq on `Tuple` — same / different arity / element diff. ~3 entries.
+- Eq on `Option[Int]` — None/None, Some(5)/Some(5), Some(5)/Some(6), None/Some(5). ~4 entries.
+- Eq on `SigmaProp` (opaque) — same TrivialProp / different TrivialProp. 2 entries.
+- Eq across different kinds (Int vs Long for `5`) — sigma-rust returns `false` per type-mismatch posture; capture that. 2 entries.
+
+~30 new entries, total relation fixture grows to ~55.
+
+- [ ] **Step 3: Regenerate fixture + determinism check**
+
+- [ ] **Step 4: Run test, verify FAIL on Eq/NEq entries**
+
+Existing entries still pass (Task 6 work); new Eq/NEq entries fail with `'not-implemented-yet'`.
+
+- [ ] **Step 5: Implement `sValueEquals` + wire Eq/NEq**
+
+Update `packages/ergoscript/src/eval/bin-op/relation.ts`:
+
+```ts
+// ... existing imports and ordering implementation ...
+
+import type { SType } from '../../mir/types'
+
+/**
+ * Structural equality on SValue. Recursive across Coll/Tuple/Option.
+ * Different `kind` → false (no cross-type coercion). Box/AvlTree
+ * runtime shapes not yet defined → throws 'not-implemented-yet'.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/data_value_comparer.rs
+ */
+export function sValueEquals(a: SValue, b: SValue): boolean {
+  if (a.kind !== b.kind) return false
+  switch (a.kind) {
+    case 'Boolean':
+    case 'Byte':
+    case 'Short':
+    case 'Int':
+      return a.value === (b as typeof a).value
+    case 'Long':
+    case 'BigInt':
+      return a.value === (b as typeof a).value
+    case 'Unit':
+      return true
+    case 'GroupElement': {
+      const ba = a.value
+      const bb = (b as typeof a).value
+      if (ba.length !== bb.length) return false
+      for (let i = 0; i < ba.length; i++) if (ba[i] !== bb[i]) return false
+      return true
+    }
+    case 'SigmaProp': {
+      const ra = a.value.raw
+      const rb = (b as typeof a).value.raw
+      if (ra.length !== rb.length) return false
+      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return false
+      return true
+    }
+    case 'Coll': {
+      const ca = a
+      const cb = b as typeof a
+      if (!sTypeEquals(ca.elem, cb.elem)) return false
+      if (ca.items.length !== cb.items.length) return false
+      for (let i = 0; i < ca.items.length; i++) {
+        if (!sValueEquals(ca.items[i]!, cb.items[i]!)) return false
+      }
+      return true
+    }
+    case 'Tuple': {
+      const ta = a
+      const tb = b as typeof a
+      if (ta.items.length !== tb.items.length) return false
+      for (let i = 0; i < ta.items.length; i++) {
+        if (!sValueEquals(ta.items[i]!, tb.items[i]!)) return false
+      }
+      return true
+    }
+    case 'Option': {
+      const oa = a
+      const ob = b as typeof a
+      if (!sTypeEquals(oa.elem, ob.elem)) return false
+      if (oa.value === null && ob.value === null) return true
+      if (oa.value === null || ob.value === null) return false
+      return sValueEquals(oa.value, ob.value)
+    }
+    case 'Box':
+    case 'AvlTree':
+      throw new EvalError(
+        `BinOp.Relation.Eq: ${a.kind} equality not yet implemented in this slice`,
+        'not-implemented-yet'
+      )
+    case 'Lambda':
+      // Lambdas are not equality-comparable in sigma-rust. Match that.
+      return false
+    default: {
+      const _exhaust: never = a
+      throw new Error(`sValueEquals: unreachable kind ${JSON.stringify(_exhaust)}`)
+    }
+  }
+}
+
+function sTypeEquals(a: SType, b: SType): boolean {
+  if (a.tag !== b.tag) return false
+  switch (a.tag) {
+    case 'SColl':   return sTypeEquals(a.elem, (b as typeof a).elem)
+    case 'SOption': return sTypeEquals(a.elem, (b as typeof a).elem)
+    case 'STuple': {
+      const tb = b as typeof a
+      if (a.items.length !== tb.items.length) return false
+      for (let i = 0; i < a.items.length; i++) {
+        if (!sTypeEquals(a.items[i]!, tb.items[i]!)) return false
+      }
+      return true
+    }
+    case 'SFunc': {
+      const fb = b as typeof a
+      if (a.args.length !== fb.args.length) return false
+      for (let i = 0; i < a.args.length; i++) {
+        if (!sTypeEquals(a.args[i]!, fb.args[i]!)) return false
+      }
+      return sTypeEquals(a.result, fb.result)
+    }
+    case 'STypeVar':
+      return a.name === (b as typeof a).name
+    default:
+      return true // all primitive STypes; tag equality is sufficient
+  }
+}
+```
+
+Then replace the Eq/NEq throw branch in `evalRelationOp`:
+
+```ts
+  if (op === 'Eq' || op === 'NEq') {
+    const eq = sValueEquals(left, right)
+    return { kind: 'Boolean', value: op === 'Eq' ? eq : !eq }
+  }
+```
+
+- [ ] **Step 6: Run test, verify PASS**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/bin-op-relation.test.ts
+```
+
+Expected: all entries PASS (ordering + Eq/NEq).
+
+- [ ] **Step 7: Run full suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Update `bin-op.test.ts` Relation case if previously skipped — Eq(1, 1) now returns `true`.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bin-op/relation.ts \
+        packages/ergoscript/test/fixtures/eval/bin-op-relation.json \
+        packages/ergoscript/test/eval/bin-op.test.ts \
+        fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): sValueEquals + BinOp.Relation Eq/NEq (phase 2c task 7)
+
+Recursive structural equality across primitives, Coll, Tuple, Option,
+GroupElement, opaque SigmaProp, Unit, Lambda (always false). Box and
+AvlTree throw 'not-implemented-yet' (runtime shapes land in 2e/2h).
+Different SValue kinds → false (no cross-type coercion). Includes
+sTypeEquals helper for SColl/SOption/STuple/SFunc/STypeVar
+comparison.
+
+Cost Fixed(1) envelope. Layer C1 fixture extends with ~30 entries
+covering Eq/NEq across every supported kind, same-vs-different cases,
+and cross-kind type-mismatch (must return false).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Stage 4 — Arith (Task 8)
+
+### Task 8: `evalArithOp` + fixture
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_arith.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-arith.json`
+- Replace: `packages/ergoscript/src/eval/bin-op/arith.ts` (skeleton → real impl)
+- Create: `packages/ergoscript/test/eval/bin-op-arith.test.ts`
+
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Arith arm — search for `checked_add`, `checked_sub`, etc.).
+
+Seven ops: `Plus`, `Minus`, `Multiply`, `Divide`, `Max`, `Min`, `Modulo`. Operate on Byte/Short/Int/Long/BigInt.
+
+**Signed ranges:**
+- Byte: [−2⁷, 2⁷ − 1]
+- Short: [−2¹⁵, 2¹⁵ − 1]
+- Int: [−2³¹, 2³¹ − 1]
+- Long: [−2⁶³, 2⁶³ − 1]
+- BigInt: [−2²⁵⁵, 2²⁵⁵ − 1]
+
+**Errors:**
+- `'arith-overflow'` when computed result outside signed range. Applies to Plus/Minus/Multiply/Divide/Modulo. (Max/Min cannot overflow.)
+- `'arith-divide-by-zero'` when right operand is zero for Divide/Modulo.
+- `'bin-op-not-numeric'` for non-numeric operands.
+- `'bin-op-kind-mismatch'` for differing operand kinds.
+
+Cost: `Fixed(1)` per op per `costs.rs`.
+
+- [ ] **Step 1: Read sigma-rust source**
+
+Read the Arith arm in `bin_op.rs`. Specifically note: which ops are `checked_*` vs plain (`max`/`min`)? Does sigma-rust have ANY arith op that uses wrapping or saturating arithmetic instead of checked? (Should not — Ergo is overflow-strict.) Verify the divide-by-zero error code matches sigma-rust's `EvalError::ArithmeticException`.
+
+- [ ] **Step 2: Write fixture-gen module**
+
+Cover:
+- 7 ops × 2 kinds (Int + Long minimum; spot-check Byte/Short/BigInt). ~14 baseline.
+- Boundary entries: MAX_INT + 1 → overflow; MIN_INT - 1 → overflow; MAX_LONG * 2 → overflow; MAX_INT * 1 → no-overflow (success).
+- Divide-by-zero: `5 / 0` for Int and Long → error. 2 entries.
+- Modulo-by-zero: `5 % 0` → error. 2 entries.
+- Type-mismatch error: 2 entries.
+- Non-numeric: 1 entry (Boolean Plus Boolean).
+
+~25 entries total.
+
+- [ ] **Step 3: Wire + generate + determinism check**
+
+- [ ] **Step 4: Write failing TS test**
+
+`packages/ergoscript/test/eval/bin-op-arith.test.ts`: same fixture-driven structure as other family tests.
+
+- [ ] **Step 5: Run test, verify FAIL**
+
+Every entry fails with `'not-implemented-yet'` from the Arith skeleton.
+
+- [ ] **Step 6: Write `evalArithOp`**
+
+Replace `packages/ergoscript/src/eval/bin-op/arith.ts`:
+
+```ts
+/**
+ * BinOp.Arith family — Plus, Minus, Multiply, Divide, Max, Min, Modulo.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Arith arm).
+ *
+ * All ops compute in bigint internally for uniform overflow checking.
+ * Max/Min cannot overflow. Divide/Modulo throw 'arith-divide-by-zero'
+ * when the right operand is zero (checked before computation).
+ *
+ * Cost: Fixed(1) per costs.rs.
+ */
+import type { BinOp, SValue, ArithOp } from '../../mir/types'
+import type { Env } from '../env'
+import type { EvalContext } from '../eval-context'
+import { EvalError } from '../eval-context'
+import { evalExpr } from '../eval'
+
+const ARITH_OP_COST = 1
+
+const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
+type NumericKind = (typeof NUMERIC_KINDS)[number]
+
+const SIGNED_MIN: Record<NumericKind, bigint> = {
+  Byte:   -(1n << 7n),
+  Short:  -(1n << 15n),
+  Int:    -(1n << 31n),
+  Long:   -(1n << 63n),
+  BigInt: -(1n << 255n),
+}
+const SIGNED_MAX: Record<NumericKind, bigint> = {
+  Byte:   (1n << 7n) - 1n,
+  Short:  (1n << 15n) - 1n,
+  Int:    (1n << 31n) - 1n,
+  Long:   (1n << 63n) - 1n,
+  BigInt: (1n << 255n) - 1n,
+}
+
+function isNumeric(kind: SValue['kind']): kind is NumericKind {
+  return (NUMERIC_KINDS as readonly string[]).includes(kind)
+}
+
+function valueToBigInt(v: SValue): bigint {
+  switch (v.kind) {
+    case 'Byte':
+    case 'Short':
+    case 'Int':
+      return BigInt(v.value)
+    case 'Long':
+    case 'BigInt':
+      return v.value
+    default:
+      throw new EvalError(
+        `BinOp.Arith: non-numeric operand kind ${v.kind}`,
+        'bin-op-not-numeric'
+      )
+  }
+}
+
+function bigIntToValue(kind: NumericKind, n: bigint): SValue {
+  switch (kind) {
+    case 'Byte':   return { kind: 'Byte',   value: Number(n) }
+    case 'Short':  return { kind: 'Short',  value: Number(n) }
+    case 'Int':    return { kind: 'Int',    value: Number(n) }
+    case 'Long':   return { kind: 'Long',   value: n }
+    case 'BigInt': return { kind: 'BigInt', value: n }
+  }
+}
+
+function checkRange(kind: NumericKind, op: ArithOp, n: bigint): void {
+  if (n < SIGNED_MIN[kind] || n > SIGNED_MAX[kind]) {
+    throw new EvalError(
+      `BinOp.Arith.${op}: result ${n} overflows ${kind}`,
+      'arith-overflow'
+    )
+  }
+}
+
+export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
+  if (e.kind.kind !== 'Arith') throw new Error('evalArithOp: wrong kind')
+  ctx.addCost(ARITH_OP_COST)
+
+  const op: ArithOp = e.kind.op
+  const left = evalExpr(e.left, env, ctx)
+  const right = evalExpr(e.right, env, ctx)
+
+  if (!isNumeric(left.kind)) {
+    throw new EvalError(
+      `BinOp.Arith.${op}: non-numeric left operand kind ${left.kind}`,
+      'bin-op-not-numeric'
+    )
+  }
+  if (!isNumeric(right.kind)) {
+    throw new EvalError(
+      `BinOp.Arith.${op}: non-numeric right operand kind ${right.kind}`,
+      'bin-op-not-numeric'
+    )
+  }
+  if (left.kind !== right.kind) {
+    throw new EvalError(
+      `BinOp.Arith.${op}: kind mismatch ${left.kind} vs ${right.kind}`,
+      'bin-op-kind-mismatch'
+    )
+  }
+
+  const kind = left.kind as NumericKind
+  const a = valueToBigInt(left)
+  const b = valueToBigInt(right)
+
+  let result: bigint
+  switch (op) {
+    case 'Plus':     result = a + b; checkRange(kind, op, result); break
+    case 'Minus':    result = a - b; checkRange(kind, op, result); break
+    case 'Multiply': result = a * b; checkRange(kind, op, result); break
+    case 'Divide':
+      if (b === 0n) {
+        throw new EvalError(`BinOp.Arith.Divide: divide by zero`, 'arith-divide-by-zero')
+      }
+      // BigInt division truncates toward zero in JS, matching Rust's `/`
+      // on signed integers. Verify against sigma-rust if anything looks
+      // off on negative-dividend cases.
+      result = a / b
+      checkRange(kind, op, result)
+      break
+    case 'Modulo':
+      if (b === 0n) {
+        throw new EvalError(`BinOp.Arith.Modulo: modulo by zero`, 'arith-divide-by-zero')
+      }
+      result = a % b
+      checkRange(kind, op, result)
+      break
+    case 'Max':      result = a > b ? a : b; break
+    case 'Min':      result = a < b ? a : b; break
+    default: {
+      const _exhaust: never = op
+      throw new Error(`evalArithOp: unreachable op ${JSON.stringify(_exhaust)}`)
+    }
+  }
+
+  return bigIntToValue(kind, result)
+}
+```
+
+- [ ] **Step 7: Run test, verify PASS**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/bin-op-arith.test.ts
+```
+
+Expected: all entries PASS (boundary, overflow, divide-by-zero, success cases).
+
+- [ ] **Step 8: Run full suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+Adjust `bin-op.test.ts` Arith case from `'not-implemented-yet'` throw to assertion that `Plus(1, 2)` produces `Int(3)`.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bin-op/arith.ts \
+        packages/ergoscript/test/eval/bin-op-arith.test.ts \
+        packages/ergoscript/test/eval/bin-op.test.ts \
+        packages/ergoscript/test/fixtures/eval/bin-op-arith.json \
+        fixture-gen/src/cmds/ergoscript/eval/bin_op_arith.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): BinOp.Arith family eval arm (phase 2c task 8)
+
+Seven ops (Plus/Minus/Multiply/Divide/Max/Min/Modulo) on
+Byte/Short/Int/Long/BigInt. Bigint-internal arithmetic with explicit
+signed-range checking; throws 'arith-overflow' on bounds violation
+and 'arith-divide-by-zero' for /0 and %0 (checked before compute).
+
+Max/Min cannot overflow; no range check on those branches. Cost
+Fixed(1) per costs.rs.
+
+Layer C1 fixture covers each op across two kinds + boundary entries
+(MAX+1, MIN-1) + zero-divisor + kind-mismatch + non-numeric. All
+22 BinOp sub-ops are now wired end-to-end.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Stage 5 — Wrap-up (Tasks 9–10)
+
+### Task 9: Layer C2 corpus re-run + facts/MEMORY update
+
+**Files:**
+- Verify: `packages/ergoscript/test/corpus-eval.test.ts` (no changes — assertions already exist)
+- Modify: `facts/ergoscript.md` (extend EvalError taxonomy with 6 new codes)
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` (mark 2c done)
+
+This task has no fixture-gen and no new TS — it's documentation + verification.
+
+- [ ] **Step 1: Run full ergoscript suite**
+
+```bash
+npx vitest run packages/ergoscript/
+```
+
+Note the `[corpus-eval]` aggregate output: `success=N not-impl=M other=0`. With 2c arms wired, expect `success` ≥ 5 and `not-impl` ≤ 13 (out of 18 sigma-rust-evaluable mainnet entries). The `expect(other).toBe(0)` assertion must remain green.
+
+If `other > 0`, investigate which `code` it is — likely an EvalError code that 2c introduces but isn't in the documented set. Fix the code or the documentation before proceeding.
+
+- [ ] **Step 2: Update `facts/ergoscript.md` EvalError taxonomy**
+
+Extend the v0.2.0 `EvalError taxonomy (v0.2.0)` section in `facts/ergoscript.md` with the 6 new codes (additive, no breaking changes to existing codes):
+
+```markdown
+- **`'arith-overflow'`** — `BinOp.Arith` (Plus/Minus/Multiply/Divide/Modulo) computed
+  a result outside the kind's signed range. Message includes op, kind,
+  and offending bigint result.
+- **`'arith-divide-by-zero'`** — `BinOp.Arith.Divide` or `Modulo` with right
+  operand zero. Checked before performing the op.
+- **`'bin-op-kind-mismatch'`** — Operands of a same-kind-required `BinOp`
+  (Arith, Bit, Relation-ordering, Logical) had different `kind`. Eq/NEq
+  do NOT throw this — they return `false` on kind mismatch.
+- **`'bin-op-not-numeric'`** — Operand kind not in {Byte, Short, Int, Long,
+  BigInt} for an op requiring numeric operands (any Arith, any Bit,
+  Relation-ordering).
+- **`'bin-op-not-boolean'`** — Operand kind not `Boolean` for an op
+  requiring Boolean (Logical, LogicalNot, BoolToSigmaProp).
+- **`'bit-shift-out-of-range'`** — Shift amount negative or ≥ operand bit-width
+  for `BinOp.Bit.BitShift*`.
+```
+
+Also update the public-surface "Coverage caveat" sentence under `evaluate`:
+
+> Only 8 of ~70 `Expr` variants currently have implemented arms (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`).
+
+Change "8" to "11" and add `BinOp`, `LogicalNot`, `BoolToSigmaProp` to the parenthetical list.
+
+- [ ] **Step 3: Update memory file**
+
+`~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`: bump the description / body to reflect phase 2c complete. Example body update:
+
+> phase plan: proof + ergoscript-2a (wire) + 2b (chassis + 8 arms) + 2c (BinOp + LogicalNot + BoolToSigmaProp) shipped; next slice is numeric-poly + Coll[Bool] aggregators + Atleast
+
+(Implementer: read the file first to see current contents, edit conservatively.)
+
+- [ ] **Step 4: Update `MEMORY.md` index entry hook**
+
+`~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md` line for `project_ergots_direction`: bump to reflect 2c done.
+
+- [ ] **Step 5: Commit (docs + memory)**
+
+```bash
 git add facts/ergoscript.md
-git commit -m "feat(ergoscript): v0.2.0 — evaluator public surface (phase 2b task 18)"
+git commit -m "$(cat <<'EOF'
+docs(ergoscript): facts/ergoscript.md — phase 2c EvalError codes
+
+Extends the v0.2.0 EvalError taxonomy with 6 codes shipped in 2c:
+arith-overflow, arith-divide-by-zero, bin-op-kind-mismatch,
+bin-op-not-numeric, bin-op-not-boolean, bit-shift-out-of-range.
+
+Updates coverage note: 11 of ~70 Expr arms now implemented (was 8).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
+
+Memory file edits are NOT committed (they live outside the repo at `~/.claude/projects/...`).
 
 ---
 
-## Final verification
+### Task 10: Final review + push
 
-After Task 18:
+**Files:** none (verification + push only).
 
-- [ ] **Run all gates** (per `CLAUDE.md` rule 6):
-
-```bash
-# From repo root
-npm run typecheck       # both workspaces clean
-npm test                # both workspaces pass
-
-# Determinism check
-cd fixture-gen && cargo run --release
-cd ..
-git status              # must be clean — fixtures regenerate identically
-```
-
-- [ ] **Re-run mainnet probe** (sanity check — phase 2b's evaluator additions shouldn't affect parser behavior):
+- [ ] **Step 1: Re-run full suite cold**
 
 ```bash
-node scripts/probe-mainnet.mjs 1000
+npx vitest run packages/ergoscript/ packages/proof/
 ```
 
-Expected: clean (zero deferred opcodes; zero `val-def-rhs-tpe`).
+Expected: all 1319+ ergoscript tests + 305 proof tests pass in both `node` and `jsdom` environments. Note the exact counts and the `[corpus-eval]` aggregate.
 
-- [ ] **Optional: tag the milestone**
+- [ ] **Step 2: Run typechecks**
 
 ```bash
-git tag -a ergoscript-0.2.0 -m "Phase 2b complete: evaluator chassis + 8 arms"
+npx tsc --noEmit -p packages/ergoscript
+npx tsc --noEmit -p packages/proof
 ```
 
-(Don't push to npm yet — per spec, `1.0.0` is the first publish, after 2j.)
+Zero output expected.
+
+- [ ] **Step 3: Run browser-compat scan**
+
+```bash
+grep -rE "Buffer|process\.|require\(|node:" packages/ergoscript/dist/ 2>/dev/null || echo "scan clean"
+```
+
+Expected: "scan clean" (no matches in dist).
+
+- [ ] **Step 4: Determinism re-check on fixture-gen**
+
+```bash
+cargo run --release -p fixture-gen
+git status packages/ergoscript/test/fixtures/
+```
+
+Expected: clean working tree (no modified fixture files after re-running fixture-gen).
+
+- [ ] **Step 5: Review the per-task commits**
+
+```bash
+git log --oneline cc1c7a3..HEAD
+```
+
+Expected: 9 commits (tasks 1-9), each `feat(ergoscript):` or `docs(ergoscript):`. No `fix:` commits (would indicate mid-task corrections). If any fix commits exist, that's fine — they indicate caught-during-implementation issues, but worth noting in the final post.
+
+- [ ] **Step 6: Push to origin/master**
+
+```bash
+git push origin master
+```
+
+- [ ] **Step 7: Update SESSION_CONTEXT.md (gitignored, local-only)**
+
+Update the "Current state" section in `/home/mwaddip/projects/ergots/SESSION_CONTEXT.md` to reflect phase 2c done — same structure as the 2b update. Note the test counts, commits, and any surprises worth flagging in next session's handoff.
 
 ---
 
-## Spec coverage check
+## Self-review checklist (run after Task 10)
 
-| Spec section | Tasks |
-|---|---|
-| Architecture / directory layout | Tasks 1, 4, 5, 6, 8–15 |
-| Public surface (`evaluate`, `evaluateWith`, `makeContext`) | Task 6 + Task 18 |
-| `EvalContext` + `addCost` + `addPerItemCost` + cost-limit-exceeded | Tasks 2, 3 |
-| `Env` (immutable extend) | Task 4 |
-| Central dispatch with `_exhaust: never` | Tasks 5, 8–15 |
-| 8 eval arms with cost values | Tasks 8–15 |
-| Layer C1 (per-arm fixtures with cost assertion) | Tasks 7–15 |
-| Layer C2 (mainnet_boxes synthetic-context cost capture) | Tasks 16, 17 |
-| Layer C3 (real on-chain context) | Out of scope (deferred to phase 2j) |
-| Error taxonomy (all 9 codes) | Tasks 2 (`cost-limit-exceeded`), 5 (`not-implemented-yet`), 9 (`const-placeholder-*`), 10 (`val-def-outside-block`), 11 (`val-use-unbound`), 13 (`collection-elem-kind-mismatch`), 14 (`if-condition-not-boolean`), 15 (`block-item-not-val-def`) |
-| `BlockValue` strict-ValDef + `ADD_TO_ENV_COST` | Task 15 |
-| `If` short-circuit | Task 14 |
-| Browser compatibility + ESM only + `bigint` | inherited from 2a; verified Task 18 |
-| `facts/ergoscript.md` v0.2.0 section | Task 18 |
-| Mutation tests (deferred to 2c+) | Out of scope per spec |
+Mechanical pass over the work:
+
+- [ ] All 22 BinOp sub-ops are wired (verify by reading `evalArithOp`/`Logical`/`Relation`/`Bit` switch statements — count the cases).
+- [ ] `LogicalNot` and `BoolToSigmaProp` are wired in central `evalExpr`.
+- [ ] Every per-arm test asserts BOTH value AND cost.
+- [ ] Every error code in the spec's § Error taxonomy is exercised by at least one fixture entry.
+- [ ] No new runtime dependencies (`packages/ergoscript/package.json` unchanged).
+- [ ] No `Buffer` / `node:*` / `WebAssembly` in `dist/` (browser-compat scan clean).
+- [ ] Fixture-gen produces byte-identical output across two consecutive runs.
+- [ ] `[corpus-eval]` aggregate shows `success > 0` and `other === 0`.
+- [ ] `facts/ergoscript.md` documents all 6 new EvalError codes.
+- [ ] Memory file `project_ergots_direction` reflects phase 2c complete.
+- [ ] Last `git log` line on `master` is task 10's push to origin (or the implicit final commit).
