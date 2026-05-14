@@ -1,0 +1,25 @@
+{
+  "corpus": "eval_if",
+  "entries": [
+    {
+      "name": "if_true_branch",
+      "tree_bytes_hex": "0095010104020404",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 20
+    },
+    {
+      "name": "if_false_branch",
+      "tree_bytes_hex": "0095010004020404",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 2
+      },
+      "expected_cost": 20
+    }
+  ]
+}

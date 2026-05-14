@@ -74,6 +74,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/tuple.json", &tuple_fixture)?;
     let collection_fixture = cmds::ergoscript::eval::collection::generate()?;
     write_ergoscript_json("eval/collection.json", &collection_fixture)?;
+    let if_fixture = cmds::ergoscript::eval::if_arm::generate()?;
+    write_ergoscript_json("eval/if.json", &if_fixture)?;
 
     Ok(())
 }

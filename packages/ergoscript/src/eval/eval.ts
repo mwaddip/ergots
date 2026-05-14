@@ -20,6 +20,7 @@ import { EvalError } from './eval-context'
 import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
+import { evalIf } from './if'
 import { evalTuple } from './tuple'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
@@ -38,6 +39,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalTuple(e, env, ctx)
     case 'Collection':
       return evalCollection(e, env, ctx)
+    case 'If':
+      return evalIf(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
