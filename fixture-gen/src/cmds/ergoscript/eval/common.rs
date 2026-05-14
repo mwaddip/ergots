@@ -5,7 +5,10 @@
 //! `expected_cost` come from running `expr.eval(env, ctx)` against a
 //! synthetic Context built from `opts_json`.
 
+use ergotree_ir::mir::value::CollKind;
+use ergotree_ir::mir::value::NativeColl;
 use ergotree_ir::mir::value::Value;
+use ergotree_ir::types::stype::SType;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 
@@ -60,10 +63,57 @@ pub fn value_to_json(v: &Value) -> JsonValue {
             "kind": "Tuple",
             "items": items.iter().map(value_to_json).collect::<Vec<_>>(),
         }),
+        // Coll: homogeneous collection. Mirrors `SValue` Coll variant
+        // (`packages/ergoscript/src/mir/types.ts`):
+        //   `{ kind: "Coll", elem: SType, items: SValue[] }`.
+        //
+        // sigma-rust models the runtime form as a `CollKind` with two arms:
+        //   - `WrappedColl { elem_tpe, items }` for the general case
+        //   - `NativeColl(NativeColl::CollByte(bytes))` — a packed `Coll[Byte]`
+        //     specialization. We unpack the byte-packed form back to a uniform
+        //     `Byte`-kinded items list so the TS side sees the same shape no
+        //     matter which Rust variant produced it. (`i8` → `i32` widening
+        //     to slot into our `{ kind: "Byte", value: number }` schema.)
+        Coll(coll_kind) => match coll_kind {
+            CollKind::WrappedColl { elem_tpe, items } => json!({
+                "kind": "Coll",
+                "elem": stype_to_json(elem_tpe),
+                "items": items.iter().map(value_to_json).collect::<Vec<_>>(),
+            }),
+            CollKind::NativeColl(NativeColl::CollByte(bytes)) => json!({
+                "kind": "Coll",
+                "elem": { "tag": "SByte" },
+                "items": bytes
+                    .iter()
+                    .map(|b| json!({ "kind": "Byte", "value": *b as i32 }))
+                    .collect::<Vec<_>>(),
+            }),
+        },
         // Other variants extended as later arm tasks need them.
         _ => panic!(
             "value_to_json: unsupported variant for current phase-2b arm: {:?}",
             v
         ),
+    }
+}
+
+/// Encode an SType as JSON matching the TS `SType` discriminated union
+/// (`packages/ergoscript/src/mir/types.ts`):
+///   `{ "tag": "<Variant>" }` for primitives, with a recursive `elem`
+///   field for `SColl`. Composite variants used in fixtures are added
+///   here as later arm tasks need them.
+pub fn stype_to_json(t: &SType) -> JsonValue {
+    match t {
+        SType::SBoolean => json!({ "tag": "SBoolean" }),
+        SType::SByte => json!({ "tag": "SByte" }),
+        SType::SShort => json!({ "tag": "SShort" }),
+        SType::SInt => json!({ "tag": "SInt" }),
+        SType::SLong => json!({ "tag": "SLong" }),
+        SType::SBigInt => json!({ "tag": "SBigInt" }),
+        SType::SUnit => json!({ "tag": "SUnit" }),
+        SType::SAny => json!({ "tag": "SAny" }),
+        SType::SColl(elem) => json!({ "tag": "SColl", "elem": stype_to_json(elem) }),
+        // Other variants extended as later arm tasks need them.
+        _ => panic!("stype_to_json: unsupported variant for phase 2b: {:?}", t),
     }
 }

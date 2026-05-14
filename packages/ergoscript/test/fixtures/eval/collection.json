@@ -1,0 +1,70 @@
+{
+  "corpus": "eval_collection",
+  "entries": [
+    {
+      "name": "coll_bool_constants_3",
+      "tree_bytes_hex": "00850305",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBoolean"
+        },
+        "items": [
+          {
+            "kind": "Boolean",
+            "value": true
+          },
+          {
+            "kind": "Boolean",
+            "value": false
+          },
+          {
+            "kind": "Boolean",
+            "value": true
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 20
+    },
+    {
+      "name": "coll_exprs_int_3",
+      "tree_bytes_hex": "00830304040204040406",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 35
+    },
+    {
+      "name": "coll_empty_long",
+      "tree_bytes_hex": "00830005",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 20
+    }
+  ]
+}

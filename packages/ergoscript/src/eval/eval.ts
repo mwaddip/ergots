@@ -17,6 +17,7 @@ import type { Expr, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalTuple } from './tuple'
@@ -35,6 +36,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalValUse(e, env, ctx)
     case 'Tuple':
       return evalTuple(e, env, ctx)
+    case 'Collection':
+      return evalCollection(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
