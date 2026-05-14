@@ -308,8 +308,16 @@ runCorpusFile('corpus_legacy_45.json')
 runCorpusFile('corpus_ecosystem_14.json')
 runCorpusFile('corpus_significant_15.json')
 
-describe('Corpus round-trip — mainnet_boxes (deferred)', () => {
-  const fixture = loadFixture<CorpusFile<CorpusTreeEntry>>('mainnet_boxes.json')
+interface MainnetBoxEntry {
+  box_id: string
+  ergo_tree_hex: string
+  byte_length?: number
+  block_height?: number
+  round_trip_ok?: boolean
+}
+
+describe('Corpus round-trip — mainnet_boxes', () => {
+  const fixture = loadFixture<CorpusFile<MainnetBoxEntry>>('mainnet_boxes.json')
 
   if (fixture.entries.length === 0) {
     it.skip('mainnet_boxes is a stub; no entries to exercise yet', () => {})
@@ -317,9 +325,8 @@ describe('Corpus round-trip — mainnet_boxes (deferred)', () => {
   }
 
   for (const entry of fixture.entries) {
-    if (entry.known_unstable) continue
-    it(`tree: ${entry.name}`, () => {
-      const bytes = hexToBytes(entry.tree_bytes_hex)
+    it(`box ${entry.box_id} @ height ${entry.block_height ?? '?'}`, () => {
+      const bytes = hexToBytes(entry.ergo_tree_hex)
       const parsed = parseTree(bytes)
       const serialized = serializeTree(parsed)
       expect(bytesEqual(serialized, bytes)).toBe(true)

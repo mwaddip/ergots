@@ -269,6 +269,107 @@ export function exprTpe(e: Expr): SType {
       // sigma-rust `mir/downcast.rs::Downcast::tpe`: target type stored on
       // the node. Symmetric to Upcast.
       return e.tpe
+    case 'Append':
+      // sigma-rust `mir/coll_append.rs::Append::tpe` (line 55-60): the
+      // type of the input collection (Append::new validates input.tpe ===
+      // col2.tpe; later modifications are unchecked). Same shape as Filter
+      // and Slice.
+      return exprTpe(e.input)
+    case 'Fold':
+      // sigma-rust `mir/coll_fold.rs::Fold::tpe` (line 60-62): the type of
+      // the `zero` accumulator. The fold reduces a Coll[T] using a
+      // (B, T) => B function starting from `zero: B`, so the result type
+      // is whatever `zero` is.
+      return exprTpe(e.zero)
+    case 'Map': {
+      // sigma-rust `mir/coll_map.rs::Map::tpe` (line 53-56): SColl wrapping
+      // the mapper function's range. We project mapper.tpe (must be SFunc)
+      // and wrap its result. SAny relaxation matches the ByIndex arm —
+      // when the mapper cascades from a PropertyCall placeholder we return
+      // SAny rather than throwing, so downstream val-def stores accept
+      // the binding.
+      const mt = exprTpe(e.mapper)
+      if (mt.tag === 'SAny') {
+        return { tag: 'SAny' }
+      }
+      if (mt.tag !== 'SFunc') {
+        throw new ExprTpeError(
+          `Map.mapper has tpe ${mt.tag}, expected SFunc`,
+          'map-mapper-not-sfunc'
+        )
+      }
+      return { tag: 'SColl', elem: mt.result }
+    }
+    case 'Exists':
+      // sigma-rust `mir/coll_exists.rs::Exists::tpe` (line 58-60): SBoolean
+      // (predicate over a collection).
+      return { tag: 'SBoolean' }
+    case 'ForAll':
+      // sigma-rust `mir/coll_forall.rs::ForAll::tpe` (line 58-60): SBoolean
+      // (predicate over a collection).
+      return { tag: 'SBoolean' }
+    case 'ByteArrayToLong':
+      // sigma-rust `mir/byte_array_to_long.rs::ByteArrayToLong::tpe` (line
+      // 23-25): SLong (8-byte big-endian decode).
+      return { tag: 'SLong' }
+    case 'ByteArrayToBigInt':
+      // sigma-rust `mir/byte_array_to_bigint.rs::ByteArrayToBigInt::tpe`
+      // (line 23-25): SBigInt (variable-width big-endian decode).
+      return { tag: 'SBigInt' }
+    case 'ExtractBytesWithNoRef':
+      // sigma-rust `mir/extract_bytes_with_no_ref.rs::ExtractBytesWithNoRef::tpe`
+      // (line 21-23): SColl[SByte] (serialized box minus its txid + index).
+      return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'CreateProveDlog':
+      // sigma-rust `mir/create_provedlog.rs::CreateProveDlog::tpe` (line
+      // 21-23): SSigmaProp (a ProveDlog leaf around a GroupElement).
+      return { tag: 'SSigmaProp' }
+    case 'OptionIsDefined':
+      // sigma-rust `mir/option_is_defined.rs::OptionIsDefined::tpe` (line
+      // 20-22): SBoolean (whether the option is Some).
+      return { tag: 'SBoolean' }
+    case 'OptionGetOrElse': {
+      // sigma-rust `mir/option_get_or_else.rs::OptionGetOrElse::tpe` (line
+      // 47-49): the element type of the input SOption. Mirror the OptionGet
+      // arm — derive the elem type from input.tpe and apply the SAny
+      // relaxation (PropertyCall cascade).
+      const it = exprTpe(e.input)
+      if (it.tag === 'SAny') {
+        return { tag: 'SAny' }
+      }
+      if (it.tag !== 'SOption') {
+        throw new ExprTpeError(
+          `OptionGetOrElse.input has tpe ${it.tag}, expected SOption`,
+          'option-get-or-else-input-not-soption'
+        )
+      }
+      return it.elem
+    }
+    case 'Negation':
+      // sigma-rust `mir/negation.rs::Negation::tpe` (line 20-22): the
+      // input's type (negation preserves the numeric type — SByte/SShort/
+      // SInt/SLong/SBigInt). Negation::try_build validates is_numeric.
+      return exprTpe(e.input)
+    case 'ExtractCreationInfo':
+      // sigma-rust `mir/extract_creation_info.rs::ExtractCreationInfo::tpe`
+      // (line 23-25): STuple(SInt, SColl[SByte]) — the (block_height,
+      // tx_id_with_index) pair stored on every box.
+      return {
+        tag: 'STuple',
+        items: [{ tag: 'SInt' }, { tag: 'SColl', elem: { tag: 'SByte' } }],
+      }
+    case 'BoolToSigmaProp':
+      // sigma-rust `mir/bool_to_sigma.rs::BoolToSigmaProp::tpe` (line 25-27):
+      // SSigmaProp (lifts an SBoolean into the sigma-protocol world; result
+      // is TrueProp/FalseProp at evaluation time).
+      return { tag: 'SSigmaProp' }
+    case 'SigmaOr':
+    case 'SigmaAnd':
+      // sigma-rust `mir/sigma_or.rs::SigmaOr::tpe` (line 52-54) and
+      // `mir/sigma_and.rs::SigmaAnd::tpe`: both SSigmaProp. Both validate
+      // that every item is SSigmaProp (else InvalidArgumentError); the
+      // result composition itself is SSigmaProp.
+      return { tag: 'SSigmaProp' }
     default:
       // Reachable today for any Expr variant whose parser/serializer is
       // not yet implemented. Once Tasks 12-26 land, each new tag gets its
