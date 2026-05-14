@@ -6,9 +6,11 @@ Per-project instructions for Claude. Read these alongside the user's global `~/p
 
 1. **`facts/`** — per-package interface contracts. These define what other packages may rely on (preconditions, postconditions, invariants, error taxonomy). The `facts/` files are the *boundary*; everything else is implementation. Current:
    - `facts/proof.md` — `@mwaddip/ergots-proof` interface
+   - `facts/ergoscript.md` — `@mwaddip/ergots-ergoscript` interface (phase 2a wire-format surface)
 2. **`docs/specs/`** — design specs (the *why* and *how-we-chose*; rationale, validation strategy, risks). Current:
    - `2026-05-12-nipopow-proof-verifier-design.md` — `@mwaddip/ergots-proof` v1 design
    - `2026-05-13-no-gossip-decision.md` — why phase 2 is not a gossip layer; new phase plan
+   - `2026-05-13-ergoscript-interpreter-design.md` — `@mwaddip/ergots-ergoscript` phased design (2a wire-format → 2j cost)
 3. **`PLAN.md`** (when it exists) — implementation plan for the package currently being built. Source of truth for "what comes next."
 4. **`SESSION_CONTEXT.md`** (when it exists) — current state and last session's progress.
 
@@ -19,9 +21,9 @@ If `SESSION_CONTEXT.md` and `PLAN.md` disagree, `SESSION_CONTEXT.md` is more cur
 - Repo name `ergots` is intentional. Pattern follows the user's `frots` repo (pure-TS port of an audited Rust crate, validated byte-for-byte).
 - Goal: a pure-TypeScript, browser-compatible implementation of Ergo NiPoPoW (Non-Interactive Proofs of Proof-of-Work).
 - Structure: multi-package monorepo under npm workspaces. Naming convention `@mwaddip/ergots-*`.
-- Packages planned (updated 2026-05-13 after gossip-rejection brainstorm):
-  - `@mwaddip/ergots-proof` — NiPoPoW proof parser + verifier + P2P envelope codec. ✅ v1 shipped (305 tests; not yet `npm publish`-ed).
-  - `@mwaddip/ergots-ergoscript` — TS ErgoTree parser + interpreter, validated byte-for-byte against `sigma-rust`'s `ergotree-interpreter` crate. Standalone-useful (tooling, simulators, DApp frontends) as well as a dependency of the next package. Adds `@noble/curves` as a runtime dep (secp256k1 for Sigma propositions). **Next focus.**
+- Packages planned (updated 2026-05-13 after gossip-rejection brainstorm; phase 2a complete 2026-05-14):
+  - `@mwaddip/ergots-proof` — NiPoPoW proof parser + verifier + P2P envelope codec. ✅ v0.1.0 published to npm (305 tests).
+  - `@mwaddip/ergots-ergoscript` — TS ErgoTree parser + serializer, validated byte-for-byte against `sigma-rust`'s `ergotree-ir` crate (branch `integration/ergots`). Standalone-useful (tooling, simulators, DApp frontends) as well as a dependency of the next package. ✅ **Phase 2a complete (1074 tests, full ~63 MIR variant wire-format surface, mutation testing; not yet `npm publish`-ed).** See `facts/ergoscript.md` for the boundary contract. Next phase 2b adds the type system + constant evaluation; phase 2g adds sigma protocol (then `@noble/curves` becomes a runtime dep — not in 2a).
   - Wallet / transaction-broadcaster (naming TBD) — future. Browser bootstraps state from a verified proof, locally verifies a user-constructed transaction using `ergots-ergoscript`, broadcasts via any conformant Ergo node. HTTP-client / data-fetching layer is internal, not a separate package.
   - **Considered and rejected:** `@mwaddip/ergots-gossip` (WebSocket "gossip" layer for browser/Node peer discovery). See `docs/specs/2026-05-13-no-gossip-decision.md`. Browsers cannot peer (no inbound, no raw TCP); existing node REST endpoints cover what's needed; any future TS full-node would speak JVM-P2P directly.
 - Reference implementations:
