@@ -70,7 +70,12 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
   for (const entry of evaluable) {
     it(`box ${entry.box_id}: TS eval matches sigma-rust (or hits documented not-impl)`, () => {
       const tree = parseTree(hexToBytes(entry.ergo_tree_hex))
-      const ctx = makeContext()
+      // Default ctx.constants to tree.constants — mirrors evaluate()'s
+      // auto-default. Without it, any tree whose body reaches a
+      // ConstPlaceholder throws 'const-placeholder-no-constants' instead
+      // of 'not-implemented-yet', which would silently classify as `other`
+      // once phase 2c+ lands more arms.
+      const ctx = makeContext({ constants: tree.constants })
 
       // Skip value-equality when sigma-rust returned an Opaque value
       // (chiefly SigmaProp results — see file header). Cost is still
@@ -111,6 +116,9 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
       console.log('[corpus-eval] other error codes:')
       for (const [code, n] of otherCodes) console.log(`  ${code}: ${n}`)
     }
-    expect(true).toBe(true)
+    // Fail loudly if any corpus entry hit an undocumented error code.
+    // `evalSuccess + notImplYet` cover the two expected outcomes; anything
+    // in `other` is a regression we want to investigate, not silently log.
+    expect(other).toBe(0)
   })
 })
