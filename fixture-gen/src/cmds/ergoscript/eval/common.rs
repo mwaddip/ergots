@@ -5,12 +5,7 @@
 //! `expected_cost` come from running `expr.eval(env, ctx)` against a
 //! synthetic Context built from `opts_json`.
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::value::Value;
-use ergotree_ir::serialization::SigmaSerializable;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 
