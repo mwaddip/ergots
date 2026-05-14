@@ -1,0 +1,45 @@
+{
+  "corpus": "eval_const_placeholder",
+  "entries": [
+    {
+      "name": "placeholder_int_42",
+      "tree_bytes_hex": "100104547300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 42
+      },
+      "expected_cost": 1
+    },
+    {
+      "name": "placeholder_long_max",
+      "tree_bytes_hex": "100105feffffffffffffffff017300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 1
+    },
+    {
+      "name": "placeholder_bool_true",
+      "tree_bytes_hex": "100101017300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 1
+    },
+    {
+      "name": "placeholder_byte_neg1",
+      "tree_bytes_hex": "100102ff7300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -1
+      },
+      "expected_cost": 1
+    }
+  ]
+}

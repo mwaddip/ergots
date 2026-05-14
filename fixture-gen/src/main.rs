@@ -62,6 +62,10 @@ fn main() -> anyhow::Result<()> {
     // keep the top-level `fixtures/` listing tidy as more arm tasks land.
     std::fs::create_dir_all(ergoscript_fixtures_dir().join("eval"))?;
     write_ergoscript_json("eval/const.json", &cmds::ergoscript::eval::const_arm::generate()?)?;
+    write_ergoscript_json(
+        "eval/const-placeholder.json",
+        &cmds::ergoscript::eval::const_placeholder::generate()?,
+    )?;
 
     Ok(())
 }

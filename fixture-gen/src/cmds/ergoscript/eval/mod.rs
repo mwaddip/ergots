@@ -2,6 +2,6 @@
 
 pub mod common;
 pub mod const_arm;
-// Per-arm modules added in tasks 9-15:
-// pub mod const_placeholder;
+pub mod const_placeholder;
+// Per-arm modules added in tasks 10-15:
 // ...
