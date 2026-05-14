@@ -27,7 +27,13 @@ sigma-util = { path = "../../sigma-rust/sigma-rust/sigma-util" }
 ergotree-ir = { path = "../../sigma-rust/sigma-rust/ergotree-ir", features = ["std", "json"] }
 # Phase 2b eval fixtures use the interpreter as the oracle for (value, cost)
 # capture. Same default-features-off concern as ergotree-ir — force std + json.
-ergotree-interpreter = { path = "../../sigma-rust/sigma-rust/ergotree-interpreter", features = ["std", "json"] }
+# The 'arbitrary' feature unlocks `eval::test_util::try_eval_out`, which is
+# how fixture-gen evaluates expressions (Evaluable::eval is pub(crate)).
+ergotree-interpreter = { path = "../../sigma-rust/sigma-rust/ergotree-interpreter", features = ["std", "json", "arbitrary"] }
+# `try_eval_out` in test_util uses sigma_test_util::force_any_val to mint a
+# synthetic Context. We need this crate as a direct dep so PLAN.md Tasks 9-15
+# can `use sigma_test_util::force_any_val;`.
+sigma-test-util = { path = "../../sigma-rust/sigma-rust/sigma-test-util" }
 # Task 29 corpora compile ErgoScript sources via the upstream compiler so we
 # get the same ErgoTree bytes the Scala node produces.
 ergoscript-compiler = { path = "../../sigma-rust/sigma-rust/ergoscript-compiler" }

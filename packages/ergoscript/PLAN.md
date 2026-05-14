@@ -1100,12 +1100,15 @@ Sigma-rust reference: `eval.rs:52-64` — `Expr::ConstPlaceholder(cp) => { ctx.a
 //!
 //! These trees use constant segregation: the body is a ConstPlaceholder
 //! that references the tree.constants[id]. Cost: ConstantPlaceholder = Fixed(1).
+//!
+//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 
-use ergotree_interpreter::eval::env::Env;
+use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::constant::Constant;
 use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
 use serde_json::json;
 use sigma_test_util::force_any_val;
@@ -1137,9 +1140,10 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
 
         // Eval against a synthetic context. tree.proposition() resolves
         // the ConstantPlaceholder back to a Const for evaluation.
+        // try_eval_out runs sigma-rust's evaluator with an empty Env and
+        // extracts the result as Value<'static> (a trivial self-extract).
         let ctx = force_any_val::<Context>();
-        let mut env = Env::empty();
-        let val = tree.proposition()?.eval(&mut env, &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
         let cost = ctx.jit_cost_value();
 
         entries.push(EvalFixture {
@@ -1370,16 +1374,17 @@ Sigma-rust reference: `eval.rs:66-68` — `Expr::ValDef(_) => Err(EvalError::Une
 //! Sigma-rust ref: ergotree-interpreter/src/eval.rs:66-68
 //! Sigma-rust returns EvalError::UnexpectedExpr; we throw EvalError
 //! with code 'val-def-outside-block'. Fixture asserts the error case.
+//!
+//! This task only builds a tree to assert rejection on the TS side;
+//! no actual sigma-rust eval is invoked. (test_util is therefore not
+//! needed here — the 'arbitrary' feature is irrelevant.)
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::val_def::ValDef;
 use ergotree_ir::serialization::SigmaSerializable;
 use serde::Serialize;
 use serde_json::json;
-use sigma_test_util::force_any_val;
 
 #[derive(Serialize)]
 pub struct ValDefErrorFixture {
@@ -1577,16 +1582,29 @@ ValUse can't be exercised in isolation at top level (it requires a binding in En
 //! ValUse arm — fixtures for `Expr::ValUse(...)` evaluation.
 //!
 //! ValUse can't be exercised at top level because it requires a binding
-//! in Env. Fixture-gen captures: (a) the cost of ValUse alone (when
-//! Env has the binding), and (b) the unbound-error case.
+//! in Env. Sigma-rust's `Evaluable::eval` is pub(crate); we can only
+//! invoke the evaluator via `test_util::try_eval_out`, which always uses
+//! an empty Env. So we exercise ValUse by wrapping it in a BlockValue
+//! that defines the binding, then capture the *total* cost of the
+//! wrapping block. The TS test side reproduces the same wrapping to
+//! match costs byte-for-byte.
+//!
+//! (Capturing ValUse's cost in isolation requires synthesizing the
+//! per-arm number from sigma-rust's source — `ValUse = Fixed(5)` — and
+//! is done in the TS-side per-arm unit test, not via this fixture.)
+//!
+//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_interpreter::eval::Evaluable;
+use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::block::BlockValue;
 use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::val_def::ValDef;
 use ergotree_ir::mir::val_use::ValUse;
-use ergotree_ir::types::stype::SType;
 use ergotree_ir::mir::value::Value;
+use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::stype::SType;
 use serde::Serialize;
 use serde_json::json;
 use sigma_test_util::force_any_val;
@@ -1596,13 +1614,15 @@ use super::common::value_to_json;
 #[derive(Serialize)]
 pub struct ValUseFixture {
     pub name: String,
-    /// Bare ValUse expression; not wrapped in ErgoTree because ValUse
-    /// can't be a top-level tree body (parser would accept it but eval
-    /// rejects without a parent BlockValue's bindings). TS test
-    /// hand-constructs an Env and dispatches evalExpr directly.
+    /// Wrapping-block tree for sigma-rust eval. TS test parses this,
+    /// runs `evaluate()`, and asserts (value, cost) — same total as
+    /// the fixture's expected_cost.
+    pub tree_bytes_hex: String,
+    /// Extracted ValUse expression metadata for the TS-side per-arm
+    /// unit test which hand-constructs an Env with a binding and
+    /// dispatches `evalExpr` directly on a bare ValUse.
     pub val_id: u32,
     pub tpe_json: serde_json::Value,
-    /// Pre-built env: Map<id, Value> — TS test reconstructs.
     pub env_bindings: Vec<(u32, serde_json::Value)>,
     pub expected_value_json: serde_json::Value,
     pub expected_cost: u64,
@@ -1618,16 +1638,34 @@ pub struct ValUseFile {
 pub fn generate() -> anyhow::Result<ValUseFile> {
     let mut entries = Vec::new();
 
-    // Case 1: ValUse(id=5) bound to Int 42
+    // Case 1: ValUse(id=5) bound to Int 42 — wrap in BlockValue and
+    // run the full eval through test_util.
+    let block: Expr = BlockValue {
+        items: vec![
+            ValDef {
+                id: 5.into(),
+                rhs: Box::new(Expr::Const(42i32.into())),
+            }
+            .into(),
+        ],
+        result: Box::new(
+            ValUse {
+                val_id: 5.into(),
+                tpe: SType::SInt,
+            }
+            .into(),
+        ),
+    }
+    .into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &block)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
     let ctx = force_any_val::<Context>();
-    let mut env = Env::empty();
-    env.insert(5.into(), Value::Int(42));
-    let valuse = ValUse { val_id: 5.into(), tpe: SType::SInt };
-    let val = valuse.eval(&mut env, &ctx)?;
+    let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
     let cost = ctx.jit_cost_value();
 
     entries.push(ValUseFixture {
         name: "val_use_int_42".to_string(),
+        tree_bytes_hex,
         val_id: 5,
         tpe_json: json!({ "tag": "SInt" }),
         env_bindings: vec![(5, value_to_json(&Value::Int(42)))],
@@ -1636,9 +1674,13 @@ pub fn generate() -> anyhow::Result<ValUseFile> {
         expected_error_code: None,
     });
 
-    // Case 2: ValUse(id=99) unbound
+    // Case 2: ValUse(id=99) unbound — TS-side hand-dispatch only;
+    // sigma-rust never sees this case because we can't construct an
+    // unbound Env from outside the interpreter crate. Cost/value left
+    // as null because evaluation isn't reached.
     entries.push(ValUseFixture {
         name: "val_use_unbound".to_string(),
+        tree_bytes_hex: String::new(),  // not used for this case
         val_id: 99,
         tpe_json: json!({ "tag": "SInt" }),
         env_bindings: vec![],
@@ -1837,13 +1879,15 @@ Sigma-rust reference: `eval/tuple.rs:15` — `ctx.add_jit_cost(15); items.try_ma
 //!
 //! Sigma-rust ref: ergotree-interpreter/src/eval/tuple.rs:15
 //! Cost: Tuple = Fixed(15) (envelope) + sum of item costs (e.g. 5 per Const)
+//!
+//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_interpreter::eval::Evaluable;
+use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::tuple::Tuple;
+use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
 use serde_json::json;
 use sigma_test_util::force_any_val;
@@ -1871,8 +1915,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
         let ctx = force_any_val::<Context>();
-        let mut env = Env::empty();
-        let val = tree.proposition()?.eval(&mut env, &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
         let cost = ctx.jit_cost_value();
 
         entries.push(EvalFixture {
@@ -2078,13 +2121,15 @@ Two sub-variants in our TS Collection union: `kind: 'Exprs'` (general — eval e
 //!
 //! Sigma-rust ref: ergotree-interpreter/src/eval/collection.rs:22
 //! Cost: ConcreteCollection = Fixed(20) + recursive item costs.
+//!
+//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_interpreter::eval::Evaluable;
+use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::collection::Collection;
 use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::types::stype::SType;
 use serde_json::json;
@@ -2102,8 +2147,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
         let ctx = force_any_val::<Context>();
-        let mut env = Env::empty();
-        let val = tree.proposition()?.eval(&mut env, &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "coll_bool_constants_3".to_string(),
@@ -2126,8 +2170,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
         let ctx = force_any_val::<Context>();
-        let mut env = Env::empty();
-        let val = tree.proposition()?.eval(&mut env, &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "coll_exprs_int_3".to_string(),
@@ -2145,8 +2188,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
         let ctx = force_any_val::<Context>();
-        let mut env = Env::empty();
-        let val = tree.proposition()?.eval(&mut env, &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "coll_empty_long".to_string(),
@@ -2405,13 +2447,15 @@ Sigma-rust reference: `eval/if_op.rs:16` — `ctx.add_jit_cost(10); let cond = s
 //! Sigma-rust ref: ergotree-interpreter/src/eval/if_op.rs:16
 //! Cost: If = Fixed(10) (envelope) + condition eval cost + ONLY taken branch's cost.
 //! Short-circuit: non-taken branch is never evaluated.
+//!
+//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_interpreter::eval::Evaluable;
+use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::if_op::If;
+use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
 use serde_json::json;
 use sigma_test_util::force_any_val;
@@ -2432,7 +2476,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &if_expr)?;
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
         let ctx = force_any_val::<Context>();
-        let val = tree.proposition()?.eval(&mut Env::empty(), &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "if_true_branch".to_string(),
@@ -2454,7 +2498,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &if_expr)?;
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
         let ctx = force_any_val::<Context>();
-        let val = tree.proposition()?.eval(&mut Env::empty(), &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "if_false_branch".to_string(),
@@ -2709,15 +2753,17 @@ Our immutable Env naturally implements nested-scope correctness — sigma-rust's
 //!     + result eval cost
 //! NOTE: block.rs:85-89 documents the parity-gap fix that ensures
 //! ADD_TO_ENV_COST is charged per ValDef.
+//!
+//! Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 
-use ergotree_interpreter::eval::env::Env;
-use ergotree_interpreter::eval::Evaluable;
+use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::block::BlockValue;
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::val_def::ValDef;
 use ergotree_ir::mir::val_use::ValUse;
+use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::types::stype::SType;
 use serde_json::json;
@@ -2750,7 +2796,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &block)?;
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
         let ctx = force_any_val::<Context>();
-        let val = tree.proposition()?.eval(&mut Env::empty(), &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "block_one_valdef_one_valuse".to_string(),
@@ -2786,7 +2832,7 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
         let tree = ErgoTree::new(ergotree_ir::ergo_tree::ErgoTreeHeader::v0(false), &block)?;
         let bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
         let ctx = force_any_val::<Context>();
-        let val = tree.proposition()?.eval(&mut Env::empty(), &ctx)?;
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
 
         entries.push(EvalFixture {
             name: "block_4_valdefs".to_string(),
@@ -3051,16 +3097,17 @@ pub struct CorpusEntry {
 In the `for r in raw` loop, AFTER the `round_trip_ok` block, attempt sigma-rust eval against a synthetic context:
 
 ```rust
+// Uses test_util (gated by 'arbitrary' feature on ergotree-interpreter).
 let sigma_rust_eval = if round_trip_ok {
-    use ergotree_interpreter::eval::env::Env;
-    use ergotree_interpreter::eval::Evaluable;
+    use ergotree_interpreter::eval::test_util::try_eval_out;
     use ergotree_ir::chain::context::Context;
+    use ergotree_ir::mir::value::Value;
     use sigma_test_util::force_any_val;
 
     let ctx = force_any_val::<Context>();  // synthetic; height=0, empty inputs/outputs
     match ErgoTree::sigma_parse_bytes(&bytes) {
         Ok(tree) => match tree.proposition() {
-            Ok(expr) => match expr.eval(&mut Env::empty(), &ctx) {
+            Ok(expr) => match try_eval_out::<Value<'static>>(&expr, &ctx) {
                 Ok(val) => Some(SigmaRustEval::SyntheticEmpty {
                     ok: true,
                     value_json: Some(super::eval::common::value_to_json(&val)),
