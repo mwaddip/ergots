@@ -10,6 +10,7 @@ import {
 } from '../src/address'
 import { parseTree, serializeTree } from '../src/wire/ergo-tree'
 import type { ErgoTree } from '../src/mir/types'
+import { hexToBytes } from './_helpers'
 
 /**
  * Fixture addresses are pulled from the sigma-rust corpus
@@ -37,14 +38,6 @@ const MAINNET_P2PK = '9fRAWhdxEsTcdb8PhGNrZfwqa65zfkuYHAMmkQLcic1gdLSV5vA'
 // address string for that tree (which we don't have here).
 const P2S_TREE_HEX =
   '100204a00b08cd021dde34603426402615658f1d970cfa7c7bd92ac81a8b16eeebff264d59ce4604ea02d192a39a8cc7a70173007301'
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < hex.length; i += 2) {
-    out[i / 2] = parseInt(hex.slice(i, i + 2), 16)
-  }
-  return out
-}
 
 function bytesToHex(bytes: Uint8Array): string {
   let out = ''

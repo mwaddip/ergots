@@ -51,24 +51,13 @@ import { STypeParseError } from '../src/wire/parse-stype'
 import { SValueParseError } from '../src/wire/parse-svalue'
 import { SigmaBooleanParseError } from '../src/wire/sigma-boolean'
 import { ExprTpeError } from '../src/mir/expr-tpe'
+import { hexToBytes } from './_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const FIXTURE_DIR = path.join(__dirname, 'fixtures')
 
 // ---------- helpers ---------------------------------------------------------
-
-function hexToBytes(hex: string): Uint8Array {
-  if (hex.length === 0) return new Uint8Array(0)
-  if (hex.length % 2 !== 0) {
-    throw new Error(`hexToBytes: odd-length input (${hex.length})`)
-  }
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) {
-    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  }
-  return out
-}
 
 /** Flip every bit of one byte (XOR 0xff) at the given offset. */
 function mutateByte(bytes: Uint8Array, offset: number): Uint8Array {

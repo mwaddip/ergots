@@ -23,7 +23,8 @@ import { fileURLToPath } from 'node:url'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { SType, SValue, ValUse } from '../../src/mir/types'
+import type { SType, ValUse } from '../../src/mir/types'
+import { hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -45,16 +46,9 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: ValUseFixture[]
 }
 
-function hydrateValue(j: { kind: string; value?: unknown }): SValue {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) } as SValue
-  }
-  return j as SValue
-}
-
 function buildEnv(bindings: Array<[number, { kind: string; value?: unknown }]>): Env {
   let env = Env.empty()
-  for (const [id, v] of bindings) env = env.extend(id, hydrateValue(v))
+  for (const [id, v] of bindings) env = env.extend(id, hydrateSValue(v))
   return env
 }
 
@@ -81,7 +75,7 @@ describe('ValUse arm', () => {
         // NB: ValUse-only cost (5), NOT the wrapping-block total in
         // entry.expected_cost (which captures the BlockValue+ValDef+Const+ValUse
         // path that the fixture-gen side ran end-to-end).
-        expect(value).toEqual(hydrateValue(entry.expected_value_json!))
+        expect(value).toEqual(hydrateSValue(entry.expected_value_json!))
         expect(ctx.jitCost).toBe(5)
       }
     })

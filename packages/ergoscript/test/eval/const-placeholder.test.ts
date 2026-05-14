@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -42,28 +43,13 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: EvalFixture[]
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  }
-  return out
-}
-
-function hydrateExpectedValue(j: { kind: string; value?: unknown }): unknown {
-  if (j.kind === 'Long' || j.kind === 'BigInt') {
-    return { kind: j.kind, value: BigInt(j.value as string) }
-  }
-  return j
-}
-
 describe('ConstPlaceholder arm — fixture-driven', () => {
   for (const entry of fixture.entries) {
     it(`${entry.name}: value + cost`, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext({ constants: tree.constants })
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateExpectedValue(entry.expected_value_json))
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../src/wire/ergo-tree'
 import { evaluateWith } from '../src/eval/evaluate'
 import { makeContext, EvalError } from '../src/eval/eval-context'
-import type { SType, SValue } from '../src/mir/types'
+import { hexToBytes, hydrateSValue } from './_helpers'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url
 // is a node-only import, allowed in test files per the browser-first rule.
@@ -54,73 +54,6 @@ interface CorpusEntry {
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   corpus: string
   entries: CorpusEntry[]
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  if (hex.length === 0) return new Uint8Array(0)
-  if (hex.length % 2 !== 0) {
-    throw new Error(`hexToBytes: odd-length input (${hex.length})`)
-  }
-  const out = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < out.length; i++) {
-    const byte = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-    if (Number.isNaN(byte)) {
-      throw new Error(`hexToBytes: bad hex at offset ${i * 2}`)
-    }
-    out[i] = byte
-  }
-  return out
-}
-
-/**
- * Hydrate a JSON-stringified SValue (sigma-rust's value_to_json output)
- * into a runtime SValue. Mirrors the helper in `corpus.test.ts` but tolerant
- * of the `Opaque` kind (which sigma-rust emits as a fallback for variants
- * its JSON encoder doesn't render structurally — chiefly SigmaProp). We
- * never actually compare against an Opaque value at the value level (the
- * caller filters before calling), but we accept it here so the helper is
- * total over the inputs we observe.
- */
-function hydrateSValue(json: any): SValue {
-  switch (json.kind) {
-    case 'Boolean':
-      return { kind: 'Boolean', value: json.value }
-    case 'Byte':
-      return { kind: 'Byte', value: json.value }
-    case 'Short':
-      return { kind: 'Short', value: json.value }
-    case 'Int':
-      return { kind: 'Int', value: json.value }
-    case 'Long':
-      return { kind: 'Long', value: BigInt(json.value as string) }
-    case 'BigInt':
-      return { kind: 'BigInt', value: BigInt(json.value as string) }
-    case 'GroupElement':
-      return { kind: 'GroupElement', value: hexToBytes(json.bytes_hex) }
-    case 'SigmaProp':
-      return { kind: 'SigmaProp', value: { raw: hexToBytes(json.raw_hex) } }
-    case 'Unit':
-      return { kind: 'Unit' }
-    case 'Coll':
-      return {
-        kind: 'Coll',
-        elem: json.elem as SType,
-        items: (json.items as any[]).map(hydrateSValue),
-      }
-    case 'Tuple':
-      return {
-        kind: 'Tuple',
-        items: (json.items as any[]).map(hydrateSValue),
-      }
-    case 'Option':
-      return {
-        kind: 'Option',
-        elem: json.elem as SType,
-        value: json.value === null ? null : hydrateSValue(json.value),
-      }
-    default:
-      throw new Error(`hydrateSValue: unknown kind ${json.kind}`)
-  }
 }
 
 describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
