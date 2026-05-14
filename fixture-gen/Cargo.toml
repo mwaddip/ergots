@@ -25,6 +25,9 @@ sigma-util = { path = "../../sigma-rust/sigma-rust/sigma-util" }
 # the workspace, resolver v2 inherits that default-features = false, so std
 # doesn't activate automatically. Force it here so ergotree-ir compiles cleanly.
 ergotree-ir = { path = "../../sigma-rust/sigma-rust/ergotree-ir", features = ["std", "json"] }
+# Phase 2b eval fixtures use the interpreter as the oracle for (value, cost)
+# capture. Same default-features-off concern as ergotree-ir — force std + json.
+ergotree-interpreter = { path = "../../sigma-rust/sigma-rust/ergotree-interpreter", features = ["std", "json"] }
 # Task 29 corpora compile ErgoScript sources via the upstream compiler so we
 # get the same ErgoTree bytes the Scala node produces.
 ergoscript-compiler = { path = "../../sigma-rust/sigma-rust/ergoscript-compiler" }
