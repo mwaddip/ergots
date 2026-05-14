@@ -1,0 +1,11 @@
+{
+  "corpus": "eval_val_def",
+  "entries": [
+    {
+      "name": "valdef_top_level_throws",
+      "tree_bytes_hex": "00d6000454",
+      "opts_json": {},
+      "expected_error_code": "val-def-outside-block"
+    }
+  ]
+}

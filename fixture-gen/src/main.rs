@@ -66,6 +66,8 @@ fn main() -> anyhow::Result<()> {
         "eval/const-placeholder.json",
         &cmds::ergoscript::eval::const_placeholder::generate()?,
     )?;
+    let vd_fixture = cmds::ergoscript::eval::val_def::generate()?;
+    write_ergoscript_json("eval/val-def.json", &vd_fixture)?;
 
     Ok(())
 }
