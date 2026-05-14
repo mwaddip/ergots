@@ -39,6 +39,13 @@ export interface EvalContext extends EvalOpts {
    * Mirrors sigma-rust `Context::add_jit_cost`.
    */
   addCost(amount: number): void
+  /**
+   * Composite per-item charge: `base + ceil(nItems / chunkSize) * perChunk`.
+   * Mirrors sigma-rust `Context::add_per_item_jit_cost`
+   * (`ergotree-ir/src/chain/context.rs:88-99`). Used by BlockValue
+   * envelope cost; will be reused by 2f's collection HOFs.
+   */
+  addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void
 }
 
 export function makeContext(opts: EvalOpts = {}): EvalContext {
@@ -54,6 +61,10 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
           'cost-limit-exceeded'
         )
       }
+    },
+    addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void {
+      const chunks = Math.ceil(nItems / chunkSize)
+      ctx.addCost(base + chunks * perChunk)
     },
   }
   return ctx
