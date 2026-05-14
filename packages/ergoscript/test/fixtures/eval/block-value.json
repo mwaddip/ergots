@@ -1,0 +1,25 @@
+{
+  "corpus": "eval_block_value",
+  "entries": [
+    {
+      "name": "block_one_valdef_one_valuse",
+      "tree_bytes_hex": "00d801d60004547200",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 42
+      },
+      "expected_cost": 17
+    },
+    {
+      "name": "block_4_valdefs",
+      "tree_bytes_hex": "00d804d6010402d6020404d6030406d60404087204",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 4
+      },
+      "expected_cost": 47
+    }
+  ]
+}
