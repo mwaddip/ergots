@@ -1,0 +1,115 @@
+{
+  "corpus": "eval_const",
+  "entries": [
+    {
+      "name": "const_bool_true",
+      "tree_bytes_hex": "000101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_bool_false",
+      "tree_bytes_hex": "000100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_byte_0",
+      "tree_bytes_hex": "000200",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_byte_42",
+      "tree_bytes_hex": "00022a",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 42
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_short_0",
+      "tree_bytes_hex": "000300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 0
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_short_neg1",
+      "tree_bytes_hex": "000301",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": -1
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_int_0",
+      "tree_bytes_hex": "000400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 0
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_int_max",
+      "tree_bytes_hex": "0004feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 2147483647
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_int_min",
+      "tree_bytes_hex": "0004ffffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -2147483648
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_long_0",
+      "tree_bytes_hex": "000500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "0"
+      },
+      "expected_cost": 5
+    },
+    {
+      "name": "const_long_max",
+      "tree_bytes_hex": "0005feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 5
+    }
+  ]
+}

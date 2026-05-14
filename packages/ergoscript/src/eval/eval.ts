@@ -17,12 +17,18 @@ import type { Expr, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { evalConst } from './const'
 
-export function evalExpr(e: Expr, _env: Env, _ctx: EvalContext): SValue {
-  // Chassis-only: no arms wired yet. Each per-arm task (8-15) inserts an
-  // explicit `case` returning the arm's eval function before this throw.
-  throw new EvalError(
-    `not yet supported: variant '${(e as { tag: string }).tag}'`,
-    'not-implemented-yet'
-  )
+export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
+  switch (e.tag) {
+    case 'Const':
+      return evalConst(e, env, ctx)
+    default:
+      // Per-arm tasks (9-15) replace this fall-through one variant at a
+      // time. Anything not yet wired throws `not-implemented-yet`.
+      throw new EvalError(
+        `not yet supported: variant '${(e as { tag: string }).tag}'`,
+        'not-implemented-yet'
+      )
+  }
 }

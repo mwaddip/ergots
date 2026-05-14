@@ -58,5 +58,10 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("corpus_significant_15.json", &cmds::ergoscript::corpus_significant_15::generate()?)?;
     write_ergoscript_json("mainnet_boxes.json", &cmds::ergoscript::mainnet_boxes::generate()?)?;
 
+    // Phase 2b per-arm eval fixtures land in their own `eval/` subdir to
+    // keep the top-level `fixtures/` listing tidy as more arm tasks land.
+    std::fs::create_dir_all(ergoscript_fixtures_dir().join("eval"))?;
+    write_ergoscript_json("eval/const.json", &cmds::ergoscript::eval::const_arm::generate()?)?;
+
     Ok(())
 }
