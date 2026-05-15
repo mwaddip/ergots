@@ -86,6 +86,27 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
     rust upstream. Previously TS silently accepted these branches at
     any version.
 
+**Ships additionally (phase 2f Stop β — 2 structural Box-extract arms):**
+
+33. 2 more per-variant arms wired: `ExtractRegisterAs` (Box → Option[T]
+    with R0..R9 dispatch; R0..R3 synthesized from box fields, R4..R9
+    read from `box.registers`; Fixed(50) cost BEFORE eval-child; type-
+    assertion against `e.elemTpe` THROWS on mismatch — matches sigma-
+    rust `extract_reg_as.rs:41-44`, NOT None) and `ExtractCreationInfo`
+    (Box → Tuple[Int, Coll[Byte] (34 bytes: txId ++ BE u16 index)];
+    Fixed(16) cost BEFORE eval-child).
+34. **Two new `EvalError` codes:** `'register-id-out-of-range'`
+    (registerId outside 0..=9 — mirrors sigma-rust
+    `register/id.rs:32-48`) and `'register-type-mismatch'` (stored
+    register's `tpe` ≠ `e.elemTpe`).
+35. **Internal refactor:** Promotes the R3-synthesis helper
+    `creationInfoTupleSValue(box: ErgoBox): SValue` from Task 4's
+    local definition to a new shared module
+    `packages/ergoscript/src/eval/_box-synthesis.ts`. Both
+    ExtractRegisterAs (R3 case) and ExtractCreationInfo call the same
+    helper; the 34-byte byte-array layout (32-byte txId ++ BE u16
+    index) lives in one place. No public-surface change.
+
 **Ships additionally (phase 2f Stop α — SBox wire + 2 Box-extract arms):**
 
 27. 2 more per-variant arms wired: `ExtractAmount` (Box → Long;
@@ -120,6 +141,8 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
     from R4 with no gaps; mirrors sigma-rust `register.rs:223`
     `NonDenselyPacked`), `'sbox-index-out-of-range'` (index outside
     u16 bounds).
+
+**Coverage after 2f Stop β:** 24 of ~70 `Expr` variants (22 prior + 2 in 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo`); 4 of 7 Box-extract arms shipped.
 
 **Coverage after 2f Stop α:** 22 of ~70 `Expr` variants (20 prior + 2 in 2f Stop α: `ExtractAmount`, `ExtractScriptBytes`); 2 of 7 Box-extract arms shipped.
 
@@ -513,11 +536,25 @@ The following code was added in phase 2f Stop α (Box-extract arms — defensive
   defensive against `ConstantPlaceholder` injection and future MIR
   shape changes. Message includes the input's actual kind.
 
+The following codes were added in phase 2f Stop β (`ExtractRegisterAs`):
+
+- **`'register-id-out-of-range'`** — `ExtractRegisterAs.registerId`
+  outside the valid 0..=9 range. Mirrors sigma-rust
+  `register/id.rs:32-48` `RegisterIdOutOfBounds`. Charged 50 jit cost
+  before the throw (cost happens BEFORE the range check per Pattern A
+  envelope-first ordering). Message includes the offending id.
+
+- **`'register-type-mismatch'`** — `ExtractRegisterAs` found a register
+  entry whose stored `tpe` differs from `e.elemTpe`. Sigma-rust THROWS
+  here (NOT returns None) — surfaced as a typed code for programmatic
+  dispatch per `extract_reg_as.rs:41-44`. Message includes the register
+  id, the expected SType, and the stored SType.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
 ### Coverage and stability
 
-- **22 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f Stop α, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; full unlock waits for `GlobalVars` / `GetVar` (phase 2f medium) and method-call dispatch (phase 2g).
+- **24 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f Stop β, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; full unlock waits for `GlobalVars` / `GetVar` (phase 2f medium) and method-call dispatch (phase 2g).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 - **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number` (now live). Phase 2f introduces chain-state fields (`height`, `selfBox`, `inputs`, `outputs`, `dataInputs`, `preHeader`, `headers`, `extension`); they will be added as optional properties so existing callers remain source-compatible.
 - **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.
