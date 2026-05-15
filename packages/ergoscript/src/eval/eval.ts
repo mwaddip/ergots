@@ -18,6 +18,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalBlockValue } from './block-value'
+import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
@@ -47,6 +48,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalBlockValue(e, env, ctx)
     case 'LogicalNot':
       return evalLogicalNot(e, env, ctx)
+    case 'BoolToSigmaProp':
+      return evalBoolToSigmaProp(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.

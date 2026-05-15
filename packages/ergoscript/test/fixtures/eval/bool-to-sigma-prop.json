@@ -1,0 +1,25 @@
+{
+  "corpus": "eval_bool_to_sigma_prop",
+  "entries": [
+    {
+      "name": "bool_to_sigma_true",
+      "tree_bytes_hex": "00d10101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "d3"
+      },
+      "expected_cost": 20
+    },
+    {
+      "name": "bool_to_sigma_false",
+      "tree_bytes_hex": "00d10100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "d2"
+      },
+      "expected_cost": 20
+    }
+  ]
+}

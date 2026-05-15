@@ -1,6 +1,7 @@
-//! Phase 2b evaluator fixtures.
+//! Phase 2b/2c evaluator fixtures.
 
 pub mod block_value;
+pub mod bool_to_sigma_prop;
 pub mod collection;
 pub mod common;
 pub mod const_arm;
