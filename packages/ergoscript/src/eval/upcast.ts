@@ -29,9 +29,13 @@
  *     no-op at any tree version. The shared bigint round-trip
  *     (`valueToBigInt` → `bigIntToValue`) yields the same SValue.
  *   - BigInt → BigInt: only permitted when `tree_version() >= V3`
- *     (`upcast.rs:18`). Our TS evaluator currently treats it as a no-op
- *     (no version-gating in scope for phase 2d-A); V3 gating belongs to
- *     a later phase that introduces tree-version awareness.
+ *     (`upcast.rs:18`). Phase 2e (this slice) implements the gate;
+ *     throws 'tree-version-too-low' when (ctx.treeVersion ?? 0) < 3.
+ *
+ * V3 gating: BigInt → BigInt no-op self-cast requires tree_version >= V3
+ * (sigma-rust upcast.rs:18). Other source kinds widening to BigInt (Byte/
+ * Short/Int/Long → BigInt) are unconditional at any version. Phase 2e
+ * (this slice) implements the gate; throws 'tree-version-too-low' at V<3.
  *
  * Non-numeric input: sigma-rust returns `EvalError::UnexpectedValue`
  * (`upcast.rs:87-90`). We surface as `'bin-op-not-numeric'` to match
@@ -96,5 +100,13 @@ export function evalUpcast(e: Upcast, env: Env, ctx: EvalContext): SValue {
     )
   }
   const targetKind = sTypeToNumericKind(e.tpe)
+  // V3 gate: sigma-rust eval/upcast.rs:18 — BigInt → BigInt no-op only.
+  // Non-BigInt sources widening to BigInt are unconditional at any version.
+  if (input.kind === 'BigInt' && targetKind === 'BigInt' && (ctx.treeVersion ?? 0) < 3) {
+    throw new EvalError(
+      `Upcast: BigInt → BigInt no-op requires tree version >= V3, got ${ctx.treeVersion ?? 0}`,
+      'tree-version-too-low'
+    )
+  }
   return bigIntToValue(targetKind, valueToBigInt(input))
 }

@@ -29,11 +29,14 @@
  *   - Byte → Byte, Short → Short, Int → Int, Long → Long: PERMITTED as
  *     no-op at any tree version. The shared bigint round-trip
  *     (`valueToBigInt` → `bigIntToValue`) yields the same SValue.
- *   - BigInt → BigInt: only permitted when `tree_version() >= V3`
- *     (`downcast.rs:30`). Our TS evaluator currently treats it as a no-op
- *     (no version-gating in scope for phase 2d-A); V3 gating belongs to
- *     a later phase that introduces tree-version awareness. Matches the
- *     Upcast arm's treatment of BigInt → BigInt.
+ *   - BigInt source: requires `tree_version() >= V3` regardless of target
+ *     kind (sigma-rust `downcast.rs` — every `downcast_to_*` gates
+ *     `Value::BigInt(v) if ctx.tree_version() >= V3`). Phase 2e (this
+ *     slice) implements the gate; throws 'tree-version-too-low' at V<3.
+ *
+ * V3 gating: source=BigInt requires tree_version >= V3, regardless of
+ * target kind. Phase 2e implements the gate; throws 'tree-version-too-low'
+ * when (ctx.treeVersion ?? 0) < 3 and input.kind === 'BigInt'.
  *
  * Range check: `checkRange(value, targetKind, 'downcast-overflow')`. The
  * range is checked against the **target** kind (not the source); this is
@@ -111,6 +114,15 @@ export function evalDowncast(e: Downcast, env: Env, ctx: EvalContext): SValue {
     )
   }
   const targetKind = sTypeToNumericKind(e.tpe)
+  // V3 gate: sigma-rust eval/downcast.rs — every downcast_to_* function
+  // gates Value::BigInt(v) if tree_version() >= V3. Source=BigInt requires
+  // V3+ regardless of target kind.
+  if (input.kind === 'BigInt' && (ctx.treeVersion ?? 0) < 3) {
+    throw new EvalError(
+      `Downcast: BigInt source requires tree version >= V3, got ${ctx.treeVersion ?? 0}`,
+      'tree-version-too-low'
+    )
+  }
   const value = valueToBigInt(input)
   // Range-check against the TARGET kind (not the source). Throws
   // 'downcast-overflow' on out-of-range — see checkRange in

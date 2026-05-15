@@ -231,6 +231,49 @@
       },
       "expected_cost": 15,
       "expected_error_code": null
+    },
+    {
+      "name": "upcast_bigint_to_bigint_v0_gated",
+      "tree_bytes_hex": "007e06010006",
+      "opts_json": {
+        "treeVersion": 0
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "tree-version-too-low"
+    },
+    {
+      "name": "upcast_bigint_to_bigint_v1_gated",
+      "tree_bytes_hex": "007e06010006",
+      "opts_json": {
+        "treeVersion": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "tree-version-too-low"
+    },
+    {
+      "name": "upcast_bigint_to_bigint_v2_gated",
+      "tree_bytes_hex": "007e06010006",
+      "opts_json": {
+        "treeVersion": 2
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "tree-version-too-low"
+    },
+    {
+      "name": "upcast_bigint_to_bigint_v3_noop",
+      "tree_bytes_hex": "007e06012a06",
+      "opts_json": {
+        "treeVersion": 3
+      },
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "42"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
     }
   ]
 }

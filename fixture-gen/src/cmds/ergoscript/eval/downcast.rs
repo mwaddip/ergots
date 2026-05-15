@@ -49,13 +49,14 @@
 //!
 //! BigInt → primitive narrowing (BigInt → Long/Int/Short/Byte): ALL these
 //! pairs require `ctx.tree_version() >= V3` per `downcast.rs:45, 62, 83,
-//! 100`. At V0, sigma-rust hits the `_ => Err(...)` fallthrough arms (lines
-//! 49, 66, 87, 104) which return "cannot downcast" — a version-gating
-//! rejection, NOT a range-overflow. We cannot generate happy BigInt →
-//! primitive fixtures at V0 (no V3 tree path through our v0-only chassis),
-//! and the V0 rejection isn't semantically `'downcast-overflow'`, so we
-//! skip these pairs at V0. Re-add when phase-2X introduces tree-version
-//! awareness.
+//! 100`. At V0/V1/V2, sigma-rust hits the `_ => Err(...)` fallthrough arms
+//! (lines 49, 66, 87, 104) which return "cannot downcast" — a version-gating
+//! rejection. Phase 2e adds explicit error entries for V0/V1/V2 with code
+//! 'tree-version-too-low'. Happy-path BigInt → primitive entries use V3.
+//!
+//! V3 gating (phase 2e task 1): source=BigInt requires tree_version >= V3
+//! regardless of target kind. Every `downcast_to_*` function in sigma-rust
+//! gates `Value::BigInt(v) if ctx.tree_version() >= V3`.
 //!
 //! `Downcast::new` strictness (`ergotree-ir/src/mir/downcast.rs:29-48`):
 //!   - Target type must be numeric (line 30).
@@ -71,18 +72,16 @@
 //! `'bin-op-not-numeric'` assertion is covered by an inline test that
 //! calls `evalExpr` directly with a hand-built MIR node (Upcast precedent).
 //!
-//! Coverage (V0 chassis):
+//! Coverage:
 //!   - Long → {Int, Short, Byte} = 3 pairs × (happy + overflow) = 6 entries
 //!   - Int → {Short, Byte} = 2 pairs × (happy + overflow) = 4 entries
 //!   - Short → Byte = 1 pair × (happy + overflow) = 2 entries
 //!   - 1 same-kind no-op entry (Int → Int).
-//!   - Total: 13 entries.
-//!
-//! Skipped at V0 (deferred until tree-version awareness lands):
-//!   - BigInt → Long/Int/Short/Byte (4 pairs) — V3 required
-//!   - BigInt → BigInt same-kind — V3 required
+//!   - 4 V0/V1/V2 BigInt error entries ('tree-version-too-low').
+//!   - Total: 17 entries.
 
 use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::bigint256::BigInt256;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
 use ergotree_ir::mir::downcast::Downcast;
@@ -167,6 +166,33 @@ fn overflow_entry(
         expected_error_code: json!("downcast-overflow"),
     })
 }
+
+/// Error entry: builds a BigInt-source Downcast tree and emits a fixture
+/// asserting 'tree-version-too-low' at the given version (<V3).
+///
+/// We do NOT run sigma-rust eval here because Rust's error text differs
+/// from our TS code and we don't need the oracle value — the TS assertion
+/// is on the error code only.
+///
+/// Sigma-rust ref: every `downcast_to_*` function gates
+/// `Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3`.
+fn tree_version_error_entry(
+    name: &str,
+    input: Expr,
+    target: SType,
+    tree_version: u8,
+) -> anyhow::Result<DowncastFixture> {
+    let (_, hex) = build_tree(input, target)?;
+    Ok(DowncastFixture {
+        name: name.into(),
+        tree_bytes_hex: hex,
+        opts_json: json!({ "treeVersion": tree_version }),
+        expected_value_json: json!(null),
+        expected_cost: 0,
+        expected_error_code: json!("tree-version-too-low"),
+    })
+}
+
 
 pub fn generate() -> anyhow::Result<DowncastFixtureFile> {
     let mut entries = Vec::new();
@@ -253,13 +279,42 @@ pub fn generate() -> anyhow::Result<DowncastFixtureFile> {
 
     // =========================================================================
     // Same-kind no-op (Int → Int, representative of Byte/Short/Int/Long
-    // same-kind no-op behavior — sigma-rust downcast.rs:60). BigInt → BigInt
-    // skipped (requires tree_version ≥ V3; our V0 trees would reject).
+    // same-kind no-op behavior — sigma-rust downcast.rs:60).
     // =========================================================================
     entries.push(success_entry(
         "downcast_int_to_int_noop",
         Expr::Const(0i32.into()),
         SType::SInt,
+    )?);
+
+    // =========================================================================
+    // BigInt source V3 gating (phase 2e task 1).
+    // source=BigInt requires tree_version >= V3 regardless of target kind.
+    // sigma-rust ref: every downcast_to_* function gates Value::BigInt on V3+.
+    // =========================================================================
+    entries.push(tree_version_error_entry(
+        "downcast_bigint_to_long_v0_gated",
+        Expr::Const(BigInt256::from(0i64).into()),
+        SType::SLong,
+        0,
+    )?);
+    entries.push(tree_version_error_entry(
+        "downcast_bigint_to_int_v1_gated",
+        Expr::Const(BigInt256::from(0i64).into()),
+        SType::SInt,
+        1,
+    )?);
+    entries.push(tree_version_error_entry(
+        "downcast_bigint_to_short_v2_gated",
+        Expr::Const(BigInt256::from(0i64).into()),
+        SType::SShort,
+        2,
+    )?);
+    entries.push(tree_version_error_entry(
+        "downcast_bigint_to_byte_v2_gated",
+        Expr::Const(BigInt256::from(0i64).into()),
+        SType::SByte,
+        2,
     )?);
 
     Ok(DowncastFixtureFile {

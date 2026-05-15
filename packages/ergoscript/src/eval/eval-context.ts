@@ -26,8 +26,21 @@ export interface EvalOpts {
   jitCostLimit?: number
   /** Overrides tree.constants if set. Used by ConstPlaceholder resolution. */
   constants?: SValue[]
-  // Phase 2e adds: height, selfBox, inputs, outputs, dataInputs,
-  // preHeader, headers, extension, treeVersion, ...
+  /**
+   * ErgoTree version (0..7). Auto-derived from tree.header.version in
+   * evaluate(); explicit in evaluateWith(). Arms reading ctx.treeVersion
+   * use (ctx.treeVersion ?? 0) — V0 default; most-restrictive fallback.
+   *
+   * Required for arms with tree-version-dependent semantics:
+   * - Upcast: BigInt → BigInt requires V3+
+   * - Downcast: BigInt → any requires V3+
+   * - XorOf: V0/V1 uses JVM v4.x bug; V2+ uses correct left-fold XOR
+   *
+   * Sigma-rust ref: chain/context.rs:44 `tree_version: Cell<ErgoTreeVersion>`
+   */
+  treeVersion?: number
+  // Phase 2f+ adds: height?, selfBox?, inputs?, outputs?, dataInputs?,
+  // preHeader?, headers?, extension?, vars?
 }
 
 export interface EvalContext extends EvalOpts {
@@ -53,6 +66,7 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     jitCost: 0,
     jitCostLimit: opts.jitCostLimit,
     constants: opts.constants,
+    treeVersion: opts.treeVersion,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {

@@ -16,8 +16,9 @@ import type { EvalContext, EvalOpts } from './eval-context'
 
 export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
   const ctx = makeContext({
-    jitCostLimit: opts.jitCostLimit,
+    ...opts,
     constants: opts.constants ?? tree.constants,
+    treeVersion: opts.treeVersion ?? tree.header.version,
   })
   return evalExpr(tree.body, Env.empty(), ctx)
 }
