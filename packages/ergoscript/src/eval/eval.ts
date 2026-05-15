@@ -4,10 +4,11 @@
  * via the `_exhaust: never` discriminant until an arm exists.
  *
  * Phase 2b ships 8 arms (Const, ConstPlaceholder, BlockValue, ValDef,
- * ValUse, Tuple, Collection, If). Every other variant currently throws
- * `EvalError 'not-implemented-yet'` — Phase 2c+ replaces each with an
- * explicit case calling its arm. The chassis itself is correct from
- * this commit forward.
+ * ValUse, Tuple, Collection, If). Phase 2c adds BinOp (central
+ * dispatcher + 4 family sub-arms), LogicalNot, BoolToSigmaProp. Every
+ * other variant currently throws `EvalError 'not-implemented-yet'` —
+ * Phase 2c+ replaces each with an explicit case calling its arm. The
+ * chassis itself is correct from this commit forward.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs
@@ -17,6 +18,7 @@ import type { Expr, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { evalBinOp } from './bin-op'
 import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalCollection } from './collection'
@@ -46,6 +48,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalIf(e, env, ctx)
     case 'BlockValue':
       return evalBlockValue(e, env, ctx)
+    case 'BinOp':
+      return evalBinOp(e, env, ctx)
     case 'LogicalNot':
       return evalLogicalNot(e, env, ctx)
     case 'BoolToSigmaProp':
