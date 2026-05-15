@@ -86,6 +86,43 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
     rust upstream. Previously TS silently accepted these branches at
     any version.
 
+**Ships additionally (phase 2f Stop α — SBox wire + 2 Box-extract arms):**
+
+27. 2 more per-variant arms wired: `ExtractAmount` (Box → Long;
+    Fixed(8) cost BEFORE eval-child) and `ExtractScriptBytes` (Box →
+    Coll[Byte] of box's serialized ErgoTree; Fixed(10) cost BEFORE
+    eval-child). Both follow the envelope-first cost-charging pattern
+    (Pattern A).
+28. **SBox wire-format surface closes:** `parseSValue(SBox, …)` and
+    `serializeSValue(SBox, …)` ship, replacing phase 2a's
+    `'not-implemented-phase-2a'` throw for SBox specifically. Round-
+    trip invariant byte-equal on all fixture entries. The other
+    deferred SValue kinds (`SAvlTree`, `SHeader`, `SPreHeader`,
+    `SContext`, `SGlobal`, `SAny`, `SString`, `SFunc`, `STypeVar`)
+    still throw `'not-implemented-phase-2a'`.
+29. **`ErgoBox.registers` runtime shape extends** from `Record<number,
+    SValue | undefined>` to `Record<number, { tpe: SType; value:
+    SValue } | undefined>`. Per-register `SType` carriage matches
+    sigma-rust's `NonMandatoryRegisters` storing `Constant<'static>`
+    and is required by the downstream `ExtractRegisterAs` arm's
+    type-assertion (phase 2f Stop β).
+30. **One new `EvalError` code:** `'extract-input-not-box'` (defensive
+    kind-check shared across all 7 Box-extract arms; wire-format
+    invariants make it unreachable for parser-produced trees).
+31. **Three new `SValueParseError` codes:** `'sbox-tokens-out-of-
+    range'` (count > 122), `'sbox-registers-out-of-range'` (count > 6),
+    `'sbox-ergo-tree-no-size'` (parser cannot bound a `hasSize=false`
+    ErgoTree without parsing the AST; all real on-chain boxes use v1+
+    with `hasSize=true`).
+32. **Four new `SValueSerializeError` codes:** `'token-id-length'`
+    (token id ≠ 32 bytes), `'txid-length'` (txId ≠ 32 bytes),
+    `'sbox-registers-not-dense'` (registers must be packed contiguously
+    from R4 with no gaps; mirrors sigma-rust `register.rs:223`
+    `NonDenselyPacked`), `'sbox-index-out-of-range'` (index outside
+    u16 bounds).
+
+**Coverage after 2f Stop α:** 22 of ~70 `Expr` variants (20 prior + 2 in 2f Stop α: `ExtractAmount`, `ExtractScriptBytes`); 2 of 7 Box-extract arms shipped.
+
 **Coverage after 2e:** 20 of ~70 `Expr` variants have implemented arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf`); every other variant throws `EvalError 'not-implemented-yet'`. Public function signatures (`evaluate`, `evaluateWith`, `makeContext`, `EvalError`) are stable from v0.2.0 onward — future arms slot into central dispatch without surface changes.
 
 **Does NOT ship yet (deferred to upcoming phases):**
@@ -320,8 +357,8 @@ Per-class code enumeration (every code below is emitted by current source):
 - **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch).
 - **`STypeParseError`**: `'invalid-type-code'`, `'unsupported-type'`, `'invalid-tuple-length'`, `'invalid-stypevar-length'`, `'invalid-stypevar-utf8'`, `'invalid-sfunc-tpe-params'`.
 - **`STypeSerializeError`**: `'tuple-too-short'`, `'tuple-too-long'`, `'stypevar-name-length'`, `'sfunc-tdom-too-long'`, `'sfunc-tpe-params-too-long'`, `'unreachable'`.
-- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'`, `'unreachable'`.
-- **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'`, `'unreachable'`.
+- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SAvlTree`/`SHeader`/`SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed from this set in phase 2f Stop α), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-ergo-tree-no-size'`.
+- **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-tokens-out-of-range'`.
 - **`SigmaBooleanParseError`**: `'arity-out-of-range'`, `'unknown-opcode'`.
 - **`ExprTpeError`** (raised by `exprTpe`, the SType-of-Expr projection): `'apply-func-not-sfunc'`, `'bin-op-kind-unhandled'`, `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'select-field-input-not-stuple'`, `'select-field-out-of-range'`, `'tpe-not-implemented'`.
 - **`ReaderError`** (raised by `ByteReader`): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`.
@@ -465,11 +502,22 @@ The following codes were added in phase 2e (treeVersion plumbing + lambdas + Xor
   (Iron Law of fail-fast). Placed BEFORE arg-eval (pure structural
   check). Message includes expected vs actual arg count.
 
+The following code was added in phase 2f Stop α (Box-extract arms — defensive kind-check shared across all 7 arms):
+
+- **`'extract-input-not-box'`** — `ExtractAmount` / `ExtractScriptBytes`
+  (and future `ExtractRegisterAs` / `ExtractCreationInfo` /
+  `ExtractBytes` / `ExtractBytesWithNoRef` / `ExtractId`) received
+  input whose `kind !== 'Box'`. Sigma-rust enforces
+  `input.post_eval_tpe == SBox` at construction time via each arm's
+  `try_build`, making this throw unreachable for parser-produced trees;
+  defensive against `ConstantPlaceholder` injection and future MIR
+  shape changes. Message includes the input's actual kind.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
 ### Coverage and stability
 
-- **20 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality.
+- **22 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f Stop α, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; full unlock waits for `GlobalVars` / `GetVar` (phase 2f medium) and method-call dispatch (phase 2g).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 - **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number` (now live). Phase 2f introduces chain-state fields (`height`, `selfBox`, `inputs`, `outputs`, `dataInputs`, `preHeader`, `headers`, `extension`); they will be added as optional properties so existing callers remain source-compatible.
 - **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.
