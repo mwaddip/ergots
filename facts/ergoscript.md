@@ -14,7 +14,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 
 ## Scope
 
-**Ships in this contract (phase 2a):**
+**Ships in this contract (phase 2a — wire format):**
 
 1. Parse + serialize for the ErgoTree envelope: header byte, optional VLQ-u32 body size, optional segregated constants section, body Expr.
 2. Parse + serialize for the full `Expr` discriminated union (68 variants — see `mir/types.ts`), wired through a central opcode-dispatch switch.
@@ -24,14 +24,41 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 6. Base58check address ↔ `ErgoTree` round-trip for mainnet and testnet (P2PK and P2S).
 7. Stateless: no I/O, no clock, no PRNG, no `globalThis` reads. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
-**Does NOT ship (deferred to phase 2b+):**
+**Ships additionally (phase 2b — evaluator chassis + 8 arms):**
 
-- Evaluator (`evaluate(tree, context)`). No opcode is interpreted; we only parse and serialize.
-- Constant evaluation / `decodePoint` / literal coercion logic.
-- Sigma protocol prover and verifier (`reduceToCrypto`, `prove`, `verify`).
-- AVL+ membership-proof verification (`verifyMembershipProof`, `lookupInTree`).
-- Cost accumulator (no-op placeholder lives in the eval module from phase 2b; real costs land in 2j).
-- `ergoscript-compiler` (`.es` source → bytes). Out of scope until upstream PR 862 settles.
+8. Public evaluator entry points: `evaluate(tree, opts?)`, `evaluateWith(tree, ctx)`, `makeContext(opts?)`.
+9. `EvalContext` carrying a saturating `jitCost` accumulator with optional `jitCostLimit` enforcement. Cost values are sigma-rust-accurate per arm from day one (not no-op placeholders).
+10. Immutable `Env` for `ValDef` bindings (clone-on-extend; lexical scoping naturally correct under TS).
+11. Central exhaustive `evalExpr` switch on `Expr.tag` with `_exhaust: never` discriminant; adding a new `Expr` variant becomes a compile-time error until a corresponding arm exists.
+12. 8 per-variant arms wired: `Const`, `ConstPlaceholder`, `BlockValue` (with `ADD_TO_ENV_COST` per `ValDef`), `ValDef` (top-level rejection), `ValUse`, `Tuple`, `Collection` (both `Exprs` and `BoolConstants` kinds), `If` (with short-circuit semantics + cost-correct branch skipping).
+13. Layer C1 per-arm fixture validation: every arm's behavior (value + cost) is asserted against sigma-rust's `try_eval_out` oracle.
+
+**Ships additionally (phase 2c — operators slice 1):**
+
+14. 3 more per-variant arms wired: `BinOp` (central dispatcher delegating on `e.op.kind` to 4 per-family sub-arms), `LogicalNot`, `BoolToSigmaProp`.
+15. All 22 `BinOp` sub-ops implemented across 4 families:
+    - **Arith** (7): `Plus`, `Minus`, `Multiply`, `Divide`, `Modulo`, `Max`, `Min`. Compute in `bigint` internally with signed-range checks per kind (Byte/Short/Int/Long/BigInt256); throws `'arith-overflow'` on bounds violation, `'arith-divide-by-zero'` for `/0` and `%0`. Cost varies per op and per `is_bigint` (matches sigma-rust `bin_op.rs:198-207`).
+    - **Relation** (6): `Lt`, `Le`, `Gt`, `Ge` (numeric ordering); `Eq`, `NEq` via the recursive `sValueEquals` comparer.
+    - **Logical** (3): `And`, `Or` short-circuit on Boolean operands (right-side cost NOT charged when short-circuited); `Xor` is eager.
+    - **Bit** (3 of 6): `BitAnd`, `BitOr`, `BitXor` with kind-uniform bigint masking + sign-preserving re-narrowing. The 3 shift ops (`BitShiftLeft`, `BitShiftRight`, `BitShiftRightZeroed`) throw `'not-implemented-yet'` matching sigma-rust's `EvalError::Misc` posture — sigma-rust delegates shifts to `SNumericTypeMethods` (a method-call IR path) not the BinOp arm.
+16. `sValueEquals` recursive structural comparer covering primitives (Boolean / Byte / Short / Int / Long / BigInt / Unit), `GroupElement` (byte-equal), `SigmaProp` (byte-equal on opaque `.raw`), `Coll`, `Tuple`, `Option`. Cross-kind comparison returns `false` (no coercion). `Box` / `AvlTree` throw `'not-implemented-yet'` (their runtime shapes aren't in scope until phase 2h+). Cost is charged inside the comparer per per-type constants mirroring sigma-rust's `data_value_comparer.rs` (`EQ_PRIM_COST`, `EQ_BIGINT_COST`, `EQ_GROUP_ELEMENT_COST`, `EQ_TUPLE_COST`, `EQ_OPTION_COST`, `COLL_MATCH_TYPE_COST` + per-item).
+17. 5 new `EvalError` codes documented in the v0.2.0 taxonomy below: `'arith-overflow'`, `'arith-divide-by-zero'`, `'bin-op-kind-mismatch'`, `'bin-op-not-numeric'`, `'bin-op-not-boolean'`.
+
+**Coverage after 2c:** 11 of ~70 `Expr` variants have implemented arms; every other variant throws `EvalError 'not-implemented-yet'`. Public function signatures (`evaluate`, `evaluateWith`, `makeContext`, `EvalError`) are stable from v0.2.0 onward — future arms slot into central dispatch without surface changes.
+
+**Does NOT ship yet (deferred to upcoming phases):**
+
+- Numeric-poly unary arms (`Negation`, `BitInversion`, `Upcast`, `Downcast`) — next slice.
+- `Coll[Boolean]` aggregators (`And` / `Or` / `Xor` over `Coll[Boolean]`) and `Atleast` (k-of-n `SigmaProp` combinator) — next slice.
+- Lambda support (`FuncValue`, `Apply`) — later phase.
+- Box / Context / Header chain-state model (`SELF`, `INPUTS(i).R4`, `HEIGHT`, `getVar(...)`) — later phase.
+- Collection HOFs (`map`, `filter`, `fold`, `forall`, `exists`, `slice`, `append`, `byIndex`) — later phase.
+- Sigma protocol prover and verifier (`reduceToCrypto`, `prove`, `verify`) — later phase; `SigmaProp` remains opaque-bytes until then.
+- AVL+ membership-proof verification (`verifyMembershipProof`, `lookupInTree`) — later phase.
+- BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch lands.
+- `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when the chain-state model lands.
+- Real-context cost validation (Layer C3) — calibration phase after all arms are in.
+- `ergoscript-compiler` (`.es` source → bytes). Out of scope until upstream PR 862 settles. Would be a sibling package, not part of this one.
 - AOT interpreter. Upstream is deprecating it; we target `R5.0-JIT-verify` semantics exclusively.
 - Transaction building, key derivation, mnemonic handling, BIP32. Those belong to the phase 3 wallet package.
 - Network or filesystem access. The package is a pure library.
