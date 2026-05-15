@@ -14,8 +14,8 @@
 //!
 //! Coverage:
 //!   - Box with minimal v1 tree (Const(SBoolean true) — same as extract_amount).
-//!   - Box with P2PK ProveDlog tree (~35 bytes; realistic on-chain type).
-//!   - Box with a larger expression tree (~40 bytes; more complex body).
+//!   - Box with P2PK ProveDlog tree (37 bytes; realistic on-chain script type).
+//!   - Box with larger nested expression (If body, 9 bytes; multi-node tree body).
 //!   - Box with v1 tree using segregated constants (hasConstants=true).
 //!   - 1 cost-limit entry (jitCostLimit=1 < Fixed(10)) → `'cost-limit-exceeded'`.
 //!
