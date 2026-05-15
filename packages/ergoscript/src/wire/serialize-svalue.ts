@@ -18,6 +18,7 @@
 
 import type { SType, SValue } from '../mir/types'
 import { ByteWriter } from './writer'
+import { serializeSType } from './serialize-stype'
 
 export class SValueSerializeError extends Error {
   constructor(
@@ -231,11 +232,79 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       return
     }
 
+    case 'SBox': {
+      // SBox wire encoding (sigma-rust `chain/ergo_box.rs:202-223`).
+      //
+      // Write sequence:
+      //   value           — VLQ u64 (BoxValue, unsigned)
+      //   ergo_tree_bytes — raw bytes written verbatim (`write_all`)
+      //   creation_height — VLQ u32
+      //   tokens_count    — raw u8 (NOT VLQ)
+      //   per-token       — 32-byte id (raw) + VLQ u64 amount
+      //   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
+      //   transaction_id  — 32 raw bytes
+      //   index           — VLQ u16 (sigma-ser `put_u16` = VLQ, NOT raw BE)
+      assertKind(t, v, 'Box')
+      const box = v.value
+
+      // value (unsigned VLQ u64 — NOT ZigZag)
+      w.writeVlqBigInt(box.value)
+
+      // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
+      w.writeBytes(box.ergoTreeBytes)
+
+      // creation_height (VLQ u32)
+      w.writeVlqU(box.creationHeight)
+
+      // tokens (raw u8 count + per-token id + amount)
+      if (box.tokens.length > 122) {
+        throw new SValueSerializeError(
+          `SBox tokens length ${box.tokens.length} exceeds MAX_TOKENS_COUNT (122)`,
+          'sbox-tokens-out-of-range'
+        )
+      }
+      w.writeU8(box.tokens.length) // raw u8, NOT VLQ
+      for (const token of box.tokens) {
+        if (token.id.length !== 32) {
+          throw new SValueSerializeError(
+            `SBox token id length ${token.id.length} must be 32`,
+            'token-id-length'
+          )
+        }
+        w.writeBytes(token.id)
+        w.writeVlqBigInt(token.amount) // VLQ u64 unsigned
+      }
+
+      // additional_registers (raw u8 count + per-register Const wire)
+      const regKeys = Object.keys(box.registers)
+        .map((k) => Number(k))
+        .filter((k) => k >= 4 && k <= 9 && box.registers[k] !== undefined)
+        .sort((a, b) => a - b)
+      w.writeU8(regKeys.length) // raw u8, NOT VLQ
+      for (const k of regKeys) {
+        const entry = box.registers[k]!
+        serializeSType(entry.tpe, w)
+        serializeSValue(entry.tpe, entry.value, w)
+      }
+
+      // transaction_id (32 raw bytes)
+      if (box.txId.length !== 32) {
+        throw new SValueSerializeError(
+          `SBox txId length ${box.txId.length} must be 32`,
+          'txid-length'
+        )
+      }
+      w.writeBytes(box.txId)
+
+      // index (VLQ u16 — sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE)
+      w.writeVlqU(box.index)
+      return
+    }
+
     // ---------------------------------------------------------------------
     // Deferred kinds: same set as parseSValue's deferred arms. No inline
     // `Const(_)` of these types appears in phase 2a corpora.
     // ---------------------------------------------------------------------
-    case 'SBox':
     case 'SAvlTree':
     case 'SHeader':
     case 'SPreHeader':

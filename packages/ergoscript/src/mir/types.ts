@@ -69,10 +69,15 @@ export interface ErgoBox {
   /** Guarding script as raw bytes; parse with `parseTree` if needed. */
   ergoTreeBytes: Uint8Array
   /**
-   * Non-mandatory registers R4..R9 (and mandatory views as needed in later
-   * phases). Sparse: a missing register key yields `undefined`.
+   * Non-mandatory registers R4..R9. Sparse: a missing register key yields
+   * `undefined`. Each entry carries the per-register `SType` alongside the
+   * `SValue`, matching sigma-rust's `NonMandatoryRegisters` which stores
+   * `Constant<'static>` (i.e. `{ tpe: SType, v: Value }`). Required by
+   * `ExtractRegisterAs`'s type-assertion: without the stored `tpe`, the type
+   * cannot be reliably recovered for edge cases (empty `Coll`, `None`
+   * `Option`) where the `SValue.kind` alone is ambiguous.
    */
-  registers: Record<number, SValue | undefined>
+  registers: Record<number, { tpe: SType; value: SValue } | undefined>
   /** Secondary tokens (id is 32-byte token-id, amount is u64 packed as bigint). */
   tokens: { id: Uint8Array; amount: bigint }[]
   /** Block height at which the box was created (Rust `u32`). */

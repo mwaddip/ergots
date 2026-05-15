@@ -1,0 +1,29 @@
+{
+  "entries": [
+    {
+      "name": "sbox_minimal",
+      "description": "Minimal box: value=1_000_000, no tokens, no registers, height=0, index=0",
+      "bytes_hex": "c0843d09020101000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "sbox_three_tokens",
+      "description": "Box with 3 tokens, no registers, height=100_000, index=1",
+      "bytes_hex": "80897a09020101a08d06030101010101010101010101010101010101010101010101010101010101010101640202020202020202020202020202020202020202020202020202020202020202c8010303030303030303030303030303030303030303030303030303030303030303ac0200abababababababababababababababababababababababababababababababab01"
+    },
+    {
+      "name": "sbox_r4_r5_registers",
+      "description": "Box with R4=SInt(42) and R5=SBoolean(true), no tokens, height=500_000, index=2",
+      "bytes_hex": "c096b10209020101a0c21e000204540101000000000000000000000000000000000000000000000000000000000000000002"
+    },
+    {
+      "name": "sbox_tokens_and_registers",
+      "description": "Box with 2 tokens + R4=SLong, R5=SColl[SByte], R6=SShort, height=1_000_000, index=5",
+      "bytes_hex": "80ade20409020101c0843d02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae707bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb010305a48bb099090e05010203040503feff03dededededededededededededededededededededededededededededededede05"
+    },
+    {
+      "name": "sbox_boundary",
+      "description": "Box at boundary values: value=MAX_RAW, height=u32::MAX, index=u16::MAX, txId=0xff*32",
+      "bytes_hex": "ffffffffffffffff7f09020101ffffffff0f0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff03"
+    }
+  ]
+}

@@ -63,6 +63,7 @@
 import type { SType, SValue } from '../mir/types'
 import { ByteReader } from './reader'
 import { parseSigmaBoolean } from './sigma-boolean'
+import { parseSType } from './parse-stype'
 
 export class SValueParseError extends Error {
   constructor(
@@ -231,13 +232,111 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       // P2PK-shape check in `src/address.ts`.
       return { kind: 'SigmaProp', value: parseSigmaBoolean(r) }
 
+    case 'SBox': {
+      // SBox wire encoding (sigma-rust `chain/ergo_box.rs:202-225`).
+      //
+      // Read sequence (sigma-rust reads into ErgoBoxCandidate then appends
+      // tx_id + index for full ErgoBox):
+      //
+      //   value           — VLQ u64 (BoxValue wraps u64; plain VLQ, NOT ZigZag)
+      //   ergo_tree_bytes — self-delimiting: read header byte, if hasSize (bit 3)
+      //                     read VLQ body size then that many body bytes; raw
+      //                     bytes stored (no further parse — caller may call
+      //                     parseTree(ergoTreeBytes) separately). !hasSize trees
+      //                     require full body parse to bound the read; we error
+      //                     for those since all real boxes use v1+ (hasSize=true).
+      //   creation_height — VLQ u32 (`put_u32`)
+      //   tokens_count    — raw u8 (`put_u8`, NOT VLQ), capped at 122
+      //   per-token       — 32-byte TokenId (raw) + VLQ u64 amount (`put_u64`)
+      //   additional_regs — raw u8 count (`put_u8`) + per-register:
+      //                     SType byte + SValue bytes (same as inline Const wire)
+      //   transaction_id  — 32 raw bytes
+      //   index           — VLQ u16 (`put_u16` in sigma-ser = VLQ, NOT raw BE)
+
+      // --- value (VLQ u64, unsigned) ---
+      const value = r.readVlqBigInt()
+
+      // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
+      const treeStart = r.position
+      const headerByte = r.readU8()
+      const hasSize = (headerByte & 0x08) !== 0
+      if (!hasSize) {
+        // v0 trees with no hasSize flag cannot be safely extracted from a
+        // surrounding byte stream without fully parsing the body. All real
+        // on-chain boxes use v1+ (hasSize=true). Reject to avoid cursor
+        // desynchronisation.
+        throw new SValueParseError(
+          `SBox ergoTree header 0x${headerByte.toString(16).padStart(2, '0')} has hasSize=false; ` +
+            'cannot bound ergoTree read without full body parse',
+          'sbox-ergo-tree-no-size'
+        )
+      }
+      const bodySize = r.readVlqU()
+      r.readBytes(bodySize) // consume body bytes (cursor advances)
+      const ergoTreeBytes = r.slice(treeStart, r.position).slice()
+
+      // --- creation_height (VLQ u32) ---
+      const creationHeight = r.readVlqU()
+
+      // --- tokens (raw u8 count + per-token 32-byte id + VLQ u64 amount) ---
+      const tokenCount = r.readU8() // raw u8, NOT VLQ
+      if (tokenCount > 122) {
+        throw new SValueParseError(
+          `SBox tokens count ${tokenCount} exceeds MAX_TOKENS_COUNT (122)`,
+          'sbox-tokens-out-of-range'
+        )
+      }
+      const tokens: { id: Uint8Array; amount: bigint }[] = []
+      for (let i = 0; i < tokenCount; i++) {
+        const id = r.readBytes(32).slice()
+        const amount = r.readVlqBigInt() // VLQ u64 unsigned
+        tokens.push({ id, amount })
+      }
+
+      // --- additional_registers (raw u8 count + per-register Const wire) ---
+      const regCount = r.readU8() // raw u8, NOT VLQ
+      if (regCount > 6) {
+        throw new SValueParseError(
+          `SBox additional_registers count ${regCount} exceeds 6 (R4..R9 only)`,
+          'sbox-registers-out-of-range'
+        )
+      }
+      const registers: Record<number, { tpe: SType; value: SValue } | undefined> = {}
+      for (let i = 0; i < regCount; i++) {
+        // Each register is serialized as a full Constant on the wire:
+        //   [SType byte(s)] [SValue bytes]
+        // This is exactly what parseSType + parseSValue reads.
+        const tpe = parseSType(r)
+        const regValue = parseSValue(tpe, r)
+        registers[4 + i] = { tpe, value: regValue }
+      }
+
+      // --- transaction_id (32 raw bytes) ---
+      const txId = r.readBytes(32).slice()
+
+      // --- index (VLQ u16 via sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE) ---
+      const index = r.readVlqU()
+
+      return {
+        kind: 'Box',
+        value: {
+          value,
+          ergoTreeBytes,
+          registers,
+          tokens,
+          creationHeight,
+          txId,
+          index,
+        },
+      }
+    }
+
     // ---------------------------------------------------------------------
     // Deferred kinds. These appear in `Expr.tpe` slots but not as inline
     // `Const(_)` values in phase 2a corpora. If a phase 2a fixture trips
     // one of these, the fixture itself must be deferred to the appropriate
     // later phase.
     // ---------------------------------------------------------------------
-    case 'SBox':
     case 'SAvlTree':
     case 'SHeader':
     case 'SPreHeader':

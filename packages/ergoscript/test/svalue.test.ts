@@ -339,7 +339,7 @@ describe('SValue deferred-kind errors', () => {
   // does not appear in this deferred list. Its parse/serialize behavior
   // is covered by `describe('SValue SSigmaProp …')` below.
   const deferred: SType[] = [
-    { tag: 'SBox' },
+    // SBox is implemented in phase 2f (see test/wire/sbox-roundtrip.test.ts)
     { tag: 'SAvlTree' },
     { tag: 'SHeader' },
     { tag: 'SPreHeader' },
