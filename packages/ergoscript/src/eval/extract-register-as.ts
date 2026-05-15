@@ -33,6 +33,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { sTypeEquals } from '../mir/stype-helpers'
 import { bytesToCollByteSValue } from './_byte-coll'
+import { creationInfoTupleSValue, SINT, SCOLL_BYTE } from './_box-synthesis'
 
 // Cost source: sigma-rust eval/extract_reg_as.rs:21 — ctx.add_jit_cost(50)
 // Pattern A (envelope BEFORE eval-child).
@@ -40,17 +41,15 @@ const EXTRACT_REGISTER_AS_COST = 50
 
 // Cached SType singletons for the mandatory register synthesis.
 // Matches sigma-rust's `get_register` match arms.
+// SINT and SCOLL_BYTE are imported from _box-synthesis (shared with ExtractCreationInfo).
 const SLONG: SType = { tag: 'SLong' }
-const SINT: SType = { tag: 'SInt' }
-const SBYTE: SType = { tag: 'SByte' }
-const SCOLL_BYTE: SType = { tag: 'SColl', elem: SBYTE }
 // R2: SColl[STuple[SColl[SByte], SLong]]
 const STUPLE_COLLBYTE_LONG: SType = {
   tag: 'STuple',
   items: [SCOLL_BYTE, SLONG],
 }
 const SCOLL_TOKEN: SType = { tag: 'SColl', elem: STUPLE_COLLBYTE_LONG }
-// R3: STuple[SInt, SColl[SByte]]
+// R3: STuple[SInt, SColl[SByte]] — SINT and SCOLL_BYTE imported from _box-synthesis
 const STUPLE_INT_COLLBYTE: SType = {
   tag: 'STuple',
   items: [SINT, SCOLL_BYTE],
@@ -74,29 +73,6 @@ function tokensToCollTupleSValue(
     ],
   }))
   return { kind: 'Coll', elem: STUPLE_COLLBYTE_LONG, items }
-}
-
-/**
- * Build an SValue for R3: STuple[SInt, SColl[SByte]] from box creation info.
- *
- * Mirrors sigma-rust `ergo_box.rs:186-191` `creation_info()`:
- *   (self.creation_height as i32, bytes)
- * where bytes = txId (32 bytes) ++ index as BE u16 (2 bytes) = 34 bytes total.
- *
- * The TS `ErgoBox.index` is a number (u16) and `txId` is a Uint8Array (32 bytes).
- */
-function creationInfoTupleSValue(box: ErgoBox): SValue {
-  const combined = new Uint8Array(34)
-  combined.set(box.txId, 0)
-  combined[32] = (box.index >> 8) & 0xff
-  combined[33] = box.index & 0xff
-  return {
-    kind: 'Tuple',
-    items: [
-      { kind: 'Int', value: box.creationHeight },
-      bytesToCollByteSValue(combined),
-    ],
-  }
 }
 
 /**

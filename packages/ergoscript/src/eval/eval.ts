@@ -29,6 +29,7 @@ import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalDowncast } from './downcast'
 import { evalExtractAmount } from './extract-amount'
+import { evalExtractCreationInfo } from './extract-creation-info'
 import { evalExtractRegisterAs } from './extract-register-as'
 import { evalExtractScriptBytes } from './extract-script-bytes'
 import { evalFuncValue } from './func-value'
@@ -82,6 +83,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalDowncast(e, env, ctx)
     case 'ExtractAmount':
       return evalExtractAmount(e, env, ctx)
+    case 'ExtractCreationInfo':
+      return evalExtractCreationInfo(e, env, ctx)
     case 'ExtractRegisterAs':
       return evalExtractRegisterAs(e, env, ctx)
     case 'ExtractScriptBytes':
