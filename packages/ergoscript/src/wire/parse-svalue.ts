@@ -233,7 +233,7 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       return { kind: 'SigmaProp', value: parseSigmaBoolean(r) }
 
     case 'SBox': {
-      // SBox wire encoding (sigma-rust `chain/ergo_box.rs:202-225`).
+      // SBox wire encoding (sigma-rust `chain/ergo_box.rs:201-223`).
       //
       // Read sequence (sigma-rust reads into ErgoBoxCandidate then appends
       // tx_id + index for full ErgoBox):

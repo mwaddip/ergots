@@ -233,7 +233,7 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
     }
 
     case 'SBox': {
-      // SBox wire encoding (sigma-rust `chain/ergo_box.rs:202-223`).
+      // SBox wire encoding (sigma-rust `chain/ergo_box.rs:201-223`).
       //
       // Write sequence:
       //   value           — VLQ u64 (BoxValue, unsigned)
@@ -280,6 +280,18 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
         .map((k) => Number(k))
         .filter((k) => k >= 4 && k <= 9 && box.registers[k] !== undefined)
         .sort((a, b) => a - b)
+      // Sigma-rust enforces that NonMandatoryRegisters are densely packed
+      // (R4, R5, …, Rk with no gaps) — see register.rs:223 NonDenselyPacked.
+      // A gapped register set would silently mis-assign registers on parse
+      // (the parser re-indexes from R4 regardless of what the caller put in).
+      for (let i = 0; i < regKeys.length; i++) {
+        if (regKeys[i] !== 4 + i) {
+          throw new SValueSerializeError(
+            `SBox registers must be densely packed from R4; found gap before R${4 + i}`,
+            'sbox-registers-not-dense'
+          )
+        }
+      }
       w.writeU8(regKeys.length) // raw u8, NOT VLQ
       for (const k of regKeys) {
         const entry = box.registers[k]!
@@ -297,6 +309,12 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       w.writeBytes(box.txId)
 
       // index (VLQ u16 — sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE)
+      if (box.index < 0 || box.index > 0xffff) {
+        throw new SValueSerializeError(
+          `SBox index ${box.index} out of u16 range`,
+          'sbox-index-out-of-range'
+        )
+      }
       w.writeVlqU(box.index)
       return
     }

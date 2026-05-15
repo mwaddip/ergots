@@ -8,7 +8,7 @@
  *   3. Calls `serializeSValue({ tag: 'SBox' }, v, writer)` to re-serialize.
  *   4. Asserts byte-for-byte equality with the original.
  *
- * Wire format (sigma-rust `chain/ergo_box.rs:202-223`):
+ * Wire format (sigma-rust `chain/ergo_box.rs:201-223`):
  *   value           — VLQ u64 (BoxValue)
  *   ergo_tree_bytes — self-delimiting ErgoTree bytes (header + optional body)
  *   creation_height — VLQ u32
@@ -19,18 +19,25 @@
  *   index           — VLQ u16
  *
  * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/ergo_box.rs:202-225
+ *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/ergo_box.rs:201-223
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/ergo_box/register.rs:119-167
  *   ~/projects/sigma-rust/sigma-rust/sigma-ser/src/vlq_encode.rs (put_u16 = VLQ)
  */
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import { readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parseSValue } from '../../src/wire/parse-svalue'
-import { serializeSValue } from '../../src/wire/serialize-svalue'
+import { serializeSValue, SValueSerializeError } from '../../src/wire/serialize-svalue'
 import { ByteReader } from '../../src/wire/reader'
 import { ByteWriter } from '../../src/wire/writer'
+import type { ErgoBox } from '../../src/mir/types'
+
+// In ESM, __dirname is not defined; derive it from import.meta.url. node:url
+// is a node-only import, allowed in test files per the browser-first rule.
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 interface SboxFixtureEntry {
   name: string
@@ -50,11 +57,23 @@ function hexToBytes(hex: string): Uint8Array {
   return result
 }
 
-const fixturePath = join(
-  import.meta.dirname ?? __dirname,
-  '../fixtures/wire/sbox-roundtrip.json'
-)
+const fixturePath = join(__dirname, '../fixtures/wire/sbox-roundtrip.json')
 const fixture: SboxFixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
+
+/** Minimal valid ErgoBox for serialize error tests. */
+function makeMinimalBox(overrides: Partial<ErgoBox> = {}): ErgoBox {
+  return {
+    value: 1000000n,
+    // Minimal ErgoTree: header=0x08 (hasSize=true), bodySize VLQ=0x00 (0 bytes)
+    ergoTreeBytes: new Uint8Array([0x08, 0x00]),
+    registers: {},
+    tokens: [],
+    creationHeight: 0,
+    txId: new Uint8Array(32),
+    index: 0,
+    ...overrides,
+  }
+}
 
 describe('SBox wire round-trip', () => {
   for (const entry of fixture.entries) {
@@ -78,4 +97,50 @@ describe('SBox wire round-trip', () => {
       expect(roundtripped).toEqual(original)
     })
   }
+})
+
+describe('SBox serialize error guards', () => {
+  it("rejects gapped registers (R5 present, R4 absent) with 'sbox-registers-not-dense'", () => {
+    const box = makeMinimalBox({
+      registers: {
+        // R5 present (key=5) but R4 (key=4) is absent — a gap
+        5: { tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 0n } },
+      },
+    })
+    const v = { kind: 'Box' as const, value: box }
+    const w = new ByteWriter()
+    expect(() => serializeSValue({ tag: 'SBox' }, v, w)).toThrow(SValueSerializeError)
+    try {
+      serializeSValue({ tag: 'SBox' }, v, w)
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('sbox-registers-not-dense')
+    }
+  })
+
+  it("rejects index > 0xffff with 'sbox-index-out-of-range'", () => {
+    const box = makeMinimalBox({ index: 70000 })
+    const v = { kind: 'Box' as const, value: box }
+    const w = new ByteWriter()
+    expect(() => serializeSValue({ tag: 'SBox' }, v, w)).toThrow(SValueSerializeError)
+    try {
+      serializeSValue({ tag: 'SBox' }, v, w)
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('sbox-index-out-of-range')
+    }
+  })
+
+  it("rejects negative index with 'sbox-index-out-of-range'", () => {
+    const box = makeMinimalBox({ index: -1 })
+    const v = { kind: 'Box' as const, value: box }
+    const w = new ByteWriter()
+    expect(() => serializeSValue({ tag: 'SBox' }, v, w)).toThrow(SValueSerializeError)
+    try {
+      serializeSValue({ tag: 'SBox' }, v, w)
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('sbox-index-out-of-range')
+    }
+  })
 })
