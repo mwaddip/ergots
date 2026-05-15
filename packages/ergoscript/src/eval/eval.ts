@@ -18,6 +18,7 @@ import type { Expr, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { evalAnd } from './and'
 import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
 import { evalBlockValue } from './block-value'
@@ -36,6 +37,8 @@ import { evalValUse } from './val-use'
 
 export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {
+    case 'And':
+      return evalAnd(e, env, ctx)
     case 'Const':
       return evalConst(e, env, ctx)
     case 'ConstPlaceholder':

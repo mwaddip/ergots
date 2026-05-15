@@ -98,6 +98,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/upcast.json", &upcast_fixture)?;
     let downcast_fixture = cmds::ergoscript::eval::downcast::generate()?;
     write_ergoscript_json("eval/downcast.json", &downcast_fixture)?;
+    let and_fixture = cmds::ergoscript::eval::and::generate()?;
+    write_ergoscript_json("eval/and.json", &and_fixture)?;
 
     Ok(())
 }

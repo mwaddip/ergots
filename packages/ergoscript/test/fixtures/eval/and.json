@@ -1,0 +1,114 @@
+{
+  "corpus": "eval_and",
+  "entries": [
+    {
+      "name": "and_empty",
+      "tree_bytes_hex": "00960d00",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_single_true",
+      "tree_bytes_hex": "00960d0101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_single_false",
+      "tree_bytes_hex": "00960d0100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_all_true_3",
+      "tree_bytes_hex": "00960d0307",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_all_true_10",
+      "tree_bytes_hex": "00960d0aff03",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_all_false_3",
+      "tree_bytes_hex": "00960d0300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_mixed_one_false",
+      "tree_bytes_hex": "00960d040b",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_n32_all_true",
+      "tree_bytes_hex": "00960d20ffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_n33_all_true",
+      "tree_bytes_hex": "00960d21ffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_cost_limit_exceeded",
+      "tree_bytes_hex": "00960d0307",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}
