@@ -27,6 +27,7 @@ import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalDowncast } from './downcast'
+import { evalFuncValue } from './func-value'
 import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
 import { evalNegation } from './negation'
@@ -72,6 +73,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalUpcast(e, env, ctx)
     case 'Downcast':
       return evalDowncast(e, env, ctx)
+    case 'FuncValue':
+      return evalFuncValue(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
