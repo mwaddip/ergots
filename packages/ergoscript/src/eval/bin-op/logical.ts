@@ -10,8 +10,9 @@
  * Cost: Fixed(20) per sigma-rust bin_op.rs:213:
  *   BinOpKind::Logical(_) => { ctx.add_jit_cost(20)?; }
  *
- * Envelope cost is charged before evaluating either operand (matching
- * sigma-rust's ordering: add_jit_cost → eval left → conditional eval right).
+ * Envelope cost is charged AFTER left-eval and BEFORE the conditional
+ * right-eval (matches sigma-rust bin_op.rs:213-216: lv = self.left.eval;
+ * add_jit_cost(20); rv = || self.right.eval).
  *
  * Non-Boolean operand on either side → 'bin-op-not-boolean'. This error code
  * is shared with LogicalNot and BoolToSigmaProp.
@@ -39,11 +40,11 @@ export function evalLogicalOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // Guard: should only be called from the central evalBinOp dispatcher.
   if (e.op.kind !== 'Logical') throw new Error('evalLogicalOp: wrong kind')
 
-  // Envelope cost charged before evaluating operands.
-  // sigma-rust bin_op.rs:212-214: add_jit_cost(20) before the dispatch.
-  ctx.addCost(LOGICAL_OP_COST)
-
+  // Step 1: eval left operand first (sigma-rust bin_op.rs:187).
   const left = asBoolean(evalExpr(e.left, env, ctx), 'left')
+
+  // Step 2: charge envelope cost AFTER left-eval (sigma-rust bin_op.rs:212-214).
+  ctx.addCost(LOGICAL_OP_COST)
   const op: LogicalOp = e.op.op
 
   switch (op) {

@@ -14,7 +14,9 @@
  *                      BitShift* => EvalError::Misc("no interpreter eval").
  *
  * Cost: Fixed(1) for the Bit envelope (bin_op.rs:216; inline literal, no
- * named constant in costs.rs), charged before eval of operands.
+ * named constant in costs.rs), charged AFTER left-eval and BEFORE right-eval
+ * (matches sigma-rust bin_op.rs:187-220: lv = self.left.eval; add_jit_cost(1);
+ * rv = || self.right.eval).
  *
  * Operand semantics:
  * - Both operands must share the same numeric kind (Byte/Short/Int/Long/BigInt).
@@ -89,10 +91,6 @@ function fromBI(
 }
 
 export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  // Cost is charged for ALL Bit ops before evaluating operands.
-  // sigma-rust bin_op.rs:215-217: add_jit_cost(1) before the dispatch.
-  ctx.addCost(BIT_OP_COST)
-
   // op.kind === 'Bit' guaranteed by the dispatch in bin-op.ts
   if (e.op.kind !== 'Bit') throw new Error('evalBitOp: wrong kind')
   const bitOp: BitOp = e.op.op
@@ -110,8 +108,13 @@ export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     )
   }
 
-  // Evaluate operands.
+  // Step 1: eval left operand first (sigma-rust bin_op.rs:187).
   const lv = evalExpr(e.left, env, ctx)
+
+  // Step 2: charge envelope cost AFTER left-eval (sigma-rust bin_op.rs:215-217).
+  ctx.addCost(BIT_OP_COST)
+
+  // Step 3: eval right operand.
   const rv = evalExpr(e.right, env, ctx)
 
   // Left operand must be numeric.
