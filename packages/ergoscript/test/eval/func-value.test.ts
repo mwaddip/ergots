@@ -56,6 +56,7 @@ describe('FuncValue arm — inline', () => {
     expect(value.kind).toBe('Lambda')
     if (value.kind === 'Lambda') {
       expect(value.closure.argIds).toEqual([1, 2])
+      expect(value.closure.capturedEnv).toEqual({})
     }
     expect(ctx.jitCost).toBe(5)
   })
