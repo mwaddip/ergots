@@ -25,6 +25,7 @@ import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
+import { evalDowncast } from './downcast'
 import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
 import { evalNegation } from './negation'
@@ -63,6 +64,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalNegation(e, env, ctx)
     case 'Upcast':
       return evalUpcast(e, env, ctx)
+    case 'Downcast':
+      return evalDowncast(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.

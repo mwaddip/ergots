@@ -1,0 +1,130 @@
+{
+  "corpus": "eval_downcast",
+  "entries": [
+    {
+      "name": "downcast_long_to_int_zero",
+      "tree_bytes_hex": "007d050004",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "downcast_long_to_int_overflow_pos",
+      "tree_bytes_hex": "007d05808080801004",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "downcast-overflow"
+    },
+    {
+      "name": "downcast_long_to_short_zero",
+      "tree_bytes_hex": "007d050003",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "downcast_long_to_short_overflow_pos",
+      "tree_bytes_hex": "007d0580800403",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "downcast-overflow"
+    },
+    {
+      "name": "downcast_long_to_byte_zero",
+      "tree_bytes_hex": "007d050002",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "downcast_long_to_byte_overflow_pos",
+      "tree_bytes_hex": "007d05800202",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "downcast-overflow"
+    },
+    {
+      "name": "downcast_int_to_short_zero",
+      "tree_bytes_hex": "007d040003",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "downcast_int_to_short_overflow_pos",
+      "tree_bytes_hex": "007d0480800403",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "downcast-overflow"
+    },
+    {
+      "name": "downcast_int_to_byte_zero",
+      "tree_bytes_hex": "007d040002",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "downcast_int_to_byte_overflow_pos",
+      "tree_bytes_hex": "007d04800202",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "downcast-overflow"
+    },
+    {
+      "name": "downcast_short_to_byte_zero",
+      "tree_bytes_hex": "007d030002",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "downcast_short_to_byte_overflow_pos",
+      "tree_bytes_hex": "007d03800202",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "downcast-overflow"
+    },
+    {
+      "name": "downcast_int_to_int_noop",
+      "tree_bytes_hex": "007d040004",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 0
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    }
+  ]
+}

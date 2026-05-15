@@ -11,6 +11,7 @@ pub mod collection;
 pub mod common;
 pub mod const_arm;
 pub mod const_placeholder;
+pub mod downcast;
 pub mod if_arm;
 pub mod logical_not;
 pub mod negation;
