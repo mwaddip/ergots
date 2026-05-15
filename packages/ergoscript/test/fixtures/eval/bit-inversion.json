@@ -1,0 +1,170 @@
+{
+  "corpus": "eval_bit_inversion",
+  "entries": [
+    {
+      "name": "bit_inversion_byte_zero",
+      "tree_bytes_hex": "00f10200",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -1
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_byte_max",
+      "tree_bytes_hex": "00f1027f",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -128
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_byte_min",
+      "tree_bytes_hex": "00f10280",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 127
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_short_zero",
+      "tree_bytes_hex": "00f10300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": -1
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_short_max",
+      "tree_bytes_hex": "00f103feff03",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": -32768
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_short_min",
+      "tree_bytes_hex": "00f103ffff03",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 32767
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_int_zero",
+      "tree_bytes_hex": "00f10400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -1
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_int_max",
+      "tree_bytes_hex": "00f104feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -2147483648
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_int_min",
+      "tree_bytes_hex": "00f104ffffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 2147483647
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_long_zero",
+      "tree_bytes_hex": "00f10500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-1"
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_long_max",
+      "tree_bytes_hex": "00f105feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775808"
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_long_min",
+      "tree_bytes_hex": "00f105ffffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_bigint_zero",
+      "tree_bytes_hex": "00f1060100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_bigint_max",
+      "tree_bytes_hex": "00f106207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-57896044618658097711785492504343953926634992332820282019728792003956564819968"
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    },
+    {
+      "name": "bit_inversion_bigint_min",
+      "tree_bytes_hex": "00f106208000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+      },
+      "expected_cost": 6,
+      "expected_error_code": null
+    }
+  ]
+}

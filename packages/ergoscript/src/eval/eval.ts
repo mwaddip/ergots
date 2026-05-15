@@ -19,6 +19,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalBinOp } from './bin-op'
+import { evalBitInversion } from './bit-inversion'
 import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalCollection } from './collection'
@@ -54,6 +55,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalLogicalNot(e, env, ctx)
     case 'BoolToSigmaProp':
       return evalBoolToSigmaProp(e, env, ctx)
+    case 'BitInversion':
+      return evalBitInversion(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
