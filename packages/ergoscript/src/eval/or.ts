@@ -24,9 +24,12 @@
  * in Task 1).
  *
  * Note: the kind-check is duplicated with `and.ts` (~5 LOC each).
- * Intentional per slice A's `sTypeToNumericKind` YAGNI precedent —
- * promote to a shared `_coll.ts` helper when a third caller appears
- * (likely `XorOf` / `ForAll` / `Exists` in later phases).
+ * Intentional per slice A's `sTypeToNumericKind` YAGNI precedent.
+ * As of phase 2e, `xor-of.ts` is the third caller and ALSO kept its
+ * kind-check inline (the marginal extraction value didn't justify a
+ * refactor when only `ForAll` / `Exists` remain as plausible future
+ * callers). The shared `_coll.ts` helper remains deferred — revisit
+ * at phase 2f if `ForAll` or `Exists` lands.
  */
 
 import type { Or, SValue } from '../mir/types'
