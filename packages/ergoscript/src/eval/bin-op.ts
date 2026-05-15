@@ -7,7 +7,6 @@
 import type { BinOp, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
 import { evalArithOp } from './bin-op/arith'
 import { evalRelationOp } from './bin-op/relation'
 import { evalLogicalOp } from './bin-op/logical'
@@ -20,11 +19,10 @@ export function evalBinOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     case 'Logical':  return evalLogicalOp(e, env, ctx)
     case 'Bit':      return evalBitOp(e, env, ctx)
     default: {
+      // Exhaustiveness gate: BinOpKind is a closed 4-member union.
+      // Compile-time unreachable; plain Error matches the sub-arms' wrong-kind guards.
       const _exhaust: never = e.op
-      throw new EvalError(
-        `evalBinOp: unreachable kind ${JSON.stringify(_exhaust)}`,
-        'bin-op-unknown-kind'
-      )
+      throw new Error(`evalBinOp: unreachable kind ${JSON.stringify(_exhaust)}`)
     }
   }
 }
