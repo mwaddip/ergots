@@ -11,16 +11,13 @@ const boolConst = (b: boolean): Expr =>
   ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: b } })
 
 describe('BinOp central dispatch — routes to per-family sub-arms', () => {
-  // Arith/Relation are still skeletons that throw 'not-implemented-yet'.
-  // Bit and Logical are now fully implemented (phase 2c Tasks 4 + 5).
+  // Arith is still a skeleton that throws 'not-implemented-yet'.
+  // Bit, Logical, and Relation (ordering subset) are now fully implemented
+  // (phase 2c Tasks 4, 5, and 6). Eq/NEq still throw 'not-implemented-yet'.
   const notYetCases: Array<{ name: string; expr: BinOp }> = [
     {
       name: 'Arith routes to evalArithOp',
       expr: { tag: 'BinOp', op: { kind: 'Arith', op: 'Plus' }, left: intConst(1), right: intConst(2) },
-    },
-    {
-      name: 'Relation routes to evalRelationOp',
-      expr: { tag: 'BinOp', op: { kind: 'Relation', op: 'Eq' }, left: intConst(1), right: intConst(1) },
     },
   ]
 
@@ -39,7 +36,7 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
         expect(code).toBe('not-implemented-yet')
         // Message must come from the family skeleton, not from the central
         // dispatch's default. Each family says its own name.
-        expect(message).toMatch(/Arith|Relation/)
+        expect(message).toMatch(/Arith/)
       }
     })
   }
@@ -74,5 +71,39 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
     expect(value).toEqual({ kind: 'Boolean', value: false })
     // Cost = LOGICAL_OP_COST(20) + left_Const(5) + right_Const(5) = 30
     expect(ctx.jitCost).toBe(30)
+  })
+
+  // Relation (ordering) is implemented (task 6): assert routing AND correct value.
+  // Lt(1, 2) = true.
+  it('Relation routes to evalRelationOp and computes correctly (ordering)', () => {
+    const expr: BinOp = {
+      tag: 'BinOp',
+      op: { kind: 'Relation', op: 'Lt' },
+      left: intConst(1),
+      right: intConst(2),
+    }
+    const ctx = makeContext()
+    const value = evalExpr(expr, Env.empty(), ctx)
+    expect(value).toEqual({ kind: 'Boolean', value: true })
+    // Cost = RELATION_ORDERING_COST(20) + left_Const(5) + right_Const(5) = 30
+    expect(ctx.jitCost).toBe(30)
+  })
+
+  // Eq/NEq still throw 'not-implemented-yet' — task 7 lands them.
+  it('Relation Eq still throws not-implemented-yet (task 7 deferred)', () => {
+    const expr: BinOp = {
+      tag: 'BinOp',
+      op: { kind: 'Relation', op: 'Eq' },
+      left: intConst(1),
+      right: intConst(1),
+    }
+    const ctx = makeContext()
+    expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
+    try {
+      evalExpr(expr, Env.empty(), ctx)
+    } catch (e) {
+      expect((e as EvalError).code).toBe('not-implemented-yet')
+      expect((e as EvalError).message).toMatch(/Eq/)
+    }
   })
 })
