@@ -52,7 +52,9 @@
 //! 100`. At V0/V1/V2, sigma-rust hits the `_ => Err(...)` fallthrough arms
 //! (lines 49, 66, 87, 104) which return "cannot downcast" — a version-gating
 //! rejection. Phase 2e adds explicit error entries for V0/V1/V2 with code
-//! 'tree-version-too-low'. Happy-path BigInt → primitive entries use V3.
+//! 'tree-version-too-low'. V3 happy-path BigInt → primitive entries are
+//! deferred to a follow-on task (needs a `success_entry_with_version` helper
+//! matching the one in `upcast.rs`, plus oracle calls that work at V3).
 //!
 //! V3 gating (phase 2e task 1): source=BigInt requires tree_version >= V3
 //! regardless of target kind. Every `downcast_to_*` function in sigma-rust
