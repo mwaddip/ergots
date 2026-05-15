@@ -33,9 +33,8 @@
  *   - cost-limit: jitCostLimit=1 < Fixed(50) → 'cost-limit-exceeded'
  *
  * Error paths tested inline:
- *   - 'extract-input-not-box': hand-built MIR node with Const(SInt) input.
- *   - 'register-type-mismatch' inline verification (additional check).
- *   - 'register-id-out-of-range' inline verification (registerId=-1 and 10).
+ *   - 'extract-input-not-box' inline guard: Const(SInt, 5) input.
+ *   - 'extract-input-not-box' inline guard: Const(SBoolean, true) input.
  *
  * Note: 'register-type-mismatch' and 'register-id-out-of-range' ARE triggered via
  * fixtures because sigma-rust's ExtractRegisterAs::new accepts any i8 at construction
@@ -94,7 +93,7 @@ describe('ExtractRegisterAs arm — fixture-driven', () => {
   }
 })
 
-describe('ExtractRegisterAs arm — defensive kind-check', () => {
+describe('ExtractRegisterAs arm — extract-input-not-box guard', () => {
   it('throws extract-input-not-box when input is not a Box', () => {
     // Hand-built MIR node bypassing sigma-rust's try_build SBox-type check.
     // sigma-rust ExtractRegisterAs::new rejects non-SBox at construction time;
