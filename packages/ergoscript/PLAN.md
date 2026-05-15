@@ -1,24 +1,22 @@
-# Phase 2d Slice A Implementation Plan — `@mwaddip/ergots-ergoscript`
+# Phase 2d Slice B Implementation Plan — `@mwaddip/ergots-ergoscript`
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the four numeric-polymorphism unary arms — `Negation`, `BitInversion`, `Upcast`, `Downcast` — wired into the central exhaustive dispatch from phase 2b. 4 new arm modules, plus one small Step-1 refactor promoting `checkRange` + `maskToKind` from `bin-op/{arith,bit}.ts` into the shared `bin-op/_numeric.ts`. Public surface unchanged from v0.2.0; one new `EvalError` code (`'downcast-overflow'`) added additively. Internal arm growth only.
+**Goal:** Ship the two `Coll[Boolean]` aggregator arms — `And` and `Or` — wired into the central exhaustive dispatch from phase 2b. 2 new arm modules; one new `EvalError` code (`'coll-not-boolean'`) added additively. Public surface unchanged from v0.2.0. Internal arm growth only. **17 of ~70 `Expr` variants wired after slice B** (was 15 after 2d-A).
 
-**Architecture:** Four standalone arm files at the per-arm grain (`negation.ts`, `bit-inversion.ts`, `upcast.ts`, `downcast.ts`), matching 2c's `logical-not.ts` / `bool-to-sigma-prop.ts` precedent. The Step-1 refactor pulls two kind-aware numeric helpers into `_numeric.ts` so the new top-level arms don't reach across into the sub-arm modules under `bin-op/`. `checkRange` gains a third parameter (error code string) so 2c arith callers continue passing `'arith-overflow'` while the new downcast caller passes `'downcast-overflow'`. Costs copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`); asserted via Layer C1 fixture-gen oracles from day one.
+**Architecture:** Two standalone arm files at the per-arm grain (`and.ts`, `or.ts`), matching 2c/2d-A's per-arm precedent. Both arms follow the same four-step shape (eval child → kind-check → cost-charge → reduce). The kind-check throws `'coll-not-boolean'` when the input isn't `Coll[Boolean]` — inlined in both arms; no shared helper extraction yet (YAGNI per slice A's `sTypeToNumericKind` precedent — wait for the third caller in `XorOf` / `ForAll` / `Exists`). Costs charged AFTER eval-child (the Cast pattern from 2d-A's Upcast/Downcast, since the cost depends on the resulting collection length). `addPerItemCost` is already wired into `EvalContext` from phase 2b.
 
-**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf` via the `arbitrary` feature + `try_eval_out::<Value<'static>>` wedge (same pattern as 2b/2c). No new runtime deps; no new dev deps.
+**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf` via the `arbitrary` feature + `try_eval_out::<Value<'static>>` wedge (same pattern as 2b/2c/2d-A). No new runtime deps; no new dev deps.
 
-**Source-first discipline:** Read sigma-rust per arm before writing any TS. Authoritative sources for slice A:
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/negation.rs`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bit_inversion.rs`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/upcast.rs`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/downcast.rs`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/costs.rs` (per-arm cost values)
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/{negation,bit_inversion,upcast,downcast}.rs` (MIR shapes — reference for what `e.tpe` carries on Upcast/Downcast)
+**Source-first discipline:** Read sigma-rust per arm before writing any TS. Authoritative sources for slice B:
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/and.rs` — `add_per_item_jit_cost(10, 5, 32, n)` at line 19
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/or.rs` — `add_per_item_jit_cost(5, 5, 64, n)` at line 19
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/and.rs` — `And::input: Box<Expr>` shape + `post_eval_tpe == Coll[Boolean]` invariant
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/or.rs` — same shape
 
-Full design rationale: `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`.
+Full design rationale: `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md`.
 
-**TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each per-arm task follows red → green → cost-assert → corpus-check → commit. The Step-1 refactor follows refactor-then-verify (existing 2c tests are the correctness oracle for the refactor).
+**TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each per-arm task follows red → green → cost-assert → corpus-check → commit. Both arms are nearly identical in shape; task 2 mostly mirrors task 1.
 
 ---
 
@@ -28,44 +26,45 @@ Full design rationale: `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`.
 
 | Path | Responsibility |
 |---|---|
-| `packages/ergoscript/src/eval/negation.ts` | `evalNegation` arm |
-| `packages/ergoscript/src/eval/bit-inversion.ts` | `evalBitInversion` arm |
-| `packages/ergoscript/src/eval/upcast.ts` | `evalUpcast` arm |
-| `packages/ergoscript/src/eval/downcast.ts` | `evalDowncast` arm |
-| `packages/ergoscript/test/eval/negation.test.ts` | Negation fixture-driven test |
-| `packages/ergoscript/test/eval/bit-inversion.test.ts` | BitInversion fixture-driven test |
-| `packages/ergoscript/test/eval/upcast.test.ts` | Upcast fixture-driven test |
-| `packages/ergoscript/test/eval/downcast.test.ts` | Downcast fixture-driven test |
-| `packages/ergoscript/test/fixtures/eval/negation.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/bit-inversion.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/upcast.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/downcast.json` | Generated by fixture-gen |
+| `packages/ergoscript/src/eval/and.ts` | `evalAnd` arm |
+| `packages/ergoscript/src/eval/or.ts` | `evalOr` arm |
+| `packages/ergoscript/test/eval/and.test.ts` | And fixture-driven test |
+| `packages/ergoscript/test/eval/or.test.ts` | Or fixture-driven test |
+| `packages/ergoscript/test/fixtures/eval/and.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/or.json` | Generated by fixture-gen |
 
 **New files (Rust fixture-gen):**
 
 | Path | Responsibility |
 |---|---|
-| `fixture-gen/src/cmds/ergoscript/eval/negation.rs` | Negation fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs` | BitInversion fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/upcast.rs` | Upcast fixtures (all valid widening pairs) |
-| `fixture-gen/src/cmds/ergoscript/eval/downcast.rs` | Downcast fixtures (narrowing pairs + overflow) |
+| `fixture-gen/src/cmds/ergoscript/eval/and.rs` | And fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/or.rs` | Or fixtures |
 
 **Modified files:**
 
 | Path | Modification |
 |---|---|
-| `packages/ergoscript/src/eval/bin-op/_numeric.ts` | Gains `checkRange(value, kind, errorCode)` (promoted from `arith.ts`) and `maskToKind(value, kind)` (promoted from `bit.ts`) |
-| `packages/ergoscript/src/eval/bin-op/arith.ts` | Re-imports `checkRange` from `_numeric.ts`; passes `'arith-overflow'` as the third argument. Behavior unchanged. |
-| `packages/ergoscript/src/eval/bin-op/bit.ts` | Re-imports `maskToKind` from `_numeric.ts`. Behavior unchanged. |
-| `packages/ergoscript/src/eval/eval.ts` | Adds 4 `case` lines to central dispatch: `Negation` → `evalNegation`, `BitInversion` → `evalBitInversion`, `Upcast` → `evalUpcast`, `Downcast` → `evalDowncast` |
-| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Re-export the 4 new per-arm modules |
-| `fixture-gen/src/main.rs` | Wire 4 new eval fixture commands into the generator pipeline |
-| `facts/ergoscript.md` | Extend v0.2.0 EvalError taxonomy with `'downcast-overflow'`; bump "Coverage after" line from 11 to 15 (additive, no breaking changes) |
+| `packages/ergoscript/src/eval/eval.ts` | Adds 2 `case` lines to central dispatch: `And` → `evalAnd`, `Or` → `evalOr`. Also adds the two imports. |
+| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Add `pub mod and;` and `pub mod or;` |
+| `fixture-gen/src/main.rs` | Wire 2 new eval fixture commands into the generator pipeline (alongside existing `negation`, `bit_inversion`, `upcast`, `downcast` calls around line 94) |
+| `facts/ergoscript.md` | Extend v0.2.0 EvalError taxonomy with `'coll-not-boolean'`; add a phase 2d-B "Ships additionally" block; bump "Coverage after 2d-A: 15" to "Coverage after 2d-B: 17"; extend the "Does NOT ship yet" section with the slice B Deferred-variants table |
+| `SESSION_CONTEXT.md` | Reflect phase 2d-B done state (in Task 3) |
+
+**Memory files modified/created** (Task 3):
+
+| Path | Modification |
+|---|---|
+| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_treeversion_v3_gating_deferred.md` | RENAME to `project_treeversion_gating_deferred.md`; extend body to fold in `XorOf` (V0/V1 vs V2+ semantics drift) alongside the existing Upcast/Downcast V3 gating |
+| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md` | CREATE — covers `Atleast`/`SigmaAnd`/`SigmaOr` deferral to phase 2g |
+| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` | UPDATE — phase 2d-B done; next is phase 2e (lambdas + chain-state Context, where `treeVersion` lands) |
+| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md` | UPDATE the entries for the renamed/new/updated memories |
 
 **Unchanged (deliberately):**
 
 - `packages/ergoscript/src/index.ts` — public surface unchanged; no version bump in `package.json` (no publish during phase 2 progression)
 - `packages/ergoscript/test/_helpers/index.ts` — `hexToBytes` / `hydrateSValue` / `captureEvalError` already cover every new test file
+- `packages/ergoscript/src/mir/types.ts` — `And` and `Or` interfaces already exist (lines 398-405)
+- `packages/ergoscript/src/wire/parse.ts` / `serialize.ts` — wire-format support for `And`/`Or` already shipped in phase 2a
 
 ---
 
@@ -73,34 +72,39 @@ Full design rationale: `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`.
 
 These apply to every task. Don't repeat them per-task.
 
-**Per-task arc (per-arm tasks 2–5):**
+**Per-task arc (arm tasks 1 and 2):**
 1. Read sigma-rust source for the arm (cited path in each task).
 2. Write the fixture-gen Rust module.
 3. Run `cargo run --release -p fixture-gen` from repo root; verify the new fixture file is committed.
-4. Write the failing TS test (red).
-5. Run `npx vitest run packages/ergoscript/test/eval/<arm>.test.ts`; verify FAIL with expected reason.
-6. Write the minimal TS arm implementation (green).
-7. Wire the arm into central dispatch (`eval/eval.ts`).
-8. Run the per-arm test; verify PASS.
-9. Run the full ergoscript suite: `npx vitest run packages/ergoscript/`; verify all previous tests still pass.
-10. Run `npx tsc --noEmit -p packages/ergoscript`; verify zero errors.
-11. Commit fixture-gen + fixtures + TS in one commit per task.
+4. Verify determinism (two consecutive runs produce byte-identical output).
+5. Write the failing TS test (red).
+6. Run `npx vitest run packages/ergoscript/test/eval/<arm>.test.ts`; verify FAIL with expected reason (`'not-implemented-yet'` for the as-yet-unwired tag).
+7. Write the minimal TS arm implementation (green).
+8. Wire the arm into central dispatch (`eval/eval.ts`).
+9. Run the per-arm test; verify PASS.
+10. Add inline TS tests for the non-Coll[Boolean] error path (hand-built MIR nodes, bypass `try_build`).
+11. Run the full ergoscript suite: `npx vitest run packages/ergoscript/`; verify all previous tests still pass.
+12. Run `npx tsc --noEmit -p packages/ergoscript`; verify zero errors.
+13. Two-stage review (spec compliance + code quality).
+14. Commit fixture-gen + fixtures + TS in one commit per task.
 
-**Fixture-gen execution:** Always `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Output goes to `packages/ergoscript/test/fixtures/eval/<arm>.json`. Two consecutive runs must produce byte-identical output (determinism check); if they don't, investigate before commit (likely `TestRunner::default()` vs `::deterministic()` — see memory `project_fixture_gen_cargo_gotchas`).
+**Fixture-gen execution:** Always `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Output goes to `packages/ergoscript/test/fixtures/eval/<arm>.json`. Two consecutive runs must produce byte-identical output (determinism check); if they don't, investigate before commit (see memory `project_fixture_gen_cargo_gotchas`).
 
-**Cost values:** Read from sigma-rust per arm. Each TS arm's header comment cites `eval/<file>.rs:LINE`. Don't hardcode cost integers in this plan — the fixture-gen `expected_cost` field is the source of truth (lesson from 2c: every plan-stated cost value was wrong).
+**Cost values:** Read from sigma-rust per arm. Each TS arm's header comment cites `eval/<file>.rs:LINE`. The And/Or cost values are visible in source as `add_per_item_jit_cost(base, perChunk, chunkSize, n)` calls; the brainstorm read them as `(10, 5, 32, n)` for And and `(5, 5, 64, n)` for Or. The C1 fixture's cost-equality assertion is the gate — if source has drifted between `ed5452cf` and impl date, the source values still win.
 
-**Cost-charging order:** Source-read per arm. Unary arms could plausibly charge envelope before OR after eval-child; sigma-rust's `LogicalNot` and `If` charge before, `BinOp` charges after-left-before-right. C1 fixture's cost-equality assertion locks whichever order the source uses.
+**Cost-charging order:** AFTER eval-child for both arms. Sigma-rust evals input first (line 17 of each file), then charges cost based on the resulting collection's length (line 19). This is the Cast pattern from 2d-A's Upcast/Downcast (cost depends on the runtime data). C1 fixture cost-equality locks the order.
+
+**Empty-Coll behavior:** `And([]) → true` (vacuous truth; `iter().all` returns true on empty); `Or([]) → false` (identity of Or; `iter().any` returns false on empty). The asymmetry is the most-likely-to-confuse case — both arms have an explicit empty-Coll fixture entry.
 
 **Browser compatibility checks:** Every new TS module follows the existing hard rules (no `Buffer`, no `node:*` outside test files, no `globalThis.crypto`, no WASM, ESM only, no top-level await). The existing browser-compat scan in tests already covers `dist/`; no plan changes needed.
 
 **Two-stage review (per task):** After each task's green-+-typecheck-passes state, dispatch two parallel review subagents:
-- **Spec-compliance reviewer** — reads `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`, the task's section in this PLAN, and the diff. Verifies behavior matches the design (error codes, cost source-line citation, kind-handling semantics).
-- **Code-quality reviewer** — reads the diff. Verifies test style consistency with 2b/2c (uses `captureEvalError` helper, uses `hydrateSValue`, follows existing fixture-loop pattern), TS idioms (no `any` leaking), and code comments cite sigma-rust source lines.
+- **Spec-compliance reviewer** — reads `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md`, the task's section in this PLAN, and the diff. Verifies behavior matches the design (error code `'coll-not-boolean'`, cost source-line citation, cost-charging order is AFTER eval-child, empty-Coll returns the right vacuous-truth direction).
+- **Code-quality reviewer** — reads the diff. Verifies test style consistency with 2b/2c/2d-A (uses `captureEvalError` helper, uses `hydrateSValue`, follows existing fixture-loop pattern), TS idioms (no `any` leaking), and code comments cite sigma-rust source lines.
 
 Address review findings in the same task before committing.
 
-**Commit message style:** `feat(ergoscript): <arm> eval arm (phase 2d-A task N)` for arm tasks; `refactor(ergoscript): promote <helpers> to _numeric.ts (phase 2d-A task 1)` for the refactor task. Co-author trailer mandatory:
+**Commit message style:** `feat(ergoscript): <arm> eval arm (phase 2d-B task N)` for arm tasks. Co-author trailer mandatory:
 
 ```
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
@@ -108,217 +112,127 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 
 ---
 
-## Stage 0 — Refactor (Task 1)
-
-The slice's only non-additive change. Lands first so the four arm tasks can import from `_numeric.ts` without further refactoring.
-
-### Task 1: Promote `checkRange` + `maskToKind` to `_numeric.ts`
+## Task 1: `And` arm + fixture
 
 **Files:**
-- Modify: `packages/ergoscript/src/eval/bin-op/_numeric.ts`
-- Modify: `packages/ergoscript/src/eval/bin-op/arith.ts`
-- Modify: `packages/ergoscript/src/eval/bin-op/bit.ts`
-
-**Sigma-rust source:** N/A — this is a pure TS refactor. The correctness oracle is the existing 2c fixture suite (must continue to pass byte-for-byte after the move).
-
-**Key behavior:**
-- `checkRange(value: bigint, kind: NumericKind, errorCode: string): void` — gains a third parameter so callers control which `EvalError.code` is thrown. 2c arith callers pass `'arith-overflow'`; the upcoming `downcast.ts` will pass `'downcast-overflow'`.
-- `maskToKind(value: bigint, kind: NumericKind): bigint` — signature unchanged. Just moves files.
-
-- [ ] **Step 1: Inspect existing implementations**
-
-Read the current bodies of `checkRange` (in `bin-op/arith.ts`) and `maskToKind` (in `bin-op/bit.ts`). Note any related constants (e.g. signed-range bounds) that need to move with them, and any helpers they depend on (likely `NumericKind` + `valueToBigInt` + `bigIntToValue` from `_numeric.ts` already).
-
-- [ ] **Step 2: Move `checkRange` to `_numeric.ts`, add error-code parameter**
-
-In `packages/ergoscript/src/eval/bin-op/_numeric.ts`, add:
-
-```ts
-import { EvalError } from '../eval-context'
-
-/**
- * Throw `EvalError(errorCode)` if `value` lies outside `kind`'s signed range.
- * Callers control the error code so the same range-check serves both
- * arith overflow ('arith-overflow') and downcast narrowing ('downcast-overflow').
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Arith family) and
- *                 ergotree-interpreter/src/eval/downcast.rs (Downcast).
- */
-export function checkRange(value: bigint, kind: NumericKind, errorCode: string): void {
-  // ... bring across the body from bin-op/arith.ts, but the throw line
-  // uses `errorCode` from the parameter instead of a hardcoded
-  // 'arith-overflow' string.
-}
-```
-
-In `bin-op/arith.ts`, remove the local definition and add `import { checkRange } from './_numeric'`. Replace each call site so it now passes `'arith-overflow'` as the third argument:
-
-```ts
-checkRange(result, lv.kind, 'arith-overflow')
-```
-
-- [ ] **Step 3: Move `maskToKind` to `_numeric.ts`**
-
-In `_numeric.ts`, add:
-
-```ts
-/**
- * Mask `value` to `kind`'s signed range via two's-complement narrow.
- * Used by BinOp.Bit (BitAnd/Or/Xor) and the upcoming BitInversion arm.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Bit family).
- */
-export function maskToKind(value: bigint, kind: NumericKind): bigint {
-  // ... bring across the body from bin-op/bit.ts, unchanged.
-}
-```
-
-In `bin-op/bit.ts`, remove the local definition and add `import { maskToKind } from './_numeric'`.
-
-- [ ] **Step 4: Run the full ergoscript test suite**
-
-```bash
-npx vitest run packages/ergoscript/
-```
-
-**Expected:** all 1473 tests pass (matching 2c's end state). If any 2c arith or bit fixture fails, the refactor introduced a regression — investigate before proceeding.
-
-- [ ] **Step 5: Verify byte-equality on regenerated fixtures**
-
-```bash
-cargo run --release -p fixture-gen
-git status -- packages/ergoscript/test/fixtures/
-```
-
-**Expected:** zero diff. The refactor doesn't touch fixture-gen Rust at all, so output must be byte-identical to committed.
-
-- [ ] **Step 6: Typecheck**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript
-```
-
-**Expected:** zero errors.
-
-- [ ] **Step 7: Two-stage review**
-
-Dispatch parallel reviewers per § Conventions. Spec-compliance reviewer checks: `checkRange` signature gains exactly one parameter (error code); all 2c call sites pass `'arith-overflow'`; `maskToKind` is byte-identical to its prior implementation. Code-quality reviewer checks: comments cite sigma-rust source; no dead imports left behind in `arith.ts` or `bit.ts`; `_numeric.ts` exports are alphabetically sorted (matches existing module convention).
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bin-op/_numeric.ts \
-        packages/ergoscript/src/eval/bin-op/arith.ts \
-        packages/ergoscript/src/eval/bin-op/bit.ts
-git commit -m "$(cat <<'EOF'
-refactor(ergoscript): promote checkRange + maskToKind to _numeric.ts (phase 2d-A task 1)
-
-Both helpers were 2c-private inside bin-op/{arith,bit}.ts. Slice A's
-upcoming Downcast arm needs checkRange (with a 'downcast-overflow'
-error code) and BitInversion needs maskToKind. Top-level arms shouldn't
-reach into sub-arm modules; both functions belong in the shared
-_numeric.ts that already owns kind-aware numeric helpers.
-
-checkRange gains a third parameter (error code string) so 2c arith
-callers continue passing 'arith-overflow' while the new downcast arm
-will pass 'downcast-overflow'. maskToKind moves unchanged.
-
-Correctness gate: all 1473 ergoscript tests pass byte-for-byte after
-the move. Fixture-gen output is byte-identical (no regeneration needed).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Stage 1 — Unary numeric, same-kind-out (Tasks 2–3)
-
-Two arms whose output kind equals input kind. BitInversion first (no overflow path); Negation next (introduces `checkRange` use against the input kind).
-
-### Task 2: `BitInversion` arm + fixture
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/and.rs`
 - Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
 - Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/bit-inversion.json`
-- Create: `packages/ergoscript/src/eval/bit-inversion.ts`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/and.json`
+- Create: `packages/ergoscript/src/eval/and.ts`
 - Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/bit-inversion.test.ts`
+- Create: `packages/ergoscript/test/eval/and.test.ts`
 
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bit_inversion.rs`
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/and.rs`
 
-Key behavior: input must evaluate to a numeric kind (Byte/Short/Int/Long/BigInt); return bitwise complement masked to the kind's signed range. No overflow path.
+**Key behavior:** Input must evaluate to a `Coll[Boolean]`; returns `Boolean = items.every(b => b)`; empty Coll returns `true` (vacuous truth). Throws `'coll-not-boolean'` if input value isn't a `Coll` or `Coll` items aren't all `Boolean`. Cost charged AFTER eval-child via `addPerItemCost(10, 5, 32, n)`.
 
 - [ ] **Step 1: Read sigma-rust source**
 
-Read `eval/bit_inversion.rs` start-to-end. Note:
-- The exact cost (`ctx.add_jit_cost(N)?`) and cite the line.
-- The order of operations (cost-before-eval-child vs cost-after-eval-child).
-- The per-kind compute path (likely a match on `Value::Byte | Short | Int | Long | BigInt`).
-- How the result is masked back into the kind's signed range (Rust uses primitive `!` which already wraps).
-
-Also read `ergotree-ir/src/mir/bit_inversion.rs` to confirm the MIR shape (single `input: Box<Expr>`).
+Read `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/and.rs` start-to-end. Verify the cost values `(10, 5, 32, n)` and the cost-after-eval-child order. Also read `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/and.rs` to confirm the MIR shape (`And::input: Box<Expr>` with parse-time `post_eval_tpe == Coll[Boolean]` invariant).
 
 - [ ] **Step 2: Write the fixture-gen Rust module**
 
-`fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs`:
+`fixture-gen/src/cmds/ergoscript/eval/and.rs`:
 
 ```rust
-//! BitInversion arm — fixtures for `Expr::BitInversion(...)` evaluation.
+//! And arm — fixtures for `Expr::And(...)` evaluation.
 //!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs
-//! Cost: Fixed(N) per sigma-rust costs.rs — captured per fixture entry.
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/and.rs:11-22`
+//!   let input_v = self.input.eval(env, ctx)?;
+//!   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
+//!   ctx.add_per_item_jit_cost(10, 5, 32, input_v_bools.len() as u32)?;
+//!   Ok(input_v_bools.iter().all(|b| *b).into())
 //!
-//! 5 numeric kinds × 3 boundary values (0, MAX_K, MIN_K) = 15 entries,
-//! plus 1 non-numeric error case (Boolean input → 'bin-op-not-numeric').
+//! Cost ordering: envelope charged AFTER eval-child. The cost depends on
+//! the runtime length of the resulting collection (Cast pattern from 2d-A).
+//!
+//! Empty-Coll behavior: `And([]) → true` (Rust `iter().all` returns true
+//! on empty; matches JS `Array.prototype.every`).
+//!
+//! Coverage:
+//!   - Empty Coll[Boolean] → true (n=0, vacuous truth).
+//!   - Single-item [true] / [false].
+//!   - All-true at varied lengths.
+//!   - All-false at varied lengths.
+//!   - Mixed with one false (And short-fail).
+//!   - n=32 (exactly one chunk per `chunkSize=32`).
+//!   - n=33 (one full + one partial chunk; chunk-boundary).
+//!   - 1 cost-limit entry (`jitCostLimit` < base cost) → `'cost-limit-exceeded'`.
+//!
+//! Non-Coll[Boolean] error case is NOT generated here. `And::sigma_parse`
+//! requires `post_eval_tpe == Coll[Boolean]` on the input, so we cannot
+//! serialize a malformed tree through the standard path. The TS-side
+//! `'coll-not-boolean'` assertion is covered by inline tests that
+//! construct hand-built MIR nodes (LogicalNot / 2d-A precedent).
 
 use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::bigint256::BigInt256;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::bit_inversion::BitInversion;
+use ergotree_ir::mir::and::And;
+use ergotree_ir::mir::constant::Constant;
+use ergotree_ir::mir::constant::Literal;
 use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::unary_op::OneArgOpTryBuild;
+use ergotree_ir::mir::value::CollKind;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
-use num_traits::Bounded;
+use ergotree_ir::types::stype::SType;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use sigma_test_util::force_any_val;
+use std::sync::Arc;
 
 use super::common::value_to_json;
 
 #[derive(Serialize)]
-pub struct BitInversionFixture {
+pub struct AndFixture {
     pub name: String,
     pub tree_bytes_hex: String,
     pub opts_json: JsonValue,
+    /// null for error entries
     pub expected_value_json: JsonValue,
+    /// 0 for error entries
     pub expected_cost: u64,
+    /// null for success entries
     pub expected_error_code: JsonValue,
 }
 
 #[derive(Serialize)]
-pub struct BitInversionFixtureFile {
+pub struct AndFixtureFile {
     pub corpus: &'static str,
-    pub entries: Vec<BitInversionFixture>,
+    pub entries: Vec<AndFixture>,
+}
+
+/// Wrap a `Vec<bool>` into a `Const(Coll[Boolean])` Expr.
+fn bool_coll_const(bools: Vec<bool>) -> Expr {
+    let literals: Arc<[Literal]> = bools
+        .into_iter()
+        .map(|b| Literal::from(b))
+        .collect();
+    let coll = CollKind::from_collection(SType::SBoolean, literals)
+        .expect("from_collection on SBoolean");
+    Expr::Const(Constant {
+        tpe: SType::SColl(SType::SBoolean.into()),
+        v: Literal::Coll(coll),
+    })
 }
 
 fn build_tree(input: Expr) -> anyhow::Result<(ErgoTree, String)> {
-    let expr: Expr = BitInversion::try_build(input)?.into();
+    // And::sigma_parse takes a single Expr and validates post_eval_tpe ==
+    // Coll[Boolean]. We construct directly via the struct (the parser-side
+    // invariant is the same precondition our parser will enforce).
+    let expr: Expr = And { input: Box::new(input) }.into();
     let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
     let hex = hex::encode(tree.sigma_serialize_bytes()?);
     Ok((tree, hex))
 }
 
-fn success_entry(name: &str, input: Expr) -> anyhow::Result<BitInversionFixture> {
+fn success_entry(name: &str, bools: Vec<bool>) -> anyhow::Result<AndFixture> {
+    let input = bool_coll_const(bools);
     let (tree, hex) = build_tree(input)?;
     let ctx = force_any_val::<Context>();
     let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    Ok(BitInversionFixture {
+    Ok(AndFixture {
         name: name.into(),
         tree_bytes_hex: hex,
         opts_json: json!({}),
@@ -328,107 +242,123 @@ fn success_entry(name: &str, input: Expr) -> anyhow::Result<BitInversionFixture>
     })
 }
 
-fn error_entry(name: &str, input: Expr, code: &str) -> anyhow::Result<BitInversionFixture> {
-    // For non-Boolean→bool error cases, try_build may reject; if so,
-    // build the BitInversion struct directly (sigma-rust permits this
-    // for malformed-tree test purposes — see bin_op_logical.rs precedent).
-    let expr: Expr = BitInversion::try_build(input)?.into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let hex = hex::encode(tree.sigma_serialize_bytes()?);
-    Ok(BitInversionFixture {
+/// Cost-limit entry — `jitCostLimit` set below the per-arm cost so
+/// `addCost` overshoots when the cost is finally charged. Sigma-rust
+/// path raises `CostLimitExceeded`; TS-side throws `'cost-limit-exceeded'`.
+fn cost_limit_entry(name: &str, bools: Vec<bool>, limit: u64) -> anyhow::Result<AndFixture> {
+    let input = bool_coll_const(bools);
+    let (_tree, hex) = build_tree(input)?;
+    Ok(AndFixture {
         name: name.into(),
         tree_bytes_hex: hex,
-        opts_json: json!({}),
+        opts_json: json!({ "jitCostLimit": limit }),
         expected_value_json: json!(null),
         expected_cost: 0,
-        expected_error_code: json!(code),
+        expected_error_code: json!("cost-limit-exceeded"),
     })
 }
 
-pub fn generate() -> anyhow::Result<BitInversionFixtureFile> {
+pub fn generate() -> anyhow::Result<AndFixtureFile> {
     let mut entries = Vec::new();
 
-    // Byte: 0, MAX, MIN
-    entries.push(success_entry("bit_inversion_byte_zero", Expr::Const(0i8.into()))?);
-    entries.push(success_entry("bit_inversion_byte_max",  Expr::Const(i8::MAX.into()))?);
-    entries.push(success_entry("bit_inversion_byte_min",  Expr::Const(i8::MIN.into()))?);
+    // Empty Coll → vacuous truth.
+    entries.push(success_entry("and_empty", vec![])?);
 
-    // Short: 0, MAX, MIN
-    entries.push(success_entry("bit_inversion_short_zero", Expr::Const(0i16.into()))?);
-    entries.push(success_entry("bit_inversion_short_max",  Expr::Const(i16::MAX.into()))?);
-    entries.push(success_entry("bit_inversion_short_min",  Expr::Const(i16::MIN.into()))?);
+    // Single-item.
+    entries.push(success_entry("and_single_true", vec![true])?);
+    entries.push(success_entry("and_single_false", vec![false])?);
 
-    // Int: 0, MAX, MIN
-    entries.push(success_entry("bit_inversion_int_zero", Expr::Const(0i32.into()))?);
-    entries.push(success_entry("bit_inversion_int_max",  Expr::Const(i32::MAX.into()))?);
-    entries.push(success_entry("bit_inversion_int_min",  Expr::Const(i32::MIN.into()))?);
+    // All-true at small + medium lengths.
+    entries.push(success_entry("and_all_true_3", vec![true; 3])?);
+    entries.push(success_entry("and_all_true_10", vec![true; 10])?);
 
-    // Long: 0, MAX, MIN
-    entries.push(success_entry("bit_inversion_long_zero", Expr::Const(0i64.into()))?);
-    entries.push(success_entry("bit_inversion_long_max",  Expr::Const(i64::MAX.into()))?);
-    entries.push(success_entry("bit_inversion_long_min",  Expr::Const(i64::MIN.into()))?);
+    // All-false.
+    entries.push(success_entry("and_all_false_3", vec![false; 3])?);
 
-    // BigInt: 0, MAX (full 256-bit), MIN (full 256-bit)
-    entries.push(success_entry("bit_inversion_bigint_zero", Expr::Const(BigInt256::from(0i64).into()))?);
-    entries.push(success_entry("bit_inversion_bigint_max",  Expr::Const(BigInt256::max_value().into()))?);
-    entries.push(success_entry("bit_inversion_bigint_min",  Expr::Const(BigInt256::min_value().into()))?);
+    // Mixed: one false breaks the chain.
+    entries.push(success_entry(
+        "and_mixed_one_false",
+        vec![true, true, false, true],
+    )?);
 
-    // Error: non-numeric (Boolean).
-    // try_build may reject; if so, construct BitInversion struct directly.
-    // The TS side parses the resulting bytes and dispatches eval, which
-    // throws 'bin-op-not-numeric'.
-    // (Implementer: check whether try_build accepts non-numeric here.
-    //  If it does, use error_entry; if it doesn't, construct BitInversion
-    //  via struct literal bypass and serialize directly.)
-    // entries.push(error_entry(
-    //     "bit_inversion_not_numeric_bool",
-    //     Expr::Const(true.into()),
-    //     "bin-op-not-numeric",
-    // )?);
+    // Chunk boundaries: n=32 (exactly one chunk per chunkSize=32);
+    // n=33 (one full + one partial chunk — locks the chunking math).
+    entries.push(success_entry("and_n32_all_true", vec![true; 32])?);
+    entries.push(success_entry("and_n33_all_true", vec![true; 33])?);
 
-    Ok(BitInversionFixtureFile { corpus: "eval_bit_inversion", entries })
+    // Cost-limit: 1 < base cost of 10 — overshoots immediately.
+    entries.push(cost_limit_entry("and_cost_limit_exceeded", vec![true; 3], 1)?);
+
+    Ok(AndFixtureFile {
+        corpus: "eval_and",
+        entries,
+    })
 }
 ```
 
-(Subagent: adapt to actual `common.rs` helper signatures; check whether `BitInversion::try_build` accepts non-numeric inputs — if not, construct the struct directly via `BitInversion { input: Box::new(...) }` to build the error-case bytes, as `bin_op_logical.rs` does for some entries.)
+(Subagent: verify the `Literal::from(bool)` and `CollKind::from_collection` APIs match what `atleast.rs` (eval) uses at lines 91-92 — they're the closest precedent for building a `Coll[SBoolean]` literal. If the API has drifted, adapt the helper. The `value_to_json` helper in `super::common` already handles `Value::Boolean`.)
 
 - [ ] **Step 3: Wire into fixture-gen pipeline**
 
-Add to `fixture-gen/src/cmds/ergoscript/eval/mod.rs`:
+Add to `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (insert alphabetically):
 
 ```rust
-pub mod bit_inversion;
+pub mod and;
 ```
 
-Add the command invocation in `fixture-gen/src/main.rs` alongside the existing eval-arm commands (follow the pattern of `logical_not`, `bool_to_sigma_prop`).
+(The line goes right after `pub mod common;` and before `pub mod const_arm;`.)
+
+Add the command invocation in `fixture-gen/src/main.rs` alongside the existing eval-arm commands (around line 94, between the existing calls). Match the existing pattern:
+
+```rust
+let and_fixture = cmds::ergoscript::eval::and::generate()?;
+write_ergoscript_json("eval/and.json", &and_fixture)?;
+```
 
 - [ ] **Step 4: Run fixture-gen and verify determinism**
 
 ```bash
 cargo run --release -p fixture-gen
 # Verify file exists with expected entries
-cat packages/ergoscript/test/fixtures/eval/bit-inversion.json | jq '.entries | length'
+cat packages/ergoscript/test/fixtures/eval/and.json | jq '.entries | length'
 # Run twice to confirm byte-identical
-md5sum packages/ergoscript/test/fixtures/eval/bit-inversion.json
+md5sum packages/ergoscript/test/fixtures/eval/and.json
 cargo run --release -p fixture-gen
-md5sum packages/ergoscript/test/fixtures/eval/bit-inversion.json
+md5sum packages/ergoscript/test/fixtures/eval/and.json
 ```
 
-Both md5s must match.
+**Expected:** entry count is 10 (or whatever the actual count is); both md5s match.
 
 - [ ] **Step 5: Write the failing TS test**
 
-`packages/ergoscript/test/eval/bit-inversion.test.ts`:
+`packages/ergoscript/test/eval/and.test.ts`:
 
 ```ts
 /**
- * BitInversion arm — fixture-driven evaluation tests.
+ * And arm — fixture-driven evaluation tests.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs
+ * Sigma-rust ref: ergotree-interpreter/src/eval/and.rs:11-22
+ *   let input_v = self.input.eval(env, ctx)?;
+ *   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
+ *   ctx.add_per_item_jit_cost(10, 5, 32, input_v_bools.len() as u32)?;
+ *   Ok(input_v_bools.iter().all(|b| *b).into())
  *
- * Bitwise complement masked to the kind's signed range. No overflow path.
- * 5 kinds × 3 boundary values cover the masking math, especially BigInt's
- * 256-bit width.
+ * Reduces a Coll[Boolean] to Boolean via all-true (`every`). Empty
+ * Coll returns true (vacuous truth).
+ *
+ * Cost-charging order: AFTER eval-child (the Cast pattern from 2d-A).
+ * `addPerItemCost(10, 5, 32, n)` — base 10, perChunk 5, chunkSize 32.
+ *
+ * Coverage:
+ *   - Empty Coll[Boolean] → true (vacuous truth).
+ *   - Single-item / all-true / all-false / mixed.
+ *   - Chunk boundaries at n=32 (one chunk) and n=33 (two chunks).
+ *   - 1 cost-limit entry → `'cost-limit-exceeded'`.
+ *
+ * The non-Coll[Boolean] failure path can't be triggered via sigma-rust
+ * (parser enforces `post_eval_tpe == Coll[Boolean]`). Inline tests
+ * below construct hand-built MIR nodes that bypass the parser — they
+ * test the defensive kind-check in evalAnd directly.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -437,18 +367,22 @@ import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
+import { evalExpr } from '../../src/eval/eval'
+import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
+import type { EvalOpts } from '../../src/eval/eval-context'
+import type { And } from '../../src/mir/types'
 import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/bit-inversion.json')
+const fixturePath = path.join(__dirname, '../fixtures/eval/and.json')
 
 interface EvalFixture {
   name: string
   tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: any
+  opts_json: EvalOpts
+  expected_value_json: { kind: string; value?: unknown } | null
   expected_cost: number
   expected_error_code: string | null
 }
@@ -458,11 +392,11 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: EvalFixture[]
 }
 
-describe('BitInversion arm — fixture-driven', () => {
+describe('And arm — fixture-driven', () => {
   for (const entry of fixture.entries) {
     it(`${entry.name}: ${entry.expected_error_code ?? 'value + cost'}`, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext({ jitCostLimit: entry.opts_json.jitCostLimit })
+      const ctx = makeContext({ ...entry.opts_json })
       if (entry.expected_error_code !== null) {
         const err = captureEvalError(() => evaluateWith(tree, ctx))
         expect(err.code).toBe(entry.expected_error_code)
@@ -474,78 +408,550 @@ describe('BitInversion arm — fixture-driven', () => {
     })
   }
 })
+
+describe('And arm — defensive kind-check', () => {
+  it('throws coll-not-boolean when input is not a Coll', () => {
+    const expr: And = {
+      tag: 'And',
+      input: {
+        tag: 'Const',
+        tpe: { tag: 'SBoolean' },
+        value: { kind: 'Boolean', value: true },
+      },
+    }
+    const ctx = makeContext()
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('coll-not-boolean')
+  })
+
+  it('throws coll-not-boolean when Coll items are not Boolean', () => {
+    const expr: And = {
+      tag: 'And',
+      input: {
+        tag: 'Const',
+        tpe: { tag: 'SColl', elem: { tag: 'SInt' } },
+        value: {
+          kind: 'Coll',
+          elem: { tag: 'SInt' },
+          items: [
+            { kind: 'Int', value: 1 },
+            { kind: 'Int', value: 2 },
+          ],
+        },
+      },
+    }
+    const ctx = makeContext()
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('coll-not-boolean')
+  })
+})
 ```
 
 - [ ] **Step 6: Run test, verify FAIL**
 
 ```bash
-npx vitest run packages/ergoscript/test/eval/bit-inversion.test.ts
+npx vitest run packages/ergoscript/test/eval/and.test.ts
 ```
 
-**Expected:** all entries FAIL with `EvalError 'not-implemented-yet'` for tag `'BitInversion'` (central dispatch default arm — the arm hasn't been wired yet).
+**Expected:** all fixture entries FAIL with `EvalError 'not-implemented-yet'` for tag `'And'` (central dispatch default — the arm hasn't been wired yet). The two inline-suite tests also FAIL with the same error code.
 
 - [ ] **Step 7: Write the TS arm**
 
-`packages/ergoscript/src/eval/bit-inversion.ts`:
+`packages/ergoscript/src/eval/and.ts`:
 
 ```ts
 /**
- * BitInversion arm — bitwise complement (`~x`) on numeric SValues.
+ * And arm — reduces a Coll[Boolean] to Boolean via all-true (`every`).
  *
- * Result kind equals input kind. No overflow path (the complement bit
- * pattern always lies within the kind's signed range after masking).
+ * Empty-Coll returns `true` (vacuous truth — matches Rust `iter().all`
+ * and JS `Array.prototype.every`).
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs:LINE
- *   ctx.add_jit_cost(N)?;  // BitInversion = Fixed(N)
+ * Sigma-rust ref: ergotree-interpreter/src/eval/and.rs:11-22
+ *   let input_v = self.input.eval(env, ctx)?;
+ *   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
+ *   ctx.add_per_item_jit_cost(10, 5, 32, input_v_bools.len() as u32)?;
+ *   Ok(input_v_bools.iter().all(|b| *b).into())
  *
- * Cost-charging order: see source — likely envelope-before-eval-child
- * (matches LogicalNot pattern).
+ * Cost-charging order: envelope charged AFTER eval-child (sigma-rust
+ * line 17 → 19). The cost depends on the runtime length of the
+ * resulting collection (Cast pattern from 2d-A's Upcast/Downcast).
+ *
+ * Non-Coll[Boolean] input: parser enforces `post_eval_tpe ==
+ * Coll[Boolean]` at parse time (`mir/and.rs:24-26`), so the defensive
+ * kind-check here only fires for hand-built MIR nodes or
+ * ConstantPlaceholder-injected mismatched shapes. Same defensive
+ * posture as 2c's LogicalNot / BoolToSigmaProp / BinOp.Logical arms.
  */
-import { EvalError } from './eval-context'
+
+import type { And, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import type { BitInversion, SValue } from '../mir/types'
-import { isNumeric, valueToBigInt, bigIntToValue, maskToKind } from './bin-op/_numeric'
 
-// Cost source: ergotree-interpreter/src/eval/costs.rs LINE
-const BIT_INVERSION_COST = N  // replace with source-read value
+// Cost source: ergotree-interpreter/src/eval/and.rs:19
+//   ctx.add_per_item_jit_cost(10, 5, 32, n)?;
+const AND_BASE_COST = 10
+const AND_PER_CHUNK_COST = 5
+const AND_CHUNK_SIZE = 32
 
-export function evalBitInversion(e: BitInversion, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(BIT_INVERSION_COST)
-  const child = evalExpr(e.input, env, ctx)
-  if (!isNumeric(child.kind)) {
+export function evalAnd(e: And, env: Env, ctx: EvalContext): SValue {
+  const input = evalExpr(e.input, env, ctx)
+  if (input.kind !== 'Coll') {
     throw new EvalError(
-      `BitInversion: expected numeric input, got ${child.kind}`,
-      'bin-op-not-numeric'
+      `And: expected Coll[Boolean] input, got '${input.kind}'`,
+      'coll-not-boolean'
     )
   }
-  const inverted = ~valueToBigInt(child)
-  const masked = maskToKind(inverted, child.kind)
-  return bigIntToValue(masked, child.kind)
+  const items = input.items
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind !== 'Boolean') {
+      throw new EvalError(
+        `And: Coll item ${i} has kind '${items[i].kind}', expected 'Boolean'`,
+        'coll-not-boolean'
+      )
+    }
+  }
+  ctx.addPerItemCost(AND_BASE_COST, AND_PER_CHUNK_COST, AND_CHUNK_SIZE, items.length)
+  // Items all asserted to be Boolean above; cast is safe.
+  const result = items.every((it) => (it as { kind: 'Boolean'; value: boolean }).value)
+  return { kind: 'Boolean', value: result }
 }
 ```
 
-(Subagent: replace `N` with the cost value read from `costs.rs`. If source-read shows cost-charging-order is after-eval-child, move `ctx.addCost` accordingly.)
-
 - [ ] **Step 8: Wire into central dispatch**
 
-In `packages/ergoscript/src/eval/eval.ts`, add the import and case:
+In `packages/ergoscript/src/eval/eval.ts`, add the import (alphabetically — between `evalBinOp` and `evalBitInversion`):
 
 ```ts
-import { evalBitInversion } from './bit-inversion'
+import { evalAnd } from './and'
+```
 
-// inside the switch:
-    case 'BitInversion':       return evalBitInversion(e, env, ctx)
+Add the case in the switch (right before `case 'BinOp':` to keep alphabetical order):
+
+```ts
+    case 'And':
+      return evalAnd(e, env, ctx)
 ```
 
 - [ ] **Step 9: Run test, verify PASS**
 
 ```bash
-npx vitest run packages/ergoscript/test/eval/bit-inversion.test.ts
+npx vitest run packages/ergoscript/test/eval/and.test.ts
 ```
 
-**Expected:** all 15+ entries PASS, value + cost matching the sigma-rust oracle byte-for-byte.
+**Expected:** all fixture entries PASS, value + cost matching the sigma-rust oracle byte-for-byte. The two inline defensive-check tests PASS.
+
+- [ ] **Step 10: Run full ergoscript suite + typecheck**
+
+```bash
+npx vitest run packages/ergoscript/
+npx tsc --noEmit -p packages/ergoscript
+```
+
+**Expected:** full pass (was 1542; now ~1552-1556 depending on exact fixture count); zero typecheck output.
+
+- [ ] **Step 11: Two-stage review**
+
+Spec reviewer checks: arm shape matches `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md` § Semantics; cost source-line citation in TS comment matches sigma-rust; cost-charging order is AFTER eval-child; empty-Coll fixture entry asserts `value: true`; `'coll-not-boolean'` is thrown for both legs (non-Coll input + Coll with non-Boolean items). Code-quality reviewer checks: uses `captureEvalError` helper; arm has no `any` leaks (the cast to `{ kind: 'Boolean'; value: boolean }` is fine because the kind-check guarantees it); test follows existing fixture-loop pattern; comment cites cost source line.
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/and.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/and.test.ts \
+        packages/ergoscript/test/fixtures/eval/and.json \
+        fixture-gen/src/cmds/ergoscript/eval/and.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): And eval arm + 'coll-not-boolean' code (phase 2d-B task 1)
+
+Reduces a Coll[Boolean] to Boolean via all-true (every). Empty-Coll
+returns true (vacuous truth, matches Rust iter().all and JS every).
+
+Adds new EvalError code 'coll-not-boolean' for defensive kind-check
+when input isn't Coll[Boolean] — either not a Coll, or Coll items
+aren't all Boolean. Parser enforces this at parse time (mir/and.rs
+post_eval_tpe invariant); the eval-time check defends against
+ConstantPlaceholder injection and future MIR shape changes.
+
+Cost: addPerItemCost(10, 5, 32, n) per sigma-rust eval/and.rs:19.
+Charged AFTER eval-child (Cast pattern — depends on runtime data).
+
+Coverage: ~10 fixture entries (empty, single-item, all-true /
+all-false, mixed, n=32/33 chunk boundary, cost-limit) + 2 inline
+TS tests for the defensive kind-check legs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 2: `Or` arm + fixture
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/or.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/or.json`
+- Create: `packages/ergoscript/src/eval/or.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/or.test.ts`
+
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/or.rs`
+
+**Key behavior:** Mirror of And. Input must evaluate to a `Coll[Boolean]`; returns `Boolean = items.some(b => b)`; empty Coll returns `false` (identity of Or). Throws `'coll-not-boolean'` (already in taxonomy from Task 1; reused). Cost `addPerItemCost(5, 5, 64, n)` — base 5 (not 10), chunkSize 64 (not 32). Cost charged AFTER eval-child.
+
+- [ ] **Step 1: Read sigma-rust source**
+
+Read `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/or.rs` start-to-end. Verify cost values `(5, 5, 64, n)` (note: different from And's `(10, 5, 32, n)`). Confirm the cost-after-eval-child order is identical to And.
+
+- [ ] **Step 2: Write the fixture-gen Rust module**
+
+`fixture-gen/src/cmds/ergoscript/eval/or.rs`. Same skeleton as `and.rs`, swap `and` → `or` throughout and adjust the chunk boundary to n=64/65:
+
+```rust
+//! Or arm — fixtures for `Expr::Or(...)` evaluation.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/or.rs:11-22`
+//!   let input_v = self.input.eval(env, ctx)?;
+//!   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
+//!   ctx.add_per_item_jit_cost(5, 5, 64, input_v_bools.len() as u32)?;
+//!   Ok(input_v_bools.iter().any(|b| *b).into())
+//!
+//! Cost ordering: envelope charged AFTER eval-child. Cost values differ
+//! from And: base 5 (not 10), chunkSize 64 (not 32).
+//!
+//! Empty-Coll behavior: `Or([]) → false` (identity of Or; Rust
+//! `iter().any` returns false on empty; matches JS `Array.prototype.some`).
+//!
+//! Coverage:
+//!   - Empty Coll[Boolean] → false (identity of Or).
+//!   - Single-item [true] / [false].
+//!   - All-true / all-false at varied lengths.
+//!   - Mixed with one true (Or short-success).
+//!   - n=64 (exactly one chunk per `chunkSize=64`).
+//!   - n=65 (chunk-boundary).
+//!   - 1 cost-limit entry → `'cost-limit-exceeded'`.
+
+// ... (imports identical to and.rs except mir::or::Or)
+
+use ergotree_ir::mir::or::Or;
+
+// ... (AndFixture / AndFixtureFile renamed to OrFixture / OrFixtureFile)
+
+fn bool_coll_const(bools: Vec<bool>) -> Expr {
+    // Identical to and.rs's helper. (Duplication intentional; if both
+    // files end up using it, the implementer may inline a shared helper
+    // into super::common — but YAGNI for two callers.)
+    let literals: Arc<[Literal]> = bools
+        .into_iter()
+        .map(|b| Literal::from(b))
+        .collect();
+    let coll = CollKind::from_collection(SType::SBoolean, literals)
+        .expect("from_collection on SBoolean");
+    Expr::Const(Constant {
+        tpe: SType::SColl(SType::SBoolean.into()),
+        v: Literal::Coll(coll),
+    })
+}
+
+fn build_tree(input: Expr) -> anyhow::Result<(ErgoTree, String)> {
+    let expr: Expr = Or { input: Box::new(input) }.into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let hex = hex::encode(tree.sigma_serialize_bytes()?);
+    Ok((tree, hex))
+}
+
+// ... (success_entry, cost_limit_entry identical structure)
+
+pub fn generate() -> anyhow::Result<OrFixtureFile> {
+    let mut entries = Vec::new();
+
+    // Empty Coll → identity of Or (false).
+    entries.push(success_entry("or_empty", vec![])?);
+
+    // Single-item.
+    entries.push(success_entry("or_single_true", vec![true])?);
+    entries.push(success_entry("or_single_false", vec![false])?);
+
+    // All-true at small + medium lengths.
+    entries.push(success_entry("or_all_true_3", vec![true; 3])?);
+
+    // All-false.
+    entries.push(success_entry("or_all_false_3", vec![false; 3])?);
+    entries.push(success_entry("or_all_false_10", vec![false; 10])?);
+
+    // Mixed: one true wins.
+    entries.push(success_entry(
+        "or_mixed_one_true",
+        vec![false, false, true, false],
+    )?);
+
+    // Chunk boundaries: n=64 (exactly one chunk per chunkSize=64);
+    // n=65 (one full + one partial chunk).
+    entries.push(success_entry("or_n64_all_false", vec![false; 64])?);
+    entries.push(success_entry("or_n65_all_false", vec![false; 65])?);
+
+    // Cost-limit: 1 < base cost of 5 — overshoots immediately.
+    entries.push(cost_limit_entry("or_cost_limit_exceeded", vec![true; 3], 1)?);
+
+    Ok(OrFixtureFile {
+        corpus: "eval_or",
+        entries,
+    })
+}
+```
+
+- [ ] **Step 3: Wire into fixture-gen pipeline**
+
+Add to `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (alphabetically — between `pub mod logical_not;` and `pub mod negation;`):
+
+```rust
+pub mod or;
+```
+
+Add the command invocation in `fixture-gen/src/main.rs` alongside the existing eval-arm commands. Match the existing pattern:
+
+```rust
+let or_fixture = cmds::ergoscript::eval::or::generate()?;
+write_ergoscript_json("eval/or.json", &or_fixture)?;
+```
+
+- [ ] **Step 4: Run fixture-gen and verify determinism**
+
+```bash
+cargo run --release -p fixture-gen
+cat packages/ergoscript/test/fixtures/eval/or.json | jq '.entries | length'
+md5sum packages/ergoscript/test/fixtures/eval/or.json
+cargo run --release -p fixture-gen
+md5sum packages/ergoscript/test/fixtures/eval/or.json
+```
+
+**Expected:** entry count matches what was generated; both md5s match.
+
+- [ ] **Step 5: Write the failing TS test**
+
+`packages/ergoscript/test/eval/or.test.ts`: same skeleton as `and.test.ts`, swap `And` → `Or` throughout, swap `and` → `or` in paths and describe names, swap `every` → `some` in the docstring, swap empty-Coll comment to "identity of Or (false)" instead of "vacuous truth", swap chunk boundary references to n=64/65.
+
+```ts
+/**
+ * Or arm — fixture-driven evaluation tests.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/or.rs:11-22
+ *   let input_v = self.input.eval(env, ctx)?;
+ *   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
+ *   ctx.add_per_item_jit_cost(5, 5, 64, input_v_bools.len() as u32)?;
+ *   Ok(input_v_bools.iter().any(|b| *b).into())
+ *
+ * Reduces a Coll[Boolean] to Boolean via any-true (`some`). Empty
+ * Coll returns false (identity of Or).
+ *
+ * Cost-charging order: AFTER eval-child. `addPerItemCost(5, 5, 64, n)`
+ * — base 5 (not 10), chunkSize 64 (not 32). Distinct from And's cost.
+ *
+ * Coverage:
+ *   - Empty Coll[Boolean] → false (identity of Or).
+ *   - Single-item / all-true / all-false / mixed.
+ *   - Chunk boundaries at n=64 (one chunk) and n=65 (two chunks).
+ *   - 1 cost-limit entry → `'cost-limit-exceeded'`.
+ *
+ * The non-Coll[Boolean] failure path can't be triggered via sigma-rust.
+ * Inline tests below construct hand-built MIR nodes that bypass the
+ * parser.
+ */
+import { describe, it, expect } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { evalExpr } from '../../src/eval/eval'
+import { Env } from '../../src/eval/env'
+import { makeContext } from '../../src/eval/eval-context'
+import type { EvalOpts } from '../../src/eval/eval-context'
+import type { Or } from '../../src/mir/types'
+import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const fixturePath = path.join(__dirname, '../fixtures/eval/or.json')
+
+interface EvalFixture {
+  name: string
+  tree_bytes_hex: string
+  opts_json: EvalOpts
+  expected_value_json: { kind: string; value?: unknown } | null
+  expected_cost: number
+  expected_error_code: string | null
+}
+
+const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
+  corpus: string
+  entries: EvalFixture[]
+}
+
+describe('Or arm — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(`${entry.name}: ${entry.expected_error_code ?? 'value + cost'}`, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext({ ...entry.opts_json })
+      if (entry.expected_error_code !== null) {
+        const err = captureEvalError(() => evaluateWith(tree, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
+      } else {
+        const value = evaluateWith(tree, ctx)
+        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(ctx.jitCost).toBe(entry.expected_cost)
+      }
+    })
+  }
+})
+
+describe('Or arm — defensive kind-check', () => {
+  it('throws coll-not-boolean when input is not a Coll', () => {
+    const expr: Or = {
+      tag: 'Or',
+      input: {
+        tag: 'Const',
+        tpe: { tag: 'SBoolean' },
+        value: { kind: 'Boolean', value: false },
+      },
+    }
+    const ctx = makeContext()
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('coll-not-boolean')
+  })
+
+  it('throws coll-not-boolean when Coll items are not Boolean', () => {
+    const expr: Or = {
+      tag: 'Or',
+      input: {
+        tag: 'Const',
+        tpe: { tag: 'SColl', elem: { tag: 'SInt' } },
+        value: {
+          kind: 'Coll',
+          elem: { tag: 'SInt' },
+          items: [
+            { kind: 'Int', value: 1 },
+            { kind: 'Int', value: 2 },
+          ],
+        },
+      },
+    }
+    const ctx = makeContext()
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('coll-not-boolean')
+  })
+})
+```
+
+- [ ] **Step 6: Run test, verify FAIL**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/or.test.ts
+```
+
+**Expected:** all fixture entries FAIL with `EvalError 'not-implemented-yet'` for tag `'Or'`. The two inline-suite tests also FAIL with the same error code.
+
+- [ ] **Step 7: Write the TS arm**
+
+`packages/ergoscript/src/eval/or.ts`:
+
+```ts
+/**
+ * Or arm — reduces a Coll[Boolean] to Boolean via any-true (`some`).
+ *
+ * Empty-Coll returns `false` (identity of Or — matches Rust `iter().any`
+ * and JS `Array.prototype.some`).
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/or.rs:11-22
+ *   let input_v = self.input.eval(env, ctx)?;
+ *   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
+ *   ctx.add_per_item_jit_cost(5, 5, 64, input_v_bools.len() as u32)?;
+ *   Ok(input_v_bools.iter().any(|b| *b).into())
+ *
+ * Cost-charging order: envelope charged AFTER eval-child (sigma-rust
+ * line 17 → 19). The cost depends on the runtime length of the
+ * resulting collection (Cast pattern from 2d-A).
+ *
+ * Cost values differ from And: base 5 (not 10), chunkSize 64 (not 32).
+ * Don't refactor toward shared constants — the values are arm-specific.
+ *
+ * Non-Coll[Boolean] input: parser enforces `post_eval_tpe ==
+ * Coll[Boolean]` at parse time (`mir/or.rs:22-24`); the defensive
+ * kind-check here mirrors `and.ts` and matches the 2c LogicalNot /
+ * BoolToSigmaProp posture. Throws `'coll-not-boolean'` (the code added
+ * in Task 1).
+ *
+ * Note: the kind-check is duplicated with `and.ts` (~5 LOC each).
+ * Intentional per slice A's `sTypeToNumericKind` YAGNI precedent —
+ * promote to a shared `_coll.ts` helper when a third caller appears
+ * (likely `XorOf` / `ForAll` / `Exists` in later phases).
+ */
+
+import type { Or, SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
+import { evalExpr } from './eval'
+
+// Cost source: ergotree-interpreter/src/eval/or.rs:19
+//   ctx.add_per_item_jit_cost(5, 5, 64, n)?;
+const OR_BASE_COST = 5
+const OR_PER_CHUNK_COST = 5
+const OR_CHUNK_SIZE = 64
+
+export function evalOr(e: Or, env: Env, ctx: EvalContext): SValue {
+  const input = evalExpr(e.input, env, ctx)
+  if (input.kind !== 'Coll') {
+    throw new EvalError(
+      `Or: expected Coll[Boolean] input, got '${input.kind}'`,
+      'coll-not-boolean'
+    )
+  }
+  const items = input.items
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind !== 'Boolean') {
+      throw new EvalError(
+        `Or: Coll item ${i} has kind '${items[i].kind}', expected 'Boolean'`,
+        'coll-not-boolean'
+      )
+    }
+  }
+  ctx.addPerItemCost(OR_BASE_COST, OR_PER_CHUNK_COST, OR_CHUNK_SIZE, items.length)
+  const result = items.some((it) => (it as { kind: 'Boolean'; value: boolean }).value)
+  return { kind: 'Boolean', value: result }
+}
+```
+
+- [ ] **Step 8: Wire into central dispatch**
+
+In `packages/ergoscript/src/eval/eval.ts`, add the import (alphabetically — between `evalNegation` and `evalTuple`):
+
+```ts
+import { evalOr } from './or'
+```
+
+Add the case in the switch (right after `case 'Negation':` or wherever alphabetical ordering places it):
+
+```ts
+    case 'Or':
+      return evalOr(e, env, ctx)
+```
+
+- [ ] **Step 9: Run test, verify PASS**
+
+```bash
+npx vitest run packages/ergoscript/test/eval/or.test.ts
+```
+
+**Expected:** all entries PASS, value + cost match the sigma-rust oracle. The two inline defensive-check tests PASS.
 
 - [ ] **Step 10: Run full ergoscript suite + typecheck**
 
@@ -558,31 +964,32 @@ npx tsc --noEmit -p packages/ergoscript
 
 - [ ] **Step 11: Two-stage review**
 
-Spec reviewer checks: arm shape matches design spec § Semantics; cost-line citation in TS comment matches sigma-rust source; error code is `'bin-op-not-numeric'` (not a new code). Code-quality reviewer checks: test uses `captureEvalError` helper; arm has no `any` leaks; fixture covers 5 kinds × 3 boundary values; comment cites cost source line.
+Spec reviewer checks: cost source-line citation in TS comment matches `or.rs:19`; cost values are `(5, 5, 64)` (not `(10, 5, 32)` — distinct from And); cost-charging order is AFTER eval-child; empty-Coll fixture entry asserts `value: false` (identity of Or, not vacuous truth); the kind-check duplication with `and.ts` is acknowledged in the comment with YAGNI rationale. Code-quality reviewer checks: uses `captureEvalError` helper; test consistency with `and.test.ts`; arm has no `any` leaks.
 
 - [ ] **Step 12: Commit**
 
 ```bash
-git add packages/ergoscript/src/eval/bit-inversion.ts \
+git add packages/ergoscript/src/eval/or.ts \
         packages/ergoscript/src/eval/eval.ts \
-        packages/ergoscript/test/eval/bit-inversion.test.ts \
-        packages/ergoscript/test/fixtures/eval/bit-inversion.json \
-        fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs \
+        packages/ergoscript/test/eval/or.test.ts \
+        packages/ergoscript/test/fixtures/eval/or.json \
+        fixture-gen/src/cmds/ergoscript/eval/or.rs \
         fixture-gen/src/cmds/ergoscript/eval/mod.rs \
         fixture-gen/src/main.rs
 git commit -m "$(cat <<'EOF'
-feat(ergoscript): BitInversion eval arm (phase 2d-A task 2)
+feat(ergoscript): Or eval arm (phase 2d-B task 2)
 
-Bitwise complement (~x) on numeric SValues. Result kind equals input
-kind. No overflow path; maskToKind brings the unmasked bigint ~ result
-back to the kind's signed range.
+Reduces a Coll[Boolean] to Boolean via any-true (some). Empty-Coll
+returns false (identity of Or, matches Rust iter().any and JS some).
 
-Reuses 'bin-op-not-numeric' for non-numeric input (LogicalNot
-precedent). Cost: Fixed(N) per sigma-rust eval/bit_inversion.rs:LINE.
+Mirror of And. Reuses 'coll-not-boolean' EvalError code (added in
+Task 1) for defensive kind-check. Cost: addPerItemCost(5, 5, 64, n)
+per sigma-rust eval/or.rs:19 — distinct values from And's
+(10, 5, 32, n) — charged AFTER eval-child.
 
-Coverage: 5 numeric kinds × 3 boundary values (0, MAX_K, MIN_K) = 15
-happy entries + 1 non-numeric error. Layer C1 cost-equality assertion
-locks the cost-charging order against the sigma-rust oracle.
+Coverage: ~10 fixture entries (empty, single-item, all-true /
+all-false, mixed, n=64/65 chunk boundary, cost-limit) + 2 inline
+TS tests for defensive kind-check legs.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -591,388 +998,17 @@ EOF
 
 ---
 
-### Task 3: `Negation` arm + fixture
+## Task 3: Finalize — corpus re-run + facts + memories + spec close + commit-and-push
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/negation.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/negation.json`
-- Create: `packages/ergoscript/src/eval/negation.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/negation.test.ts`
-
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/negation.rs`
-
-Key behavior: input must evaluate to a numeric kind; return negated value; throw `'arith-overflow'` for `-MIN_K` (the only overflow case for unary negation).
-
-- [ ] **Step 1: Read sigma-rust source**
-
-Read `eval/negation.rs` start-to-end. Note cost, cost-order, and which Rust `checked_neg` per-kind is invoked. `ergotree-ir/src/mir/negation.rs` for MIR shape.
-
-- [ ] **Step 2: Write the fixture-gen Rust module**
-
-`fixture-gen/src/cmds/ergoscript/eval/negation.rs`: same skeleton as `bit_inversion.rs`. Coverage:
-- 5 kinds × 2 happy values (e.g., 0, MAX_K) — `Negate(0) = 0`; `Negate(MAX_K) = MIN_K + 1`.
-- 5 overflow entries: `Negate(MIN_K)` per kind, each expected_error_code = `'arith-overflow'`.
-  - These are constructed via `Negation::try_build` if it accepts the form, otherwise via direct struct construction.
-- 1 non-numeric error: `Negate(Const(true))` → `'bin-op-not-numeric'`.
-- 1 cost-limit error: `jitCostLimit` set below the per-arm cost → `'cost-limit-exceeded'`.
-
-Total ≈ 12 entries.
-
-- [ ] **Step 3: Wire into fixture-gen pipeline + run + verify determinism** (matching Task 2's Steps 3–4)
-
-- [ ] **Step 4: Write the failing TS test**
-
-`packages/ergoscript/test/eval/negation.test.ts`: same skeleton as `bit-inversion.test.ts`, just different fixture path.
-
-- [ ] **Step 5: Run test, verify FAIL** (`'not-implemented-yet'` for tag `'Negation'`)
-
-- [ ] **Step 6: Write the TS arm**
-
-`packages/ergoscript/src/eval/negation.ts`:
-
-```ts
-/**
- * Negation arm — unary numeric negate (`-x`).
- *
- * Result kind equals input kind. Overflow: `-MIN_K` for each numeric
- * kind exceeds MAX_K — throws 'arith-overflow' (sigma-rust uses
- * checked_neg per kind; we use the shared checkRange after negating
- * in bigint).
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/negation.rs:LINE
- */
-import { EvalError } from './eval-context'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { evalExpr } from './eval'
-import type { Negation, SValue } from '../mir/types'
-import {
-  isNumeric, valueToBigInt, bigIntToValue, checkRange,
-} from './bin-op/_numeric'
-
-// Cost source: costs.rs LINE
-const NEGATION_COST = N  // replace with source-read value
-
-export function evalNegation(e: Negation, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(NEGATION_COST)
-  const child = evalExpr(e.input, env, ctx)
-  if (!isNumeric(child.kind)) {
-    throw new EvalError(
-      `Negation: expected numeric input, got ${child.kind}`,
-      'bin-op-not-numeric'
-    )
-  }
-  const negated = -valueToBigInt(child)
-  checkRange(negated, child.kind, 'arith-overflow')
-  return bigIntToValue(negated, child.kind)
-}
-```
-
-- [ ] **Step 7: Wire into central dispatch** (`case 'Negation':`)
-
-- [ ] **Step 8: Run test, verify PASS**
-
-- [ ] **Step 9: Run full ergoscript suite + typecheck**
-
-- [ ] **Step 10: Two-stage review**
-
-Spec reviewer specifically checks: overflow error code is `'arith-overflow'` (reused, not new); 5 `Negate(MIN_K)` fixtures throw the same code. Code-quality reviewer: comment-cited cost line; test consistency.
-
-- [ ] **Step 11: Commit**
-
-```
-feat(ergoscript): Negation eval arm (phase 2d-A task 3)
-
-Unary numeric negate. Result kind equals input kind. Overflow:
-Negate(MIN_K) for each of Byte/Short/Int/Long/BigInt throws
-'arith-overflow' (reused from 2c BinOp.Arith — same semantic).
-
-Cost: Fixed(N) per sigma-rust eval/negation.rs:LINE. Layer C1 fixtures
-cover 5 kinds × 2 happy + 5 overflow + 1 non-numeric + 1 cost-limit.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-```
-
----
-
-## Stage 2 — Unary numeric, target-kind-out (Tasks 4–5)
-
-Two arms that change the output kind via a target SType carried on the MIR node. Upcast first (no overflow); Downcast next (introduces the new `'downcast-overflow'` code).
-
-### Task 4: `Upcast` arm + fixture
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/upcast.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/upcast.json`
-- Create: `packages/ergoscript/src/eval/upcast.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/upcast.test.ts`
-
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/upcast.rs`
-
-Key behavior: input must be numeric; target kind comes from `e.tpe.tag` (must be at least as wide as input kind, but the parser enforces this); return the value re-typed to the target kind. No overflow path.
-
-- [ ] **Step 1: Read sigma-rust source**
-
-Read `eval/upcast.rs` start-to-end. Source-read also resolves: does sigma-rust permit same-kind Upcast (e.g. `Upcast(Int → Int)`)? If yes, treat as no-op; if no, reject at eval. The C1 fixture captures whichever behavior the source has. `ergotree-ir/src/mir/upcast.rs` for MIR shape — confirm `tpe: SType` field name.
-
-- [ ] **Step 2: Write the fixture-gen Rust module**
-
-`fixture-gen/src/cmds/ergoscript/eval/upcast.rs`. Coverage:
-
-- All valid widening pairs:
-  - Byte → Short, Byte → Int, Byte → Long, Byte → BigInt (4 pairs)
-  - Short → Int, Short → Long, Short → BigInt (3 pairs)
-  - Int → Long, Int → BigInt (2 pairs)
-  - Long → BigInt (1 pair)
-- Each pair × 2 boundary values (0 + MAX of source kind) ≈ 20 entries.
-- 1 non-numeric error: `Upcast(Boolean, target=SInt)` → `'bin-op-not-numeric'`.
-- Optional: same-kind Upcast (e.g., `Upcast(Int → Int)`) per source-read result. If sigma-rust accepts it, add `upcast_int_int_noop` entry asserting the cost matches expected; if it rejects, document the rejection error.
-
-Total ≈ 21 entries.
-
-- [ ] **Step 3: Wire + run + determinism** (matching Task 2)
-
-- [ ] **Step 4: Write the failing TS test** (matching Task 2 skeleton)
-
-- [ ] **Step 5: Run test, verify FAIL**
-
-- [ ] **Step 6: Write the TS arm**
-
-`packages/ergoscript/src/eval/upcast.ts`:
-
-```ts
-/**
- * Upcast arm — widen a numeric SValue to a wider target kind.
- *
- * Target kind from e.tpe.tag (e.g. 'SInt' → 'Int'). No overflow path —
- * widening preserves the value exactly. Parser enforces target-kind
- * validity at wire-format parse time; eval trusts the wire-format
- * invariant per CLAUDE.md "validate at boundaries."
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/upcast.rs:LINE
- */
-import { EvalError } from './eval-context'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { evalExpr } from './eval'
-import type { Upcast, SValue, SType } from '../mir/types'
-import {
-  isNumeric, valueToBigInt, bigIntToValue,
-  type NumericKind,
-} from './bin-op/_numeric'
-
-// Cost source: costs.rs LINE
-const UPCAST_COST = N  // replace with source-read value
-
-function sTypeToNumericKind(t: SType): NumericKind {
-  // Map e.tpe.tag → NumericKind. Throws if non-numeric — but the
-  // parser shouldn't have let a non-numeric target through.
-  switch (t.tag) {
-    case 'SByte':   return 'Byte'
-    case 'SShort':  return 'Short'
-    case 'SInt':    return 'Int'
-    case 'SLong':   return 'Long'
-    case 'SBigInt': return 'BigInt'
-    default:
-      throw new EvalError(
-        `Upcast: target type ${t.tag} is not numeric`,
-        'bin-op-not-numeric'
-      )
-  }
-}
-
-export function evalUpcast(e: Upcast, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(UPCAST_COST)
-  const child = evalExpr(e.input, env, ctx)
-  if (!isNumeric(child.kind)) {
-    throw new EvalError(
-      `Upcast: expected numeric input, got ${child.kind}`,
-      'bin-op-not-numeric'
-    )
-  }
-  const targetKind = sTypeToNumericKind(e.tpe)
-  return bigIntToValue(valueToBigInt(child), targetKind)
-}
-```
-
-(Subagent: confirm the MIR field name is `tpe` and not something else — read `mir/types.ts` for the actual `Upcast` interface.)
-
-- [ ] **Step 7: Wire into central dispatch** (`case 'Upcast':`)
-
-- [ ] **Step 8: Run test, verify PASS**
-
-- [ ] **Step 9: Full suite + typecheck**
-
-- [ ] **Step 10: Two-stage review**
-
-Spec reviewer: target-kind extraction matches the MIR shape; no range check (widening); no new error code introduced. Code-quality: `sTypeToNumericKind` helper local to arm or extracted; comment cites cost line; test covers all 10 widening pairs.
-
-- [ ] **Step 11: Commit**
-
-```
-feat(ergoscript): Upcast eval arm (phase 2d-A task 4)
-
-Widens a numeric SValue to a wider target kind read from e.tpe. No
-overflow path (target range is at least as wide as source). Parser
-enforces target-kind validity at parse time; eval trusts the invariant.
-
-Cost: Fixed(N) per sigma-rust eval/upcast.rs:LINE. Layer C1 fixtures
-cover all 10 valid widening pairs × 2 boundary values + 1 non-numeric.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-```
-
----
-
-### Task 5: `Downcast` arm + fixture
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/downcast.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/downcast.json`
-- Create: `packages/ergoscript/src/eval/downcast.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/downcast.test.ts`
-
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/downcast.rs`
-
-Key behavior: input must be numeric; target kind from `e.tpe.tag`; throws `'downcast-overflow'` (new code) when input value lies outside the target kind's signed range.
-
-- [ ] **Step 1: Read sigma-rust source**
-
-Read `eval/downcast.rs` start-to-end. Note: sigma-rust raises `ArithmeticException` for out-of-range narrowing; we surface this as the new `'downcast-overflow'` code. Source-read also confirms same-kind Downcast behavior (mirrors Upcast).
-
-- [ ] **Step 2: Write the fixture-gen Rust module**
-
-`fixture-gen/src/cmds/ergoscript/eval/downcast.rs`. Coverage:
-
-- All valid narrowing pairs:
-  - BigInt → Long, BigInt → Int, BigInt → Short, BigInt → Byte (4 pairs)
-  - Long → Int, Long → Short, Long → Byte (3 pairs)
-  - Int → Short, Int → Byte (2 pairs)
-  - Short → Byte (1 pair)
-- Each pair × 1 happy entry (value within target range) + 1 overflow entry (value outside target range). ≈ 20 entries.
-- 1 non-numeric error: `Downcast(Boolean, target=SInt)` → `'bin-op-not-numeric'`.
-- Optional: same-kind Downcast per source-read.
-
-Total ≈ 21 entries.
-
-- [ ] **Step 3: Wire + run + determinism**
-
-- [ ] **Step 4: Write the failing TS test**
-
-- [ ] **Step 5: Run test, verify FAIL**
-
-- [ ] **Step 6: Write the TS arm**
-
-`packages/ergoscript/src/eval/downcast.ts`:
-
-```ts
-/**
- * Downcast arm — narrow a numeric SValue to a narrower target kind.
- *
- * Target kind from e.tpe.tag. Throws 'downcast-overflow' when the
- * input value lies outside the target kind's signed range.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/downcast.rs:LINE
- *   sigma-rust raises ArithmeticException; we surface as a distinct
- *   'downcast-overflow' code so callers can dispatch on "narrowing
- *   failed" specifically.
- */
-import { EvalError } from './eval-context'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { evalExpr } from './eval'
-import type { Downcast, SValue, SType } from '../mir/types'
-import {
-  isNumeric, valueToBigInt, bigIntToValue, checkRange,
-  type NumericKind,
-} from './bin-op/_numeric'
-
-// Cost source: costs.rs LINE
-const DOWNCAST_COST = N  // replace with source-read value
-
-function sTypeToNumericKind(t: SType): NumericKind {
-  // Identical to upcast.ts's helper. If duplication is flagged in
-  // review, promote to _numeric.ts. For now: per-arm copies follow the
-  // YAGNI principle until a third user appears.
-  switch (t.tag) {
-    case 'SByte':   return 'Byte'
-    case 'SShort':  return 'Short'
-    case 'SInt':    return 'Int'
-    case 'SLong':   return 'Long'
-    case 'SBigInt': return 'BigInt'
-    default:
-      throw new EvalError(
-        `Downcast: target type ${t.tag} is not numeric`,
-        'bin-op-not-numeric'
-      )
-  }
-}
-
-export function evalDowncast(e: Downcast, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(DOWNCAST_COST)
-  const child = evalExpr(e.input, env, ctx)
-  if (!isNumeric(child.kind)) {
-    throw new EvalError(
-      `Downcast: expected numeric input, got ${child.kind}`,
-      'bin-op-not-numeric'
-    )
-  }
-  const targetKind = sTypeToNumericKind(e.tpe)
-  const value = valueToBigInt(child)
-  checkRange(value, targetKind, 'downcast-overflow')
-  return bigIntToValue(value, targetKind)
-}
-```
-
-- [ ] **Step 7: Wire into central dispatch** (`case 'Downcast':`)
-
-- [ ] **Step 8: Run test, verify PASS**
-
-- [ ] **Step 9: Full suite + typecheck**
-
-- [ ] **Step 10: Two-stage review**
-
-Spec reviewer: new error code is exactly `'downcast-overflow'` (matches spec § Error taxonomy); range check uses target kind (not source); all narrowing pairs covered with both happy and overflow entries. Code-quality: `sTypeToNumericKind` duplication acknowledged in code comment (promote to `_numeric.ts` only when a third user appears, per YAGNI); test consistency.
-
-- [ ] **Step 11: Commit**
-
-```
-feat(ergoscript): Downcast eval arm + 'downcast-overflow' code (phase 2d-A task 5)
-
-Narrows a numeric SValue to a narrower target kind read from e.tpe.
-Throws 'downcast-overflow' (new EvalError code) when input value lies
-outside the target kind's signed range.
-
-Cost: Fixed(N) per sigma-rust eval/downcast.rs:LINE. Layer C1 fixtures
-cover all 10 valid narrowing pairs × happy + overflow + 1 non-numeric.
-
-Slice A coverage now: 15 of ~70 Expr arms wired (11 from 2b+2c + 4
-from this slice). Public surface unchanged; one new EvalError code
-documented additively in facts/ergoscript.md (in Task 6).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-```
-
----
-
-## Stage 3 — Wrap-up (Task 6)
-
-### Task 6: Layer C2 corpus re-run + `facts/ergoscript.md` update + final review + commit-and-push
-
-**Files:**
-- Modify: `facts/ergoscript.md` — extend v0.2.0 EvalError taxonomy with `'downcast-overflow'`; bump "Coverage after 2X" from 11 to 15
-- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` — update with phase 2d-A done state
-
-**Sigma-rust source:** N/A.
+- Modify: `facts/ergoscript.md` — extend v0.2.0 EvalError taxonomy with `'coll-not-boolean'`; add a phase 2d-B "Ships additionally" block; bump "Coverage after" line; extend "Does NOT ship yet" with the Deferred-variants table from the spec
+- Modify: `SESSION_CONTEXT.md` — reflect phase 2d-B done state
+- Rename + modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_treeversion_v3_gating_deferred.md` → `project_treeversion_gating_deferred.md` (extend to fold in `XorOf`)
+- Create: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md`
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md`
+
+**Sigma-rust source:** N/A — this task is documentation, memory, and push-to-origin work.
 
 - [ ] **Step 1: Run Layer C2 corpus eval test**
 
@@ -980,52 +1016,185 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 npx vitest run packages/ergoscript/test/corpus-eval.test.ts
 ```
 
-Inspect the stdout aggregate. Expected: `success=0 not-impl=18 other=0` unchanged (slice A unlikely to unlock new mainnet trees in isolation; they need higher-phase arms). If `other` is non-zero, investigate — that's a regression gate. If `success` grew, note it in the commit message (pleasant surprise, but not the expected outcome).
+Inspect the stdout aggregate. **Expected: `success=0 not-impl=18 other=0` unchanged** — slice B's And/Or arms don't unlock new mainnet trees in isolation (those 18 evaluable trees need higher-phase arms like Box accessors / GlobalVars / method calls). If `other` is non-zero, investigate before push — that's the regression gate from commit `cc1c7a3`. If `success` grew unexpectedly, note it in the commit message.
 
-- [ ] **Step 2: Update `facts/ergoscript.md`**
+- [ ] **Step 2: Update `facts/ergoscript.md` — EvalError taxonomy**
 
-In the v0.2.0 EvalError taxonomy section, add:
-
-```markdown
-- **`'downcast-overflow'`** — `Downcast` arm narrowed an input value
-  outside the target kind's signed range. Mirrors sigma-rust's
-  `ArithmeticException` from `eval/downcast.rs`; surfaced as a
-  distinct code so callers can dispatch on "downcast specifically
-  failed" vs other arith overflows. Message includes the source kind,
-  target kind, and offending bigint value.
-```
-
-In the Scope section, find the phase 2c "Ships additionally" block and add (or create a parallel) phase 2d-A block:
+Find the v0.2.0 EvalError taxonomy section. Add the new code at the end of the existing list (after `'downcast-overflow'` from 2d-A):
 
 ```markdown
-**Ships additionally (phase 2d-A — numeric-poly unary arms):**
+The following code was added in phase 2d-B (Coll[Boolean] aggregator arms — And, Or):
 
-18. 4 more per-variant arms wired: `Negation` (numeric negate;
-    overflow throws `'arith-overflow'`), `BitInversion` (bitwise
-    complement; no overflow), `Upcast` (widen to target numeric kind;
-    no overflow), `Downcast` (narrow to target numeric kind; overflow
-    throws `'downcast-overflow'`).
-19. One new `EvalError` code documented in the v0.2.0 taxonomy:
-    `'downcast-overflow'`. No other taxonomy changes; non-numeric
-    input to the four arms reuses `'bin-op-not-numeric'` per the
-    LogicalNot/BoolToSigmaProp precedent from 2c.
-20. Step-1 refactor: `checkRange` and `maskToKind` promoted from
-    `bin-op/{arith,bit}.ts` to `bin-op/_numeric.ts`. `checkRange`
-    gains a third parameter (error code string). 2c arith callers
-    pass `'arith-overflow'`; new downcast caller passes
-    `'downcast-overflow'`.
+- **`'coll-not-boolean'`** — `And` or `Or` arm received an input value
+  that wasn't `Coll[Boolean]`. Either `input.kind !== 'Coll'` (not a
+  Coll at all) OR `input.kind === 'Coll'` but `items` contained a
+  non-`Boolean` kind. Mirrors sigma-rust's
+  `EvalError::TryExtractFromError` from `try_extract_into::<Vec<bool>>()`.
+  Wire-format invariants (`mir/and.rs`/`mir/or.rs` enforce
+  `post_eval_tpe == Coll[Boolean]` at parse time) make this throw
+  unreachable for parser-produced trees; defensive against
+  `ConstantPlaceholder` injection and future MIR shape changes.
+  Message includes the input's actual kind (and for Coll inputs with
+  wrong-kind items, the offending item index + its kind).
 ```
 
-Bump the "Coverage after 2c" line to "Coverage after 2d-A: 15 of ~70 `Expr` variants...".
+- [ ] **Step 3: Update `facts/ergoscript.md` — Scope section**
 
-- [ ] **Step 3: Update MEMORY.md and project_ergots_direction**
+Find the phase 2d-A "Ships additionally" block. Right after it, add a phase 2d-B block:
+
+```markdown
+**Ships additionally (phase 2d-B — Coll[Boolean] aggregator arms):**
+
+21. 2 more per-variant arms wired: `And` (reduces `Coll[Boolean]` to
+    `Boolean` via all-true; empty Coll returns `true` per vacuous
+    truth) and `Or` (any-true; empty Coll returns `false` per identity
+    of Or). Both arms charge cost AFTER eval-child via
+    `addPerItemCost`; cost values differ per arm (And: `(10, 5, 32,
+    n)`; Or: `(5, 5, 64, n)`).
+22. One new `EvalError` code documented in the v0.2.0 taxonomy:
+    `'coll-not-boolean'`. Reused by both arms for the defensive
+    kind-check posture established by 2c's LogicalNot /
+    BoolToSigmaProp.
+```
+
+Bump the "Coverage after 2d-A: 15" line to "Coverage after 2d-B: 17 of ~70 `Expr` variants...".
+
+- [ ] **Step 4: Update `facts/ergoscript.md` — Does NOT ship yet section**
+
+Replace the `Coll[Boolean]` aggregators / Atleast bullet with the explicit Deferred-variants table from the spec. The result should make each deferred variant individually nameable and trace its trigger condition:
+
+```markdown
+- **`XorOf`** (third `Coll[Boolean]` aggregator) — phase 2e: requires
+  `treeVersion` on `EvalContext` because V0/V1 ErgoTree script versions
+  use the JVM v4.x XOR bug (true iff Coll contains both true and false,
+  count- and order-independent) while V2+ uses correct left-fold XOR.
+  See `~/projects/sigma-rust/.../eval/xor_of.rs:25`.
+- **`Xor`** (byte-array XOR) — later phase (likely 2g alongside Coll
+  HOFs, or standalone). Operates on `Coll[Byte] × Coll[Byte] →
+  Coll[Byte]`; not a logical/threshold aggregator despite the name.
+- **`Atleast`** — phase 2g (sigma protocol): calls
+  `Cthreshold::reduce(k, children)` which performs sigma-protocol-level
+  normalization (can collapse to `Cor`, `Cand`, `Cthreshold`, or
+  `TrivialProp` depending on inputs). Cleaner to land after
+  `SigmaBoolean` becomes a discriminated union in phase 2g.
+- **`SigmaAnd`** — phase 2g: calls `Cand::normalized(items)` — same
+  normalization family as Atleast.
+- **`SigmaOr`** — phase 2g: calls `Cor::normalized(items)` — same
+  normalization family as Atleast.
+```
+
+- [ ] **Step 5: Rename the existing tree-version-gating memory and extend it**
+
+The existing memory file path:
+`~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_treeversion_v3_gating_deferred.md`
+
+Rename to:
+`~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_treeversion_gating_deferred.md`
+
+(Use `mv` for the file rename. Frontmatter `name:` must also change.)
+
+```bash
+mv ~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_treeversion_v3_gating_deferred.md \
+   ~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_treeversion_gating_deferred.md
+```
+
+Update the renamed file's content. The frontmatter `name` should change to `project-treeversion-gating-deferred`. Body should fold in `XorOf`:
+
+```markdown
+---
+name: project-treeversion-gating-deferred
+description: Several arms have tree-version-dependent semantics in sigma-rust but TS evaluator doesn't honor it yet (no treeVersion field on EvalContext); revisit in phase 2e
+metadata:
+  type: project
+---
+
+The TS evaluator does not yet honor sigma-rust's tree-version-dependent
+behavior on several arms. Specifically:
+
+- **Upcast** and **Downcast** (slice 2d-A): sigma-rust gates BigInt
+  branches on `tree_version() >= V3` in `eval/upcast.rs:80` and
+  `eval/downcast.rs:119`. The TS arms always run the BigInt path; we
+  accept slightly more than the standard at V0/V1/V2.
+- **XorOf** (deferred from slice 2d-B): sigma-rust at `eval/xor_of.rs:25`
+  uses a fundamentally different reducer depending on tree version. V0/V1
+  implements the JVM v4.x bug (`xorOf([true, true, false]) → true`
+  because both true and false are present, count-independent). V2+ uses
+  correct left-fold XOR (true iff odd count of trues). The arm is
+  deferred entirely until `treeVersion` lands.
+
+**Why:** `EvalContext` doesn't carry `treeVersion`. The umbrella plan adds
+it in phase 2e (lambdas + chain-state Context shape). Implementing
+piecemeal `treeVersion` plumbing now would force a follow-up refactor.
+
+**How to apply:** Phase 2e brainstorm reads this memory and must include
+`treeVersion` on `EvalContext` (and its forwarded fields on `EvalOpts`).
+After 2e lands, revisit Upcast/Downcast BigInt branches AND wire the
+`XorOf` arm. The corpus test will start exercising these paths once
+mainnet trees that use them get unlocked.
+
+Related: [[project-sigma-combinators-deferred]] (a different family of
+deferred work — sigma-protocol normalization, not tree-version gating).
+```
+
+- [ ] **Step 6: Create the new sigma-combinators memory**
+
+Create `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md`:
+
+```markdown
+---
+name: project-sigma-combinators-deferred
+description: Atleast / SigmaAnd / SigmaOr deferred from slice 2d-B; must implement in phase 2g (sigma protocol) when structural SigmaBoolean lands
+metadata:
+  type: project
+---
+
+Three `SigmaProp` combinator arms are deferred from phase 2d-B:
+
+- **Atleast** (k-of-n SigmaProp threshold combinator). Sigma-rust at
+  `eval/atleast.rs:55` calls `Cthreshold::reduce(k, children)`. The
+  reduction can collapse to `Cor` (when curr_k == 1), `Cand` (when
+  curr_k == children_left), `Cthreshold` (general case),
+  `TrivialProp(true)` (k == 0), or `TrivialProp(false)` (k > children
+  count). See `ergotree-ir/src/sigma_protocol/sigma_boolean/cthreshold.rs:34-84`.
+- **SigmaAnd** (Coll[SigmaProp] → SigmaProp; conjunction). Sigma-rust at
+  `eval/sigma_and.rs:24` calls `Cand::normalized(items)` — recursively
+  flattens nested Cand and absorbs TrivialProp children.
+- **SigmaOr** (Coll[SigmaProp] → SigmaProp; disjunction). Sigma-rust at
+  `eval/sigma_or.rs:24` calls `Cor::normalized(items)` — same
+  normalization family.
+
+**Why:** v0.2.0 keeps `SValue.kind: 'SigmaProp'`'s value as opaque
+`{ raw: Uint8Array }` bytes. The three combinators' normalization
+requires structural inspection of input SigmaBoolean trees (at minimum,
+to detect TrivialProp children for absorption; ideally, to flatten nested
+same-type combinators). Cleaner to land after `SigmaBoolean` becomes a
+discriminated union as part of phase 2g (sigma protocol prover +
+verifier work, where `@noble/curves` lands as a runtime dep).
+
+**How to apply:** Phase 2g brainstorm reads this memory and MUST scope
+the three combinators alongside the sigma-protocol primitives. Plan the
+SigmaBoolean discriminated union BEFORE designing the arms. After phase
+2g implements `Cand::normalized` / `Cor::normalized` / `Cthreshold::reduce`
+in TS, wire the three combinator arms.
+
+Tracking is also in:
+- `facts/ergoscript.md` "Does NOT ship yet" section (the load-bearing
+  boundary contract).
+- `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md` §
+  Deferred variants.
+
+Related: [[project-treeversion-gating-deferred]] (different family —
+tree-version gating, not SigmaProp normalization).
+```
+
+- [ ] **Step 7: Update the project direction memory**
 
 Edit `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`:
 
 ```markdown
 ---
 name: project-ergots-direction
-description: ...
+description: phase plan; phase 2d-B (And + Or = 17 of ~70 arms) shipped; next is phase 2e (lambdas + chain-state, treeVersion lands here)
 metadata:
   type: project
 ---
@@ -1034,54 +1203,92 @@ metadata:
 
 Phase plan: proof + ergoscript-2a (wire) + 2b (chassis + 8 arms) +
 2c (BinOp + LogicalNot + BoolToSigmaProp = 11 of ~70 arms) +
-**2d-A (Negation + BitInversion + Upcast + Downcast = 15 of ~70 arms)**
-shipped. Next slice is **2d-B = Coll[Boolean] aggregators
-(And/Or/Xor over Coll[Boolean]) + Atleast (k-of-n SigmaProp
-combinator)**.
+2d-A (Negation + BitInversion + Upcast + Downcast = 15 of ~70 arms) +
+**2d-B (And + Or over Coll[Boolean] = 17 of ~70 arms)** shipped.
 
-The "phase 2d" naming covers two slices (A: numeric-poly, B:
-Coll[Bool] + Atleast). Slice B has a brainstorm pending — main open
-question is `Atleast`'s SigmaProp wire-construction since the
-threshold combinator carries variable-length sub-propositions.
+Next phase: **2e** — lambdas (`FuncValue` / `Apply`) AND chain-state
+context shape. Phase 2e is also where `EvalContext` gains `treeVersion`,
+which unblocks the deferred work captured in
+[[project-treeversion-gating-deferred]] (XorOf wholly, and
+Upcast/Downcast BigInt-branch V3 gating).
+
+Slice 2d-B's deferred SigmaProp combinators (Atleast / SigmaAnd /
+SigmaOr) land in phase **2g** (sigma protocol). See
+[[project-sigma-combinators-deferred]].
+
+The "phase 2d" naming covers two slices (A: numeric-poly; B:
+Coll[Boolean] aggregators). Slice C / D / ... naming is flexible — we
+split as the work naturally clusters.
 ```
 
-Update `MEMORY.md`'s index line for `project_ergots_direction` to reflect the updated description.
+- [ ] **Step 8: Update `MEMORY.md` index**
 
-- [ ] **Step 4: Run full verification before push**
+Edit `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md`. Find the line for `project_ergots_direction` and update its one-line hook to reflect 2d-B done. Find the line for `project_treeversion_v3_gating_deferred` and:
+- Rename the link target to `project_treeversion_gating_deferred.md`
+- Update the link title to drop "V3" (now covers V3-Upcast/Downcast and V2-XorOf)
+- Update the hook to mention XorOf
+
+Add a new line for the new sigma-combinators memory:
+
+```markdown
+- [Sigma combinators deferred](project_sigma_combinators_deferred.md) — Atleast/SigmaAnd/SigmaOr deferred from 2d-B; phase 2g implements them with structural SigmaBoolean
+```
+
+- [ ] **Step 9: Update SESSION_CONTEXT.md**
+
+Replace the SESSION_CONTEXT.md with a fresh snapshot reflecting phase 2d-B done. Mirror the structure of the existing file. Highlights to capture:
+
+- 1542 ergoscript tests after 2d-A → ~1562-1566 after 2d-B (depends on actual fixture count).
+- Coverage: 17 of ~70 arms wired.
+- 1 new EvalError code: `'coll-not-boolean'`.
+- Deferred from 2d-B: XorOf, Xor (byte-array), Atleast, SigmaAnd, SigmaOr — pointing to specs and memories.
+- Next-step recommendations: brainstorm phase 2e (lambdas + chain-state Context with treeVersion); or optionally publish v0.2.0 to npm; or move to phase 2f (Box/Context) if 2e is bigger than expected.
+
+(Subagent: use the existing SESSION_CONTEXT.md as the template — same sections, same conventions.)
+
+- [ ] **Step 10: Run full verification before push**
 
 ```bash
 npx tsc --noEmit
-cd packages/ergoscript && npm test && npm run test:browser
-cd packages/proof && npm test && npm run test:browser
-cd fixture-gen && cargo build --release
+cd packages/ergoscript && npm test
+cd ../proof && npm test
+cd ../../fixture-gen && cargo build --release
+cd ..
 ```
 
 All must pass clean.
 
-- [ ] **Step 5: Final review**
+- [ ] **Step 11: Final review**
 
 Dispatch a single comprehensive-review subagent (`comprehensive-review-full-review` skill if available) with:
-- The 6 commits from this slice (1 refactor + 4 arms + 1 finalize).
-- The design spec at `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`.
-- The boundary contract at `facts/ergoscript.md` (updated this task).
+- The 3 commits from this slice (2 arms + 1 finalize).
+- The design spec at `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md`.
+- The updated boundary contract at `facts/ergoscript.md`.
+- The renamed/created memory files.
 
 Address any review findings in a follow-up fix commit before push.
 
-- [ ] **Step 6: Commit + push**
+- [ ] **Step 12: Commit + push**
 
 ```bash
 git add facts/ergoscript.md
 git commit -m "$(cat <<'EOF'
-docs(ergoscript): facts/ergoscript.md — phase 2d-A surface (15 of ~70 arms)
+docs(ergoscript): facts/ergoscript.md — phase 2d-B surface (17 of ~70 arms)
 
-Slice A of phase 2d shipped: Negation, BitInversion, Upcast, Downcast.
+Slice B of phase 2d shipped: And, Or aggregators over Coll[Boolean].
 One new EvalError code documented in v0.2.0 taxonomy:
-'downcast-overflow'. Refactor: checkRange + maskToKind promoted to
-bin-op/_numeric.ts. Public function signatures unchanged.
+'coll-not-boolean'. Public function signatures unchanged.
 
-Coverage after 2d-A: 15 of ~70 Expr variants. Layer C2 corpus stays
-success=0 not-impl=18 other=0 (the four new arms don't unlock mainnet
+Coverage after 2d-B: 17 of ~70 Expr variants. Layer C2 corpus stays
+success=0 not-impl=18 other=0 (the two new arms don't unlock mainnet
 trees in isolation; those need higher-phase arms).
+
+"Does NOT ship yet" section extended with explicit per-variant Deferred
+table: XorOf (phase 2e, treeVersion gating), Xor byte-array (later
+phase), Atleast / SigmaAnd / SigmaOr (phase 2g, sigma protocol).
+Three-mechanism tracking: this facts file, the spec doc, and two
+auto-loading memories (project_treeversion_gating_deferred +
+project_sigma_combinators_deferred).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1092,17 +1299,19 @@ git push origin master
 
 ---
 
-## Self-review checklist (run after Task 6)
+## Self-review checklist (run after Task 3)
 
-Before declaring slice A done, verify:
+Before declaring slice B done, verify:
 
-- [ ] All 6 task commits land on `master` and are pushed to `origin/master`.
+- [ ] All 3 task commits land on `master` and are pushed to `origin/master`.
 - [ ] `npx tsc --noEmit` clean across the workspace.
 - [ ] Proof tests: 305/305 in node + jsdom.
-- [ ] Ergoscript tests: ~1540/~1540 in node + jsdom (was 1473; +~67 from new fixtures).
+- [ ] Ergoscript tests: ~1562+ in node + jsdom (was 1542; +~20-24 from new fixtures + 4 inline error tests).
 - [ ] `cargo run --release -p fixture-gen` twice produces zero diff (determinism).
 - [ ] Layer C2 corpus stays at `success=0 not-impl=18 other=0` (regression gate).
-- [ ] `facts/ergoscript.md` v0.2.0 EvalError taxonomy contains `'downcast-overflow'`.
-- [ ] `MEMORY.md`'s `project_ergots_direction` reflects phase 2d-A done state and slice B as next.
+- [ ] `facts/ergoscript.md` v0.2.0 EvalError taxonomy contains `'coll-not-boolean'`.
+- [ ] `facts/ergoscript.md` "Does NOT ship yet" section names XorOf, Xor (byte-array), Atleast, SigmaAnd, SigmaOr individually with trigger conditions.
+- [ ] `MEMORY.md` index reflects the renamed `project_treeversion_gating_deferred` and the new `project_sigma_combinators_deferred`.
+- [ ] Memory `project_ergots_direction` reflects phase 2d-B done state and points to phase 2e as next.
 - [ ] Working tree is clean (`git status` empty).
-- [ ] `packages/ergoscript/PLAN.md` is the only file in `git status` from the prior slice; ready to be overwritten for slice B's brainstorm-then-implementation cycle.
+- [ ] `packages/ergoscript/PLAN.md` is the only file in `git status` from the prior slice; ready to be overwritten for the next slice's brainstorm-then-implementation cycle.
