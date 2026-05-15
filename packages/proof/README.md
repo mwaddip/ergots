@@ -46,14 +46,14 @@ import {
 
 Runs unchanged in evergreen browsers and Node >= 20. No `Buffer`, no `node:crypto`, no dynamic Node built-ins. ESM-only.
 
-The verifier is stateless: bytes in, structured result out. It does not fetch proofs, persist headers, or follow the chain tip — those concerns live in future packages (`@mwaddip/ergots-gossip`, `@mwaddip/ergots-light-client`).
+The verifier is stateless: bytes in, structured result out. It does not fetch proofs, persist headers, or follow the chain tip — those concerns live in the future wallet / transaction-broadcaster package.
 
 ## What this package does NOT do
 
 - **Proof construction.** Building a proof requires a local header chain with cached interlinks — that's a different package.
 - **Transport.** Callers fetch proofs over their own channel.
 - **Storage.** No header chain, no IndexedDB.
-- **Light-client sync.** Bootstrapping from a verified proof + following the tip lives in `@mwaddip/ergots-light-client`.
+- **Light-client sync.** Bootstrapping from a verified proof + following the tip lives in the future wallet / transaction-broadcaster package (phase 3).
 
 ## Verification scope
 
