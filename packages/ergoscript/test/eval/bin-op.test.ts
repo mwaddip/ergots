@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { makeContext } from '../../src/eval/eval-context'
 import type { BinOp, Expr } from '../../src/mir/types'
 
 const intConst = (v: number): Expr =>
@@ -11,35 +11,25 @@ const boolConst = (b: boolean): Expr =>
   ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: b } })
 
 describe('BinOp central dispatch — routes to per-family sub-arms', () => {
-  // Arith is still a skeleton that throws 'not-implemented-yet'.
-  // Bit, Logical, and Relation (ordering + Eq/NEq) are now fully implemented
-  // (phase 2c Tasks 4, 5, 6, and 7).
-  const notYetCases: Array<{ name: string; expr: BinOp }> = [
-    {
-      name: 'Arith routes to evalArithOp',
-      expr: { tag: 'BinOp', op: { kind: 'Arith', op: 'Plus' }, left: intConst(1), right: intConst(2) },
-    },
-  ]
+  // All four BinOp families are now fully implemented (phase 2c Tasks 4-8):
+  //   Bit (Task 4), Logical (Task 5), Relation (Tasks 6+7), Arith (Task 8).
 
-  for (const { name, expr } of notYetCases) {
-    it(name, () => {
-      const ctx = makeContext()
-      // These families still throw 'not-implemented-yet' from skeletons.
-      // The test asserts the routing happens — i.e., evalBinOp dispatches, no
-      // raw "variant 'BinOp' not implemented" from the central evalExpr default.
-      expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
-      try {
-        evalExpr(expr, Env.empty(), ctx)
-      } catch (e) {
-        const code = (e as EvalError).code
-        const message = (e as EvalError).message
-        expect(code).toBe('not-implemented-yet')
-        // Message must come from the family skeleton, not from the central
-        // dispatch's default. Each family says its own name.
-        expect(message).toMatch(/Arith/)
-      }
-    })
-  }
+  // Arith is implemented (Task 8): assert routing AND correct computed value.
+  // Plus(1, 2) = 3 (Int); cost = Plus_non-bigint(15) + left_Const(5) + right_Const(5) = 25.
+  it('Arith routes to evalArithOp and computes correctly (task 8)', () => {
+    const expr: BinOp = {
+      tag: 'BinOp',
+      op: { kind: 'Arith', op: 'Plus' },
+      left: intConst(1),
+      right: intConst(2),
+    }
+    const ctx = makeContext()
+    const value = evalExpr(expr, Env.empty(), ctx)
+    expect(value).toEqual({ kind: 'Int', value: 3 })
+    // Cost = Plus non-bigint (15) + left_Const (5) + right_Const (5) = 25.
+    // sigma-rust bin_op.rs:196: add_jit_cost(15) for Plus when !is_bigint.
+    expect(ctx.jitCost).toBe(25)
+  })
 
   // Bit is implemented: assert routing AND correct computed value.
   // 0xff & 0x0f = 0x0f = 15 (Int).

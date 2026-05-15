@@ -88,6 +88,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/bin-op-logical.json", &bin_op_logical_fixture)?;
     let bin_op_relation_fixture = cmds::ergoscript::eval::bin_op_relation::generate()?;
     write_ergoscript_json("eval/bin-op-relation.json", &bin_op_relation_fixture)?;
+    let bin_op_arith_fixture = cmds::ergoscript::eval::bin_op_arith::generate()?;
+    write_ergoscript_json("eval/bin-op-arith.json", &bin_op_arith_fixture)?;
 
     Ok(())
 }

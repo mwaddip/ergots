@@ -1,0 +1,351 @@
+{
+  "corpus": "eval_bin_op_arith",
+  "entries": [
+    {
+      "name": "plus_int_basic",
+      "tree_bytes_hex": "009a04020404",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 3
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "plus_long_max_minus_1",
+      "tree_bytes_hex": "009a05fcffffffffffffffff010502",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "plus_byte_negative",
+      "tree_bytes_hex": "009a02f60205",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -5
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "plus_short_basic",
+      "tree_bytes_hex": "009a03c801039003",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 300
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "plus_bigint_basic",
+      "tree_bytes_hex": "009a060101060101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "2"
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "minus_int_basic",
+      "tree_bytes_hex": "009904140406",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 7
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "minus_long_basic",
+      "tree_bytes_hex": "009905c8010502",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "99"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "minus_long_min_plus1",
+      "tree_bytes_hex": "009905fdffffffffffffffff010502",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775808"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "multiply_int_basic",
+      "tree_bytes_hex": "009c040c040e",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 42
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "multiply_long_basic",
+      "tree_bytes_hex": "009c05d00f05d00f",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "1000000"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "multiply_int_max_by_1",
+      "tree_bytes_hex": "009c04feffffffffffffffff010402",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 2147483647
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "multiply_bigint_basic",
+      "tree_bytes_hex": "009c060102060103",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "6"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "divide_int_basic",
+      "tree_bytes_hex": "009d04140406",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 3
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "divide_long_basic",
+      "tree_bytes_hex": "009d05c801050e",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "14"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "divide_int_negative_dividend",
+      "tree_bytes_hex": "009d04130406",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -3
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "modulo_int_basic",
+      "tree_bytes_hex": "009e04140406",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "modulo_long_basic",
+      "tree_bytes_hex": "009e05c801050e",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "2"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "max_int_basic",
+      "tree_bytes_hex": "00a2040a0414",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 10
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "max_long_basic",
+      "tree_bytes_hex": "00a205feffffffffffffffff010500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "max_bigint_basic",
+      "tree_bytes_hex": "00a20601ff060101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "1"
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "min_int_basic",
+      "tree_bytes_hex": "00a1040a0414",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 5
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "min_long_basic",
+      "tree_bytes_hex": "00a105ffffffffffffffffff010500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775808"
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "plus_int_overflow",
+      "tree_bytes_hex": "009a04feffffffffffffffff010402",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "minus_int_underflow",
+      "tree_bytes_hex": "009904ffffffffffffffffff010402",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "plus_long_overflow",
+      "tree_bytes_hex": "009a05feffffffffffffffff010502",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "multiply_long_overflow",
+      "tree_bytes_hex": "009c05feffffffffffffffff010504",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "multiply_bigint_overflow",
+      "tree_bytes_hex": "009c06207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff060102",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "plus_bigint_underflow",
+      "tree_bytes_hex": "009a062080000000000000000000000000000000000000000000000000000000000000000601ff",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "divide_int_by_zero",
+      "tree_bytes_hex": "009d040a0400",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-divide-by-zero"
+    },
+    {
+      "name": "divide_long_by_zero",
+      "tree_bytes_hex": "009d05c8010500",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-divide-by-zero"
+    },
+    {
+      "name": "modulo_int_by_zero",
+      "tree_bytes_hex": "009e040a0400",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-divide-by-zero"
+    },
+    {
+      "name": "modulo_long_by_zero",
+      "tree_bytes_hex": "009e05280500",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-divide-by-zero"
+    },
+    {
+      "name": "plus_kind_mismatch_int_long",
+      "tree_bytes_hex": "009a04020504",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-kind-mismatch"
+    },
+    {
+      "name": "multiply_kind_mismatch_byte_short",
+      "tree_bytes_hex": "009c02010304",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-kind-mismatch"
+    },
+    {
+      "name": "plus_not_numeric_bool",
+      "tree_bytes_hex": "009a8501",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-numeric"
+    }
+  ]
+}
