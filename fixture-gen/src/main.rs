@@ -82,6 +82,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/logical-not.json", &logical_not_fixture)?;
     let bool_to_sigma_prop_fixture = cmds::ergoscript::eval::bool_to_sigma_prop::generate()?;
     write_ergoscript_json("eval/bool-to-sigma-prop.json", &bool_to_sigma_prop_fixture)?;
+    let bin_op_bit_fixture = cmds::ergoscript::eval::bin_op_bit::generate()?;
+    write_ergoscript_json("eval/bin-op-bit.json", &bin_op_bit_fixture)?;
 
     Ok(())
 }

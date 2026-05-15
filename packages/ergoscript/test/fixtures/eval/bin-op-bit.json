@@ -1,0 +1,177 @@
+{
+  "corpus": "eval_bin_op_bit",
+  "entries": [
+    {
+      "name": "bitand_byte",
+      "tree_bytes_hex": "00f302aa02cc",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -120
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitand_short",
+      "tree_bytes_hex": "00f303fe03039e3c",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 15
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitand_int",
+      "tree_bytes_hex": "00f304ffff07049fbcf8f001",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -252706816
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitand_long",
+      "tree_bytes_hex": "00f305c58899b38691a2d5aa0105ffff8780e0ff7f",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-6149102337785069568"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitand_bigint",
+      "tree_bytes_hex": "00f306087fffffffffffffff06088000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "0"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitor_int",
+      "tree_bytes_hex": "00f204feff0704ffff07",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -1
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitor_long",
+      "tree_bytes_hex": "00f205000501",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-1"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitxor_int",
+      "tree_bytes_hex": "00f504abd5aad5faffffffff0104aad5aad5faffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -1
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitxor_long",
+      "tree_bytes_hex": "00f5050105ffffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitor_byte",
+      "tree_bytes_hex": "00f2023302cc",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -1
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitxor_short",
+      "tree_bytes_hex": "00f503fe0303ff03",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": -1
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitand_bigint_max_min",
+      "tree_bytes_hex": "00f306207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff06208000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "0"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitand_kind_mismatch_int_long",
+      "tree_bytes_hex": "00f304540554",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-kind-mismatch"
+    },
+    {
+      "name": "bitand_not_numeric_bool",
+      "tree_bytes_hex": "00f38503",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-numeric"
+    },
+    {
+      "name": "bit_shift_left_not_impl",
+      "tree_bytes_hex": "00f704020402",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "not-implemented-yet"
+    },
+    {
+      "name": "bit_shift_right_not_impl",
+      "tree_bytes_hex": "00f604020402",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "not-implemented-yet"
+    },
+    {
+      "name": "bit_shift_right_zeroed_not_impl",
+      "tree_bytes_hex": "00f804020402",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "not-implemented-yet"
+    }
+  ]
+}

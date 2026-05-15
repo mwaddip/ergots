@@ -1,5 +1,6 @@
 //! Phase 2b/2c evaluator fixtures.
 
+pub mod bin_op_bit;
 pub mod block_value;
 pub mod bool_to_sigma_prop;
 pub mod collection;
