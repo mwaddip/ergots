@@ -75,7 +75,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
   `treeVersion` on `EvalContext` because V0/V1 ErgoTree script versions
   use the JVM v4.x XOR bug (true iff Coll contains both true and false,
   count- and order-independent) while V2+ uses correct left-fold XOR.
-  See `~/projects/sigma-rust/.../eval/xor_of.rs:25`.
+  See `ergotree-interpreter/src/eval/xor_of.rs:25`.
 - **`Xor`** (byte-array XOR) — later phase (likely 2g alongside Coll
   HOFs, or standalone). Operates on `Coll[Byte] × Coll[Byte] →
   Coll[Byte]`; not a logical/threshold aggregator despite the name.
@@ -321,7 +321,7 @@ No other error classes are emitted by this package. Internal panics (e.g. a bug 
 (Detail in `docs/specs/2026-05-13-ergoscript-interpreter-design.md` § Validation strategy.)
 
 1. **Layer 1 — Parse + round-trip on every fixture**: `test/corpus.test.ts` loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip. Current state: 255 passing fixtures + 1 mainnet stub + 6 fixtures flagged `known_unstable` (upstream sigma-rust itself does not round-trip them; tracked in `fixture-gen/known_unstable.json`).
-2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the implemented arms — 18 / 173 such fixtures are currently evaluable by sigma-rust under a synthetic-empty context; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). The 18 evaluable mainnet trees all still hit `'not-implemented-yet'` after phase 2d-A (they require arms beyond the current 15 — method calls, context access, collection HOFs, etc.); `other=0` confirms no undocumented codes are emitted. Phase 2d slice B + phases 2e+ will progressively unlock more fixtures as arms land.
+2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the implemented arms — 18 / 173 such fixtures are currently evaluable by sigma-rust under a synthetic-empty context; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). The 18 evaluable mainnet trees all still hit `'not-implemented-yet'` after phase 2d-B (they require arms beyond the current 17 — method calls, context access, collection HOFs, etc.); `other=0` confirms no undocumented codes are emitted. Phases 2e+ will progressively unlock more fixtures as arms land.
 3. **Layer 3 — Mutation tests**: `test/parse-mutation.test.ts` performs single-byte flips at varied offsets across every fixture and asserts each mutation either throws one of the typed error classes above OR is byte-identical (a flip that lands in a tolerated padding region). Current state: 6221 mutations exercised; 66% throw a typed error class, 0 throw an untyped error, 100% taxonomy coverage (every error class above is hit at least once).
 4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1566/1566 ergoscript tests + 305 proof tests = 1871 total, passing in both runtimes.
 
@@ -420,11 +420,12 @@ The following code was added in phase 2d-B (Coll[Boolean] aggregator arms — An
   that wasn't `Coll[Boolean]`. Either `input.kind !== 'Coll'` (not a
   Coll at all) OR `input.kind === 'Coll'` but `items` contained a
   non-`Boolean` kind. Mirrors sigma-rust's
-  `EvalError::TryExtractFromError` from `try_extract_into::<Vec<bool>>()`.
-  Wire-format invariants (`mir/and.rs`/`mir/or.rs` enforce
-  `post_eval_tpe == Coll[Boolean]` at parse time) make this throw
-  unreachable for parser-produced trees; defensive against
-  `ConstantPlaceholder` injection and future MIR shape changes.
+  `EvalError::TryExtractFrom` from `try_extract_into::<Vec<bool>>()`.
+  Wire-format invariants (`And`/`Or` MIR structs are only constructed
+  from `Coll[Boolean]` inputs by sigma-rust's type-checked compilation
+  path) make this throw unreachable for correctly-typed parser-produced
+  trees; defensive against `ConstantPlaceholder` injection and future
+  MIR shape changes.
   Message includes the input's actual kind (and for Coll inputs with
   wrong-kind items, the offending item index + its kind).
 
