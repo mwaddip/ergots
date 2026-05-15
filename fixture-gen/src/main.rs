@@ -92,6 +92,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/bin-op-arith.json", &bin_op_arith_fixture)?;
     let bit_inversion_fixture = cmds::ergoscript::eval::bit_inversion::generate()?;
     write_ergoscript_json("eval/bit-inversion.json", &bit_inversion_fixture)?;
+    let negation_fixture = cmds::ergoscript::eval::negation::generate()?;
+    write_ergoscript_json("eval/negation.json", &negation_fixture)?;
 
     Ok(())
 }

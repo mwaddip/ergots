@@ -1,0 +1,165 @@
+{
+  "corpus": "eval_negation",
+  "entries": [
+    {
+      "name": "negation_byte_zero",
+      "tree_bytes_hex": "00f00200",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_byte_max",
+      "tree_bytes_hex": "00f0027f",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -127
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_short_zero",
+      "tree_bytes_hex": "00f00300",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": 0
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_short_max",
+      "tree_bytes_hex": "00f003feff03",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Short",
+        "value": -32767
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_int_zero",
+      "tree_bytes_hex": "00f00400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 0
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_int_max",
+      "tree_bytes_hex": "00f004feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -2147483647
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_long_zero",
+      "tree_bytes_hex": "00f00500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "0"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_long_max",
+      "tree_bytes_hex": "00f005feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775807"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_bigint_zero",
+      "tree_bytes_hex": "00f0060100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "0"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_bigint_max",
+      "tree_bytes_hex": "00f006207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "negation_byte_min_overflow",
+      "tree_bytes_hex": "00f00280",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "negation_short_min_overflow",
+      "tree_bytes_hex": "00f003ffff03",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "negation_int_min_overflow",
+      "tree_bytes_hex": "00f004ffffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "negation_long_min_overflow",
+      "tree_bytes_hex": "00f005ffffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "negation_bigint_min_overflow",
+      "tree_bytes_hex": "00f006208000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "arith-overflow"
+    },
+    {
+      "name": "negation_cost_limit_exceeded",
+      "tree_bytes_hex": "00f00400",
+      "opts_json": {
+        "jitCostLimit": 10
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

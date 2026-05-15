@@ -27,6 +27,7 @@ import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
+import { evalNegation } from './negation'
 import { evalTuple } from './tuple'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
@@ -57,6 +58,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalBoolToSigmaProp(e, env, ctx)
     case 'BitInversion':
       return evalBitInversion(e, env, ctx)
+    case 'Negation':
+      return evalNegation(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
