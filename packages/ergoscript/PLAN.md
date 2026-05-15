@@ -1,24 +1,24 @@
-# Phase 2c Implementation Plan — `@mwaddip/ergots-ergoscript`
+# Phase 2d Slice A Implementation Plan — `@mwaddip/ergots-ergoscript`
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the first half of the operator surface — `BinOp` (all 22 sub-ops across Arith/Relation/Logical/Bit families), `LogicalNot`, `BoolToSigmaProp` — wired into phase 2b's central exhaustive dispatch. 24 distinct evaluable behaviours across 6 new arm modules. Public surface unchanged from v0.2.0; internal additive growth only.
+**Goal:** Ship the four numeric-polymorphism unary arms — `Negation`, `BitInversion`, `Upcast`, `Downcast` — wired into the central exhaustive dispatch from phase 2b. 4 new arm modules, plus one small Step-1 refactor promoting `checkRange` + `maskToKind` from `bin-op/{arith,bit}.ts` into the shared `bin-op/_numeric.ts`. Public surface unchanged from v0.2.0; one new `EvalError` code (`'downcast-overflow'`) added additively. Internal arm growth only.
 
-**Architecture:** One `BinOp` central dispatcher (`src/eval/bin-op.ts`) that switches on `e.op.kind` and delegates to one of four per-family sub-arms under `src/eval/bin-op/`. Two further per-variant arms (`logical-not.ts`, `bool-to-sigma-prop.ts`) at the standard 2b grain. Compute in `bigint` everywhere for arithmetic to enable single-path overflow checking. `sValueEquals(a, b)` recursive comparer lives in `bin-op/relation.ts` (evaluator semantic, not a test helper). Costs copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`); asserted via Layer C1 fixture-gen oracles from day one.
+**Architecture:** Four standalone arm files at the per-arm grain (`negation.ts`, `bit-inversion.ts`, `upcast.ts`, `downcast.ts`), matching 2c's `logical-not.ts` / `bool-to-sigma-prop.ts` precedent. The Step-1 refactor pulls two kind-aware numeric helpers into `_numeric.ts` so the new top-level arms don't reach across into the sub-arm modules under `bin-op/`. `checkRange` gains a third parameter (error code string) so 2c arith callers continue passing `'arith-overflow'` while the new downcast caller passes `'downcast-overflow'`. Costs copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`); asserted via Layer C1 fixture-gen oracles from day one.
 
-**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf` via the `arbitrary` feature + `try_eval_out::<Value<'static>>` wedge (same pattern as 2b). No new runtime deps; no new dev deps.
+**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf` via the `arbitrary` feature + `try_eval_out::<Value<'static>>` wedge (same pattern as 2b/2c). No new runtime deps; no new dev deps.
 
-**Source-first discipline:** Read sigma-rust per arm before writing any TS. Authoritative sources for 2c:
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (BinOp dispatch + all 4 families)
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/data_value_comparer.rs` (Eq/NEq structural comparison)
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/logical_not.rs`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bool_to_sigma.rs`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/costs.rs` (per-op cost values)
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean.rs` (TrivialProp opcode)
+**Source-first discipline:** Read sigma-rust per arm before writing any TS. Authoritative sources for slice A:
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/negation.rs`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bit_inversion.rs`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/upcast.rs`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/downcast.rs`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/costs.rs` (per-arm cost values)
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/{negation,bit_inversion,upcast,downcast}.rs` (MIR shapes — reference for what `e.tpe` carries on Upcast/Downcast)
 
-Full design rationale: `docs/specs/2026-05-14-ergoscript-phase-2c-design.md`.
+Full design rationale: `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`.
 
-**TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each per-arm task follows red → green → cost-assert → corpus-check → commit.
+**TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each per-arm task follows red → green → cost-assert → corpus-check → commit. The Step-1 refactor follows refactor-then-verify (existing 2c tests are the correctness oracle for the refactor).
 
 ---
 
@@ -28,51 +28,44 @@ Full design rationale: `docs/specs/2026-05-14-ergoscript-phase-2c-design.md`.
 
 | Path | Responsibility |
 |---|---|
-| `packages/ergoscript/src/eval/bin-op.ts` | `evalBinOp` central dispatcher: one-of-four switch on `e.op.kind` |
-| `packages/ergoscript/src/eval/bin-op/arith.ts` | `evalArithOp` + `checkedNumericArith` helper + numeric range constants |
-| `packages/ergoscript/src/eval/bin-op/relation.ts` | `evalRelationOp` (ordering + Eq/NEq dispatch) + `sValueEquals` recursive comparer |
-| `packages/ergoscript/src/eval/bin-op/logical.ts` | `evalLogicalOp` (And/Or short-circuit + Xor eager) |
-| `packages/ergoscript/src/eval/bin-op/bit.ts` | `evalBitOp` + bitwise helpers + shift validation |
-| `packages/ergoscript/src/eval/logical-not.ts` | `evalLogicalNot` arm |
-| `packages/ergoscript/src/eval/bool-to-sigma-prop.ts` | `evalBoolToSigmaProp` arm + inline `TrivialProp(b)` byte helper |
-| `packages/ergoscript/test/eval/logical-not.test.ts` | LogicalNot arm fixture-driven test |
-| `packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts` | BoolToSigmaProp arm fixture-driven test + wire-bytes round-trip assertion |
-| `packages/ergoscript/test/eval/bin-op.test.ts` | BinOp central dispatch test (each kind routes correctly; unported sub-arms throw `'not-implemented-yet'` during incremental landing) |
-| `packages/ergoscript/test/eval/bin-op-bit.test.ts` | Bit family fixture-driven test |
-| `packages/ergoscript/test/eval/bin-op-logical.test.ts` | Logical family fixture-driven test + short-circuit assertions |
-| `packages/ergoscript/test/eval/bin-op-relation.test.ts` | Relation family fixture-driven test (ordering + Eq/NEq) |
-| `packages/ergoscript/test/eval/bin-op-arith.test.ts` | Arith family fixture-driven test (incl overflow + divide-by-zero) |
-| `packages/ergoscript/test/fixtures/eval/logical-not.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/bool-to-sigma-prop.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/bin-op-bit.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/bin-op-logical.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/bin-op-relation.json` | Generated by fixture-gen |
-| `packages/ergoscript/test/fixtures/eval/bin-op-arith.json` | Generated by fixture-gen |
+| `packages/ergoscript/src/eval/negation.ts` | `evalNegation` arm |
+| `packages/ergoscript/src/eval/bit-inversion.ts` | `evalBitInversion` arm |
+| `packages/ergoscript/src/eval/upcast.ts` | `evalUpcast` arm |
+| `packages/ergoscript/src/eval/downcast.ts` | `evalDowncast` arm |
+| `packages/ergoscript/test/eval/negation.test.ts` | Negation fixture-driven test |
+| `packages/ergoscript/test/eval/bit-inversion.test.ts` | BitInversion fixture-driven test |
+| `packages/ergoscript/test/eval/upcast.test.ts` | Upcast fixture-driven test |
+| `packages/ergoscript/test/eval/downcast.test.ts` | Downcast fixture-driven test |
+| `packages/ergoscript/test/fixtures/eval/negation.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/bit-inversion.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/upcast.json` | Generated by fixture-gen |
+| `packages/ergoscript/test/fixtures/eval/downcast.json` | Generated by fixture-gen |
 
 **New files (Rust fixture-gen):**
 
 | Path | Responsibility |
 |---|---|
-| `fixture-gen/src/cmds/ergoscript/eval/logical_not.rs` | LogicalNot fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs` | BoolToSigmaProp fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs` | Bit family fixtures |
-| `fixture-gen/src/cmds/ergoscript/eval/bin_op_logical.rs` | Logical family fixtures + short-circuit guard cases |
-| `fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs` | Relation family fixtures (ordering + Eq/NEq) |
-| `fixture-gen/src/cmds/ergoscript/eval/bin_op_arith.rs` | Arith family fixtures (incl overflow + divide-by-zero error entries) |
+| `fixture-gen/src/cmds/ergoscript/eval/negation.rs` | Negation fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs` | BitInversion fixtures |
+| `fixture-gen/src/cmds/ergoscript/eval/upcast.rs` | Upcast fixtures (all valid widening pairs) |
+| `fixture-gen/src/cmds/ergoscript/eval/downcast.rs` | Downcast fixtures (narrowing pairs + overflow) |
 
 **Modified files:**
 
 | Path | Modification |
 |---|---|
-| `packages/ergoscript/src/eval/eval.ts` | Add 3 `case` lines to central dispatch: `BinOp` → `evalBinOp`, `LogicalNot` → `evalLogicalNot`, `BoolToSigmaProp` → `evalBoolToSigmaProp` |
-| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Re-export the 6 new per-arm modules |
-| `fixture-gen/src/main.rs` | Wire 6 new eval fixture commands into the generator pipeline |
-| `facts/ergoscript.md` | Extend v0.2.0 EvalError taxonomy with the 6 new codes (additive, no breaking changes) |
+| `packages/ergoscript/src/eval/bin-op/_numeric.ts` | Gains `checkRange(value, kind, errorCode)` (promoted from `arith.ts`) and `maskToKind(value, kind)` (promoted from `bit.ts`) |
+| `packages/ergoscript/src/eval/bin-op/arith.ts` | Re-imports `checkRange` from `_numeric.ts`; passes `'arith-overflow'` as the third argument. Behavior unchanged. |
+| `packages/ergoscript/src/eval/bin-op/bit.ts` | Re-imports `maskToKind` from `_numeric.ts`. Behavior unchanged. |
+| `packages/ergoscript/src/eval/eval.ts` | Adds 4 `case` lines to central dispatch: `Negation` → `evalNegation`, `BitInversion` → `evalBitInversion`, `Upcast` → `evalUpcast`, `Downcast` → `evalDowncast` |
+| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Re-export the 4 new per-arm modules |
+| `fixture-gen/src/main.rs` | Wire 4 new eval fixture commands into the generator pipeline |
+| `facts/ergoscript.md` | Extend v0.2.0 EvalError taxonomy with `'downcast-overflow'`; bump "Coverage after" line from 11 to 15 (additive, no breaking changes) |
 
 **Unchanged (deliberately):**
 
 - `packages/ergoscript/src/index.ts` — public surface unchanged; no version bump in `package.json` (no publish during phase 2 progression)
-- `packages/ergoscript/test/_helpers/index.ts` — shared `hexToBytes` / `hydrateSValue` already cover every new test file
+- `packages/ergoscript/test/_helpers/index.ts` — `hexToBytes` / `hydrateSValue` / `captureEvalError` already cover every new test file
 
 ---
 
@@ -80,130 +73,363 @@ Full design rationale: `docs/specs/2026-05-14-ergoscript-phase-2c-design.md`.
 
 These apply to every task. Don't repeat them per-task.
 
-**Per-task arc:**
-1. Read sigma-rust source for the arm (cited path/line in each task).
+**Per-task arc (per-arm tasks 2–5):**
+1. Read sigma-rust source for the arm (cited path in each task).
 2. Write the fixture-gen Rust module.
 3. Run `cargo run --release -p fixture-gen` from repo root; verify the new fixture file is committed.
 4. Write the failing TS test (red).
 5. Run `npx vitest run packages/ergoscript/test/eval/<arm>.test.ts`; verify FAIL with expected reason.
 6. Write the minimal TS arm implementation (green).
-7. Wire the arm into central dispatch if not already done.
+7. Wire the arm into central dispatch (`eval/eval.ts`).
 8. Run the per-arm test; verify PASS.
 9. Run the full ergoscript suite: `npx vitest run packages/ergoscript/`; verify all previous tests still pass.
 10. Run `npx tsc --noEmit -p packages/ergoscript`; verify zero errors.
-11. Commit fixture-gen + fixtures + TS in one commit per task (matching 2b's pattern).
+11. Commit fixture-gen + fixtures + TS in one commit per task.
 
-**Fixture-gen execution:** Always `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Output goes to `packages/ergoscript/test/fixtures/eval/<arm>.json`. Two consecutive runs must produce byte-identical output (determinism check); if they don't, investigate before commit.
+**Fixture-gen execution:** Always `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Output goes to `packages/ergoscript/test/fixtures/eval/<arm>.json`. Two consecutive runs must produce byte-identical output (determinism check); if they don't, investigate before commit (likely `TestRunner::default()` vs `::deterministic()` — see memory `project_fixture_gen_cargo_gotchas`).
 
-**Cost values:** Read from `sigma-rust/.../ergotree-interpreter/src/eval/costs.rs` per arm. Each TS arm's header comment cites `eval/<file>.rs:LINE`. Don't hardcode cost integers in the spec — the fixture-gen `expected_cost` field is the source of truth.
+**Cost values:** Read from sigma-rust per arm. Each TS arm's header comment cites `eval/<file>.rs:LINE`. Don't hardcode cost integers in this plan — the fixture-gen `expected_cost` field is the source of truth (lesson from 2c: every plan-stated cost value was wrong).
+
+**Cost-charging order:** Source-read per arm. Unary arms could plausibly charge envelope before OR after eval-child; sigma-rust's `LogicalNot` and `If` charge before, `BinOp` charges after-left-before-right. C1 fixture's cost-equality assertion locks whichever order the source uses.
 
 **Browser compatibility checks:** Every new TS module follows the existing hard rules (no `Buffer`, no `node:*` outside test files, no `globalThis.crypto`, no WASM, ESM only, no top-level await). The existing browser-compat scan in tests already covers `dist/`; no plan changes needed.
 
-**Commit message style:** `feat(ergoscript): <arm> eval arm (phase 2c task N)` for arm tasks; `chore(fixture-gen): <arm> fixtures (phase 2c task N)` if fixture-gen-only; reuse 2b's pattern. Co-author trailer mandatory.
+**Two-stage review (per task):** After each task's green-+-typecheck-passes state, dispatch two parallel review subagents:
+- **Spec-compliance reviewer** — reads `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`, the task's section in this PLAN, and the diff. Verifies behavior matches the design (error codes, cost source-line citation, kind-handling semantics).
+- **Code-quality reviewer** — reads the diff. Verifies test style consistency with 2b/2c (uses `captureEvalError` helper, uses `hydrateSValue`, follows existing fixture-loop pattern), TS idioms (no `any` leaking), and code comments cite sigma-rust source lines.
+
+Address review findings in the same task before committing.
+
+**Commit message style:** `feat(ergoscript): <arm> eval arm (phase 2d-A task N)` for arm tasks; `refactor(ergoscript): promote <helpers> to _numeric.ts (phase 2d-A task 1)` for the refactor task. Co-author trailer mandatory:
+
+```
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+```
 
 ---
 
-## Stage 1 — Standalone unary arms (Tasks 1–2)
+## Stage 0 — Refactor (Task 1)
 
-These are the simplest arms — no BinOp dispatch complexity, no polymorphism. Each establishes the 2c arm-task template.
+The slice's only non-additive change. Lands first so the four arm tasks can import from `_numeric.ts` without further refactoring.
 
-### Task 1: `LogicalNot` arm + fixture
+### Task 1: Promote `checkRange` + `maskToKind` to `_numeric.ts`
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/logical_not.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/logical-not.json`
-- Create: `packages/ergoscript/src/eval/logical-not.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/logical-not.test.ts`
+- Modify: `packages/ergoscript/src/eval/bin-op/_numeric.ts`
+- Modify: `packages/ergoscript/src/eval/bin-op/arith.ts`
+- Modify: `packages/ergoscript/src/eval/bin-op/bit.ts`
 
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/logical_not.rs` (43 LOC).
+**Sigma-rust source:** N/A — this is a pure TS refactor. The correctness oracle is the existing 2c fixture suite (must continue to pass byte-for-byte after the move).
 
-Key behavior: input must evaluate to `SBoolean`; return inverted boolean. Cost: `Fixed(1)` per `costs.rs`.
+**Key behavior:**
+- `checkRange(value: bigint, kind: NumericKind, errorCode: string): void` — gains a third parameter so callers control which `EvalError.code` is thrown. 2c arith callers pass `'arith-overflow'`; the upcoming `downcast.ts` will pass `'downcast-overflow'`.
+- `maskToKind(value: bigint, kind: NumericKind): bigint` — signature unchanged. Just moves files.
 
-- [ ] **Step 1: Read sigma-rust source**
+- [ ] **Step 1: Inspect existing implementations**
 
-Read `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/logical_not.rs` and note the exact cost (line ~15) and the bool extraction pattern.
+Read the current bodies of `checkRange` (in `bin-op/arith.ts`) and `maskToKind` (in `bin-op/bit.ts`). Note any related constants (e.g. signed-range bounds) that need to move with them, and any helpers they depend on (likely `NumericKind` + `valueToBigInt` + `bigIntToValue` from `_numeric.ts` already).
 
-- [ ] **Step 2: Write the fixture-gen Rust module**
+- [ ] **Step 2: Move `checkRange` to `_numeric.ts`, add error-code parameter**
 
-`fixture-gen/src/cmds/ergoscript/eval/logical_not.rs`:
+In `packages/ergoscript/src/eval/bin-op/_numeric.ts`, add:
 
-```rust
-//! LogicalNot eval fixtures. Source: ergotree-interpreter/src/eval/logical_not.rs
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::logical_not::LogicalNot;
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde_json::json;
+```ts
+import { EvalError } from '../eval-context'
 
-use super::common::{run_eval_capture, EvalFixtureFile, EvalFixtureEntry};
-
-pub fn generate() -> EvalFixtureFile {
-    let mut entries = Vec::new();
-
-    for input_val in [true, false] {
-        let expr: Expr = LogicalNot {
-            input: Box::new(Constant::from(input_val).into()),
-        }.into();
-        let tree = ErgoTree::try_from(expr.clone()).expect("build tree");
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes().expect("serialize"));
-
-        let capture = run_eval_capture(&tree, &json!({}));
-        entries.push(EvalFixtureEntry {
-            name: format!("not_{}", input_val),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: capture.value_json,
-            expected_cost: capture.jit_cost,
-            expected_error_code: None,
-        });
-    }
-
-    EvalFixtureFile {
-        corpus: "logical-not".into(),
-        entries,
-    }
+/**
+ * Throw `EvalError(errorCode)` if `value` lies outside `kind`'s signed range.
+ * Callers control the error code so the same range-check serves both
+ * arith overflow ('arith-overflow') and downcast narrowing ('downcast-overflow').
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Arith family) and
+ *                 ergotree-interpreter/src/eval/downcast.rs (Downcast).
+ */
+export function checkRange(value: bigint, kind: NumericKind, errorCode: string): void {
+  // ... bring across the body from bin-op/arith.ts, but the throw line
+  // uses `errorCode` from the parameter instead of a hardcoded
+  // 'arith-overflow' string.
 }
 ```
 
-(Subagent: adapt to the `common.rs` helper signatures actually in the codebase — read `fixture-gen/src/cmds/ergoscript/eval/common.rs` first. The shape above mirrors phase 2b's per-arm modules.)
+In `bin-op/arith.ts`, remove the local definition and add `import { checkRange } from './_numeric'`. Replace each call site so it now passes `'arith-overflow'` as the third argument:
+
+```ts
+checkRange(result, lv.kind, 'arith-overflow')
+```
+
+- [ ] **Step 3: Move `maskToKind` to `_numeric.ts`**
+
+In `_numeric.ts`, add:
+
+```ts
+/**
+ * Mask `value` to `kind`'s signed range via two's-complement narrow.
+ * Used by BinOp.Bit (BitAnd/Or/Xor) and the upcoming BitInversion arm.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Bit family).
+ */
+export function maskToKind(value: bigint, kind: NumericKind): bigint {
+  // ... bring across the body from bin-op/bit.ts, unchanged.
+}
+```
+
+In `bin-op/bit.ts`, remove the local definition and add `import { maskToKind } from './_numeric'`.
+
+- [ ] **Step 4: Run the full ergoscript test suite**
+
+```bash
+npx vitest run packages/ergoscript/
+```
+
+**Expected:** all 1473 tests pass (matching 2c's end state). If any 2c arith or bit fixture fails, the refactor introduced a regression — investigate before proceeding.
+
+- [ ] **Step 5: Verify byte-equality on regenerated fixtures**
+
+```bash
+cargo run --release -p fixture-gen
+git status -- packages/ergoscript/test/fixtures/
+```
+
+**Expected:** zero diff. The refactor doesn't touch fixture-gen Rust at all, so output must be byte-identical to committed.
+
+- [ ] **Step 6: Typecheck**
+
+```bash
+npx tsc --noEmit -p packages/ergoscript
+```
+
+**Expected:** zero errors.
+
+- [ ] **Step 7: Two-stage review**
+
+Dispatch parallel reviewers per § Conventions. Spec-compliance reviewer checks: `checkRange` signature gains exactly one parameter (error code); all 2c call sites pass `'arith-overflow'`; `maskToKind` is byte-identical to its prior implementation. Code-quality reviewer checks: comments cite sigma-rust source; no dead imports left behind in `arith.ts` or `bit.ts`; `_numeric.ts` exports are alphabetically sorted (matches existing module convention).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/bin-op/_numeric.ts \
+        packages/ergoscript/src/eval/bin-op/arith.ts \
+        packages/ergoscript/src/eval/bin-op/bit.ts
+git commit -m "$(cat <<'EOF'
+refactor(ergoscript): promote checkRange + maskToKind to _numeric.ts (phase 2d-A task 1)
+
+Both helpers were 2c-private inside bin-op/{arith,bit}.ts. Slice A's
+upcoming Downcast arm needs checkRange (with a 'downcast-overflow'
+error code) and BitInversion needs maskToKind. Top-level arms shouldn't
+reach into sub-arm modules; both functions belong in the shared
+_numeric.ts that already owns kind-aware numeric helpers.
+
+checkRange gains a third parameter (error code string) so 2c arith
+callers continue passing 'arith-overflow' while the new downcast arm
+will pass 'downcast-overflow'. maskToKind moves unchanged.
+
+Correctness gate: all 1473 ergoscript tests pass byte-for-byte after
+the move. Fixture-gen output is byte-identical (no regeneration needed).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Stage 1 — Unary numeric, same-kind-out (Tasks 2–3)
+
+Two arms whose output kind equals input kind. BitInversion first (no overflow path); Negation next (introduces `checkRange` use against the input kind).
+
+### Task 2: `BitInversion` arm + fixture
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/bit-inversion.json`
+- Create: `packages/ergoscript/src/eval/bit-inversion.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/bit-inversion.test.ts`
+
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bit_inversion.rs`
+
+Key behavior: input must evaluate to a numeric kind (Byte/Short/Int/Long/BigInt); return bitwise complement masked to the kind's signed range. No overflow path.
+
+- [ ] **Step 1: Read sigma-rust source**
+
+Read `eval/bit_inversion.rs` start-to-end. Note:
+- The exact cost (`ctx.add_jit_cost(N)?`) and cite the line.
+- The order of operations (cost-before-eval-child vs cost-after-eval-child).
+- The per-kind compute path (likely a match on `Value::Byte | Short | Int | Long | BigInt`).
+- How the result is masked back into the kind's signed range (Rust uses primitive `!` which already wraps).
+
+Also read `ergotree-ir/src/mir/bit_inversion.rs` to confirm the MIR shape (single `input: Box<Expr>`).
+
+- [ ] **Step 2: Write the fixture-gen Rust module**
+
+`fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs`:
+
+```rust
+//! BitInversion arm — fixtures for `Expr::BitInversion(...)` evaluation.
+//!
+//! Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs
+//! Cost: Fixed(N) per sigma-rust costs.rs — captured per fixture entry.
+//!
+//! 5 numeric kinds × 3 boundary values (0, MAX_K, MIN_K) = 15 entries,
+//! plus 1 non-numeric error case (Boolean input → 'bin-op-not-numeric').
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::bigint256::BigInt256;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::bit_inversion::BitInversion;
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::unary_op::OneArgOpTryBuild;
+use ergotree_ir::mir::value::Value;
+use ergotree_ir::serialization::SigmaSerializable;
+use num_traits::Bounded;
+use serde::Serialize;
+use serde_json::{json, Value as JsonValue};
+use sigma_test_util::force_any_val;
+
+use super::common::value_to_json;
+
+#[derive(Serialize)]
+pub struct BitInversionFixture {
+    pub name: String,
+    pub tree_bytes_hex: String,
+    pub opts_json: JsonValue,
+    pub expected_value_json: JsonValue,
+    pub expected_cost: u64,
+    pub expected_error_code: JsonValue,
+}
+
+#[derive(Serialize)]
+pub struct BitInversionFixtureFile {
+    pub corpus: &'static str,
+    pub entries: Vec<BitInversionFixture>,
+}
+
+fn build_tree(input: Expr) -> anyhow::Result<(ErgoTree, String)> {
+    let expr: Expr = BitInversion::try_build(input)?.into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let hex = hex::encode(tree.sigma_serialize_bytes()?);
+    Ok((tree, hex))
+}
+
+fn success_entry(name: &str, input: Expr) -> anyhow::Result<BitInversionFixture> {
+    let (tree, hex) = build_tree(input)?;
+    let ctx = force_any_val::<Context>();
+    let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    Ok(BitInversionFixture {
+        name: name.into(),
+        tree_bytes_hex: hex,
+        opts_json: json!({}),
+        expected_value_json: value_to_json(&val),
+        expected_cost: ctx.jit_cost_value(),
+        expected_error_code: json!(null),
+    })
+}
+
+fn error_entry(name: &str, input: Expr, code: &str) -> anyhow::Result<BitInversionFixture> {
+    // For non-Boolean→bool error cases, try_build may reject; if so,
+    // build the BitInversion struct directly (sigma-rust permits this
+    // for malformed-tree test purposes — see bin_op_logical.rs precedent).
+    let expr: Expr = BitInversion::try_build(input)?.into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let hex = hex::encode(tree.sigma_serialize_bytes()?);
+    Ok(BitInversionFixture {
+        name: name.into(),
+        tree_bytes_hex: hex,
+        opts_json: json!({}),
+        expected_value_json: json!(null),
+        expected_cost: 0,
+        expected_error_code: json!(code),
+    })
+}
+
+pub fn generate() -> anyhow::Result<BitInversionFixtureFile> {
+    let mut entries = Vec::new();
+
+    // Byte: 0, MAX, MIN
+    entries.push(success_entry("bit_inversion_byte_zero", Expr::Const(0i8.into()))?);
+    entries.push(success_entry("bit_inversion_byte_max",  Expr::Const(i8::MAX.into()))?);
+    entries.push(success_entry("bit_inversion_byte_min",  Expr::Const(i8::MIN.into()))?);
+
+    // Short: 0, MAX, MIN
+    entries.push(success_entry("bit_inversion_short_zero", Expr::Const(0i16.into()))?);
+    entries.push(success_entry("bit_inversion_short_max",  Expr::Const(i16::MAX.into()))?);
+    entries.push(success_entry("bit_inversion_short_min",  Expr::Const(i16::MIN.into()))?);
+
+    // Int: 0, MAX, MIN
+    entries.push(success_entry("bit_inversion_int_zero", Expr::Const(0i32.into()))?);
+    entries.push(success_entry("bit_inversion_int_max",  Expr::Const(i32::MAX.into()))?);
+    entries.push(success_entry("bit_inversion_int_min",  Expr::Const(i32::MIN.into()))?);
+
+    // Long: 0, MAX, MIN
+    entries.push(success_entry("bit_inversion_long_zero", Expr::Const(0i64.into()))?);
+    entries.push(success_entry("bit_inversion_long_max",  Expr::Const(i64::MAX.into()))?);
+    entries.push(success_entry("bit_inversion_long_min",  Expr::Const(i64::MIN.into()))?);
+
+    // BigInt: 0, MAX (full 256-bit), MIN (full 256-bit)
+    entries.push(success_entry("bit_inversion_bigint_zero", Expr::Const(BigInt256::from(0i64).into()))?);
+    entries.push(success_entry("bit_inversion_bigint_max",  Expr::Const(BigInt256::max_value().into()))?);
+    entries.push(success_entry("bit_inversion_bigint_min",  Expr::Const(BigInt256::min_value().into()))?);
+
+    // Error: non-numeric (Boolean).
+    // try_build may reject; if so, construct BitInversion struct directly.
+    // The TS side parses the resulting bytes and dispatches eval, which
+    // throws 'bin-op-not-numeric'.
+    // (Implementer: check whether try_build accepts non-numeric here.
+    //  If it does, use error_entry; if it doesn't, construct BitInversion
+    //  via struct literal bypass and serialize directly.)
+    // entries.push(error_entry(
+    //     "bit_inversion_not_numeric_bool",
+    //     Expr::Const(true.into()),
+    //     "bin-op-not-numeric",
+    // )?);
+
+    Ok(BitInversionFixtureFile { corpus: "eval_bit_inversion", entries })
+}
+```
+
+(Subagent: adapt to actual `common.rs` helper signatures; check whether `BitInversion::try_build` accepts non-numeric inputs — if not, construct the struct directly via `BitInversion { input: Box::new(...) }` to build the error-case bytes, as `bin_op_logical.rs` does for some entries.)
 
 - [ ] **Step 3: Wire into fixture-gen pipeline**
 
 Add to `fixture-gen/src/cmds/ergoscript/eval/mod.rs`:
 
 ```rust
-pub mod logical_not;
+pub mod bit_inversion;
 ```
 
-Add the command invocation in `fixture-gen/src/main.rs` alongside the existing eval-arm commands (follow the pattern of `const_arm`, `tuple`, etc.).
+Add the command invocation in `fixture-gen/src/main.rs` alongside the existing eval-arm commands (follow the pattern of `logical_not`, `bool_to_sigma_prop`).
 
 - [ ] **Step 4: Run fixture-gen and verify determinism**
 
-From repo root:
-
 ```bash
 cargo run --release -p fixture-gen
-```
-
-Verify `packages/ergoscript/test/fixtures/eval/logical-not.json` exists and contains 2 entries. Run a second time and confirm byte-identical output:
-
-```bash
-md5sum packages/ergoscript/test/fixtures/eval/logical-not.json
+# Verify file exists with expected entries
+cat packages/ergoscript/test/fixtures/eval/bit-inversion.json | jq '.entries | length'
+# Run twice to confirm byte-identical
+md5sum packages/ergoscript/test/fixtures/eval/bit-inversion.json
 cargo run --release -p fixture-gen
-md5sum packages/ergoscript/test/fixtures/eval/logical-not.json
+md5sum packages/ergoscript/test/fixtures/eval/bit-inversion.json
 ```
 
-Both md5s must match. If not, investigate non-determinism before proceeding (likely `TestRunner::default()` vs `::deterministic()` — see memory `project_fixture_gen_cargo_gotchas`).
+Both md5s must match.
 
 - [ ] **Step 5: Write the failing TS test**
 
-`packages/ergoscript/test/eval/logical-not.test.ts`:
+`packages/ergoscript/test/eval/bit-inversion.test.ts`:
 
 ```ts
+/**
+ * BitInversion arm — fixture-driven evaluation tests.
+ *
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs
+ *
+ * Bitwise complement masked to the kind's signed range. No overflow path.
+ * 5 kinds × 3 boundary values cover the masking math, especially BigInt's
+ * 256-bit width.
+ */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -212,641 +438,11 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/logical-not.json')
-
-interface EvalFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: { kind: string; value?: unknown }
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-describe('LogicalNot arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 6: Run test, verify FAIL**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/logical-not.test.ts
-```
-
-Expected: FAIL with `EvalError: not yet supported: variant 'LogicalNot'` (the central dispatch's default arm).
-
-- [ ] **Step 7: Write the arm implementation**
-
-`packages/ergoscript/src/eval/logical-not.ts`:
-
-```ts
-/**
- * LogicalNot arm — unary `!` on Boolean.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/logical_not.rs
- * Cost: Fixed(1) per costs.rs (verify line number when reading source).
- */
-import type { LogicalNot, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-
-const LOGICAL_NOT_COST = 1
-
-export function evalLogicalNot(e: LogicalNot, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(LOGICAL_NOT_COST)
-  const input = evalExpr(e.input, env, ctx)
-  if (input.kind !== 'Boolean') {
-    throw new EvalError(
-      `LogicalNot: operand kind must be Boolean, got '${input.kind}'`,
-      'bin-op-not-boolean'
-    )
-  }
-  return { kind: 'Boolean', value: !input.value }
-}
-```
-
-- [ ] **Step 8: Wire into central dispatch**
-
-In `packages/ergoscript/src/eval/eval.ts`, add the import and case:
-
-```ts
-import { evalLogicalNot } from './logical-not'
-
-// inside the switch in evalExpr:
-    case 'LogicalNot':         return evalLogicalNot(e, env, ctx)
-```
-
-- [ ] **Step 9: Run test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/logical-not.test.ts
-```
-
-Expected: PASS, 2 tests.
-
-- [ ] **Step 10: Run full ergoscript suite**
-
-```bash
-npx vitest run packages/ergoscript/
-```
-
-Expected: 1321 passing (was 1319; +2 from LogicalNot fixture). Zero failures.
-
-- [ ] **Step 11: Typecheck**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: zero output.
-
-- [ ] **Step 12: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/logical-not.ts \
-        packages/ergoscript/src/eval/eval.ts \
-        packages/ergoscript/test/eval/logical-not.test.ts \
-        packages/ergoscript/test/fixtures/eval/logical-not.json \
-        fixture-gen/src/cmds/ergoscript/eval/logical_not.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): LogicalNot eval arm (phase 2c task 1)
-
-Unary boolean negation. Cost Fixed(1) per sigma-rust costs.rs.
-Throws 'bin-op-not-boolean' on non-Boolean operand.
-
-Layer C1 fixture asserts value + cost across both truth-table cells.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-### Task 2: `BoolToSigmaProp` arm + fixture
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/bool-to-sigma-prop.json`
-- Create: `packages/ergoscript/src/eval/bool-to-sigma-prop.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts`
-
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bool_to_sigma.rs` (97 LOC).
-
-**TrivialProp encoding:** Single byte — `0xd2` for `TrivialProp(false)`, `0xd3` for `TrivialProp(true)`. The opcode itself encodes the boolean; payload is empty. Already exported from `packages/ergoscript/src/wire/sigma-boolean.ts` as `SIGMA_OP_TRIVIAL_PROP_FALSE` / `SIGMA_OP_TRIVIAL_PROP_TRUE`.
-
-Key behavior: input must evaluate to `SBoolean`; result is a `SigmaProp` whose `.raw` is a 1-byte `Uint8Array` with the appropriate TrivialProp opcode. Cost: `Fixed(1)` per `costs.rs`.
-
-- [ ] **Step 1: Read sigma-rust source**
-
-Read `eval/bool_to_sigma.rs` to confirm the input-extraction pattern and cost. The TrivialProp opcodes are already pinned in our codebase (`SIGMA_OP_TRIVIAL_PROP_*` in `wire/sigma-boolean.ts`); no need to re-derive them.
-
-- [ ] **Step 2: Write the fixture-gen Rust module**
-
-`fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs`:
-
-```rust
-//! BoolToSigmaProp eval fixtures.
-//! Source: ergotree-interpreter/src/eval/bool_to_sigma.rs
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::bool_to_sigma::BoolToSigmaProp;
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::ergo_tree::ErgoTree;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde_json::json;
-
-use super::common::{run_eval_capture, EvalFixtureFile, EvalFixtureEntry};
-
-pub fn generate() -> EvalFixtureFile {
-    let mut entries = Vec::new();
-
-    for input_val in [true, false] {
-        let expr: Expr = BoolToSigmaProp {
-            input: Box::new(Constant::from(input_val).into()),
-        }.into();
-        let tree = ErgoTree::try_from(expr.clone()).expect("build tree");
-        let bytes_hex = hex::encode(tree.sigma_serialize_bytes().expect("serialize"));
-
-        let capture = run_eval_capture(&tree, &json!({}));
-        entries.push(EvalFixtureEntry {
-            name: format!("bool_to_sigma_{}", input_val),
-            tree_bytes_hex: bytes_hex,
-            opts_json: json!({}),
-            expected_value_json: capture.value_json,
-            expected_cost: capture.jit_cost,
-            expected_error_code: None,
-        });
-    }
-
-    EvalFixtureFile {
-        corpus: "bool-to-sigma-prop".into(),
-        entries,
-    }
-}
-```
-
-Note: sigma-rust's `value_to_json` may render the resulting SigmaProp as `{ kind: "SigmaProp", raw_hex: "<2 bytes hex>" }` or as `{ kind: "Opaque", ... }`. If the latter, the C2 corpus-eval test's Opaque-tolerance handling already covers it; for THIS fixture we want byte-equality on raw bytes, so verify the JSON shape by inspecting the generated fixture file before proceeding.
-
-- [ ] **Step 3: Wire into pipeline + run fixture-gen + determinism check**
-
-Same pattern as Task 1 Steps 3–4. Verify two consecutive `cargo run --release -p fixture-gen` produce byte-identical `bool-to-sigma-prop.json`.
-
-- [ ] **Step 4: Write the failing TS test**
-
-`packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
-import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
-import { ByteReader } from '../../src/wire/reader'
-import { hexToBytes, hydrateSValue } from '../_helpers'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/bool-to-sigma-prop.json')
-
-interface EvalFixture {
-  name: string
-  tree_bytes_hex: string
-  opts_json: { jitCostLimit?: number }
-  expected_value_json: any
-  expected_cost: number
-}
-
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
-  corpus: string
-  entries: EvalFixture[]
-}
-
-describe('BoolToSigmaProp arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name}: value + cost`, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-
-  it('produced bytes round-trip through parseSigmaBoolean', () => {
-    // Sanity: the bytes we construct for TrivialProp(true/false) MUST be
-    // parseable by our existing SigmaBoolean reader. This guards against
-    // mistyping the opcode.
-    const tree = parseTree(hexToBytes(fixture.entries[0]!.tree_bytes_hex))
-    const ctx = makeContext()
-    const value = evaluateWith(tree, ctx)
-    expect(value.kind).toBe('SigmaProp')
-    if (value.kind !== 'SigmaProp') return
-    const reader = new ByteReader(value.value.raw)
-    const sb = parseSigmaBoolean(reader)
-    expect(sb).toBeDefined()
-    expect(reader.remaining).toBe(0)
-  })
-})
-```
-
-- [ ] **Step 5: Run test, verify FAIL**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts
-```
-
-Expected: FAIL with `not yet supported: variant 'BoolToSigmaProp'`.
-
-- [ ] **Step 6: Write the arm implementation**
-
-`packages/ergoscript/src/eval/bool-to-sigma-prop.ts`:
-
-```ts
-/**
- * BoolToSigmaProp arm — wraps a Boolean as TrivialProp(b) SigmaBoolean leaf.
- *
- * Sigma-rust ref: eval/bool_to_sigma.rs (eval logic + cost).
- *
- * SigmaProp stays opaque in 2c — we construct the canonical single-byte
- * encoding: TRIVIAL_PROP_FALSE (0xd2) or TRIVIAL_PROP_TRUE (0xd3). The
- * opcode itself discriminates the boolean; payload is empty.
- * Structural decode is 2g territory.
- *
- * Cost: Fixed(1) per costs.rs.
- */
-import type { BoolToSigmaProp, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-import {
-  SIGMA_OP_TRIVIAL_PROP_FALSE,
-  SIGMA_OP_TRIVIAL_PROP_TRUE,
-} from '../wire/sigma-boolean'
-
-const BOOL_TO_SIGMA_PROP_COST = 1
-
-export function evalBoolToSigmaProp(
-  e: BoolToSigmaProp,
-  env: Env,
-  ctx: EvalContext,
-): SValue {
-  ctx.addCost(BOOL_TO_SIGMA_PROP_COST)
-  const input = evalExpr(e.input, env, ctx)
-  if (input.kind !== 'Boolean') {
-    throw new EvalError(
-      `BoolToSigmaProp: operand kind must be Boolean, got '${input.kind}'`,
-      'bin-op-not-boolean'
-    )
-  }
-  const raw = new Uint8Array([
-    input.value ? SIGMA_OP_TRIVIAL_PROP_TRUE : SIGMA_OP_TRIVIAL_PROP_FALSE,
-  ])
-  return { kind: 'SigmaProp', value: { raw } }
-}
-```
-
-The opcode constants are already exported from `wire/sigma-boolean.ts` — verified against sigma-rust at HEAD `ed5452cf`. The fixture's `raw_hex` field captures the canonical bytes; if the encoding ever drifts, the value-equality assertion will fail with a clear hex diff.
-
-- [ ] **Step 7: Wire into central dispatch**
-
-In `packages/ergoscript/src/eval/eval.ts`:
-
-```ts
-import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
-
-// inside the switch:
-    case 'BoolToSigmaProp':    return evalBoolToSigmaProp(e, env, ctx)
-```
-
-- [ ] **Step 8: Run test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts
-```
-
-Expected: PASS, 3 tests (2 fixture-driven + 1 round-trip sanity).
-
-- [ ] **Step 9: Run full ergoscript suite + typecheck**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: full pass; zero typecheck output.
-
-- [ ] **Step 10: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bool-to-sigma-prop.ts \
-        packages/ergoscript/src/eval/eval.ts \
-        packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts \
-        packages/ergoscript/test/fixtures/eval/bool-to-sigma-prop.json \
-        fixture-gen/src/cmds/ergoscript/eval/bool_to_sigma_prop.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): BoolToSigmaProp eval arm (phase 2c task 2)
-
-Wraps Boolean in canonical TrivialProp(b) SigmaBoolean leaf. SigmaProp
-stays opaque in 2c — structural decode is 2g. Cost Fixed(1) per
-sigma-rust costs.rs.
-
-Layer C1 fixture asserts value (incl byte-exact raw_hex) + cost on
-both truth-table cells; sanity test rounds the produced bytes back
-through parseSigmaBoolean.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Stage 2 — BinOp dispatcher + Bit family (Tasks 3–4)
-
-Land the BinOp dispatch infrastructure, then the simplest sub-arm (Bit — no overflow, no short-circuit, no equality polymorphism). Establishes the per-family pattern that tasks 5–8 follow.
-
-### Task 3: `BinOp` central dispatcher + skeleton sub-arms
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/bin-op.ts`
-- Create: `packages/ergoscript/src/eval/bin-op/arith.ts` (skeleton — throws)
-- Create: `packages/ergoscript/src/eval/bin-op/relation.ts` (skeleton — throws)
-- Create: `packages/ergoscript/src/eval/bin-op/logical.ts` (skeleton — throws)
-- Create: `packages/ergoscript/src/eval/bin-op/bit.ts` (skeleton — throws)
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Create: `packages/ergoscript/test/eval/bin-op.test.ts`
-
-No fixture-gen in this task — the skeletons throw `'not-implemented-yet'`; tasks 4–8 implement them. The test asserts the dispatch routes correctly.
-
-- [ ] **Step 1: Write the failing test**
-
-`packages/ergoscript/test/eval/bin-op.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-
-import { evalExpr } from '../../src/eval/eval'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { BinOp, Expr } from '../../src/mir/types'
-
-const intConst = (v: number): Expr =>
-  ({ tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: v } })
-const boolConst = (b: boolean): Expr =>
-  ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: b } })
-
-describe('BinOp central dispatch — routes to per-family sub-arms', () => {
-  const cases: Array<{ name: string; expr: BinOp }> = [
-    {
-      name: 'Arith routes to evalArithOp',
-      expr: { tag: 'BinOp', kind: { kind: 'Arith', op: 'Plus' }, left: intConst(1), right: intConst(2) },
-    },
-    {
-      name: 'Relation routes to evalRelationOp',
-      expr: { tag: 'BinOp', kind: { kind: 'Relation', op: 'Eq' }, left: intConst(1), right: intConst(1) },
-    },
-    {
-      name: 'Logical routes to evalLogicalOp',
-      expr: { tag: 'BinOp', kind: { kind: 'Logical', op: 'And' }, left: boolConst(true), right: boolConst(false) },
-    },
-    {
-      name: 'Bit routes to evalBitOp',
-      expr: { tag: 'BinOp', kind: { kind: 'Bit', op: 'BitAnd' }, left: intConst(0xff), right: intConst(0x0f) },
-    },
-  ]
-
-  for (const { name, expr } of cases) {
-    it(name, () => {
-      const ctx = makeContext()
-      // All four families currently throw 'not-implemented-yet' from skeletons.
-      // The test asserts the routing happens — i.e., evalBinOp dispatches, no
-      // raw "variant 'BinOp' not implemented" from the central evalExpr default.
-      expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
-      try {
-        evalExpr(expr, Env.empty(), ctx)
-      } catch (e) {
-        const code = (e as EvalError).code
-        const message = (e as EvalError).message
-        expect(code).toBe('not-implemented-yet')
-        // Message must come from the family skeleton, not from the central
-        // dispatch's default. Each family says its own name.
-        expect(message).toMatch(/Arith|Relation|Logical|Bit/)
-      }
-    })
-  }
-})
-```
-
-- [ ] **Step 2: Run test, verify FAIL**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op.test.ts
-```
-
-Expected: FAIL — `not yet supported: variant 'BinOp'` from the central dispatch default arm.
-
-- [ ] **Step 3: Write the family skeletons**
-
-`packages/ergoscript/src/eval/bin-op/arith.ts`:
-
-```ts
-/**
- * Arith family of BinOp. Phase 2c task 8 implements this.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Arith arm).
- */
-import type { BinOp, SValue } from '../../mir/types'
-import type { Env } from '../env'
-import type { EvalContext } from '../eval-context'
-import { EvalError } from '../eval-context'
-
-export function evalArithOp(_e: BinOp, _env: Env, _ctx: EvalContext): SValue {
-  throw new EvalError(
-    'BinOp.Arith: not yet implemented in this slice',
-    'not-implemented-yet'
-  )
-}
-```
-
-Repeat for `relation.ts`, `logical.ts`, `bit.ts` — same shape with the family name in the message string. Replace each in turn during tasks 4–8.
-
-- [ ] **Step 4: Write the BinOp central dispatcher**
-
-`packages/ergoscript/src/eval/bin-op.ts`:
-
-```ts
-/**
- * BinOp central dispatcher. Switches on `e.op.kind` and delegates to
- * one of four per-family sub-arms under `bin-op/`.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs
- */
-import type { BinOp, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { evalArithOp } from './bin-op/arith'
-import { evalRelationOp } from './bin-op/relation'
-import { evalLogicalOp } from './bin-op/logical'
-import { evalBitOp } from './bin-op/bit'
-
-export function evalBinOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  switch (e.op.kind) {
-    case 'Arith':    return evalArithOp(e, env, ctx)
-    case 'Relation': return evalRelationOp(e, env, ctx)
-    case 'Logical':  return evalLogicalOp(e, env, ctx)
-    case 'Bit':      return evalBitOp(e, env, ctx)
-    default: {
-      const _exhaust: never = e.op
-      throw new Error(`evalBinOp: unreachable kind ${JSON.stringify(_exhaust)}`)
-    }
-  }
-}
-```
-
-- [ ] **Step 5: Wire into central evalExpr dispatch**
-
-In `packages/ergoscript/src/eval/eval.ts`, add the import + case:
-
-```ts
-import { evalBinOp } from './bin-op'
-
-// inside the switch:
-    case 'BinOp':              return evalBinOp(e, env, ctx)
-```
-
-- [ ] **Step 6: Run test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op.test.ts
-```
-
-Expected: PASS, 4 tests. Each family's skeleton throws with its own message.
-
-- [ ] **Step 7: Run full suite + typecheck**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: full pass; zero typecheck output.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bin-op.ts \
-        packages/ergoscript/src/eval/bin-op/ \
-        packages/ergoscript/src/eval/eval.ts \
-        packages/ergoscript/test/eval/bin-op.test.ts
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): BinOp central dispatcher + family skeletons (phase 2c task 3)
-
-Adds evalBinOp routing on e.op.kind to per-family sub-arms under
-bin-op/. All four family arms currently throw 'not-implemented-yet';
-tasks 4-8 land Bit, Logical, Relation, Arith implementations.
-
-Test asserts the central evalExpr routes BinOp → evalBinOp →
-{Arith,Relation,Logical,Bit} skeleton, NOT via the central default.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-### Task 4: `evalBitOp` + fixture
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
-- Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-bit.json`
-- Replace: `packages/ergoscript/src/eval/bin-op/bit.ts` (skeleton → real impl)
-- Create: `packages/ergoscript/test/eval/bin-op-bit.test.ts`
-
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Bit family arms).
-
-Six ops: `BitOr`, `BitAnd`, `BitXor`, `BitShiftLeft`, `BitShiftRight`, `BitShiftRightZeroed`. Operate on Byte/Short/Int/Long/BigInt.
-
-**Bit-widths for shift validation:**
-- `Byte`: 8
-- `Short`: 16
-- `Int`: 32
-- `Long`: 64
-- `BigInt`: 256
-
-Throw `'bit-shift-out-of-range'` when shift amount is negative or ≥ bit-width. Throw `'bin-op-kind-mismatch'` if operand kinds differ. Throw `'bin-op-not-numeric'` if either operand is non-numeric.
-
-Cost: `Fixed(1)` per `costs.rs` (verify exact line).
-
-- [ ] **Step 1: Read sigma-rust source**
-
-Read the Bit arms in `bin_op.rs`. Note specifically: how does sigma-rust handle shift amounts? Are they `i32`? Where is the bit-width check? What error type does sigma-rust raise for shift-out-of-range? Read until you can map each behaviour to a TS line.
-
-- [ ] **Step 2: Write the fixture-gen Rust module**
-
-Cover at minimum:
-- Each of 6 ops × at least 2 numeric kinds (e.g., Int + Long); spot-check Byte/Short/BigInt with 1 example each.
-- Shift ops: include valid shift, negative shift (must produce error fixture entry with `expected_error_code: "bit-shift-out-of-range"`), shift = bit-width (also error), shift = bit-width − 1 (valid edge).
-- Type mismatch: one entry with Int left + Long right for `BitAnd` to capture `bin-op-kind-mismatch`.
-- Non-numeric: one entry with `Boolean` left + `Boolean` right for `BitAnd` to capture `bin-op-not-numeric` (if sigma-rust raises this — verify by source-reading).
-
-`fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs`: follow the structure of Task 1 / Task 2 fixture-gen modules. Use the `BinOp { kind: BinOpKind::Bit(BitOp::*), left: ..., right: ... }` shape on the Rust side. ~15 entries total.
-
-- [ ] **Step 3: Wire + generate + determinism check**
-
-Same as previous tasks. Two consecutive `cargo run --release -p fixture-gen` must produce byte-identical `bin-op-bit.json`.
-
-- [ ] **Step 4: Write the failing TS test**
-
-`packages/ergoscript/test/eval/bin-op-bit.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from '../_helpers'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const fixturePath = path.join(__dirname, '../fixtures/eval/bin-op-bit.json')
+const fixturePath = path.join(__dirname, '../fixtures/eval/bit-inversion.json')
 
 interface EvalFixture {
   name: string
@@ -862,18 +458,14 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: EvalFixture[]
 }
 
-describe('BinOp.Bit family — fixture-driven', () => {
+describe('BitInversion arm — fixture-driven', () => {
   for (const entry of fixture.entries) {
     it(`${entry.name}: ${entry.expected_error_code ?? 'value + cost'}`, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext()
-      if (entry.expected_error_code) {
-        expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
-        try {
-          evaluateWith(tree, ctx)
-        } catch (e) {
-          expect((e as EvalError).code).toBe(entry.expected_error_code)
-        }
+      const ctx = makeContext({ jitCostLimit: entry.opts_json.jitCostLimit })
+      if (entry.expected_error_code !== null) {
+        const err = captureEvalError(() => evaluateWith(tree, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
       } else {
         const value = evaluateWith(tree, ctx)
         expect(value).toEqual(hydrateSValue(entry.expected_value_json))
@@ -884,197 +476,113 @@ describe('BinOp.Bit family — fixture-driven', () => {
 })
 ```
 
-- [ ] **Step 5: Run test, verify FAIL**
+- [ ] **Step 6: Run test, verify FAIL**
 
 ```bash
-npx vitest run packages/ergoscript/test/eval/bin-op-bit.test.ts
+npx vitest run packages/ergoscript/test/eval/bit-inversion.test.ts
 ```
 
-Expected: FAIL on every entry with `BinOp.Bit: not yet implemented in this slice` (the skeleton from Task 3).
+**Expected:** all entries FAIL with `EvalError 'not-implemented-yet'` for tag `'BitInversion'` (central dispatch default arm — the arm hasn't been wired yet).
 
-- [ ] **Step 6: Write the arm implementation**
+- [ ] **Step 7: Write the TS arm**
 
-Replace `packages/ergoscript/src/eval/bin-op/bit.ts` with the real implementation:
+`packages/ergoscript/src/eval/bit-inversion.ts`:
 
 ```ts
 /**
- * BinOp.Bit family. Six ops on numeric operands:
- * BitOr, BitAnd, BitXor, BitShiftLeft, BitShiftRight, BitShiftRightZeroed.
+ * BitInversion arm — bitwise complement (`~x`) on numeric SValues.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Bit arm).
+ * Result kind equals input kind. No overflow path (the complement bit
+ * pattern always lies within the kind's signed range after masking).
  *
- * Strategy: promote operands to bigint (uniform path across Byte/Short/Int/
- * Long/BigInt), apply the op as bigint, narrow back to the operand kind
- * with masking, range-check if needed.
+ * Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs:LINE
+ *   ctx.add_jit_cost(N)?;  // BitInversion = Fixed(N)
  *
- * Cost: Fixed(1) per costs.rs.
+ * Cost-charging order: see source — likely envelope-before-eval-child
+ * (matches LogicalNot pattern).
  */
-import type { BinOp, SValue, BitOp } from '../../mir/types'
-import type { Env } from '../env'
-import type { EvalContext } from '../eval-context'
-import { EvalError } from '../eval-context'
-import { evalExpr } from '../eval'
+import { EvalError } from './eval-context'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { evalExpr } from './eval'
+import type { BitInversion, SValue } from '../mir/types'
+import { isNumeric, valueToBigInt, bigIntToValue, maskToKind } from './bin-op/_numeric'
 
-const BIT_OP_COST = 1
+// Cost source: ergotree-interpreter/src/eval/costs.rs LINE
+const BIT_INVERSION_COST = N  // replace with source-read value
 
-const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
-type NumericKind = (typeof NUMERIC_KINDS)[number]
-const BIT_WIDTH: Record<NumericKind, number> = {
-  Byte: 8,
-  Short: 16,
-  Int: 32,
-  Long: 64,
-  BigInt: 256,
-}
-
-function isNumeric(kind: SValue['kind']): kind is NumericKind {
-  return (NUMERIC_KINDS as readonly string[]).includes(kind)
-}
-
-function valueToBigInt(v: SValue): bigint {
-  switch (v.kind) {
-    case 'Byte':
-    case 'Short':
-    case 'Int':
-      return BigInt(v.value)
-    case 'Long':
-    case 'BigInt':
-      return v.value
-    default:
-      throw new EvalError(`BinOp.Bit: non-numeric operand kind ${v.kind}`, 'bin-op-not-numeric')
-  }
-}
-
-function bigIntToValue(kind: NumericKind, n: bigint): SValue {
-  switch (kind) {
-    case 'Byte':   return { kind: 'Byte',   value: Number(n) }
-    case 'Short':  return { kind: 'Short',  value: Number(n) }
-    case 'Int':    return { kind: 'Int',    value: Number(n) }
-    case 'Long':   return { kind: 'Long',   value: n }
-    case 'BigInt': return { kind: 'BigInt', value: n }
-  }
-}
-
-export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.op.kind !== 'Bit') throw new Error('evalBitOp: wrong kind')
-  ctx.addCost(BIT_OP_COST)
-
-  const left = evalExpr(e.left, env, ctx)
-  const right = evalExpr(e.right, env, ctx)
-
-  if (!isNumeric(left.kind)) {
-    throw new EvalError(`BinOp.Bit: non-numeric left operand kind ${left.kind}`, 'bin-op-not-numeric')
-  }
-  if (!isNumeric(right.kind)) {
-    throw new EvalError(`BinOp.Bit: non-numeric right operand kind ${right.kind}`, 'bin-op-not-numeric')
-  }
-  if (left.kind !== right.kind) {
+export function evalBitInversion(e: BitInversion, env: Env, ctx: EvalContext): SValue {
+  ctx.addCost(BIT_INVERSION_COST)
+  const child = evalExpr(e.input, env, ctx)
+  if (!isNumeric(child.kind)) {
     throw new EvalError(
-      `BinOp.Bit: kind mismatch ${left.kind} vs ${right.kind}`,
-      'bin-op-kind-mismatch'
+      `BitInversion: expected numeric input, got ${child.kind}`,
+      'bin-op-not-numeric'
     )
   }
-
-  const kind = left.kind as NumericKind
-  const a = valueToBigInt(left)
-  const b = valueToBigInt(right)
-  const op: BitOp = e.op.op
-  const width = BIT_WIDTH[kind]
-  const mask = (1n << BigInt(width)) - 1n
-
-  let result: bigint
-  switch (op) {
-    case 'BitOr':  result = (a | b) & mask;  break
-    case 'BitAnd': result = (a & b) & mask;  break
-    case 'BitXor': result = (a ^ b) & mask;  break
-    case 'BitShiftLeft':
-    case 'BitShiftRight':
-    case 'BitShiftRightZeroed': {
-      if (b < 0n || b >= BigInt(width)) {
-        throw new EvalError(
-          `BinOp.Bit.${op}: shift amount ${b} out of [0, ${width})`,
-          'bit-shift-out-of-range'
-        )
-      }
-      const shift = Number(b)
-      if (op === 'BitShiftLeft') {
-        result = (a << BigInt(shift)) & mask
-      } else if (op === 'BitShiftRightZeroed') {
-        result = (a & mask) >> BigInt(shift)
-      } else {
-        result = a >> BigInt(shift)
-      }
-      break
-    }
-    default: {
-      const _exhaust: never = op
-      throw new Error(`evalBitOp: unreachable op ${JSON.stringify(_exhaust)}`)
-    }
-  }
-
-  // For signed kinds, re-sign the masked result.
-  if (kind !== 'BigInt') {
-    const signBit = 1n << BigInt(width - 1)
-    if (result & signBit) result -= 1n << BigInt(width)
-  }
-
-  return bigIntToValue(kind, result)
+  const inverted = ~valueToBigInt(child)
+  const masked = maskToKind(inverted, child.kind)
+  return bigIntToValue(masked, child.kind)
 }
 ```
 
-The masking + re-signing logic mirrors sigma-rust's behaviour for signed types — verify against `bin_op.rs` Bit arm during implementation. The exact handling of `BitShiftRight` vs `BitShiftRightZeroed` is the key place to be careful: signed arithmetic shift right preserves the sign bit; zeroed right shift fills with zeros. JS BigInt `>>` is signed arithmetic for negative values, so we mask first for zero-fill.
+(Subagent: replace `N` with the cost value read from `costs.rs`. If source-read shows cost-charging-order is after-eval-child, move `ctx.addCost` accordingly.)
 
-- [ ] **Step 7: Run test, verify PASS**
+- [ ] **Step 8: Wire into central dispatch**
 
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op-bit.test.ts
+In `packages/ergoscript/src/eval/eval.ts`, add the import and case:
+
+```ts
+import { evalBitInversion } from './bit-inversion'
+
+// inside the switch:
+    case 'BitInversion':       return evalBitInversion(e, env, ctx)
 ```
 
-Expected: all entries PASS. If any fixture asserts a different bit-pattern than your implementation produces, the diff message will show the offending bytes — fix and re-run.
+- [ ] **Step 9: Run test, verify PASS**
 
-- [ ] **Step 8: Run full suite + typecheck**
+```bash
+npx vitest run packages/ergoscript/test/eval/bit-inversion.test.ts
+```
+
+**Expected:** all 15+ entries PASS, value + cost matching the sigma-rust oracle byte-for-byte.
+
+- [ ] **Step 10: Run full ergoscript suite + typecheck**
 
 ```bash
 npx vitest run packages/ergoscript/
 npx tsc --noEmit -p packages/ergoscript
 ```
 
-Expected: full pass; zero typecheck output. Update the bin-op.test.ts assertion: the Bit-case will no longer throw `'not-implemented-yet'` — instead it will compute and return. Adjust that case in `bin-op.test.ts` to assert the computed value (e.g., `0xff & 0x0f === 0x0f`).
+**Expected:** full pass; zero typecheck output.
 
-- [ ] **Step 9: Update `bin-op.test.ts` Bit case to assert correct behavior**
+- [ ] **Step 11: Two-stage review**
 
-In `packages/ergoscript/test/eval/bin-op.test.ts`, the Bit case currently asserts a `'not-implemented-yet'` throw. With the Bit family now implemented, change it to assert the computed value:
+Spec reviewer checks: arm shape matches design spec § Semantics; cost-line citation in TS comment matches sigma-rust source; error code is `'bin-op-not-numeric'` (not a new code). Code-quality reviewer checks: test uses `captureEvalError` helper; arm has no `any` leaks; fixture covers 5 kinds × 3 boundary values; comment cites cost source line.
 
-```ts
-// Update the existing test loop:
-// For the 'Bit routes to evalBitOp' case, the assertion shape changes —
-// either skip it from the throw-assertion loop, or split that case out
-// into its own `it()` that asserts a computed value of Int(0x0f).
-```
-
-Simplest: remove the Bit case from the throw-asserting loop and add a separate `it('Bit returns computed value (0xff & 0x0f = 0x0f)')` test.
-
-- [ ] **Step 10: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
-git add packages/ergoscript/src/eval/bin-op/bit.ts \
-        packages/ergoscript/test/eval/bin-op-bit.test.ts \
-        packages/ergoscript/test/eval/bin-op.test.ts \
-        packages/ergoscript/test/fixtures/eval/bin-op-bit.json \
-        fixture-gen/src/cmds/ergoscript/eval/bin_op_bit.rs \
+git add packages/ergoscript/src/eval/bit-inversion.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/bit-inversion.test.ts \
+        packages/ergoscript/test/fixtures/eval/bit-inversion.json \
+        fixture-gen/src/cmds/ergoscript/eval/bit_inversion.rs \
         fixture-gen/src/cmds/ergoscript/eval/mod.rs \
         fixture-gen/src/main.rs
 git commit -m "$(cat <<'EOF'
-feat(ergoscript): BinOp.Bit family eval arm (phase 2c task 4)
+feat(ergoscript): BitInversion eval arm (phase 2d-A task 2)
 
-Six ops (BitOr/BitAnd/BitXor/BitShiftLeft/BitShiftRight/
-BitShiftRightZeroed) on Byte/Short/Int/Long/BigInt. Bigint internally
-with kind-specific masking + re-signing. Throws bit-shift-out-of-range
-for shift < 0 or >= bit-width.
+Bitwise complement (~x) on numeric SValues. Result kind equals input
+kind. No overflow path; maskToKind brings the unmasked bigint ~ result
+back to the kind's signed range.
 
-Cost Fixed(1) per sigma-rust costs.rs. Layer C1 fixture covers each
-op across two numeric kinds, plus shift-bounds + kind-mismatch +
-non-numeric error fixtures.
+Reuses 'bin-op-not-numeric' for non-numeric input (LogicalNot
+precedent). Cost: Fixed(N) per sigma-rust eval/bit_inversion.rs:LINE.
+
+Coverage: 5 numeric kinds × 3 boundary values (0, MAX_K, MIN_K) = 15
+happy entries + 1 non-numeric error. Layer C1 cost-equality assertion
+locks the cost-charging order against the sigma-rust oracle.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1083,957 +591,518 @@ EOF
 
 ---
 
-## Stage 3 — Logical + Relation ordering + Equality (Tasks 5–7)
-
-### Task 5: `evalLogicalOp` + fixture
+### Task 3: `Negation` arm + fixture
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_logical.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/negation.rs`
 - Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
 - Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-logical.json`
-- Replace: `packages/ergoscript/src/eval/bin-op/logical.ts`
-- Create: `packages/ergoscript/test/eval/bin-op-logical.test.ts`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/negation.json`
+- Create: `packages/ergoscript/src/eval/negation.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/negation.test.ts`
 
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Logical arm — note the `eval_op_lazy` path for And/Or).
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/negation.rs`
 
-Three ops: `And`, `Or`, `Xor`. Operate on Boolean.
-
-**Short-circuit:** `And` short-circuits on `false` (no right-side eval, no right-side cost). `Or` short-circuits on `true` (same). `Xor` is eager (always evaluates both).
-
-**Non-Boolean operand:** throws `'bin-op-not-boolean'`.
-
-Cost: `Fixed(1)` per `costs.rs` (envelope; short-circuited branch cost NOT charged).
+Key behavior: input must evaluate to a numeric kind; return negated value; throw `'arith-overflow'` for `-MIN_K` (the only overflow case for unary negation).
 
 - [ ] **Step 1: Read sigma-rust source**
 
-Read the Logical arm in `bin_op.rs`, specifically the difference between `eval_op_lazy` (And/Or) and the eager Xor path. Confirm short-circuit cost behaviour.
+Read `eval/negation.rs` start-to-end. Note cost, cost-order, and which Rust `checked_neg` per-kind is invoked. `ergotree-ir/src/mir/negation.rs` for MIR shape.
 
-- [ ] **Step 2: Write fixture-gen module**
+- [ ] **Step 2: Write the fixture-gen Rust module**
 
-Cover:
-- Truth table for And (4 entries), Or (4), Xor (4) = 12 baseline.
-- **Short-circuit assertion fixtures (3 entries):** for `And`, build a tree where right-side is a `ConstPlaceholder(99)` (out of range — would throw `'const-placeholder-id-out-of-range'` if evaluated). With left = `false`, sigma-rust should NOT evaluate right, so the tree must succeed with cost reflecting only the left-eval. Capture this and assert it on the TS side.
-- Mirror entry for `Or` with left = `true` + bogus right.
-- For `Xor`, an entry where one side is `Const(true)` and the other is `Const(false)` — both eval, cost reflects both.
-- Type-mismatch / non-Boolean error fixtures: 2–3 entries.
+`fixture-gen/src/cmds/ergoscript/eval/negation.rs`: same skeleton as `bit_inversion.rs`. Coverage:
+- 5 kinds × 2 happy values (e.g., 0, MAX_K) — `Negate(0) = 0`; `Negate(MAX_K) = MIN_K + 1`.
+- 5 overflow entries: `Negate(MIN_K)` per kind, each expected_error_code = `'arith-overflow'`.
+  - These are constructed via `Negation::try_build` if it accepts the form, otherwise via direct struct construction.
+- 1 non-numeric error: `Negate(Const(true))` → `'bin-op-not-numeric'`.
+- 1 cost-limit error: `jitCostLimit` set below the per-arm cost → `'cost-limit-exceeded'`.
 
-~15 entries.
+Total ≈ 12 entries.
 
-- [ ] **Step 3: Wire + generate + determinism check**
+- [ ] **Step 3: Wire into fixture-gen pipeline + run + verify determinism** (matching Task 2's Steps 3–4)
 
-Same as previous tasks.
+- [ ] **Step 4: Write the failing TS test**
 
-- [ ] **Step 4: Write failing TS test**
+`packages/ergoscript/test/eval/negation.test.ts`: same skeleton as `bit-inversion.test.ts`, just different fixture path.
 
-`packages/ergoscript/test/eval/bin-op-logical.test.ts`: follow the Bit-family test's structure. Loop over fixture entries; for error entries assert code; for value entries assert `value` + `cost`.
+- [ ] **Step 5: Run test, verify FAIL** (`'not-implemented-yet'` for tag `'Negation'`)
 
-Add one additional `it` outside the fixture loop that hand-constructs a tree with `LogicalOp.And, left: false, right: ConstPlaceholder(99)` and an empty `constants` array — asserts the tree evaluates to `false` WITHOUT throwing. This is a redundant assertion (fixture captures it too) but documents the short-circuit semantic at the test-name level.
+- [ ] **Step 6: Write the TS arm**
 
-- [ ] **Step 5: Run test, verify FAIL**
-
-Same pattern as previous tasks.
-
-- [ ] **Step 6: Write `evalLogicalOp`**
-
-`packages/ergoscript/src/eval/bin-op/logical.ts`:
+`packages/ergoscript/src/eval/negation.ts`:
 
 ```ts
 /**
- * BinOp.Logical family — Boolean binary And/Or/Xor.
+ * Negation arm — unary numeric negate (`-x`).
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Logical arm).
+ * Result kind equals input kind. Overflow: `-MIN_K` for each numeric
+ * kind exceeds MAX_K — throws 'arith-overflow' (sigma-rust uses
+ * checked_neg per kind; we use the shared checkRange after negating
+ * in bigint).
  *
- * And, Or short-circuit: if the left side determines the result, the
- * right is NOT evaluated and its cost is NOT charged. Xor is eager —
- * both sides always evaluate.
- *
- * Cost: Fixed(1) per costs.rs (envelope only).
+ * Sigma-rust ref: ergotree-interpreter/src/eval/negation.rs:LINE
  */
-import type { BinOp, SValue, LogicalOp } from '../../mir/types'
-import type { Env } from '../env'
-import type { EvalContext } from '../eval-context'
-import { EvalError } from '../eval-context'
-import { evalExpr } from '../eval'
+import { EvalError } from './eval-context'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { evalExpr } from './eval'
+import type { Negation, SValue } from '../mir/types'
+import {
+  isNumeric, valueToBigInt, bigIntToValue, checkRange,
+} from './bin-op/_numeric'
 
-const LOGICAL_OP_COST = 1
+// Cost source: costs.rs LINE
+const NEGATION_COST = N  // replace with source-read value
 
-function asBoolean(v: SValue, side: 'left' | 'right'): boolean {
-  if (v.kind !== 'Boolean') {
+export function evalNegation(e: Negation, env: Env, ctx: EvalContext): SValue {
+  ctx.addCost(NEGATION_COST)
+  const child = evalExpr(e.input, env, ctx)
+  if (!isNumeric(child.kind)) {
     throw new EvalError(
-      `BinOp.Logical: ${side} operand kind must be Boolean, got '${v.kind}'`,
-      'bin-op-not-boolean'
+      `Negation: expected numeric input, got ${child.kind}`,
+      'bin-op-not-numeric'
     )
   }
-  return v.value
-}
-
-export function evalLogicalOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.op.kind !== 'Logical') throw new Error('evalLogicalOp: wrong kind')
-  ctx.addCost(LOGICAL_OP_COST)
-
-  const left = asBoolean(evalExpr(e.left, env, ctx), 'left')
-  const op: LogicalOp = e.op.op
-
-  switch (op) {
-    case 'And':
-      if (!left) return { kind: 'Boolean', value: false }
-      return { kind: 'Boolean', value: asBoolean(evalExpr(e.right, env, ctx), 'right') }
-    case 'Or':
-      if (left) return { kind: 'Boolean', value: true }
-      return { kind: 'Boolean', value: asBoolean(evalExpr(e.right, env, ctx), 'right') }
-    case 'Xor': {
-      const right = asBoolean(evalExpr(e.right, env, ctx), 'right')
-      return { kind: 'Boolean', value: left !== right }
-    }
-    default: {
-      const _exhaust: never = op
-      throw new Error(`evalLogicalOp: unreachable op ${JSON.stringify(_exhaust)}`)
-    }
-  }
+  const negated = -valueToBigInt(child)
+  checkRange(negated, child.kind, 'arith-overflow')
+  return bigIntToValue(negated, child.kind)
 }
 ```
 
-- [ ] **Step 7: Run test, verify PASS**
+- [ ] **Step 7: Wire into central dispatch** (`case 'Negation':`)
 
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op-logical.test.ts
+- [ ] **Step 8: Run test, verify PASS**
+
+- [ ] **Step 9: Run full ergoscript suite + typecheck**
+
+- [ ] **Step 10: Two-stage review**
+
+Spec reviewer specifically checks: overflow error code is `'arith-overflow'` (reused, not new); 5 `Negate(MIN_K)` fixtures throw the same code. Code-quality reviewer: comment-cited cost line; test consistency.
+
+- [ ] **Step 11: Commit**
+
 ```
+feat(ergoscript): Negation eval arm (phase 2d-A task 3)
 
-Expected: all entries PASS, including the short-circuit-guarded entries (the bogus right-side `ConstPlaceholder` is NEVER evaluated).
+Unary numeric negate. Result kind equals input kind. Overflow:
+Negate(MIN_K) for each of Byte/Short/Int/Long/BigInt throws
+'arith-overflow' (reused from 2c BinOp.Arith — same semantic).
 
-- [ ] **Step 8: Run full suite + typecheck**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Adjust `bin-op.test.ts`'s Logical-case assertion as in Task 4 Step 9 — Logical now returns a value, not a throw.
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bin-op/logical.ts \
-        packages/ergoscript/test/eval/bin-op-logical.test.ts \
-        packages/ergoscript/test/eval/bin-op.test.ts \
-        packages/ergoscript/test/fixtures/eval/bin-op-logical.json \
-        fixture-gen/src/cmds/ergoscript/eval/bin_op_logical.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): BinOp.Logical family eval arm (phase 2c task 5)
-
-Three ops (And/Or/Xor) on Boolean. And/Or short-circuit; the non-
-evaluated branch's cost is NOT charged. Xor is eager. Throws
-bin-op-not-boolean on non-Boolean operand.
-
-Cost Fixed(1) envelope per costs.rs. Layer C1 fixture covers full
-truth tables + dedicated short-circuit-guard entries (right side is
-out-of-range ConstPlaceholder; tree must succeed when left determines
-the result).
+Cost: Fixed(N) per sigma-rust eval/negation.rs:LINE. Layer C1 fixtures
+cover 5 kinds × 2 happy + 5 overflow + 1 non-numeric + 1 cost-limit.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
 ```
 
 ---
 
-### Task 6: `evalRelationOp` — ordering ops only (Lt/Le/Gt/Ge)
+## Stage 2 — Unary numeric, target-kind-out (Tasks 4–5)
+
+Two arms that change the output kind via a target SType carried on the MIR node. Upcast first (no overflow); Downcast next (introduces the new `'downcast-overflow'` code).
+
+### Task 4: `Upcast` arm + fixture
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/upcast.rs`
 - Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
 - Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-relation.json`
-- Replace: `packages/ergoscript/src/eval/bin-op/relation.ts` (partial — Eq/NEq still throw `'not-implemented-yet'`)
-- Create: `packages/ergoscript/test/eval/bin-op-relation.test.ts`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/upcast.json`
+- Create: `packages/ergoscript/src/eval/upcast.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/upcast.test.ts`
 
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Relation arm, ordering subset).
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/upcast.rs`
 
-Four ordering ops: `Lt`, `Le`, `Gt`, `Ge`. Operate on Byte/Short/Int/Long/BigInt. Operands must share kind and be numeric.
-
-Non-numeric / kind-mismatch: throws `'bin-op-not-numeric'` / `'bin-op-kind-mismatch'`.
-
-Eq/NEq: deferred to Task 7 — Relation skeleton throws `'not-implemented-yet'` for those two ops in this task.
-
-Cost: `Fixed(1)` per `costs.rs`.
+Key behavior: input must be numeric; target kind comes from `e.tpe.tag` (must be at least as wide as input kind, but the parser enforces this); return the value re-typed to the target kind. No overflow path.
 
 - [ ] **Step 1: Read sigma-rust source**
 
-Note the ordering implementation: for primitive kinds it's a direct comparison; for BigInt it uses BigInt's `Ord` impl.
+Read `eval/upcast.rs` start-to-end. Source-read also resolves: does sigma-rust permit same-kind Upcast (e.g. `Upcast(Int → Int)`)? If yes, treat as no-op; if no, reject at eval. The C1 fixture captures whichever behavior the source has. `ergotree-ir/src/mir/upcast.rs` for MIR shape — confirm `tpe: SType` field name.
 
-- [ ] **Step 2: Write fixture-gen module**
+- [ ] **Step 2: Write the fixture-gen Rust module**
 
-Cover:
-- 4 ordering ops × 2 kinds (Int + Long minimum, BigInt + Byte/Short as spot-check). ~20 baseline entries.
-- Kind-mismatch error fixtures: 2 entries.
-- Non-numeric error fixtures: 2 entries (e.g., Boolean vs Boolean for Lt).
-- Eq/NEq: DO NOT include in this fixture file. Task 7 will rerun fixture-gen to extend it.
+`fixture-gen/src/cmds/ergoscript/eval/upcast.rs`. Coverage:
 
-~25 entries.
+- All valid widening pairs:
+  - Byte → Short, Byte → Int, Byte → Long, Byte → BigInt (4 pairs)
+  - Short → Int, Short → Long, Short → BigInt (3 pairs)
+  - Int → Long, Int → BigInt (2 pairs)
+  - Long → BigInt (1 pair)
+- Each pair × 2 boundary values (0 + MAX of source kind) ≈ 20 entries.
+- 1 non-numeric error: `Upcast(Boolean, target=SInt)` → `'bin-op-not-numeric'`.
+- Optional: same-kind Upcast (e.g., `Upcast(Int → Int)`) per source-read result. If sigma-rust accepts it, add `upcast_int_int_noop` entry asserting the cost matches expected; if it rejects, document the rejection error.
 
-- [ ] **Step 3: Wire + generate + determinism check**
+Total ≈ 21 entries.
 
-- [ ] **Step 4: Write failing TS test**
+- [ ] **Step 3: Wire + run + determinism** (matching Task 2)
 
-`packages/ergoscript/test/eval/bin-op-relation.test.ts`: same fixture-driven structure as Bit / Logical tests.
+- [ ] **Step 4: Write the failing TS test** (matching Task 2 skeleton)
 
 - [ ] **Step 5: Run test, verify FAIL**
 
-Expected: every entry FAILs with `'not-implemented-yet'` from the Relation skeleton.
+- [ ] **Step 6: Write the TS arm**
 
-- [ ] **Step 6: Write `evalRelationOp` (ordering only)**
-
-Replace `packages/ergoscript/src/eval/bin-op/relation.ts`:
+`packages/ergoscript/src/eval/upcast.ts`:
 
 ```ts
 /**
- * BinOp.Relation family — Eq, NEq, Lt, Le, Gt, Ge.
+ * Upcast arm — widen a numeric SValue to a wider target kind.
  *
- * This file ships ordering ops (Lt/Le/Gt/Ge) in phase 2c task 6.
- * Eq/NEq are added in task 7 alongside the sValueEquals helper.
+ * Target kind from e.tpe.tag (e.g. 'SInt' → 'Int'). No overflow path —
+ * widening preserves the value exactly. Parser enforces target-kind
+ * validity at wire-format parse time; eval trusts the wire-format
+ * invariant per CLAUDE.md "validate at boundaries."
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Relation arm).
- * Cost: Fixed(1) per costs.rs.
+ * Sigma-rust ref: ergotree-interpreter/src/eval/upcast.rs:LINE
  */
-import type { BinOp, SValue, RelationOp } from '../../mir/types'
-import type { Env } from '../env'
-import type { EvalContext } from '../eval-context'
-import { EvalError } from '../eval-context'
-import { evalExpr } from '../eval'
+import { EvalError } from './eval-context'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { evalExpr } from './eval'
+import type { Upcast, SValue, SType } from '../mir/types'
+import {
+  isNumeric, valueToBigInt, bigIntToValue,
+  type NumericKind,
+} from './bin-op/_numeric'
 
-const RELATION_OP_COST = 1
+// Cost source: costs.rs LINE
+const UPCAST_COST = N  // replace with source-read value
 
-const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
-type NumericKind = (typeof NUMERIC_KINDS)[number]
-
-function isNumeric(kind: SValue['kind']): kind is NumericKind {
-  return (NUMERIC_KINDS as readonly string[]).includes(kind)
-}
-
-function valueToBigInt(v: SValue): bigint {
-  switch (v.kind) {
-    case 'Byte':
-    case 'Short':
-    case 'Int':
-      return BigInt(v.value)
-    case 'Long':
-    case 'BigInt':
-      return v.value
+function sTypeToNumericKind(t: SType): NumericKind {
+  // Map e.tpe.tag → NumericKind. Throws if non-numeric — but the
+  // parser shouldn't have let a non-numeric target through.
+  switch (t.tag) {
+    case 'SByte':   return 'Byte'
+    case 'SShort':  return 'Short'
+    case 'SInt':    return 'Int'
+    case 'SLong':   return 'Long'
+    case 'SBigInt': return 'BigInt'
     default:
       throw new EvalError(
-        `BinOp.Relation ordering: non-numeric operand kind ${v.kind}`,
+        `Upcast: target type ${t.tag} is not numeric`,
         'bin-op-not-numeric'
       )
   }
 }
 
-export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.op.kind !== 'Relation') throw new Error('evalRelationOp: wrong kind')
-  ctx.addCost(RELATION_OP_COST)
-
-  const op: RelationOp = e.op.op
-  const left = evalExpr(e.left, env, ctx)
-  const right = evalExpr(e.right, env, ctx)
-
-  if (op === 'Eq' || op === 'NEq') {
+export function evalUpcast(e: Upcast, env: Env, ctx: EvalContext): SValue {
+  ctx.addCost(UPCAST_COST)
+  const child = evalExpr(e.input, env, ctx)
+  if (!isNumeric(child.kind)) {
     throw new EvalError(
-      `BinOp.Relation.${op}: not yet implemented in this slice`,
-      'not-implemented-yet'
-    )
-  }
-
-  // Ordering ops: numeric only, same-kind only.
-  if (!isNumeric(left.kind)) {
-    throw new EvalError(
-      `BinOp.Relation.${op}: non-numeric left operand kind ${left.kind}`,
+      `Upcast: expected numeric input, got ${child.kind}`,
       'bin-op-not-numeric'
     )
   }
-  if (!isNumeric(right.kind)) {
-    throw new EvalError(
-      `BinOp.Relation.${op}: non-numeric right operand kind ${right.kind}`,
-      'bin-op-not-numeric'
-    )
-  }
-  if (left.kind !== right.kind) {
-    throw new EvalError(
-      `BinOp.Relation.${op}: kind mismatch ${left.kind} vs ${right.kind}`,
-      'bin-op-kind-mismatch'
-    )
-  }
-
-  const a = valueToBigInt(left)
-  const b = valueToBigInt(right)
-  let result: boolean
-  switch (op) {
-    case 'Lt': result = a < b;  break
-    case 'Le': result = a <= b; break
-    case 'Gt': result = a > b;  break
-    case 'Ge': result = a >= b; break
-    default: {
-      const _exhaust: never = op
-      throw new Error(`evalRelationOp ordering: unreachable op ${JSON.stringify(_exhaust)}`)
-    }
-  }
-  return { kind: 'Boolean', value: result }
+  const targetKind = sTypeToNumericKind(e.tpe)
+  return bigIntToValue(valueToBigInt(child), targetKind)
 }
 ```
 
-- [ ] **Step 7: Run test, verify PASS**
+(Subagent: confirm the MIR field name is `tpe` and not something else — read `mir/types.ts` for the actual `Upcast` interface.)
 
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op-relation.test.ts
+- [ ] **Step 7: Wire into central dispatch** (`case 'Upcast':`)
+
+- [ ] **Step 8: Run test, verify PASS**
+
+- [ ] **Step 9: Full suite + typecheck**
+
+- [ ] **Step 10: Two-stage review**
+
+Spec reviewer: target-kind extraction matches the MIR shape; no range check (widening); no new error code introduced. Code-quality: `sTypeToNumericKind` helper local to arm or extracted; comment cites cost line; test covers all 10 widening pairs.
+
+- [ ] **Step 11: Commit**
+
 ```
+feat(ergoscript): Upcast eval arm (phase 2d-A task 4)
 
-Expected: all ordering entries PASS; if the test loops include Eq/NEq entries by accident, they fail — and the fixture must be regenerated without them (or skipped explicitly in the test).
+Widens a numeric SValue to a wider target kind read from e.tpe. No
+overflow path (target range is at least as wide as source). Parser
+enforces target-kind validity at parse time; eval trusts the invariant.
 
-- [ ] **Step 8: Run full suite + typecheck**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Adjust `bin-op.test.ts`'s Relation case (it currently asserts a throw — change to assert `true` for `Eq(1, 1)` once Task 7 lands, or skip for now and re-update in Task 7).
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bin-op/relation.ts \
-        packages/ergoscript/test/eval/bin-op-relation.test.ts \
-        packages/ergoscript/test/fixtures/eval/bin-op-relation.json \
-        fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): BinOp.Relation ordering ops (phase 2c task 6)
-
-Lt/Le/Gt/Ge on Byte/Short/Int/Long/BigInt. Bigint internal compare;
-requires same-kind numeric operands. Throws bin-op-not-numeric /
-bin-op-kind-mismatch on violations.
-
-Eq/NEq still throw 'not-implemented-yet' — Task 7 lands them alongside
-the sValueEquals recursive comparer. Cost Fixed(1) per costs.rs.
+Cost: Fixed(N) per sigma-rust eval/upcast.rs:LINE. Layer C1 fixtures
+cover all 10 valid widening pairs × 2 boundary values + 1 non-numeric.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
 ```
 
 ---
 
-### Task 7: `sValueEquals` + `BinOp.Relation.Eq`/`NEq`
+### Task 5: `Downcast` arm + fixture
 
 **Files:**
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs` (extend with Eq/NEq entries)
-- Re-generate: `packages/ergoscript/test/fixtures/eval/bin-op-relation.json`
-- Modify: `packages/ergoscript/src/eval/bin-op/relation.ts` (replace Eq/NEq throw with full impl)
-- Modify: `packages/ergoscript/test/eval/bin-op-relation.test.ts` (no change if loop-over-fixtures; just regenerate the fixture)
-
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/data_value_comparer.rs` (8.2 KB).
-
-This is the largest task in 2c. The structural equality logic is recursive across the entire SValue union. Different `kind` → `false`. Box / AvlTree → `'not-implemented-yet'` (their runtime shapes aren't in scope until 2e/2h).
-
-- [ ] **Step 1: Read sigma-rust source**
-
-Read `data_value_comparer.rs` end-to-end. Note specifically: cross-type comparison rules (Int vs Long — sigma-rust returns false on different types or coerces?), Coll/Tuple/Option recursion, SigmaProp comparison (opaque structural or byte-equality?), and any cost-charging it does (sigma-rust may charge per-comparison cost inside the comparer — affects fixture's expected_cost).
-
-- [ ] **Step 2: Extend fixture-gen module**
-
-Add to `bin_op_relation.rs`:
-- Eq + NEq across each primitive kind (Boolean, Byte, Short, Int, Long, BigInt, GroupElement, Unit) — both equal and not-equal cases. ~16 entries.
-- Eq on `Coll[Int]` — empty vs empty, [1,2] vs [1,2], [1,2] vs [1,3], [1] vs [1,2]. ~4 entries.
-- Eq on `Tuple` — same / different arity / element diff. ~3 entries.
-- Eq on `Option[Int]` — None/None, Some(5)/Some(5), Some(5)/Some(6), None/Some(5). ~4 entries.
-- Eq on `SigmaProp` (opaque) — same TrivialProp / different TrivialProp. 2 entries.
-- Eq across different kinds (Int vs Long for `5`) — sigma-rust returns `false` per type-mismatch posture; capture that. 2 entries.
-
-~30 new entries, total relation fixture grows to ~55.
-
-- [ ] **Step 3: Regenerate fixture + determinism check**
-
-- [ ] **Step 4: Run test, verify FAIL on Eq/NEq entries**
-
-Existing entries still pass (Task 6 work); new Eq/NEq entries fail with `'not-implemented-yet'`.
-
-- [ ] **Step 5: Implement `sValueEquals` + wire Eq/NEq**
-
-Update `packages/ergoscript/src/eval/bin-op/relation.ts`:
-
-```ts
-// ... existing imports and ordering implementation ...
-
-import type { SType } from '../../mir/types'
-
-/**
- * Structural equality on SValue. Recursive across Coll/Tuple/Option.
- * Different `kind` → false (no cross-type coercion). Box/AvlTree
- * runtime shapes not yet defined → throws 'not-implemented-yet'.
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/data_value_comparer.rs
- */
-export function sValueEquals(a: SValue, b: SValue): boolean {
-  if (a.kind !== b.kind) return false
-  switch (a.kind) {
-    case 'Boolean':
-    case 'Byte':
-    case 'Short':
-    case 'Int':
-      return a.value === (b as typeof a).value
-    case 'Long':
-    case 'BigInt':
-      return a.value === (b as typeof a).value
-    case 'Unit':
-      return true
-    case 'GroupElement': {
-      const ba = a.value
-      const bb = (b as typeof a).value
-      if (ba.length !== bb.length) return false
-      for (let i = 0; i < ba.length; i++) if (ba[i] !== bb[i]) return false
-      return true
-    }
-    case 'SigmaProp': {
-      const ra = a.value.raw
-      const rb = (b as typeof a).value.raw
-      if (ra.length !== rb.length) return false
-      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return false
-      return true
-    }
-    case 'Coll': {
-      const ca = a
-      const cb = b as typeof a
-      if (!sTypeEquals(ca.elem, cb.elem)) return false
-      if (ca.items.length !== cb.items.length) return false
-      for (let i = 0; i < ca.items.length; i++) {
-        if (!sValueEquals(ca.items[i]!, cb.items[i]!)) return false
-      }
-      return true
-    }
-    case 'Tuple': {
-      const ta = a
-      const tb = b as typeof a
-      if (ta.items.length !== tb.items.length) return false
-      for (let i = 0; i < ta.items.length; i++) {
-        if (!sValueEquals(ta.items[i]!, tb.items[i]!)) return false
-      }
-      return true
-    }
-    case 'Option': {
-      const oa = a
-      const ob = b as typeof a
-      if (!sTypeEquals(oa.elem, ob.elem)) return false
-      if (oa.value === null && ob.value === null) return true
-      if (oa.value === null || ob.value === null) return false
-      return sValueEquals(oa.value, ob.value)
-    }
-    case 'Box':
-    case 'AvlTree':
-      throw new EvalError(
-        `BinOp.Relation.Eq: ${a.kind} equality not yet implemented in this slice`,
-        'not-implemented-yet'
-      )
-    case 'Lambda':
-      // Lambdas are not equality-comparable in sigma-rust. Match that.
-      return false
-    default: {
-      const _exhaust: never = a
-      throw new Error(`sValueEquals: unreachable kind ${JSON.stringify(_exhaust)}`)
-    }
-  }
-}
-
-function sTypeEquals(a: SType, b: SType): boolean {
-  if (a.tag !== b.tag) return false
-  switch (a.tag) {
-    case 'SColl':   return sTypeEquals(a.elem, (b as typeof a).elem)
-    case 'SOption': return sTypeEquals(a.elem, (b as typeof a).elem)
-    case 'STuple': {
-      const tb = b as typeof a
-      if (a.items.length !== tb.items.length) return false
-      for (let i = 0; i < a.items.length; i++) {
-        if (!sTypeEquals(a.items[i]!, tb.items[i]!)) return false
-      }
-      return true
-    }
-    case 'SFunc': {
-      const fb = b as typeof a
-      if (a.args.length !== fb.args.length) return false
-      for (let i = 0; i < a.args.length; i++) {
-        if (!sTypeEquals(a.args[i]!, fb.args[i]!)) return false
-      }
-      return sTypeEquals(a.result, fb.result)
-    }
-    case 'STypeVar':
-      return a.name === (b as typeof a).name
-    default:
-      return true // all primitive STypes; tag equality is sufficient
-  }
-}
-```
-
-Then replace the Eq/NEq throw branch in `evalRelationOp`:
-
-```ts
-  if (op === 'Eq' || op === 'NEq') {
-    const eq = sValueEquals(left, right)
-    return { kind: 'Boolean', value: op === 'Eq' ? eq : !eq }
-  }
-```
-
-- [ ] **Step 6: Run test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op-relation.test.ts
-```
-
-Expected: all entries PASS (ordering + Eq/NEq).
-
-- [ ] **Step 7: Run full suite + typecheck**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Update `bin-op.test.ts` Relation case if previously skipped — Eq(1, 1) now returns `true`.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bin-op/relation.ts \
-        packages/ergoscript/test/fixtures/eval/bin-op-relation.json \
-        packages/ergoscript/test/eval/bin-op.test.ts \
-        fixture-gen/src/cmds/ergoscript/eval/bin_op_relation.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): sValueEquals + BinOp.Relation Eq/NEq (phase 2c task 7)
-
-Recursive structural equality across primitives, Coll, Tuple, Option,
-GroupElement, opaque SigmaProp, Unit, Lambda (always false). Box and
-AvlTree throw 'not-implemented-yet' (runtime shapes land in 2e/2h).
-Different SValue kinds → false (no cross-type coercion). Includes
-sTypeEquals helper for SColl/SOption/STuple/SFunc/STypeVar
-comparison.
-
-Cost Fixed(1) envelope. Layer C1 fixture extends with ~30 entries
-covering Eq/NEq across every supported kind, same-vs-different cases,
-and cross-kind type-mismatch (must return false).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Stage 4 — Arith (Task 8)
-
-### Task 8: `evalArithOp` + fixture
-
-**Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/bin_op_arith.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/downcast.rs`
 - Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`
 - Modify: `fixture-gen/src/main.rs`
-- Create (generated): `packages/ergoscript/test/fixtures/eval/bin-op-arith.json`
-- Replace: `packages/ergoscript/src/eval/bin-op/arith.ts` (skeleton → real impl)
-- Create: `packages/ergoscript/test/eval/bin-op-arith.test.ts`
+- Create (generated): `packages/ergoscript/test/fixtures/eval/downcast.json`
+- Create: `packages/ergoscript/src/eval/downcast.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Create: `packages/ergoscript/test/eval/downcast.test.ts`
 
-**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/bin_op.rs` (Arith arm — search for `checked_add`, `checked_sub`, etc.).
+**Sigma-rust source:** `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/downcast.rs`
 
-Seven ops: `Plus`, `Minus`, `Multiply`, `Divide`, `Max`, `Min`, `Modulo`. Operate on Byte/Short/Int/Long/BigInt.
-
-**Signed ranges:**
-- Byte: [−2⁷, 2⁷ − 1]
-- Short: [−2¹⁵, 2¹⁵ − 1]
-- Int: [−2³¹, 2³¹ − 1]
-- Long: [−2⁶³, 2⁶³ − 1]
-- BigInt: [−2²⁵⁵, 2²⁵⁵ − 1]
-
-**Errors:**
-- `'arith-overflow'` when computed result outside signed range. Applies to Plus/Minus/Multiply/Divide/Modulo. (Max/Min cannot overflow.)
-- `'arith-divide-by-zero'` when right operand is zero for Divide/Modulo.
-- `'bin-op-not-numeric'` for non-numeric operands.
-- `'bin-op-kind-mismatch'` for differing operand kinds.
-
-Cost: `Fixed(1)` per op per `costs.rs`.
+Key behavior: input must be numeric; target kind from `e.tpe.tag`; throws `'downcast-overflow'` (new code) when input value lies outside the target kind's signed range.
 
 - [ ] **Step 1: Read sigma-rust source**
 
-Read the Arith arm in `bin_op.rs`. Specifically note: which ops are `checked_*` vs plain (`max`/`min`)? Does sigma-rust have ANY arith op that uses wrapping or saturating arithmetic instead of checked? (Should not — Ergo is overflow-strict.) Verify the divide-by-zero error code matches sigma-rust's `EvalError::ArithmeticException`.
+Read `eval/downcast.rs` start-to-end. Note: sigma-rust raises `ArithmeticException` for out-of-range narrowing; we surface this as the new `'downcast-overflow'` code. Source-read also confirms same-kind Downcast behavior (mirrors Upcast).
 
-- [ ] **Step 2: Write fixture-gen module**
+- [ ] **Step 2: Write the fixture-gen Rust module**
 
-Cover:
-- 7 ops × 2 kinds (Int + Long minimum; spot-check Byte/Short/BigInt). ~14 baseline.
-- Boundary entries: MAX_INT + 1 → overflow; MIN_INT - 1 → overflow; MAX_LONG * 2 → overflow; MAX_INT * 1 → no-overflow (success).
-- Divide-by-zero: `5 / 0` for Int and Long → error. 2 entries.
-- Modulo-by-zero: `5 % 0` → error. 2 entries.
-- Type-mismatch error: 2 entries.
-- Non-numeric: 1 entry (Boolean Plus Boolean).
+`fixture-gen/src/cmds/ergoscript/eval/downcast.rs`. Coverage:
 
-~25 entries total.
+- All valid narrowing pairs:
+  - BigInt → Long, BigInt → Int, BigInt → Short, BigInt → Byte (4 pairs)
+  - Long → Int, Long → Short, Long → Byte (3 pairs)
+  - Int → Short, Int → Byte (2 pairs)
+  - Short → Byte (1 pair)
+- Each pair × 1 happy entry (value within target range) + 1 overflow entry (value outside target range). ≈ 20 entries.
+- 1 non-numeric error: `Downcast(Boolean, target=SInt)` → `'bin-op-not-numeric'`.
+- Optional: same-kind Downcast per source-read.
 
-- [ ] **Step 3: Wire + generate + determinism check**
+Total ≈ 21 entries.
 
-- [ ] **Step 4: Write failing TS test**
+- [ ] **Step 3: Wire + run + determinism**
 
-`packages/ergoscript/test/eval/bin-op-arith.test.ts`: same fixture-driven structure as other family tests.
+- [ ] **Step 4: Write the failing TS test**
 
 - [ ] **Step 5: Run test, verify FAIL**
 
-Every entry fails with `'not-implemented-yet'` from the Arith skeleton.
+- [ ] **Step 6: Write the TS arm**
 
-- [ ] **Step 6: Write `evalArithOp`**
-
-Replace `packages/ergoscript/src/eval/bin-op/arith.ts`:
+`packages/ergoscript/src/eval/downcast.ts`:
 
 ```ts
 /**
- * BinOp.Arith family — Plus, Minus, Multiply, Divide, Max, Min, Modulo.
+ * Downcast arm — narrow a numeric SValue to a narrower target kind.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Arith arm).
+ * Target kind from e.tpe.tag. Throws 'downcast-overflow' when the
+ * input value lies outside the target kind's signed range.
  *
- * All ops compute in bigint internally for uniform overflow checking.
- * Max/Min cannot overflow. Divide/Modulo throw 'arith-divide-by-zero'
- * when the right operand is zero (checked before computation).
- *
- * Cost: Fixed(1) per costs.rs.
+ * Sigma-rust ref: ergotree-interpreter/src/eval/downcast.rs:LINE
+ *   sigma-rust raises ArithmeticException; we surface as a distinct
+ *   'downcast-overflow' code so callers can dispatch on "narrowing
+ *   failed" specifically.
  */
-import type { BinOp, SValue, ArithOp } from '../../mir/types'
-import type { Env } from '../env'
-import type { EvalContext } from '../eval-context'
-import { EvalError } from '../eval-context'
-import { evalExpr } from '../eval'
+import { EvalError } from './eval-context'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { evalExpr } from './eval'
+import type { Downcast, SValue, SType } from '../mir/types'
+import {
+  isNumeric, valueToBigInt, bigIntToValue, checkRange,
+  type NumericKind,
+} from './bin-op/_numeric'
 
-const ARITH_OP_COST = 1
+// Cost source: costs.rs LINE
+const DOWNCAST_COST = N  // replace with source-read value
 
-const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
-type NumericKind = (typeof NUMERIC_KINDS)[number]
-
-const SIGNED_MIN: Record<NumericKind, bigint> = {
-  Byte:   -(1n << 7n),
-  Short:  -(1n << 15n),
-  Int:    -(1n << 31n),
-  Long:   -(1n << 63n),
-  BigInt: -(1n << 255n),
-}
-const SIGNED_MAX: Record<NumericKind, bigint> = {
-  Byte:   (1n << 7n) - 1n,
-  Short:  (1n << 15n) - 1n,
-  Int:    (1n << 31n) - 1n,
-  Long:   (1n << 63n) - 1n,
-  BigInt: (1n << 255n) - 1n,
-}
-
-function isNumeric(kind: SValue['kind']): kind is NumericKind {
-  return (NUMERIC_KINDS as readonly string[]).includes(kind)
-}
-
-function valueToBigInt(v: SValue): bigint {
-  switch (v.kind) {
-    case 'Byte':
-    case 'Short':
-    case 'Int':
-      return BigInt(v.value)
-    case 'Long':
-    case 'BigInt':
-      return v.value
+function sTypeToNumericKind(t: SType): NumericKind {
+  // Identical to upcast.ts's helper. If duplication is flagged in
+  // review, promote to _numeric.ts. For now: per-arm copies follow the
+  // YAGNI principle until a third user appears.
+  switch (t.tag) {
+    case 'SByte':   return 'Byte'
+    case 'SShort':  return 'Short'
+    case 'SInt':    return 'Int'
+    case 'SLong':   return 'Long'
+    case 'SBigInt': return 'BigInt'
     default:
       throw new EvalError(
-        `BinOp.Arith: non-numeric operand kind ${v.kind}`,
+        `Downcast: target type ${t.tag} is not numeric`,
         'bin-op-not-numeric'
       )
   }
 }
 
-function bigIntToValue(kind: NumericKind, n: bigint): SValue {
-  switch (kind) {
-    case 'Byte':   return { kind: 'Byte',   value: Number(n) }
-    case 'Short':  return { kind: 'Short',  value: Number(n) }
-    case 'Int':    return { kind: 'Int',    value: Number(n) }
-    case 'Long':   return { kind: 'Long',   value: n }
-    case 'BigInt': return { kind: 'BigInt', value: n }
-  }
-}
-
-function checkRange(kind: NumericKind, op: ArithOp, n: bigint): void {
-  if (n < SIGNED_MIN[kind] || n > SIGNED_MAX[kind]) {
+export function evalDowncast(e: Downcast, env: Env, ctx: EvalContext): SValue {
+  ctx.addCost(DOWNCAST_COST)
+  const child = evalExpr(e.input, env, ctx)
+  if (!isNumeric(child.kind)) {
     throw new EvalError(
-      `BinOp.Arith.${op}: result ${n} overflows ${kind}`,
-      'arith-overflow'
-    )
-  }
-}
-
-export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.op.kind !== 'Arith') throw new Error('evalArithOp: wrong kind')
-  ctx.addCost(ARITH_OP_COST)
-
-  const op: ArithOp = e.op.op
-  const left = evalExpr(e.left, env, ctx)
-  const right = evalExpr(e.right, env, ctx)
-
-  if (!isNumeric(left.kind)) {
-    throw new EvalError(
-      `BinOp.Arith.${op}: non-numeric left operand kind ${left.kind}`,
+      `Downcast: expected numeric input, got ${child.kind}`,
       'bin-op-not-numeric'
     )
   }
-  if (!isNumeric(right.kind)) {
-    throw new EvalError(
-      `BinOp.Arith.${op}: non-numeric right operand kind ${right.kind}`,
-      'bin-op-not-numeric'
-    )
-  }
-  if (left.kind !== right.kind) {
-    throw new EvalError(
-      `BinOp.Arith.${op}: kind mismatch ${left.kind} vs ${right.kind}`,
-      'bin-op-kind-mismatch'
-    )
-  }
-
-  const kind = left.kind as NumericKind
-  const a = valueToBigInt(left)
-  const b = valueToBigInt(right)
-
-  let result: bigint
-  switch (op) {
-    case 'Plus':     result = a + b; checkRange(kind, op, result); break
-    case 'Minus':    result = a - b; checkRange(kind, op, result); break
-    case 'Multiply': result = a * b; checkRange(kind, op, result); break
-    case 'Divide':
-      if (b === 0n) {
-        throw new EvalError(`BinOp.Arith.Divide: divide by zero`, 'arith-divide-by-zero')
-      }
-      // BigInt division truncates toward zero in JS, matching Rust's `/`
-      // on signed integers. Verify against sigma-rust if anything looks
-      // off on negative-dividend cases.
-      result = a / b
-      checkRange(kind, op, result)
-      break
-    case 'Modulo':
-      if (b === 0n) {
-        throw new EvalError(`BinOp.Arith.Modulo: modulo by zero`, 'arith-divide-by-zero')
-      }
-      result = a % b
-      checkRange(kind, op, result)
-      break
-    case 'Max':      result = a > b ? a : b; break
-    case 'Min':      result = a < b ? a : b; break
-    default: {
-      const _exhaust: never = op
-      throw new Error(`evalArithOp: unreachable op ${JSON.stringify(_exhaust)}`)
-    }
-  }
-
-  return bigIntToValue(kind, result)
+  const targetKind = sTypeToNumericKind(e.tpe)
+  const value = valueToBigInt(child)
+  checkRange(value, targetKind, 'downcast-overflow')
+  return bigIntToValue(value, targetKind)
 }
 ```
 
-- [ ] **Step 7: Run test, verify PASS**
+- [ ] **Step 7: Wire into central dispatch** (`case 'Downcast':`)
 
-```bash
-npx vitest run packages/ergoscript/test/eval/bin-op-arith.test.ts
+- [ ] **Step 8: Run test, verify PASS**
+
+- [ ] **Step 9: Full suite + typecheck**
+
+- [ ] **Step 10: Two-stage review**
+
+Spec reviewer: new error code is exactly `'downcast-overflow'` (matches spec § Error taxonomy); range check uses target kind (not source); all narrowing pairs covered with both happy and overflow entries. Code-quality: `sTypeToNumericKind` duplication acknowledged in code comment (promote to `_numeric.ts` only when a third user appears, per YAGNI); test consistency.
+
+- [ ] **Step 11: Commit**
+
 ```
+feat(ergoscript): Downcast eval arm + 'downcast-overflow' code (phase 2d-A task 5)
 
-Expected: all entries PASS (boundary, overflow, divide-by-zero, success cases).
+Narrows a numeric SValue to a narrower target kind read from e.tpe.
+Throws 'downcast-overflow' (new EvalError code) when input value lies
+outside the target kind's signed range.
 
-- [ ] **Step 8: Run full suite + typecheck**
+Cost: Fixed(N) per sigma-rust eval/downcast.rs:LINE. Layer C1 fixtures
+cover all 10 valid narrowing pairs × happy + overflow + 1 non-numeric.
 
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Adjust `bin-op.test.ts` Arith case from `'not-implemented-yet'` throw to assertion that `Plus(1, 2)` produces `Int(3)`.
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/bin-op/arith.ts \
-        packages/ergoscript/test/eval/bin-op-arith.test.ts \
-        packages/ergoscript/test/eval/bin-op.test.ts \
-        packages/ergoscript/test/fixtures/eval/bin-op-arith.json \
-        fixture-gen/src/cmds/ergoscript/eval/bin_op_arith.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): BinOp.Arith family eval arm (phase 2c task 8)
-
-Seven ops (Plus/Minus/Multiply/Divide/Max/Min/Modulo) on
-Byte/Short/Int/Long/BigInt. Bigint-internal arithmetic with explicit
-signed-range checking; throws 'arith-overflow' on bounds violation
-and 'arith-divide-by-zero' for /0 and %0 (checked before compute).
-
-Max/Min cannot overflow; no range check on those branches. Cost
-Fixed(1) per costs.rs.
-
-Layer C1 fixture covers each op across two kinds + boundary entries
-(MAX+1, MIN-1) + zero-divisor + kind-mismatch + non-numeric. All
-22 BinOp sub-ops are now wired end-to-end.
+Slice A coverage now: 15 of ~70 Expr arms wired (11 from 2b+2c + 4
+from this slice). Public surface unchanged; one new EvalError code
+documented additively in facts/ergoscript.md (in Task 6).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
 ```
 
 ---
 
-## Stage 5 — Wrap-up (Tasks 9–10)
+## Stage 3 — Wrap-up (Task 6)
 
-### Task 9: Layer C2 corpus re-run + facts/MEMORY update
+### Task 6: Layer C2 corpus re-run + `facts/ergoscript.md` update + final review + commit-and-push
 
 **Files:**
-- Verify: `packages/ergoscript/test/corpus-eval.test.ts` (no changes — assertions already exist)
-- Modify: `facts/ergoscript.md` (extend EvalError taxonomy with 6 new codes)
-- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` (mark 2c done)
+- Modify: `facts/ergoscript.md` — extend v0.2.0 EvalError taxonomy with `'downcast-overflow'`; bump "Coverage after 2X" from 11 to 15
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` — update with phase 2d-A done state
 
-This task has no fixture-gen and no new TS — it's documentation + verification.
+**Sigma-rust source:** N/A.
 
-- [ ] **Step 1: Run full ergoscript suite**
+- [ ] **Step 1: Run Layer C2 corpus eval test**
 
 ```bash
-npx vitest run packages/ergoscript/
+npx vitest run packages/ergoscript/test/corpus-eval.test.ts
 ```
 
-Note the `[corpus-eval]` aggregate output: `success=N not-impl=M other=0`. With 2c arms wired, expect `success` ≥ 5 and `not-impl` ≤ 13 (out of 18 sigma-rust-evaluable mainnet entries). The `expect(other).toBe(0)` assertion must remain green.
+Inspect the stdout aggregate. Expected: `success=0 not-impl=18 other=0` unchanged (slice A unlikely to unlock new mainnet trees in isolation; they need higher-phase arms). If `other` is non-zero, investigate — that's a regression gate. If `success` grew, note it in the commit message (pleasant surprise, but not the expected outcome).
 
-If `other > 0`, investigate which `code` it is — likely an EvalError code that 2c introduces but isn't in the documented set. Fix the code or the documentation before proceeding.
+- [ ] **Step 2: Update `facts/ergoscript.md`**
 
-- [ ] **Step 2: Update `facts/ergoscript.md` EvalError taxonomy**
-
-Extend the v0.2.0 `EvalError taxonomy (v0.2.0)` section in `facts/ergoscript.md` with the 6 new codes (additive, no breaking changes to existing codes):
+In the v0.2.0 EvalError taxonomy section, add:
 
 ```markdown
-- **`'arith-overflow'`** — `BinOp.Arith` (Plus/Minus/Multiply/Divide/Modulo) computed
-  a result outside the kind's signed range. Message includes op, kind,
-  and offending bigint result.
-- **`'arith-divide-by-zero'`** — `BinOp.Arith.Divide` or `Modulo` with right
-  operand zero. Checked before performing the op.
-- **`'bin-op-kind-mismatch'`** — Operands of a same-kind-required `BinOp`
-  (Arith, Bit, Relation-ordering, Logical) had different `kind`. Eq/NEq
-  do NOT throw this — they return `false` on kind mismatch.
-- **`'bin-op-not-numeric'`** — Operand kind not in {Byte, Short, Int, Long,
-  BigInt} for an op requiring numeric operands (any Arith, any Bit,
-  Relation-ordering).
-- **`'bin-op-not-boolean'`** — Operand kind not `Boolean` for an op
-  requiring Boolean (Logical, LogicalNot, BoolToSigmaProp).
-- **`'bit-shift-out-of-range'`** — Shift amount negative or ≥ operand bit-width
-  for `BinOp.Bit.BitShift*`.
+- **`'downcast-overflow'`** — `Downcast` arm narrowed an input value
+  outside the target kind's signed range. Mirrors sigma-rust's
+  `ArithmeticException` from `eval/downcast.rs`; surfaced as a
+  distinct code so callers can dispatch on "downcast specifically
+  failed" vs other arith overflows. Message includes the source kind,
+  target kind, and offending bigint value.
 ```
 
-Also update the public-surface "Coverage caveat" sentence under `evaluate`:
+In the Scope section, find the phase 2c "Ships additionally" block and add (or create a parallel) phase 2d-A block:
 
-> Only 8 of ~70 `Expr` variants currently have implemented arms (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`).
+```markdown
+**Ships additionally (phase 2d-A — numeric-poly unary arms):**
 
-Change "8" to "11" and add `BinOp`, `LogicalNot`, `BoolToSigmaProp` to the parenthetical list.
+18. 4 more per-variant arms wired: `Negation` (numeric negate;
+    overflow throws `'arith-overflow'`), `BitInversion` (bitwise
+    complement; no overflow), `Upcast` (widen to target numeric kind;
+    no overflow), `Downcast` (narrow to target numeric kind; overflow
+    throws `'downcast-overflow'`).
+19. One new `EvalError` code documented in the v0.2.0 taxonomy:
+    `'downcast-overflow'`. No other taxonomy changes; non-numeric
+    input to the four arms reuses `'bin-op-not-numeric'` per the
+    LogicalNot/BoolToSigmaProp precedent from 2c.
+20. Step-1 refactor: `checkRange` and `maskToKind` promoted from
+    `bin-op/{arith,bit}.ts` to `bin-op/_numeric.ts`. `checkRange`
+    gains a third parameter (error code string). 2c arith callers
+    pass `'arith-overflow'`; new downcast caller passes
+    `'downcast-overflow'`.
+```
 
-- [ ] **Step 3: Update memory file**
+Bump the "Coverage after 2c" line to "Coverage after 2d-A: 15 of ~70 `Expr` variants...".
 
-`~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`: bump the description / body to reflect phase 2c complete. Example body update:
+- [ ] **Step 3: Update MEMORY.md and project_ergots_direction**
 
-> phase plan: proof + ergoscript-2a (wire) + 2b (chassis + 8 arms) + 2c (BinOp + LogicalNot + BoolToSigmaProp) shipped; next slice is numeric-poly + Coll[Bool] aggregators + Atleast
+Edit `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`:
 
-(Implementer: read the file first to see current contents, edit conservatively.)
+```markdown
+---
+name: project-ergots-direction
+description: ...
+metadata:
+  type: project
+---
 
-- [ ] **Step 4: Update `MEMORY.md` index entry hook**
+# Ergots project direction
 
-`~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md` line for `project_ergots_direction`: bump to reflect 2c done.
+Phase plan: proof + ergoscript-2a (wire) + 2b (chassis + 8 arms) +
+2c (BinOp + LogicalNot + BoolToSigmaProp = 11 of ~70 arms) +
+**2d-A (Negation + BitInversion + Upcast + Downcast = 15 of ~70 arms)**
+shipped. Next slice is **2d-B = Coll[Boolean] aggregators
+(And/Or/Xor over Coll[Boolean]) + Atleast (k-of-n SigmaProp
+combinator)**.
 
-- [ ] **Step 5: Commit (docs + memory)**
+The "phase 2d" naming covers two slices (A: numeric-poly, B:
+Coll[Bool] + Atleast). Slice B has a brainstorm pending — main open
+question is `Atleast`'s SigmaProp wire-construction since the
+threshold combinator carries variable-length sub-propositions.
+```
+
+Update `MEMORY.md`'s index line for `project_ergots_direction` to reflect the updated description.
+
+- [ ] **Step 4: Run full verification before push**
+
+```bash
+npx tsc --noEmit
+cd packages/ergoscript && npm test && npm run test:browser
+cd packages/proof && npm test && npm run test:browser
+cd fixture-gen && cargo build --release
+```
+
+All must pass clean.
+
+- [ ] **Step 5: Final review**
+
+Dispatch a single comprehensive-review subagent (`comprehensive-review-full-review` skill if available) with:
+- The 6 commits from this slice (1 refactor + 4 arms + 1 finalize).
+- The design spec at `docs/specs/2026-05-15-ergoscript-phase-2d-design.md`.
+- The boundary contract at `facts/ergoscript.md` (updated this task).
+
+Address any review findings in a follow-up fix commit before push.
+
+- [ ] **Step 6: Commit + push**
 
 ```bash
 git add facts/ergoscript.md
 git commit -m "$(cat <<'EOF'
-docs(ergoscript): facts/ergoscript.md — phase 2c EvalError codes
+docs(ergoscript): facts/ergoscript.md — phase 2d-A surface (15 of ~70 arms)
 
-Extends the v0.2.0 EvalError taxonomy with 6 codes shipped in 2c:
-arith-overflow, arith-divide-by-zero, bin-op-kind-mismatch,
-bin-op-not-numeric, bin-op-not-boolean, bit-shift-out-of-range.
+Slice A of phase 2d shipped: Negation, BitInversion, Upcast, Downcast.
+One new EvalError code documented in v0.2.0 taxonomy:
+'downcast-overflow'. Refactor: checkRange + maskToKind promoted to
+bin-op/_numeric.ts. Public function signatures unchanged.
 
-Updates coverage note: 11 of ~70 Expr arms now implemented (was 8).
+Coverage after 2d-A: 15 of ~70 Expr variants. Layer C2 corpus stays
+success=0 not-impl=18 other=0 (the four new arms don't unlock mainnet
+trees in isolation; those need higher-phase arms).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
-```
 
-Memory file edits are NOT committed (they live outside the repo at `~/.claude/projects/...`).
-
----
-
-### Task 10: Final review + push
-
-**Files:** none (verification + push only).
-
-- [ ] **Step 1: Re-run full suite cold**
-
-```bash
-npx vitest run packages/ergoscript/ packages/proof/
-```
-
-Expected: all 1319+ ergoscript tests + 305 proof tests pass in both `node` and `jsdom` environments. Note the exact counts and the `[corpus-eval]` aggregate.
-
-- [ ] **Step 2: Run typechecks**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript
-npx tsc --noEmit -p packages/proof
-```
-
-Zero output expected.
-
-- [ ] **Step 3: Run browser-compat scan**
-
-```bash
-grep -rE "Buffer|process\.|require\(|node:" packages/ergoscript/dist/ 2>/dev/null || echo "scan clean"
-```
-
-Expected: "scan clean" (no matches in dist).
-
-- [ ] **Step 4: Determinism re-check on fixture-gen**
-
-```bash
-cargo run --release -p fixture-gen
-git status packages/ergoscript/test/fixtures/
-```
-
-Expected: clean working tree (no modified fixture files after re-running fixture-gen).
-
-- [ ] **Step 5: Review the per-task commits**
-
-```bash
-git log --oneline cc1c7a3..HEAD
-```
-
-Expected: 9 commits (tasks 1-9), each `feat(ergoscript):` or `docs(ergoscript):`. No `fix:` commits (would indicate mid-task corrections). If any fix commits exist, that's fine — they indicate caught-during-implementation issues, but worth noting in the final post.
-
-- [ ] **Step 6: Push to origin/master**
-
-```bash
 git push origin master
 ```
 
-- [ ] **Step 7: Update SESSION_CONTEXT.md (gitignored, local-only)**
-
-Update the "Current state" section in `/home/mwaddip/projects/ergots/SESSION_CONTEXT.md` to reflect phase 2c done — same structure as the 2b update. Note the test counts, commits, and any surprises worth flagging in next session's handoff.
-
 ---
 
-## Self-review checklist (run after Task 10)
+## Self-review checklist (run after Task 6)
 
-Mechanical pass over the work:
+Before declaring slice A done, verify:
 
-- [ ] All 22 BinOp sub-ops are wired (verify by reading `evalArithOp`/`Logical`/`Relation`/`Bit` switch statements — count the cases).
-- [ ] `LogicalNot` and `BoolToSigmaProp` are wired in central `evalExpr`.
-- [ ] Every per-arm test asserts BOTH value AND cost.
-- [ ] Every error code in the spec's § Error taxonomy is exercised by at least one fixture entry.
-- [ ] No new runtime dependencies (`packages/ergoscript/package.json` unchanged).
-- [ ] No `Buffer` / `node:*` / `WebAssembly` in `dist/` (browser-compat scan clean).
-- [ ] Fixture-gen produces byte-identical output across two consecutive runs.
-- [ ] `[corpus-eval]` aggregate shows `success > 0` and `other === 0`.
-- [ ] `facts/ergoscript.md` documents all 6 new EvalError codes.
-- [ ] Memory file `project_ergots_direction` reflects phase 2c complete.
-- [ ] Last `git log` line on `master` is task 10's push to origin (or the implicit final commit).
+- [ ] All 6 task commits land on `master` and are pushed to `origin/master`.
+- [ ] `npx tsc --noEmit` clean across the workspace.
+- [ ] Proof tests: 305/305 in node + jsdom.
+- [ ] Ergoscript tests: ~1540/~1540 in node + jsdom (was 1473; +~67 from new fixtures).
+- [ ] `cargo run --release -p fixture-gen` twice produces zero diff (determinism).
+- [ ] Layer C2 corpus stays at `success=0 not-impl=18 other=0` (regression gate).
+- [ ] `facts/ergoscript.md` v0.2.0 EvalError taxonomy contains `'downcast-overflow'`.
+- [ ] `MEMORY.md`'s `project_ergots_direction` reflects phase 2d-A done state and slice B as next.
+- [ ] Working tree is clean (`git status` empty).
+- [ ] `packages/ergoscript/PLAN.md` is the only file in `git status` from the prior slice; ready to be overwritten for slice B's brainstorm-then-implementation cycle.
