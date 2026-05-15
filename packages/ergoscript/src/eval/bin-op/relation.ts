@@ -22,37 +22,10 @@ import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
+import { isNumeric, valueToBigInt } from './_numeric'
 
 /** Cost for ordering Relation ops. sigma-rust bin_op.rs:210. */
 const RELATION_ORDERING_COST = 20
-
-/** The numeric SValue kinds that support ordering operations. */
-const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
-type NumericKind = (typeof NUMERIC_KINDS)[number]
-
-/** Type-guard: narrows SValue['kind'] to NumericKind. */
-function isNumeric(kind: SValue['kind']): kind is NumericKind {
-  return (NUMERIC_KINDS as readonly string[]).includes(kind)
-}
-
-/** Promote a numeric SValue to bigint for comparison. */
-function valueToBigInt(v: SValue): bigint {
-  switch (v.kind) {
-    case 'Byte':
-    case 'Short':
-    case 'Int':
-      return BigInt(v.value)
-    case 'Long':
-    case 'BigInt':
-      return v.value
-    default:
-      // Defensive — caller has already verified isNumeric.
-      throw new EvalError(
-        `BinOp.Relation ordering: non-numeric operand kind ${v.kind}`,
-        'bin-op-not-numeric'
-      )
-  }
-}
 
 export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   if (e.op.kind !== 'Relation') throw new Error('evalRelationOp: wrong kind')

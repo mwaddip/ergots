@@ -30,13 +30,10 @@ import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
+import { type NumericKind, isNumeric, valueToBigInt, bigIntToValue } from './_numeric'
 
 /** Cost for any Bit op envelope. sigma-rust bin_op.rs:216. */
 const BIT_OP_COST = 1
-
-/** The numeric SValue kinds that support bitwise operations. */
-const NUMERIC_KINDS = ['Byte', 'Short', 'Int', 'Long', 'BigInt'] as const
-type NumericKind = (typeof NUMERIC_KINDS)[number]
 
 /** Bit-width per numeric kind. */
 const BIT_WIDTH: Record<NumericKind, bigint> = {
@@ -45,23 +42,6 @@ const BIT_WIDTH: Record<NumericKind, bigint> = {
   Int: 32n,
   Long: 64n,
   BigInt: 256n,
-}
-
-/** Type-guard: narrows SValue['kind'] to NumericKind. */
-function isNumeric(kind: SValue['kind']): kind is NumericKind {
-  return (NUMERIC_KINDS as readonly string[]).includes(kind)
-}
-
-/** Promote an SValue (numeric kind) to bigint. */
-function toBI(v: SValue): bigint {
-  if (v.kind === 'Byte' || v.kind === 'Short' || v.kind === 'Int') {
-    return BigInt(v.value as number)
-  }
-  if (v.kind === 'Long' || v.kind === 'BigInt') {
-    return v.value as bigint
-  }
-  // Should not happen — callers check kind first.
-  throw new EvalError(`Bit op: cannot promote kind '${v.kind}' to bigint`, 'bin-op-not-numeric')
 }
 
 /**
@@ -74,20 +54,6 @@ function maskSigned(v: bigint, width: bigint): bigint {
   const masked = ((v % (1n << width)) + (1n << width)) % (1n << width)
   const high = 1n << (width - 1n)
   return (masked & mask) >= high ? (masked & mask) - (1n << width) : masked & mask
-}
-
-/**
- * Narrow a bigint (already signed-ranged) back to the SValue kind.
- * Byte/Short/Int: number. Long/BigInt: bigint.
- */
-function fromBI(
-  v: bigint,
-  kind: 'Byte' | 'Short' | 'Int' | 'Long' | 'BigInt'
-): SValue {
-  if (kind === 'Byte' || kind === 'Short' || kind === 'Int') {
-    return { kind, value: Number(v) }
-  }
-  return { kind, value: v }
 }
 
 export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
@@ -136,8 +102,8 @@ export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // lv.kind is narrowed to NumericKind by isNumeric guard above.
   const kind: NumericKind = lv.kind
   const width = BIT_WIDTH[kind]
-  const l = toBI(lv)
-  const r = toBI(rv)
+  const l = valueToBigInt(lv)
+  const r = valueToBigInt(rv)
 
   let raw: bigint
   // After the shift-op filter above, bitOp is narrowed to BitAnd | BitOr | BitXor.
@@ -152,5 +118,5 @@ export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   }
 
   // Mask back to the kind's signed range.
-  return fromBI(maskSigned(raw, width), kind)
+  return bigIntToValue(kind, maskSigned(raw, width))
 }
