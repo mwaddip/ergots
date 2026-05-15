@@ -1,0 +1,123 @@
+{
+  "entries": [
+    {
+      "name": "minimal",
+      "description": "Minimal box: value=1_000_000, no tokens, no registers, height=0, index=0, txId=0x00*32",
+      "full_hex": "c0843d09020101000000000000000000000000000000000000000000000000000000000000000000000000",
+      "no_ref_hex": "c0843d09020101000000",
+      "box_json": {
+        "value": "1000000",
+        "ergo_tree_hex": "09020101",
+        "creation_height": 0,
+        "tokens": [],
+        "registers": [],
+        "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "index": 0
+      }
+    },
+    {
+      "name": "three_tokens",
+      "description": "Box with 3 tokens, no registers, height=100_000, index=1, txId=0xab*32",
+      "full_hex": "80897a09020101a08d06030101010101010101010101010101010101010101010101010101010101010101640202020202020202020202020202020202020202020202020202020202020202c8010303030303030303030303030303030303030303030303030303030303030303ac0200abababababababababababababababababababababababababababababababab01",
+      "no_ref_hex": "80897a09020101a08d06030101010101010101010101010101010101010101010101010101010101010101640202020202020202020202020202020202020202020202020202020202020202c8010303030303030303030303030303030303030303030303030303030303030303ac0200",
+      "box_json": {
+        "value": "2000000",
+        "ergo_tree_hex": "09020101",
+        "creation_height": 100000,
+        "tokens": [
+          {
+            "id_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+            "amount": "100"
+          },
+          {
+            "id_hex": "0202020202020202020202020202020202020202020202020202020202020202",
+            "amount": "200"
+          },
+          {
+            "id_hex": "0303030303030303030303030303030303030303030303030303030303030303",
+            "amount": "300"
+          }
+        ],
+        "registers": [],
+        "tx_id_hex": "abababababababababababababababababababababababababababababababab",
+        "index": 1
+      }
+    },
+    {
+      "name": "r4_r5_registers",
+      "description": "Box with R4=SInt(42) and R5=SBoolean(true), no tokens, height=500_000, index=2",
+      "full_hex": "c096b10209020101a0c21e000204540101000000000000000000000000000000000000000000000000000000000000000002",
+      "no_ref_hex": "c096b10209020101a0c21e000204540101",
+      "box_json": {
+        "value": "5000000",
+        "ergo_tree_hex": "09020101",
+        "creation_height": 500000,
+        "tokens": [],
+        "registers": [
+          {
+            "id": 4,
+            "constant_hex": "0454"
+          },
+          {
+            "id": 5,
+            "constant_hex": "0101"
+          }
+        ],
+        "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "index": 2
+      }
+    },
+    {
+      "name": "tokens_and_registers",
+      "description": "Box with 2 tokens + R4=SLong, R5=SColl[SByte], R6=SShort, height=1_000_000, index=5, txId=0xde*32",
+      "full_hex": "80ade20409020101c0843d02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae707bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb010305a48bb099090e05010203040503feff03dededededededededededededededededededededededededededededededede05",
+      "no_ref_hex": "80ade20409020101c0843d02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae707bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb010305a48bb099090e05010203040503feff03",
+      "box_json": {
+        "value": "10000000",
+        "ergo_tree_hex": "09020101",
+        "creation_height": 1000000,
+        "tokens": [
+          {
+            "id_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "amount": "999"
+          },
+          {
+            "id_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "amount": "1"
+          }
+        ],
+        "registers": [
+          {
+            "id": 4,
+            "constant_hex": "05a48bb09909"
+          },
+          {
+            "id": 5,
+            "constant_hex": "0e050102030405"
+          },
+          {
+            "id": 6,
+            "constant_hex": "03feff03"
+          }
+        ],
+        "tx_id_hex": "dededededededededededededededededededededededededededededededede",
+        "index": 5
+      }
+    },
+    {
+      "name": "boundary",
+      "description": "Box at boundary values: value=MAX_RAW, height=u32::MAX, index=u16::MAX, txId=0xff*32",
+      "full_hex": "ffffffffffffffff7f09020101ffffffff0f0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff03",
+      "no_ref_hex": "ffffffffffffffff7f09020101ffffffff0f0000",
+      "box_json": {
+        "value": "9223372036854775807",
+        "ergo_tree_hex": "09020101",
+        "creation_height": 4294967295,
+        "tokens": [],
+        "registers": [],
+        "tx_id_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "index": 65535
+      }
+    }
+  ]
+}

@@ -7,3 +7,4 @@
 //! (parse → serialize → compare).
 
 pub mod sbox_roundtrip;
+pub mod ergo_box_bytes;

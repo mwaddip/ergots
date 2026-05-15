@@ -64,6 +64,10 @@ fn main() -> anyhow::Result<()> {
         "wire/sbox-roundtrip.json",
         &cmds::ergoscript::wire::sbox_roundtrip::generate()?,
     )?;
+    write_ergoscript_json(
+        "wire/ergo-box-bytes.json",
+        &cmds::ergoscript::wire::ergo_box_bytes::generate()?,
+    )?;
 
     // Phase 2b per-arm eval fixtures land in their own `eval/` subdir to
     // keep the top-level `fixtures/` listing tidy as more arm tasks land.

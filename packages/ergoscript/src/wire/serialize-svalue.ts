@@ -16,7 +16,7 @@
  * untrusted-data handling.
  */
 
-import type { SType, SValue } from '../mir/types'
+import type { ErgoBox, SType, SValue } from '../mir/types'
 import { ByteWriter } from './writer'
 import { serializeSType } from './serialize-stype'
 
@@ -27,6 +27,79 @@ export class SValueSerializeError extends Error {
   ) {
     super(message)
     this.name = 'SValueSerializeError'
+  }
+}
+
+/**
+ * Write the first 5 canonical box body fields shared by both the full
+ * `ErgoBox` wire format and the `ErgoBoxCandidate` (no-ref) variant.
+ *
+ * Fields written (sigma-rust `serialize_box_with_indexed_digests`,
+ * `chain/ergo_box.rs:302-344`):
+ *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
+ *   ergo_tree_bytes — raw bytes verbatim (self-delimiting via ErgoTree header)
+ *   creation_height — VLQ u32 (sigma-ser `put_u32`)
+ *   tokens_count    — raw u8 (NOT VLQ), max 122
+ *   per-token       — 32-byte id (raw) + VLQ u64 amount
+ *   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
+ *
+ * Exported so that `ergo-box-bytes.ts` (`serializeBoxBytes` /
+ * `serializeBoxBytesWithoutRef`) can delegate here instead of duplicating
+ * the body. The SBox arm below also calls this helper — a single
+ * implementation, two consumers.
+ */
+export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter): void {
+  // value (unsigned VLQ u64 — NOT ZigZag)
+  w.writeVlqBigInt(box.value)
+
+  // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
+  w.writeBytes(box.ergoTreeBytes)
+
+  // creation_height (VLQ u32)
+  w.writeVlqU(box.creationHeight)
+
+  // tokens (raw u8 count + per-token id + amount)
+  if (box.tokens.length > 122) {
+    throw new SValueSerializeError(
+      `SBox tokens length ${box.tokens.length} exceeds MAX_TOKENS_COUNT (122)`,
+      'sbox-tokens-out-of-range'
+    )
+  }
+  w.writeU8(box.tokens.length) // raw u8, NOT VLQ
+  for (const token of box.tokens) {
+    if (token.id.length !== 32) {
+      throw new SValueSerializeError(
+        `SBox token id length ${token.id.length} must be 32`,
+        'token-id-length'
+      )
+    }
+    w.writeBytes(token.id)
+    w.writeVlqBigInt(token.amount) // VLQ u64 unsigned
+  }
+
+  // additional_registers (raw u8 count + per-register Const wire)
+  //
+  // Sigma-rust enforces that NonMandatoryRegisters are densely packed
+  // (R4, R5, …, Rk with no gaps) — see register.rs:223 NonDenselyPacked.
+  // A gapped register set would silently mis-assign registers on parse
+  // (the parser re-indexes from R4 regardless of what the caller put in).
+  const regKeys = Object.keys(box.registers)
+    .map((k) => Number(k))
+    .filter((k) => k >= 4 && k <= 9 && box.registers[k] !== undefined)
+    .sort((a, b) => a - b)
+  for (let i = 0; i < regKeys.length; i++) {
+    if (regKeys[i] !== 4 + i) {
+      throw new SValueSerializeError(
+        `SBox registers must be densely packed from R4; found gap before R${4 + i}`,
+        'sbox-registers-not-dense'
+      )
+    }
+  }
+  w.writeU8(regKeys.length) // raw u8, NOT VLQ
+  for (const k of regKeys) {
+    const entry = box.registers[k]!
+    serializeSType(entry.tpe, w)
+    serializeSValue(entry.tpe, entry.value, w)
   }
 }
 
@@ -244,60 +317,14 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       //   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
       //   transaction_id  — 32 raw bytes
       //   index           — VLQ u16 (sigma-ser `put_u16` = VLQ, NOT raw BE)
+      //
+      // The first 5 fields are shared with `serializeBoxBytesWithoutRef`
+      // (used by ExtractBytesWithNoRef) via `writeBoxBodyWithoutRef`.
       assertKind(t, v, 'Box')
       const box = v.value
 
-      // value (unsigned VLQ u64 — NOT ZigZag)
-      w.writeVlqBigInt(box.value)
-
-      // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
-      w.writeBytes(box.ergoTreeBytes)
-
-      // creation_height (VLQ u32)
-      w.writeVlqU(box.creationHeight)
-
-      // tokens (raw u8 count + per-token id + amount)
-      if (box.tokens.length > 122) {
-        throw new SValueSerializeError(
-          `SBox tokens length ${box.tokens.length} exceeds MAX_TOKENS_COUNT (122)`,
-          'sbox-tokens-out-of-range'
-        )
-      }
-      w.writeU8(box.tokens.length) // raw u8, NOT VLQ
-      for (const token of box.tokens) {
-        if (token.id.length !== 32) {
-          throw new SValueSerializeError(
-            `SBox token id length ${token.id.length} must be 32`,
-            'token-id-length'
-          )
-        }
-        w.writeBytes(token.id)
-        w.writeVlqBigInt(token.amount) // VLQ u64 unsigned
-      }
-
-      // additional_registers (raw u8 count + per-register Const wire)
-      const regKeys = Object.keys(box.registers)
-        .map((k) => Number(k))
-        .filter((k) => k >= 4 && k <= 9 && box.registers[k] !== undefined)
-        .sort((a, b) => a - b)
-      // Sigma-rust enforces that NonMandatoryRegisters are densely packed
-      // (R4, R5, …, Rk with no gaps) — see register.rs:223 NonDenselyPacked.
-      // A gapped register set would silently mis-assign registers on parse
-      // (the parser re-indexes from R4 regardless of what the caller put in).
-      for (let i = 0; i < regKeys.length; i++) {
-        if (regKeys[i] !== 4 + i) {
-          throw new SValueSerializeError(
-            `SBox registers must be densely packed from R4; found gap before R${4 + i}`,
-            'sbox-registers-not-dense'
-          )
-        }
-      }
-      w.writeU8(regKeys.length) // raw u8, NOT VLQ
-      for (const k of regKeys) {
-        const entry = box.registers[k]!
-        serializeSType(entry.tpe, w)
-        serializeSValue(entry.tpe, entry.value, w)
-      }
+      // Body fields (value + ergoTree + creation_height + tokens + registers)
+      writeBoxBodyWithoutRef(box, w)
 
       // transaction_id (32 raw bytes)
       if (box.txId.length !== 32) {
