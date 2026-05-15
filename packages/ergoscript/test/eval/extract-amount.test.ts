@@ -12,8 +12,8 @@
  * Coverage:
  *   - Box with value=BoxValue::MIN_RAW (10800 nanoErg).
  *   - Box with value=1_000_000_000 (1 ERG).
+ *   - Box with value=100_000_000 (100 mERG; mid-range VLQ encoding).
  *   - Box with value=i64::MAX (BoxValue::MAX_RAW).
- *   - Randomized self_box from force_any_val::<Context>() (deterministic).
  *   - 1 cost-limit entry (jitCostLimit=1 < Fixed(8)) → 'cost-limit-exceeded'.
  *
  * The non-Box error path ('extract-input-not-box') cannot be triggered via

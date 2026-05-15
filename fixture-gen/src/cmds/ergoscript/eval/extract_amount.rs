@@ -9,12 +9,11 @@
 //! Source: sigma-rust eval/extract_amount.rs:15.
 //!
 //! Coverage:
-//!   - Box with value=0 (boundary: zero nanoErg).
-//!   - Box with value=1.
+//!   - Box with value=BoxValue::MIN_RAW (10_800 nanoErg; on-chain minimum).
 //!   - Box with value=1_000_000_000 (1 ERG in nanoErg).
+//!   - Box with value=100_000_000 (100 mERG; mid-range VLQ encoding).
 //!   - Box with value=BoxValue::MAX_RAW (i64::MAX; sigma-rust BoxValue's max).
-//!   - Box from force_any_val::<Context>() self_box (randomized, deterministic fixture).
-//!   - 1 cost-limit entry (jitCostLimit < 8) → `'cost-limit-exceeded'`.
+//!   - 1 cost-limit entry (jitCostLimit=1 < Fixed(8)) → `'cost-limit-exceeded'`.
 //!
 //! Error case (`'extract-input-not-box'`): sigma-rust's `ExtractAmount::try_build`
 //! calls `input.check_post_eval_tpe(&SType::SBox)` and rejects non-SBox inputs at
