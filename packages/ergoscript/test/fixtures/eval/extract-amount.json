@@ -1,0 +1,59 @@
+{
+  "corpus": "eval_extract_amount",
+  "entries": [
+    {
+      "name": "extract_amount_value_min_raw",
+      "tree_bytes_hex": "00c163b05409020101000000000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "10800"
+      },
+      "expected_cost": 13,
+      "expected_error_code": null
+    },
+    {
+      "name": "extract_amount_value_1bil",
+      "tree_bytes_hex": "00c1638094ebdc0309020101000000000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "1000000000"
+      },
+      "expected_cost": 13,
+      "expected_error_code": null
+    },
+    {
+      "name": "extract_amount_value_100m",
+      "tree_bytes_hex": "00c16380c2d72f09020101000000000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "100000000"
+      },
+      "expected_cost": 13,
+      "expected_error_code": null
+    },
+    {
+      "name": "extract_amount_value_max",
+      "tree_bytes_hex": "00c163ffffffffffffffff7f09020101000000000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 13,
+      "expected_error_code": null
+    },
+    {
+      "name": "extract_amount_cost_limit_exceeded",
+      "tree_bytes_hex": "00c1638094ebdc0309020101000000000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

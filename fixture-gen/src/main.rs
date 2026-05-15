@@ -113,6 +113,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/apply.json", &apply_fixture)?;
     let xor_of_fixture = cmds::ergoscript::eval::xor_of::generate()?;
     write_ergoscript_json("eval/xor-of.json", &xor_of_fixture)?;
+    let extract_amount_fixture = cmds::ergoscript::eval::extract_amount::generate()?;
+    write_ergoscript_json("eval/extract-amount.json", &extract_amount_fixture)?;
 
     Ok(())
 }
