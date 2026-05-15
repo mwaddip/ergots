@@ -30,6 +30,7 @@ import { evalDowncast } from './downcast'
 import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
 import { evalNegation } from './negation'
+import { evalOr } from './or'
 import { evalTuple } from './tuple'
 import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
@@ -65,6 +66,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalBitInversion(e, env, ctx)
     case 'Negation':
       return evalNegation(e, env, ctx)
+    case 'Or':
+      return evalOr(e, env, ctx)
     case 'Upcast':
       return evalUpcast(e, env, ctx)
     case 'Downcast':

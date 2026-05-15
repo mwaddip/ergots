@@ -16,6 +16,7 @@ pub mod downcast;
 pub mod if_arm;
 pub mod logical_not;
 pub mod negation;
+pub mod or;
 pub mod tuple;
 pub mod upcast;
 pub mod val_def;
