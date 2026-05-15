@@ -6,6 +6,8 @@ The boundary contract for the ErgoScript / ErgoTree wire-format package. Other p
 
 **Phase 2b complete (v0.2.0).** Adds an *evaluator scaffold* — `evaluate` / `evaluateWith` with an `EvalContext` (cost accumulator + optional limit), an `Env` for val-bindings, and 8 of ~70 `Expr` arms wired (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`). Every other `Expr` variant throws `EvalError 'not-implemented-yet'`. Phases 2c–2j extend this surface additively; the public function signatures and error class are stable from v0.2.0 onward.
 
+**Phase 2c complete (v0.2.0, additive).** Adds 3 more `Expr` arms: `BinOp` (all 22 sub-ops — Arith ×5, Bit ×5, Relation ×6, Logical ×6), `LogicalNot`, and `BoolToSigmaProp`. Total implemented arms: 11 of ~70. New `EvalError` codes: `'arith-overflow'`, `'arith-divide-by-zero'`, `'bin-op-kind-mismatch'`, `'bin-op-not-numeric'`, `'bin-op-not-boolean'`. No public API surface changes; existing caller code is unaffected.
+
 The package has not been `npm publish`-ed; downstream consumers in the monorepo currently import it through the workspace alias. Anything not in this document is implementation detail and may change without notice.
 
 Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`, `ergotree-ir/src/serialization/`, and `ergotree-ir/src/mir/` (branch `integration/ergots`, HEAD `ed5452cf` at time of writing). Where this file is silent, those are canonical.
@@ -254,9 +256,9 @@ No other error classes are emitted by this package. Internal panics (e.g. a bug 
 (Detail in `docs/specs/2026-05-13-ergoscript-interpreter-design.md` § Validation strategy.)
 
 1. **Layer 1 — Parse + round-trip on every fixture**: `test/corpus.test.ts` loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip. Current state: 255 passing fixtures + 1 mainnet stub + 6 fixtures flagged `known_unstable` (upstream sigma-rust itself does not round-trip them; tracked in `fixture-gen/known_unstable.json`).
-2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the 8 implemented arms — phase 2b ships with 18 / 173 such fixtures filterable; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). Phase 2c+ will progressively unlock more fixtures as arms land.
+2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the implemented arms — 18 / 173 such fixtures are currently evaluable by sigma-rust under a synthetic-empty context; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). The 18 evaluable mainnet trees all still hit `'not-implemented-yet'` after phase 2c (they require arms beyond the current 11 — method calls, context access, etc.); `other=0` confirms no undocumented codes are emitted. Phase 2d+ will progressively unlock more fixtures as arms land.
 3. **Layer 3 — Mutation tests**: `test/parse-mutation.test.ts` performs single-byte flips at varied offsets across every fixture and asserts each mutation either throws one of the typed error classes above OR is byte-identical (a flip that lands in a tolerated padding region). Current state: 6221 mutations exercised; 66% throw a typed error class, 0 throw an untyped error, 100% taxonomy coverage (every error class above is hit at least once).
-4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1319/1319 tests pass in both runtimes.
+4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1466/1466 ergoscript tests + 305 proof tests = 1771 total, passing in both runtimes.
 
 ## v0.2.0 — Evaluator surface (phase 2b)
 
@@ -291,7 +293,7 @@ interface EvalContext extends EvalOpts {
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` (so callers who want the tree's segregated constants picked up automatically don't need to do anything extra) and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised from inside the recursive evaluator (e.g. an unhandled variant deep inside a `BlockValue`) bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** Only 8 of ~70 `Expr` variants currently have implemented arms (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2c–2g add the remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** Only 11 of ~70 `Expr` variants currently have implemented arms (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`, `BinOp`, `LogicalNot`, `BoolToSigmaProp`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2d–2g add the remaining arms; the `evaluate` signature itself is stable.
 
 #### `evaluateWith(tree, ctx)`
 
@@ -331,11 +333,21 @@ interface EvalContext extends EvalOpts {
 - **`'collection-elem-kind-mismatch'`** — inside the `Collection` arm with `kind: 'Exprs'`, an evaluated item's `kind` did not match the declared `elemTpe`. This is a fail-fast guard that sigma-rust does not perform at eval time (the upstream type checker is supposed to have caught it); we add it as a defensive check on the verifier path. Only primitive types are validated; composite types (`SColl`, `STuple`, etc.) and chain-state types (`SBox`, `SAvlTree`, …) currently always match (deferred to later phases). Message includes the offending index, the actual `kind`, and the expected `tag`.
 - **`'block-item-not-val-def'`** — inside the `BlockValue` arm, `items[i].tag !== 'ValDef'`. Mirrors sigma-rust's `EvalError::UnexpectedExpr` rejection in `block.rs:13-65`. Message includes the offending index and tag.
 
+The following codes were added in phase 2c (BinOp / LogicalNot / BoolToSigmaProp arms):
+
+- **`'arith-overflow'`** — `BinOp.Arith` (Plus / Minus / Multiply / Divide / Modulo) computed a result outside the operand kind's signed range. Mirrors sigma-rust's checked arithmetic via `NumOps::checked_*`. Message includes the op name, the kind, and the offending bigint result.
+- **`'arith-divide-by-zero'`** — `BinOp.Arith.Divide` or `Modulo` with a right operand of zero. Checked before performing the operation. Message includes the op name.
+- **`'bin-op-kind-mismatch'`** — operands of a BinOp that requires both operands to share the same kind (Arith, Bit, Relation-ordering) had different kinds. `Eq` and `NEq` do NOT throw this — they return `false` on kind mismatch instead. Message includes the op name, left kind, and right kind.
+- **`'bin-op-not-numeric'`** — operand kind not in `{Byte, Short, Int, Long, BigInt}` for an op requiring numeric operands (Arith, Bit, Relation-ordering). Message includes the op name and the offending kind.
+- **`'bin-op-not-boolean'`** — operand kind not `Boolean` for an op requiring Boolean operands (Logical ops, `LogicalNot`, `BoolToSigmaProp`). Message includes the op name and the offending kind.
+
+Note: shift ops (`BinOp.Bit.BitShiftLeft / BitShiftRight / BitShiftRightZeroed`) are not implemented — they throw `'not-implemented-yet'`, matching sigma-rust's `EvalError::Misc("no interpreter eval — use SNumericTypeMethods.shiftLeft/Right")` posture. A `'bit-shift-out-of-range'` code is reserved for when shift ops land via `SNumericTypeMethods` in a later phase (not currently emitted).
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
 ### Coverage and stability
 
-- **8 / ~70 `Expr` variants** have arms in v0.2.0. Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the 8 supported variants are exercised against the sigma-rust eval oracle for byte-equality.
+- **11 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 added in phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality.
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 - **`EvalOpts` is open for additive growth.** Phase 2e introduces chain-state fields (`height`, `selfBox`, `inputs`, `outputs`, `dataInputs`, `preHeader`, `headers`, `extension`, `treeVersion`); they will be added as optional properties so existing callers remain source-compatible.
 - **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.

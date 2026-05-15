@@ -110,7 +110,7 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
       `[corpus-eval] sigma-rust-evaluable: ${evaluable.length} / ${fixture.entries.length}`
     )
     console.log(
-      `[corpus-eval] phase 2b TS eval: success=${evalSuccess} not-impl=${notImplYet} other=${other}`
+      `[corpus-eval] phase 2c TS eval: success=${evalSuccess} not-impl=${notImplYet} other=${other}`
     )
     if (otherCodes.size > 0) {
       console.log('[corpus-eval] other error codes:')

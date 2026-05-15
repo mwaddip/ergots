@@ -407,12 +407,7 @@ pub fn generate() -> anyhow::Result<BinOpRelationFixtureFile> {
     }
 
     // --- Coll[Int]: various cases ---
-    // Cost structure for Coll eq:
-    //   COLL_MATCH_TYPE_COST = 1 (always paid)
-    //   If lengths equal: add_per_item_jit_cost(15, 2, 64, n) = 15 + ceil(n/64)*2
-    //   n=0: 15 + 0 = 15; total for empty eq = 5+5+1+15 = 26
-    //   n=2: 15 + ceil(2/64)*2 = 15+2 = 17; total = 5+5+1+17 = 28
-    //   If lengths differ: only COLL_MATCH_TYPE_COST=1; total = 5+5+1 = 11
+    // Cost for Coll eq is captured from the sigma-rust oracle; see committed fixtures.
     {
         use ergotree_ir::mir::collection::Collection;
         use ergotree_ir::types::stype::SType;
