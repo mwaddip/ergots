@@ -20,10 +20,10 @@ import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import type { LogicalNot } from '../../src/mir/types'
-import { hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -61,11 +61,7 @@ describe('LogicalNot arm — non-Boolean operand', () => {
       input: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 5 } },
     }
     const ctx = makeContext()
-    expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
-    try {
-      evalExpr(expr, Env.empty(), ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('bin-op-not-boolean')
-    }
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('bin-op-not-boolean')
   })
 })

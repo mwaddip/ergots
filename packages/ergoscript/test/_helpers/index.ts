@@ -8,6 +8,7 @@
  */
 
 import type { SType, SValue } from '../../src/mir/types'
+import { EvalError } from '../../src/eval/eval-context'
 
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length === 0) return new Uint8Array(0)
@@ -78,4 +79,24 @@ export function hydrateSValue(json: any): SValue {
     default:
       throw new Error(`hydrateSValue: unknown kind ${json.kind}`)
   }
+}
+
+/**
+ * Run `fn` and return the thrown `EvalError`, or fail the test if `fn`
+ * returned normally / threw something other than `EvalError`.
+ *
+ * Replaces the `expect(fn).toThrow(EvalError); try { fn() } catch { ... }`
+ * double-invocation pattern. Single call to `fn`, single try/catch, the
+ * caller asserts on the returned error directly (`.code`, `.message`).
+ */
+export function captureEvalError(fn: () => unknown): EvalError {
+  try {
+    fn()
+  } catch (e) {
+    if (e instanceof EvalError) return e
+    throw new Error(
+      `captureEvalError: expected EvalError, got ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)}`
+    )
+  }
+  throw new Error('captureEvalError: expected EvalError to be thrown, none was')
 }

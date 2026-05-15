@@ -234,6 +234,37 @@ pub fn generate() -> anyhow::Result<BinOpLogicalFixtureFile> {
         "bin-op-not-boolean",
     )?);
 
+    // -------------------------------------------------------------------------
+    // Error: non-Boolean RIGHT operand. Pick a left value that does NOT
+    // short-circuit so the right side is actually evaluated:
+    //   And needs left=true  (false short-circuits)
+    //   Or  needs left=false (true short-circuits)
+    //   Xor is eager — any left works.
+    // -------------------------------------------------------------------------
+    entries.push(error_entry(
+        "and_not_boolean_right",
+        LogicalOp::And,
+        Expr::Const(true.into()),
+        Expr::Const(5i32.into()),
+        "bin-op-not-boolean",
+    )?);
+
+    entries.push(error_entry(
+        "or_not_boolean_right",
+        LogicalOp::Or,
+        Expr::Const(false.into()),
+        Expr::Const(5i32.into()),
+        "bin-op-not-boolean",
+    )?);
+
+    entries.push(error_entry(
+        "xor_not_boolean_right",
+        LogicalOp::Xor,
+        Expr::Const(true.into()),
+        Expr::Const(5i32.into()),
+        "bin-op-not-boolean",
+    )?);
+
     Ok(BinOpLogicalFixtureFile {
         corpus: "eval_bin_op_logical",
         entries,

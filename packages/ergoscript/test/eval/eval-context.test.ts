@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { EvalError, makeContext } from '../../src/eval/eval-context'
+import { captureEvalError } from '../_helpers'
 
 describe('EvalError', () => {
   it('extends Error and carries a code', () => {
@@ -38,13 +39,8 @@ describe('EvalContext.addCost', () => {
   it('throws cost-limit-exceeded when jitCost exceeds jitCostLimit', () => {
     const ctx = makeContext({ jitCostLimit: 10 })
     ctx.addCost(5)
-    expect(() => ctx.addCost(6)).toThrow(EvalError)
-    try {
-      ctx.addCost(100)
-    } catch (e) {
-      expect(e).toBeInstanceOf(EvalError)
-      expect((e as EvalError).code).toBe('cost-limit-exceeded')
-    }
+    const err = captureEvalError(() => ctx.addCost(6))
+    expect(err.code).toBe('cost-limit-exceeded')
   })
 
   it('does not throw when jitCostLimit is undefined', () => {

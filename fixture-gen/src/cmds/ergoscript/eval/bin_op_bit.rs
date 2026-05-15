@@ -206,6 +206,38 @@ pub fn generate() -> anyhow::Result<BinOpBitFixtureFile> {
         Expr::Const(BigInt256::min_value().into()),
     )?);
 
+    // BitOr / BitXor on BigInt — exercises the 256-bit masking path that
+    // BitAnd alone leaves uncovered. Two entries each: a sign-bit case via
+    // i64::MAX / i64::MIN sign-extended to 256-bit, and a full-width case
+    // via BigInt256::max_value / min_value.
+    entries.push(success_entry(
+        "bitor_bigint",
+        BitOp::BitOr,
+        Expr::Const(BigInt256::from(i64::MAX).into()),
+        Expr::Const(BigInt256::from(i64::MIN).into()),
+    )?);
+
+    entries.push(success_entry(
+        "bitor_bigint_max_min",
+        BitOp::BitOr,
+        Expr::Const(BigInt256::max_value().into()),
+        Expr::Const(BigInt256::min_value().into()),
+    )?);
+
+    entries.push(success_entry(
+        "bitxor_bigint",
+        BitOp::BitXor,
+        Expr::Const(BigInt256::from(i64::MAX).into()),
+        Expr::Const(BigInt256::from(i64::MIN).into()),
+    )?);
+
+    entries.push(success_entry(
+        "bitxor_bigint_max_min",
+        BitOp::BitXor,
+        Expr::Const(BigInt256::max_value().into()),
+        Expr::Const(BigInt256::min_value().into()),
+    )?);
+
 
     // -------------------------------------------------------------------------
     // Error: kind mismatch — Int left, Long right for BitAnd.

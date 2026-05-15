@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { evaluate, evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { ErgoTree } from '../../src/mir/types'
+import { captureEvalError } from '../_helpers'
 
 const treeWithConstBody = (): ErgoTree => ({
   header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
@@ -44,21 +45,13 @@ describe('evaluate', () => {
 
   it('honors jitCostLimit — throws cost-limit-exceeded when the per-Const charge of 5 overflows', () => {
     // Limit < 5 forces the very first add to overshoot.
-    expect(() => evaluate(treeWithConstBody(), { jitCostLimit: 4 })).toThrow(EvalError)
-    try {
-      evaluate(treeWithConstBody(), { jitCostLimit: 4 })
-    } catch (e) {
-      expect((e as EvalError).code).toBe('cost-limit-exceeded')
-    }
+    const err = captureEvalError(() => evaluate(treeWithConstBody(), { jitCostLimit: 4 }))
+    expect(err.code).toBe('cost-limit-exceeded')
   })
 
   it('still throws not-implemented-yet for variants with no arm wired (e.g. Append)', () => {
-    expect(() => evaluate(treeWithAppendBody())).toThrow(EvalError)
-    try {
-      evaluate(treeWithAppendBody())
-    } catch (e) {
-      expect((e as EvalError).code).toBe('not-implemented-yet')
-    }
+    const err = captureEvalError(() => evaluate(treeWithAppendBody()))
+    expect(err.code).toBe('not-implemented-yet')
   })
 })
 

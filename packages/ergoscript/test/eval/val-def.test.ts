@@ -19,9 +19,8 @@ import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluate } from '../../src/eval/evaluate'
-import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
-import { hexToBytes } from '../_helpers'
+import { captureEvalError, hexToBytes } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -47,12 +46,8 @@ describe('ValDef arm — top-level rejection', () => {
       // jitCostLimit needed. Cast through unknown so the JSON-shape
       // `unknown[]` doesn't fight `EvalOpts.constants: SValue[]`.
       const opts = entry.opts_json as unknown as EvalOpts
-      expect(() => evaluate(tree, opts)).toThrow(EvalError)
-      try {
-        evaluate(tree, opts)
-      } catch (e) {
-        expect((e as EvalError).code).toBe(entry.expected_error_code)
-      }
+      const err = captureEvalError(() => evaluate(tree, opts))
+      expect(err.code).toBe(entry.expected_error_code)
     })
   }
 })

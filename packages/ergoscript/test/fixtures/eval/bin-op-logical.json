@@ -156,6 +156,30 @@
       "expected_value_json": null,
       "expected_cost": 0,
       "expected_error_code": "bin-op-not-boolean"
+    },
+    {
+      "name": "and_not_boolean_right",
+      "tree_bytes_hex": "00ed0101040a",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-boolean"
+    },
+    {
+      "name": "or_not_boolean_right",
+      "tree_bytes_hex": "00ec0100040a",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-boolean"
+    },
+    {
+      "name": "xor_not_boolean_right",
+      "tree_bytes_hex": "00f40101040a",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-boolean"
     }
   ]
 }

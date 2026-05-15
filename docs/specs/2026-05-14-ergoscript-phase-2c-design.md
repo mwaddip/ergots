@@ -65,7 +65,7 @@ internal arm growth. No npm publish.
 ```
 packages/ergoscript/src/eval/
 ├── eval.ts                    (existing — adds 3 new cases)
-├── bin-op.ts                  NEW: delegates on e.kind.kind to one of 4 sub-arms
+├── bin-op.ts                  NEW: delegates on e.op.kind to one of 4 sub-arms
 ├── bin-op/                    NEW: per-family sub-modules
 │   ├── arith.ts               evalArithOp + checked arithmetic helpers
 │   ├── relation.ts            evalRelationOp + the structural sValueEquals comparer
@@ -108,12 +108,14 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
 ```
 
 `evalBinOp(e, env, ctx)` itself is a thin one-of-four switch on
-`e.kind.kind`:
+`e.op.kind` (the `BinOp` interface holds the sub-op family at `op:
+BinOpKind`, and `BinOpKind` itself is a discriminated union keyed on
+`kind`):
 
 ```ts
 // eval/bin-op.ts
 export function evalBinOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  switch (e.kind.kind) {
+  switch (e.op.kind) {
     case 'Arith':     return evalArithOp(e, env, ctx)
     case 'Relation':  return evalRelationOp(e, env, ctx)
     case 'Logical':   return evalLogicalOp(e, env, ctx)
@@ -121,7 +123,7 @@ export function evalBinOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     default: {
       // Exhaustiveness gate: BinOpKind is a closed 4-member union.
       // Adding a new kind becomes a compile-time error here.
-      const _exhaust: never = e.kind
+      const _exhaust: never = e.op
       throw new Error(`evalBinOp: unreachable kind ${JSON.stringify(_exhaust)}`)
     }
   }

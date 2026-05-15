@@ -22,9 +22,9 @@ import { fileURLToPath } from 'node:url'
 
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { makeContext } from '../../src/eval/eval-context'
 import type { SType, ValUse } from '../../src/mir/types'
-import { hydrateSValue } from '../_helpers'
+import { captureEvalError, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -60,16 +60,11 @@ describe('ValUse arm', () => {
       const ctx = makeContext()
 
       if (entry.expected_error_code) {
-        expect(() => evalExpr(expr, env, ctx)).toThrow(EvalError)
-        // Cost was charged BEFORE the env lookup threw — re-running re-charges,
-        // so use a fresh context for the cost assertion.
-        const ctx2 = makeContext()
-        try {
-          evalExpr(expr, env, ctx2)
-        } catch (e) {
-          expect((e as EvalError).code).toBe(entry.expected_error_code)
-        }
-        expect(ctx2.jitCost).toBe(entry.expected_cost)
+        const err = captureEvalError(() => evalExpr(expr, env, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
+        // Cost was charged BEFORE the env lookup threw, so ctx.jitCost
+        // reflects the per-arm charge (5) at the point of the throw.
+        expect(ctx.jitCost).toBe(entry.expected_cost)
       } else {
         const value = evalExpr(expr, env, ctx)
         // NB: ValUse-only cost (5), NOT the wrapping-block total in

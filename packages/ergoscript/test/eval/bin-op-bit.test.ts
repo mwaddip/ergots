@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from '../_helpers'
+import { makeContext } from '../../src/eval/eval-context'
+import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -45,12 +45,8 @@ describe('BinOp.Bit family — fixture-driven', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext()
       if (entry.expected_error_code !== null) {
-        expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
-        try {
-          evaluateWith(tree, ctx)
-        } catch (e) {
-          expect((e as EvalError).code).toBe(entry.expected_error_code)
-        }
+        const err = captureEvalError(() => evaluateWith(tree, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
       } else {
         const value = evaluateWith(tree, ctx)
         expect(value).toEqual(hydrateSValue(entry.expected_value_json))

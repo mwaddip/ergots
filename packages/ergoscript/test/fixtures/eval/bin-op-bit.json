@@ -134,6 +134,50 @@
       "expected_error_code": null
     },
     {
+      "name": "bitor_bigint",
+      "tree_bytes_hex": "00f206087fffffffffffffff06088000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitor_bigint_max_min",
+      "tree_bytes_hex": "00f206207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff06208000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitxor_bigint",
+      "tree_bytes_hex": "00f506087fffffffffffffff06088000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
+      "name": "bitxor_bigint_max_min",
+      "tree_bytes_hex": "00f506207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff06208000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 11,
+      "expected_error_code": null
+    },
+    {
       "name": "bitand_kind_mismatch_int_long",
       "tree_bytes_hex": "00f304540554",
       "opts_json": {},

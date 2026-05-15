@@ -19,9 +19,9 @@ import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { makeContext } from '../../src/eval/eval-context'
 import type { BlockValue, Expr } from '../../src/mir/types'
-import { hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -62,11 +62,7 @@ describe('BlockValue arm — strictness', () => {
       result: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
     }
     const ctx = makeContext()
-    expect(() => evalExpr(block, Env.empty(), ctx)).toThrow(EvalError)
-    try {
-      evalExpr(block, Env.empty(), ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('block-item-not-val-def')
-    }
+    const err = captureEvalError(() => evalExpr(block, Env.empty(), ctx))
+    expect(err.code).toBe('block-item-not-val-def')
   })
 })

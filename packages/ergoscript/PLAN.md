@@ -4,7 +4,7 @@
 
 **Goal:** Ship the first half of the operator surface — `BinOp` (all 22 sub-ops across Arith/Relation/Logical/Bit families), `LogicalNot`, `BoolToSigmaProp` — wired into phase 2b's central exhaustive dispatch. 24 distinct evaluable behaviours across 6 new arm modules. Public surface unchanged from v0.2.0; internal additive growth only.
 
-**Architecture:** One `BinOp` central dispatcher (`src/eval/bin-op.ts`) that switches on `e.kind.kind` and delegates to one of four per-family sub-arms under `src/eval/bin-op/`. Two further per-variant arms (`logical-not.ts`, `bool-to-sigma-prop.ts`) at the standard 2b grain. Compute in `bigint` everywhere for arithmetic to enable single-path overflow checking. `sValueEquals(a, b)` recursive comparer lives in `bin-op/relation.ts` (evaluator semantic, not a test helper). Costs copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`); asserted via Layer C1 fixture-gen oracles from day one.
+**Architecture:** One `BinOp` central dispatcher (`src/eval/bin-op.ts`) that switches on `e.op.kind` and delegates to one of four per-family sub-arms under `src/eval/bin-op/`. Two further per-variant arms (`logical-not.ts`, `bool-to-sigma-prop.ts`) at the standard 2b grain. Compute in `bigint` everywhere for arithmetic to enable single-path overflow checking. `sValueEquals(a, b)` recursive comparer lives in `bin-op/relation.ts` (evaluator semantic, not a test helper). Costs copied from sigma-rust at the pinned rev (`integration/ergots@ed5452cf`); asserted via Layer C1 fixture-gen oracles from day one.
 
 **Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf` via the `arbitrary` feature + `try_eval_out::<Value<'static>>` wedge (same pattern as 2b). No new runtime deps; no new dev deps.
 
@@ -28,7 +28,7 @@ Full design rationale: `docs/specs/2026-05-14-ergoscript-phase-2c-design.md`.
 
 | Path | Responsibility |
 |---|---|
-| `packages/ergoscript/src/eval/bin-op.ts` | `evalBinOp` central dispatcher: one-of-four switch on `e.kind.kind` |
+| `packages/ergoscript/src/eval/bin-op.ts` | `evalBinOp` central dispatcher: one-of-four switch on `e.op.kind` |
 | `packages/ergoscript/src/eval/bin-op/arith.ts` | `evalArithOp` + `checkedNumericArith` helper + numeric range constants |
 | `packages/ergoscript/src/eval/bin-op/relation.ts` | `evalRelationOp` (ordering + Eq/NEq dispatch) + `sValueEquals` recursive comparer |
 | `packages/ergoscript/src/eval/bin-op/logical.ts` | `evalLogicalOp` (And/Or short-circuit + Xor eager) |
@@ -707,7 +707,7 @@ Repeat for `relation.ts`, `logical.ts`, `bit.ts` — same shape with the family 
 
 ```ts
 /**
- * BinOp central dispatcher. Switches on `e.kind.kind` and delegates to
+ * BinOp central dispatcher. Switches on `e.op.kind` and delegates to
  * one of four per-family sub-arms under `bin-op/`.
  *
  * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs
@@ -721,13 +721,13 @@ import { evalLogicalOp } from './bin-op/logical'
 import { evalBitOp } from './bin-op/bit'
 
 export function evalBinOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  switch (e.kind.kind) {
+  switch (e.op.kind) {
     case 'Arith':    return evalArithOp(e, env, ctx)
     case 'Relation': return evalRelationOp(e, env, ctx)
     case 'Logical':  return evalLogicalOp(e, env, ctx)
     case 'Bit':      return evalBitOp(e, env, ctx)
     default: {
-      const _exhaust: never = e.kind
+      const _exhaust: never = e.op
       throw new Error(`evalBinOp: unreachable kind ${JSON.stringify(_exhaust)}`)
     }
   }
@@ -772,7 +772,7 @@ git add packages/ergoscript/src/eval/bin-op.ts \
 git commit -m "$(cat <<'EOF'
 feat(ergoscript): BinOp central dispatcher + family skeletons (phase 2c task 3)
 
-Adds evalBinOp routing on e.kind.kind to per-family sub-arms under
+Adds evalBinOp routing on e.op.kind to per-family sub-arms under
 bin-op/. All four family arms currently throw 'not-implemented-yet';
 tasks 4-8 land Bit, Logical, Relation, Arith implementations.
 
@@ -956,7 +956,7 @@ function bigIntToValue(kind: NumericKind, n: bigint): SValue {
 }
 
 export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.kind.kind !== 'Bit') throw new Error('evalBitOp: wrong kind')
+  if (e.op.kind !== 'Bit') throw new Error('evalBitOp: wrong kind')
   ctx.addCost(BIT_OP_COST)
 
   const left = evalExpr(e.left, env, ctx)
@@ -978,7 +978,7 @@ export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   const kind = left.kind as NumericKind
   const a = valueToBigInt(left)
   const b = valueToBigInt(right)
-  const op: BitOp = e.kind.op
+  const op: BitOp = e.op.op
   const width = BIT_WIDTH[kind]
   const mask = (1n << BigInt(width)) - 1n
 
@@ -1169,11 +1169,11 @@ function asBoolean(v: SValue, side: 'left' | 'right'): boolean {
 }
 
 export function evalLogicalOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.kind.kind !== 'Logical') throw new Error('evalLogicalOp: wrong kind')
+  if (e.op.kind !== 'Logical') throw new Error('evalLogicalOp: wrong kind')
   ctx.addCost(LOGICAL_OP_COST)
 
   const left = asBoolean(evalExpr(e.left, env, ctx), 'left')
-  const op: LogicalOp = e.kind.op
+  const op: LogicalOp = e.op.op
 
   switch (op) {
     case 'And':
@@ -1331,10 +1331,10 @@ function valueToBigInt(v: SValue): bigint {
 }
 
 export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.kind.kind !== 'Relation') throw new Error('evalRelationOp: wrong kind')
+  if (e.op.kind !== 'Relation') throw new Error('evalRelationOp: wrong kind')
   ctx.addCost(RELATION_OP_COST)
 
-  const op: RelationOp = e.kind.op
+  const op: RelationOp = e.op.op
   const left = evalExpr(e.left, env, ctx)
   const right = evalExpr(e.right, env, ctx)
 
@@ -1768,10 +1768,10 @@ function checkRange(kind: NumericKind, op: ArithOp, n: bigint): void {
 }
 
 export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
-  if (e.kind.kind !== 'Arith') throw new Error('evalArithOp: wrong kind')
+  if (e.op.kind !== 'Arith') throw new Error('evalArithOp: wrong kind')
   ctx.addCost(ARITH_OP_COST)
 
-  const op: ArithOp = e.kind.op
+  const op: ArithOp = e.op.op
   const left = evalExpr(e.left, env, ctx)
   const right = evalExpr(e.right, env, ctx)
 

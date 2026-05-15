@@ -23,8 +23,8 @@ import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from '../_helpers'
+import { makeContext } from '../../src/eval/eval-context'
+import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -59,22 +59,14 @@ describe('ConstPlaceholder arm — error cases', () => {
   it('throws const-placeholder-no-constants when ctx.constants is undefined', () => {
     const tree = parseTree(hexToBytes(fixture.entries[0]!.tree_bytes_hex))
     const ctx = makeContext() // no constants
-    expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
-    try {
-      evaluateWith(tree, ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('const-placeholder-no-constants')
-    }
+    const err = captureEvalError(() => evaluateWith(tree, ctx))
+    expect(err.code).toBe('const-placeholder-no-constants')
   })
 
   it('throws const-placeholder-id-out-of-range when id >= constants.length', () => {
     const tree = parseTree(hexToBytes(fixture.entries[0]!.tree_bytes_hex))
     const ctx = makeContext({ constants: [] }) // empty constants
-    expect(() => evaluateWith(tree, ctx)).toThrow(EvalError)
-    try {
-      evaluateWith(tree, ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('const-placeholder-id-out-of-range')
-    }
+    const err = captureEvalError(() => evaluateWith(tree, ctx))
+    expect(err.code).toBe('const-placeholder-id-out-of-range')
   })
 })
