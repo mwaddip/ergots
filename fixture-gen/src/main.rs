@@ -78,6 +78,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/if.json", &if_fixture)?;
     let block_value_fixture = cmds::ergoscript::eval::block_value::generate()?;
     write_ergoscript_json("eval/block-value.json", &block_value_fixture)?;
+    let logical_not_fixture = cmds::ergoscript::eval::logical_not::generate()?;
+    write_ergoscript_json("eval/logical-not.json", &logical_not_fixture)?;
 
     Ok(())
 }

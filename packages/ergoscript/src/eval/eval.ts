@@ -22,6 +22,7 @@ import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalIf } from './if'
+import { evalLogicalNot } from './logical-not'
 import { evalTuple } from './tuple'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
@@ -44,6 +45,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalIf(e, env, ctx)
     case 'BlockValue':
       return evalBlockValue(e, env, ctx)
+    case 'LogicalNot':
+      return evalLogicalNot(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.

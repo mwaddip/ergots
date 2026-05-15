@@ -1,0 +1,25 @@
+{
+  "corpus": "eval_logical_not",
+  "entries": [
+    {
+      "name": "logical_not_true",
+      "tree_bytes_hex": "00ef0101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 20
+    },
+    {
+      "name": "logical_not_false",
+      "tree_bytes_hex": "00ef0100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 20
+    }
+  ]
+}

@@ -6,6 +6,7 @@ pub mod common;
 pub mod const_arm;
 pub mod const_placeholder;
 pub mod if_arm;
+pub mod logical_not;
 pub mod tuple;
 pub mod val_def;
 pub mod val_use;
