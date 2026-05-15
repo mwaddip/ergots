@@ -31,8 +31,6 @@ import type { ErgoBox } from '../mir/types'
 import { ByteWriter } from './writer'
 import { SValueSerializeError, writeBoxBodyWithoutRef } from './serialize-svalue'
 
-export { writeBoxBodyWithoutRef }
-
 /**
  * Serialize a full `ErgoBox` to bytes (with tx_id + index).
  *
