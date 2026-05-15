@@ -15,6 +15,7 @@ pub mod const_arm;
 pub mod const_placeholder;
 pub mod downcast;
 pub mod extract_amount;
+pub mod extract_register_as;
 pub mod extract_script_bytes;
 pub mod if_arm;
 pub mod logical_not;

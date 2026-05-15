@@ -117,6 +117,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/extract-amount.json", &extract_amount_fixture)?;
     let extract_script_bytes_fixture = cmds::ergoscript::eval::extract_script_bytes::generate()?;
     write_ergoscript_json("eval/extract-script-bytes.json", &extract_script_bytes_fixture)?;
+    let extract_register_as_fixture = cmds::ergoscript::eval::extract_register_as::generate()?;
+    write_ergoscript_json("eval/extract-register-as.json", &extract_register_as_fixture)?;
 
     Ok(())
 }
