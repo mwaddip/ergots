@@ -104,6 +104,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/or.json", &or_fixture)?;
     let apply_fixture = cmds::ergoscript::eval::apply::generate()?;
     write_ergoscript_json("eval/apply.json", &apply_fixture)?;
+    let xor_of_fixture = cmds::ergoscript::eval::xor_of::generate()?;
+    write_ergoscript_json("eval/xor-of.json", &xor_of_fixture)?;
 
     Ok(())
 }

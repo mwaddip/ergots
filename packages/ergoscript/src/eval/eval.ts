@@ -37,6 +37,7 @@ import { evalTuple } from './tuple'
 import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
+import { evalXorOf } from './xor-of'
 
 export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {
@@ -78,6 +79,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalDowncast(e, env, ctx)
     case 'FuncValue':
       return evalFuncValue(e, env, ctx)
+    case 'XorOf':
+      return evalXorOf(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
