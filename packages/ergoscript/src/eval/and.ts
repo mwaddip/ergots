@@ -42,15 +42,13 @@ export function evalAnd(e: And, env: Env, ctx: EvalContext): SValue {
     )
   }
   const items = input.items
-  let i = 0
-  for (const item of items) {
-    if (item.kind !== 'Boolean') {
+  for (let i = 0; i < items.length; i++) {
+    if (items[i]!.kind !== 'Boolean') {
       throw new EvalError(
-        `And: Coll item ${i} has kind '${item.kind}', expected 'Boolean'`,
+        `And: Coll item ${i} has kind '${items[i]!.kind}', expected 'Boolean'`,
         'coll-not-boolean'
       )
     }
-    i++
   }
   ctx.addPerItemCost(AND_BASE_COST, AND_PER_CHUNK_COST, AND_CHUNK_SIZE, items.length)
   // Items all asserted to be Boolean above; cast is safe.

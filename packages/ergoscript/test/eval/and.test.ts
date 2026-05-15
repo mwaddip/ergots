@@ -108,5 +108,6 @@ describe('And arm — defensive kind-check', () => {
     const ctx = makeContext()
     const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
     expect(err.code).toBe('coll-not-boolean')
+    expect(err.message).toContain('item 0')
   })
 })
