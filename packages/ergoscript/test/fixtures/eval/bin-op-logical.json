@@ -1,0 +1,161 @@
+{
+  "corpus": "eval_bin_op_logical",
+  "entries": [
+    {
+      "name": "and_true_true",
+      "tree_bytes_hex": "00ed8503",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_true_false",
+      "tree_bytes_hex": "00ed8501",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_false_true",
+      "tree_bytes_hex": "00ed8502",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_false_false",
+      "tree_bytes_hex": "00ed8500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "or_true_true",
+      "tree_bytes_hex": "00ec8503",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "or_true_false",
+      "tree_bytes_hex": "00ec8501",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "or_false_true",
+      "tree_bytes_hex": "00ec8502",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "or_false_false",
+      "tree_bytes_hex": "00ec8500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "xor_true_true",
+      "tree_bytes_hex": "00f48503",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "xor_true_false",
+      "tree_bytes_hex": "00f48501",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "xor_false_true",
+      "tree_bytes_hex": "00f48502",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "xor_false_false",
+      "tree_bytes_hex": "00f48500",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "and_not_boolean_left",
+      "tree_bytes_hex": "00ed040a0101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-boolean"
+    },
+    {
+      "name": "or_not_boolean_left",
+      "tree_bytes_hex": "00ec040a0101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-boolean"
+    },
+    {
+      "name": "xor_not_boolean_left",
+      "tree_bytes_hex": "00f4040a0101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "bin-op-not-boolean"
+    }
+  ]
+}

@@ -11,8 +11,8 @@ const boolConst = (b: boolean): Expr =>
   ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: b } })
 
 describe('BinOp central dispatch — routes to per-family sub-arms', () => {
-  // Arith/Relation/Logical are still skeletons that throw 'not-implemented-yet'.
-  // Bit is now fully implemented (phase 2c Task 4) — its case is tested separately.
+  // Arith/Relation are still skeletons that throw 'not-implemented-yet'.
+  // Bit and Logical are now fully implemented (phase 2c Tasks 4 + 5).
   const notYetCases: Array<{ name: string; expr: BinOp }> = [
     {
       name: 'Arith routes to evalArithOp',
@@ -21,10 +21,6 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
     {
       name: 'Relation routes to evalRelationOp',
       expr: { tag: 'BinOp', op: { kind: 'Relation', op: 'Eq' }, left: intConst(1), right: intConst(1) },
-    },
-    {
-      name: 'Logical routes to evalLogicalOp',
-      expr: { tag: 'BinOp', op: { kind: 'Logical', op: 'And' }, left: boolConst(true), right: boolConst(false) },
     },
   ]
 
@@ -43,7 +39,7 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
         expect(code).toBe('not-implemented-yet')
         // Message must come from the family skeleton, not from the central
         // dispatch's default. Each family says its own name.
-        expect(message).toMatch(/Arith|Relation|Logical/)
+        expect(message).toMatch(/Arith|Relation/)
       }
     })
   }
@@ -62,5 +58,21 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
     expect(value).toEqual({ kind: 'Int', value: 0x0f })
     // Cost = BIT_OP_COST(1) + left_Const(5) + right_Const(5) = 11
     expect(ctx.jitCost).toBe(11)
+  })
+
+  // Logical is implemented: assert routing AND correct computed value.
+  // And(true, false) = false.
+  it('Logical routes to evalLogicalOp and computes correctly', () => {
+    const expr: BinOp = {
+      tag: 'BinOp',
+      op: { kind: 'Logical', op: 'And' },
+      left: boolConst(true),
+      right: boolConst(false),
+    }
+    const ctx = makeContext()
+    const value = evalExpr(expr, Env.empty(), ctx)
+    expect(value).toEqual({ kind: 'Boolean', value: false })
+    // Cost = LOGICAL_OP_COST(20) + left_Const(5) + right_Const(5) = 30
+    expect(ctx.jitCost).toBe(30)
   })
 })
