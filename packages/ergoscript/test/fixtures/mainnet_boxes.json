@@ -192,8 +192,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(true)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d3"
         },
         "jit_cost": 354
       }
@@ -220,8 +220,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 339
       }
@@ -1556,8 +1556,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 934
       }
@@ -1572,8 +1572,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 964
       }
@@ -1588,8 +1588,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 964
       }
@@ -1604,8 +1604,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1620,8 +1620,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1636,8 +1636,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1652,8 +1652,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1668,8 +1668,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1684,8 +1684,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1700,8 +1700,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1716,8 +1716,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1732,8 +1732,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1796,8 +1796,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1812,8 +1812,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -1828,8 +1828,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 1033
       }
@@ -2048,8 +2048,8 @@
         "context_kind": "synthetic-empty",
         "ok": true,
         "value_json": {
-          "debug": "SigmaProp(SigmaProp(TrivialProp(false)))",
-          "kind": "Opaque"
+          "kind": "SigmaProp",
+          "raw_hex": "0008d2"
         },
         "jit_cost": 765
       }

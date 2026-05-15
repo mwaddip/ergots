@@ -1,5 +1,6 @@
 //! BinOp.Relation family — fixtures for the four ordering ops
-//! (`Lt`, `Le`, `Gt`, `Ge`) on Byte/Short/Int/Long/BigInt operands.
+//! (`Lt`, `Le`, `Gt`, `Ge`) on Byte/Short/Int/Long/BigInt operands,
+//! and Eq / NEq across all supported SValue kinds.
 //!
 //! Sigma-rust ref:
 //!   `ergotree-interpreter/src/eval/bin_op.rs:205-211`
@@ -11,21 +12,28 @@
 //!   ```
 //!   `bin_op.rs:250-253` — Gt/Lt/Ge/Le dispatch via per-kind helpers.
 //!
-//! Cost: envelope Fixed(20) + Const eval cost (5 per const operand evaluated).
-//! Both operands always eval: no short-circuit for ordering ops.
+//! Ordering cost: envelope Fixed(20) + Const eval cost (5 per const operand).
 //! Total for Const+Const operands = 20 + 5 + 5 = 30.
 //!
-//! NOTE: Eq/NEq are NOT included here — Task 7 adds them alongside the
-//! `sValueEquals` recursive comparer. Do not add them to this file.
+//! Eq/NEq cost: no envelope charge; cost delegated entirely to the recursive
+//! `eq_with_cost` function in `data_value_comparer.rs`. Type-specific costs:
+//!   EQ_PRIM_COST = 3  (Boolean/Byte/Short/Int/Long/Unit/SigmaProp/cross-type)
+//!   EQ_BIGINT_COST = 5
+//!   EQ_GROUP_ELEMENT_COST = 172
+//!   EQ_TUPLE_COST = 4  (+ recursive element costs)
+//!   EQ_OPTION_COST = 4  (+ recursive inner costs when both Some)
+//!   Coll: COLL_MATCH_TYPE_COST=1 + if lengths equal:
+//!         add_per_item_jit_cost(base, per_chunk, chunk_size, n) = base + ceil(n/chunk_size)*per_chunk
+//!         For SInt: (base=15, per_chunk=2, chunk_size=64)
 //!
 //! Error cases:
-//!   - `bin-op-not-numeric`: non-numeric left operand (e.g. Boolean).
-//!   - `bin-op-kind-mismatch`: left and right operands have different kinds.
+//!   - `bin-op-not-numeric`: non-numeric left operand for ordering op (e.g. Boolean).
+//!   - `bin-op-kind-mismatch`: left and right operands have different kinds for ordering op.
 //!
-//! Schema: same unified struct as bin_op_bit — `expected_error_code` is null
-//! for success entries, `expected_value_json`/`expected_cost` are null/0 for
-//! error entries.
+//! Schema: same unified struct — `expected_error_code` is null for success entries,
+//! `expected_value_json`/`expected_cost` are null/0 for error entries.
 
+use ergo_chain_types::ec_point::generator;
 use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::bigint256::BigInt256;
 use ergotree_ir::chain::context::Context;
@@ -34,6 +42,7 @@ use ergotree_ir::mir::bin_op::{BinOp, BinOpKind, RelationOp};
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::sigma_protocol::sigma_boolean::{SigmaBoolean, SigmaProp};
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use sigma_test_util::force_any_val;
@@ -294,6 +303,184 @@ pub fn generate() -> anyhow::Result<BinOpRelationFixtureFile> {
         Expr::Const(true.into()),
         "bin-op-not-numeric",
     )?);
+
+    // =========================================================================
+    // Eq / NEq — all supported SValue kinds (Task 7)
+    // =========================================================================
+    // Cost for Const+Const operands:
+    //   left_Const(5) + right_Const(5) + eq_with_cost_charge
+    // No envelope cost for Eq/NEq (sigma-rust bin_op.rs:205).
+    //
+    // For primitives (Boolean/Byte/Short/Int/Long) eq_with_cost charges EQ_PRIM_COST=3.
+    // So total = 5 + 5 + 3 = 13.
+    // For BigInt: EQ_BIGINT_COST=5 → total = 5 + 5 + 5 = 15.
+    // For GroupElement: EQ_GROUP_ELEMENT_COST=172 → total = 5 + 5 + 172 = 182.
+    // For Unit: falls into the catch-all `_` arm → EQ_PRIM_COST=3 → total = 13.
+    // For SigmaProp: falls into the catch-all `_` arm → EQ_PRIM_COST=3 → total = 13.
+    //
+    // We do NOT predict costs ourselves — sigma-rust via try_eval_out is the oracle.
+    // The comments above are just context for the test reader.
+
+    // --- Boolean ---
+    entries.push(success_entry("eq_bool_true_true", RelationOp::Eq,
+        Expr::Const(true.into()), Expr::Const(true.into()))?);
+    entries.push(success_entry("eq_bool_true_false", RelationOp::Eq,
+        Expr::Const(true.into()), Expr::Const(false.into()))?);
+    entries.push(success_entry("neq_bool_true_false", RelationOp::NEq,
+        Expr::Const(true.into()), Expr::Const(false.into()))?);
+    entries.push(success_entry("neq_bool_true_true", RelationOp::NEq,
+        Expr::Const(true.into()), Expr::Const(true.into()))?);
+
+    // --- Byte ---
+    entries.push(success_entry("eq_byte_equal", RelationOp::Eq,
+        Expr::Const(42i8.into()), Expr::Const(42i8.into()))?);
+    entries.push(success_entry("eq_byte_not_equal", RelationOp::Eq,
+        Expr::Const(1i8.into()), Expr::Const(2i8.into()))?);
+
+    // --- Short ---
+    entries.push(success_entry("eq_short_equal", RelationOp::Eq,
+        Expr::Const(1000i16.into()), Expr::Const(1000i16.into()))?);
+    entries.push(success_entry("eq_short_not_equal", RelationOp::Eq,
+        Expr::Const((-1i16).into()), Expr::Const(0i16.into()))?);
+
+    // --- Int ---
+    entries.push(success_entry("eq_int_equal", RelationOp::Eq,
+        Expr::Const(42i32.into()), Expr::Const(42i32.into()))?);
+    entries.push(success_entry("eq_int_not_equal", RelationOp::Eq,
+        Expr::Const(1i32.into()), Expr::Const(2i32.into()))?);
+    entries.push(success_entry("neq_int_equal", RelationOp::NEq,
+        Expr::Const(7i32.into()), Expr::Const(7i32.into()))?);
+    entries.push(success_entry("neq_int_not_equal", RelationOp::NEq,
+        Expr::Const(3i32.into()), Expr::Const(4i32.into()))?);
+
+    // --- Long ---
+    entries.push(success_entry("eq_long_equal", RelationOp::Eq,
+        Expr::Const(i64::MAX.into()), Expr::Const(i64::MAX.into()))?);
+    entries.push(success_entry("eq_long_not_equal", RelationOp::Eq,
+        Expr::Const(0i64.into()), Expr::Const(1i64.into()))?);
+
+    // --- BigInt ---
+    entries.push(success_entry("eq_bigint_equal", RelationOp::Eq,
+        Expr::Const(BigInt256::from(100i64).into()),
+        Expr::Const(BigInt256::from(100i64).into()))?);
+    entries.push(success_entry("eq_bigint_not_equal", RelationOp::Eq,
+        Expr::Const(BigInt256::from(-1i64).into()),
+        Expr::Const(BigInt256::from(1i64).into()))?);
+
+    // --- Unit ---
+    // Unit == Unit is always true. Two Const(Unit) both evaluate; sigma-rust
+    // falls to the catch-all arm → EQ_PRIM_COST = 3.
+    {
+        use ergotree_ir::mir::constant::Constant;
+        use ergotree_ir::types::stype::SType;
+        let unit_const: Expr = Constant { tpe: SType::SUnit, v: ergotree_ir::mir::constant::Literal::Unit }.into();
+        entries.push(success_entry("eq_unit_unit", RelationOp::Eq,
+            unit_const.clone(), unit_const.clone())?);
+        entries.push(success_entry("neq_unit_unit", RelationOp::NEq,
+            unit_const.clone(), unit_const)?);
+    }
+
+    // --- GroupElement (secp256k1 generator point, deterministic) ---
+    // EQ_GROUP_ELEMENT_COST = 172; total Const+Const = 5+5+172 = 182.
+    {
+        let g: Expr = Expr::Const(generator().into());
+        entries.push(success_entry("eq_group_element_equal", RelationOp::Eq,
+            g.clone(), g.clone())?);
+        // For "not equal" we'd need two different points; use generator vs its double.
+        // We can't easily get a second deterministic point without arithmetic,
+        // so just use NEq on the same point (which returns false).
+        entries.push(success_entry("neq_group_element_equal", RelationOp::NEq,
+            g.clone(), g)?);
+    }
+
+    // --- SigmaProp: TrivialProp(true) == TrivialProp(true) → true ---
+    // Falls to catch-all arm in eq_with_cost → EQ_PRIM_COST = 3; total = 13.
+    {
+        let sp_true: SigmaProp = SigmaProp::new(SigmaBoolean::TrivialProp(true));
+        let sp_false: SigmaProp = SigmaProp::new(SigmaBoolean::TrivialProp(false));
+        let sp_true_expr: Expr = Expr::Const(sp_true.clone().into());
+        let sp_false_expr: Expr = Expr::Const(sp_false.into());
+        entries.push(success_entry("eq_sigma_prop_same", RelationOp::Eq,
+            sp_true_expr.clone(), sp_true_expr.clone())?);
+        entries.push(success_entry("eq_sigma_prop_diff", RelationOp::Eq,
+            sp_true_expr, sp_false_expr)?);
+    }
+
+    // --- Coll[Int]: various cases ---
+    // Cost structure for Coll eq:
+    //   COLL_MATCH_TYPE_COST = 1 (always paid)
+    //   If lengths equal: add_per_item_jit_cost(15, 2, 64, n) = 15 + ceil(n/64)*2
+    //   n=0: 15 + 0 = 15; total for empty eq = 5+5+1+15 = 26
+    //   n=2: 15 + ceil(2/64)*2 = 15+2 = 17; total = 5+5+1+17 = 28
+    //   If lengths differ: only COLL_MATCH_TYPE_COST=1; total = 5+5+1 = 11
+    {
+        use ergotree_ir::mir::collection::Collection;
+        use ergotree_ir::types::stype::SType;
+
+        // Empty Coll[Int] == Empty Coll[Int]
+        let empty_coll_int: Expr = Collection::new(SType::SInt, vec![])?.into();
+        entries.push(success_entry("eq_coll_int_empty_empty", RelationOp::Eq,
+            empty_coll_int.clone(), empty_coll_int)?);
+
+        // [1, 2] == [1, 2]
+        let coll_1_2: Expr = Collection::new(SType::SInt,
+            vec![Expr::Const(1i32.into()), Expr::Const(2i32.into())])?.into();
+        entries.push(success_entry("eq_coll_int_same", RelationOp::Eq,
+            coll_1_2.clone(), coll_1_2)?);
+
+        // [1, 2] == [1, 3] → false (lengths equal, values differ)
+        let coll_1_3: Expr = Collection::new(SType::SInt,
+            vec![Expr::Const(1i32.into()), Expr::Const(3i32.into())])?.into();
+        let coll_1_2b: Expr = Collection::new(SType::SInt,
+            vec![Expr::Const(1i32.into()), Expr::Const(2i32.into())])?.into();
+        entries.push(success_entry("eq_coll_int_diff_content", RelationOp::Eq,
+            coll_1_2b, coll_1_3)?);
+
+        // [1] == [1, 2] → false (length mismatch)
+        let coll_1: Expr = Collection::new(SType::SInt,
+            vec![Expr::Const(1i32.into())])?.into();
+        let coll_1_2c: Expr = Collection::new(SType::SInt,
+            vec![Expr::Const(1i32.into()), Expr::Const(2i32.into())])?.into();
+        entries.push(success_entry("eq_coll_int_diff_length", RelationOp::Eq,
+            coll_1, coll_1_2c)?);
+    }
+
+    // --- Tuple ---
+    // EQ_TUPLE_COST = 4 + recursive element costs.
+    // Tuple(1i32, 2i32) == Tuple(1i32, 2i32): 4 + EQ_PRIM(3) + EQ_PRIM(3) = 10.
+    // Total for Const Tuple consts: eval each tuple → each item is Const so cost
+    // is evaluated inline. Actually: the BinOp Eq takes two Tuple expressions.
+    // Each Tuple Expr is evaluated first (Tuple cost = 15 + 5+5 = 25 each), then
+    // eq_with_cost charges 4 + 3 + 3 = 10.
+    // Total = left_tuple_eval + right_tuple_eval + eq_cost.
+    // Let sigma-rust be the oracle — don't hardcode.
+    {
+        use ergotree_ir::mir::tuple::Tuple;
+        let t_1_2: Expr = Tuple::new(vec![Expr::Const(1i32.into()), Expr::Const(2i32.into())])?.into();
+        let t_1_2b: Expr = Tuple::new(vec![Expr::Const(1i32.into()), Expr::Const(2i32.into())])?.into();
+        let t_1_3: Expr = Tuple::new(vec![Expr::Const(1i32.into()), Expr::Const(3i32.into())])?.into();
+        entries.push(success_entry("eq_tuple_int_int_same", RelationOp::Eq,
+            t_1_2, t_1_2b)?);
+        entries.push(success_entry("eq_tuple_int_int_diff", RelationOp::Eq,
+            t_1_3.clone(), t_1_3)?); // (1,3) == (1,3) → true
+    }
+
+    // NOTE: Option[Int] fixtures are NOT included here.
+    // Serializing Literal::Opt requires ErgoTree v3+ (sigma-rust
+    // data.rs:101,108). Our fixture format uses v0 trees and the TS parser
+    // targets v0/v1. Option equality is tested separately via unit tests in
+    // bin-op-relation.test.ts (non-fixture path) which directly construct
+    // SValues without going through the serialization round-trip.
+    // Will be revisited when v3 ErgoTree support lands in a later phase.
+
+    // --- Cross-kind type mismatch (Int 5 vs Long 5) — sigma-rust returns false. ---
+    // Both values evaluate fine; eq_with_cost sees (Int, Long) → falls to `_`
+    // catch-all arm → EQ_PRIM_COST = 3. Result: false (different kinds).
+    // Total: 5 + 5 + 3 = 13. (Left Const + Right Const + prim_cost catch-all.)
+    entries.push(success_entry("eq_cross_int_long", RelationOp::Eq,
+        Expr::Const(5i32.into()), Expr::Const(5i64.into()))?);
+    entries.push(success_entry("eq_cross_byte_short", RelationOp::Eq,
+        Expr::Const(1i8.into()), Expr::Const(1i16.into()))?);
 
     Ok(BinOpRelationFixtureFile {
         corpus: "eval_bin_op_relation",

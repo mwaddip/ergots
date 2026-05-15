@@ -8,6 +8,7 @@
 use ergotree_ir::mir::value::CollKind;
 use ergotree_ir::mir::value::NativeColl;
 use ergotree_ir::mir::value::Value;
+use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::types::stype::SType;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
@@ -89,9 +90,30 @@ pub fn value_to_json(v: &Value) -> JsonValue {
                     .collect::<Vec<_>>(),
             }),
         },
+        // GroupElement: emit 33-byte compressed SEC1 point as hex string.
+        // Mirrors the TS `SValue` GroupElement variant:
+        //   `{ kind: 'GroupElement', value: Uint8Array }` (hydrated from `bytes_hex`).
+        // sigma_serialize_bytes gives the 33-byte compressed form (same as EcPoint wire format).
+        Value::GroupElement(pt) => {
+            let bytes = pt
+                .sigma_serialize_bytes()
+                .expect("EcPoint sigma_serialize_bytes");
+            json!({ "kind": "GroupElement", "bytes_hex": hex::encode(&bytes) })
+        }
+        // SigmaProp: emit canonical wire bytes as hex string.
+        // `prop_bytes()` calls sigma_serialize_bytes on the constant ErgoTree
+        // wrapping the SigmaBoolean — same bytes the TS `SigmaBoolean.raw` field holds.
+        Value::SigmaProp(sp) => {
+            let bytes = sp
+                .prop_bytes()
+                .expect("SigmaProp prop_bytes");
+            json!({ "kind": "SigmaProp", "raw_hex": hex::encode(&bytes) })
+        }
+        // Unit: no payload.
+        Value::Unit => json!({ "kind": "Unit" }),
         // Other variants extended as later arm tasks need them.
         // Fallback: capture variants we haven't formally encoded yet
-        // (SigmaProp, GroupElement, Box, AvlTree, Lambda, etc.).
+        // (Box, AvlTree, Lambda, etc.).
         // Phase 2b's TS arms don't decode these; only used for the
         // mainnet_boxes Layer C2 corpus where value isn't asserted
         // (only cost is, on the eval-able subset). The debug-string
@@ -117,6 +139,13 @@ pub fn stype_to_json(t: &SType) -> JsonValue {
         SType::SUnit => json!({ "tag": "SUnit" }),
         SType::SAny => json!({ "tag": "SAny" }),
         SType::SColl(elem) => json!({ "tag": "SColl", "elem": stype_to_json(elem) }),
+        SType::SOption(elem) => json!({ "tag": "SOption", "elem": stype_to_json(elem) }),
+        SType::STuple(items) => json!({
+            "tag": "STuple",
+            "items": items.items.iter().map(stype_to_json).collect::<Vec<_>>(),
+        }),
+        SType::SGroupElement => json!({ "tag": "SGroupElement" }),
+        SType::SSigmaProp => json!({ "tag": "SSigmaProp" }),
         // Other variants extended as later arm tasks need them.
         _ => panic!("stype_to_json: unsupported variant for phase 2b: {:?}", t),
     }

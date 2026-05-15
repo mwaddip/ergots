@@ -12,8 +12,8 @@ const boolConst = (b: boolean): Expr =>
 
 describe('BinOp central dispatch — routes to per-family sub-arms', () => {
   // Arith is still a skeleton that throws 'not-implemented-yet'.
-  // Bit, Logical, and Relation (ordering subset) are now fully implemented
-  // (phase 2c Tasks 4, 5, and 6). Eq/NEq still throw 'not-implemented-yet'.
+  // Bit, Logical, and Relation (ordering + Eq/NEq) are now fully implemented
+  // (phase 2c Tasks 4, 5, 6, and 7).
   const notYetCases: Array<{ name: string; expr: BinOp }> = [
     {
       name: 'Arith routes to evalArithOp',
@@ -89,8 +89,9 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
     expect(ctx.jitCost).toBe(30)
   })
 
-  // Eq/NEq still throw 'not-implemented-yet' — task 7 lands them.
-  it('Relation Eq still throws not-implemented-yet (task 7 deferred)', () => {
+  // Eq/NEq are implemented in task 7 — assert routing AND correct computed value.
+  // Eq(1, 1) = true; cost = left_Const(5) + right_Const(5) + EQ_PRIM_COST(3) = 13.
+  it('Relation Eq routes to evalRelationOp and computes correctly (task 7)', () => {
     const expr: BinOp = {
       tag: 'BinOp',
       op: { kind: 'Relation', op: 'Eq' },
@@ -98,12 +99,24 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
       right: intConst(1),
     }
     const ctx = makeContext()
-    expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(EvalError)
-    try {
-      evalExpr(expr, Env.empty(), ctx)
-    } catch (e) {
-      expect((e as EvalError).code).toBe('not-implemented-yet')
-      expect((e as EvalError).message).toMatch(/Eq/)
+    const value = evalExpr(expr, Env.empty(), ctx)
+    expect(value).toEqual({ kind: 'Boolean', value: true })
+    // Cost = left_Const(5) + right_Const(5) + EQ_PRIM_COST(3) = 13.
+    // No envelope cost for Eq (bin_op.rs:205 match arm is empty).
+    expect(ctx.jitCost).toBe(13)
+  })
+
+  // NEq(1, 2) = true.
+  it('Relation NEq routes to evalRelationOp and computes correctly (task 7)', () => {
+    const expr: BinOp = {
+      tag: 'BinOp',
+      op: { kind: 'Relation', op: 'NEq' },
+      left: intConst(1),
+      right: intConst(2),
     }
+    const ctx = makeContext()
+    const value = evalExpr(expr, Env.empty(), ctx)
+    expect(value).toEqual({ kind: 'Boolean', value: true })
+    expect(ctx.jitCost).toBe(13)
   })
 })
