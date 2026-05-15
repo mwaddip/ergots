@@ -43,31 +43,11 @@ import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
 import {
-  type NumericKind,
   isNumeric,
   valueToBigInt,
   bigIntToValue,
+  checkRange,
 } from './_numeric'
-
-// ---------------------------------------------------------------------------
-// Signed range bounds per numeric kind.
-// ---------------------------------------------------------------------------
-
-const SIGNED_MIN: Record<NumericKind, bigint> = {
-  Byte:   -(1n << 7n),
-  Short:  -(1n << 15n),
-  Int:    -(1n << 31n),
-  Long:   -(1n << 63n),
-  BigInt: -(1n << 255n),
-}
-
-const SIGNED_MAX: Record<NumericKind, bigint> = {
-  Byte:   (1n << 7n) - 1n,
-  Short:  (1n << 15n) - 1n,
-  Int:    (1n << 31n) - 1n,
-  Long:   (1n << 63n) - 1n,
-  BigInt: (1n << 255n) - 1n,
-}
 
 // ---------------------------------------------------------------------------
 // Cost table — mirrors sigma-rust bin_op.rs:194-203.
@@ -85,19 +65,6 @@ function arithCost(op: ArithOp, isBigInt: boolean): number {
     case 'Max':
     case 'Min':
       return isBigInt ? 10 : 5
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Range check (throws 'arith-overflow' on violation).
-// ---------------------------------------------------------------------------
-
-function checkRange(kind: NumericKind, op: ArithOp, n: bigint): void {
-  if (n < SIGNED_MIN[kind] || n > SIGNED_MAX[kind]) {
-    throw new EvalError(
-      `BinOp.Arith.${op}: result ${n} overflows ${kind} (range [${SIGNED_MIN[kind]}, ${SIGNED_MAX[kind]}])`,
-      'arith-overflow',
-    )
   }
 }
 
@@ -155,17 +122,17 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   switch (op) {
     case 'Plus':
       result = a + b
-      checkRange(kind, op, result)
+      checkRange(result, kind, 'arith-overflow')
       break
 
     case 'Minus':
       result = a - b
-      checkRange(kind, op, result)
+      checkRange(result, kind, 'arith-overflow')
       break
 
     case 'Multiply':
       result = a * b
-      checkRange(kind, op, result)
+      checkRange(result, kind, 'arith-overflow')
       break
 
     case 'Divide':
@@ -180,7 +147,7 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
       // signed checked_div. BigInt256 MIN / -1 overflows (result would be
       // 2^255, outside the [-2^255, 2^255-1] range); checkRange catches it.
       result = a / b
-      checkRange(kind, op, result)
+      checkRange(result, kind, 'arith-overflow')
       break
 
     case 'Modulo':
@@ -197,7 +164,7 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
       // for non-BigInt256 types (result is always in [-(|b|-1), |b|-1]).
       // For BigInt, the fixture oracle drives correctness.
       result = a % b
-      checkRange(kind, op, result)
+      checkRange(result, kind, 'arith-overflow')
       break
 
     case 'Max':

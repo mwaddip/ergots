@@ -30,31 +30,16 @@ import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
-import { type NumericKind, isNumeric, valueToBigInt, bigIntToValue } from './_numeric'
+import {
+  type NumericKind,
+  isNumeric,
+  valueToBigInt,
+  bigIntToValue,
+  maskToKind,
+} from './_numeric'
 
 /** Cost for any Bit op envelope. sigma-rust bin_op.rs:216. */
 const BIT_OP_COST = 1
-
-/** Bit-width per numeric kind. */
-const BIT_WIDTH: Record<NumericKind, bigint> = {
-  Byte: 8n,
-  Short: 16n,
-  Int: 32n,
-  Long: 64n,
-  BigInt: 256n,
-}
-
-/**
- * Mask a bigint result to the given bit-width (signed two's-complement).
- * - Mask to `width` bits (drop anything above).
- * - If the high bit is set, interpret as negative (subtract 2^width).
- */
-function maskSigned(v: bigint, width: bigint): bigint {
-  const mask = (1n << width) - 1n
-  const masked = ((v % (1n << width)) + (1n << width)) % (1n << width)
-  const high = 1n << (width - 1n)
-  return (masked & mask) >= high ? (masked & mask) - (1n << width) : masked & mask
-}
 
 export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // op.kind === 'Bit' guaranteed by the dispatch in bin-op.ts
@@ -101,7 +86,6 @@ export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
 
   // lv.kind is narrowed to NumericKind by isNumeric guard above.
   const kind: NumericKind = lv.kind
-  const width = BIT_WIDTH[kind]
   const l = valueToBigInt(lv)
   const r = valueToBigInt(rv)
 
@@ -118,5 +102,5 @@ export function evalBitOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   }
 
   // Mask back to the kind's signed range.
-  return bigIntToValue(kind, maskSigned(raw, width))
+  return bigIntToValue(kind, maskToKind(raw, kind))
 }
