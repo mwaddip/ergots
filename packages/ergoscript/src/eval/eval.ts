@@ -29,6 +29,7 @@ import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
 import { evalNegation } from './negation'
 import { evalTuple } from './tuple'
+import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
 
@@ -60,6 +61,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalBitInversion(e, env, ctx)
     case 'Negation':
       return evalNegation(e, env, ctx)
+    case 'Upcast':
+      return evalUpcast(e, env, ctx)
     default:
       // Per-arm tasks (9-15) replace this fall-through one variant at a
       // time. Anything not yet wired throws `not-implemented-yet`.
