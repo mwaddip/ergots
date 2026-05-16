@@ -151,6 +151,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/option-is-defined.json", &option_is_defined_fixture)?;
     let select_field_fixture = cmds::ergoscript::eval::select_field::generate()?;
     write_ergoscript_json("eval/select-field.json", &select_field_fixture)?;
+    let coll_append_fixture = cmds::ergoscript::eval::coll_append::generate()?;
+    write_ergoscript_json("eval/coll-append.json", &coll_append_fixture)?;
     let coll_size_fixture = cmds::ergoscript::eval::coll_size::generate()?;
     write_ergoscript_json("eval/coll-size.json", &coll_size_fixture)?;
 

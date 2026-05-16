@@ -9,6 +9,7 @@ pub mod bin_op_relation;
 pub mod bit_inversion;
 pub mod block_value;
 pub mod bool_to_sigma_prop;
+pub mod coll_append;
 pub mod collection;
 pub mod coll_size;
 pub mod common;

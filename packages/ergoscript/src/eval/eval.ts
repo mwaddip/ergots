@@ -19,6 +19,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalAnd } from './and'
+import { evalAppend } from './coll-append'
 import { evalApply } from './apply'
 import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
@@ -57,6 +58,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {
     case 'And':
       return evalAnd(e, env, ctx)
+    case 'Append':
+      return evalAppend(e, env, ctx)
     case 'Apply':
       return evalApply(e, env, ctx)
     case 'Const':

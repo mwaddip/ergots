@@ -1,0 +1,993 @@
+{
+  "corpus": "eval_coll_append",
+  "entries": [
+    {
+      "name": "coll_append_int_4_4",
+      "tree_bytes_hex": "00b38304040402040404060408830404040a040c040e0410",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          },
+          {
+            "kind": "Int",
+            "value": 6
+          },
+          {
+            "kind": "Int",
+            "value": 7
+          },
+          {
+            "kind": "Int",
+            "value": 8
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 102,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_empty_lhs",
+      "tree_bytes_hex": "00b3830004830304040204040406",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 77,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_empty_rhs",
+      "tree_bytes_hex": "00b3830304040204040406830004",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 77,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_both_empty",
+      "tree_bytes_hex": "00b3830004830004",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 60,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_byte",
+      "tree_bytes_hex": "00b30e0201028301020203",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 1
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 3
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 52,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_cost_eq_lhs",
+      "tree_bytes_hex": "00b38364040402040404060408040a040c040e04100412041404160418041a041c041e04200422042404260428042a042c042e04300432043404360438043a043c043e04400442044404460448044a044c044e04500452045404560458045a045c045e04600462046404660468046a046c046e04700472047404760478047a047c047e048001048201048401048601048801048a01048c01048e01049001049201049401049601049801049a01049c01049e0104a00104a20104a40104a60104a80104aa0104ac0104ae0104b00104b20104b40104b60104b80104ba0104bc0104be0104c00104c20104c40104c60104c801830004",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          },
+          {
+            "kind": "Int",
+            "value": 6
+          },
+          {
+            "kind": "Int",
+            "value": 7
+          },
+          {
+            "kind": "Int",
+            "value": 8
+          },
+          {
+            "kind": "Int",
+            "value": 9
+          },
+          {
+            "kind": "Int",
+            "value": 10
+          },
+          {
+            "kind": "Int",
+            "value": 11
+          },
+          {
+            "kind": "Int",
+            "value": 12
+          },
+          {
+            "kind": "Int",
+            "value": 13
+          },
+          {
+            "kind": "Int",
+            "value": 14
+          },
+          {
+            "kind": "Int",
+            "value": 15
+          },
+          {
+            "kind": "Int",
+            "value": 16
+          },
+          {
+            "kind": "Int",
+            "value": 17
+          },
+          {
+            "kind": "Int",
+            "value": 18
+          },
+          {
+            "kind": "Int",
+            "value": 19
+          },
+          {
+            "kind": "Int",
+            "value": 20
+          },
+          {
+            "kind": "Int",
+            "value": 21
+          },
+          {
+            "kind": "Int",
+            "value": 22
+          },
+          {
+            "kind": "Int",
+            "value": 23
+          },
+          {
+            "kind": "Int",
+            "value": 24
+          },
+          {
+            "kind": "Int",
+            "value": 25
+          },
+          {
+            "kind": "Int",
+            "value": 26
+          },
+          {
+            "kind": "Int",
+            "value": 27
+          },
+          {
+            "kind": "Int",
+            "value": 28
+          },
+          {
+            "kind": "Int",
+            "value": 29
+          },
+          {
+            "kind": "Int",
+            "value": 30
+          },
+          {
+            "kind": "Int",
+            "value": 31
+          },
+          {
+            "kind": "Int",
+            "value": 32
+          },
+          {
+            "kind": "Int",
+            "value": 33
+          },
+          {
+            "kind": "Int",
+            "value": 34
+          },
+          {
+            "kind": "Int",
+            "value": 35
+          },
+          {
+            "kind": "Int",
+            "value": 36
+          },
+          {
+            "kind": "Int",
+            "value": 37
+          },
+          {
+            "kind": "Int",
+            "value": 38
+          },
+          {
+            "kind": "Int",
+            "value": 39
+          },
+          {
+            "kind": "Int",
+            "value": 40
+          },
+          {
+            "kind": "Int",
+            "value": 41
+          },
+          {
+            "kind": "Int",
+            "value": 42
+          },
+          {
+            "kind": "Int",
+            "value": 43
+          },
+          {
+            "kind": "Int",
+            "value": 44
+          },
+          {
+            "kind": "Int",
+            "value": 45
+          },
+          {
+            "kind": "Int",
+            "value": 46
+          },
+          {
+            "kind": "Int",
+            "value": 47
+          },
+          {
+            "kind": "Int",
+            "value": 48
+          },
+          {
+            "kind": "Int",
+            "value": 49
+          },
+          {
+            "kind": "Int",
+            "value": 50
+          },
+          {
+            "kind": "Int",
+            "value": 51
+          },
+          {
+            "kind": "Int",
+            "value": 52
+          },
+          {
+            "kind": "Int",
+            "value": 53
+          },
+          {
+            "kind": "Int",
+            "value": 54
+          },
+          {
+            "kind": "Int",
+            "value": 55
+          },
+          {
+            "kind": "Int",
+            "value": 56
+          },
+          {
+            "kind": "Int",
+            "value": 57
+          },
+          {
+            "kind": "Int",
+            "value": 58
+          },
+          {
+            "kind": "Int",
+            "value": 59
+          },
+          {
+            "kind": "Int",
+            "value": 60
+          },
+          {
+            "kind": "Int",
+            "value": 61
+          },
+          {
+            "kind": "Int",
+            "value": 62
+          },
+          {
+            "kind": "Int",
+            "value": 63
+          },
+          {
+            "kind": "Int",
+            "value": 64
+          },
+          {
+            "kind": "Int",
+            "value": 65
+          },
+          {
+            "kind": "Int",
+            "value": 66
+          },
+          {
+            "kind": "Int",
+            "value": 67
+          },
+          {
+            "kind": "Int",
+            "value": 68
+          },
+          {
+            "kind": "Int",
+            "value": 69
+          },
+          {
+            "kind": "Int",
+            "value": 70
+          },
+          {
+            "kind": "Int",
+            "value": 71
+          },
+          {
+            "kind": "Int",
+            "value": 72
+          },
+          {
+            "kind": "Int",
+            "value": 73
+          },
+          {
+            "kind": "Int",
+            "value": 74
+          },
+          {
+            "kind": "Int",
+            "value": 75
+          },
+          {
+            "kind": "Int",
+            "value": 76
+          },
+          {
+            "kind": "Int",
+            "value": 77
+          },
+          {
+            "kind": "Int",
+            "value": 78
+          },
+          {
+            "kind": "Int",
+            "value": 79
+          },
+          {
+            "kind": "Int",
+            "value": 80
+          },
+          {
+            "kind": "Int",
+            "value": 81
+          },
+          {
+            "kind": "Int",
+            "value": 82
+          },
+          {
+            "kind": "Int",
+            "value": 83
+          },
+          {
+            "kind": "Int",
+            "value": 84
+          },
+          {
+            "kind": "Int",
+            "value": 85
+          },
+          {
+            "kind": "Int",
+            "value": 86
+          },
+          {
+            "kind": "Int",
+            "value": 87
+          },
+          {
+            "kind": "Int",
+            "value": 88
+          },
+          {
+            "kind": "Int",
+            "value": 89
+          },
+          {
+            "kind": "Int",
+            "value": 90
+          },
+          {
+            "kind": "Int",
+            "value": 91
+          },
+          {
+            "kind": "Int",
+            "value": 92
+          },
+          {
+            "kind": "Int",
+            "value": 93
+          },
+          {
+            "kind": "Int",
+            "value": 94
+          },
+          {
+            "kind": "Int",
+            "value": 95
+          },
+          {
+            "kind": "Int",
+            "value": 96
+          },
+          {
+            "kind": "Int",
+            "value": 97
+          },
+          {
+            "kind": "Int",
+            "value": 98
+          },
+          {
+            "kind": "Int",
+            "value": 99
+          },
+          {
+            "kind": "Int",
+            "value": 100
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 562,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_cost_eq_rhs",
+      "tree_bytes_hex": "00b38300048364040402040404060408040a040c040e04100412041404160418041a041c041e04200422042404260428042a042c042e04300432043404360438043a043c043e04400442044404460448044a044c044e04500452045404560458045a045c045e04600462046404660468046a046c046e04700472047404760478047a047c047e048001048201048401048601048801048a01048c01048e01049001049201049401049601049801049a01049c01049e0104a00104a20104a40104a60104a80104aa0104ac0104ae0104b00104b20104b40104b60104b80104ba0104bc0104be0104c00104c20104c40104c60104c801",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          },
+          {
+            "kind": "Int",
+            "value": 6
+          },
+          {
+            "kind": "Int",
+            "value": 7
+          },
+          {
+            "kind": "Int",
+            "value": 8
+          },
+          {
+            "kind": "Int",
+            "value": 9
+          },
+          {
+            "kind": "Int",
+            "value": 10
+          },
+          {
+            "kind": "Int",
+            "value": 11
+          },
+          {
+            "kind": "Int",
+            "value": 12
+          },
+          {
+            "kind": "Int",
+            "value": 13
+          },
+          {
+            "kind": "Int",
+            "value": 14
+          },
+          {
+            "kind": "Int",
+            "value": 15
+          },
+          {
+            "kind": "Int",
+            "value": 16
+          },
+          {
+            "kind": "Int",
+            "value": 17
+          },
+          {
+            "kind": "Int",
+            "value": 18
+          },
+          {
+            "kind": "Int",
+            "value": 19
+          },
+          {
+            "kind": "Int",
+            "value": 20
+          },
+          {
+            "kind": "Int",
+            "value": 21
+          },
+          {
+            "kind": "Int",
+            "value": 22
+          },
+          {
+            "kind": "Int",
+            "value": 23
+          },
+          {
+            "kind": "Int",
+            "value": 24
+          },
+          {
+            "kind": "Int",
+            "value": 25
+          },
+          {
+            "kind": "Int",
+            "value": 26
+          },
+          {
+            "kind": "Int",
+            "value": 27
+          },
+          {
+            "kind": "Int",
+            "value": 28
+          },
+          {
+            "kind": "Int",
+            "value": 29
+          },
+          {
+            "kind": "Int",
+            "value": 30
+          },
+          {
+            "kind": "Int",
+            "value": 31
+          },
+          {
+            "kind": "Int",
+            "value": 32
+          },
+          {
+            "kind": "Int",
+            "value": 33
+          },
+          {
+            "kind": "Int",
+            "value": 34
+          },
+          {
+            "kind": "Int",
+            "value": 35
+          },
+          {
+            "kind": "Int",
+            "value": 36
+          },
+          {
+            "kind": "Int",
+            "value": 37
+          },
+          {
+            "kind": "Int",
+            "value": 38
+          },
+          {
+            "kind": "Int",
+            "value": 39
+          },
+          {
+            "kind": "Int",
+            "value": 40
+          },
+          {
+            "kind": "Int",
+            "value": 41
+          },
+          {
+            "kind": "Int",
+            "value": 42
+          },
+          {
+            "kind": "Int",
+            "value": 43
+          },
+          {
+            "kind": "Int",
+            "value": 44
+          },
+          {
+            "kind": "Int",
+            "value": 45
+          },
+          {
+            "kind": "Int",
+            "value": 46
+          },
+          {
+            "kind": "Int",
+            "value": 47
+          },
+          {
+            "kind": "Int",
+            "value": 48
+          },
+          {
+            "kind": "Int",
+            "value": 49
+          },
+          {
+            "kind": "Int",
+            "value": 50
+          },
+          {
+            "kind": "Int",
+            "value": 51
+          },
+          {
+            "kind": "Int",
+            "value": 52
+          },
+          {
+            "kind": "Int",
+            "value": 53
+          },
+          {
+            "kind": "Int",
+            "value": 54
+          },
+          {
+            "kind": "Int",
+            "value": 55
+          },
+          {
+            "kind": "Int",
+            "value": 56
+          },
+          {
+            "kind": "Int",
+            "value": 57
+          },
+          {
+            "kind": "Int",
+            "value": 58
+          },
+          {
+            "kind": "Int",
+            "value": 59
+          },
+          {
+            "kind": "Int",
+            "value": 60
+          },
+          {
+            "kind": "Int",
+            "value": 61
+          },
+          {
+            "kind": "Int",
+            "value": 62
+          },
+          {
+            "kind": "Int",
+            "value": 63
+          },
+          {
+            "kind": "Int",
+            "value": 64
+          },
+          {
+            "kind": "Int",
+            "value": 65
+          },
+          {
+            "kind": "Int",
+            "value": 66
+          },
+          {
+            "kind": "Int",
+            "value": 67
+          },
+          {
+            "kind": "Int",
+            "value": 68
+          },
+          {
+            "kind": "Int",
+            "value": 69
+          },
+          {
+            "kind": "Int",
+            "value": 70
+          },
+          {
+            "kind": "Int",
+            "value": 71
+          },
+          {
+            "kind": "Int",
+            "value": 72
+          },
+          {
+            "kind": "Int",
+            "value": 73
+          },
+          {
+            "kind": "Int",
+            "value": 74
+          },
+          {
+            "kind": "Int",
+            "value": 75
+          },
+          {
+            "kind": "Int",
+            "value": 76
+          },
+          {
+            "kind": "Int",
+            "value": 77
+          },
+          {
+            "kind": "Int",
+            "value": 78
+          },
+          {
+            "kind": "Int",
+            "value": 79
+          },
+          {
+            "kind": "Int",
+            "value": 80
+          },
+          {
+            "kind": "Int",
+            "value": 81
+          },
+          {
+            "kind": "Int",
+            "value": 82
+          },
+          {
+            "kind": "Int",
+            "value": 83
+          },
+          {
+            "kind": "Int",
+            "value": 84
+          },
+          {
+            "kind": "Int",
+            "value": 85
+          },
+          {
+            "kind": "Int",
+            "value": 86
+          },
+          {
+            "kind": "Int",
+            "value": 87
+          },
+          {
+            "kind": "Int",
+            "value": 88
+          },
+          {
+            "kind": "Int",
+            "value": 89
+          },
+          {
+            "kind": "Int",
+            "value": 90
+          },
+          {
+            "kind": "Int",
+            "value": 91
+          },
+          {
+            "kind": "Int",
+            "value": 92
+          },
+          {
+            "kind": "Int",
+            "value": 93
+          },
+          {
+            "kind": "Int",
+            "value": 94
+          },
+          {
+            "kind": "Int",
+            "value": 95
+          },
+          {
+            "kind": "Int",
+            "value": 96
+          },
+          {
+            "kind": "Int",
+            "value": 97
+          },
+          {
+            "kind": "Int",
+            "value": 98
+          },
+          {
+            "kind": "Int",
+            "value": 99
+          },
+          {
+            "kind": "Int",
+            "value": 100
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 562,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_append_elem_tpe_mismatch",
+      "tree_bytes_hex": "00b3830204040204048301050506",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-elem-tpe-mismatch"
+    },
+    {
+      "name": "coll_append_not_coll",
+      "tree_bytes_hex": "00b30454830004",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    }
+  ]
+}

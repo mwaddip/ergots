@@ -34,21 +34,26 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `Append`. `Const` itself is
-// wired (Task 8), so the previous "anything throws" form no longer
-// observes the dispatch path. `Append` keeps falling through to the
-// `not-implemented-yet` arm until its own per-arm task lands.
-const treeWithAppendBody = (): ErgoTree => {
+// A tree whose body is an unported variant — `ByIndex`. `Append` was wired
+// in Task 3 (phase 2f Coll HOFs), so it no longer falls through to
+// `not-implemented-yet`. `ByIndex` is the next unwired Coll HOF arm and
+// keeps falling through until its own per-arm task lands.
+const treeWithByIndexBody = (): ErgoTree => {
   const innerColl = {
     tag: 'Const' as const,
     tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
     value: { kind: 'Coll' as const, elem: { tag: 'SInt' as const }, items: [] },
   }
+  const idxConst = {
+    tag: 'Const' as const,
+    tpe: { tag: 'SInt' as const },
+    value: { kind: 'Int' as const, value: 0 },
+  }
   return {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'Append', input: innerColl, col2: innerColl },
+    body: { tag: 'ByIndex', input: innerColl, index: idxConst, default: null },
   }
 }
 
@@ -72,8 +77,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. Append)', () => {
-    const err = captureEvalError(() => evaluate(treeWithAppendBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. ByIndex)', () => {
+    const err = captureEvalError(() => evaluate(treeWithByIndexBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -86,9 +91,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (ByIndex not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithAppendBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithByIndexBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })
