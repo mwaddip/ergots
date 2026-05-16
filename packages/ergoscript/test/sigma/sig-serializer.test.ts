@@ -38,6 +38,10 @@ describe('ProofBytesReader', () => {
     const reader = new ProofBytesReader(new Uint8Array(30))
     reader.readChallenge()  // succeeds (24 bytes)
     expect(() => reader.readScalarBytes()).toThrow(VerifyError)
+    const reader2 = new ProofBytesReader(new Uint8Array(30))
+    reader2.readChallenge()
+    try { reader2.readScalarBytes() }
+    catch (e: any) { expect(e.code).toBe('truncated-signature') }
   })
 
   it('throws empty-signature on zero-length input via readProofBytes guard', () => {

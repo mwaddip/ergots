@@ -31,7 +31,7 @@
  * tree-walker for conjectures ships in 2g-combinators.
  */
 
-import { blake2b } from '@noble/hashes/blake2.js'
+import { blake2b256 } from '../crypto/hashes'
 import type { SigmaBoolean, ErgoTree } from '../mir/types'
 import { serializeTree } from '../wire/ergo-tree'
 
@@ -81,6 +81,6 @@ export function propBytes(sb: SigmaBoolean): Uint8Array {
  *   `let taken: Vec<u8> = hash.iter().copied().take(SOUNDNESS_BYTES).collect();`
  */
 export function fiatShamirHash(input: Uint8Array): Uint8Array {
-  const digest = blake2b(input, { dkLen: 32 })
+  const digest = blake2b256(input)
   return digest.slice(0, FIAT_SHAMIR_HASH_BYTES)
 }
