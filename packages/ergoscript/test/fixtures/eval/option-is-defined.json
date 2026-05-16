@@ -1,0 +1,99 @@
+{
+  "corpus": "eval_option_is_defined",
+  "entries": [
+    {
+      "name": "option_is_defined_some_via_getvar",
+      "tree_bytes_hex": "00e6e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_is_defined_some_via_register",
+      "tree_bytes_hex": "00e6c6a70005",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 70,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_is_defined_none",
+      "tree_bytes_hex": "00e6e36304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_is_defined_cost_limit",
+      "tree_bytes_hex": "00e6e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        },
+        "jitCostLimit": 8
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

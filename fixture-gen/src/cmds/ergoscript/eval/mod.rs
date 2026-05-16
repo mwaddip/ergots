@@ -27,6 +27,7 @@ pub mod if_arm;
 pub mod logical_not;
 pub mod negation;
 pub mod option_get;
+pub mod option_is_defined;
 pub mod or;
 pub mod tuple;
 pub mod upcast;
