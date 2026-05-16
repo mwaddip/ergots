@@ -34,11 +34,11 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `Exists`. `Fold` was wired
-// in Task 8 (phase 2f Coll HOFs), so it no longer falls through to
-// `not-implemented-yet`. `Exists` is the next unwired Coll HOF arm and
+// A tree whose body is an unported variant — `ForAll`. `Exists` was wired
+// in Task 9 (phase 2f Coll HOFs), so it no longer falls through to
+// `not-implemented-yet`. `ForAll` is the next unwired Coll HOF arm and
 // keeps falling through until its own per-arm task lands.
-const treeWithExistsBody = (): ErgoTree => {
+const treeWithForAllBody = (): ErgoTree => {
   const innerColl = {
     tag: 'Const' as const,
     tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
@@ -53,7 +53,7 @@ const treeWithExistsBody = (): ErgoTree => {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'Exists', input: innerColl, condition: conditionExpr },
+    body: { tag: 'ForAll', input: innerColl, condition: conditionExpr },
   }
 }
 
@@ -77,8 +77,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. Exists)', () => {
-    const err = captureEvalError(() => evaluate(treeWithExistsBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. ForAll)', () => {
+    const err = captureEvalError(() => evaluate(treeWithForAllBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -91,9 +91,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Exists not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (ForAll not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithExistsBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithForAllBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })

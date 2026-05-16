@@ -155,6 +155,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/coll-append.json", &coll_append_fixture)?;
     let coll_by_index_fixture = cmds::ergoscript::eval::coll_by_index::generate()?;
     write_ergoscript_json("eval/coll-by-index.json", &coll_by_index_fixture)?;
+    let coll_exists_fixture = cmds::ergoscript::eval::coll_exists::generate()?;
+    write_ergoscript_json("eval/coll-exists.json", &coll_exists_fixture)?;
     let coll_filter_fixture = cmds::ergoscript::eval::coll_filter::generate()?;
     write_ergoscript_json("eval/coll-filter.json", &coll_filter_fixture)?;
     let coll_fold_fixture = cmds::ergoscript::eval::coll_fold::generate()?;

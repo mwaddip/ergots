@@ -7,7 +7,7 @@ import { captureEvalError } from '../_helpers'
 
 describe('evalExpr (central dispatch — chassis only)', () => {
   it('throws not-implemented-yet for any unwired variant', () => {
-    // Use Exists as a representative — `Fold` was wired in Task 8 (phase
+    // Use ForAll as a representative — `Exists` was wired in Task 9 (phase
     // 2f Coll HOFs), so we pick the next still-unported variant. The expr
     // shape is irrelevant to the dispatch path; only the `tag` matters before
     // the default arm fires.
@@ -21,9 +21,9 @@ describe('evalExpr (central dispatch — chassis only)', () => {
       tpe: { tag: 'SBoolean' },
       value: { kind: 'Boolean', value: true },
     }
-    const e: Expr = { tag: 'Exists', input: innerColl, condition: conditionExpr }
+    const e: Expr = { tag: 'ForAll', input: innerColl, condition: conditionExpr }
     const err = captureEvalError(() => evalExpr(e, Env.empty(), makeContext()))
     expect(err.code).toBe('not-implemented-yet')
-    expect(err.message).toContain("'Exists'")
+    expect(err.message).toContain("'ForAll'")
   })
 })

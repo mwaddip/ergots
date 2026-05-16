@@ -11,6 +11,7 @@ pub mod block_value;
 pub mod bool_to_sigma_prop;
 pub mod coll_append;
 pub mod coll_by_index;
+pub mod coll_exists;
 pub mod coll_filter;
 pub mod coll_fold;
 pub mod coll_map;
