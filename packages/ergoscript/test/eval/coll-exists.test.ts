@@ -135,13 +135,9 @@ describe('Exists eval (phase 2f Coll HOFs Task 9)', () => {
     // (The exact expected_cost is fixture-driven — this assertion checks structural consistency.)
     expect(ctx.jitCost).toBeGreaterThan(wrongOuterForN1 + 5) // definitively more than wrong scenario
     // The outer delta of 99 must be reflected in the total cost.
-    // Concretely: if we subtract the per-iter cost (1*5=5) and the full outer (103),
-    // we should get the base overhead — and that base must equal what we see for empty Coll.
-    const emptyEntry = fixture.entries.find(e => e.name === 'coll_exists_empty')!
-    const baseOverhead = emptyEntry.expected_cost - 3 // subtract outer(3,1,10,0)=3 for n=0
-    // For sg entry: ctx.jitCost = baseOverhead + outer(1000) + 1 visit overhead
-    // (Visit overhead includes per-iter + body eval costs)
-    // The exact visit overhead is captured in sigma-rust; we only assert the outer delta.
+    // (The empty-Coll fixture establishes base overhead; sg charges that + outer(1000)
+    //  + 1 visit overhead; comparing against `wrongOuterForN1` proves the outer scales
+    //  with full input length, not visit count.)
     expect(outerDelta).toBe(99) // sanity: formula is correct
   })
 })
