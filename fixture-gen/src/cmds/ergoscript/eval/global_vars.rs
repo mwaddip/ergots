@@ -30,7 +30,7 @@
 
 use core::cell::Cell;
 
-use ergo_chain_types::EcPoint;
+use ergo_chain_types::{BlockId, Digest32, EcPoint, PreHeader, Votes};
 use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::{Context, ContextExtensionProvider};
 use ergotree_ir::chain::context_extension::ContextExtension;
@@ -41,7 +41,6 @@ use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader, ErgoTreeVersion};
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::global_vars::GlobalVars;
 use ergotree_ir::serialization::SigmaSerializable;
-use ergo_chain_types::PreHeader;
 use sigma_ser::ScorexSerializable;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
@@ -127,8 +126,16 @@ fn controlled_context(
     in_box: &'static ErgoBox,
     height: u32,
 ) -> Context<'static> {
-    // Build a controlled PreHeader with a known miner_pk (secp256k1 generator).
-    // The generator bytes: 0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
+    // Build a fully deterministic PreHeader — every field is hardcoded so that
+    // fixture-gen output is byte-stable across runs (the determinism gate).
+    //
+    // miner_pk = secp256k1 generator G (compressed):
+    //   0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
+    // parent_id = all-zeros Digest32 (BlockId(Digest32::zero()))
+    // timestamp = 1_700_000_000_000 ms (fixed, 2023-11-14T22:13:20Z)
+    // n_bits    = 0x1d00ffff (Bitcoin genesis difficulty; recognisable sentinel)
+    // votes     = [0, 0, 0]
+    // version   = 1
     let gen_bytes = hex::decode(
         "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
     ).expect("decode gen bytes");
@@ -136,13 +143,13 @@ fn controlled_context(
 
     let base_ctx = force_any_val::<Context<'static>>();
     let pre_header = PreHeader {
-        version: base_ctx.pre_header.version,
-        parent_id: base_ctx.pre_header.parent_id,
-        timestamp: base_ctx.pre_header.timestamp,
-        n_bits: base_ctx.pre_header.n_bits,
+        version: 1,
+        parent_id: BlockId(Digest32::zero()),
+        timestamp: 1_700_000_000_000u64,
+        n_bits: 0x1d00ffff,
         height,
         miner_pk: Box::new(miner_pk),
-        votes: base_ctx.pre_header.votes,
+        votes: Votes([0, 0, 0]),
     };
 
     let ext: &'static ContextExtension = Box::leak(Box::new(ContextExtension::empty()));
@@ -260,20 +267,20 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
         let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
         let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
-        let votes_hex = hex::encode(ctx.pre_header.votes.0.as_ref());
-        let parent_id_hex = hex::encode(ctx.pre_header.parent_id.0.0.as_ref());
+        // Use hardcoded deterministic values matching controlled_context() PreHeader.
+        let parent_id_hex = "0".repeat(64); // 32 zero bytes
         entries.push(GlobalVarsFixture {
             name: "global_vars_miner_pubkey".into(),
             tree_bytes_hex: hex,
             opts_json: json!({
                 "preHeader": {
-                    "version": ctx.pre_header.version,
+                    "version": 1,
                     "parentIdHex": parent_id_hex,
-                    "timestamp": ctx.pre_header.timestamp.to_string(),
-                    "nBits": ctx.pre_header.n_bits,
-                    "height": ctx.pre_header.height,
+                    "timestamp": "1700000000000",
+                    "nBits": 0x1d00ffff_u32,
+                    "height": 999_999_u32,
                     "minerPkHex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-                    "votesHex": votes_hex,
+                    "votesHex": "000000",
                 }
             }),
             expected_value_json: value_to_json(&val),
