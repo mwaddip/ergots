@@ -8,3 +8,4 @@
 
 pub mod sbox_roundtrip;
 pub mod ergo_box_bytes;
+pub mod sigma_boolean_variants;

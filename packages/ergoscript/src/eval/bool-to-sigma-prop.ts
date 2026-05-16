@@ -26,10 +26,6 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import {
-  SIGMA_OP_TRIVIAL_PROP_FALSE,
-  SIGMA_OP_TRIVIAL_PROP_TRUE,
-} from '../wire/sigma-boolean'
 
 const BOOL_TO_SIGMA_PROP_COST = 15
 
@@ -46,8 +42,7 @@ export function evalBoolToSigmaProp(
       'bin-op-not-boolean'
     )
   }
-  const raw = new Uint8Array([
-    input.value ? SIGMA_OP_TRIVIAL_PROP_TRUE : SIGMA_OP_TRIVIAL_PROP_FALSE,
-  ])
-  return { kind: 'SigmaProp', value: { raw } }
+  // Phase 2g-medium: structural SigmaBoolean — TrivialProp wraps the boolean.
+  // Sigma-rust: SigmaProp::new(SigmaBoolean::TrivialProp(input_v_bool))
+  return { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: input.value } }
 }

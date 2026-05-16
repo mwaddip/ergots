@@ -28,8 +28,6 @@ import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import type { BoolToSigmaProp } from '../../src/mir/types'
-import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
-import { ByteReader } from '../../src/wire/reader'
 import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -40,7 +38,7 @@ interface EvalFixture {
   name: string
   tree_bytes_hex: string
   opts_json: EvalOpts
-  expected_value_json: { kind: string; raw_hex?: string }
+  expected_value_json: { kind: string; raw_hex?: string; [key: string]: unknown }
   expected_cost: number
 }
 
@@ -71,10 +69,9 @@ describe('BoolToSigmaProp arm — fixture-driven', () => {
       const value = evaluateWith(tree, ctx)
       expect(value.kind).toBe('SigmaProp')
       if (value.kind !== 'SigmaProp') return
-      const reader = new ByteReader(value.value.raw)
-      const sb = parseSigmaBoolean(reader)
-      expect(sb).toBeDefined()
-      expect(reader.remaining).toBe(0)
+      // Phase 2g-medium: value.value is now structural SigmaBoolean.
+      // Verify it has the expected TrivialProp tag.
+      expect(value.value.tag).toBe('TrivialProp')
     })
   }
 })

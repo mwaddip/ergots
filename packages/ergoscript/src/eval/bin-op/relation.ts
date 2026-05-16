@@ -27,6 +27,8 @@ import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
 import { isNumeric, valueToBigInt } from './_numeric'
+import { serializeSigmaBoolean } from '../../wire/sigma-boolean'
+import { ByteWriter } from '../../wire/writer'
 
 /** Cost for ordering Relation ops. sigma-rust bin_op.rs:210. */
 const RELATION_ORDERING_COST = 20
@@ -278,14 +280,14 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return true
     }
 
-    // SigmaProp: byte-equal on canonical wire bytes (.raw).
+    // SigmaProp: byte-equal on canonical wire bytes (serialized via structural walker).
     // Falls into sigma-rust's catch-all `_` arm (line 132): EQ_PRIM_COST + lv == rv.
     // SigmaProp's PartialEq compares the inner SigmaBoolean structurally, which is
-    // equivalent to comparing the canonical wire bytes for the types we support.
+    // equivalent to comparing the canonical wire bytes.
     case 'SigmaProp': {
       ctx.addCost(EQ_PRIM_COST)
-      const ra = a.value.raw
-      const rb = (b as typeof a).value.raw
+      const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
+      const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
       if (ra.length !== rb.length) return false
       for (let i = 0; i < ra.length; i++) {
         if (ra[i] !== rb[i]) return false
@@ -355,7 +357,8 @@ function primitiveValueEqual(a: SValue, b: SValue): boolean {
       return true
     }
     case 'SigmaProp': {
-      const ra = a.value.raw, rb = (b as typeof a).value.raw
+      const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
+      const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
       if (ra.length !== rb.length) return false
       for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return false
       return true

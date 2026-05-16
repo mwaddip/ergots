@@ -366,8 +366,8 @@ describe('SValue deferred-kind errors', () => {
 
 describe('SValue SSigmaProp parse + serialize', () => {
   // A minimal ProveDlog SigmaBoolean payload: opcode 0xcd + 33-byte
-  // compressed pubkey. The reader returns it as opaque raw bytes
-  // (`SigmaBoolean.raw`); the writer emits the same bytes back.
+  // compressed pubkey. Phase 2g-medium: parser returns structural SigmaBoolean;
+  // serializer emits byte-identical output.
   const proveDlog33Pk = new Uint8Array([
     0x02, 0x76, 0x4e, 0xa2, 0xb0, 0xb9, 0xb0, 0x6b, 0x57, 0x30, 0xa4, 0x25, 0x7b, 0xba, 0x71,
     0xfd, 0x77, 0x97, 0xeb, 0x1e, 0xc1, 0x2b, 0xc3, 0xae, 0x60, 0x25, 0xa0, 0x1d, 0x7f, 0xba,
@@ -382,7 +382,11 @@ describe('SValue SSigmaProp parse + serialize', () => {
     const v = parseSValue({ tag: 'SSigmaProp' }, r)
     expect(v.kind).toBe('SigmaProp')
     if (v.kind === 'SigmaProp') {
-      expect(Array.from(v.value.raw)).toEqual(Array.from(rawProveDlog))
+      // Phase 2g-medium: structural shape — check tag and public key bytes.
+      expect(v.value.tag).toBe('ProveDlog')
+      if (v.value.tag === 'ProveDlog') {
+        expect(Array.from(v.value.h)).toEqual(Array.from(proveDlog33Pk))
+      }
     }
     expect(r.isExhausted).toBe(true)
   })

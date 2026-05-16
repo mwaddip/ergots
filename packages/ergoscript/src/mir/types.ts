@@ -110,14 +110,23 @@ export interface AvlTreeData {
 }
 
 /**
- * Forward declaration — full sigma-protocol tree structure is filled in
- * phase 2g (sigma-protocol evaluation). Phase 2a treats this as opaque,
- * carrying the raw on-wire bytes so SValue can hold a SigmaProp variant.
+ * Structural sigma-protocol proposition tree (phase 2g-medium).
+ *
+ * Flattens sigma-rust's 3-variant `SigmaBoolean` enum
+ * (`TrivialProp` / `ProofOfKnowledge` / `SigmaConjecture`) to the 6
+ * concrete leaves. Wire format (opcode dispatch) lives in
+ * `wire/sigma-boolean.ts`; the runtime verifier (phase 2g-medium leaf-only,
+ * 2g-combinators full) walks this tree.
+ *
+ * Source: ergotree-ir/src/sigma_protocol/sigma_boolean.rs:168-175
  */
-export interface SigmaBoolean {
-  /** Serialized sigma-protocol tree; structure deferred to phase 2g. */
-  raw: Uint8Array
-}
+export type SigmaBoolean =
+  | { tag: 'TrivialProp'; value: boolean }
+  | { tag: 'ProveDlog'; h: Uint8Array }                                       // 33-byte SEC1 compressed (or 33 zeros = identity, Ergo convention)
+  | { tag: 'ProveDhTuple'; g: Uint8Array; h: Uint8Array; u: Uint8Array; v: Uint8Array }
+  | { tag: 'Cand'; items: SigmaBoolean[] }                                    // items.length >= 1
+  | { tag: 'Cor'; items: SigmaBoolean[] }                                     // items.length >= 1
+  | { tag: 'Cthreshold'; k: number; items: SigmaBoolean[] }                  // k in [1, items.length]
 
 /**
  * Forward declaration — proper user-function representation lands in phase 2d

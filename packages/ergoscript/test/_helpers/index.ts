@@ -10,6 +10,8 @@
 import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
+import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { ByteReader } from '../../src/wire/reader'
 
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length === 0) return new Uint8Array(0)
@@ -56,8 +58,11 @@ export function hydrateSValue(json: any): SValue {
       return { kind: 'BigInt', value: BigInt(json.value as string) }
     case 'GroupElement':
       return { kind: 'GroupElement', value: hexToBytes(json.bytes_hex) }
-    case 'SigmaProp':
-      return { kind: 'SigmaProp', value: { raw: hexToBytes(json.raw_hex) } }
+    case 'SigmaProp': {
+      // Phase 2g-medium: raw_hex bytes are parsed into the structural SigmaBoolean.
+      const bytes = hexToBytes(json.raw_hex as string)
+      return { kind: 'SigmaProp', value: parseSigmaBoolean(new ByteReader(bytes)) }
+    }
     case 'Unit':
       return { kind: 'Unit' }
     case 'Coll':

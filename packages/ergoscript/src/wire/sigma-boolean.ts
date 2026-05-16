@@ -1,5 +1,5 @@
 /**
- * SigmaBoolean wire-format reader/writer.
+ * SigmaBoolean wire-format reader/writer (phase 2g-medium structural refactor).
  *
  * SigmaBoolean is the recursive proposition tree used inside `SSigmaProp`
  * constants. On the wire (sigma-rust `serialization/sigmaboolean.rs:17-65`):
@@ -10,23 +10,14 @@
  *         PROVE_DH_TUPLE   (0xce) → ec_point[33] × 4 (g, h, u, v)
  *         AND              (0x96) → u16(VLQ) items_count + items_count × sigma_boolean
  *         OR               (0x97) → u16(VLQ) items_count + items_count × sigma_boolean
- *         ATLEAST          (0x98) → u32(VLQ) k + u16(VLQ) items_count + items × sigma_boolean
+ *         ATLEAST          (0x98) → u16(VLQ) k + u16(VLQ) items_count + items × sigma_boolean
  *         TRIVIAL_PROP_F   (0xd2) → ε
  *         TRIVIAL_PROP_T   (0xd3) → ε
  *       }
  *
- * Phase 2a stores the parsed tree as opaque `raw: Uint8Array` (a slice of
- * the input covering exactly the consumed bytes); the structural decode
- * is used only to determine the length. This is enough for the address
- * round-trip path (the canonical P2PK ErgoTree body is
- * `Const(SSigmaProp, ProveDlog(EcPoint))` — a fixed 34-byte payload).
- *
- * AND/OR/ATLEAST conjectures and ProveDhTuple are parsed structurally to
- * the same opaque-bytes representation; the serializer just emits the
- * stored slice. Round-trip correctness reduces to "read the right number
- * of bytes." If we ever need structural access to the tree (e.g. for
- * sigma-protocol evaluation in a later phase), the `raw` byte slice can
- * be re-parsed at that point.
+ * Phase 2g-medium replaces the opaque `{ raw: Uint8Array }` shape from 2a with
+ * a full recursive parser/serializer. Round-trip invariant unchanged:
+ * `serializeSigmaBoolean(parseSigmaBoolean(r)) === original bytes`.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/sigmaboolean.rs
@@ -37,6 +28,7 @@
 
 import type { SigmaBoolean } from '../mir/types'
 import { ByteReader, ReaderError } from './reader'
+import { ByteWriter } from './writer'
 
 // Sigma-protocol opcodes (single byte). Same value space as the top-level
 // MIR opcode table — these are part of a unified opcode namespace.
@@ -58,51 +50,49 @@ export class SigmaBooleanParseError extends Error {
   }
 }
 
-/**
- * Parse a single SigmaBoolean from `r` and return its raw byte slice.
- *
- * The returned `raw` is a defensive copy of the consumed range —
- * callers can stash it past the reader's lifetime without worrying
- * about underlying-buffer reuse.
- *
- * The cursor is advanced past the SigmaBoolean. Any structural malformation
- * (truncation, unknown opcode, oversized arity) throws
- * `SigmaBooleanParseError` or `ReaderError` from the underlying reader.
- */
-export function parseSigmaBoolean(r: ByteReader): SigmaBoolean {
-  const start = r.position
-  consumeSigmaBoolean(r)
-  const end = r.position
-  // Defensive copy via `.slice()` — `r.slice(start, end)` returns a view
-  // into the reader's underlying buffer and we don't want callers to
-  // observe mutations of that buffer (or to retain a reference that
-  // pins more memory than needed).
-  return { raw: r.slice(start, end).slice() }
+export class SigmaBooleanSerializeError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string
+  ) {
+    super(message)
+    this.name = 'SigmaBooleanSerializeError'
+  }
 }
 
 /**
- * Advance the reader past one SigmaBoolean, validating that the bytes
- * are well-formed enough to know the length. Used by `parseSigmaBoolean`
- * (which then rewinds and captures the consumed range).
+ * Parse a SigmaBoolean from `r`, returning a structural discriminated union.
+ * Recursive on conjectures.
+ *
+ * Error codes:
+ *  - 'unknown-opcode'                — opcode byte not in the sigma table
+ *  - 'arity-out-of-range'            — items_count > u16 max
+ *  - 'cthreshold-k-out-of-range'     — k outside [1, items.length]
+ *  - 'sigma-conjecture-empty-items'  — items.length < 1 (BoundedVec lower bound)
+ *
+ * Source: ergotree-ir/src/serialization/sigmaboolean.rs
  */
-function consumeSigmaBoolean(r: ByteReader): void {
+export function parseSigmaBoolean(r: ByteReader): SigmaBoolean {
   const op = r.readU8()
   switch (op) {
-    case OP_PROVE_DLOG:
+    case OP_TRIVIAL_PROP_FALSE: return { tag: 'TrivialProp', value: false }
+    case OP_TRIVIAL_PROP_TRUE:  return { tag: 'TrivialProp', value: true }
+    case OP_PROVE_DLOG: {
       // 33-byte EcPoint (compressed SEC1 or identity-zeros).
-      r.readBytes(33)
-      return
-    case OP_PROVE_DH_TUPLE:
-      // 4 × 33-byte EcPoint = 132 bytes.
-      r.readBytes(132)
-      return
-    case OP_TRIVIAL_PROP_FALSE:
-    case OP_TRIVIAL_PROP_TRUE:
-      // 0-byte payload.
-      return
+      const h = r.readBytes(33).slice()
+      return { tag: 'ProveDlog', h }
+    }
+    case OP_PROVE_DH_TUPLE: {
+      // 4 × 33-byte EcPoint = g, h, u, v.
+      const g = r.readBytes(33).slice()
+      const h = r.readBytes(33).slice()
+      const u = r.readBytes(33).slice()
+      const v = r.readBytes(33).slice()
+      return { tag: 'ProveDhTuple', g, h, u, v }
+    }
     case OP_AND:
     case OP_OR: {
-      // VLQ items_count, then `items_count` × sigma_boolean.
+      // sigma-rust cand.rs:67-69 / cor.rs:67-69: put_u16(items_count as u16), VLQ on wire.
       const count = r.readVlqU()
       if (count > 0xffff) {
         throw new SigmaBooleanParseError(
@@ -110,14 +100,20 @@ function consumeSigmaBoolean(r: ByteReader): void {
           'arity-out-of-range'
         )
       }
-      for (let i = 0; i < count; i++) consumeSigmaBoolean(r)
-      return
+      if (count < 1) {
+        throw new SigmaBooleanParseError(
+          `SigmaConjecture must have at least 1 item, got ${count}`,
+          'sigma-conjecture-empty-items'
+        )
+      }
+      const items: SigmaBoolean[] = []
+      for (let i = 0; i < count; i++) items.push(parseSigmaBoolean(r))
+      return { tag: op === OP_AND ? 'Cand' : 'Cor', items }
     }
     case OP_ATLEAST: {
-      // VLQ-u32 k, then VLQ-u16 items_count, then items.
-      // (sigma-rust's Cthreshold uses `r.get_u32()` for k and `r.get_u16()`
-      // for items_count; both VLQ-encoded under put_u32/put_u16.)
-      r.readVlqU() // k
+      // sigma-rust cthreshold.rs:108-111: k written as put_u16(k as u16), VLQ on wire.
+      // items_count also written as put_u16, VLQ on wire.
+      const k = r.readVlqU()
       const count = r.readVlqU()
       if (count > 0xffff) {
         throw new SigmaBooleanParseError(
@@ -125,8 +121,27 @@ function consumeSigmaBoolean(r: ByteReader): void {
           'arity-out-of-range'
         )
       }
-      for (let i = 0; i < count; i++) consumeSigmaBoolean(r)
-      return
+      if (count < 1) {
+        throw new SigmaBooleanParseError(
+          `Cthreshold must have at least 1 item, got ${count}`,
+          'sigma-conjecture-empty-items'
+        )
+      }
+      if (k < 1 || k > count) {
+        throw new SigmaBooleanParseError(
+          `Cthreshold k=${k} out of range [1, ${count}]`,
+          'cthreshold-k-out-of-range'
+        )
+      }
+      if (k > 0xff) {
+        throw new SigmaBooleanParseError(
+          `Cthreshold k=${k} exceeds u8 bound`,
+          'cthreshold-k-out-of-range'
+        )
+      }
+      const items: SigmaBoolean[] = []
+      for (let i = 0; i < count; i++) items.push(parseSigmaBoolean(r))
+      return { tag: 'Cthreshold', k, items }
     }
     default:
       throw new SigmaBooleanParseError(
@@ -137,26 +152,87 @@ function consumeSigmaBoolean(r: ByteReader): void {
 }
 
 /**
- * Read the opcode byte from a SigmaBoolean's raw payload without
- * advancing any reader state. Useful for shape checks (e.g. "is this
- * a P2PK ProveDlog?") without re-parsing.
+ * Serialize a SigmaBoolean to `w`. Dual of `parseSigmaBoolean`.
+ * Round-trip invariant: `serializeSigmaBoolean(parseSigmaBoolean(bytes)) === bytes` (byte-equal).
  *
- * Returns `null` if `raw` is empty.
+ * Source: ergotree-ir/src/serialization/sigmaboolean.rs
  */
-export function sigmaBooleanOpCode(sb: SigmaBoolean): number | null {
-  if (sb.raw.length === 0) return null
-  return sb.raw[0]!
+export function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void {
+  switch (sb.tag) {
+    case 'TrivialProp':
+      w.writeU8(sb.value ? OP_TRIVIAL_PROP_TRUE : OP_TRIVIAL_PROP_FALSE)
+      return
+    case 'ProveDlog':
+      if (sb.h.length !== 33) {
+        throw new SigmaBooleanSerializeError(
+          `ProveDlog.h length=${sb.h.length}, expected 33`,
+          'ec-point-length'
+        )
+      }
+      w.writeU8(OP_PROVE_DLOG)
+      w.writeBytes(sb.h)
+      return
+    case 'ProveDhTuple':
+      for (const [name, p] of [['g', sb.g], ['h', sb.h], ['u', sb.u], ['v', sb.v]] as const) {
+        if (p.length !== 33) {
+          throw new SigmaBooleanSerializeError(
+            `ProveDhTuple.${name} length=${p.length}, expected 33`,
+            'ec-point-length'
+          )
+        }
+      }
+      w.writeU8(OP_PROVE_DH_TUPLE)
+      w.writeBytes(sb.g)
+      w.writeBytes(sb.h)
+      w.writeBytes(sb.u)
+      w.writeBytes(sb.v)
+      return
+    case 'Cand':
+    case 'Cor':
+      if (sb.items.length < 1 || sb.items.length > 0xffff) {
+        throw new SigmaBooleanSerializeError(
+          `SigmaConjecture items.length=${sb.items.length} out of range`,
+          'arity-out-of-range'
+        )
+      }
+      w.writeU8(sb.tag === 'Cand' ? OP_AND : OP_OR)
+      w.writeVlqU(sb.items.length)
+      for (const item of sb.items) serializeSigmaBoolean(item, w)
+      return
+    case 'Cthreshold':
+      if (sb.items.length < 1 || sb.items.length > 0xffff) {
+        throw new SigmaBooleanSerializeError(
+          `Cthreshold items.length=${sb.items.length} out of range`,
+          'arity-out-of-range'
+        )
+      }
+      if (sb.k < 1 || sb.k > sb.items.length || sb.k > 0xff) {
+        throw new SigmaBooleanSerializeError(
+          `Cthreshold k=${sb.k} out of range`,
+          'cthreshold-k-out-of-range'
+        )
+      }
+      w.writeU8(OP_ATLEAST)
+      w.writeVlqU(sb.k)
+      w.writeVlqU(sb.items.length)
+      for (const item of sb.items) serializeSigmaBoolean(item, w)
+      return
+    default: {
+      const _exhaust: never = sb
+      throw new SigmaBooleanSerializeError(
+        `unreachable: ${JSON.stringify(_exhaust)}`,
+        'unreachable'
+      )
+    }
+  }
 }
 
 /**
- * If `sb` is a `ProveDlog`, return the 33-byte compressed public key.
- * Otherwise return `null`. Does not copy — callers should `.slice()` if
- * mutation safety matters.
+ * Convenience: returns the 33-byte public key if `sb` is a ProveDlog leaf, else null.
+ * Defensive copy.
  */
 export function proveDlogPublicKey(sb: SigmaBoolean): Uint8Array | null {
-  if (sb.raw.length !== 34) return null
-  if (sb.raw[0] !== OP_PROVE_DLOG) return null
-  return sb.raw.subarray(1, 34)
+  return sb.tag === 'ProveDlog' ? sb.h.slice() : null
 }
 
 export {
@@ -166,7 +242,7 @@ export {
   OP_TRIVIAL_PROP_TRUE as SIGMA_OP_TRIVIAL_PROP_TRUE,
   OP_AND as SIGMA_OP_AND,
   OP_OR as SIGMA_OP_OR,
-  OP_ATLEAST as SIGMA_OP_ATLEAST
+  OP_ATLEAST as SIGMA_OP_ATLEAST,
 }
 
 // Re-export ReaderError so callers that need to discriminate errors can.

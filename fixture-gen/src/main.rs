@@ -68,6 +68,10 @@ fn main() -> anyhow::Result<()> {
         "wire/ergo-box-bytes.json",
         &cmds::ergoscript::wire::ergo_box_bytes::generate()?,
     )?;
+    write_ergoscript_json(
+        "wire/sigma-boolean-variants.json",
+        &cmds::ergoscript::wire::sigma_boolean_variants::generate()?,
+    )?;
 
     // Phase 2b per-arm eval fixtures land in their own `eval/` subdir to
     // keep the top-level `fixtures/` listing tidy as more arm tasks land.
