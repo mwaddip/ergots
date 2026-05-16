@@ -26,8 +26,9 @@
  *   - GroupGenerator     → GroupElement (secp256k1 G), cost=10
  *   - Height cost-limit  → 'cost-limit-exceeded'
  *
- * Inline defensive tests:
- *   - SelfBox without ctx.selfBox → 'context-field-missing'
+ * Inline defensive tests: one per context-requiring case (Height,
+ * SelfBox, Outputs, Inputs, MinerPubKey) — each throws
+ * 'context-field-missing' when its ctx field is undefined.
  */
 
 import { describe, it, expect } from 'vitest'

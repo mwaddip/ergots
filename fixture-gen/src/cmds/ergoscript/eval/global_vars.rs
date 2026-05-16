@@ -121,7 +121,12 @@ fn build_global_vars_tree(variant: GlobalVars) -> anyhow::Result<(ErgoTree, Stri
 ///
 /// The controlled self_box, inputs, and outputs all use v1 ergoTrees
 /// (required by the TS SBox parser).
-fn controlled_context(self_box: &'static ErgoBox, height: u32) -> Context<'static> {
+fn controlled_context(
+    self_box: &'static ErgoBox,
+    out_box: &'static ErgoBox,
+    in_box: &'static ErgoBox,
+    height: u32,
+) -> Context<'static> {
     // Build a controlled PreHeader with a known miner_pk (secp256k1 generator).
     // The generator bytes: 0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
     let gen_bytes = hex::decode(
@@ -139,10 +144,6 @@ fn controlled_context(self_box: &'static ErgoBox, height: u32) -> Context<'stati
         miner_pk: Box::new(miner_pk),
         votes: base_ctx.pre_header.votes,
     };
-
-    // Build the output and input boxes (different from self_box for realism).
-    let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
-    let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
 
     let ext: &'static ContextExtension = Box::leak(Box::new(ContextExtension::empty()));
     let ext_provider: &'static SimpleExtProvider = Box::leak(Box::new(
@@ -173,7 +174,9 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
     {
         let (tree, hex) = build_global_vars_tree(GlobalVars::Height)?;
         let self_box: &'static ErgoBox = Box::leak(Box::new(simple_box(BoxValue::MIN_RAW)));
-        let ctx = controlled_context(self_box, 999_999);
+        let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
+        let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
+        let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
         entries.push(GlobalVarsFixture {
             name: "global_vars_height".into(),
@@ -190,7 +193,9 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
         let (tree, hex) = build_global_vars_tree(GlobalVars::SelfBox)?;
         let self_box: &'static ErgoBox = Box::leak(Box::new(simple_box(BoxValue::MIN_RAW)));
         let self_box_json = ergo_box_to_json(self_box);
-        let ctx = controlled_context(self_box, 999_999);
+        let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
+        let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
+        let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
         entries.push(GlobalVarsFixture {
             name: "global_vars_self_box".into(),
@@ -208,10 +213,10 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
     {
         let (tree, hex) = build_global_vars_tree(GlobalVars::Outputs)?;
         let self_box: &'static ErgoBox = Box::leak(Box::new(simple_box(BoxValue::MIN_RAW)));
-        // outputs in controlled_context is [simple_box(50_000_000)]
-        let out_box = simple_box(50_000_000);
-        let out_box_json = ergo_box_to_json(&out_box);
-        let ctx = controlled_context(self_box, 999_999);
+        let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
+        let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
+        let out_box_json = ergo_box_to_json(out_box);
+        let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
         entries.push(GlobalVarsFixture {
             name: "global_vars_outputs".into(),
@@ -229,10 +234,10 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
     {
         let (tree, hex) = build_global_vars_tree(GlobalVars::Inputs)?;
         let self_box: &'static ErgoBox = Box::leak(Box::new(simple_box(BoxValue::MIN_RAW)));
-        // inputs in controlled_context is [simple_box(20_000_000)]
-        let in_box = simple_box(20_000_000);
-        let in_box_json = ergo_box_to_json(&in_box);
-        let ctx = controlled_context(self_box, 999_999);
+        let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
+        let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
+        let in_box_json = ergo_box_to_json(in_box);
+        let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
         entries.push(GlobalVarsFixture {
             name: "global_vars_inputs".into(),
@@ -251,7 +256,9 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
     {
         let (tree, hex) = build_global_vars_tree(GlobalVars::MinerPubKey)?;
         let self_box: &'static ErgoBox = Box::leak(Box::new(simple_box(BoxValue::MIN_RAW)));
-        let ctx = controlled_context(self_box, 999_999);
+        let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
+        let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
+        let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
         let votes_hex = hex::encode(ctx.pre_header.votes.0.as_ref());
         let parent_id_hex = hex::encode(ctx.pre_header.parent_id.0.0.as_ref());
@@ -280,7 +287,9 @@ pub fn generate() -> anyhow::Result<GlobalVarsFixtureFile> {
     {
         let (tree, hex) = build_global_vars_tree(GlobalVars::GroupGenerator)?;
         let self_box: &'static ErgoBox = Box::leak(Box::new(simple_box(BoxValue::MIN_RAW)));
-        let ctx = controlled_context(self_box, 999_999);
+        let out_box: &'static ErgoBox = Box::leak(Box::new(simple_box(50_000_000)));
+        let in_box: &'static ErgoBox = Box::leak(Box::new(simple_box(20_000_000)));
+        let ctx = controlled_context(self_box, out_box, in_box, 999_999);
         let val = try_eval_out::<ergotree_ir::mir::value::Value>(&tree.proposition()?, &ctx)?;
         entries.push(GlobalVarsFixture {
             name: "global_vars_group_generator".into(),

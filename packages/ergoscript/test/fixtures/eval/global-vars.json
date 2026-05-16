@@ -128,11 +128,11 @@
         "preHeader": {
           "height": 999999,
           "minerPkHex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-          "nBits": 2652111708,
-          "parentIdHex": "627c814eda92fd0d5693bfe33b422c0f5cf5328173220ca3e38afec7b8c54367",
-          "timestamp": "1325637971747",
+          "nBits": 1942312116,
+          "parentIdHex": "aefa3d676abd45891291beff41f8ab3a876df4da8911a1a29f50e9cd3f6fe1aa",
+          "timestamp": "2227897765951",
           "version": 1,
-          "votesHex": "1e0858"
+          "votesHex": "9df3b0"
         }
       },
       "expected_value_json": {
