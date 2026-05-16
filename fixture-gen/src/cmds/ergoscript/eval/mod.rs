@@ -15,6 +15,8 @@ pub mod const_arm;
 pub mod const_placeholder;
 pub mod downcast;
 pub mod extract_amount;
+pub mod extract_bytes;
+pub mod extract_bytes_with_no_ref;
 pub mod extract_creation_info;
 pub mod extract_register_as;
 pub mod extract_script_bytes;
