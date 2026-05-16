@@ -110,6 +110,54 @@ export function hydrateErgoBox(json: any): ErgoBox {
 }
 
 /**
+ * Rehydrate EvalOpts from JSON-parsed fixture form into TS-typed shape.
+ * Specifically rebuilds the `extension` field:
+ *
+ *   opts.extension.values: { varId (number): { tpe: SType, value: SValue } }
+ *
+ * The fixture stores values as SValue JSON (kind-discriminated), which we
+ * rehydrate via hydrateSValue. The varId keys in the input are string-coerced
+ * numbers; we convert them back to number keys.
+ *
+ * Used by GetVar, OptionGet, OptionIsDefined, OptionGetOrElse (phase 2f
+ * medium Tasks 2–5).
+ */
+export function rehydrateEvalOpts(optsObj: Record<string, unknown>): {
+  jitCostLimit?: number
+  extension?: { values: Record<number, { tpe: SType; value: SValue } | undefined> }
+} {
+  const result: {
+    jitCostLimit?: number
+    extension?: { values: Record<number, { tpe: SType; value: SValue } | undefined> }
+  } = {}
+
+  if (typeof optsObj.jitCostLimit === 'number') {
+    result.jitCostLimit = optsObj.jitCostLimit
+  }
+
+  const extRaw = optsObj.extension as
+    | { values: Record<string, { tpe: SType; value: unknown } | undefined> }
+    | undefined
+  if (extRaw !== undefined) {
+    const values: Record<number, { tpe: SType; value: SValue } | undefined> = {}
+    for (const [k, entry] of Object.entries(extRaw.values)) {
+      const varId = Number(k)
+      if (entry === undefined) {
+        values[varId] = undefined
+      } else {
+        values[varId] = {
+          tpe: entry.tpe as SType,
+          value: hydrateSValue(entry.value),
+        }
+      }
+    }
+    result.extension = { values }
+  }
+
+  return result
+}
+
+/**
  * Run `fn` and return the thrown `EvalError`, or fail the test if `fn`
  * returned normally / threw something other than `EvalError`.
  *

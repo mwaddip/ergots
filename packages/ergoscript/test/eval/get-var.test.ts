@@ -18,15 +18,14 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluate, evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import type { ContextExtension, SType } from '../../src/mir/types'
-import { hexToBytes, hydrateSValue, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, captureEvalError, rehydrateEvalOpts } from '../_helpers'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 interface GetVarFixtureEntry {
   name: string
   tree_bytes_hex: string
-  opts_json: string
+  opts_json: Record<string, unknown>
   expected_value_json: unknown
   expected_cost: number
   expected_error_code: string | null
@@ -40,55 +39,12 @@ interface GetVarFixtureFile {
 const FIXTURE_PATH = join(__dirname, '../fixtures/eval/get-var.json')
 const fixture: GetVarFixtureFile = JSON.parse(readFileSync(FIXTURE_PATH, 'utf-8'))
 
-/**
- * Rehydrate the opts_json object (already parsed from the fixture's JSON) into
- * EvalOpts-compatible fields. Specifically, rebuilds the `extension` field:
- *
- *   opts.extension.values: { "<varId>": { tpe: SType, value: SValue } }
- *
- * The fixture stores values as SValue JSON (kind-discriminated), which we
- * rehydrate via hydrateSValue. The varId keys are string-coerced numbers;
- * we convert them back to number keys.
- */
-function rehydrateOpts(optsObj: Record<string, unknown>): {
-  jitCostLimit?: number
-  extension?: ContextExtension
-} {
-  const result: { jitCostLimit?: number; extension?: ContextExtension } = {}
-
-  if (typeof optsObj.jitCostLimit === 'number') {
-    result.jitCostLimit = optsObj.jitCostLimit
-  }
-
-  const extRaw = optsObj.extension as
-    | { values: Record<string, { tpe: SType; value: unknown } | null> }
-    | undefined
-  if (extRaw !== undefined) {
-    const values: ContextExtension['values'] = {}
-    for (const [k, entry] of Object.entries(extRaw.values)) {
-      const varId = Number(k)
-      if (entry === null || entry === undefined) {
-        values[varId] = undefined
-      } else {
-        values[varId] = {
-          tpe: entry.tpe as SType,
-          value: hydrateSValue(entry.value),
-        }
-      }
-    }
-    result.extension = { values }
-  }
-
-  return result
-}
 
 describe('GetVar eval (phase 2f medium Stop β Task 2)', () => {
   for (const entry of fixture.entries) {
     it(entry.name, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      // opts_json in the fixture is stored as a nested object (not a string).
-      const optsObj = entry.opts_json as unknown as Record<string, unknown>
-      const opts = rehydrateOpts(optsObj)
+      const opts = rehydrateEvalOpts(entry.opts_json)
       const ctx = makeContext(opts)
 
       if (entry.expected_error_code !== null) {
