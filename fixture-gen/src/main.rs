@@ -174,6 +174,10 @@ fn main() -> anyhow::Result<()> {
     let coll_size_fixture = cmds::ergoscript::eval::coll_size::generate()?;
     write_ergoscript_json("eval/coll-size.json", &coll_size_fixture)?;
 
+    let create_prove_dh_tuple_fixture =
+        cmds::ergoscript::eval::create_prove_dh_tuple::generate()?;
+    write_ergoscript_json("eval/create-prove-dh-tuple.json", &create_prove_dh_tuple_fixture)?;
+
     let create_prove_dlog_fixture =
         cmds::ergoscript::eval::create_prove_dlog::generate()?;
     write_ergoscript_json("eval/create-prove-dlog.json", &create_prove_dlog_fixture)?;
