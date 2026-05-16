@@ -1,0 +1,248 @@
+{
+  "corpus": "eval_get_var",
+  "entries": [
+    {
+      "name": "get_var_int_present",
+      "tree_bytes_hex": "00e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Int",
+          "value": 42
+        }
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "get_var_long_present",
+      "tree_bytes_hex": "00e30405",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "4": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "100"
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Long",
+          "value": "100"
+        }
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "get_var_coll_byte_present",
+      "tree_bytes_hex": "00e3050e",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "5": {
+              "tpe": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "tag": "SColl"
+              },
+              "value": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 3
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 4
+                  }
+                ],
+                "kind": "Coll"
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "elem": {
+          "elem": {
+            "tag": "SByte"
+          },
+          "tag": "SColl"
+        },
+        "kind": "Option",
+        "value": {
+          "elem": {
+            "tag": "SByte"
+          },
+          "items": [
+            {
+              "kind": "Byte",
+              "value": 1
+            },
+            {
+              "kind": "Byte",
+              "value": 2
+            },
+            {
+              "kind": "Byte",
+              "value": 3
+            },
+            {
+              "kind": "Byte",
+              "value": 4
+            }
+          ],
+          "kind": "Coll"
+        }
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "get_var_absent",
+      "tree_bytes_hex": "00e36304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "get_var_type_mismatch",
+      "tree_bytes_hex": "00e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "100"
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "get-var-type-mismatch"
+    },
+    {
+      "name": "get_var_boolean_present",
+      "tree_bytes_hex": "00e30601",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "6": {
+              "tpe": {
+                "tag": "SBoolean"
+              },
+              "value": {
+                "kind": "Boolean",
+                "value": true
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBoolean"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Boolean",
+          "value": true
+        }
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "get_var_cost_limit",
+      "tree_bytes_hex": "00e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        },
+        "jitCostLimit": 5
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

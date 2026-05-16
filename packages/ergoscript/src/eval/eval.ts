@@ -33,6 +33,7 @@ import { evalExtractBytes } from './extract-bytes'
 import { evalExtractBytesWithNoRef } from './extract-bytes-with-no-ref'
 import { evalExtractCreationInfo } from './extract-creation-info'
 import { evalExtractId } from './extract-id'
+import { evalGetVar } from './get-var'
 import { evalGlobalVars } from './global-vars'
 import { evalExtractRegisterAs } from './extract-register-as'
 import { evalExtractScriptBytes } from './extract-script-bytes'
@@ -101,6 +102,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalExtractScriptBytes(e, env, ctx)
     case 'FuncValue':
       return evalFuncValue(e, env, ctx)
+    case 'GetVar':
+      return evalGetVar(e, env, ctx)
     case 'GlobalVars':
       return evalGlobalVars(e, env, ctx)
     case 'XorOf':

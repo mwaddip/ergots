@@ -21,6 +21,7 @@ pub mod extract_id;
 pub mod extract_creation_info;
 pub mod extract_register_as;
 pub mod extract_script_bytes;
+pub mod get_var;
 pub mod global_vars;
 pub mod if_arm;
 pub mod logical_not;
