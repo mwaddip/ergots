@@ -123,6 +123,80 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 
 **Coverage after 2f medium complete:** 33 of ~70 `Expr` variants (27 prior + 6 in 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField`); full chain-state Context model ships. Mainnet corpus aggregate stable: `success=0 not-impl=18 other=0` (the 18 reach GlobalVars or GetVar, now throwing `'context-field-missing'` instead of `'not-implemented-yet'` — both count in the `not-impl` bucket per the corpus-eval tolerance).
 
+**Ships additionally (phase 2f Coll HOFs — 9 arms):**
+
+44. 9 more per-variant arms wired: `SizeOf`, `Append`, `ByIndex`, `Slice`,
+    `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll`. Coverage: 33 → 42 of
+    ~70 arms.
+    - **`SizeOf`** — `Coll[T] → Int`; outer cost BEFORE eval-child (Pattern A):
+      `Fixed(14)`. Throws `'coll-input-not-coll'` if child evaluates to a
+      non-Coll SValue.
+    - **`Append`** — `Coll[T] × Coll[T] → Coll[T]`; outer cost BEFORE
+      eval-children (Pattern A): `addPerItemCost(20, 2, 128, result.length)`.
+      Throws `'coll-input-not-coll'` for either non-Coll input.
+    - **`ByIndex`** — `Coll[T] × Int [× Option[T]] → T`; outer cost BEFORE
+      eval-input (Pattern A): `Fixed(30)`. Throws `'coll-input-not-coll'`
+      for non-Coll collection input, `'coll-by-index-index-not-int'` for
+      non-Int index expression result, `'coll-by-index-out-of-range'` when
+      index is OOB and no default expression is present.
+    - **`Slice`** — `Coll[T] × Int × Int → Coll[T]`; outer cost BEFORE
+      eval-children (Pattern A): `addPerItemCost(10, 2, 128, result.length)`.
+      Throws `'coll-input-not-coll'` for non-Coll input,
+      `'coll-slice-bound-not-int'` for non-Int `from` or `until` result.
+    - **`MapColl`** — `Coll[T] × (T → R) → Coll[R]`; Mixed cost-charging:
+      outer `addPerItemCost(20, 2, 128, input.length)` BEFORE eval-input
+      (Pattern A), plus per-iter `Fixed(1)` cost after each lambda call
+      (Pattern B). Throws `'coll-input-not-coll'`, `'lambda-not-callable'`,
+      `'lambda-result-type-mismatch'`.
+    - **`Filter`** — `Coll[T] × (T → Boolean) → Coll[T]`; Mixed:
+      `addPerItemCost(20, 2, 128, input.length)` BEFORE (Pattern A), plus
+      `Fixed(1)` per iter (Pattern B). Throws `'coll-input-not-coll'`,
+      `'lambda-not-callable'`, `'coll-elem-tpe-mismatch'` (declared element
+      type from `condition.args[0].tpe` vs runtime item kind).
+    - **`Fold`** — `Coll[T] × Zero × ((Zero, T) → Zero) → Zero`; Mixed:
+      `addPerItemCost(20, 2, 128, input.length)` BEFORE (Pattern A), plus
+      `Fixed(1)` per iter (Pattern B). Throws `'coll-input-not-coll'`,
+      `'lambda-not-callable'`, `'lambda-result-type-mismatch'`.
+    - **`Exists`** — `Coll[T] × (T → Boolean) → Boolean`; Mixed:
+      `addPerItemCost(20, 2, 128, input.length)` BEFORE (Pattern A), plus
+      `Fixed(1)` per iter (Pattern B); short-circuits on first `true` (no
+      further cost charged after match). Throws `'coll-input-not-coll'`,
+      `'lambda-not-callable'`, `'coll-elem-tpe-mismatch'`.
+    - **`ForAll`** — `Coll[T] × (T → Boolean) → Boolean`; Mixed:
+      `addPerItemCost(20, 2, 128, input.length)` BEFORE (Pattern A), plus
+      `Fixed(1)` per iter (Pattern B); short-circuits on first `false`.
+      Throws `'coll-input-not-coll'`, `'lambda-not-callable'`,
+      `'coll-elem-tpe-mismatch'`.
+45. **Seven new `EvalError` codes**: `'coll-input-not-coll'`,
+    `'coll-elem-tpe-mismatch'`, `'coll-by-index-out-of-range'`,
+    `'coll-by-index-index-not-int'`, `'coll-slice-bound-not-int'`,
+    `'lambda-not-callable'`, `'lambda-result-type-mismatch'`.
+46. **Cost-charging patterns clarified:**
+    - **Pattern A (envelope-first):** outer cost charged BEFORE evaluating
+      child expression(s). Applies to SizeOf, Append, ByIndex, Slice.
+    - **Pattern B (per-iteration):** cost charged AFTER each loop iteration.
+      Used alone for some arms (And/Or from 2d-B).
+    - **Mixed (Pattern A + Pattern B coexisting):** applies to all five
+      lambda HOFs (MapColl, Filter, Fold, Exists, ForAll). An outer chunked
+      cost covers the collection traversal overhead; a per-iter Fixed(1)
+      covers each lambda invocation. Both charges are present in the same
+      arm; neither replaces the other.
+47. **Port-level discrepancy (Filter / Exists / ForAll):** sigma-rust's
+    `Filter`, `Exists`, and `ForAll` MIR structs carry an `elemTpe` field
+    that is encoded on the wire. The TS MIR structs do NOT carry this field
+    — the evaluator derives the declared element type from
+    `condition.args[0].tpe` (the first parameter of the `FuncValue` lambda)
+    for type-mismatch checks. This matches the actual on-wire and evaluator
+    behavior; the discrepancy is at the TS MIR struct shape level only.
+48. **Layer C3.a (eval mutation testing for Coll HOFs):** scoped mutation
+    tests validate that the 9 new HOF arms reject semantically invalid
+    inputs. Target: ≥ 90% mutation kill rate per arm. Mutations that are
+    fundamentally unkillable (e.g., element-count mutations on a SizeOf
+    fixture where an alternative valid Coll of different size would also
+    parse and evaluate correctly) are recorded in an arm-specific allowlist;
+    allowlisted mutations do not count against the kill rate. As of phase
+    2f Coll HOFs, all 9 arms meet the ≥ 90% threshold.
+
 **Ships additionally (phase 2f Stop γ — Box canonical-bytes serializer + 3 hash extractors):**
 
 36. 3 more per-variant arms wired: `ExtractBytes` (Box → Coll[Byte] of full canonical
@@ -218,7 +292,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 - **`SigmaOr`** — phase 2g: calls `Cor::normalized(items)` — same
   normalization family as Atleast.
 - Header chain-state model + method-call dispatch (`Context` fields + 6 arms ship in 2f medium; `Header` runtime + method calls deferred to 2g).
-- Collection HOFs (`map`, `filter`, `fold`, `forall`, `exists`, `slice`, `append`, `byIndex`) — later phase.
+- **MethodCall-routed Coll methods** (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`) — deferred to phase 2g.5: method-call dispatch. These differ from the HOFs above (which have dedicated MIR nodes); these are method-call opcodes routed through the `MethodCall` MIR arm.
 - Sigma protocol prover and verifier (`reduceToCrypto`, `prove`, `verify`) — later phase; `SigmaProp` remains opaque-bytes until then.
 - AVL+ membership-proof verification (`verifyMembershipProof`, `lookupInTree`) — later phase.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch lands.
@@ -451,7 +525,7 @@ No other error classes are emitted by this package. Internal panics (e.g. a bug 
 1. **Layer 1 — Parse + round-trip on every fixture**: `test/corpus.test.ts` loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip. Current state: 255 passing fixtures + 1 mainnet stub + 6 fixtures flagged `known_unstable` (upstream sigma-rust itself does not round-trip them; tracked in `fixture-gen/known_unstable.json`).
 2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the implemented arms — 18 / 173 such fixtures are currently evaluable by sigma-rust under a synthetic-empty context; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). The 18 evaluable mainnet trees all still hit `'not-implemented-yet'` after phase 2d-B (they require arms beyond the current 17 — method calls, context access, collection HOFs, etc.); `other=0` confirms no undocumented codes are emitted. Phases 2e+ will progressively unlock more fixtures as arms land.
 3. **Layer 3 — Mutation tests**: `test/parse-mutation.test.ts` performs single-byte flips at varied offsets across every fixture and asserts each mutation either throws one of the typed error classes above OR is byte-identical (a flip that lands in a tolerated padding region). Current state: 6221 mutations exercised; 66% throw a typed error class, 0 throw an untyped error, 100% taxonomy coverage (every error class above is hit at least once).
-4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1686/1686 ergoscript tests + 305 proof tests = 1991 total, passing in both runtimes.
+4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1894/1894 ergoscript tests + 305 proof tests = 2199 total, passing in both runtimes. (+208 since 2f medium: 9 HOF arm fixtures, 58 C3.a mutation tests, and supporting infrastructure tests.)
 
 ## v0.2.0 — Evaluator surface (phase 2b)
 
@@ -487,7 +561,7 @@ interface EvalContext extends EvalOpts {
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` (so callers who want the tree's segregated constants picked up automatically don't need to do anything extra) and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised from inside the recursive evaluator (e.g. an unhandled variant deep inside a `BlockValue`) bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** 33 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2g–2h add the remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** 42 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2g–2h add the remaining arms; the `evaluate` signature itself is stable.
 
 #### `evaluateWith(tree, ctx)`
 
@@ -509,7 +583,8 @@ interface EvalContext extends EvalOpts {
 
 #### `EvalContext.addPerItemCost(base, perChunk, chunkSize, nItems)`
 
-- **Semantics:** Composite charge — `addCost(base + ceil(nItems / chunkSize) * perChunk)`. Used by `BlockValue` envelope (`addPerItemCost(1, 1, 10, items.length)`); will be reused by phase 2f's collection HOFs.
+- **Semantics:** Composite charge — `addCost(base + ceil(nItems / chunkSize) * perChunk)`. Used by `BlockValue` envelope (`addPerItemCost(1, 1, 10, items.length)`) and by all 9 Coll HOF arms as their outer Pattern A charge (see phase 2f Coll HOFs ships-additionally block for per-arm parameters).
+- **Formula:** `totalCharge = base + Math.ceil(nItems / chunkSize) * perChunk`. When `nItems === 0`, `Math.ceil(0 / chunkSize) === 0`, so only `base` is charged.
 - **Limit enforcement:** Inherits from `addCost`; the *total* composite charge is checked against `jitCostLimit` after addition (not split into base + per-chunk sub-checks).
 - **Mirror of:** sigma-rust `Context::add_per_item_jit_cost` (`ergotree-ir/src/chain/context.rs:88-99`).
 
@@ -517,7 +592,7 @@ interface EvalContext extends EvalOpts {
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
-- **`'not-implemented-yet'`** — central dispatch (`eval/eval.ts`) hit an `Expr` variant with no arm yet (60+ variants in v0.2.0). The arm tasks in phases 2c-2g progressively replace these with explicit cases. Message includes the offending `tag`.
+- **`'not-implemented-yet'`** — central dispatch (`eval/eval.ts`) hit an `Expr` variant with no arm yet (~28 variants remaining after phase 2f Coll HOFs). The arm tasks in phases 2g–2j progressively replace these with explicit cases. Message includes the offending `tag`.
 - **`'cost-limit-exceeded'`** — `EvalContext.addCost` (and therefore `addPerItemCost`) detected `ctx.jitCost > ctx.jitCostLimit` after a charge. Only raised when the caller set `jitCostLimit` (the default of `undefined` skips the check entirely). Message includes the configured limit.
 - **`'val-def-outside-block'`** — the `ValDef` arm was reached at the top level (or as an arbitrary sub-expression). `ValDef` is only structurally valid as an item inside `BlockValue.items`; reaching it elsewhere is a malformed-tree error. Mirrors sigma-rust's `EvalError::UnexpectedExpr` rejection in `eval.rs:66-68`.
 - **`'val-use-unbound'`** — `ValUse(id)` referenced a `valId` with no binding in the current `Env`. The cost (5) is charged BEFORE the env lookup, mirroring sigma-rust, so an unbound `ValUse` still consumes 5 jitCost. Message includes the missing `valId`.
@@ -648,11 +723,58 @@ The following codes were added in phase 2f medium (GlobalVars / GetVar / Option 
   sigma-rust `EvalError::UnexpectedValue`. Message includes the actual
   kind.
 
+The following codes were added in phase 2f Coll HOFs (SizeOf, Append, ByIndex, Slice, MapColl, Filter, Fold, Exists, ForAll):
+
+- **`'coll-input-not-coll'`** — any Coll HOF arm received an input
+  `SValue` whose `kind !== 'Coll'`. Mirrors sigma-rust
+  `EvalError::TryExtractFrom` for the `try_extract_into::<Vec<_>>()`
+  call on the collection operand. Wire-format invariants make this
+  unreachable for parser-produced trees; defensive against
+  `ConstantPlaceholder` injection. Message includes the arm name and
+  the actual kind.
+
+- **`'coll-elem-tpe-mismatch'`** — Filter / Exists / ForAll arm: an
+  element's runtime `kind` did not match the declared element type
+  derived from `condition.args[0].tpe` (the FuncValue parameter type).
+  Mirrors sigma-rust's type-checked construction guarantee; defensive
+  check at eval time. Message includes the offending item index, the
+  declared type tag, and the actual kind.
+
+- **`'coll-by-index-out-of-range'`** — `ByIndex` arm: the index was
+  outside `[0, coll.items.length)` and no default expression was
+  provided. Mirrors sigma-rust `by_index.rs` `EvalError::NotFound`.
+  Message includes the index and the collection length.
+
+- **`'coll-by-index-index-not-int'`** — `ByIndex` arm: the index
+  expression evaluated to an `SValue` whose `kind !== 'Int'`. Mirrors
+  sigma-rust `EvalError::TryExtractFrom` for `try_extract_into::<i32>()`.
+  Message includes the actual kind.
+
+- **`'coll-slice-bound-not-int'`** — `Slice` arm: the `from` or `until`
+  expression evaluated to an `SValue` whose `kind !== 'Int'`. Mirrors
+  sigma-rust `EvalError::TryExtractFrom`. Message includes which bound
+  (`from` / `until`) and the actual kind.
+
+- **`'lambda-not-callable'`** — MapColl / Filter / Fold / Exists /
+  ForAll arm: the function expression evaluated to an `SValue` whose
+  `kind !== 'Lambda'`, OR the resulting Lambda's `closure.argIds` is
+  empty (arity-0 lambda is not callable as a HOF predicate/transform).
+  Mirrors sigma-rust `EvalError::UnexpectedValue` at the function-apply
+  step inside the HOF loop. Message includes the actual kind (or
+  `'Lambda-arity-0'` for the zero-args case).
+
+- **`'lambda-result-type-mismatch'`** — MapColl / Fold arm: the lambda
+  body returned an `SValue` whose `kind` did not match the expected
+  result type. For MapColl the expected result type is inferred from the
+  MIR node's `tpe.elem`; for Fold it is the accumulator's `kind`.
+  Mirrors sigma-rust `EvalError::TryExtractFrom` on the per-iteration
+  result. Message includes the expected kind and the actual kind.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
 ### Coverage and stability
 
-- **33 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f medium complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; `'context-field-missing'` is tolerated in the not-impl bucket (corpus runs without chain state). Full unlock waits for method-call dispatch (phase 2g).
+- **42 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from phase 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f Coll HOFs complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; `'context-field-missing'` is tolerated in the not-impl bucket (corpus runs without chain state). Full unlock waits for method-call dispatch (phase 2g.5).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 - **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added `height?: number`, `selfBox?: ErgoBox`, `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`, `preHeader?: PreHeader`, `extension?: ContextExtension` — all optional, all live. Phase 2g may add `headers` and `dataInputs` when Header / AvlTree arms land.
 - **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.
