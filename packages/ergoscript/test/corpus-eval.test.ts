@@ -97,6 +97,14 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
         const code = (e as EvalError).code
         if (code === 'not-implemented-yet') {
           notImplYet++
+        } else if (code === 'context-field-missing') {
+          // 'context-field-missing' is expected once phase 2f medium lands:
+          // corpus eval runs with a synthetic empty context (no chain state),
+          // so any tree that reaches a GlobalVars arm (Height, SelfBox, etc.)
+          // or GetVar arm now throws 'context-field-missing' instead of
+          // 'not-implemented-yet'. This is correct behaviour — the arm is
+          // implemented but the corpus run doesn't provide context data.
+          notImplYet++
         } else {
           other++
           otherCodes.set(code, (otherCodes.get(code) ?? 0) + 1)

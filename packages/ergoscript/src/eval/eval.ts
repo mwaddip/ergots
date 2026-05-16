@@ -29,6 +29,7 @@ import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalDowncast } from './downcast'
 import { evalExtractAmount } from './extract-amount'
+import { evalGlobalVars } from './global-vars'
 import { evalExtractBytes } from './extract-bytes'
 import { evalExtractBytesWithNoRef } from './extract-bytes-with-no-ref'
 import { evalExtractId } from './extract-id'
@@ -100,6 +101,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalExtractScriptBytes(e, env, ctx)
     case 'FuncValue':
       return evalFuncValue(e, env, ctx)
+    case 'GlobalVars':
+      return evalGlobalVars(e, env, ctx)
     case 'XorOf':
       return evalXorOf(e, env, ctx)
     default:

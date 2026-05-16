@@ -5,6 +5,7 @@
 //! `expected_cost` come from running `expr.eval(env, ctx)` against a
 //! synthetic Context built from `opts_json`.
 
+use ergotree_ir::chain::ergo_box::ErgoBox;
 use ergotree_ir::mir::value::CollKind;
 use ergotree_ir::mir::value::NativeColl;
 use ergotree_ir::mir::value::Value;
@@ -111,9 +112,12 @@ pub fn value_to_json(v: &Value) -> JsonValue {
         }
         // Unit: no payload.
         Value::Unit => json!({ "kind": "Unit" }),
+        // CBox: emit as structured ErgoBox JSON (phase 2f medium).
+        // Mirrors the TS `SValue` Box variant: `{ kind: 'Box', value: ErgoBox }`.
+        Value::CBox(b) => json!({ "kind": "Box", "value": ergo_box_to_json(b) }),
         // Other variants extended as later arm tasks need them.
         // Fallback: capture variants we haven't formally encoded yet
-        // (Box, AvlTree, Lambda, etc.).
+        // (AvlTree, Lambda, etc.).
         // Phase 2b's TS arms don't decode these; only used for the
         // mainnet_boxes Layer C2 corpus where value isn't asserted
         // (only cost is, on the eval-able subset). The debug-string
@@ -121,6 +125,39 @@ pub fn value_to_json(v: &Value) -> JsonValue {
         // fixture diffs stay deterministic.
         v => json!({ "kind": "Opaque", "debug": format!("{:?}", v) }),
     }
+}
+
+/// Encode an `ErgoBox` as JSON matching the TS `ErgoBox` interface schema.
+/// Used by `value_to_json` for `Value::CBox` (phase 2f medium GlobalVars).
+///
+/// Schema mirrors `packages/ergoscript/src/mir/types.ts::ErgoBox`:
+///   - `value_nanoerg`: decimal string (bigint-safe)
+///   - `ergo_tree_bytes_hex`: hex-encoded sigma-serialized ergoTree
+///   - `tokens`: array of `{ id_hex, amount }` (amount as decimal string)
+///   - `registers`: object of register entries (empty for simple boxes)
+///   - `creation_height`: u32 number
+///   - `tx_id_hex`: hex-encoded 32-byte transaction id
+///   - `index`: u16 number
+pub fn ergo_box_to_json(b: &ErgoBox) -> JsonValue {
+    let ergo_tree_bytes = b.ergo_tree.sigma_serialize_bytes()
+        .expect("ergo_tree sigma_serialize_bytes");
+    let tokens: Vec<JsonValue> = b.tokens
+        .as_ref()
+        .map(|ts| ts.iter().map(|t| {
+            let id_hex = hex::encode(t.token_id.as_ref());
+            let amount: u64 = u64::from(t.amount);
+            json!({ "id_hex": id_hex, "amount": amount.to_string() })
+        }).collect())
+        .unwrap_or_default();
+    json!({
+        "value_nanoerg": b.value.as_u64().to_string(),
+        "ergo_tree_bytes_hex": hex::encode(&ergo_tree_bytes),
+        "tokens": tokens,
+        "registers": {},
+        "creation_height": b.creation_height,
+        "tx_id_hex": hex::encode(b.transaction_id.0.0.as_ref()),
+        "index": b.index,
+    })
 }
 
 /// Encode an SType as JSON matching the TS `SType` discriminated union
@@ -146,6 +183,7 @@ pub fn stype_to_json(t: &SType) -> JsonValue {
         }),
         SType::SGroupElement => json!({ "tag": "SGroupElement" }),
         SType::SSigmaProp => json!({ "tag": "SSigmaProp" }),
+        SType::SBox => json!({ "tag": "SBox" }),
         // Other variants extended as later arm tasks need them.
         _ => panic!("stype_to_json: unsupported variant for phase 2b: {:?}", t),
     }

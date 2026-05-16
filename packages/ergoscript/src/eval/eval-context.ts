@@ -9,7 +9,7 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/context.rs:77-99
  */
 
-import type { SValue } from '../mir/types'
+import type { ErgoBox, PreHeader, ContextExtension, SValue } from '../mir/types'
 
 export class EvalError extends Error {
   constructor(
@@ -39,8 +39,18 @@ export interface EvalOpts {
    * Sigma-rust ref: chain/context.rs:44 `tree_version: Cell<ErgoTreeVersion>`
    */
   treeVersion?: number
-  // Phase 2f+ adds: height?, selfBox?, inputs?, outputs?, dataInputs?,
-  // preHeader?, headers?, extension?, vars?
+  /** Current block height (u32). GlobalVars.Height reads this. */
+  height?: number
+  /** Spending box. GlobalVars.SelfBox reads this. */
+  selfBox?: ErgoBox
+  /** Transaction inputs. GlobalVars.Inputs reads this. */
+  inputs?: ErgoBox[]
+  /** Transaction outputs. GlobalVars.Outputs reads this. */
+  outputs?: ErgoBox[]
+  /** Pre-header of current block. GlobalVars.MinerPubKey reads .minerPk. */
+  preHeader?: PreHeader
+  /** Context-extension key-value map. GetVar reads .values[varId]. */
+  extension?: ContextExtension
 }
 
 export interface EvalContext extends EvalOpts {
@@ -67,6 +77,12 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     jitCostLimit: opts.jitCostLimit,
     constants: opts.constants,
     treeVersion: opts.treeVersion,
+    height: opts.height,
+    selfBox: opts.selfBox,
+    inputs: opts.inputs,
+    outputs: opts.outputs,
+    preHeader: opts.preHeader,
+    extension: opts.extension,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {

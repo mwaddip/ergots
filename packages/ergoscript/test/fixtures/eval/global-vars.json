@@ -1,0 +1,304 @@
+{
+  "corpus": "eval_global_vars",
+  "entries": [
+    {
+      "name": "global_vars_height",
+      "tree_bytes_hex": "00a3",
+      "opts_json": {
+        "height": 999999
+      },
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 999999
+      },
+      "expected_cost": 26,
+      "expected_error_code": null
+    },
+    {
+      "name": "global_vars_self_box",
+      "tree_bytes_hex": "00a7",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Box",
+        "value": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "global_vars_outputs",
+      "tree_bytes_hex": "00a5",
+      "opts_json": {
+        "outputs": [
+          {
+            "creation_height": 0,
+            "ergo_tree_bytes_hex": "09020101",
+            "index": 0,
+            "registers": {},
+            "tokens": [],
+            "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "value_nanoerg": "50000000"
+          }
+        ]
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBox"
+        },
+        "items": [
+          {
+            "kind": "Box",
+            "value": {
+              "creation_height": 0,
+              "ergo_tree_bytes_hex": "09020101",
+              "index": 0,
+              "registers": {},
+              "tokens": [],
+              "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+              "value_nanoerg": "50000000"
+            }
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "global_vars_inputs",
+      "tree_bytes_hex": "00a4",
+      "opts_json": {
+        "inputs": [
+          {
+            "creation_height": 0,
+            "ergo_tree_bytes_hex": "09020101",
+            "index": 0,
+            "registers": {},
+            "tokens": [],
+            "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "value_nanoerg": "20000000"
+          }
+        ]
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBox"
+        },
+        "items": [
+          {
+            "kind": "Box",
+            "value": {
+              "creation_height": 0,
+              "ergo_tree_bytes_hex": "09020101",
+              "index": 0,
+              "registers": {},
+              "tokens": [],
+              "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+              "value_nanoerg": "20000000"
+            }
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "global_vars_miner_pubkey",
+      "tree_bytes_hex": "00ac",
+      "opts_json": {
+        "preHeader": {
+          "height": 999999,
+          "minerPkHex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+          "nBits": 2652111708,
+          "parentIdHex": "627c814eda92fd0d5693bfe33b422c0f5cf5328173220ca3e38afec7b8c54367",
+          "timestamp": "1325637971747",
+          "version": 1,
+          "votesHex": "1e0858"
+        }
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 121
+          },
+          {
+            "kind": "Byte",
+            "value": -66
+          },
+          {
+            "kind": "Byte",
+            "value": 102
+          },
+          {
+            "kind": "Byte",
+            "value": 126
+          },
+          {
+            "kind": "Byte",
+            "value": -7
+          },
+          {
+            "kind": "Byte",
+            "value": -36
+          },
+          {
+            "kind": "Byte",
+            "value": -69
+          },
+          {
+            "kind": "Byte",
+            "value": -84
+          },
+          {
+            "kind": "Byte",
+            "value": 85
+          },
+          {
+            "kind": "Byte",
+            "value": -96
+          },
+          {
+            "kind": "Byte",
+            "value": 98
+          },
+          {
+            "kind": "Byte",
+            "value": -107
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": -121
+          },
+          {
+            "kind": "Byte",
+            "value": 11
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -101
+          },
+          {
+            "kind": "Byte",
+            "value": -4
+          },
+          {
+            "kind": "Byte",
+            "value": -37
+          },
+          {
+            "kind": "Byte",
+            "value": 45
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": 40
+          },
+          {
+            "kind": "Byte",
+            "value": -39
+          },
+          {
+            "kind": "Byte",
+            "value": 89
+          },
+          {
+            "kind": "Byte",
+            "value": -14
+          },
+          {
+            "kind": "Byte",
+            "value": -127
+          },
+          {
+            "kind": "Byte",
+            "value": 91
+          },
+          {
+            "kind": "Byte",
+            "value": 22
+          },
+          {
+            "kind": "Byte",
+            "value": -8
+          },
+          {
+            "kind": "Byte",
+            "value": 23
+          },
+          {
+            "kind": "Byte",
+            "value": -104
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "global_vars_group_generator",
+      "tree_bytes_hex": "0082",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 10,
+      "expected_error_code": null
+    },
+    {
+      "name": "global_vars_height_cost_limit",
+      "tree_bytes_hex": "00a3",
+      "opts_json": {
+        "height": 1,
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

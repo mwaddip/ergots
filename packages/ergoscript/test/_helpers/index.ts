@@ -7,7 +7,7 @@
  * via relative path; no public re-export from src/index.ts.
  */
 
-import type { SType, SValue } from '../../src/mir/types'
+import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import { EvalError } from '../../src/eval/eval-context'
 
 export function hexToBytes(hex: string): Uint8Array {
@@ -76,8 +76,36 @@ export function hydrateSValue(json: any): SValue {
         elem: json.elem as SType,
         value: json.value === null ? null : hydrateSValue(json.value),
       }
+    case 'Box':
+      return { kind: 'Box', value: hydrateErgoBox(json.value) }
     default:
       throw new Error(`hydrateSValue: unknown kind ${json.kind}`)
+  }
+}
+
+/**
+ * Rehydrate an ErgoBox JSON object (from fixture-gen `ergo_box_to_json`) into
+ * a runtime `ErgoBox` value. Schema:
+ *   value_nanoerg: decimal string → bigint
+ *   ergo_tree_bytes_hex: hex → Uint8Array
+ *   tokens: [{ id_hex, amount }] → { id: Uint8Array, amount: bigint }[]
+ *   registers: {} → empty Record (no non-mandatory registers in simple boxes)
+ *   creation_height: number
+ *   tx_id_hex: hex → Uint8Array
+ *   index: number
+ */
+export function hydrateErgoBox(json: any): ErgoBox {
+  return {
+    value: BigInt(json.value_nanoerg as string),
+    ergoTreeBytes: hexToBytes(json.ergo_tree_bytes_hex as string),
+    tokens: ((json.tokens ?? []) as any[]).map((t: any) => ({
+      id: hexToBytes(t.id_hex as string),
+      amount: BigInt(t.amount as string),
+    })),
+    registers: {},
+    creationHeight: json.creation_height as number,
+    txId: hexToBytes(json.tx_id_hex as string),
+    index: json.index as number,
   }
 }
 

@@ -139,6 +139,8 @@ fn main() -> anyhow::Result<()> {
     )?;
     let extract_id_fixture = cmds::ergoscript::eval::extract_id::generate()?;
     write_ergoscript_json("eval/extract-id.json", &extract_id_fixture)?;
+    let global_vars_fixture = cmds::ergoscript::eval::global_vars::generate()?;
+    write_ergoscript_json("eval/global-vars.json", &global_vars_fixture)?;
 
     Ok(())
 }

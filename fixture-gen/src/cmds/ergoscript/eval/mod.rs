@@ -1,4 +1,4 @@
-//! Phase 2b/2c evaluator fixtures.
+//! Phase 2b/2c/2f evaluator fixtures.
 
 pub mod and;
 pub mod apply;
@@ -21,6 +21,7 @@ pub mod extract_id;
 pub mod extract_creation_info;
 pub mod extract_register_as;
 pub mod extract_script_bytes;
+pub mod global_vars;
 pub mod if_arm;
 pub mod logical_not;
 pub mod negation;

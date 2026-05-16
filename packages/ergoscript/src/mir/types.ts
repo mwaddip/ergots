@@ -138,6 +138,40 @@ export interface Closure {
   capturedEnv: Record<number, SValue>
 }
 
+/**
+ * Stub: pre-header of current block. Mirrors sigma-rust
+ * `ergo-chain-types/preheader.rs::PreHeader`. Phase 2f medium consumes
+ * only `minerPk` (via `GlobalVars.MinerPubKey`). Other fields are
+ * present for forward-compat with phase 2g+ method-call arms.
+ */
+export interface PreHeader {
+  /** Block version, u8 (currently 0..7). */
+  version: number
+  /** 32-byte parent block id. */
+  parentId: Uint8Array
+  /** Timestamp in ms since epoch (u64; stored as bigint for precision). */
+  timestamp: bigint
+  /** Difficulty target in Bitcoin-compact form (u32). */
+  nBits: number
+  /** Block height (u32). */
+  height: number
+  /** 33-byte compressed secp256k1 public key of the miner. */
+  minerPk: Uint8Array
+  /** 3-byte block votes (sigma-rust `Votes`). */
+  votes: Uint8Array
+}
+
+/**
+ * Stub: context extension key-value map. Mirrors sigma-rust
+ * `chain/context_extension.rs::ContextExtension`. Phase 2f medium
+ * consumes only `values` (via `GetVar`). Each entry carries both the
+ * declared SType and the runtime SValue — same shape as
+ * `ErgoBox.registers` (from phase 2f narrow).
+ */
+export interface ContextExtension {
+  values: Record<number, { tpe: SType; value: SValue } | undefined>
+}
+
 // ---------------------------------------------------------------------------
 // MIR expression discriminated union.
 //
