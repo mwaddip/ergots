@@ -1,0 +1,203 @@
+{
+  "corpus": "eval_option_get_or_else",
+  "entries": [
+    {
+      "name": "option_get_or_else_some_v0_eager",
+      "tree_bytes_hex": "00e5e303059a05020500",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "42"
+              }
+            }
+          }
+        },
+        "treeVersion": 0
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "42"
+      },
+      "expected_cost": 55,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_some_v3_lazy",
+      "tree_bytes_hex": "00e5e303059a05020500",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "42"
+              }
+            }
+          }
+        },
+        "treeVersion": 3
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "42"
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_none_v0",
+      "tree_bytes_hex": "00e5e3630505c601",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "42"
+              }
+            }
+          }
+        },
+        "treeVersion": 0
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "99"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_none_v3",
+      "tree_bytes_hex": "00e5e3630505c601",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "42"
+              }
+            }
+          }
+        },
+        "treeVersion": 3
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "99"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_some_v2_eager",
+      "tree_bytes_hex": "00e5e303059a05020500",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "42"
+              }
+            }
+          }
+        },
+        "treeVersion": 2
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "42"
+      },
+      "expected_cost": 55,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_register_some_v2_eager",
+      "tree_bytes_hex": "00e5c6a700050500",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        },
+        "treeVersion": 2
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "10800"
+      },
+      "expected_cost": 85,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_register_some_v3_lazy",
+      "tree_bytes_hex": "00e5c6a700050500",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        },
+        "treeVersion": 3
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "10800"
+      },
+      "expected_cost": 80,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_or_else_cost_limit",
+      "tree_bytes_hex": "00e5e3030505c601",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SLong"
+              },
+              "value": {
+                "kind": "Long",
+                "value": "42"
+              }
+            }
+          }
+        },
+        "jitCostLimit": 10,
+        "treeVersion": 0
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

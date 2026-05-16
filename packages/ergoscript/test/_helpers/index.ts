@@ -123,13 +123,17 @@ export function hydrateErgoBox(json: any): ErgoBox {
  * Used by GetVar, OptionGet, OptionIsDefined, OptionGetOrElse (phase 2f
  * medium Tasks 2–5).
  *
- * Supports: jitCostLimit, extension, selfBox.
+ * Supports: jitCostLimit, extension, selfBox, treeVersion.
  */
 export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
   const result: EvalOpts = {}
 
   if (typeof optsObj.jitCostLimit === 'number') {
     result.jitCostLimit = optsObj.jitCostLimit
+  }
+
+  if (typeof optsObj.treeVersion === 'number') {
+    result.treeVersion = optsObj.treeVersion
   }
 
   if (optsObj.selfBox !== undefined) {
