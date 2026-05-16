@@ -137,6 +137,8 @@ fn main() -> anyhow::Result<()> {
         "eval/extract-bytes-with-no-ref.json",
         &extract_bytes_with_no_ref_fixture,
     )?;
+    let extract_id_fixture = cmds::ergoscript::eval::extract_id::generate()?;
+    write_ergoscript_json("eval/extract-id.json", &extract_id_fixture)?;
 
     Ok(())
 }

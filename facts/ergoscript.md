@@ -86,6 +86,22 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
     rust upstream. Previously TS silently accepted these branches at
     any version.
 
+**Ships additionally (phase 2f Stop γ — Box canonical-bytes serializer + 3 hash extractors):**
+
+36. 3 more per-variant arms wired: `ExtractBytes` (Box → Coll[Byte] of full canonical
+    bytes; Fixed(12) cost BEFORE eval-child), `ExtractBytesWithNoRef` (Box → Coll[Byte]
+    of canonical bytes WITHOUT tx_id + index; Fixed(12) cost BEFORE eval-child),
+    `ExtractId` (Box → 32-byte blake2b-256 hash of canonical bytes; Fixed(12) cost BEFORE
+    eval-child). All three follow the envelope-first cost-charging pattern (Pattern A).
+37. New module `packages/ergoscript/src/wire/ergo-box-bytes.ts` exports `serializeBoxBytes`
+    and `serializeBoxBytesWithoutRef` (reusable for the wallet phase). Internal refactor:
+    the `SBox` arm in `serialize-svalue.ts` now delegates to a shared
+    `writeBoxBodyWithoutRef` helper (no public-surface change).
+38. First eval-time `blake2b` call in the package — uses the existing
+    `@noble/hashes/blake2.js` dep from phase 2a. No new runtime dependency.
+39. No new `EvalError` codes — all 3 Stop γ arms reuse `'extract-input-not-box'` from
+    Stop α.
+
 **Ships additionally (phase 2f Stop β — 2 structural Box-extract arms):**
 
 33. 2 more per-variant arms wired: `ExtractRegisterAs` (Box → Option[T]
@@ -142,6 +158,8 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
     `NonDenselyPacked`), `'sbox-index-out-of-range'` (index outside
     u16 bounds).
 
+**Coverage after 2f Stop γ:** 27 of ~70 `Expr` variants (24 prior + 3 in 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId`); 7 of 7 Box-extract arms shipped — **phase 2f narrow complete**.
+
 **Coverage after 2f Stop β:** 24 of ~70 `Expr` variants (22 prior + 2 in 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo`); 4 of 7 Box-extract arms shipped.
 
 **Coverage after 2f Stop α:** 22 of ~70 `Expr` variants (20 prior + 2 in 2f Stop α: `ExtractAmount`, `ExtractScriptBytes`); 2 of 7 Box-extract arms shipped.
@@ -162,7 +180,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
   normalization family as Atleast.
 - **`SigmaOr`** — phase 2g: calls `Cor::normalized(items)` — same
   normalization family as Atleast.
-- Box / Context / Header chain-state model (`SELF`, `INPUTS(i).R4`, `HEIGHT`, `getVar(...)`) — later phase.
+- Context / Header chain-state model (`SELF`, `INPUTS(i).R4`, `HEIGHT`, `getVar(...)`) — Box runtime shape + 7 Box-extract arms shipped in phase 2f narrow; chain-state Context fields land in phase 2f medium when GlobalVars + GetVar consume them; Header / PreHeader deferred further.
 - Collection HOFs (`map`, `filter`, `fold`, `forall`, `exists`, `slice`, `append`, `byIndex`) — later phase.
 - Sigma protocol prover and verifier (`reduceToCrypto`, `prove`, `verify`) — later phase; `SigmaProp` remains opaque-bytes until then.
 - AVL+ membership-proof verification (`verifyMembershipProof`, `lookupInTree`) — later phase.
@@ -396,7 +414,7 @@ No other error classes are emitted by this package. Internal panics (e.g. a bug 
 1. **Layer 1 — Parse + round-trip on every fixture**: `test/corpus.test.ts` loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip. Current state: 255 passing fixtures + 1 mainnet stub + 6 fixtures flagged `known_unstable` (upstream sigma-rust itself does not round-trip them; tracked in `fixture-gen/known_unstable.json`).
 2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the implemented arms — 18 / 173 such fixtures are currently evaluable by sigma-rust under a synthetic-empty context; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). The 18 evaluable mainnet trees all still hit `'not-implemented-yet'` after phase 2d-B (they require arms beyond the current 17 — method calls, context access, collection HOFs, etc.); `other=0` confirms no undocumented codes are emitted. Phases 2e+ will progressively unlock more fixtures as arms land.
 3. **Layer 3 — Mutation tests**: `test/parse-mutation.test.ts` performs single-byte flips at varied offsets across every fixture and asserts each mutation either throws one of the typed error classes above OR is byte-identical (a flip that lands in a tolerated padding region). Current state: 6221 mutations exercised; 66% throw a typed error class, 0 throw an untyped error, 100% taxonomy coverage (every error class above is hit at least once).
-4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1609/1609 ergoscript tests + 305 proof tests = 1914 total, passing in both runtimes.
+4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1686/1686 ergoscript tests + 305 proof tests = 1991 total, passing in both runtimes.
 
 ## v0.2.0 — Evaluator surface (phase 2b)
 
@@ -554,7 +572,7 @@ No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. 
 
 ### Coverage and stability
 
-- **24 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f Stop β, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; full unlock waits for `GlobalVars` / `GetVar` (phase 2f medium) and method-call dispatch (phase 2g).
+- **27 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f narrow complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; full unlock waits for `GlobalVars` / `GetVar` (phase 2f medium) and method-call dispatch (phase 2g).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 - **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number` (now live). Phase 2f introduces chain-state fields (`height`, `selfBox`, `inputs`, `outputs`, `dataInputs`, `preHeader`, `headers`, `extension`); they will be added as optional properties so existing callers remain source-compatible.
 - **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.

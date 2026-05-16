@@ -31,6 +31,7 @@ import { evalDowncast } from './downcast'
 import { evalExtractAmount } from './extract-amount'
 import { evalExtractBytes } from './extract-bytes'
 import { evalExtractBytesWithNoRef } from './extract-bytes-with-no-ref'
+import { evalExtractId } from './extract-id'
 import { evalExtractCreationInfo } from './extract-creation-info'
 import { evalExtractRegisterAs } from './extract-register-as'
 import { evalExtractScriptBytes } from './extract-script-bytes'
@@ -93,6 +94,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalExtractCreationInfo(e, env, ctx)
     case 'ExtractRegisterAs':
       return evalExtractRegisterAs(e, env, ctx)
+    case 'ExtractId':
+      return evalExtractId(e, env, ctx)
     case 'ExtractScriptBytes':
       return evalExtractScriptBytes(e, env, ctx)
     case 'FuncValue':
