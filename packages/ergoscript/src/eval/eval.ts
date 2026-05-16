@@ -20,6 +20,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalAnd } from './and'
 import { evalAppend } from './coll-append'
+import { evalByIndex } from './coll-by-index'
 import { evalApply } from './apply'
 import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
@@ -62,6 +63,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalAppend(e, env, ctx)
     case 'Apply':
       return evalApply(e, env, ctx)
+    case 'ByIndex':
+      return evalByIndex(e, env, ctx)
     case 'Const':
       return evalConst(e, env, ctx)
     case 'ConstPlaceholder':

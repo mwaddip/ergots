@@ -1,0 +1,106 @@
+{
+  "corpus": "eval_coll_by_index",
+  "entries": [
+    {
+      "name": "coll_by_index_happy",
+      "tree_bytes_hex": "00b283030404140428043c040200",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 20
+      },
+      "expected_cost": 70,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_by_index_oob_no_def",
+      "tree_bytes_hex": "00b283020404020404040a00",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-by-index-out-of-range"
+    },
+    {
+      "name": "coll_by_index_oob_with_def",
+      "tree_bytes_hex": "00b283020404020404040a0104c601",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 99
+      },
+      "expected_cost": 70,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_by_index_neg_no_def",
+      "tree_bytes_hex": "00b283020404020404040100",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-by-index-out-of-range"
+    },
+    {
+      "name": "coll_by_index_neg_with_def",
+      "tree_bytes_hex": "00b28302040402040404010104c601",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 99
+      },
+      "expected_cost": 70,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_by_index_lazy_inbounds",
+      "tree_bytes_hex": "00b28303040402040404060402019a04c801049003",
+      "opts_json": {
+        "treeVersion": 3
+      },
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 2
+      },
+      "expected_cost": 70,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_by_index_lazy_oob",
+      "tree_bytes_hex": "00b2830304040204040406040a019a04c801049003",
+      "opts_json": {
+        "treeVersion": 3
+      },
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 300
+      },
+      "expected_cost": 95,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_by_index_cost_limit",
+      "tree_bytes_hex": "00b283030404140428043c040200",
+      "opts_json": {
+        "jitCostLimit": 10
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    },
+    {
+      "name": "coll_by_index_idx_not_int",
+      "tree_bytes_hex": "00b2830304040204040406010100",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-by-index-index-not-int"
+    },
+    {
+      "name": "coll_by_index_not_coll",
+      "tree_bytes_hex": "00b20454040000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    }
+  ]
+}

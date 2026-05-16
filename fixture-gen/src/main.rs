@@ -153,6 +153,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/select-field.json", &select_field_fixture)?;
     let coll_append_fixture = cmds::ergoscript::eval::coll_append::generate()?;
     write_ergoscript_json("eval/coll-append.json", &coll_append_fixture)?;
+    let coll_by_index_fixture = cmds::ergoscript::eval::coll_by_index::generate()?;
+    write_ergoscript_json("eval/coll-by-index.json", &coll_by_index_fixture)?;
     let coll_size_fixture = cmds::ergoscript::eval::coll_size::generate()?;
     write_ergoscript_json("eval/coll-size.json", &coll_size_fixture)?;
 
