@@ -6,8 +6,10 @@
  * (the standard Const charge).
  *
  * Source: ergotree-interpreter/src/eval.rs:138-158 — trivial_reduce short-circuit.
- * Implementation: evalConst adds an extra 45 when value.kind === 'SigmaProp'
- * (total = 5 + 45 = 50). Same charge for ConstPlaceholder resolving to SigmaProp.
+ * Implementation: `tryTrivialReduce` in `src/eval/evaluate.ts` fires at the
+ * root of `evaluate` / `evaluateWith` and charges a flat 50 directly when the
+ * tree body is `Const(SSigmaProp, _)` or a `ConstPlaceholder` resolving to
+ * SigmaProp, bypassing `evalConst` entirely.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'

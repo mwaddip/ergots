@@ -8,8 +8,12 @@
 //! any `Const(SSigmaProp)` or `ConstPlaceholder` resolving to SSigmaProp,
 //! bypassing normal `Expr::Const` eval entirely.
 //!
-//! TS implementation: evalConst adds 45 additional JitCost when
-//! `value.kind === 'SigmaProp'` (total = 5 [base] + 45 = 50).
+//! TS implementation: `tryTrivialReduce` in `src/eval/evaluate.ts` fires at
+//! the root of `evaluate` / `evaluateWith` and charges a flat 50 (via
+//! `ctx.addCost(50)`) when the tree body is `Const(SSigmaProp, _)` or a
+//! `ConstPlaceholder` resolving to a SigmaProp — bypassing `evalConst`
+//! entirely. Nested SigmaProp Consts (e.g. inside a BinOp) still go through
+//! `evalConst` and charge 5.
 //!
 //! The fixture exercises the NON-segregated case: a bare Const(SSigmaProp)
 //! in the tree body (no constant-segregation section). This corresponds to
@@ -70,7 +74,7 @@ pub fn generate() -> anyhow::Result<P2pkFixture> {
     let expected_cost: u64 = 50;
 
     Ok(P2pkFixture {
-        description: "P2PK short-circuit: Const(SSigmaProp, ProveDlog(pk)) charges 50 JitCost via EVAL_SIGMA_PROP_CONSTANT (sigma-rust eval.rs:138-158). TS: evalConst adds +45 when value.kind === 'SigmaProp' (total = 5 + 45 = 50).",
+        description: "P2PK short-circuit: Const(SSigmaProp, ProveDlog(pk)) charges 50 JitCost via EVAL_SIGMA_PROP_CONSTANT (sigma-rust eval.rs:138-158). TS: tryTrivialReduce in src/eval/evaluate.ts fires at the root and charges 50 directly, bypassing evalConst.",
         entries: vec![P2pkEntry {
             name: "p2pk-sigma-prop-const-cost-50".to_string(),
             tree_bytes_hex,
