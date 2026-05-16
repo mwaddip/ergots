@@ -72,7 +72,6 @@ describe('extractFuncValue', () => {
     if (lambda.kind !== 'Lambda') throw new Error('test setup error')
     const closure = extractFuncValue(lambda)
     expect(closure.argIds).toEqual([1])
-    expect(closure.argIds.length).toBe(1)
   })
 
   it('throws lambda-not-callable on non-Lambda SValue', () => {

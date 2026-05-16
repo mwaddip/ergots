@@ -6,18 +6,20 @@
  *   on kind mismatch.
  *
  * `extractFuncValue` — guards a SValue is a Lambda with non-empty argIds,
- *   returns the Closure. Used by 5 lambda HOF arms (MapColl, Filter, Fold,
- *   Exists, ForAll). Pre-stubbed in Task 1; consumers arrive from Task 6 onward.
- *   Throws `'lambda-not-callable'` for non-Lambda or Lambda with empty argIds
- *   (merged into one code per Decision #8 in the design spec — both are
- *   "lambda value didn't have the expected callable shape").
+ *   returns the Closure. Used by `coll-map.ts`, `coll-filter.ts`, `coll-fold.ts`,
+ *   `coll-exists.ts`, `coll-forall.ts` (5 callers). Throws `'lambda-not-callable'`
+ *   for non-Lambda or Lambda with empty argIds (merged into one code per
+ *   Decision #8 in the design spec — both are "lambda value didn't have the
+ *   expected callable shape").
  *
  * Convention: leading-underscore filename follows existing project pattern
  * (`_byte-coll.ts`, `_box-synthesis.ts`, `_numeric.ts`, `_group-generator.ts`).
  *
  * Source cross-reference:
- *   sigma-rust ergotree-interpreter/src/eval/coll_map.rs (extractFuncValue analog)
- *   sigma-rust ergotree-interpreter/src/eval/coll_filter.rs (extractCollItems analog)
+ *   Input-Coll guards live inline in sigma-rust:
+ *     ergotree-interpreter/src/eval/coll_map.rs:56-71    (Map)
+ *     ergotree-interpreter/src/eval/coll_filter.rs:47-62 (Filter)
+ *     ergotree-interpreter/src/eval/coll_append.rs:19-27 (extract_vecval, Append)
  */
 
 import type { Closure, SType, SValue } from '../mir/types'
@@ -26,8 +28,9 @@ import { EvalError } from './eval-context'
 /**
  * Assert that `v` is a `Coll` SValue and return its runtime view.
  *
- * 9 callers across the Coll HOFs slice: SizeOf, Append (×2), ByIndex, Slice,
- * MapColl, Filter, Fold, Exists, ForAll.
+ * Used by `coll-size-of.ts`, `coll-append.ts` (×2), `coll-by-index.ts`,
+ * `coll-slice.ts`, `coll-map.ts`, `coll-filter.ts`, `coll-fold.ts`,
+ * `coll-exists.ts`, `coll-forall.ts` (9 callers).
  *
  * @throws EvalError `'coll-input-not-coll'` if `v.kind !== 'Coll'`.
  */
@@ -45,8 +48,8 @@ export function extractCollItems(v: SValue): { items: SValue[]; elem: SType } {
  * Assert that `v` is a `Lambda` SValue with at least one argument, and return
  * its `Closure`.
  *
- * 5 callers in the Coll HOFs slice: MapColl, Filter, Fold, Exists, ForAll.
- * Pre-stubbed in Task 1; all callers land in Tasks 6-10.
+ * Used by `coll-map.ts`, `coll-filter.ts`, `coll-fold.ts`, `coll-exists.ts`,
+ * `coll-forall.ts` (5 callers).
  *
  * Both failure modes throw `'lambda-not-callable'` (per Decision #8):
  *   - `v.kind !== 'Lambda'`: the evaluating expression produced a non-function value.

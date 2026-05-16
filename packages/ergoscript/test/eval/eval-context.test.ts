@@ -56,21 +56,4 @@ describe('EvalContext.addCost', () => {
   })
 })
 
-describe('EvalContext.addPerItemCost', () => {
-  // Mirrors sigma-rust's add_per_item_jit_cost(base, per_chunk, chunk_size, n_items)
-  // formula: base + ceil(n_items / chunk_size) * per_chunk
-  it('charges base + ceil(nItems/chunkSize) * perChunk', () => {
-    const ctx = makeContext()
-    // BlockValue's call: addPerItemCost(1, 1, 10, items.length)
-    ctx.addPerItemCost(1, 1, 10, 0)   // 1 + ceil(0/10)*1 = 1
-    expect(ctx.jitCost).toBe(1)
-    ctx.addPerItemCost(1, 1, 10, 5)   // 1 + ceil(5/10)*1 = 2
-    expect(ctx.jitCost).toBe(3)
-    ctx.addPerItemCost(1, 1, 10, 10)  // 1 + 1 = 2
-    expect(ctx.jitCost).toBe(5)
-    ctx.addPerItemCost(1, 1, 10, 11)  // 1 + 2 = 3
-    expect(ctx.jitCost).toBe(8)
-    ctx.addPerItemCost(1, 1, 10, 25)  // 1 + 3 = 4
-    expect(ctx.jitCost).toBe(12)
-  })
-})
+// addPerItemCost tests live in _addPerItemCost.test.ts
