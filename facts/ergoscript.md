@@ -419,7 +419,7 @@ type ErgoTree, TreeHeader, SType, SValue, Expr, SigmaBoolean
 
 - **Precondition:** `sigmaBoolean` is a valid `SigmaBoolean` (typically the `.value` from a `SValue.kind: 'SigmaProp'`). `message` is any `Uint8Array` (the hash/message signed by the prover). `signature` is the serialized Schnorr proof bytes as produced by sigma-rust's prover (or an equivalent conformant prover).
 - **Postcondition (success, leaf inputs):**
-  - `TrivialProp(true)` → returns `true` (signature is ignored, per sigma-rust `verifier.rs:91-94`).
+  - `TrivialProp(true)` → returns `true` (signature is ignored, per sigma-rust `verifier.rs:97`).
   - `TrivialProp(false)` → returns `false` (signature is ignored).
   - `ProveDlog` or `ProveDhTuple` → returns `true` if and only if the Schnorr-style proof in `signature` is valid for `sigmaBoolean` and `message`. Returns `false` for a syntactically valid but cryptographically incorrect proof. (A proof is syntactically valid if it contains a 24-byte challenge and the correct number of 32-byte scalars for the leaf type.)
 - **Postcondition (failure):** Throws `VerifyError` in these cases:
@@ -871,8 +871,9 @@ recursive evaluator. The two surfaces don't interact — a caller composing `eva
   before proceeding and throws immediately if any conjecture node is found.
 
 - **`'empty-signature'`** — `signature.length === 0`. Sigma-rust returns `Ok(false)` for an
-  empty proof (`sig_serializer.rs:118-128`); the TS port surfaces this as a typed throw so
-  callers can distinguish "no proof provided" from "cryptographically incorrect proof".
+  empty proof via the `[] => false` match arm in `verify_signature` (`verifier.rs:99-100`);
+  the TS port surfaces this as a typed throw so callers can distinguish "no proof provided"
+  from "cryptographically incorrect proof".
   (Acknowledged divergence from sigma-rust; Decision #5 in the design spec.)
 
 - **`'truncated-signature'`** — the signature ran out of bytes before the tree-walk parsing

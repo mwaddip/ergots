@@ -101,7 +101,7 @@ ergots/
 │       │   │   ├── if.ts                evalIf — phase 2d
 │       │   │   └── …                   (~80 files at maturity, one per variant)
 │       │   ├── context.ts               phase 2e — Box/Context/Header model
-│       │   ├── sigma/                   phase 2g
+│       │   ├── sigma/                   phase 2g-medium / 2g-combinators
 │       │   │   ├── prove-dlog.ts
 │       │   │   ├── prove-dh-tuple.ts
 │       │   │   ├── composition.ts       CAND/COR/CTHRESHOLD
@@ -352,7 +352,7 @@ Runtime:
   proof package.
 - `@noble/curves` 2.2.0 — secp256k1 point ops + Schnorr-style signing.
   Pins `@noble/hashes` 2.2.0 transitively — version-locked pair. Added in
-  phase 2g.
+  phase 2g-medium.
 
 Dev:
 - `typescript` ^5.5
