@@ -10,6 +10,7 @@ pub mod bit_inversion;
 pub mod block_value;
 pub mod bool_to_sigma_prop;
 pub mod collection;
+pub mod coll_size;
 pub mod common;
 pub mod const_arm;
 pub mod const_placeholder;

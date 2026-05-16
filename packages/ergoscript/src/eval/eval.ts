@@ -25,6 +25,7 @@ import { evalBitInversion } from './bit-inversion'
 import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalCollection } from './collection'
+import { evalSizeOf } from './coll-size'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalDowncast } from './downcast'
@@ -118,6 +119,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalOptionIsDefined(e, env, ctx)
     case 'SelectField':
       return evalSelectField(e, env, ctx)
+    case 'SizeOf':
+      return evalSizeOf(e, env, ctx)
     case 'XorOf':
       return evalXorOf(e, env, ctx)
     default:

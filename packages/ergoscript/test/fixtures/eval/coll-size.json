@@ -1,0 +1,67 @@
+{
+  "corpus": "eval_coll_size",
+  "entries": [
+    {
+      "name": "coll_size_int_5",
+      "tree_bytes_hex": "00b183050404140428043c04500464",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 5
+      },
+      "expected_cost": 59,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_size_empty",
+      "tree_bytes_hex": "00b1830004",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 0
+      },
+      "expected_cost": 34,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_size_long_3",
+      "tree_bytes_hex": "00b1830305050205040506",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 3
+      },
+      "expected_cost": 49,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_size_nested_2",
+      "tree_bytes_hex": "00b183020e830102020083020202010202",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 2
+      },
+      "expected_cost": 89,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_size_cost_limit",
+      "tree_bytes_hex": "00b1830004",
+      "opts_json": {
+        "jitCostLimit": 10
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    },
+    {
+      "name": "coll_size_not_coll",
+      "tree_bytes_hex": "00b10454",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    }
+  ]
+}
