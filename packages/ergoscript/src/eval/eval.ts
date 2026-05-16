@@ -26,6 +26,7 @@ import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalAppend } from './coll-append'
 import { evalByIndex } from './coll-by-index'
+import { evalFilter } from './coll-filter'
 import { evalMap } from './coll-map'
 import { evalSlice } from './coll-slice'
 import { evalSizeOf } from './coll-size'
@@ -113,6 +114,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalExtractId(e, env, ctx)
     case 'ExtractScriptBytes':
       return evalExtractScriptBytes(e, env, ctx)
+    case 'Filter':
+      return evalFilter(e, env, ctx)
     case 'FuncValue':
       return evalFuncValue(e, env, ctx)
     case 'GetVar':

@@ -7,7 +7,7 @@ import { captureEvalError } from '../_helpers'
 
 describe('evalExpr (central dispatch — chassis only)', () => {
   it('throws not-implemented-yet for any unwired variant', () => {
-    // Use Filter as a representative — `Map` was wired in Task 6 (phase
+    // Use Fold as a representative — `Filter` was wired in Task 7 (phase
     // 2f Coll HOFs), so we pick the next still-unported variant. The expr
     // shape is irrelevant to the dispatch path; only the `tag` matters before
     // the default arm fires.
@@ -16,14 +16,19 @@ describe('evalExpr (central dispatch — chassis only)', () => {
       tpe: { tag: 'SColl', elem: { tag: 'SInt' } },
       value: { kind: 'Coll', elem: { tag: 'SInt' }, items: [] },
     }
-    const conditionExpr: Expr = {
+    const zeroExpr: Expr = {
+      tag: 'Const',
+      tpe: { tag: 'SInt' },
+      value: { kind: 'Int', value: 0 },
+    }
+    const foldOpExpr: Expr = {
       tag: 'Const',
       tpe: { tag: 'SBoolean' },
       value: { kind: 'Boolean', value: true },
     }
-    const e: Expr = { tag: 'Filter', input: innerColl, condition: conditionExpr }
+    const e: Expr = { tag: 'Fold', input: innerColl, zero: zeroExpr, foldOp: foldOpExpr }
     const err = captureEvalError(() => evalExpr(e, Env.empty(), makeContext()))
     expect(err.code).toBe('not-implemented-yet')
-    expect(err.message).toContain("'Filter'")
+    expect(err.message).toContain("'Fold'")
   })
 })

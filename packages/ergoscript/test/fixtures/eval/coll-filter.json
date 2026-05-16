@@ -1,0 +1,192 @@
+{
+  "corpus": "eval_coll_filter",
+  "entries": [
+    {
+      "name": "coll_filter_happy",
+      "tree_bytes_hex": "00b51005020406080ad90101049172010404",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 206,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_filter_all_pass",
+      "tree_bytes_hex": "00b51003020406d90101040101",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 61,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_filter_all_fail",
+      "tree_bytes_hex": "00b51003020406d90101040100",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 61,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_filter_empty",
+      "tree_bytes_hex": "00b51000d90101040101",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_filter_sg_n12",
+      "tree_bytes_hex": "00b5100c00020406080a0c0e10121416d90101040101",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          },
+          {
+            "kind": "Int",
+            "value": 6
+          },
+          {
+            "kind": "Int",
+            "value": 7
+          },
+          {
+            "kind": "Int",
+            "value": 8
+          },
+          {
+            "kind": "Int",
+            "value": 9
+          },
+          {
+            "kind": "Int",
+            "value": 10
+          },
+          {
+            "kind": "Int",
+            "value": 11
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 152,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_filter_not_coll",
+      "tree_bytes_hex": "00b50454d90101040101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    },
+    {
+      "name": "coll_filter_cost_limit",
+      "tree_bytes_hex": "00b51003020406d90101040101",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    },
+    {
+      "name": "coll_filter_elem_tpe_mismatch",
+      "tree_bytes_hex": "00b510020204d90101050101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-elem-tpe-mismatch"
+    },
+    {
+      "name": "coll_filter_lambda_not_callable",
+      "tree_bytes_hex": "00b510030204060101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-not-callable"
+    },
+    {
+      "name": "coll_filter_lambda_result_type_mismatch",
+      "tree_bytes_hex": "00b510020204d901010495937201040201017201",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-result-type-mismatch"
+    }
+  ]
+}
