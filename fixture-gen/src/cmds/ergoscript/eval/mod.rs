@@ -20,6 +20,8 @@ pub mod coll_slice;
 pub mod collection;
 pub mod coll_size;
 pub mod common;
+pub mod create_prove_dlog;
+pub mod p2pk_short_circuit;
 pub mod const_arm;
 pub mod const_placeholder;
 pub mod downcast;

@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 28 + 7 = 35 codes added through phase 2f Coll HOFs
+ *   - documents the 35 + 1 = 36 codes added through phase 2g-medium
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -152,3 +152,18 @@ export type EvalErrorCode =
    *   - Fold: body must return zero.tpe (accumulator type).
    */
   | 'lambda-result-type-mismatch'
+
+  // -------------------------------------------------------------------------
+  // Phase 2g-medium — sigma-protocol primitives (1 new code)
+  // Total taxonomy: 35 → 36.
+  // -------------------------------------------------------------------------
+  /**
+   * `CreateProveDlog` / `CreateProveDhTuple` input expression evaluated to a
+   * non-GroupElement SValue. Wire-format invariants make this unreachable for
+   * parser-produced trees (sigma-rust's `OneArgOpTryBuild`/`new` reject at
+   * construction); defensive against `ConstantPlaceholder` injection and
+   * future MIR shape changes.
+   *
+   * Source: ergotree-interpreter/src/eval/create_provedlog.rs:21-26
+   */
+  | 'sigma-prop-input-not-group-element'

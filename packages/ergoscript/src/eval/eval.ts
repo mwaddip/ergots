@@ -59,12 +59,15 @@ import { evalTuple } from './tuple'
 import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
+import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalXorOf } from './xor-of'
 
 export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {
     case 'And':
       return evalAnd(e, env, ctx)
+    case 'CreateProveDlog':
+      return evalCreateProveDlog(e, env, ctx)
     case 'Append':
       return evalAppend(e, env, ctx)
     case 'Apply':

@@ -22,7 +22,8 @@
  * regardless of which payload they wrap. Sigma-rust's `reduce_to_crypto`
  * adds a `trivial_reduce` short-circuit for SigmaProp constants
  * (eval.rs:262-278) that flat-rates the whole tree at JitCost 50, but that
- * lives outside the arm itself — pure ConstPlaceholder eval is always 1.
+ * fires before any arm eval — we replicate it in `evaluate.ts:tryTrivialReduce`
+ * rather than inside the arm itself. Pure ConstPlaceholder eval is always 1.
  *
  * Our `ctx.constants` mirrors sigma-rust's `Context.constants` (set via
  * `with_constants(...)` on the lazy-resolution path); the public

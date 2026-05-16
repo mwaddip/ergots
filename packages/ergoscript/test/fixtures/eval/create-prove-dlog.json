@@ -1,0 +1,37 @@
+{
+  "description": "CreateProveDlog C1 fixture — wraps a GroupElement Const into SigmaProp{ProveDlog, h}. Pattern A cost Fixed(10) before child eval.",
+  "entries": [
+    {
+      "name": "basic",
+      "tree_bytes_hex": "00cd070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "identity-point",
+      "tree_bytes_hex": "00cd07000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "cd000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "cost-limit-exceeded",
+      "tree_bytes_hex": "00cd070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {
+        "jitCostLimit": 5
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}
