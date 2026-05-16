@@ -1,0 +1,203 @@
+{
+  "corpus": "eval_coll_slice",
+  "entries": [
+    {
+      "name": "coll_slice_happy",
+      "tree_bytes_hex": "00b411040204060804020406",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 27,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_neg_from",
+      "tree_bytes_hex": "00b411040204060804010406",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 27,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_until_oob",
+      "tree_bytes_hex": "00b411040204060804040414",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "3"
+          },
+          {
+            "kind": "Long",
+            "value": "4"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 27,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_from_ge_until",
+      "tree_bytes_hex": "00b411040204060804060402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_empty_input",
+      "tree_bytes_hex": "00b4110004020406",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 27,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_smoking_gun_5",
+      "tree_bytes_hex": "00b41105000204060804000404",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "0"
+          },
+          {
+            "kind": "Long",
+            "value": "1"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 27,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_smoking_gun_1k",
+      "tree_bytes_hex": "00b411e80700020406080a0c0e10121416181a1c1e20222426282a2c2e30323436383a3c3e40424446484a4c4e50525456585a5c5e60626466686a6c6e70727476787a7c7e800182018401860188018a018c018e01900192019401960198019a019c019e01a001a201a401a601a801aa01ac01ae01b001b201b401b601b801ba01bc01be01c001c201c401c601c801ca01cc01ce01d001d201d401d601d801da01dc01de01e001e201e401e601e801ea01ec01ee01f001f201f401f601f801fa01fc01fe01800282028402860288028a028c028e02900292029402960298029a029c029e02a002a202a402a602a802aa02ac02ae02b002b202b402b602b802ba02bc02be02c002c202c402c602c802ca02cc02ce02d002d202d402d602d802da02dc02de02e002e202e402e602e802ea02ec02ee02f002f202f402f602f802fa02fc02fe02800382038403860388038a038c038e03900392039403960398039a039c039e03a003a203a403a603a803aa03ac03ae03b003b203b403b603b803ba03bc03be03c003c203c403c603c803ca03cc03ce03d003d203d403d603d803da03dc03de03e003e203e403e603e803ea03ec03ee03f003f203f403f603f803fa03fc03fe03800482048404860488048a048c048e04900492049404960498049a049c049e04a004a204a404a604a804aa04ac04ae04b004b204b404b604b804ba04bc04be04c004c204c404c604c804ca04cc04ce04d004d204d404d604d804da04dc04de04e004e204e404e604e804ea04ec04ee04f004f204f404f604f804fa04fc04fe04800582058405860588058a058c058e05900592059405960598059a059c059e05a005a205a405a605a805aa05ac05ae05b005b205b405b605b805ba05bc05be05c005c205c405c605c805ca05cc05ce05d005d205d405d605d805da05dc05de05e005e205e405e605e805ea05ec05ee05f005f205f405f605f805fa05fc05fe05800682068406860688068a068c068e06900692069406960698069a069c069e06a006a206a406a606a806aa06ac06ae06b006b206b406b606b806ba06bc06be06c006c206c406c606c806ca06cc06ce06d006d206d406d606d806da06dc06de06e006e206e406e606e806ea06ec06ee06f006f206f406f606f806fa06fc06fe06800782078407860788078a078c078e07900792079407960798079a079c079e07a007a207a407a607a807aa07ac07ae07b007b207b407b607b807ba07bc07be07c007c207c407c607c807ca07cc07ce07d007d207d407d607d807da07dc07de07e007e207e407e607e807ea07ec07ee07f007f207f407f607f807fa07fc07fe07800882088408860888088a088c088e08900892089408960898089a089c089e08a008a208a408a608a808aa08ac08ae08b008b208b408b608b808ba08bc08be08c008c208c408c608c808ca08cc08ce08d008d208d408d608d808da08dc08de08e008e208e408e608e808ea08ec08ee08f008f208f408f608f808fa08fc08fe08800982098409860988098a098c098e09900992099409960998099a099c099e09a009a209a409a609a809aa09ac09ae09b009b209b409b609b809ba09bc09be09c009c209c409c609c809ca09cc09ce09d009d209d409d609d809da09dc09de09e009e209e409e609e809ea09ec09ee09f009f209f409f609f809fa09fc09fe09800a820a840a860a880a8a0a8c0a8e0a900a920a940a960a980a9a0a9c0a9e0aa00aa20aa40aa60aa80aaa0aac0aae0ab00ab20ab40ab60ab80aba0abc0abe0ac00ac20ac40ac60ac80aca0acc0ace0ad00ad20ad40ad60ad80ada0adc0ade0ae00ae20ae40ae60ae80aea0aec0aee0af00af20af40af60af80afa0afc0afe0a800b820b840b860b880b8a0b8c0b8e0b900b920b940b960b980b9a0b9c0b9e0ba00ba20ba40ba60ba80baa0bac0bae0bb00bb20bb40bb60bb80bba0bbc0bbe0bc00bc20bc40bc60bc80bca0bcc0bce0bd00bd20bd40bd60bd80bda0bdc0bde0be00be20be40be60be80bea0bec0bee0bf00bf20bf40bf60bf80bfa0bfc0bfe0b800c820c840c860c880c8a0c8c0c8e0c900c920c940c960c980c9a0c9c0c9e0ca00ca20ca40ca60ca80caa0cac0cae0cb00cb20cb40cb60cb80cba0cbc0cbe0cc00cc20cc40cc60cc80cca0ccc0cce0cd00cd20cd40cd60cd80cda0cdc0cde0ce00ce20ce40ce60ce80cea0cec0cee0cf00cf20cf40cf60cf80cfa0cfc0cfe0c800d820d840d860d880d8a0d8c0d8e0d900d920d940d960d980d9a0d9c0d9e0da00da20da40da60da80daa0dac0dae0db00db20db40db60db80dba0dbc0dbe0dc00dc20dc40dc60dc80dca0dcc0dce0dd00dd20dd40dd60dd80dda0ddc0dde0de00de20de40de60de80dea0dec0dee0df00df20df40df60df80dfa0dfc0dfe0d800e820e840e860e880e8a0e8c0e8e0e900e920e940e960e980e9a0e9c0e9e0ea00ea20ea40ea60ea80eaa0eac0eae0eb00eb20eb40eb60eb80eba0ebc0ebe0ec00ec20ec40ec60ec80eca0ecc0ece0ed00ed20ed40ed60ed80eda0edc0ede0ee00ee20ee40ee60ee80eea0eec0eee0ef00ef20ef40ef60ef80efa0efc0efe0e800f820f840f860f880f8a0f8c0f8e0f900f920f940f960f980f9a0f9c0f9e0fa00fa20fa40fa60fa80faa0fac0fae0fb00fb20fb40fb60fb80fba0fbc0fbe0fc00fc20fc40fc60fc80fca0fcc0fce0f04000404",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "0"
+          },
+          {
+            "kind": "Long",
+            "value": "1"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 27,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_large_range",
+      "tree_bytes_hex": "00b4110500020406080400049003",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "0"
+          },
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          },
+          {
+            "kind": "Long",
+            "value": "4"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 29,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_bound_not_int",
+      "tree_bytes_hex": "00b4110302040601010406",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-slice-bound-not-int"
+    },
+    {
+      "name": "coll_slice_not_coll",
+      "tree_bytes_hex": "00b4045404000406",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    }
+  ]
+}

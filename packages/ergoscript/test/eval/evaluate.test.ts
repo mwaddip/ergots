@@ -34,31 +34,26 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `Slice`. `ByIndex` was wired
-// in Task 4 (phase 2f Coll HOFs), so it no longer falls through to
-// `not-implemented-yet`. `Slice` is the next unwired Coll HOF arm and
+// A tree whose body is an unported variant — `Map`. `Slice` was wired
+// in Task 5 (phase 2f Coll HOFs), so it no longer falls through to
+// `not-implemented-yet`. `Map` is the next unwired Coll HOF arm and
 // keeps falling through until its own per-arm task lands.
-const treeWithSliceBody = (): ErgoTree => {
+const treeWithMapBody = (): ErgoTree => {
   const innerColl = {
     tag: 'Const' as const,
     tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
     value: { kind: 'Coll' as const, elem: { tag: 'SInt' as const }, items: [] },
   }
-  const fromIdx = {
+  const mapperExpr = {
     tag: 'Const' as const,
     tpe: { tag: 'SInt' as const },
     value: { kind: 'Int' as const, value: 0 },
-  }
-  const untilIdx = {
-    tag: 'Const' as const,
-    tpe: { tag: 'SInt' as const },
-    value: { kind: 'Int' as const, value: 1 },
   }
   return {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'Slice', input: innerColl, from: fromIdx, until: untilIdx },
+    body: { tag: 'Map', input: innerColl, mapper: mapperExpr },
   }
 }
 
@@ -82,8 +77,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. Slice)', () => {
-    const err = captureEvalError(() => evaluate(treeWithSliceBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. Map)', () => {
+    const err = captureEvalError(() => evaluate(treeWithMapBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -96,9 +91,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Slice not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Map not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithSliceBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithMapBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })

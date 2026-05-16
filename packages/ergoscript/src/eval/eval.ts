@@ -19,15 +19,16 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalAnd } from './and'
-import { evalAppend } from './coll-append'
-import { evalByIndex } from './coll-by-index'
 import { evalApply } from './apply'
 import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
 import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
-import { evalCollection } from './collection'
+import { evalAppend } from './coll-append'
+import { evalByIndex } from './coll-by-index'
+import { evalSlice } from './coll-slice'
 import { evalSizeOf } from './coll-size'
+import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
 import { evalDowncast } from './downcast'
@@ -127,6 +128,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalSelectField(e, env, ctx)
     case 'SizeOf':
       return evalSizeOf(e, env, ctx)
+    case 'Slice':
+      return evalSlice(e, env, ctx)
     case 'XorOf':
       return evalXorOf(e, env, ctx)
     default:
