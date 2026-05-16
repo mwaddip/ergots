@@ -18,10 +18,11 @@
  *   line 61: ctx.add_per_item_jit_cost(20, 1, 10, n)?;  // outer
  *
  * Key difference from Map (Task 6):
- *   - Elem-type check is against inputColl.elem (the runtime coll's elem), not the
- *     lambda's declared arg type. The TS MIR Filter has no `elemTpe` field — the
- *     check uses the input Coll's runtime `elem` (same as sigma-rust's `self.elem_tpe`
- *     which is derived from the input SColl at Filter::new() construction time).
+ *   - TS Filter MIR has no `elemTpe` field (phase 2a port omission; sigma-rust's
+ *     Filter struct carries `elem_tpe`). Elem-type check derives the declared type
+ *     from `condition.args[0].tpe` when condition is a FuncValue node — equivalent
+ *     to sigma-rust comparing against `self.elem_tpe`. Compares `inputColl.elem`
+ *     against this derived type; throws 'coll-elem-tpe-mismatch' on mismatch.
  *   - Body MUST return Boolean (predicate), not any type. Mismatch throws
  *     'lambda-result-type-mismatch'.
  *   - No short-circuit — all items visited even when some fail (cost determinism).
