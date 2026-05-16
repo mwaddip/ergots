@@ -50,6 +50,15 @@ export class SigmaBooleanParseError extends Error {
   }
 }
 
+/**
+ * Thrown by `serializeSigmaBoolean` for malformed structural inputs.
+ *
+ * Error codes:
+ *  - 'ec-point-length'            — ProveDlog.h or ProveDhTuple.{g,h,u,v} length ≠ 33 bytes
+ *  - 'arity-out-of-range'         — Cand/Cor/Cthreshold items.length out of [1, 0xffff]
+ *  - 'cthreshold-k-out-of-range'  — Cthreshold k out of [1, items.length] or > 0xff
+ *  - 'unreachable'                — exhaustiveness guard fired (should never happen in practice)
+ */
 export class SigmaBooleanSerializeError extends Error {
   constructor(
     message: string,

@@ -100,6 +100,10 @@ function sigmaBooleanEquals(a: SigmaBoolean, b: SigmaBoolean): boolean {
         a.items.every((it, i) => sigmaBooleanEquals(it, bb.items[i]!))
       )
     }
+    default: {
+      const _exhaust: never = a
+      throw new Error(`sigmaBooleanEquals: unhandled tag ${(_exhaust as { tag: string }).tag}`)
+    }
   }
 }
 

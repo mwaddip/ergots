@@ -117,9 +117,9 @@ export function p2pkPublicKey(tree: ErgoTree): Uint8Array | null {
   if (sigmaValue === null) return null
   const pk = proveDlogPublicKey(sigmaValue.value)
   if (pk === null) return null
-  // Defensive copy — callers should not be able to mutate the parsed
-  // tree's internal storage through the returned slice.
-  return pk.slice()
+  // proveDlogPublicKey already returns a defensive copy (sb.h.slice()),
+  // so no second slice is needed here.
+  return pk
 }
 
 /**

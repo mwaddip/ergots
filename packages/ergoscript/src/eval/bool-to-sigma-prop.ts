@@ -9,10 +9,12 @@
  *
  * Cost: Fixed(15) per bool_to_sigma.rs:19 (inline literal; no named constant in costs.rs).
  *
- * SigmaProp stays opaque in 2c — we construct the canonical single-byte
- * encoding: TRIVIAL_PROP_FALSE (0xd2) or TRIVIAL_PROP_TRUE (0xd3). The
- * opcode itself discriminates the boolean; payload is empty.
- * Structural decode is 2g territory.
+ * Phase 2g-medium made SigmaProp structural: the phase 2a/2c approach
+ * stored an opaque single-byte encoding (TRIVIAL_PROP_FALSE 0xd2 or
+ * TRIVIAL_PROP_TRUE 0xd3) as `{ raw: Uint8Array }`. Now `TrivialProp`
+ * wraps the boolean directly as `{ tag: 'TrivialProp', value: boolean }`
+ * in the `SigmaBoolean` discriminated union, matching sigma-rust's
+ * `SigmaBoolean::TrivialProp(bool)` leaf.
  *
  * Note: sigma-rust has a pre-v2 ErgoTree compat path that passes a SigmaProp
  * operand through unchanged (`sigmaProp(sigmaProp(...))`). In phase 2c we
