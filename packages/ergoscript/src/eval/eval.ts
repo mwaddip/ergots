@@ -26,6 +26,7 @@ import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
 import { evalAppend } from './coll-append'
 import { evalByIndex } from './coll-by-index'
+import { evalMap } from './coll-map'
 import { evalSlice } from './coll-slice'
 import { evalSizeOf } from './coll-size'
 import { evalCollection } from './collection'
@@ -118,6 +119,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalGetVar(e, env, ctx)
     case 'GlobalVars':
       return evalGlobalVars(e, env, ctx)
+    case 'Map':
+      return evalMap(e, env, ctx)
     case 'OptionGet':
       return evalOptionGet(e, env, ctx)
     case 'OptionGetOrElse':

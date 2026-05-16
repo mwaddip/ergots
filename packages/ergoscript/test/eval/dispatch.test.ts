@@ -7,7 +7,7 @@ import { captureEvalError } from '../_helpers'
 
 describe('evalExpr (central dispatch — chassis only)', () => {
   it('throws not-implemented-yet for any unwired variant', () => {
-    // Use Map as a representative — `Slice` was wired in Task 5 (phase
+    // Use Filter as a representative — `Map` was wired in Task 6 (phase
     // 2f Coll HOFs), so we pick the next still-unported variant. The expr
     // shape is irrelevant to the dispatch path; only the `tag` matters before
     // the default arm fires.
@@ -16,14 +16,14 @@ describe('evalExpr (central dispatch — chassis only)', () => {
       tpe: { tag: 'SColl', elem: { tag: 'SInt' } },
       value: { kind: 'Coll', elem: { tag: 'SInt' }, items: [] },
     }
-    const mapperExpr: Expr = {
+    const conditionExpr: Expr = {
       tag: 'Const',
-      tpe: { tag: 'SInt' },
-      value: { kind: 'Int', value: 0 },
+      tpe: { tag: 'SBoolean' },
+      value: { kind: 'Boolean', value: true },
     }
-    const e: Expr = { tag: 'Map', input: innerColl, mapper: mapperExpr }
+    const e: Expr = { tag: 'Filter', input: innerColl, condition: conditionExpr }
     const err = captureEvalError(() => evalExpr(e, Env.empty(), makeContext()))
     expect(err.code).toBe('not-implemented-yet')
-    expect(err.message).toContain("'Map'")
+    expect(err.message).toContain("'Filter'")
   })
 })

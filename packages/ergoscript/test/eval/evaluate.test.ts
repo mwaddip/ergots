@@ -34,26 +34,26 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `Map`. `Slice` was wired
-// in Task 5 (phase 2f Coll HOFs), so it no longer falls through to
-// `not-implemented-yet`. `Map` is the next unwired Coll HOF arm and
+// A tree whose body is an unported variant — `Filter`. `Map` was wired
+// in Task 6 (phase 2f Coll HOFs), so it no longer falls through to
+// `not-implemented-yet`. `Filter` is the next unwired Coll HOF arm and
 // keeps falling through until its own per-arm task lands.
-const treeWithMapBody = (): ErgoTree => {
+const treeWithFilterBody = (): ErgoTree => {
   const innerColl = {
     tag: 'Const' as const,
     tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
     value: { kind: 'Coll' as const, elem: { tag: 'SInt' as const }, items: [] },
   }
-  const mapperExpr = {
+  const conditionExpr = {
     tag: 'Const' as const,
-    tpe: { tag: 'SInt' as const },
-    value: { kind: 'Int' as const, value: 0 },
+    tpe: { tag: 'SBoolean' as const },
+    value: { kind: 'Boolean' as const, value: true },
   }
   return {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'Map', input: innerColl, mapper: mapperExpr },
+    body: { tag: 'Filter', input: innerColl, condition: conditionExpr },
   }
 }
 
@@ -77,8 +77,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. Map)', () => {
-    const err = captureEvalError(() => evaluate(treeWithMapBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. Filter)', () => {
+    const err = captureEvalError(() => evaluate(treeWithFilterBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -91,9 +91,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Map not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Filter not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithMapBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithFilterBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })

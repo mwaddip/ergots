@@ -1,0 +1,166 @@
+{
+  "corpus": "eval_coll_map",
+  "entries": [
+    {
+      "name": "coll_map_happy",
+      "tree_bytes_hex": "00ad100402040608d90101049a72010402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 151,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_map_empty",
+      "tree_bytes_hex": "00ad1000d90101049a72010402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 30,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_map_sg_n5",
+      "tree_bytes_hex": "00ad10050002040608d90101047201",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 81,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_map_sg_n12",
+      "tree_bytes_hex": "00ad100c00020406080a0c0e10121416d90101047201",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          },
+          {
+            "kind": "Int",
+            "value": 6
+          },
+          {
+            "kind": "Int",
+            "value": 7
+          },
+          {
+            "kind": "Int",
+            "value": 8
+          },
+          {
+            "kind": "Int",
+            "value": 9
+          },
+          {
+            "kind": "Int",
+            "value": 10
+          },
+          {
+            "kind": "Int",
+            "value": 11
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 152,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_map_not_coll",
+      "tree_bytes_hex": "00ad0454d90101047201",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    },
+    {
+      "name": "coll_map_cost_limit",
+      "tree_bytes_hex": "00ad1003020406d90101047201",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}
