@@ -45,6 +45,7 @@ import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
 import { evalNegation } from './negation'
 import { evalOr } from './or'
+import { evalSelectField } from './select-field'
 import { evalTuple } from './tuple'
 import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
@@ -115,6 +116,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalOptionGetOrElse(e, env, ctx)
     case 'OptionIsDefined':
       return evalOptionIsDefined(e, env, ctx)
+    case 'SelectField':
+      return evalSelectField(e, env, ctx)
     case 'XorOf':
       return evalXorOf(e, env, ctx)
     default:

@@ -86,6 +86,43 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
     rust upstream. Previously TS silently accepted these branches at
     any version.
 
+**Ships additionally (phase 2f medium — chain-state Context + 6 arms):**
+
+40. 6 more per-variant arms wired: `GlobalVars` (Height / Inputs /
+    Outputs / SelfBox / MinerPubKey / GroupGenerator, Fixed(10) cost;
+    reads optional chain-state fields from `EvalContext`), `GetVar`
+    (Fixed(10) cost; reads `ctx.extension.values[varId]` returning
+    `Option[T]`; throws `'get-var-type-mismatch'` when stored type ≠
+    requested type), `OptionGet` (Fixed(15) cost; unwraps
+    `Option[T]`; throws `'option-empty'` on None), `OptionIsDefined`
+    (Fixed(10) cost; returns Boolean), `OptionGetOrElse` (Fixed(15)
+    cost; V3-gated lazy semantics — at `treeVersion < 3` both branches
+    eval eagerly per JVM bug; at V3+ only the taken branch is
+    evaluated, mirroring the XorOf V0/V1-vs-V2+ pattern from phase
+    2e), `SelectField` (Fixed(10) cost; 1-based `fieldIndex` →
+    0-based array access on `Tuple` SValue).
+41. `EvalOpts` / `EvalContext` gains 6 new optional chain-state fields
+    (all optional; undefined ⇒ throws `'context-field-missing'` if
+    reached by an arm): `height?: number`, `selfBox?: ErgoBox`,
+    `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`,
+    `preHeader?: PreHeader`, `extension?: ContextExtension`.
+42. Two new runtime stubs stabilized: `PreHeader` (version, parentId,
+    timestamp, nBits, height, minerPk, votes) and `ContextExtension`
+    (values: Record keyed by varId; same `{ tpe, value }` shape as
+    `ErgoBox.registers`).
+43. Six new `EvalError` codes: `'context-field-missing'` (any
+    GlobalVars / GetVar arm reached with the required context field
+    absent), `'get-var-type-mismatch'` (GetVar stored type ≠
+    requested type), `'option-empty'` (OptionGet on None),
+    `'option-input-not-option'` (OptionGet / OptionIsDefined /
+    OptionGetOrElse received non-Option input), `'select-field-index-
+    out-of-range'` (fieldIndex outside tuple bounds; unreachable from
+    parser-produced trees — sigma-rust validates in-bounds at
+    construction), `'select-field-input-not-tuple'` (SelectField
+    received non-Tuple input; defensive, same posture as LogicalNot).
+
+**Coverage after 2f medium complete:** 33 of ~70 `Expr` variants (27 prior + 6 in 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField`); full chain-state Context model ships. Mainnet corpus aggregate stable: `success=0 not-impl=18 other=0` (the 18 reach GlobalVars or GetVar, now throwing `'context-field-missing'` instead of `'not-implemented-yet'` — both count in the `not-impl` bucket per the corpus-eval tolerance).
+
 **Ships additionally (phase 2f Stop γ — Box canonical-bytes serializer + 3 hash extractors):**
 
 36. 3 more per-variant arms wired: `ExtractBytes` (Box → Coll[Byte] of full canonical
@@ -180,7 +217,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
   normalization family as Atleast.
 - **`SigmaOr`** — phase 2g: calls `Cor::normalized(items)` — same
   normalization family as Atleast.
-- Context / Header chain-state model (`SELF`, `INPUTS(i).R4`, `HEIGHT`, `getVar(...)`) — Box runtime shape + 7 Box-extract arms shipped in phase 2f narrow; chain-state Context fields land in phase 2f medium when GlobalVars + GetVar consume them; Header / PreHeader deferred further.
+- Header chain-state model + method-call dispatch (`Context` fields + 6 arms ship in 2f medium; `Header` runtime + method calls deferred to 2g).
 - Collection HOFs (`map`, `filter`, `fold`, `forall`, `exists`, `slice`, `append`, `byIndex`) — later phase.
 - Sigma protocol prover and verifier (`reduceToCrypto`, `prove`, `verify`) — later phase; `SigmaProp` remains opaque-bytes until then.
 - AVL+ membership-proof verification (`verifyMembershipProof`, `lookupInTree`) — later phase.
@@ -450,7 +487,7 @@ interface EvalContext extends EvalOpts {
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` (so callers who want the tree's segregated constants picked up automatically don't need to do anything extra) and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised from inside the recursive evaluator (e.g. an unhandled variant deep inside a `BlockValue`) bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** Only 20 of ~70 `Expr` variants currently have implemented arms (`Const`, `ConstPlaceholder`, `BlockValue`, `ValDef`, `ValUse`, `Tuple`, `Collection`, `If`, `BinOp`, `LogicalNot`, `BoolToSigmaProp`, `Negation`, `BitInversion`, `Upcast`, `Downcast`, `And`, `Or`, `FuncValue`, `Apply`, `XorOf`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2f–2h add the remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** 33 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2g–2h add the remaining arms; the `evaluate` signature itself is stable.
 
 #### `evaluateWith(tree, ctx)`
 
@@ -568,13 +605,56 @@ The following codes were added in phase 2f Stop β (`ExtractRegisterAs`):
   dispatch per `extract_reg_as.rs:41-44`. Message includes the register
   id, the expected SType, and the stored SType.
 
+The following codes were added in phase 2f medium (GlobalVars / GetVar / Option family / SelectField):
+
+- **`'context-field-missing'`** — a `GlobalVars` arm (Height, Inputs,
+  Outputs, SelfBox, MinerPubKey, GroupGenerator) or the `GetVar` arm
+  was reached but the required `EvalContext` field is absent (`undefined`).
+  This replaces `'not-implemented-yet'` for arms that are implemented
+  but require a chain-state Context that the caller did not supply.
+  Corpus eval with a synthetic-empty context produces this code;
+  it is counted in the `not-impl` bucket by `corpus-eval.test.ts`.
+  Message includes the arm name and the missing field.
+
+- **`'get-var-type-mismatch'`** — `GetVar` found a context-extension
+  entry at the requested `varId` but its stored `tpe` (on the
+  `{ tpe, value }` entry in `ctx.extension.values`) did not match the
+  arm's declared `var_tpe`. Mirrors sigma-rust `get_var.rs:22-35`
+  `EvalError::TryExtractFrom`. Message includes the varId, expected
+  type tag, and stored type tag.
+
+- **`'option-empty'`** — `OptionGet` was called on an `Option` value
+  whose `value === null` (i.e., `None`). Mirrors sigma-rust
+  `option_get.rs:21` `EvalError::NotFound`. Message: "OptionGet:
+  called on None".
+
+- **`'option-input-not-option'`** — `OptionGet`, `OptionIsDefined`, or
+  `OptionGetOrElse` received an input `SValue` whose `kind !== 'Option'`.
+  Wire-format invariants make this unreachable for parser-produced trees
+  (sigma-rust's type checker gates it at construction); defensive
+  against `ConstantPlaceholder` injection. Mirrors sigma-rust
+  `EvalError::UnexpectedExpr`. Message includes the actual kind.
+
+- **`'select-field-index-out-of-range'`** — `SelectField.fieldIndex`
+  (1-based) resolved to a zero-based index outside `[0, items.length)`.
+  sigma-rust's `SelectField::new` rejects OOB at construction time, so
+  this code is unreachable from parser-produced trees; defensive against
+  hand-built MIR. Mirrors sigma-rust `EvalError::NotFound`. Message
+  includes the fieldIndex and tuple length.
+
+- **`'select-field-input-not-tuple'`** — `SelectField` received an
+  input `SValue` whose `kind !== 'Tuple'`. Defensive posture matching
+  LogicalNot / BoolToSigmaProp precedent from phase 2c. Mirrors
+  sigma-rust `EvalError::UnexpectedValue`. Message includes the actual
+  kind.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
 ### Coverage and stability
 
-- **27 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f narrow complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; full unlock waits for `GlobalVars` / `GetVar` (phase 2f medium) and method-call dispatch (phase 2g).
+- **33 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2f medium complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; `'context-field-missing'` is tolerated in the not-impl bucket (corpus runs without chain state). Full unlock waits for method-call dispatch (phase 2g).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
-- **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number` (now live). Phase 2f introduces chain-state fields (`height`, `selfBox`, `inputs`, `outputs`, `dataInputs`, `preHeader`, `headers`, `extension`); they will be added as optional properties so existing callers remain source-compatible.
+- **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added `height?: number`, `selfBox?: ErgoBox`, `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`, `preHeader?: PreHeader`, `extension?: ContextExtension` — all optional, all live. Phase 2g may add `headers` and `dataInputs` when Header / AvlTree arms land.
 - **No new runtime dependencies** in v0.2.0. Phase 2g (sigma protocol) introduces `@noble/curves`; that's the next dep wave.
 
 ## Cross-references

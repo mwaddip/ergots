@@ -149,6 +149,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/option-get-or-else.json", &option_get_or_else_fixture)?;
     let option_is_defined_fixture = cmds::ergoscript::eval::option_is_defined::generate()?;
     write_ergoscript_json("eval/option-is-defined.json", &option_is_defined_fixture)?;
+    let select_field_fixture = cmds::ergoscript::eval::select_field::generate()?;
+    write_ergoscript_json("eval/select-field.json", &select_field_fixture)?;
 
     Ok(())
 }

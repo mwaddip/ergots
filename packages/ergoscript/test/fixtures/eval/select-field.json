@@ -1,0 +1,58 @@
+{
+  "corpus": "eval_select_field",
+  "entries": [
+    {
+      "name": "select_field_first_of_pair",
+      "tree_bytes_hex": "008c8602040a04c60101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 5
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "select_field_second_of_pair",
+      "tree_bytes_hex": "008c8602040a04c60102",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 99
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "select_field_creation_info_height",
+      "tree_bytes_hex": "008cc7a701",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 0
+      },
+      "expected_cost": 36,
+      "expected_error_code": null
+    },
+    {
+      "name": "select_field_cost_limit",
+      "tree_bytes_hex": "008c8602040a04c60101",
+      "opts_json": {
+        "jitCostLimit": 8
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}
