@@ -161,6 +161,30 @@
       "expected_value_json": null,
       "expected_cost": 0,
       "expected_error_code": "cost-limit-exceeded"
+    },
+    {
+      "name": "coll_map_elem_tpe_mismatch",
+      "tree_bytes_hex": "00ad10020204d90101057201",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-elem-tpe-mismatch"
+    },
+    {
+      "name": "coll_map_lambda_not_callable",
+      "tree_bytes_hex": "00ad10030204060454",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-not-callable"
+    },
+    {
+      "name": "coll_map_lambda_result_type_mismatch",
+      "tree_bytes_hex": "00ad10020204d901010495937201040272010101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-result-type-mismatch"
     }
   ]
 }

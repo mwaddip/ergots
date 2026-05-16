@@ -31,30 +31,42 @@
 //! (Costs above are the arm-only contributions; sigma-rust's try_eval_out
 //!  includes FuncValue(5) + other fixed costs from child exprs too.)
 //!
-//! Fixture entries (8 real + cost-limit):
-//!   1. coll_map_happy        — [1,2,3,4].map(x => x + 1) → [2,3,4,5]
-//!   2. coll_map_empty        — [].map(x => x + 1)        → []  (outer cost only, n=0)
-//!   3. coll_map_sg_n5        — [0..5].map(x => x)        → [0..5]  (n=5, outer=21)
-//!   4. coll_map_sg_n12       — [0..12].map(x => x)       → [0..12] (n=12, outer=22)
+//! Fixture entries (9 total: 4 success + 1 cost-limit + 4 error):
+//!   1. coll_map_happy                    — [1,2,3,4].map(x => x + 1) → [2,3,4,5]
+//!   2. coll_map_empty                    — [].map(x => x + 1)        → []  (outer cost only, n=0)
+//!   3. coll_map_sg_n5                    — [0..5].map(x => x)        → [0..5]  (n=5, outer=21)
+//!   4. coll_map_sg_n12                   — [0..12].map(x => x)       → [0..12] (n=12, outer=22)
 //!      (entries 3+4 prove outer cost changes: n=5 → 21, n=12 → 22)
-//!   5. coll_map_not_coll     — Map(Const(SInt,42), mapper) → 'coll-input-not-coll'
+//!   5. coll_map_not_coll                 — Map(Const(SInt,42), mapper) → 'coll-input-not-coll'
 //!      (synthetic: Map::new validates, so raw bytes needed)
-//!   6. coll_map_cost_limit   — jitCostLimit too low → 'cost-limit-exceeded'
+//!   6. coll_map_cost_limit               — jitCostLimit too low → 'cost-limit-exceeded'
+//!   7. coll_map_elem_tpe_mismatch        — Coll[Int].map(x:Long=>x) → 'coll-elem-tpe-mismatch'
+//!      (synthetic: Map struct direct with mismatched mapper_sfunc.t_dom)
+//!   8. coll_map_lambda_not_callable      — Map(Coll[Int], Const(42)) → 'lambda-not-callable'
+//!      (synthetic: raw bytes — Map::new requires mapper to be SFunc)
+//!   9. coll_map_lambda_result_type_mismatch — [1,2].map(x => if(x==1){x}{true}) → 'lambda-result-type-mismatch'
+//!      (If body: true-branch SInt, false-branch Boolean; exprTpe → SInt; runtime x=2 returns Boolean)
 //!
-//! Entries 5 uses raw bytes to bypass Map::new type validation.
+//! Entries 5, 8 use raw bytes to bypass Map::new type validation.
+//! Entry 7 uses Map struct direct construction (fields are pub) to set mapper_sfunc.t_dom
+//!   to SLong while the input is Coll[Int], forcing 'coll-elem-tpe-mismatch'.
+//! Entry 9 uses an If body (If::tpe = true-branch type = SInt) with a false branch
+//!   that returns Boolean at runtime, triggering 'lambda-result-type-mismatch' on item 2.
 //! MAP opcode = LAST_CONSTANT_CODE(112) + new_op_code(61) = 173 = 0xAD
 
 use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
 use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::bin_op::{ArithOp, BinOp, BinOpKind};
+use ergotree_ir::mir::bin_op::{ArithOp, BinOp, BinOpKind, RelationOp};
 use ergotree_ir::mir::coll_map::Map;
+use ergotree_ir::mir::if_op::If;
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::func_value::{FuncArg, FuncValue};
 use ergotree_ir::mir::val_def::ValId;
 use ergotree_ir::mir::val_use::ValUse;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::sfunc::SFunc;
 use ergotree_ir::types::stype::SType;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
@@ -235,6 +247,141 @@ pub fn generate() -> anyhow::Result<CollMapFixtureFile> {
         let body: Expr = Expr::ValUse(ValUse { val_id: ValId(1), tpe: SType::SInt });
         let expr = build_map(coll, SType::SInt, body)?;
         entries.push(cost_limit_entry("coll_map_cost_limit", expr, 1)?);
+    }
+
+    // ── 7. coll_map_elem_tpe_mismatch ────────────────────────────────────────
+    // Coll[Int].map((x: Long) => x) → 'coll-elem-tpe-mismatch'
+    //
+    // The input is Coll[Int] but the mapper_sfunc.t_dom[0] is SLong. This
+    // triggers the check in sigma-rust coll_map.rs:46-64 (and the new TS check
+    // added in phase-2f gap-fix).
+    //
+    // Map::new rejects type mismatches, so we construct Map directly.
+    // We do NOT call sigma-rust try_eval_out — it would return EvalError.
+    {
+        let coll: Expr = Expr::Const(vec![1i32, 2i32].into()); // Coll[Int]
+        // Mapper: FuncValue((x: Long) => x). The FuncArg declares SLong.
+        let mapper: Expr = FuncValue::new(
+            vec![FuncArg { idx: ValId(1), tpe: SType::SLong }],
+            Expr::ValUse(ValUse { val_id: ValId(1), tpe: SType::SLong }),
+        )
+        .into();
+        // Build Map directly (bypassing Map::new validation) with mapper_sfunc
+        // that has t_dom[0]=SLong — this mismatches input elem SInt.
+        let map_expr: Expr = Map {
+            input: Box::new(coll),
+            mapper: Box::new(mapper),
+            mapper_sfunc: SFunc::new(vec![SType::SLong], SType::SLong),
+        }
+        .into();
+        let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &map_expr)?;
+        let hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+        entries.push(CollMapFixture {
+            name: "coll_map_elem_tpe_mismatch".into(),
+            tree_bytes_hex: hex,
+            opts_json: json!({}),
+            expected_value_json: json!(null),
+            expected_cost: 0,
+            expected_error_code: json!("coll-elem-tpe-mismatch"),
+        });
+    }
+
+    // ── 8. coll_map_lambda_not_callable ──────────────────────────────────────
+    // Map(Coll[Int], Const(SInt, 42)) → 'lambda-not-callable'
+    //
+    // Mapper is a Const (not a FuncValue) so evaluating it yields an Int SValue,
+    // which extractFuncValue rejects as non-Lambda.
+    //
+    // Map::new requires mapper.tpe() == SFunc, so Const(SInt,42) is rejected at
+    // construction time. We use raw bytes (MAP opcode) to bypass this.
+    //
+    // Raw layout:
+    //   [0x00]  header v0(false)
+    //   [0xAD]  MAP opcode (= 112 + 61)
+    //   [coll_bytes]    Const(Coll[Int], [1,2,3])
+    //   [const_bytes]   Const(SInt, 42)
+    //
+    // We do NOT call sigma-rust try_eval_out — it would error.
+    {
+        let coll: Expr = Expr::Const(vec![1i32, 2i32, 3i32].into());
+        let const_mapper: Expr = Expr::Const(42i32.into());
+
+        let coll_bytes = coll.sigma_serialize_bytes()?;
+        let const_bytes = const_mapper.sigma_serialize_bytes()?;
+
+        let mut tree_bytes = Vec::new();
+        tree_bytes.push(0x00u8); // ErgoTreeHeader v0(false)
+        tree_bytes.push(0xADu8); // MAP opcode
+        tree_bytes.extend_from_slice(&coll_bytes);
+        tree_bytes.extend_from_slice(&const_bytes);
+
+        entries.push(CollMapFixture {
+            name: "coll_map_lambda_not_callable".into(),
+            tree_bytes_hex: hex::encode(&tree_bytes),
+            opts_json: json!({}),
+            expected_value_json: json!(null),
+            expected_cost: 0,
+            expected_error_code: json!("lambda-not-callable"),
+        });
+    }
+
+    // ── 9. coll_map_lambda_result_type_mismatch ──────────────────────────────
+    // [1, 2].map(x => if (x == 1) { x } else { true }) → 'lambda-result-type-mismatch'
+    //
+    // The mapper body is `If(x==1, x, true)`. Its compile-time type (true-branch type)
+    // is SInt (since `If::tpe` returns the true-branch type and `ValUse(1,SInt)` → SInt).
+    // `FuncValue::new` computes `t_range = SInt`, so `mapper_sfunc.t_range = SInt`.
+    //
+    // At eval time:
+    //   - item x=1: condition true  → returns Int(1)  → type SInt = outElemTpe → OK
+    //   - item x=2: condition false → returns Boolean(true) → type SBoolean ≠ SInt → THROWS
+    //
+    // The TS port derives `outElemTpe = exprTpe(FuncValue).result = exprTpe(If).result
+    //   = exprTpe(trueBranch) = SInt`. The runtime mismatch on the false branch triggers
+    // 'lambda-result-type-mismatch'.
+    //
+    // Map::new validates mapper type against input elem: t_dom=[SInt], input=Coll[Int] → OK.
+    // We do NOT call sigma-rust try_eval_out — it would error because sigma-rust's
+    // CollKind::from_collection(SInt, [Int(1), Boolean(true)]) would fail.
+    {
+        let coll: Expr = Expr::Const(vec![1i32, 2i32].into()); // Coll[Int]
+        let x_use: Expr = Expr::ValUse(ValUse { val_id: ValId(1), tpe: SType::SInt });
+        // condition: x == 1
+        let condition: Expr = BinOp {
+            kind: BinOpKind::Relation(RelationOp::Eq),
+            left: Box::new(x_use.clone()),
+            right: Box::new(Expr::Const(1i32.into())),
+        }
+        .into();
+        // body: if (x == 1) { x } else { true }
+        // If::tpe() = true_branch.tpe() = SInt (ValUse tpe)
+        // false_branch = Const(true) = Boolean at runtime — type mismatch!
+        let body: Expr = If {
+            condition: Box::new(condition),
+            true_branch: Box::new(x_use),
+            false_branch: Box::new(Expr::Const(true.into())),
+        }
+        .into();
+        // FuncValue::new computes t_range = body.tpe() = If::tpe() = SInt
+        // TS exprTpe(FuncValue) → SFunc { result: SInt } → outElemTpe = SInt
+        let mapper: Expr = FuncValue::new(
+            vec![FuncArg { idx: ValId(1), tpe: SType::SInt }],
+            body,
+        )
+        .into();
+        // Map::new validates t_dom[0] == input_elem SInt → OK, accepts the mapper.
+        let expr: Expr = Map::new(coll, mapper)?.into();
+        let (_tree, hex) = build_tree(expr)?;
+
+        entries.push(CollMapFixture {
+            name: "coll_map_lambda_result_type_mismatch".into(),
+            tree_bytes_hex: hex,
+            opts_json: json!({}),
+            expected_value_json: json!(null),
+            expected_cost: 0,
+            expected_error_code: json!("lambda-result-type-mismatch"),
+        });
     }
 
     Ok(CollMapFixtureFile {
