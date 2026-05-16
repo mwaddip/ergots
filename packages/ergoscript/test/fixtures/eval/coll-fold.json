@@ -1,0 +1,94 @@
+{
+  "corpus": "eval_coll_fold",
+  "entries": [
+    {
+      "name": "coll_fold_happy_sum",
+      "tree_bytes_hex": "00b01004020406080400d90101589a8c7201018c720102",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 10
+      },
+      "expected_cost": 219,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_fold_multiply",
+      "tree_bytes_hex": "00b010030204060402d90101589c8c7201018c720102",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 6
+      },
+      "expected_cost": 169,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_fold_empty",
+      "tree_bytes_hex": "00b010000454d90101589a8c7201018c720102",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 42
+      },
+      "expected_cost": 18,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_fold_byte_coll",
+      "tree_bytes_hex": "00b00e030a14050200d90101569a8c7201018c720102",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 35
+      },
+      "expected_cost": 169,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_fold_sg_n12",
+      "tree_bytes_hex": "00b0100c00020406080a0c0e101214160400d90101589a8c7201018c720102",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 66
+      },
+      "expected_cost": 620,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_fold_lambda_not_callable",
+      "tree_bytes_hex": "00b0100302040604000101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-not-callable"
+    },
+    {
+      "name": "coll_fold_lambda_result_type_mismatch",
+      "tree_bytes_hex": "00b0100202040400d90101580101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-result-type-mismatch"
+    },
+    {
+      "name": "coll_fold_not_coll",
+      "tree_bytes_hex": "00b004540400d90101589a8c7201018c720102",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    },
+    {
+      "name": "coll_fold_cost_limit_exceeded",
+      "tree_bytes_hex": "00b010030204060400d90101589a8c7201018c720102",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}
