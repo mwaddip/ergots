@@ -158,8 +158,7 @@ pub fn generate() -> anyhow::Result<CollSizeFixtureFile> {
     // ── 4. coll_size_nested_2 ─────────────────────────────────────────────────
     // SizeOf(Coll[Coll[Byte]]([inner1, inner2])) → Int(2)
     // inner1 = Coll[Byte]([0]); inner2 = Coll[Byte]([1, 2])
-    // Cost: 14 (SizeOf) + 20 (outer Coll) + 2×(20+5+5) (inner Coll + Const items)
-    //       = 14 + 20 + 50 + 25 = 109 (actual from sigma-rust oracle)
+    // Cost: oracle-recorded (ctx.jit_cost_value()).
     {
         let inner1: Expr = Collection::new(
             SType::SByte,

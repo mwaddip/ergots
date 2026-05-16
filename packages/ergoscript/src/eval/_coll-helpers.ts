@@ -28,7 +28,7 @@ import { EvalError } from './eval-context'
 /**
  * Assert that `v` is a `Coll` SValue and return its runtime view.
  *
- * Used by `coll-size-of.ts`, `coll-append.ts` (×2), `coll-by-index.ts`,
+ * Used by `coll-size.ts`, `coll-append.ts` (×2), `coll-by-index.ts`,
  * `coll-slice.ts`, `coll-map.ts`, `coll-filter.ts`, `coll-fold.ts`,
  * `coll-exists.ts`, `coll-forall.ts` (9 callers).
  *

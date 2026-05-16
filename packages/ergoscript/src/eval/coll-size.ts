@@ -19,6 +19,11 @@ import type { EvalContext } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems } from './_coll-helpers'
 
+// Cost source: sigma-rust eval/coll_size.rs:15
+//   ctx.add_jit_cost(14)?;
+// Pattern A (envelope BEFORE eval-child).
+const COLL_SIZE_COST = 14
+
 /**
  * Evaluate a `SizeOf` node. Pattern A: cost charged before eval-child.
  *
@@ -26,9 +31,7 @@ import { extractCollItems } from './_coll-helpers'
  * @throws EvalError `'coll-input-not-coll'` if the input does not evaluate to a Coll.
  */
 export function evalSizeOf(e: SizeOf, env: Env, ctx: EvalContext): SValue {
-  // Pattern A: charge cost BEFORE evaluating the child.
-  // Sigma-rust: ctx.add_jit_cost(14)? at line 15, before self.input.eval at line 16.
-  ctx.addCost(14)
+  ctx.addCost(COLL_SIZE_COST)
   const inputVal = evalExpr(e.input, env, ctx)
   const { items } = extractCollItems(inputVal)
   return { kind: 'Int', value: items.length }
