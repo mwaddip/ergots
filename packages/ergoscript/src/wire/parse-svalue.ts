@@ -224,12 +224,10 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       // Inline `Const(SSigmaProp, _)` is the canonical wire form for P2PK
       // ErgoTrees (the address `9f…` form deserializes to a tree whose
       // body is `Const(SSigmaProp, ProveDlog(EcPoint))`). The value
-      // parser delegates to `parseSigmaBoolean`, which stores the
-      // sigma-protocol tree as opaque bytes. Structural decode of the
-      // tree shape (Cand/Cor/Cthreshold composition) is deferred to the
-      // phase that actually evaluates sigma protocols; the raw-bytes
-      // representation is sufficient for round-trip and for the
-      // P2PK-shape check in `src/address.ts`.
+      // parser delegates to `parseSigmaBoolean`, which returns the
+      // structural 6-variant SigmaBoolean discriminated union
+      // (TrivialProp / ProveDlog / ProveDhTuple / Cand / Cor / Cthreshold)
+      // — see phase 2g-medium.
       return { kind: 'SigmaProp', value: parseSigmaBoolean(r) }
 
     case 'SBox': {
