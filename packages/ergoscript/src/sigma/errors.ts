@@ -28,4 +28,8 @@ export type VerifyErrorCode =
   | 'empty-signature'
   | 'truncated-signature'
   | 'point-not-on-curve'
+  // 'scalar-out-of-range' is declared but currently not thrown — `scalarFromBytes`
+  // reduces mod n silently (matching sigma-rust's `Scalar::reduce_bytes` posture
+  // at `wscalar.rs:60-67`). Reserved for a future slice that wants to surface
+  // raw-bytes-≥-n as a typed throw per Decision #6 in the design spec.
   | 'scalar-out-of-range'

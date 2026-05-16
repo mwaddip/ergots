@@ -3,8 +3,13 @@
 //! Produces three fixture files consumed by
 //! `packages/ergoscript/test/sigma/verifier.test.ts`:
 //!
-//! - `verifier-positive.json` — real (sb, msg, sig) triples signed by
-//!   sigma-rust's deterministic-nonce `TestProver`. Each must verify true.
+//! - `verifier-positive.json` — real (sb, msg, sig) triples constructed
+//!   with manual deterministic signing (bypassing sigma-rust's `TestProver`,
+//!   which uses OS randomness via `interactive_prover::first_message`).
+//!   Each triple is then cross-validated against sigma-rust's own
+//!   `verify_signature` at fixture-gen time before being written, so the
+//!   reference verifier must accept every emitted signature. Each must
+//!   verify true in TS.
 //! - `verifier-reject.json` — well-formed but rejected inputs
 //!   (TrivialProp(false), conjecture inputs, empty / truncated proofs).
 //! - `verifier-mutation.json` — 56 byte-flip mutations of a baseline
@@ -12,12 +17,13 @@
 //!
 //! Determinism: every secret and pk is constructed from a hardcoded
 //! 32-byte seed via `DlogProverInput::from_bytes` (and the equivalent for
-//! DhTuple). This avoids the non-deterministic `random()` path used by
-//! sigma-rust's `Arbitrary` impl.
+//! DhTuple). The nonce `r` in each Schnorr signature is derived
+//! deterministically from `blake2b256(domain || w_bytes || msg)` (see
+//! `verifier_positive.rs`). No OS randomness in the fixture-gen path.
 //!
 //! Source: ergotree-interpreter/src/sigma_protocol/verifier.rs:91-125,
-//!         ergotree-interpreter/src/sigma_protocol/prover.rs:135-178
-//!         (deterministic nonce: dlog_protocol.rs:113-149).
+//!         dlog_protocol.rs:113-184 (Schnorr equation),
+//!         dht_protocol.rs:132-157 (DH-tuple two-commitment).
 
 pub mod verifier_positive;
 pub mod verifier_reject;
