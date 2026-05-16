@@ -34,26 +34,26 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `ForAll`. `Exists` was wired
-// in Task 9 (phase 2f Coll HOFs), so it no longer falls through to
-// `not-implemented-yet`. `ForAll` is the next unwired Coll HOF arm and
+// A tree whose body is an unported variant — `Xor`. `ForAll` was wired
+// in Task 10 (phase 2f Coll HOFs), so it no longer falls through to
+// `not-implemented-yet`. `Xor` is an unwired byte-array XOR variant and
 // keeps falling through until its own per-arm task lands.
-const treeWithForAllBody = (): ErgoTree => {
-  const innerColl = {
-    tag: 'Const' as const,
-    tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
-    value: { kind: 'Coll' as const, elem: { tag: 'SInt' as const }, items: [] },
-  }
-  const conditionExpr = {
+const treeWithXorBody = (): ErgoTree => {
+  const leftExpr = {
     tag: 'Const' as const,
     tpe: { tag: 'SBoolean' as const },
     value: { kind: 'Boolean' as const, value: true },
+  }
+  const rightExpr = {
+    tag: 'Const' as const,
+    tpe: { tag: 'SBoolean' as const },
+    value: { kind: 'Boolean' as const, value: false },
   }
   return {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'ForAll', input: innerColl, condition: conditionExpr },
+    body: { tag: 'Xor', left: leftExpr, right: rightExpr },
   }
 }
 
@@ -77,8 +77,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. ForAll)', () => {
-    const err = captureEvalError(() => evaluate(treeWithForAllBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. Xor)', () => {
+    const err = captureEvalError(() => evaluate(treeWithXorBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -91,9 +91,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (ForAll not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Xor not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithForAllBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithXorBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })

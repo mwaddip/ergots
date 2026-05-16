@@ -28,6 +28,7 @@ import { evalAppend } from './coll-append'
 import { evalByIndex } from './coll-by-index'
 import { evalExists } from './coll-exists'
 import { evalFilter } from './coll-filter'
+import { evalForAll } from './coll-forall'
 import { evalFold } from './coll-fold'
 import { evalMap } from './coll-map'
 import { evalSlice } from './coll-slice'
@@ -118,6 +119,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalExtractScriptBytes(e, env, ctx)
     case 'Exists':
       return evalExists(e, env, ctx)
+    case 'ForAll':
+      return evalForAll(e, env, ctx)
     case 'Filter':
       return evalFilter(e, env, ctx)
     case 'Fold':

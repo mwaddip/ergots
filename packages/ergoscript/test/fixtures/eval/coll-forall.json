@@ -1,0 +1,102 @@
+{
+  "corpus": "eval_coll_forall",
+  "entries": [
+    {
+      "name": "coll_forall_happy",
+      "tree_bytes_hex": "00af1003020406d90101049172010400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 119,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_forall_sg_full_outer_cost",
+      "tree_bytes_hex": "00af0de807feffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd90101017201",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 123,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_forall_some_fail",
+      "tree_bytes_hex": "00af1003020406d90101049172010400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 119,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_forall_empty",
+      "tree_bytes_hex": "00af0d00d90101010100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 13,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_forall_sg_n12",
+      "tree_bytes_hex": "00af0d0cff0fd90101017201",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 135,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_forall_elem_tpe_mismatch",
+      "tree_bytes_hex": "00af10020204d90101050101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-elem-tpe-mismatch"
+    },
+    {
+      "name": "coll_forall_lambda_not_callable",
+      "tree_bytes_hex": "00af10030204060101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-not-callable"
+    },
+    {
+      "name": "coll_forall_lambda_result_type_mismatch",
+      "tree_bytes_hex": "00af10020402d901010495937201040201017201",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-result-type-mismatch"
+    },
+    {
+      "name": "coll_forall_not_coll",
+      "tree_bytes_hex": "00af0454d90101040101",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "coll-input-not-coll"
+    },
+    {
+      "name": "coll_forall_cost_limit",
+      "tree_bytes_hex": "00af1003020406d90101040101",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}
