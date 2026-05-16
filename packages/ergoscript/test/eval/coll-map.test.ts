@@ -23,7 +23,7 @@
  *   - This mirrors sigma-rust's mutable env.insert + env.remove dance
  *     (coll_map.rs:30-38) but without save/restore overhead.
  *
- * Fixture entries (6):
+ * Fixture entries (9):
  *   1. coll_map_happy      — [1,2,3,4].map(x => x+1) → [2,3,4,5]
  *   2. coll_map_empty      — [].map(x => x+1) → []   (outer cost only, n=0)
  *   3. coll_map_sg_n5      — [0..5].map(x=>x) → [0..5]  (outer=21)
@@ -31,6 +31,9 @@
  *      (entries 3+4: outer cost 21 vs 22 — proves chunked outer)
  *   5. coll_map_not_coll   — Map(Int, mapper) → 'coll-input-not-coll'
  *   6. coll_map_cost_limit — cost-limit-exceeded
+ *   7. coll_map_elem_tpe_mismatch        — Coll[Int] × lambda t_dom: SLong → 'coll-elem-tpe-mismatch'
+ *   8. coll_map_lambda_not_callable      — mapper is Const(SInt,42) → 'lambda-not-callable'
+ *   9. coll_map_lambda_result_type_mismatch — If body t=SInt but false-branch=Boolean → 'lambda-result-type-mismatch'
  *
  * Smoking-gun test (live-eval):
  *   Compare entries 3 and 4 extracted costs to verify outer cost changes
