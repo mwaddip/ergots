@@ -22,4 +22,10 @@ export { evaluate, evaluateWith } from './eval/evaluate'
 export { makeContext, EvalError } from './eval/eval-context'
 export type { EvalOpts, EvalContext } from './eval/eval-context'
 
+// Phase 2g-medium — leaf-only sigma-protocol verifier surface.
+export { verifySignature } from './sigma/verifier'
+export { VerifyError } from './sigma/errors'
+export type { VerifyErrorCode } from './sigma/errors'
+export type { SigmaBoolean } from './mir/types'
+
 export const VERSION = '0.2.0'

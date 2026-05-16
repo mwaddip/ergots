@@ -186,5 +186,20 @@ fn main() -> anyhow::Result<()> {
         cmds::ergoscript::eval::p2pk_short_circuit::generate()?;
     write_ergoscript_json("eval/p2pk-short-circuit.json", &p2pk_short_circuit_fixture)?;
 
+    // Phase 2g-medium Task 6: leaf-only sigma-protocol verifier fixtures.
+    std::fs::create_dir_all(ergoscript_fixtures_dir().join("verify"))?;
+    write_ergoscript_json(
+        "verify/verifier-positive.json",
+        &cmds::ergoscript::verify::verifier_positive::generate()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-reject.json",
+        &cmds::ergoscript::verify::verifier_reject::generate()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-mutation.json",
+        &cmds::ergoscript::verify::verifier_mutation::generate()?,
+    )?;
+
     Ok(())
 }

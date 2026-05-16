@@ -44,7 +44,7 @@ fn ec_point_to_hex(p: &EcPoint) -> String {
     hex::encode(p.sigma_serialize_bytes().expect("EcPoint serialize"))
 }
 
-fn sigma_boolean_to_json(sb: &SigmaBoolean) -> serde_json::Value {
+pub fn sigma_boolean_to_json(sb: &SigmaBoolean) -> serde_json::Value {
     // Match the TS discriminated-union shape: { tag: '...', ...fields }.
     match sb {
         SigmaBoolean::TrivialProp(b) => serde_json::json!({

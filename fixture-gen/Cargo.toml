@@ -50,3 +50,7 @@ num-traits = "0.2"
 # `TestRunner::deterministic()` (fixed seed) for the mainnet_boxes corpus.
 # Pinned to the version sigma-rust transitively pulls in.
 proptest = "1.6"
+# Phase 2g-medium Task 6 verifier fixtures construct deterministic
+# DlogProverInput / DhTupleProverInput secrets directly from 32-byte seeds.
+# Pinned to the same version the sigma-rust workspace uses (Cargo.toml:41).
+k256 = { version = "0.13.1", default-features = false, features = ["arithmetic", "ecdsa"] }

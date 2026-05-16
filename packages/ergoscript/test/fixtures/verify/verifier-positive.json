@@ -1,0 +1,120 @@
+{
+  "description": "V1 positive verifier fixtures (phase 2g-medium Task 6) — manually-signed (sb, msg, sig) triples using sigma-rust public primitives with deterministic nonces. Each signature is self-checked via the verifier's commitment-recovery equation (G^z * inverse(pk^e) == a) before write.",
+  "entries": [
+    {
+      "name": "prove-dlog-0",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dlog-1",
+      "sigma_boolean_json": {
+        "h": "023f42fa3d337544873ae9ba4a33a4687226c9fc1b1f5b303d7223aee6f9ca93c2",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "61",
+      "signature_hex": "96dd68ed2bca42b17f1abb0a0e2f3d8c4309cf4a07f63bee7ca8cbbd9aa68717e7cb5c8f2d3c087c7762b8fdbf56f37576678ba8b277982b",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dlog-2",
+      "sigma_boolean_json": {
+        "h": "0282e85ab75239247d13597a19037207d5f641b582b9d152ea24600a9e2be8218e",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "616263646566",
+      "signature_hex": "00476ff856950502f2aa94d89b2346c109441d0ac28c382eb602cbdfa34e254e009ff81a2328af1a7dd9103269a1d4a2a838949f05fcbb69",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dlog-3",
+      "sigma_boolean_json": {
+        "h": "0339d42764a6dff3e2aad932b1dd9897721de0bdf53f057b751e5a1a30e5957d1f",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "signature_hex": "741b316c535166cc247e97c08599fdb0aef8660c045fd72052a035a89c782e4cf590e9c1cf5837170ee29cb6e1e00c37d9f71ed7a54e9f13",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dlog-4",
+      "sigma_boolean_json": {
+        "h": "028f2632a221f07a6f0c30b91295981ced7f1faa2a25d8619d2372db2b53797603",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature_hex": "f1e2dbf5d531cfaf66b6404939ab20bf31f29ac71c16142684d5c809cfe6b5e6c36b42431973953864e4f0f7d57b95f55e2523be4be78efb",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dh-tuple-0",
+      "sigma_boolean_json": {
+        "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "h": "02bf0b5a39ab886b61424f5d0f4fad15a1d7f0c56bf99bb826718d3955ab8b6e43",
+        "tag": "ProveDhTuple",
+        "u": "02d57c7085d23784872f2d9a3bce570d6dd373da6ae9eacefdb7700333ae2ca858",
+        "v": "037a54531285a2c71ac40c40e126da4f165d3f41e57d2021ef5d232978f8202781"
+      },
+      "message_hex": "",
+      "signature_hex": "ee4fed4a99b5297bfab87746b3d65f04dfda42f388bb4f1a77a9cdf35e4ebabc8f56e611273215b8981c51313b6a4465ebb47aa0f0bf1400",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dh-tuple-1",
+      "sigma_boolean_json": {
+        "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "h": "03a0502bde472c8285551a6b4fa3390a26551c1d41c48a7a45b61cb8adf9ca7195",
+        "tag": "ProveDhTuple",
+        "u": "03d8cfeb298b69a5ad4767196e2c977dcfd6c7265ab4e1500333ed11f48abd6d3e",
+        "v": "033361d71d95aae585f2a15bc5680f537144dc505859ea9e5fb0288a67a20c313a"
+      },
+      "message_hex": "78",
+      "signature_hex": "3fbde8e872aea133e40b4113e8e4188397147b7e1c6fa693cd178e60f884c18d374d8accc8a559212da89d777d9419686bec3512c324b4fd",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dh-tuple-2",
+      "sigma_boolean_json": {
+        "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "h": "024b32c50970b502047b4664b73cd1e91f8db721d5256bd496b91d66fad277f7ad",
+        "tag": "ProveDhTuple",
+        "u": "0275572cd0db7d889a5a6322d0e7caf9299a2ac3bba0cc0972db77caea1c645e38",
+        "v": "030f648b198867129dc5fc8676a3e8aa3822736ba09b946d0aea0ea7ba34aa0132"
+      },
+      "message_hex": "68656c6c6f2d646874",
+      "signature_hex": "f9718b39f604b3dc23c397536983921678f4de0bdf3e48c8b67f9ec9c4ec9d7de7637cbe99c5981b3223b8ceb8dbb150ae34002451646dff",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dh-tuple-3",
+      "sigma_boolean_json": {
+        "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "h": "03f3248a503a464b2b56d72020f25f0b6bc2993c6c71e54623ea48ccb36c2bfd81",
+        "tag": "ProveDhTuple",
+        "u": "0312b54a20d469e63197652d2996c58dc38fec9c732ad7de0440d21ec9dff373ec",
+        "v": "03c1aee52a8d3697ebb0c7e896fce70a135f2640b6b4188bcd6331c2967b31ed62"
+      },
+      "message_hex": "00000000000000000000000000000000",
+      "signature_hex": "07febec02b6d0e148e2737fc70507152f8f88ebd6553bc8de39c6efda9b7654cd39270ac9e6bed17843ab636f21190356ce3ef27e9aad47d",
+      "expected_result": true
+    },
+    {
+      "name": "prove-dh-tuple-4",
+      "sigma_boolean_json": {
+        "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "h": "02f1b9b8a329892dd9f8b86ada6969dea56f014a98e32a3af378bbc53ae41604ab",
+        "tag": "ProveDhTuple",
+        "u": "03aeeaff6ae96d56e606d7057bf3a30f6c06aff1ceff51a91834069961bdbcd54e",
+        "v": "027be84e787b0d01f1c4debc3013a7d757da1db6915edfff45f200a38ae8014658"
+      },
+      "message_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "signature_hex": "6d4eaa87aa1dd0e51af810535f91ada630447bbca9044ce40ff111f840b1d5b0f0ebb12d41780f691193663cf2b8811b14272d245d666671",
+      "expected_result": true
+    }
+  ]
+}

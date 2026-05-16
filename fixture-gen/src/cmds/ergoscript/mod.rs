@@ -32,4 +32,5 @@ pub mod mainnet_boxes;
 pub mod synthetic_expr;
 pub mod synthetic_stype;
 pub mod synthetic_svalue;
+pub mod verify;
 pub mod wire;

@@ -1,0 +1,622 @@
+{
+  "description": "V2 byte-flip mutation fixtures (phase 2g-medium Task 6). Baseline ProveDlog from verifier_positive::build_baseline_triple — 56 single-byte-flip variants. The verifier must return false or throw VerifyError on every entry; returning true is a vulnerability.",
+  "baseline_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+  "entries": [
+    {
+      "name": "flip-byte-00",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "9176772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 0,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-01",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e89772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 1,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-02",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76882204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 2,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-03",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e7677dd04b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 3,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-04",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e767722fbb960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 4,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-05",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e767722044660a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 5,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-06",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b99fa58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 6,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-07",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b9605a8dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 7,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-08",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a572d4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 8,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-09",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58d2b344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 9,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-10",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4cb4339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 10,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-11",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd434bc39d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 11,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-12",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd43443c6d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 12,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-13",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd43443392b29915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 13,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-14",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d4d6915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 14,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-15",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d4296e5ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 15,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-16",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d42991a2dbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 16,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-17",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915d24e1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 17,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-18",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddb1ea7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 18,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-19",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe158cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 19,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-20",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a730f9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 20,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-21",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cf06b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 21,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-22",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9489f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 22,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-23",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b76019ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 23,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-24",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79fe6ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 24,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-25",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f195351f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 25,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-26",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19acaef5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 26,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-27",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac510af4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 27,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-28",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f50bc1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 28,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-29",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f43ecb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 29,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-30",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1344becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 30,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-31",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cbb4ecaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 31,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-32",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4b13aa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 32,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-33",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4bec5577007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 33,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-34",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa88007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 34,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-35",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77ff7a9cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 35,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-36",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa7700859cef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 36,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-37",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a63ef879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 37,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-38",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9c10879c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 38,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-39",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef789c1cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 39,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-40",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef87631cea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 40,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-41",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879ce3ea3d822d37ec8cbe0acbcea88572",
+      "flip_offset": 41,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-42",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1c153d822d37ec8cbe0acbcea88572",
+      "flip_offset": 42,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-43",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1ceac2822d37ec8cbe0acbcea88572",
+      "flip_offset": 43,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-44",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d7d2d37ec8cbe0acbcea88572",
+      "flip_offset": 44,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-45",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d82d237ec8cbe0acbcea88572",
+      "flip_offset": 45,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-46",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822dc8ec8cbe0acbcea88572",
+      "flip_offset": 46,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-47",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37138cbe0acbcea88572",
+      "flip_offset": 47,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-48",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec73be0acbcea88572",
+      "flip_offset": 48,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-49",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8c410acbcea88572",
+      "flip_offset": 49,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-50",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbef5cbcea88572",
+      "flip_offset": 50,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-51",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0a34cea88572",
+      "flip_offset": 51,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-52",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acb31a88572",
+      "flip_offset": 52,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-53",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbce578572",
+      "flip_offset": 53,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-54",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea87a72",
+      "flip_offset": 54,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "flip-byte-55",
+      "sigma_boolean_json": {
+        "h": "03e803e81dd75bcf33c7975d8827910d85a6fbc72932fb87a52b154f0ff1b54461",
+        "tag": "ProveDlog"
+      },
+      "message_hex": "",
+      "mutated_signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea8858d",
+      "flip_offset": 55,
+      "expected_outcome": "false-or-error"
+    }
+  ]
+}
