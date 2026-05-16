@@ -143,6 +143,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/global-vars.json", &global_vars_fixture)?;
     let get_var_fixture = cmds::ergoscript::eval::get_var::generate()?;
     write_ergoscript_json("eval/get-var.json", &get_var_fixture)?;
+    let option_get_fixture = cmds::ergoscript::eval::option_get::generate()?;
+    write_ergoscript_json("eval/option-get.json", &option_get_fixture)?;
 
     Ok(())
 }

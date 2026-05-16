@@ -9,6 +9,7 @@
 
 import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import { EvalError } from '../../src/eval/eval-context'
+import type { EvalOpts } from '../../src/eval/eval-context'
 
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length === 0) return new Uint8Array(0)
@@ -121,18 +122,18 @@ export function hydrateErgoBox(json: any): ErgoBox {
  *
  * Used by GetVar, OptionGet, OptionIsDefined, OptionGetOrElse (phase 2f
  * medium Tasks 2–5).
+ *
+ * Supports: jitCostLimit, extension, selfBox.
  */
-export function rehydrateEvalOpts(optsObj: Record<string, unknown>): {
-  jitCostLimit?: number
-  extension?: { values: Record<number, { tpe: SType; value: SValue } | undefined> }
-} {
-  const result: {
-    jitCostLimit?: number
-    extension?: { values: Record<number, { tpe: SType; value: SValue } | undefined> }
-  } = {}
+export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
+  const result: EvalOpts = {}
 
   if (typeof optsObj.jitCostLimit === 'number') {
     result.jitCostLimit = optsObj.jitCostLimit
+  }
+
+  if (optsObj.selfBox !== undefined) {
+    result.selfBox = hydrateErgoBox(optsObj.selfBox)
   }
 
   const extRaw = optsObj.extension as

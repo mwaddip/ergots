@@ -35,6 +35,7 @@ import { evalExtractCreationInfo } from './extract-creation-info'
 import { evalExtractId } from './extract-id'
 import { evalGetVar } from './get-var'
 import { evalGlobalVars } from './global-vars'
+import { evalOptionGet } from './option-get'
 import { evalExtractRegisterAs } from './extract-register-as'
 import { evalExtractScriptBytes } from './extract-script-bytes'
 import { evalFuncValue } from './func-value'
@@ -106,6 +107,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalGetVar(e, env, ctx)
     case 'GlobalVars':
       return evalGlobalVars(e, env, ctx)
+    case 'OptionGet':
+      return evalOptionGet(e, env, ctx)
     case 'XorOf':
       return evalXorOf(e, env, ctx)
     default:

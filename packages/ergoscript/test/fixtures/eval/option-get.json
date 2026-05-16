@@ -1,0 +1,96 @@
+{
+  "corpus": "eval_option_get",
+  "entries": [
+    {
+      "name": "option_get_some_int_via_getvar",
+      "tree_bytes_hex": "00e4e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 42
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_some_long_via_register",
+      "tree_bytes_hex": "00e4c6a70005",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "10800"
+      },
+      "expected_cost": 75,
+      "expected_error_code": null
+    },
+    {
+      "name": "option_get_none_throws",
+      "tree_bytes_hex": "00e4e36304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "option-empty"
+    },
+    {
+      "name": "option_get_cost_limit",
+      "tree_bytes_hex": "00e4e30304",
+      "opts_json": {
+        "extension": {
+          "values": {
+            "3": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 42
+              }
+            }
+          }
+        },
+        "jitCostLimit": 10
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

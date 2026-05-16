@@ -26,6 +26,7 @@ pub mod global_vars;
 pub mod if_arm;
 pub mod logical_not;
 pub mod negation;
+pub mod option_get;
 pub mod or;
 pub mod tuple;
 pub mod upcast;
