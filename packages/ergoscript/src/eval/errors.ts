@@ -208,3 +208,17 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/atleast.rs:49-56
    */
   | 'atleast-bound-out-of-range'
+
+  // -------------------------------------------------------------------------
+  // Phase 2g.5 — method-call dispatch + SigmaPropBytes (1 new code)
+  // Total taxonomy: 39 → 40.
+  // -------------------------------------------------------------------------
+  /**
+   * `SigmaPropBytes`: input expression evaluated to a non-SigmaProp SValue.
+   * Wire-format invariants (`OneArgOpTryBuild::try_build` checks post_eval_tpe
+   * at construction) make this unreachable for parser-produced trees; defensive
+   * against `ConstantPlaceholder` injection.
+   *
+   * Source: ergotree-interpreter/src/eval/sigma_prop_bytes.rs:18-23
+   */
+  | 'sigma-prop-bytes-input-not-sigma-prop'

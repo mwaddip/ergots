@@ -1,0 +1,819 @@
+{
+  "description": "SigmaPropBytes eval arm (phase 2g.5 Task 2). Pattern A cost: addPerItemCost(35, 6, 1, 1) BEFORE eval-children. Source: ergotree-interpreter/src/eval/sigma_prop_bytes.rs.",
+  "entries": [
+    {
+      "name": "trivial_true",
+      "tree_bytes_hex": "00d008d3",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 0
+          },
+          {
+            "kind": "Byte",
+            "value": 8
+          },
+          {
+            "kind": "Byte",
+            "value": -45
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 46
+    },
+    {
+      "name": "trivial_false",
+      "tree_bytes_hex": "00d008d2",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 0
+          },
+          {
+            "kind": "Byte",
+            "value": 8
+          },
+          {
+            "kind": "Byte",
+            "value": -46
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 46
+    },
+    {
+      "name": "prove_dlog",
+      "tree_bytes_hex": "00d008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 0
+          },
+          {
+            "kind": "Byte",
+            "value": 8
+          },
+          {
+            "kind": "Byte",
+            "value": -51
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 121
+          },
+          {
+            "kind": "Byte",
+            "value": -66
+          },
+          {
+            "kind": "Byte",
+            "value": 102
+          },
+          {
+            "kind": "Byte",
+            "value": 126
+          },
+          {
+            "kind": "Byte",
+            "value": -7
+          },
+          {
+            "kind": "Byte",
+            "value": -36
+          },
+          {
+            "kind": "Byte",
+            "value": -69
+          },
+          {
+            "kind": "Byte",
+            "value": -84
+          },
+          {
+            "kind": "Byte",
+            "value": 85
+          },
+          {
+            "kind": "Byte",
+            "value": -96
+          },
+          {
+            "kind": "Byte",
+            "value": 98
+          },
+          {
+            "kind": "Byte",
+            "value": -107
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": -121
+          },
+          {
+            "kind": "Byte",
+            "value": 11
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -101
+          },
+          {
+            "kind": "Byte",
+            "value": -4
+          },
+          {
+            "kind": "Byte",
+            "value": -37
+          },
+          {
+            "kind": "Byte",
+            "value": 45
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": 40
+          },
+          {
+            "kind": "Byte",
+            "value": -39
+          },
+          {
+            "kind": "Byte",
+            "value": 89
+          },
+          {
+            "kind": "Byte",
+            "value": -14
+          },
+          {
+            "kind": "Byte",
+            "value": -127
+          },
+          {
+            "kind": "Byte",
+            "value": 91
+          },
+          {
+            "kind": "Byte",
+            "value": 22
+          },
+          {
+            "kind": "Byte",
+            "value": -8
+          },
+          {
+            "kind": "Byte",
+            "value": 23
+          },
+          {
+            "kind": "Byte",
+            "value": -104
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 46
+    },
+    {
+      "name": "cand_2_leaves",
+      "tree_bytes_hex": "00d0089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 0
+          },
+          {
+            "kind": "Byte",
+            "value": 8
+          },
+          {
+            "kind": "Byte",
+            "value": -106
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -51
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 121
+          },
+          {
+            "kind": "Byte",
+            "value": -66
+          },
+          {
+            "kind": "Byte",
+            "value": 102
+          },
+          {
+            "kind": "Byte",
+            "value": 126
+          },
+          {
+            "kind": "Byte",
+            "value": -7
+          },
+          {
+            "kind": "Byte",
+            "value": -36
+          },
+          {
+            "kind": "Byte",
+            "value": -69
+          },
+          {
+            "kind": "Byte",
+            "value": -84
+          },
+          {
+            "kind": "Byte",
+            "value": 85
+          },
+          {
+            "kind": "Byte",
+            "value": -96
+          },
+          {
+            "kind": "Byte",
+            "value": 98
+          },
+          {
+            "kind": "Byte",
+            "value": -107
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": -121
+          },
+          {
+            "kind": "Byte",
+            "value": 11
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -101
+          },
+          {
+            "kind": "Byte",
+            "value": -4
+          },
+          {
+            "kind": "Byte",
+            "value": -37
+          },
+          {
+            "kind": "Byte",
+            "value": 45
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": 40
+          },
+          {
+            "kind": "Byte",
+            "value": -39
+          },
+          {
+            "kind": "Byte",
+            "value": 89
+          },
+          {
+            "kind": "Byte",
+            "value": -14
+          },
+          {
+            "kind": "Byte",
+            "value": -127
+          },
+          {
+            "kind": "Byte",
+            "value": 91
+          },
+          {
+            "kind": "Byte",
+            "value": 22
+          },
+          {
+            "kind": "Byte",
+            "value": -8
+          },
+          {
+            "kind": "Byte",
+            "value": 23
+          },
+          {
+            "kind": "Byte",
+            "value": -104
+          },
+          {
+            "kind": "Byte",
+            "value": -51
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 121
+          },
+          {
+            "kind": "Byte",
+            "value": -66
+          },
+          {
+            "kind": "Byte",
+            "value": 102
+          },
+          {
+            "kind": "Byte",
+            "value": 126
+          },
+          {
+            "kind": "Byte",
+            "value": -7
+          },
+          {
+            "kind": "Byte",
+            "value": -36
+          },
+          {
+            "kind": "Byte",
+            "value": -69
+          },
+          {
+            "kind": "Byte",
+            "value": -84
+          },
+          {
+            "kind": "Byte",
+            "value": 85
+          },
+          {
+            "kind": "Byte",
+            "value": -96
+          },
+          {
+            "kind": "Byte",
+            "value": 98
+          },
+          {
+            "kind": "Byte",
+            "value": -107
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": -121
+          },
+          {
+            "kind": "Byte",
+            "value": 11
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -101
+          },
+          {
+            "kind": "Byte",
+            "value": -4
+          },
+          {
+            "kind": "Byte",
+            "value": -37
+          },
+          {
+            "kind": "Byte",
+            "value": 45
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": 40
+          },
+          {
+            "kind": "Byte",
+            "value": -39
+          },
+          {
+            "kind": "Byte",
+            "value": 89
+          },
+          {
+            "kind": "Byte",
+            "value": -14
+          },
+          {
+            "kind": "Byte",
+            "value": -127
+          },
+          {
+            "kind": "Byte",
+            "value": 91
+          },
+          {
+            "kind": "Byte",
+            "value": 22
+          },
+          {
+            "kind": "Byte",
+            "value": -8
+          },
+          {
+            "kind": "Byte",
+            "value": 23
+          },
+          {
+            "kind": "Byte",
+            "value": -104
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 46
+    },
+    {
+      "name": "cor_2_leaves",
+      "tree_bytes_hex": "00d0089702cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 0
+          },
+          {
+            "kind": "Byte",
+            "value": 8
+          },
+          {
+            "kind": "Byte",
+            "value": -105
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -51
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 121
+          },
+          {
+            "kind": "Byte",
+            "value": -66
+          },
+          {
+            "kind": "Byte",
+            "value": 102
+          },
+          {
+            "kind": "Byte",
+            "value": 126
+          },
+          {
+            "kind": "Byte",
+            "value": -7
+          },
+          {
+            "kind": "Byte",
+            "value": -36
+          },
+          {
+            "kind": "Byte",
+            "value": -69
+          },
+          {
+            "kind": "Byte",
+            "value": -84
+          },
+          {
+            "kind": "Byte",
+            "value": 85
+          },
+          {
+            "kind": "Byte",
+            "value": -96
+          },
+          {
+            "kind": "Byte",
+            "value": 98
+          },
+          {
+            "kind": "Byte",
+            "value": -107
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": -121
+          },
+          {
+            "kind": "Byte",
+            "value": 11
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -101
+          },
+          {
+            "kind": "Byte",
+            "value": -4
+          },
+          {
+            "kind": "Byte",
+            "value": -37
+          },
+          {
+            "kind": "Byte",
+            "value": 45
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": 40
+          },
+          {
+            "kind": "Byte",
+            "value": -39
+          },
+          {
+            "kind": "Byte",
+            "value": 89
+          },
+          {
+            "kind": "Byte",
+            "value": -14
+          },
+          {
+            "kind": "Byte",
+            "value": -127
+          },
+          {
+            "kind": "Byte",
+            "value": 91
+          },
+          {
+            "kind": "Byte",
+            "value": 22
+          },
+          {
+            "kind": "Byte",
+            "value": -8
+          },
+          {
+            "kind": "Byte",
+            "value": 23
+          },
+          {
+            "kind": "Byte",
+            "value": -104
+          },
+          {
+            "kind": "Byte",
+            "value": -51
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": 121
+          },
+          {
+            "kind": "Byte",
+            "value": -66
+          },
+          {
+            "kind": "Byte",
+            "value": 102
+          },
+          {
+            "kind": "Byte",
+            "value": 126
+          },
+          {
+            "kind": "Byte",
+            "value": -7
+          },
+          {
+            "kind": "Byte",
+            "value": -36
+          },
+          {
+            "kind": "Byte",
+            "value": -69
+          },
+          {
+            "kind": "Byte",
+            "value": -84
+          },
+          {
+            "kind": "Byte",
+            "value": 85
+          },
+          {
+            "kind": "Byte",
+            "value": -96
+          },
+          {
+            "kind": "Byte",
+            "value": 98
+          },
+          {
+            "kind": "Byte",
+            "value": -107
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": -121
+          },
+          {
+            "kind": "Byte",
+            "value": 11
+          },
+          {
+            "kind": "Byte",
+            "value": 7
+          },
+          {
+            "kind": "Byte",
+            "value": 2
+          },
+          {
+            "kind": "Byte",
+            "value": -101
+          },
+          {
+            "kind": "Byte",
+            "value": -4
+          },
+          {
+            "kind": "Byte",
+            "value": -37
+          },
+          {
+            "kind": "Byte",
+            "value": 45
+          },
+          {
+            "kind": "Byte",
+            "value": -50
+          },
+          {
+            "kind": "Byte",
+            "value": 40
+          },
+          {
+            "kind": "Byte",
+            "value": -39
+          },
+          {
+            "kind": "Byte",
+            "value": 89
+          },
+          {
+            "kind": "Byte",
+            "value": -14
+          },
+          {
+            "kind": "Byte",
+            "value": -127
+          },
+          {
+            "kind": "Byte",
+            "value": 91
+          },
+          {
+            "kind": "Byte",
+            "value": 22
+          },
+          {
+            "kind": "Byte",
+            "value": -8
+          },
+          {
+            "kind": "Byte",
+            "value": 23
+          },
+          {
+            "kind": "Byte",
+            "value": -104
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 46
+    }
+  ]
+}

@@ -199,6 +199,10 @@ fn main() -> anyhow::Result<()> {
     let context_fixture = cmds::ergoscript::eval::context::generate()?;
     write_ergoscript_json("eval/context.json", &context_fixture)?;
 
+    // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
+    let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
+    write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
+
     // Phase 2g-combinators Task 2: GF(2^192) element-arithmetic cross-validation
     // fixtures (`gf2_192-element-ops.json`). Lives under `crypto/` to mirror the
     // TS package layout (`packages/ergoscript/src/crypto/gf2_192.ts`).
