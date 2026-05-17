@@ -16,7 +16,10 @@
  * History:
  *   28 codes through phase 2f medium (GlobalVars/GetVar/Option/SelectField)
  *    + 7 codes added in phase 2f Coll HOFs (Task 1, 2026-05-16)
- *   = 35 codes total after this slice.
+ *    + 1 code added in phase 2g-medium (sigma-protocol primitives)
+ *    + 4 codes added in phase 2g-combinators (Atleast + sigma helpers)
+ *    + 3 codes added in phase 2g.5 (method-call dispatch + SigmaPropBytes + SContext.dataInputs)
+ *   = 43 codes total after phase 2g.5.
  */
 
 /**
@@ -210,18 +213,9 @@ export type EvalErrorCode =
   | 'atleast-bound-out-of-range'
 
   // -------------------------------------------------------------------------
-  // Phase 2g.5 — method-call dispatch + SigmaPropBytes (2 new codes)
-  // Total taxonomy: 40 → 42.
+  // Phase 2g.5 — method-call dispatch + SigmaPropBytes + SContext.dataInputs
+  // (3 new codes; 40 → 43)
   // -------------------------------------------------------------------------
-  /**
-   * `SigmaPropBytes`: input expression evaluated to a non-SigmaProp SValue.
-   * Wire-format invariants (`OneArgOpTryBuild::try_build` checks post_eval_tpe
-   * at construction) make this unreachable for parser-produced trees; defensive
-   * against `ConstantPlaceholder` injection.
-   *
-   * Source: ergotree-interpreter/src/eval/sigma_prop_bytes.rs:18-23
-   */
-  | 'sigma-prop-bytes-input-not-sigma-prop'
   /**
    * `MethodCall` / `PropertyCall` dispatcher: the `(typeId, methodId)` pair
    * has no registered handler in the HANDLERS registry. Also reused for
@@ -234,11 +228,15 @@ export type EvalErrorCode =
    *         ergotree-interpreter/src/eval/property_call.rs:16
    */
   | 'method-not-implemented'
-
-  // -------------------------------------------------------------------------
-  // Phase 2g.5 Task 5 — SContext.dataInputs handler (1 new code)
-  // Total taxonomy: 42 → 43.
-  // -------------------------------------------------------------------------
+  /**
+   * `SigmaPropBytes`: input expression evaluated to a non-SigmaProp SValue.
+   * Wire-format invariants (`OneArgOpTryBuild::try_build` checks post_eval_tpe
+   * at construction) make this unreachable for parser-produced trees; defensive
+   * against `ConstantPlaceholder` injection.
+   *
+   * Source: ergotree-interpreter/src/eval/sigma_prop_bytes.rs:18-23
+   */
+  | 'sigma-prop-bytes-input-not-sigma-prop'
   /**
    * `SContext.dataInputs`: `obj` evaluated to a non-Context SValue. Wire-format
    * invariants (PropertyCall construction via sigma-rust) make this unreachable
