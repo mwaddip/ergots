@@ -1,0 +1,534 @@
+{
+  "description": "MethodCall/PropertyCall dispatcher + SBox.tokens handler (phase 2g.5 Tasks 4-6). PropertyCall typeId=99, methodId=8. Source: eval/sbox.rs:72-79.",
+  "entries": [
+    {
+      "name": "sbox_tokens_empty",
+      "tree_bytes_hex": "00db6308a7",
+      "ctx": {
+        "self_box_tokens": []
+      },
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 29
+    },
+    {
+      "name": "sbox_tokens_1_token",
+      "tree_bytes_hex": "00db6308a7",
+      "ctx": {
+        "self_box_tokens": [
+          {
+            "amount": "100",
+            "id": "0101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ]
+      },
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [
+          {
+            "items": [
+              {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  }
+                ],
+                "kind": "Coll"
+              },
+              {
+                "kind": "Long",
+                "value": "100"
+              }
+            ],
+            "kind": "Tuple"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 29
+    },
+    {
+      "name": "sbox_tokens_2_tokens",
+      "tree_bytes_hex": "00db6308a7",
+      "ctx": {
+        "self_box_tokens": [
+          {
+            "amount": "100",
+            "id": "0101010101010101010101010101010101010101010101010101010101010101"
+          },
+          {
+            "amount": "200",
+            "id": "0202020202020202020202020202020202020202020202020202020202020202"
+          }
+        ]
+      },
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [
+          {
+            "items": [
+              {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 1
+                  }
+                ],
+                "kind": "Coll"
+              },
+              {
+                "kind": "Long",
+                "value": "100"
+              }
+            ],
+            "kind": "Tuple"
+          },
+          {
+            "items": [
+              {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  }
+                ],
+                "kind": "Coll"
+              },
+              {
+                "kind": "Long",
+                "value": "200"
+              }
+            ],
+            "kind": "Tuple"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 29
+    }
+  ]
+}

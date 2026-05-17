@@ -203,6 +203,10 @@ fn main() -> anyhow::Result<()> {
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
 
+    // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
+    let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
+    write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;
+
     // Phase 2g-combinators Task 2: GF(2^192) element-arithmetic cross-validation
     // fixtures (`gf2_192-element-ops.json`). Lives under `crypto/` to mirror the
     // TS package layout (`packages/ergoscript/src/crypto/gf2_192.ts`).

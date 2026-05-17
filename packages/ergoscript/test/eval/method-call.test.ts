@@ -1,18 +1,47 @@
 /**
- * Layer C1 — `MethodCall` + `PropertyCall` dispatcher.
+ * Layer C1 — `MethodCall` + `PropertyCall` dispatcher + SBox.tokens handler.
  *
- * This task (Task 3) ships the dispatcher + registry with ZERO registered handlers.
- * Tests cover the dispatcher's cost-charging and unknown-pair throw.
+ * Task 3: dispatcher + registry with ZERO registered handlers (cost + unknown-pair throw).
+ * Task 4: SBox.tokens handler (typeId=99, methodId=8) — fixture-driven C1 tests.
  *
- * Source: ergotree-interpreter/src/eval/{method_call,property_call}.rs
+ * Source: ergotree-interpreter/src/eval/{method_call,property_call,sbox}.rs
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { evalMethodCall, evalPropertyCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
 import type { MethodCall, PropertyCall } from '../../src/mir/types'
+import { hexToBytes, hydrateSValue, synthesizeStubBox } from '../_helpers'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+interface MethodCallFixtureEntry {
+  name: string
+  tree_bytes_hex: string
+  ctx?: {
+    self_box_tokens?: Array<{ id: string; amount: string }>
+    data_inputs_count?: number
+  }
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface MethodCallFixtureFile {
+  description: string
+  entries: MethodCallFixtureEntry[]
+}
+
+const fixture = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../fixtures/eval/method-call.json'), 'utf8')
+) as MethodCallFixtureFile
 
 describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
   it("charges cost 4 and throws 'method-not-implemented' on unknown pair", () => {
@@ -63,4 +92,27 @@ describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
     }
     expect(ctx2.jitCost).toBeGreaterThanOrEqual(5)
   })
+})
+
+describe('method-call fixture entries (Task 4: SBox.tokens)', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const stubBox = synthesizeStubBox({
+        tokens: (entry.ctx?.self_box_tokens ?? []).map((t) => ({
+          id: hexToBytes(t.id),
+          amount: BigInt(t.amount),
+        })),
+      })
+      const ctx = makeContext({
+        constants: tree.constants,
+        selfBox: stubBox,
+        inputs: [stubBox],
+        outputs: [stubBox],
+      })
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
 })

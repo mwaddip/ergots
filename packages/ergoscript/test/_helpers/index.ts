@@ -170,6 +170,28 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
 }
 
 /**
+ * Construct a minimal ErgoBox SValue for use in fixture-driven tests.
+ *
+ * Provides sensible zero-value defaults for all required fields. Pass
+ * `opts.tokens` to override the token list (Tasks 4-7 use this to drive
+ * SBox.tokens fixture entries with 0, 1, and 2 tokens).
+ *
+ * Required fields per `mir/types.ts:ErgoBox`:
+ *   value, ergoTreeBytes, registers, tokens, creationHeight, txId, index
+ */
+export function synthesizeStubBox(opts?: { tokens?: { id: Uint8Array; amount: bigint }[] }): ErgoBox {
+  return {
+    value: 1_000_000n,
+    ergoTreeBytes: new Uint8Array(),
+    registers: {},
+    tokens: opts?.tokens ?? [],
+    creationHeight: 0,
+    txId: new Uint8Array(32),
+    index: 0,
+  }
+}
+
+/**
  * Run `fn` and return the thrown `EvalError`, or fail the test if `fn`
  * returned normally / threw something other than `EvalError`.
  *

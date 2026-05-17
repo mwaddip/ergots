@@ -53,3 +53,4 @@ pub mod upcast;
 pub mod val_def;
 pub mod val_use;
 pub mod xor_of;
+pub mod method_call;

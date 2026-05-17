@@ -19,11 +19,12 @@
  *   'context-obj-not-context'   — will be thrown by the SContext handler (Task 5, not yet registered).
  */
 
-import type { MethodCall, PropertyCall, SType, SValue } from '../mir/types'
+import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { bytesToCollByteSValue } from './_byte-coll'
 
 type MethodHandler = (
   obj: SValue,
@@ -72,7 +73,36 @@ function dispatch(
 // ---------- Handler registration ----------
 
 function registerHandlers(): void {
-  // Tasks 4-6 add registrations here.
+  // SBox.tokens (PropertyCall, typeId=99, methodId=8)
+  // Source: ergotree-interpreter/src/eval/sbox.rs:72-79 — TOKENS_EVAL_FN
+  // Cost 15 (Pattern A within handler). Returns Coll[(Coll[Byte], Long)].
+  HANDLERS.set(handlerKey(99, 8), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(
+        `SBox.tokens expects a Box obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1 (spec: error-taxonomy decision)
+      )
+    }
+    return tokensCollOf(obj.value)
+  })
 }
 
 registerHandlers()
+
+// ---------- SBox.tokens helper ----------
+
+/** Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue. */
+function tokensCollOf(box: ErgoBox): SValue {
+  const sColl: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
+  const sLong: SType = { tag: 'SLong' }
+  const itemTpe: SType = { tag: 'STuple', items: [sColl, sLong] }
+  return {
+    kind: 'Coll',
+    elem: itemTpe,
+    items: box.tokens.map((t) => ({
+      kind: 'Tuple',
+      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: t.amount }],
+    })),
+  }
+}
