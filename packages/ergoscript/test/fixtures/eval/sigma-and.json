@@ -1,0 +1,103 @@
+{
+  "description": "SigmaAnd eval arm (phase 2g-combinators Task 5). Pattern A cost: addPerItemCost(10, 2, 1, n) BEFORE eval-children. Source: ergotree-interpreter/src/eval/sigma_and.rs.",
+  "entries": [
+    {
+      "name": "sigma_and_2_leaf",
+      "tree_bytes_hex": "00ea0208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "9602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 24,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_3_leaf",
+      "tree_bytes_hex": "00ea0308cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "9603cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 31,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_5_leaf",
+      "tree_bytes_hex": "00ea0508cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "9605cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 45,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_true_absorbed",
+      "tree_bytes_hex": "00ea0308d308cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "9602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 31,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_false_absorbing",
+      "tree_bytes_hex": "00ea0308d208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "d2"
+      },
+      "expected_cost": 31,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_single_after_filter",
+      "tree_bytes_hex": "00ea0208d308cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 24,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_empty_after_filter",
+      "tree_bytes_hex": "00ea0208d308d3",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "d3"
+      },
+      "expected_cost": 24,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_mixed_dlog_dhtuple",
+      "tree_bytes_hex": "00ea0208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "9602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "expected_cost": 24,
+      "expected_error_code": null
+    },
+    {
+      "name": "sigma_and_cost_limit_exceeded",
+      "tree_bytes_hex": "00ea0208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {
+        "jitCostLimit": 1
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "cost-limit-exceeded"
+    }
+  ]
+}

@@ -44,6 +44,7 @@ pub mod option_get_or_else;
 pub mod option_is_defined;
 pub mod or;
 pub mod select_field;
+pub mod sigma_and;
 pub mod tuple;
 pub mod upcast;
 pub mod val_def;

@@ -185,6 +185,9 @@ fn main() -> anyhow::Result<()> {
     let atleast_fixture = cmds::ergoscript::eval::atleast::generate()?;
     write_ergoscript_json("eval/atleast.json", &atleast_fixture)?;
 
+    let sigma_and_fixture = cmds::ergoscript::eval::sigma_and::generate()?;
+    write_ergoscript_json("eval/sigma-and.json", &sigma_and_fixture)?;
+
     let p2pk_short_circuit_fixture =
         cmds::ergoscript::eval::p2pk_short_circuit::generate()?;
     write_ergoscript_json("eval/p2pk-short-circuit.json", &p2pk_short_circuit_fixture)?;

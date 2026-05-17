@@ -56,6 +56,7 @@ import { evalLogicalNot } from './logical-not'
 import { evalNegation } from './negation'
 import { evalOr } from './or'
 import { evalSelectField } from './select-field'
+import { evalSigmaAnd } from './sigma-and'
 import { evalTuple } from './tuple'
 import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
@@ -150,6 +151,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalOptionIsDefined(e, env, ctx)
     case 'SelectField':
       return evalSelectField(e, env, ctx)
+    case 'SigmaAnd':
+      return evalSigmaAnd(e, env, ctx)
     case 'SizeOf':
       return evalSizeOf(e, env, ctx)
     case 'Slice':
