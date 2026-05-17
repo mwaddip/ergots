@@ -62,11 +62,14 @@ import { evalValUse } from './val-use'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalXorOf } from './xor-of'
+import { evalAtleast } from './atleast'
 
 export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {
     case 'And':
       return evalAnd(e, env, ctx)
+    case 'Atleast':
+      return evalAtleast(e, env, ctx)
     case 'CreateProveDhTuple':
       return evalCreateProveDhTuple(e, env, ctx)
     case 'CreateProveDlog':

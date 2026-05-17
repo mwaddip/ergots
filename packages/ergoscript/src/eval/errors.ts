@@ -167,3 +167,44 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/create_provedlog.rs:21-26
    */
   | 'sigma-prop-input-not-group-element'
+
+  // -------------------------------------------------------------------------
+  // Phase 2g-combinators — Atleast + sigma helpers (3 new codes)
+  // Total taxonomy: 36 → 39.
+  // -------------------------------------------------------------------------
+  /**
+   * `Atleast`: bound expression evaluated to a non-Int SValue. Wire-format
+   * invariants (`Atleast::new` enforces `post_eval_tpe == SInt` at construction)
+   * make this unreachable for parser-produced trees; defensive against
+   * `ConstantPlaceholder` injection.
+   *
+   * Source: ergotree-interpreter/src/eval/atleast.rs:19-44
+   */
+  | 'atleast-bound-not-int'
+  /**
+   * `Atleast` / `_sigma-helpers.extractSigmaPropColl`: a Coll element
+   * evaluated to a non-SigmaProp SValue. Wire-format invariants
+   * (`Atleast::new` enforces `SColl(SSigmaProp)` on input) make this
+   * unreachable for parser-produced trees; defensive against
+   * `ConstantPlaceholder` injection.
+   *
+   * Source: ergotree-interpreter/src/eval/atleast.rs:39-46
+   */
+  | 'sigma-prop-coll-elem-not-sigma-prop'
+  /**
+   * `Atleast` / `_sigma-helpers.extractSigmaPropColl`: input expression
+   * evaluated to a non-Coll SValue. Wire-format invariants make this
+   * unreachable for parser-produced trees; defensive against
+   * `ConstantPlaceholder` injection.
+   *
+   * Source: ergotree-interpreter/src/eval/atleast.rs:31-37
+   */
+  | 'sigma-prop-input-not-coll'
+  /**
+   * `Atleast`: bound value is out of the valid range [0, 255] (i.e., does
+   * not fit in a u8) or bound > items.length (impossible to prove k of n
+   * when k > n). Both conditions map to `EvalError::Misc` in sigma-rust.
+   *
+   * Source: ergotree-interpreter/src/eval/atleast.rs:49-56
+   */
+  | 'atleast-bound-out-of-range'

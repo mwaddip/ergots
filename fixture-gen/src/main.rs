@@ -182,6 +182,9 @@ fn main() -> anyhow::Result<()> {
         cmds::ergoscript::eval::create_prove_dlog::generate()?;
     write_ergoscript_json("eval/create-prove-dlog.json", &create_prove_dlog_fixture)?;
 
+    let atleast_fixture = cmds::ergoscript::eval::atleast::generate()?;
+    write_ergoscript_json("eval/atleast.json", &atleast_fixture)?;
+
     let p2pk_short_circuit_fixture =
         cmds::ergoscript::eval::p2pk_short_circuit::generate()?;
     write_ergoscript_json("eval/p2pk-short-circuit.json", &p2pk_short_circuit_fixture)?;

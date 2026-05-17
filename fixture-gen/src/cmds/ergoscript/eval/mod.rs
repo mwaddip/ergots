@@ -1,5 +1,6 @@
 //! Phase 2b/2c/2f evaluator fixtures.
 
+pub mod atleast;
 pub mod and;
 pub mod apply;
 pub mod bin_op_arith;
