@@ -6,3 +6,4 @@
 //! produce the JSON oracle that the TS tests load.
 
 pub mod gf2_192_element_ops;
+pub mod gf2_192_poly_ops;

@@ -1,0 +1,412 @@
+[
+  {
+    "name": "interp/deg1_a",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        1
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef"
+      ],
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000"
+    },
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "interp/deg1_b",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        5
+      ],
+      "values_hex": [
+        "fedcba9876543210fedcba9876543210fedcba9876543210"
+      ],
+      "value_at_zero_hex": "deadbeefcafef00d1122334455667788aabbccddee001122"
+    },
+    "expected": "a04f011b8c88c00663337d395f0f412d441e4e1478115f0f"
+  },
+  {
+    "name": "interp/deg2",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        1,
+        2
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210"
+      ],
+      "value_at_zero_hex": "deadbeefcafef00d1122334455667788aabbccddee001122"
+    },
+    "expected": "1ae32ce64855893932ab67989801cd7e54fe67cd7e549881c56dd76e0b00b4db22aa11bb44cc7719ff66ee7719ff444c"
+  },
+  {
+    "name": "interp/deg3",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        3,
+        7,
+        11
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122"
+      ],
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566"
+    },
+    "expected": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade"
+  },
+  {
+    "name": "interp/deg5_zero_const",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122",
+        "0011223344556677889900aabbccddeeff00112233445566",
+        "abababababababababababababababababababababababab"
+      ],
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000"
+    },
+    "expected": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34"
+  },
+  {
+    "name": "interp/deg5",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        10,
+        20,
+        30,
+        40,
+        50
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122",
+        "0011223344556677889900aabbccddeeff00112233445566",
+        "abababababababababababababababababababababababab"
+      ],
+      "value_at_zero_hex": "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "expected": "1f9ab6b94030cca46021e8a72d6d79477d3d688a171935ab791c4b6812fcb81c8f4d28960dbba6d80489c4d4ee76171cb2f322600367dbc0c133146413e6ae20180e521bd114dc556d4dfde6b92d686abf66eb1b0167336a94d65a745b848d4e23cd55d84cecbae18ae96cef30787a1501dd628b648513e9"
+  },
+  {
+    "name": "interp/deg8",
+    "op": "interpolate",
+    "inputs": {
+      "points": [
+        1,
+        4,
+        9,
+        16,
+        25,
+        100,
+        200,
+        255
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122",
+        "0011223344556677889900aabbccddeeff00112233445566",
+        "abababababababababababababababababababababababab",
+        "ffffffffffffffffffffffffffffffffffffffffffffffff",
+        "0102030405060708091011121314151617181920212223ff",
+        "8000000000000080000000000000008000000000000000ff"
+      ],
+      "value_at_zero_hex": "deadbeefcafef00d1122334455667788aabbccddee001122"
+    },
+    "expected": "7afd60c07433cf20f02b0ce46cff86b11142976bd8647edb56d6d91995dc527485725dd88e5e8d125866a71370d1bdb5aae146dcd862bb0485224b4f543045e892d7d561a936c6026ec3800ff4693287cf00ec3b7603bfaded258ac355c234a4e059a249a11170cec5302162a9b7e930b43561a348d805ea38a668e80bbfddb5cbe8d19e562c2956f83de891128bf3316fab8ac5c0fc1891f50cffe6cfdf273eee8cb338c1ec9f8080d3c4e6e4e39cdfd4ae8f712c1bacd93fcadc6aa855845e"
+  },
+  {
+    "name": "interp/empty",
+    "op": "interpolate",
+    "inputs": {
+      "points": [],
+      "values_hex": [],
+      "value_at_zero_hex": "deadbeefcafef00d1122334455667788aabbccddee001122"
+    },
+    "expected": ""
+  },
+  {
+    "name": "eval/deg3/at_0",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 0
+    },
+    "expected": "0011223344556677889900aabbccddeeff00112233445566"
+  },
+  {
+    "name": "eval/deg3/at_3",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 3
+    },
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "eval/deg3/at_7",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 7
+    },
+    "expected": "fedcba9876543210fedcba9876543210fedcba9876543210"
+  },
+  {
+    "name": "eval/deg3/at_11",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 11
+    },
+    "expected": "deadbeefcafef00d1122334455667788aabbccddee001122"
+  },
+  {
+    "name": "eval/deg3/at_1",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 1
+    },
+    "expected": "b50a01d3cd7d1c1d818eb8383ac58dcf1d0820098ecb5f27"
+  },
+  {
+    "name": "eval/deg3/at_50",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 50
+    },
+    "expected": "fff43eea531fdecf45cadaea8b0a469e95e7fa78daa51f13"
+  },
+  {
+    "name": "eval/deg3/at_255",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 255
+    },
+    "expected": "0a3615e2971e2506501b9cb3f171b62cf7047b54ae06fa25"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_0",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 0
+    },
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_1",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 1
+    },
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_2",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 2
+    },
+    "expected": "fedcba9876543210fedcba9876543210fedcba9876543210"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_3",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 3
+    },
+    "expected": "deadbeefcafef00d1122334455667788aabbccddee001122"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_4",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 4
+    },
+    "expected": "0011223344556677889900aabbccddeeff00112233445566"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_5",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 5
+    },
+    "expected": "abababababababababababababababababababababababab"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_6",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 6
+    },
+    "expected": "a7b704152baf68c9891055105567ba75ffdd99ef2264ba45"
+  },
+  {
+    "name": "eval/deg5_zero_const/at_254",
+    "op": "evaluate",
+    "inputs": {
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000",
+      "poly_bytes_hex": "03cb9c79314cc833d042ec292abd05ca68e8a49980294a9b44e178c264e5709435f963e054462ba70eb0e788c7c6700411f59284d4147764806b2fdc7892b5331c78c9afc607202b487af883a16e3758b087d18accfa55e6172254d4134c386f1f86cbdba9783574d47434f8433803576c219b0d1b0fef34",
+      "eval_point": 254
+    },
+    "expected": "5c9b4b4b9ac82c5691f04bd1bc3ec1f143023b352a068282"
+  },
+  {
+    "name": "to_bytes/deg1",
+    "op": "to_bytes",
+    "inputs": {
+      "points": [
+        7
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef"
+      ],
+      "value_at_zero_hex": "fedcba9876543210fedcba9876543210fedcba9876543210"
+    },
+    "expected": "499224499224499224499224499224499224499224499224"
+  },
+  {
+    "name": "to_bytes/deg2",
+    "op": "to_bytes",
+    "inputs": {
+      "points": [
+        1,
+        250
+      ],
+      "values_hex": [
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122"
+      ],
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566"
+    },
+    "expected": "162beb8ad7082f45f51cc0576c99dd00a6a46d95396cad58e8e67321e5097b2283597a65a10132fea778c62f7c7cca2e"
+  },
+  {
+    "name": "to_bytes/deg4",
+    "op": "to_bytes",
+    "inputs": {
+      "points": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122",
+        "0011223344556677889900aabbccddeeff00112233445566"
+      ],
+      "value_at_zero_hex": "abababababababababababababababababababababababab"
+    },
+    "expected": "6a6975e9eff13923395b0599070922f0c207c2dee552cf00557b32d1dd9ddf58403dd694cab63e07482983e0a0971f8243d4ac34c5ccb19be196ee87ff88f025552d443ccb99e116d64e05c0d5a031a43278d34610378a96758bebceac5c57d0"
+  },
+  {
+    "name": "to_bytes/deg7",
+    "op": "to_bytes",
+    "inputs": {
+      "points": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "values_hex": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fedcba9876543210fedcba9876543210fedcba9876543210",
+        "deadbeefcafef00d1122334455667788aabbccddee001122",
+        "0011223344556677889900aabbccddeeff00112233445566",
+        "abababababababababababababababababababababababab",
+        "ffffffffffffffffffffffffffffffffffffffffffffffff",
+        "0102030405060708091011121314151617181920212223ff"
+      ],
+      "value_at_zero_hex": "000000000000000000000000000000000000000000000000"
+    },
+    "expected": "31daf542a25aa51816fb3fa8195f9486905fdbf6348e284c400f0100b945cb663aa1f43596b8795b7d1bcde73f1248337cd31ba72a7660b76f075ae0761766cbb6185c29c88c3d0be9ac7c006841c0f318b9e641f798805057d03b2ca3f5938c948f117739faa2c0920250ad125e8957e3ea40f2ca4177fffeba7a348542a2dab9e9de414f80b3ae7227c3edcf5503b48fbcbdc16c3b03cf712cbcb7da1dfc509c62b76cec5a775c"
+  },
+  {
+    "name": "to_bytes/deg0",
+    "op": "to_bytes",
+    "inputs": {
+      "points": [],
+      "values_hex": [],
+      "value_at_zero_hex": "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "expected": ""
+  },
+  {
+    "name": "rt/deg3_at_42",
+    "op": "from_coeffs_and_const",
+    "inputs": {
+      "value_at_zero_hex": "0011223344556677889900aabbccddeeff00112233445566",
+      "poly_bytes_hex": "5e56fef13c554e223fb49f7e038204c66c566e455e16953e2c8a3cc6ae3c778ae6a8d1ee9101d7b5e8ed3fcdcec855a1c7c7e1d71b4143c2d00bf602138a835266b360a32d51cade",
+      "eval_point": 42
+    },
+    "expected": "6f63865e511efd14892b4f589668c81bcc656c534aa87a63"
+  },
+  {
+    "name": "rt/deg5_at_99",
+    "op": "from_coeffs_and_const",
+    "inputs": {
+      "value_at_zero_hex": "ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "poly_bytes_hex": "f85205e0a8d551aa49db75b0b3249c53f1713d0019b0d38257c35ae046c752b617db41c2766409852c92c5aae5e4526606b1d6c090503320c42f6b983cd6f177583c8deb824364af5b58daa1834c157a92a5f3a8eed877c4350076f6316e1a0d0ca4e9f98b5a1756f65616da611a21754e03b92f392dcd56",
+      "eval_point": 99
+    },
+    "expected": "e39c765fc5f41724a5a25cc641d793085e24718145cd6d0f"
+  },
+  {
+    "name": "rt/deg8_at_200",
+    "op": "from_coeffs_and_const",
+    "inputs": {
+      "value_at_zero_hex": "deadbeefcafef00d1122334455667788aabbccddee001122",
+      "poly_bytes_hex": "7afd60c07433cf20f02b0ce46cff86b11142976bd8647edb56d6d91995dc527485725dd88e5e8d125866a71370d1bdb5aae146dcd862bb0485224b4f543045e892d7d561a936c6026ec3800ff4693287cf00ec3b7603bfaded258ac355c234a4e059a249a11170cec5302162a9b7e930b43561a348d805ea38a668e80bbfddb5cbe8d19e562c2956f83de891128bf3316fab8ac5c0fc1891f50cffe6cfdf273eee8cb338c1ec9f8080d3c4e6e4e39cdfd4ae8f712c1bacd93fcadc6aa855845e",
+      "eval_point": 200
+    },
+    "expected": "0102030405060708091011121314151617181920212223ff"
+  }
+]

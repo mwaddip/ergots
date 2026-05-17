@@ -121,6 +121,31 @@ export class Gf2_192Element {
   static readonly ONE: Gf2_192Element = new Gf2_192Element(1n, 0n, 0n)
 
   /**
+   * Embed a `u8` value into `GF(2^192)` as the field element whose low
+   * 8 bits match the byte's bit pattern and whose remaining 184 bits are
+   * zero. The result is `word[0] = BigInt(value)`, `word[1] = word[2] = 0n`.
+   *
+   * Used by `Gf2_192Poly` to multiply by a `u8` "point" via the general
+   * `multiply` path. Mathematically this matches sigma-rust's
+   * `Gf2_192::mul_by_i8(a, b)` (gf2_192.rs:154-170): that routine only
+   * inspects bits 0-7 of `b` via `lrs_i8(b, i) & 1`, which is exactly the
+   * unsigned 8-bit interpretation we encode here. Field multiplication is
+   * polynomial multiplication mod the same pentanomial, so the result
+   * agrees with `mul_by_i8` byte-for-byte. Cross-validated by the
+   * `interp/*` and `eval/*` fixtures.
+   *
+   * @throws if `value` is not a u8 (integer in `[0, 255]`).
+   */
+  static fromU8(value: number): Gf2_192Element {
+    if (!Number.isInteger(value) || value < 0 || value > 0xFF) {
+      throw new Error(
+        `Gf2_192Element.fromU8: value must be a u8 in [0, 255], got ${value}`,
+      )
+    }
+    return new Gf2_192Element(BigInt(value), 0n, 0n)
+  }
+
+  /**
    * Decode a 24-byte little-endian-per-word representation (`bytes[0]` is
    * the coefficient of `x^0`, `bytes[23]` is the coefficient of `x^191`).
    *
@@ -364,4 +389,302 @@ function powerOfTwoToTwoToK(z: Gf2_192Element, k: number): Gf2_192Element {
     result = result.sqr()
   }
   return result
+}
+
+/**
+ * A polynomial over `GF(2^192)`. Used by the Cthreshold conjecture verifier
+ * walk in phase 2g-combinators Task 9: the prover serializes
+ * `(n - k) * 24` bytes of higher-degree coefficients, and the verifier
+ * reconstructs the polynomial together with the parent's challenge as the
+ * constant coefficient. Lagrange interpolation is also used by the
+ * fixture-gen path to construct Cthreshold signatures (Task 8).
+ *
+ * **Coefficient ordering**: `coefficients[0]` is the constant term;
+ * `coefficients[degree]` is the leading (highest-degree) term. Mirrors
+ * sigma-rust's `Gf2_192Poly { coefficients: Vec<Gf2_192>, degree: usize }`.
+ * Internally we hold an over-allocated array of length `(degree + 1)`,
+ * grown only by the interpolation primitives that need scratch space, and
+ * never exposed publicly.
+ *
+ * **Serialization** skips the constant coefficient: `to_bytes()` returns
+ * `degree * 24` bytes. The constant lives elsewhere on the wire (in the
+ * Cthreshold conjecture verifier walk, it's the parent challenge), so
+ * `fromCoefficientsAndConstant(bytes, constant)` is how the verifier
+ * reconstructs a polynomial.
+ *
+ * Source: `~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192poly.rs`
+ * (HEAD ed5452cf, branch `integration/ergots`).
+ */
+export class Gf2_192Poly {
+  /**
+   * Coefficients, low-to-high. `coefficients[0]` is the constant term;
+   * `coefficients[this._degree]` is the leading term. Array length
+   * `(allocCapacity + 1)` matches sigma-rust's over-allocation.
+   *
+   * Mutated only by the private helpers `addMonicTimesConstant` and
+   * `multiplyByLinearBinomial`. Public API never returns this array.
+   */
+  private readonly coefficients: Gf2_192Element[]
+  /**
+   * Effective polynomial degree (`coefficients[_degree]` is the leading
+   * term; entries above `_degree` exist but are not part of the polynomial).
+   * Mirrors sigma-rust's `Gf2_192Poly { degree: usize }`.
+   */
+  private _degree: number
+
+  private constructor(coefficients: Gf2_192Element[], degree: number) {
+    this.coefficients = coefficients
+    this._degree = degree
+  }
+
+  /** Effective degree (largest power with a possibly-nonzero coefficient). */
+  get degree(): number {
+    return this._degree
+  }
+
+  /**
+   * Build a constant polynomial whose only term is `constant`. Scratch
+   * space is pre-allocated for up to `maxDegree` (i.e. the array length
+   * is `maxDegree + 1`); the effective degree is 0.
+   *
+   * Source: `gf2_192poly.rs:170-182` (`make_constant`).
+   */
+  private static makeConstant(maxDegree: number, constant: Gf2_192Element): Gf2_192Poly {
+    const coefficients: Gf2_192Element[] = new Array(maxDegree + 1)
+    coefficients[0] = constant
+    for (let i = 1; i <= maxDegree; i++) coefficients[i] = Gf2_192Element.ZERO
+    return new Gf2_192Poly(coefficients, 0)
+  }
+
+  /**
+   * Lagrange interpolation. Construct the unique lowest-degree polynomial
+   * that passes through `(0, valueAtZero)` and each `(points[i], values[i])`.
+   *
+   * The resulting polynomial has degree exactly `values.length` (the
+   * implicit `(0, valueAtZero)` point also contributes; without it the
+   * interpolant through n points would have degree n-1, but here we have
+   * `n + 1` constraints).
+   *
+   * **Algorithm** (Newton-form incremental construction, sigma-rust
+   * `gf2_192poly.rs:71-113`):
+   *
+   * Maintain `result` (the partial interpolant) and `vanishing_poly`
+   * (a monic polynomial that vanishes at every point so far processed,
+   * starting as the constant 1). For each new point `points[i]`:
+   *   1. Let `t = result.evaluate(points[i])` and
+   *      `s = vanishing_poly.evaluate(points[i])`.
+   *   2. The correction `r = (t + values[i]) / s` makes
+   *      `result + r * vanishing_poly` pass through the new point while
+   *      leaving every previously fitted point unchanged (because
+   *      `vanishing_poly(points[j]) == 0` for `j < i`).
+   *   3. Update `result += r * vanishing_poly`, then update
+   *      `vanishing_poly *= (x + points[i])` to add the new root.
+   *
+   * After processing every nonzero point, do the same step once more at
+   * `x = 0`. Crucially `result.evaluate(0) == coefficients[0]`, so this
+   * tail step is just a `coefficients[0]` lookup on both polynomials.
+   *
+   * **In `GF(2)` arithmetic**: addition and subtraction are the same
+   * operation (XOR), so the `result(p_i) - values[i]` step is written
+   * as `result.evaluate(p_i) + values[i]`. The "x + r" linear factor in
+   * `multiplyByLinearBinomial` is the same as "x - r".
+   *
+   * Source: `gf2_192poly.rs:71-113`.
+   *
+   * @throws if `points.length !== values.length`.
+   * @throws if any point is `0` or a non-`u8` integer.
+   * @throws on duplicate points.
+   */
+  static interpolate(
+    points: readonly number[],
+    values: readonly Gf2_192Element[],
+    valueAtZero: Gf2_192Element,
+  ): Gf2_192Poly {
+    if (points.length !== values.length) {
+      throw new Error(
+        `Gf2_192Poly.interpolate: points and values length mismatch (${points.length} vs ${values.length})`,
+      )
+    }
+    const seen = new Set<number>()
+    for (const p of points) {
+      if (!Number.isInteger(p) || p < 0 || p > 0xFF) {
+        throw new Error(
+          `Gf2_192Poly.interpolate: points must be u8 values in [0, 255], got ${p}`,
+        )
+      }
+      if (p === 0) {
+        throw new Error(
+          `Gf2_192Poly.interpolate: points must be != 0 (value at zero is supplied separately)`,
+        )
+      }
+      if (seen.has(p)) {
+        throw new Error(`Gf2_192Poly.interpolate: duplicate point ${p}`)
+      }
+      seen.add(p)
+    }
+
+    const resultDegree = values.length
+    const result = Gf2_192Poly.makeConstant(resultDegree, Gf2_192Element.ZERO)
+    const vanishingPoly = Gf2_192Poly.makeConstant(resultDegree, Gf2_192Element.ONE)
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i]!
+      // t = result.evaluate(p); s = vanishing.evaluate(p)
+      let t = result.evaluate(p)
+      let s = vanishingPoly.evaluate(p)
+      // r = (t + values[i]) * invert(s); in GF(2) +/- are XOR.
+      t = t.add(values[i]!)
+      s = s.invert()
+      t = t.multiply(s)
+      // result += r * vanishing
+      result.addMonicTimesConstant(vanishingPoly, t)
+      // vanishing *= (x + p)
+      vanishingPoly.multiplyByLinearBinomial(p)
+    }
+
+    // Last "point" is at x = 0; evaluate(0) is just coefficients[0].
+    let t = result.coefficients[0]!
+    let s = vanishingPoly.coefficients[0]!
+    t = t.add(valueAtZero)
+    s = s.invert()
+    t = t.multiply(s)
+    result.addMonicTimesConstant(vanishingPoly, t)
+
+    return result
+  }
+
+  /**
+   * Reconstruct a polynomial from a serialized non-constant coefficient
+   * blob plus its constant coefficient (supplied separately).
+   *
+   * The verifier walk in Task 9 will read `(n - k) * 24` bytes from the
+   * proof stream as `coefficientBytes` and pass the parent challenge as
+   * `constant`. The result is the polynomial used to derive each child's
+   * challenge.
+   *
+   * Source: `gf2_192poly.rs:185-202` (`TryFrom<CoefficientsByteRepr>`).
+   *
+   * @throws if `coefficientBytes.length` is not a multiple of 24.
+   */
+  static fromCoefficientsAndConstant(
+    coefficientBytes: Uint8Array,
+    constant: Gf2_192Element,
+  ): Gf2_192Poly {
+    if (coefficientBytes.length % 24 !== 0) {
+      throw new Error(
+        `Gf2_192Poly.fromCoefficientsAndConstant: bytes length must be a multiple of 24, got ${coefficientBytes.length}`,
+      )
+    }
+    const degree = coefficientBytes.length / 24
+    const coefficients: Gf2_192Element[] = new Array(degree + 1)
+    coefficients[0] = constant
+    for (let i = 1; i <= degree; i++) {
+      // .subarray() is a view; .slice() in fromBytes is implicit via .set
+      // in toBytes. fromBytes only reads, so subarray is safe here.
+      coefficients[i] = Gf2_192Element.fromBytes(
+        coefficientBytes.subarray((i - 1) * 24, i * 24),
+      )
+    }
+    return new Gf2_192Poly(coefficients, degree)
+  }
+
+  /**
+   * Evaluate the polynomial at `x` using Horner's method.
+   *
+   *   result = coefficients[degree]
+   *   for d in (degree - 1)..=0:
+   *     result = result * x + coefficients[d]
+   *
+   * `x = 0` short-circuits to `coefficients[0]` (since `result * 0 == 0`
+   * at every step, leaving only the final `+= coefficients[0]`).
+   *
+   * Source: `gf2_192poly.rs:116-128`.
+   *
+   * @throws if `x` is not a `u8` (integer in `[0, 255]`).
+   */
+  evaluate(x: number): Gf2_192Element {
+    if (!Number.isInteger(x) || x < 0 || x > 0xFF) {
+      throw new Error(
+        `Gf2_192Poly.evaluate: x must be a u8 in [0, 255], got ${x}`,
+      )
+    }
+    let res = this.coefficients[this._degree]!
+    if (this._degree > 0) {
+      // Embed `x` as a Gf2_192Element once; reuse it across iterations.
+      const xElem = Gf2_192Element.fromU8(x)
+      for (let d = this._degree - 1; d >= 0; d--) {
+        res = res.multiply(xElem)
+        res = res.add(this.coefficients[d]!)
+      }
+    }
+    return res
+  }
+
+  /**
+   * Serialize the polynomial as a `degree * 24`-byte blob containing
+   * `coefficients[1..=degree]` in low-to-high order. The constant
+   * coefficient is omitted by design — the caller is expected to know it
+   * already (in the Cthreshold verifier walk, the constant is the
+   * parent's challenge).
+   *
+   * Source: `gf2_192poly.rs:133-142`.
+   */
+  toBytes(): Uint8Array {
+    const out = new Uint8Array(this._degree * 24)
+    for (let i = 1; i <= this._degree; i++) {
+      out.set(this.coefficients[i]!.toBytes(), (i - 1) * 24)
+    }
+    return out
+  }
+
+  /**
+   * In-place: `self += r * p`, with the invariants below.
+   *
+   * Assumes:
+   *  - `p` is monic (i.e. `p.coefficients[p.degree] === Gf2_192Element.ONE`).
+   *  - `self.coefficients.length > p.degree` (we have scratch space).
+   *  - `p.degree === self._degree + 1`, OR (`self == 0` and `p == 1`).
+   *
+   * After: `self._degree === p.degree`, and the leading coefficient of
+   * `self` becomes `r` (which is correct because `p` is monic and we're
+   * adding `r * p`).
+   *
+   * Source: `gf2_192poly.rs:144-156`.
+   */
+  private addMonicTimesConstant(p: Gf2_192Poly, r: Gf2_192Element): void {
+    for (let i = 0; i < p._degree; i++) {
+      const t = p.coefficients[i]!.multiply(r)
+      this.coefficients[i] = this.coefficients[i]!.add(t)
+    }
+    this._degree = p._degree
+    this.coefficients[this._degree] = r
+  }
+
+  /**
+   * In-place: `self *= (x + r)`, where `r` is a `u8` point. Assumes
+   * `self` is monic (i.e. `self.coefficients[self._degree] === ONE`).
+   * After: `self._degree += 1`, with the new leading coefficient set to
+   * `ONE` (preserving monicity).
+   *
+   * The classic linear-binomial-multiply update for monic polynomials:
+   *
+   *   (sum c_i x^i) * (x + r)
+   *     = sum c_i x^{i+1} + sum c_i * r * x^i
+   *     = c_{deg} * x^{deg+1} + (c_{i-1} + c_i * r) * x^i + c_0 * r
+   *
+   * Working right-to-left lets us update `coefficients[i]` from the
+   * previous value of `coefficients[i]` and `coefficients[i-1]` without a
+   * scratch buffer. `coefficients[new_degree] = 1` (monicity preserved).
+   *
+   * Source: `gf2_192poly.rs:158-168`.
+   */
+  private multiplyByLinearBinomial(r: number): void {
+    this._degree += 1
+    this.coefficients[this._degree] = Gf2_192Element.ONE
+    const rElem = Gf2_192Element.fromU8(r)
+    for (let i = this._degree - 1; i >= 1; i--) {
+      this.coefficients[i] = this.coefficients[i]!.multiply(rElem).add(this.coefficients[i - 1]!)
+    }
+    this.coefficients[0] = this.coefficients[0]!.multiply(rElem)
+  }
 }

@@ -195,6 +195,14 @@ fn main() -> anyhow::Result<()> {
         &cmds::ergoscript::crypto::gf2_192_element_ops::generate()?,
     )?;
 
+    // Phase 2g-combinators Task 3: GF(2^192) polynomial-layer cross-validation
+    // fixtures (`gf2_192-poly-ops.json`). Built on top of Task 2's element
+    // arithmetic; consumed by `packages/ergoscript/test/crypto/gf2_192-poly.test.ts`.
+    write_ergoscript_json(
+        "crypto/gf2_192-poly-ops.json",
+        &cmds::ergoscript::crypto::gf2_192_poly_ops::generate()?,
+    )?;
+
     // Phase 2g-medium Task 6: leaf-only sigma-protocol verifier fixtures.
     std::fs::create_dir_all(ergoscript_fixtures_dir().join("verify"))?;
     write_ergoscript_json(
