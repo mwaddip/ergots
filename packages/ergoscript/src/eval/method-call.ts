@@ -130,15 +130,15 @@ function registerHandlers(): void {
       )
     }
     const [target, fromArg] = args as [SValue, SValue]
-    if (fromArg!.kind !== 'Int') {
+    if (fromArg.kind !== 'Int') {
       throw new EvalError(
-        `SColl.indexOf expects 'from' to be Int; got '${fromArg!.kind}'`,
+        `SColl.indexOf expects 'from' to be Int; got '${fromArg.kind}'`,
         'method-not-implemented'
       )
     }
-    const from = Math.max(0, (fromArg as Extract<SValue, { kind: 'Int' }>).value)
+    const from = Math.max(0, fromArg.value)
     for (let i = from; i < n; i++) {
-      if (primitiveValueEqual(obj.items[i]!, target!)) return { kind: 'Int', value: i }
+      if (primitiveValueEqual(obj.items[i]!, target)) return { kind: 'Int', value: i }
     }
     return { kind: 'Int', value: -1 }
   })

@@ -348,9 +348,15 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
  * — meaning it doesn't recurse into eq_with_cost per element but uses Rust's
  * structural PartialEq. We mirror this by doing plain value comparison here.
  *
- * This function is also exported for use by SColl.indexOf, which uses `==`
- * (PartialEq) directly in sigma-rust, not `eq_with_cost` — so no cost is
- * charged per comparison in the search loop.
+ * This function is also exported for use by SColl.indexOf (`method-call.ts`),
+ * which uses `==` (PartialEq) directly in sigma-rust, not `eq_with_cost` — so
+ * no cost is charged per comparison in the search loop. Any semantics change
+ * here requires coordinating with that handler.
+ *
+ * Unhandled kinds (Box, AvlTree, Context, Lambda) fall through: Box/AvlTree
+ * throw 'not-implemented-yet'; Lambda and Context return `false`/`true`
+ * respectively via their explicit arms above. The `default` exhaustiveness arm
+ * below covers any future additions.
  */
 export function primitiveValueEqual(a: SValue, b: SValue): boolean {
   if (a.kind !== b.kind) return false

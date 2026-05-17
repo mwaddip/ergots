@@ -1,11 +1,13 @@
 /**
- * Layer C1 — `MethodCall` + `PropertyCall` dispatcher + SBox.tokens + SContext.dataInputs handlers.
+ * Layer C1 — `MethodCall` + `PropertyCall` dispatcher + SBox.tokens + SContext.dataInputs
+ * + SColl.indexOf handlers.
  *
  * Task 3: dispatcher + registry with ZERO registered handlers (cost + unknown-pair throw).
  * Task 4: SBox.tokens handler (typeId=99, methodId=8) — fixture-driven C1 tests.
  * Task 5: SContext.dataInputs handler (typeId=101, methodId=1) — fixture-driven C1 tests.
+ * Task 6: SColl.indexOf handler (typeId=12, methodId=26) — defensive-throw unit tests.
  *
- * Source: ergotree-interpreter/src/eval/{method_call,property_call,sbox,scontext}.rs
+ * Source: ergotree-interpreter/src/eval/{method_call,property_call,sbox,scontext,scoll}.rs
  */
 
 import fs from 'node:fs'
@@ -130,9 +132,78 @@ describe('registered method handler defensive throws', () => {
     expect(err.code).toBe('context-obj-not-context')
     expect(err.message).toContain('Context')
   })
+
+  it("SColl.indexOf throws 'method-not-implemented' when obj is not Coll", () => {
+    // typeId=12, methodId=26 is the SColl.indexOf handler.
+    // Passing a Long Const produces { kind: 'Long' } from evalExpr, which is
+    // not 'Coll' — triggers the first defensive shape-guard throw.
+    const e: MethodCall = {
+      tag: 'MethodCall',
+      typeId: 12,
+      methodId: 26,
+      obj: { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 42n } },
+      args: [
+        { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 1n } },
+        { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
+      ],
+      explicitTypeArgs: {},
+    }
+    const ctx = makeContext({})
+    const err = captureEvalError(() => evalMethodCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('method-not-implemented')
+    expect(err.message).toContain('Coll')
+  })
+
+  it("SColl.indexOf throws 'method-not-implemented' when args.length !== 2", () => {
+    // Only 1 arg supplied — the handler checks args.length after extracting the Coll.
+    const e: MethodCall = {
+      tag: 'MethodCall',
+      typeId: 12,
+      methodId: 26,
+      obj: {
+        tag: 'Collection',
+        kind: 'Exprs',
+        elemTpe: { tag: 'SLong' },
+        items: [],
+      },
+      args: [
+        { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 1n } },
+      ],
+      explicitTypeArgs: {},
+    }
+    const ctx = makeContext({})
+    const err = captureEvalError(() => evalMethodCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('method-not-implemented')
+  })
+
+  it("SColl.indexOf throws 'method-not-implemented' when fromArg is not Int", () => {
+    // args[1] is Long, not Int — the handler checks fromArg.kind after extracting both args.
+    const e: MethodCall = {
+      tag: 'MethodCall',
+      typeId: 12,
+      methodId: 26,
+      obj: {
+        tag: 'Collection',
+        kind: 'Exprs',
+        elemTpe: { tag: 'SLong' },
+        items: [],
+      },
+      args: [
+        { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 1n } },
+        { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 0n } }, // Long, not Int
+      ],
+      explicitTypeArgs: {},
+    }
+    const ctx = makeContext({})
+    const err = captureEvalError(() => evalMethodCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('method-not-implemented')
+  })
 })
 
-describe('method-call fixture entries (Tasks 4-5: SBox.tokens + SContext.dataInputs)', () => {
+describe('method-call fixture entries (Tasks 4-6: SBox.tokens + SContext.dataInputs + SColl.indexOf)', () => {
   for (const entry of fixture.entries) {
     it(entry.name, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
