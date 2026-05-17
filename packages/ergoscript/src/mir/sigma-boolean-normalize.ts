@@ -114,7 +114,7 @@ export function cthresholdReduce(
     }
   }
 
-  // Post-loop 3-way classification on accumulated (non-trivial) items
+  // After loop: childrenLeft equals accumulated.length (all trivials decremented out)
   if (currK === 1) return corNormalized(accumulated)
   if (currK === childrenLeft) return candNormalized(accumulated)
   return { tag: 'Cthreshold', k: currK, items: accumulated }

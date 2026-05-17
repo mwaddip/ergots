@@ -111,4 +111,10 @@ describe('cthresholdReduce', () => {
       items: [D(1), D(2), D(3)],
     })
   })
+  it('k=0 with empty items → TrivialProp(true)', () => {
+    expect(cthresholdReduce(0, [])).toEqual(T)
+  })
+  it('k=1 with empty items → TrivialProp(false) (k > n=0)', () => {
+    expect(cthresholdReduce(1, [])).toEqual(F)
+  })
 })
