@@ -1,45 +1,55 @@
-# Phase 2g-medium Implementation Plan — `@mwaddip/ergots-ergoscript`
+# Phase 2g-combinators Implementation Plan — `@mwaddip/ergots-ergoscript`
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship phase 2g-medium: sigma protocol primitives at leaf-only verifier scope. Structural `SigmaBoolean` (6-variant discriminated union replacing the opaque `{ raw }` shape from phase 2a) + `@noble/curves@2.2.0` adapter + `CreateProveDlog` / `CreateProveDhTuple` eval arms + `verifySignature(sigmaBoolean, message, signature) → boolean` public function (handles TrivialProp + ProveDlog + ProveDhTuple; throws `VerifyError 'conjecture-not-implemented'` on Cand/Cor/Cthreshold). Adds 50-JitCost P2PK short-circuit to the `Const` arm. Coverage 42 → 44 of ~70 arms; 1 new `EvalError` code; new `VerifyError` class with ~5 codes; 2 new `SigmaBooleanParseError` codes.
+**Goal:** Ship phase 2g-combinators: 3 deferred sigma-combinator eval arms (`Atleast` / `SigmaAnd` / `SigmaOr`) + 3 normalization helpers (`cthresholdReduce` / `candNormalized` / `corNormalized`) + table-optimized GF(2^192) field + polynomial module + conjecture verifier walk (Cand inherit / Cor XOR-derive-last / Cthreshold polynomial). Coverage 44 → 47 of ~70 arms; 3 new `EvalError` codes; 3 new `VerifyError` codes; 1 new internal helpers module (`eval/_sigma-helpers.ts`); 1 new normalization module (`mir/sigma-boolean-normalize.ts`); 1 new crypto module (`crypto/gf2_192.ts`).
 
-**Architecture:** 8 tasks in flat ordering with commits between each (no `STOP α/β/γ` markers — per `[[feedback-no-artificial-stops]]` memory). Task 1 = structural-SigmaBoolean wire refactor (foundation; all downstream depends). Task 2 = `@noble/curves` adapter. Tasks 3-4 = the two new eval arms (CreateProveDlog includes the P2PK short-circuit; CreateProveDhTuple is straightforward). Task 5 = verifier infrastructure (challenge / fiat-shamir / sig-serializer / errors modules). Task 6 = `verifySignature` orchestration + V1+V2 verifier fixtures invoking sigma-rust's prover. Tasks 7-8 = docs + finalize. Per OVERRIDES #2, Task 6 is the crypto-sensitive part — implementer + reviewer cite specific sigma-rust source lines for each correctness-sensitive equation.
+**Architecture:** 11 tasks in flat ordering with commits between each (no `Stop α/β/γ` markers — per `[[feedback-no-artificial-stops]]` memory). Task 1 = pure structural normalization (foundation; eval arms depend). Tasks 2-3 = GF(2^192) field + polynomial (each its own subagent session per user request; verifier depends). Tasks 4-6 = the 3 eval arms (Atleast first due to `_sigma-helpers.ts` introduction; then SigmaAnd / SigmaOr). Task 7 = sig-serializer `readBytes` extension. Task 8 = fixture-gen conjecture signing (Cand + Cor + Cthreshold recipes with cross-validation gate). Task 9 = verifier conjecture walk + V1 + V2. Tasks 10-11 = docs + finalize. Per OVERRIDES #2, Tasks 2/3/9 are confidence-escalation territory — implementer + reviewer cite specific sigma-rust source lines for each correctness-sensitive equation/algorithm.
 
-**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` crate at `integration/ergots@ed5452cf`. **New runtime dep:** `@noble/curves@2.2.0` (secp256k1; version-locked pair with existing `@noble/hashes@2.2.0`). All 6 SigmaBoolean wire variants already parse opaquely via phase 2a — Task 1 reshapes that to structural; the existing 255-fixture roundtrip and 6221-flip mutation suite must continue to pass post-refactor.
+**Tech Stack:** TypeScript 5.5 (ES2022, ESM only), Vitest 2 with jsdom, Rust fixture-gen calling into sigma-rust's `ergotree-interpreter` + `gf2_192` crates at `integration/ergots@ed5452cf`. **New `fixture-gen/Cargo.toml` dep:** `gf2_192` (path or workspace dep from local sigma-rust). No new TypeScript runtime deps — `@noble/curves@2.2.0` from 2g-medium covers secp256k1; `@noble/hashes@2.2.0` covers blake2b; GF(2^192) is hand-rolled in pure TS via BigInt.
 
-**Source-first discipline:** Read sigma-rust per task before writing any TS. Authoritative sources for slice 2g-medium:
+**Source-first discipline:** Read sigma-rust per task before writing any TS. Authoritative sources for 2g-combinators:
 
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean.rs` — `SigmaBoolean` enum (3 top-level variants flattening to 6 concrete leaves), `ProveDlog`, `ProveDhTuple` (`sigma_boolean.rs:34-80`)
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cand.rs`, `cor.rs`, `cthreshold.rs` — conjecture struct shapes; `SigmaConjectureItems<T> = BoundedVec<T, 1, 255>` at `sigma_boolean.rs:31`
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/sigmaboolean.rs` — wire-format parse + serialize for SigmaBoolean
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/create_provedlog.rs` — `CreateProveDlog` MIR (`{ input: Box<Expr> }`)
-- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/create_prove_dh_tuple.rs` — `CreateProveDhTuple` MIR (`{ g, h, u, v: Box<Expr> }`)
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/create_provedlog.rs` — eval arm; Pattern A `Fixed(10)`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/create_prove_dh_tuple.rs` — eval arm; Pattern A `Fixed(20)`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval.rs:138-158, 268-278` — P2PK short-circuit `EVAL_SIGMA_PROP_CONSTANT = 50`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol.rs:104-110` — `SOUNDNESS_BITS = 192`, `SOUNDNESS_BYTES = 24`, `GROUP_SIZE = 32`
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/verifier.rs:60-125` — verify pipeline + `verify_signature` entry
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:118-255` — proof byte format (per-leaf, conjecture-walk patterns; Cand inherits parent challenge; Cor XORs)
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/fiat_shamir.rs:70-200` — Fiat-Shamir tree-to-bytes; `prop_bytes` wraps SigmaProp in `ErgoTree v0 + constant-segregation=true` at lines 148-157
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/challenge.rs` — 24-byte challenge ops
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/wscalar.rs:60-76` — `scalar_from_bytes` (32 BE → mod n) + `scalar_from_challenge` (24 bytes → left-pad 8 zeros → mod n)
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/dlog_protocol.rs:113-184` — Schnorr verify equation `a = (basePoint * z) + negate(h * scalarFromChallenge(challenge))`; deterministic-nonce signer
-- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/dht_protocol.rs:132-157` — DH-tuple two-commitment verify
-- `~/projects/sigma-rust/sigma-rust/ergo-chain-types/src/ec_point.rs:74-152` — EcPoint impl (`Mul<&EcPoint>` is point-addition!); identity = 33 zero bytes (Ergo convention, NOT native SEC1)
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cthreshold.rs:34-84` — `Cthreshold::reduce` collapse rules
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cand.rs:29-50` — `Cand::normalized` TrivialProp filtering + absorbing/identity laws
+- `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cor.rs:29-50` — `Cor::normalized` symmetric to Cand
+- `~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192.rs` — 1043 LOC; `Gf2_192` element type; `IRRED_PENTANOMIAL = 0xE7`; `IRRED_MULS [i64; 16]` table at lines 35-55; `multiply` at 82-153; `invert` at 173-200; `sqr` at 203-258; byte serialization at 315-394
+- `~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192poly.rs` — 260 LOC; `Gf2_192Poly`; `interpolate` at 71-115; `evaluate` at 116-132 (Horner); `to_bytes` at 133-160 (length = `degree * 24`, skips degree-0 coefficient)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/atleast.rs:19-58` — Atleast eval arm; cost `(20, 3, 5, n)`; calls `Cthreshold::reduce`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sigma_and.rs:13-28` — SigmaAnd eval arm; cost `(10, 2, 1, n)`; calls `Cand::normalized`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sigma_or.rs:13-28` — SigmaOr eval arm; cost `(10, 2, 1, n)`; calls `Cor::normalized`
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:174-186` — Cand verifier walk (inherit parent challenge)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:187-214` — Cor verifier walk (XOR-derive-last)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:215-245` — Cthreshold verifier walk (polynomial evaluation at 1..=n)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:69-77` — Cand byte format (no per-child challenges)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:79-90` — Cor byte format ((n-1) explicit challenges + last child no-challenge)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:91-108` — Cthreshold byte format ((n-k)*24 polynomial bytes inline, no length prefix)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/verifier.rs:60-125` — verify pipeline; `compute_commitments` aggregation
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/prover.rs:568-604` — simulated polynomial construction (`step4_simulated_threshold_conj`)
+- `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/prover.rs:845-900` — real polynomial via Lagrange (`step9_real_threshold`)
 
-Full design rationale: `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md`.
+Full design rationale: `docs/specs/2026-05-17-ergoscript-phase-2g-combinators-design.md`.
 
 **TDD discipline:** Iron Law per `CLAUDE.md` — no production code without a failing test first. Each task follows red → green → cost-assert → corpus-check → commit. Per-task cadence with two-stage review (spec compliance + code quality).
 
-**Confidence-escalation flag (per OVERRIDES #2):** Task 6 is the load-bearing crypto-verification path. Implementer + reviewer MUST explicitly cite source lines for each of these equations:
+**Confidence-escalation flag (per OVERRIDES #2):** Tasks 2/3/9 are the load-bearing crypto-verification path. Implementer + reviewer MUST explicitly cite source lines for each of these equations/algorithms:
 
-- 24-byte challenge → 32-byte scalar: **left-pad with 8 zero bytes** then reduce mod n (`wscalar.rs:69-76`).
-- Fiat-Shamir `prop_bytes`: wrap SigmaProp in `ErgoTree v0 + constant-segregation=true` before serializing (`fiat_shamir.rs:148-157`). Byte-equivalence with sigma-rust is the only correctness signal.
-- Schnorr commitment: `a = (basePoint * z) + negate(decodePoint(h) * scalarFromChallenge(challenge))` per `dlog_protocol.rs:173-184`. Note: sigma-rust's `Mul<&EcPoint>` impl is *point addition* (`ec_point.rs:74-79`); the spec equation uses multiplicative notation for an additive group operation.
-- DhTuple two-commitment per `dht_protocol.rs:132-157`.
-- Identity-point handling: 33 zero bytes ↔ point-at-infinity is **Ergo convention**, NOT native SEC1 (`ec_point.rs:130-152`).
-- `put_u16` is VLQ in wire serialization (`cand.rs:67-69`) but `put_i16_be_bytes` (big-endian) in Fiat-Shamir (`fiat_shamir.rs:197`) — same conceptual field, different encodings.
+- **Task 2 (GF(2^192) element):**
+  - `multiply` algorithm: cite `gf2_192.rs:82-153`. 4-bit nibble per-iteration; `IRRED_MULS_TABLE` for reduction.
+  - `invert` algorithm: cite `gf2_192.rs:173-200`. Fermat's variant (z^(2^192 - 2) for nonzero z).
+  - `sqr` shortcut: cite `gf2_192.rs:203-258`. Bit-interleave in characteristic-2.
+  - Byte ordering: 24 bytes BE per element. Cite `gf2_192.rs:315-394`.
+  - `IRRED_PENTANOMIAL = 0xE7` value: reconcile naming with the actual irreducible polynomial x^192 + x^7 + x^2 + x + 1 at implementation time. The cross-validation gate catches any mismatch.
+- **Task 3 (GF(2^192) polynomial):**
+  - `interpolate` Lagrange basis: cite `gf2_192poly.rs:71-115`. The (0, valueAtZero) point is interpolation-special-cased.
+  - `evaluate` Horner's method: cite `gf2_192poly.rs:116-132`. 1-based child indices in conjecture context.
+  - `toBytes` skips degree-0 coefficient: cite `gf2_192poly.rs:133-160`. Length = `degree * 24`.
+- **Task 9 (verifier conjecture walk):**
+  - Cand challenge inheritance: cite `sig_serializer.rs:174-186`.
+  - Cor XOR derivation: cite `sig_serializer.rs:187-214`. Last child's challenge = XOR(parent, all explicit children's challenges read from proof).
+  - Cthreshold polynomial reconstruction: cite `sig_serializer.rs:215-245`. coeff_0 = parent challenge as `Gf2_192Element`; remaining `(n-k)` coefficients from polynomial bytes; evaluate at points 1..=n for child challenges (1-based).
+  - Fiat-Shamir leaf prop-bytes (reused from 2g-medium): cite `fiat_shamir.rs:148-157, 197`. `put_i16_be` for length prefixes (NOT VLQ).
+  - Identity-point handling: 33 zero bytes ↔ point-at-infinity is Ergo convention.
 
 ---
 
@@ -49,2324 +59,1119 @@ Full design rationale: `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.
 
 | Path | Responsibility | Task |
 |---|---|---|
-| `packages/ergoscript/src/crypto/secp256k1.ts` | `@noble/curves` adapter — 9 functions (decode/encode point, point ops, scalar conversions, constants) | 2 |
-| `packages/ergoscript/src/sigma/errors.ts` | `VerifyError` class + code constants | 5 |
-| `packages/ergoscript/src/sigma/challenge.ts` | 24-byte challenge ops (byte XOR for Cor); challenge↔scalar conversion | 5 |
-| `packages/ergoscript/src/sigma/fiat-shamir.ts` | Serialize SigmaBoolean tree + commitments for blake2b-256 hash input | 5 |
-| `packages/ergoscript/src/sigma/sig-serializer.ts` | Parse sigma-proof bytes structurally guided by SigmaBoolean tree | 5 |
-| `packages/ergoscript/src/sigma/verifier.ts` | `verifySignature` orchestration | 6 |
-| `packages/ergoscript/src/eval/create-prove-dlog.ts` | `evalCreateProveDlog` arm | 3 |
-| `packages/ergoscript/src/eval/create-prove-dh-tuple.ts` | `evalCreateProveDhTuple` arm | 4 |
+| `packages/ergoscript/src/mir/sigma-boolean-normalize.ts` | `cthresholdReduce` + `candNormalized` + `corNormalized` pure functions | 1 |
+| `packages/ergoscript/src/crypto/gf2_192.ts` | `Gf2_192Element` class + `Gf2_192Poly` class; `IRRED_MULS_TABLE` precomputed | 2, 3 |
+| `packages/ergoscript/src/eval/_sigma-helpers.ts` | `expectSigmaProp` + `extractSigmaPropColl` helpers | 4 |
+| `packages/ergoscript/src/eval/atleast.ts` | `evalAtleast` arm | 4 |
+| `packages/ergoscript/src/eval/sigma-and.ts` | `evalSigmaAnd` arm | 5 |
+| `packages/ergoscript/src/eval/sigma-or.ts` | `evalSigmaOr` arm | 6 |
+
+**Modified files (TypeScript source):**
+
+| Path | Change | Task |
+|---|---|---|
+| `packages/ergoscript/src/eval/eval.ts` | Add 3 new case lines: `Atleast`, `SigmaAnd`, `SigmaOr` | 4, 5, 6 |
+| `packages/ergoscript/src/eval/errors.ts` | Add 3 new EvalError codes | 4 |
+| `packages/ergoscript/src/sigma/sig-serializer.ts` | Add `readBytes(n)` method to `ProofBytesReader` | 7 |
+| `packages/ergoscript/src/sigma/errors.ts` | Add 3 new VerifyError codes; annotate `'conjecture-not-implemented'` as reserved | 9 |
+| `packages/ergoscript/src/sigma/verifier.ts` | Replace `'conjecture-not-implemented'` throw with recursive conjecture walk | 9 |
 
 **New files (TypeScript tests):**
 
 | Path | Responsibility | Task |
 |---|---|---|
-| `packages/ergoscript/test/wire/sigma-boolean-variants.test.ts` | Per-variant wire roundtrip (all 6) | 1 |
-| `packages/ergoscript/test/crypto/secp256k1.test.ts` | Adapter unit tests (identity convention, scalar conversion edges) | 2 |
-| `packages/ergoscript/test/eval/create-prove-dlog.test.ts` | C1 fixture tests for CreateProveDlog | 3 |
-| `packages/ergoscript/test/eval/p2pk-short-circuit.test.ts` | Smoking-gun for 50-JitCost Const(SSigmaProp) charge | 3 |
-| `packages/ergoscript/test/eval/create-prove-dh-tuple.test.ts` | C1 fixture tests for CreateProveDhTuple | 4 |
-| `packages/ergoscript/test/sigma/challenge.test.ts` | Challenge primitives unit tests | 5 |
-| `packages/ergoscript/test/sigma/fiat-shamir.test.ts` | Fiat-Shamir byte-format unit tests | 5 |
-| `packages/ergoscript/test/sigma/sig-serializer.test.ts` | Sig-byte parsing unit tests | 5 |
-| `packages/ergoscript/test/sigma/verifier.test.ts` | V1 (positive + reject + malformed) + V2 (mutation) | 6 |
+| `packages/ergoscript/test/mir/sigma-boolean-normalize.test.ts` | Unit tests for 3 normalization functions; edge cases | 1 |
+| `packages/ergoscript/test/crypto/gf2_192-element.test.ts` | Per-op cross-validation: add/multiply/sqr/invert/equals/serialize | 2 |
+| `packages/ergoscript/test/crypto/gf2_192-poly.test.ts` | Per-op cross-validation: interpolate/evaluate/toBytes; round-trip | 3 |
+| `packages/ergoscript/test/eval/atleast.test.ts` | C1 fixture-driven + inline error tests | 4 |
+| `packages/ergoscript/test/eval/sigma-and.test.ts` | C1 fixture-driven + inline error tests | 5 |
+| `packages/ergoscript/test/eval/sigma-or.test.ts` | C1 fixture-driven + inline error tests | 6 |
+| `packages/ergoscript/test/sigma/sig-serializer.test.ts` (modify) | Add `readBytes` unit tests | 7 |
+| `packages/ergoscript/test/sigma/verifier-conjecture.test.ts` | V1 positive + reject + V2 mutation for Cand/Cor/Cthreshold | 9 |
+| `packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts` | C3.a operator-driven mutation for Atleast/SigmaAnd/SigmaOr | 4, 5, 6 (split per arm) |
 
 **New files (Rust fixture-gen):**
 
 | Path | Responsibility | Task |
 |---|---|---|
-| `fixture-gen/src/cmds/ergoscript/wire/sigma_boolean_variants.rs` | Per-variant wire fixtures (TrivialProp×2, ProveDlog, ProveDhTuple, Cand, Cor, Cthreshold with varied k/items) | 1 |
-| `fixture-gen/src/cmds/ergoscript/eval/create_prove_dlog.rs` | CreateProveDlog entries | 3 |
-| `fixture-gen/src/cmds/ergoscript/eval/p2pk_short_circuit.rs` | Bare-SSigmaProp Const smoking-gun | 3 |
-| `fixture-gen/src/cmds/ergoscript/eval/create_prove_dh_tuple.rs` | CreateProveDhTuple entries | 4 |
-| `fixture-gen/src/cmds/ergoscript/verify/mod.rs` | Module hub for verifier fixtures | 6 |
-| `fixture-gen/src/cmds/ergoscript/verify/verifier_positive.rs` | V1 positive: invokes sigma-rust prover for valid (sb, msg, sig) triples | 6 |
-| `fixture-gen/src/cmds/ergoscript/verify/verifier_reject.rs` | V1 conjecture-reject + malformed | 6 |
-| `fixture-gen/src/cmds/ergoscript/verify/verifier_mutation.rs` | V2 byte-flip mutation fixtures | 6 |
-
-**Generated fixture files** (`packages/ergoscript/test/fixtures/`): wire-variants × 6 + eval × 3 + verify × 3 ≈ 12 new fixtures.
-
-**Modified files (TypeScript source):**
-
-| Path | Modification | Task |
-|---|---|---|
-| `packages/ergoscript/src/mir/types.ts` | `SigmaBoolean` opaque `{ raw }` → 6-variant discriminated union | 1 |
-| `packages/ergoscript/src/wire/sigma-boolean.ts` | Rewrite: structural parser; add `serializeSigmaBoolean`; refactor `sigmaBooleanOpCode` / `proveDlogPublicKey` to walk structural; add 2 new error codes | 1 |
-| `packages/ergoscript/src/wire/serialize-svalue.ts` | SSigmaProp case: `w.writeBytes(v.value.raw)` → `serializeSigmaBoolean(v.value, w)` | 1 |
-| `packages/ergoscript/src/address.ts` | `isP2PK` / `p2pkPublicKey` walk structural (pattern-match `sb.tag === 'ProveDlog'`) | 1 |
-| `packages/ergoscript/package.json` | Add `@noble/curves: 2.2.0` runtime dep | 2 |
-| `packages/ergoscript/src/eval/const.ts` | Add 45 additional JitCost charge when `value.kind === 'SigmaProp'` (total = 5 + 45 = 50) | 3 |
-| `packages/ergoscript/src/eval/eval.ts` | Add 2 new case lines: `case 'CreateProveDlog'` (Task 3); `case 'CreateProveDhTuple'` (Task 4) | 3-4 |
-| `packages/ergoscript/src/eval/errors.ts` | Add `'sigma-prop-input-not-group-element'` code; document `VerifyError` class | 3, 5 |
-| `packages/ergoscript/src/index.ts` | Re-export `verifySignature`, `VerifyError`, and the structural `SigmaBoolean` type | 6 |
+| `fixture-gen/src/cmds/ergoscript/crypto/mod.rs` | Module export | 2 |
+| `fixture-gen/src/cmds/ergoscript/crypto/gf2_192_element_ops.rs` | Element cross-validation fixtures | 2 |
+| `fixture-gen/src/cmds/ergoscript/crypto/gf2_192_poly_ops.rs` | Polynomial cross-validation fixtures | 3 |
+| `fixture-gen/src/cmds/ergoscript/eval/atleast.rs` | Atleast C1 fixtures | 4 |
+| `fixture-gen/src/cmds/ergoscript/eval/sigma_and.rs` | SigmaAnd C1 fixtures | 5 |
+| `fixture-gen/src/cmds/ergoscript/eval/sigma_or.rs` | SigmaOr C1 fixtures | 6 |
+| `fixture-gen/src/cmds/ergoscript/verify/verifier_cand.rs` | Cand V1 positive + reject + V2 mutation | 8, 9 |
+| `fixture-gen/src/cmds/ergoscript/verify/verifier_cor.rs` | Cor V1 positive + reject + V2 mutation | 8, 9 |
+| `fixture-gen/src/cmds/ergoscript/verify/verifier_cthreshold.rs` | Cthreshold V1 positive + reject + V2 mutation | 8, 9 |
 
 **Modified files (Rust fixture-gen):**
 
-| Path | Modification | Task |
+| Path | Change | Task |
 |---|---|---|
-| `fixture-gen/src/cmds/ergoscript/wire/mod.rs` | Add `pub mod sigma_boolean_variants;` | 1 |
-| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Add 3 new `pub mod` lines: `create_prove_dlog`, `p2pk_short_circuit`, `create_prove_dh_tuple` | 3-4 |
-| `fixture-gen/src/cmds/ergoscript/mod.rs` | Add `pub mod verify;` | 6 |
-| `fixture-gen/src/main.rs` | Wire 9 new `generate_and_write` calls (1 wire-variants + 3 eval + 5 verify); some verify modules may produce multiple fixture files | 1, 3-4, 6 |
-| `fixture-gen/Cargo.toml` | Ensure sigma-rust prover-enabling features are active (likely already via `arbitrary`; confirm at Task 6) | 6 |
+| `fixture-gen/Cargo.toml` | Add `gf2_192` workspace dep | 2 |
+| `fixture-gen/src/main.rs` | Add new `generate_and_write` calls for each new fixture module | 2, 3, 4, 5, 6, 8 |
+| `fixture-gen/src/cmds/ergoscript/mod.rs` | Add `pub mod crypto;` line | 2 |
+| `fixture-gen/src/cmds/ergoscript/eval/mod.rs` | Add 3 new `pub mod` lines | 4, 5, 6 |
+| `fixture-gen/src/cmds/ergoscript/verify/mod.rs` | Add 3 new `pub mod` lines | 8 |
 
-**Modified files (docs / memory — Tasks 7-8 only):**
+**Fixture corpora (committed to TS test/fixtures/):**
 
-| Path | Modification | Task |
+| Path | Owner | Task |
 |---|---|---|
-| `facts/ergoscript.md` | Add v0.3.0 (or v0.2.0-extended) phase 2g-medium block: coverage 42 → 44; new `verifySignature` public function with precondition/postcondition; new `VerifyError` class with code taxonomy; new `EvalError` code `'sigma-prop-input-not-group-element'`; 2 new `SigmaBooleanParseError` codes; structural `SigmaBoolean` shape; 50-JitCost P2PK short-circuit on Const arm; `@noble/curves@2.2.0` listed in dependencies | 7 |
-| `docs/specs/2026-05-13-ergoscript-interpreter-design.md` | Annotate phase 2g row: "delivered as 2g-medium (leaf-only verifier) + 2g-combinators (eval arms for Atleast/SigmaAnd/SigmaOr + conjecture verifier extension)" | 7 |
-| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` | Updated: phase 2g-medium shipped (44 arms); next is 2g-combinators (3 deferred sigma combinators + conjecture verifier extension; Cthreshold polynomial GF(2^192)), then 2g.5 method-call dispatch | 8 |
-| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md` | Extend scope of 2g-combinators: now includes conjecture verifier walk (Cand/Cor) + Cthreshold polynomial + Atleast/SigmaAnd/SigmaOr eval arms | 8 |
-| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md` | Update hook lines | 8 |
-| `~/.claude/projects/-home-mwaddip-projects-ergots/memory/reference_sigma_verifier_internals.md` | NEW: Key crypto details locked in writing (challenge-to-scalar left-pad; prop_bytes ErgoTree v0 wrap; Mul<&EcPoint> is point-add; identity convention; put_u16 VLQ vs put_i16_be_bytes BE in Fiat-Shamir) | 8 |
-| `packages/ergoscript/SESSION_CONTEXT.md` | Fresh snapshot for phase 2g-medium done state (gitignored, local-only) | 8 |
-
-**Unchanged (deliberately):**
-- `packages/ergoscript/src/eval/eval-context.ts` — `addPerItemCost` already shipped in phase 2f Coll HOFs; no new `EvalContext` fields.
-- `packages/ergoscript/src/eval/evaluate.ts` / `evaluate-with.ts` — `evaluate(tree, opts)` already plays the role of sigma-rust's `reduce_to_crypto`; no signature change.
-- `packages/ergoscript/src/mir/types.ts` for `CreateProveDlog` / `CreateProveDhTuple` MIR variants — already declared since phase 2a.
-- `packages/ergoscript/src/wire/parse-svalue.ts` SSigmaProp case — already delegates to `parseSigmaBoolean` (line 233); the SValue case continues to work once `parseSigmaBoolean` returns structural.
-- `packages/ergoscript/test/_helpers/index.ts` — existing helpers (`hexToBytes`, `hydrateSValue`, `captureEvalError`, `rehydrateEvalOpts`) cover all new test files. New helper `hydrateSigmaBoolean` for structural shape may be added at Task 1 if tests need it.
+| `packages/ergoscript/test/fixtures/crypto/gf2_192-element-ops.json` | Element add/multiply/sqr/invert/equals/serialize entries | 2 |
+| `packages/ergoscript/test/fixtures/crypto/gf2_192-poly-ops.json` | Polynomial interpolate/evaluate/toBytes entries | 3 |
+| `packages/ergoscript/test/fixtures/eval/atleast.json` | C1 entries | 4 |
+| `packages/ergoscript/test/fixtures/eval/sigma-and.json` | C1 entries | 5 |
+| `packages/ergoscript/test/fixtures/eval/sigma-or.json` | C1 entries | 6 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cand.json` | Cand V1 positive | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cand-reject.json` | Cand V1 reject | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cand-mutation.json` | Cand V2 mutation | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cor.json` | Cor V1 positive | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cor-reject.json` | Cor V1 reject | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cor-mutation.json` | Cor V2 mutation | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cthreshold.json` | Cthreshold V1 positive | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cthreshold-reject.json` | Cthreshold V1 reject | 8 |
+| `packages/ergoscript/test/fixtures/verify/verifier-cthreshold-mutation.json` | Cthreshold V2 mutation | 8 |
 
 ---
 
-## Conventions and workflow
-
-These apply to every task. Don't repeat them per-task.
-
-**Per-task arc (modeled on phase 2f Coll HOFs):**
-1. Read sigma-rust source for the task's subject (cited per task).
-2. Write the fixture-gen Rust module(s) where the task ships fixtures (Tasks 1, 3-4, 6).
-3. Wire fixture-gen: add `pub mod ...` to the relevant `mod.rs`; add `generate_and_write` call to `fixture-gen/src/main.rs`.
-4. Run `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Verify new fixture file(s) appear at the expected paths.
-5. Verify determinism: regenerate (re-run cargo run), then `git diff packages/ergoscript/test/fixtures/` — must be empty.
-6. Write the failing TS test(s) (red).
-7. Run `npx vitest run <test-path>`; verify FAIL with the expected reason.
-8. Write the minimal TS implementation (green).
-9. Wire into central dispatch / module index where applicable.
-10. Run the per-task test; verify PASS.
-11. Run the full ergoscript suite: `npx vitest run packages/ergoscript/`; verify all previous tests still pass (especially the 255-fixture roundtrip + 6221-flip mutation suite from phase 2a, after Task 1).
-12. Run `npx tsc --noEmit -p packages/ergoscript`; verify zero errors.
-13. Two-stage review (spec compliance + code quality) — orchestrator's job.
-14. Commit (one commit per task; orchestrator may request a fix commit after review).
-
-**Fixture-gen execution:** Always `cargo run --release -p fixture-gen` from `/home/mwaddip/projects/ergots`. Determinism check per task that touches fixtures: regenerate, then `git diff packages/ergoscript/test/fixtures/` — must be empty.
-
-**Browser compatibility checks:** Every new TS module follows the existing hard rules (no `Buffer`, no `node:*` outside test files, no `globalThis.crypto`, no WASM, ESM only, no top-level await). `@noble/curves@2.2.0` is browser-clean by design.
-
-**Two-stage review (per task):** Orchestrator dispatches two parallel review subagents after each task's green-+-typecheck-passes state:
-- **Spec-compliance reviewer** — reads `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md`, this PLAN's task section, and the diff. Verifies behavior matches the design.
-- **Code-quality reviewer** — reads the diff. Verifies test style, idioms, no `any` leaks, comments cite sigma-rust source lines, browser-clean primitives only.
-
-**Commit message style:** HEREDOC format per CLAUDE.md. Per-task subject pattern: `feat(ergoscript): <subject> (phase 2g-medium task N)` or `refactor(ergoscript): ...` for Task 1. Trailer `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` mandatory.
-
-**No STOP markers in this slice.** Per [[feedback-no-artificial-stops]] memory. Commits between every task are the granular checkpoints; resumable at any task boundary.
-
----
-
-## Task 1: Foundation — structural SigmaBoolean wire refactor
+## Task 1: Normalization helpers — `cthresholdReduce` + `candNormalized` + `corNormalized`
 
 **Files:**
-- Modify: `packages/ergoscript/src/mir/types.ts` — `SigmaBoolean` interface
-- Modify: `packages/ergoscript/src/wire/sigma-boolean.ts` — full rewrite (structural parser + new serializer + refactored helpers + 2 new error codes)
-- Modify: `packages/ergoscript/src/wire/serialize-svalue.ts` — SSigmaProp case delegation
-- Modify: `packages/ergoscript/src/address.ts` — `isP2PK` / `p2pkPublicKey` walk structural
-- Create: `fixture-gen/src/cmds/ergoscript/wire/sigma_boolean_variants.rs` — per-variant wire fixtures
-- Modify: `fixture-gen/src/cmds/ergoscript/wire/mod.rs` — add `pub mod sigma_boolean_variants;`
-- Modify: `fixture-gen/src/main.rs` — wire `generate_and_write` call
-- Create: `packages/ergoscript/test/wire/sigma-boolean-variants.test.ts` — roundtrip tests
+- Create: `packages/ergoscript/src/mir/sigma-boolean-normalize.ts`
+- Test: `packages/ergoscript/test/mir/sigma-boolean-normalize.test.ts`
 
-**Sigma-rust sources:**
-- `ergotree-ir/src/sigma_protocol/sigma_boolean.rs:34-80` — `ProveDlog`, `ProveDhTuple` struct shapes
-- `ergotree-ir/src/sigma_protocol/sigma_boolean/cand.rs:16-20, 67-69` — Cand struct + wire write (VLQ items_count)
-- `ergotree-ir/src/sigma_protocol/sigma_boolean/cor.rs:16-20, 67-69` — Cor struct + wire write
-- `ergotree-ir/src/sigma_protocol/sigma_boolean/cthreshold.rs:23-30, 108-111` — Cthreshold struct + wire write (k as `put_u16` of u8)
-- `ergotree-ir/src/serialization/sigmaboolean.rs` — full parse + serialize logic
-
-**Key behavior:** Replace the opaque `{ raw: Uint8Array }` shape with a 6-variant discriminated union (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`). Wire parser dispatches recursively on opcode. Wire serializer walks structural to emit identical bytes. Round-trip invariant unchanged: `serializeSigmaBoolean(parseSigmaBoolean(b)) === b` byte-equal.
-
-**Acceptance gate:** Existing 255-fixture roundtrip suite (`test/wire/corpus.test.ts` or equivalent) and 6221-flip mutation suite must continue to pass post-refactor.
-
-- [ ] **Step 1: Read sigma-rust SigmaBoolean source files**
+**Sigma-rust source-read (REQUIRED before writing any TS):**
 
 ```bash
-sed -n '20,90p' ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean.rs
-sed -n '1,80p' ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/sigmaboolean.rs
-sed -n '100,120p' ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cthreshold.rs
+# Read these files fully; cite line ranges in commit message
+cat ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cthreshold.rs
+cat ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cand.rs
+cat ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/sigma_protocol/sigma_boolean/cor.rs
 ```
 
-Confirm: `SigmaConjectureItems<T> = BoundedVec<T, 1, 255>`; Cthreshold's `k: u8`; Cand/Cor/Cthreshold child-count uses `put_u16` (VLQ on wire); Cthreshold writes `k` as `put_u16(k as u16)`.
+- [ ] **Step 1:** Read the three source files; note the exact normalization rules. Key rules to lock:
+  - `Cthreshold::reduce(k, children)`: edge cases k=0 (→ TrivialProp(true)), k>n (→ TrivialProp(false)); mid-loop short-circuit at `curr_k == 1` appends remaining children then `Cor::normalized`; mid-loop short-circuit at `curr_k == children_left` appends remaining then `Cand::normalized`; TrivialProp(true) children decrement both `curr_k` and `children_left`; TrivialProp(false) decrement only `children_left`; non-trivial appended; end-of-loop same 3-way classification.
+  - `Cand::normalized(items)`: filter TrivialProp(true) (identity); if any TrivialProp(false) → TrivialProp(false) (absorbing); empty after filter → TrivialProp(true); single → unwrap; else → `Cand`.
+  - `Cor::normalized(items)`: filter TrivialProp(false) (identity); if any TrivialProp(true) → TrivialProp(true) (absorbing); empty after filter → TrivialProp(false); single → unwrap; else → `Cor`.
 
-- [ ] **Step 2: Read current TS state for refactor scope**
-
-```bash
-sed -n '110,125p' /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
-cat /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/sigma-boolean.ts
-sed -n '285,310p' /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/serialize-svalue.ts
-sed -n '100,170p' /home/mwaddip/projects/ergots/packages/ergoscript/src/address.ts
-```
-
-- [ ] **Step 3: Update `SigmaBoolean` type in `mir/types.ts`**
-
-Replace the existing opaque shape (around lines 117-120):
+- [ ] **Step 2: Write the failing tests** in `packages/ergoscript/test/mir/sigma-boolean-normalize.test.ts`:
 
 ```ts
-export interface SigmaBoolean {
-  /** Serialized sigma-protocol tree; structure deferred to phase 2g. */
-  raw: Uint8Array
-}
-```
-
-with the structural discriminated union:
-
-```ts
-/**
- * Structural sigma-protocol proposition tree (phase 2g-medium).
- *
- * Flattens sigma-rust's 3-variant `SigmaBoolean` enum
- * (`TrivialProp` / `ProofOfKnowledge` / `SigmaConjecture`) to the 6
- * concrete leaves. Wire format (opcode dispatch) lives in
- * `wire/sigma-boolean.ts`; the runtime verifier (phase 2g-medium leaf-only,
- * 2g-combinators full) walks this tree.
- *
- * Source: ergotree-ir/src/sigma_protocol/sigma_boolean.rs:168-175
- */
-export type SigmaBoolean =
-  | { tag: 'TrivialProp'; value: boolean }
-  | { tag: 'ProveDlog'; h: Uint8Array }                                         // 33-byte SEC1 compressed (or 33 zeros = identity, Ergo convention)
-  | { tag: 'ProveDhTuple'; g: Uint8Array; h: Uint8Array; u: Uint8Array; v: Uint8Array }
-  | { tag: 'Cand'; items: SigmaBoolean[] }                                      // items.length >= 1
-  | { tag: 'Cor'; items: SigmaBoolean[] }                                       // items.length >= 1
-  | { tag: 'Cthreshold'; k: number; items: SigmaBoolean[] }                     // k in [1, items.length]
-```
-
-If `SigmaBoolean` is currently declared as `interface`, change to `type` (discriminated unions need `type`). Update any `interface SigmaBoolean extends` declarations downstream (search via `grep -rn "interface SigmaBoolean" packages/ergoscript/`).
-
-- [ ] **Step 4: Rewrite `wire/sigma-boolean.ts`**
-
-Replace the entire file body with the structural implementation. Keep the file's top-of-file doc comment and opcode constants. Replace `parseSigmaBoolean`, `consumeSigmaBoolean`, `sigmaBooleanOpCode`, `proveDlogPublicKey`. Add `serializeSigmaBoolean`. Add 2 new error codes.
-
-```ts
-import type { SigmaBoolean } from '../mir/types'
-import { ByteReader, ReaderError } from './reader'
-import { ByteWriter } from './writer'
-
-const OP_AND = 0x96
-const OP_OR = 0x97
-const OP_ATLEAST = 0x98
-const OP_PROVE_DLOG = 0xcd
-const OP_PROVE_DH_TUPLE = 0xce
-const OP_TRIVIAL_PROP_FALSE = 0xd2
-const OP_TRIVIAL_PROP_TRUE = 0xd3
-
-export class SigmaBooleanParseError extends Error {
-  constructor(message: string, public readonly code: string) {
-    super(message); this.name = 'SigmaBooleanParseError'
-  }
-}
-
-export class SigmaBooleanSerializeError extends Error {
-  constructor(message: string, public readonly code: string) {
-    super(message); this.name = 'SigmaBooleanSerializeError'
-  }
-}
-
-/**
- * Parse a SigmaBoolean from `r`, returning a structural discriminated union.
- * Recursive on conjectures.
- *
- * Error codes:
- *  - 'unknown-opcode'                — opcode byte not in the sigma table
- *  - 'arity-out-of-range'            — items_count > u16 max
- *  - 'cthreshold-k-out-of-range'     — k outside [1, items.length]
- *  - 'sigma-conjecture-empty-items'  — items.length < 1 (BoundedVec lower bound)
- *
- * Source: ergotree-ir/src/serialization/sigmaboolean.rs
- */
-export function parseSigmaBoolean(r: ByteReader): SigmaBoolean {
-  const op = r.readU8()
-  switch (op) {
-    case OP_TRIVIAL_PROP_FALSE: return { tag: 'TrivialProp', value: false }
-    case OP_TRIVIAL_PROP_TRUE:  return { tag: 'TrivialProp', value: true }
-    case OP_PROVE_DLOG: {
-      const h = r.readBytes(33).slice()
-      return { tag: 'ProveDlog', h }
-    }
-    case OP_PROVE_DH_TUPLE: {
-      const g = r.readBytes(33).slice()
-      const h = r.readBytes(33).slice()
-      const u = r.readBytes(33).slice()
-      const v = r.readBytes(33).slice()
-      return { tag: 'ProveDhTuple', g, h, u, v }
-    }
-    case OP_AND:
-    case OP_OR: {
-      const count = r.readVlqU()
-      if (count > 0xffff) {
-        throw new SigmaBooleanParseError(
-          `SigmaConjecture items_count ${count} exceeds u16 bound`, 'arity-out-of-range')
-      }
-      if (count < 1) {
-        throw new SigmaBooleanParseError(
-          `SigmaConjecture must have at least 1 item, got ${count}`, 'sigma-conjecture-empty-items')
-      }
-      const items: SigmaBoolean[] = []
-      for (let i = 0; i < count; i++) items.push(parseSigmaBoolean(r))
-      return { tag: op === OP_AND ? 'Cand' : 'Cor', items }
-    }
-    case OP_ATLEAST: {
-      // sigma-rust cthreshold.rs:108-111 writes k as put_u16(k as u16), VLQ on wire.
-      const k = r.readVlqU()
-      const count = r.readVlqU()
-      if (count > 0xffff) {
-        throw new SigmaBooleanParseError(
-          `Cthreshold items_count ${count} exceeds u16 bound`, 'arity-out-of-range')
-      }
-      if (count < 1) {
-        throw new SigmaBooleanParseError(
-          `Cthreshold must have at least 1 item, got ${count}`, 'sigma-conjecture-empty-items')
-      }
-      if (k < 1 || k > count) {
-        throw new SigmaBooleanParseError(
-          `Cthreshold k=${k} out of range [1, ${count}]`, 'cthreshold-k-out-of-range')
-      }
-      if (k > 0xff) {
-        throw new SigmaBooleanParseError(
-          `Cthreshold k=${k} exceeds u8 bound`, 'cthreshold-k-out-of-range')
-      }
-      const items: SigmaBoolean[] = []
-      for (let i = 0; i < count; i++) items.push(parseSigmaBoolean(r))
-      return { tag: 'Cthreshold', k, items }
-    }
-    default:
-      throw new SigmaBooleanParseError(
-        `unknown SigmaBoolean opcode 0x${op.toString(16).padStart(2, '0')}`, 'unknown-opcode')
-  }
-}
-
-/**
- * Serialize a SigmaBoolean to `w`. Dual of `parseSigmaBoolean`.
- *
- * Source: ergotree-ir/src/serialization/sigmaboolean.rs
- */
-export function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void {
-  switch (sb.tag) {
-    case 'TrivialProp':
-      w.writeU8(sb.value ? OP_TRIVIAL_PROP_TRUE : OP_TRIVIAL_PROP_FALSE)
-      return
-    case 'ProveDlog':
-      if (sb.h.length !== 33) {
-        throw new SigmaBooleanSerializeError(`ProveDlog.h length=${sb.h.length}, expected 33`, 'ec-point-length')
-      }
-      w.writeU8(OP_PROVE_DLOG); w.writeBytes(sb.h)
-      return
-    case 'ProveDhTuple':
-      for (const [name, p] of [['g', sb.g], ['h', sb.h], ['u', sb.u], ['v', sb.v]] as const) {
-        if (p.length !== 33) {
-          throw new SigmaBooleanSerializeError(`ProveDhTuple.${name} length=${p.length}, expected 33`, 'ec-point-length')
-        }
-      }
-      w.writeU8(OP_PROVE_DH_TUPLE); w.writeBytes(sb.g); w.writeBytes(sb.h); w.writeBytes(sb.u); w.writeBytes(sb.v)
-      return
-    case 'Cand':
-    case 'Cor':
-      if (sb.items.length < 1 || sb.items.length > 0xffff) {
-        throw new SigmaBooleanSerializeError(`SigmaConjecture items.length=${sb.items.length} out of range`, 'arity-out-of-range')
-      }
-      w.writeU8(sb.tag === 'Cand' ? OP_AND : OP_OR)
-      w.writeVlqU(sb.items.length)
-      for (const item of sb.items) serializeSigmaBoolean(item, w)
-      return
-    case 'Cthreshold':
-      if (sb.items.length < 1 || sb.items.length > 0xffff) {
-        throw new SigmaBooleanSerializeError(`Cthreshold items.length=${sb.items.length} out of range`, 'arity-out-of-range')
-      }
-      if (sb.k < 1 || sb.k > sb.items.length || sb.k > 0xff) {
-        throw new SigmaBooleanSerializeError(`Cthreshold k=${sb.k} out of range`, 'cthreshold-k-out-of-range')
-      }
-      w.writeU8(OP_ATLEAST); w.writeVlqU(sb.k); w.writeVlqU(sb.items.length)
-      for (const item of sb.items) serializeSigmaBoolean(item, w)
-      return
-    default: {
-      const _exhaust: never = sb
-      throw new SigmaBooleanSerializeError(`unreachable: ${JSON.stringify(_exhaust)}`, 'unreachable')
-    }
-  }
-}
-
-/**
- * Convenience: returns the 33-byte public key if `sb` is a ProveDlog leaf, else null.
- * Defensive copy.
- */
-export function proveDlogPublicKey(sb: SigmaBoolean): Uint8Array | null {
-  return sb.tag === 'ProveDlog' ? sb.h.slice() : null
-}
-
-export {
-  OP_PROVE_DLOG as SIGMA_OP_PROVE_DLOG,
-  OP_PROVE_DH_TUPLE as SIGMA_OP_PROVE_DH_TUPLE,
-  OP_TRIVIAL_PROP_FALSE as SIGMA_OP_TRIVIAL_PROP_FALSE,
-  OP_TRIVIAL_PROP_TRUE as SIGMA_OP_TRIVIAL_PROP_TRUE,
-  OP_AND as SIGMA_OP_AND,
-  OP_OR as SIGMA_OP_OR,
-  OP_ATLEAST as SIGMA_OP_ATLEAST,
-}
-
-export { ReaderError }
-```
-
-Note: `sigmaBooleanOpCode` is removed — callers can switch on `sb.tag` directly. Search for any remaining call sites and refactor.
-
-- [ ] **Step 5: Update `wire/serialize-svalue.ts` SSigmaProp case**
-
-Current (lines 292-305):
-
-```ts
-case 'SSigmaProp': {
-  assertKind(t, v, 'SigmaProp')
-  if (v.value.raw.length === 0) {
-    throw new SValueSerializeError('SigmaBoolean.raw is empty', 'sigma-boolean-empty')
-  }
-  w.writeBytes(v.value.raw)
-  return
-}
-```
-
-Replace with:
-
-```ts
-case 'SSigmaProp': {
-  assertKind(t, v, 'SigmaProp')
-  // Phase 2g-medium: structural SigmaBoolean walked by serializeSigmaBoolean.
-  serializeSigmaBoolean(v.value, w)
-  return
-}
-```
-
-Add `import { serializeSigmaBoolean } from './sigma-boolean'` at the top of the file (next to existing `parseSigmaBoolean` / sigma-boolean imports). Remove the `'sigma-boolean-empty'` error code from `SValueSerializeError` taxonomy (no longer reachable; or leave for backwards-compat — note in commit message).
-
-- [ ] **Step 6: Refactor `address.ts` `isP2PK` / `p2pkPublicKey` / `resolveSigmaProp`**
-
-Read current implementations (around lines 106-160 + 229+). Replace `sb.raw[0] === OP_PROVE_DLOG` checks with `sb.tag === 'ProveDlog'`. Replace `sb.raw.length === 34` with `sb.tag === 'ProveDlog'` (the structural form's `h.length === 33` is enforced by the parser).
-
-Concrete change to `proveDlogPublicKey` callers in `address.ts`: now imports from `wire/sigma-boolean` (already exported, signature unchanged from caller perspective — returns 33 bytes or null). Update `p2pkPublicKey` internals:
-
-```ts
-export function p2pkPublicKey(tree: ErgoTree): Uint8Array | null {
-  const sigmaValue = resolveSigmaProp(tree.body, tree)
-  if (sigmaValue === null) return null
-  return sigmaValue.value.tag === 'ProveDlog' ? sigmaValue.value.h.slice() : null
-}
-```
-
-Remove the now-unused `proveDlogPublicKey` import if `p2pkPublicKey` inlines the check (or keep it and delegate; either works). Run `grep -n "proveDlogPublicKey\|sigmaBooleanOpCode\|sb\.raw" packages/ergoscript/src/` and update every remaining call site.
-
-- [ ] **Step 7: Write the Rust fixture-gen for per-variant wire fixtures**
-
-Create `fixture-gen/src/cmds/ergoscript/wire/sigma_boolean_variants.rs`:
-
-```rust
-//! Per-variant wire-format fixtures for structural SigmaBoolean (phase 2g-medium Task 1).
-//!
-//! Generates byte-encoded SigmaBoolean trees for each of the 6 variants
-//! plus a few conjecture-nesting combinations. The TS test asserts
-//! parse + structural-equal + serialize round-trip.
-
-use crate::common::write_file;
-use anyhow::Result;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::sigma_protocol::sigma_boolean::{
-    ProveDhTuple, ProveDlog, SigmaBoolean, SigmaConjectureItems,
-};
-use ergotree_ir::sigma_protocol::sigma_boolean::cand::Cand;
-use ergotree_ir::sigma_protocol::sigma_boolean::cor::Cor;
-use ergotree_ir::sigma_protocol::sigma_boolean::cthreshold::Cthreshold;
-use ergo_chain_types::EcPoint;
-use serde::Serialize;
-use sigma_test_util::force_any_val;
-
-#[derive(Serialize)]
-struct SigmaBooleanVariantFixture {
-    name: String,
-    /// Hex of the serialized SigmaBoolean (NOT wrapped in ErgoTree).
-    bytes_hex: String,
-    /// Structural description (JSON tree of the SigmaBoolean for the TS test
-    /// to assert equality against).
-    structural_json: serde_json::Value,
-}
-
-#[derive(Serialize)]
-struct SigmaBooleanVariantsFile {
-    description: &'static str,
-    entries: Vec<SigmaBooleanVariantFixture>,
-}
-
-fn entry(name: &str, sb: SigmaBoolean) -> Result<SigmaBooleanVariantFixture> {
-    let bytes = sb.sigma_serialize_bytes()?;
-    let structural = sigma_boolean_to_json(&sb);
-    Ok(SigmaBooleanVariantFixture {
-        name: name.to_string(),
-        bytes_hex: hex::encode(&bytes),
-        structural_json: structural,
-    })
-}
-
-fn sigma_boolean_to_json(sb: &SigmaBoolean) -> serde_json::Value {
-    // Match the TS discriminated-union shape: { tag: '...', ...fields }.
-    match sb {
-        SigmaBoolean::TrivialProp(b) => serde_json::json!({
-            "tag": "TrivialProp", "value": b
-        }),
-        SigmaBoolean::ProofOfKnowledge(pk) => {
-            use ergotree_ir::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree;
-            match pk {
-                SigmaProofOfKnowledgeTree::ProveDlog(d) => serde_json::json!({
-                    "tag": "ProveDlog",
-                    "h": hex::encode(d.h.sigma_serialize_bytes().unwrap())
-                }),
-                SigmaProofOfKnowledgeTree::ProveDhTuple(d) => serde_json::json!({
-                    "tag": "ProveDhTuple",
-                    "g": hex::encode(d.g.sigma_serialize_bytes().unwrap()),
-                    "h": hex::encode(d.h.sigma_serialize_bytes().unwrap()),
-                    "u": hex::encode(d.u.sigma_serialize_bytes().unwrap()),
-                    "v": hex::encode(d.v.sigma_serialize_bytes().unwrap()),
-                }),
-            }
-        }
-        SigmaBoolean::SigmaConjecture(c) => {
-            use ergotree_ir::sigma_protocol::sigma_boolean::SigmaConjecture;
-            match c {
-                SigmaConjecture::Cand(a) => serde_json::json!({
-                    "tag": "Cand",
-                    "items": a.items.iter().map(sigma_boolean_to_json).collect::<Vec<_>>()
-                }),
-                SigmaConjecture::Cor(o) => serde_json::json!({
-                    "tag": "Cor",
-                    "items": o.items.iter().map(sigma_boolean_to_json).collect::<Vec<_>>()
-                }),
-                SigmaConjecture::Cthreshold(t) => serde_json::json!({
-                    "tag": "Cthreshold",
-                    "k": t.k,
-                    "items": t.children.iter().map(sigma_boolean_to_json).collect::<Vec<_>>()
-                }),
-            }
-        }
-    }
-}
-
-pub fn generate() -> Result<()> {
-    let mut entries = Vec::new();
-
-    entries.push(entry("trivial-true", SigmaBoolean::TrivialProp(true))?);
-    entries.push(entry("trivial-false", SigmaBoolean::TrivialProp(false))?);
-
-    // Use known-determinant EcPoints (force_any_val under TestRunner::deterministic()).
-    let pk1: EcPoint = force_any_val::<EcPoint>();
-    let pk2: EcPoint = force_any_val::<EcPoint>();
-    let pk3: EcPoint = force_any_val::<EcPoint>();
-    let pk4: EcPoint = force_any_val::<EcPoint>();
-
-    let dlog1 = SigmaBoolean::ProofOfKnowledge(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree::ProveDlog(
-            ProveDlog::new(pk1.clone())
-        )
-    );
-    entries.push(entry("prove-dlog-basic", dlog1.clone())?);
-
-    let dht1 = SigmaBoolean::ProofOfKnowledge(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree::ProveDhTuple(
-            ProveDhTuple::new(pk1.clone(), pk2.clone(), pk3.clone(), pk4.clone())
-        )
-    );
-    entries.push(entry("prove-dh-tuple-basic", dht1.clone())?);
-
-    let dlog2 = SigmaBoolean::ProofOfKnowledge(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree::ProveDlog(
-            ProveDlog::new(pk2.clone())
-        )
-    );
-
-    let cand_2leaves = SigmaBoolean::SigmaConjecture(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaConjecture::Cand(
-            Cand::normalized(SigmaConjectureItems::try_from(vec![dlog1.clone(), dlog2.clone()]).unwrap())
-                .unwrap_or_else(|_| panic!("cand normalize failed"))
-        )
-    );
-    // If normalize produces a non-Cand (e.g. single TrivialProp), we still emit it
-    // because the wire-fixture is about round-trip, not semantic shape.
-    entries.push(entry("cand-two-leaves", cand_2leaves)?);
-
-    let cor_2leaves = SigmaBoolean::SigmaConjecture(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaConjecture::Cor(
-            Cor::normalized(SigmaConjectureItems::try_from(vec![dlog1.clone(), dlog2.clone()]).unwrap())
-                .unwrap_or_else(|_| panic!("cor normalize failed"))
-        )
-    );
-    entries.push(entry("cor-two-leaves", cor_2leaves)?);
-
-    // Cthreshold k=2 of 3.
-    let dlog3 = SigmaBoolean::ProofOfKnowledge(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree::ProveDlog(
-            ProveDlog::new(pk3.clone())
-        )
-    );
-    let cthresh = SigmaBoolean::SigmaConjecture(
-        ergotree_ir::sigma_protocol::sigma_boolean::SigmaConjecture::Cthreshold(
-            Cthreshold::new(
-                2,
-                SigmaConjectureItems::try_from(vec![dlog1.clone(), dlog2.clone(), dlog3]).unwrap()
-            ).unwrap()
-        )
-    );
-    entries.push(entry("cthreshold-2-of-3", cthresh)?);
-
-    let file = SigmaBooleanVariantsFile {
-        description: "Per-variant wire-format fixtures for structural SigmaBoolean (phase 2g-medium Task 1).",
-        entries,
-    };
-    write_file(
-        "packages/ergoscript/test/fixtures/wire/sigma-boolean-variants.json",
-        serde_json::to_string_pretty(&file)?,
-    )
-}
-```
-
-Add `pub mod sigma_boolean_variants;` to `fixture-gen/src/cmds/ergoscript/wire/mod.rs`. Add `cmds::ergoscript::wire::sigma_boolean_variants::generate()?;` to the appropriate location in `fixture-gen/src/main.rs` (mirror existing wire-fixture call sites).
-
-- [ ] **Step 8: Run fixture-gen and verify determinism**
-
-```bash
-cd /home/mwaddip/projects/ergots
-cargo build --release -p fixture-gen
-cargo run --release -p fixture-gen
-git diff packages/ergoscript/test/fixtures/wire/sigma-boolean-variants.json  # confirm file appears
-cargo run --release -p fixture-gen  # rerun
-git diff packages/ergoscript/test/fixtures/wire/sigma-boolean-variants.json  # must be empty
-```
-
-If the second run shows a diff, the fixture-gen has non-determinism; investigate (likely `force_any_val` not under `TestRunner::deterministic()`).
-
-- [ ] **Step 9: Write the failing TS roundtrip test**
-
-Create `packages/ergoscript/test/wire/sigma-boolean-variants.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { parseSigmaBoolean, serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
-import { ByteReader } from '../../src/wire/reader'
-import { ByteWriter } from '../../src/wire/writer'
-import { hexToBytes } from '../_helpers'
-import type { SigmaBoolean } from '../../src/mir/types'
-
-interface VariantEntry {
-  name: string
-  bytes_hex: string
-  structural_json: any
-}
-
-interface VariantFile {
-  description: string
-  entries: VariantEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/wire/sigma-boolean-variants.json')
-const fixture: VariantFile = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-function hydrateSigmaBoolean(json: any): SigmaBoolean {
-  switch (json.tag) {
-    case 'TrivialProp': return { tag: 'TrivialProp', value: json.value }
-    case 'ProveDlog':   return { tag: 'ProveDlog', h: hexToBytes(json.h) }
-    case 'ProveDhTuple':
-      return {
-        tag: 'ProveDhTuple',
-        g: hexToBytes(json.g), h: hexToBytes(json.h),
-        u: hexToBytes(json.u), v: hexToBytes(json.v),
-      }
-    case 'Cand': return { tag: 'Cand', items: json.items.map(hydrateSigmaBoolean) }
-    case 'Cor':  return { tag: 'Cor',  items: json.items.map(hydrateSigmaBoolean) }
-    case 'Cthreshold':
-      return { tag: 'Cthreshold', k: json.k, items: json.items.map(hydrateSigmaBoolean) }
-    default: throw new Error(`unknown SigmaBoolean tag: ${json.tag}`)
-  }
-}
-
-function sigmaBooleanEquals(a: SigmaBoolean, b: SigmaBoolean): boolean {
-  if (a.tag !== b.tag) return false
-  switch (a.tag) {
-    case 'TrivialProp': return a.value === (b as any).value
-    case 'ProveDlog':   return bytesEqual(a.h, (b as any).h)
-    case 'ProveDhTuple': {
-      const bb = b as any
-      return bytesEqual(a.g, bb.g) && bytesEqual(a.h, bb.h)
-          && bytesEqual(a.u, bb.u) && bytesEqual(a.v, bb.v)
-    }
-    case 'Cand':
-    case 'Cor': {
-      const bb = b as any
-      return a.items.length === bb.items.length
-          && a.items.every((it, i) => sigmaBooleanEquals(it, bb.items[i]))
-    }
-    case 'Cthreshold': {
-      const bb = b as any
-      return a.k === bb.k && a.items.length === bb.items.length
-          && a.items.every((it, i) => sigmaBooleanEquals(it, bb.items[i]))
-    }
-  }
-}
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-describe('SigmaBoolean wire-format per-variant fixtures', () => {
-  for (const entry of fixture.entries) {
-    it(`${entry.name} — parse + structural-equal + round-trip`, () => {
-      const bytes = hexToBytes(entry.bytes_hex)
-      const parsed = parseSigmaBoolean(new ByteReader(bytes))
-      const expected = hydrateSigmaBoolean(entry.structural_json)
-      expect(sigmaBooleanEquals(parsed, expected)).toBe(true)
-
-      const w = new ByteWriter()
-      serializeSigmaBoolean(parsed, w)
-      const reserialized = w.toBytes()
-      expect(bytesEqual(reserialized, bytes)).toBe(true)
-    })
-  }
-})
-```
-
-- [ ] **Step 10: Run test, verify it fails (red)**
-
-```bash
-cd /home/mwaddip/projects/ergots
-npx vitest run packages/ergoscript/test/wire/sigma-boolean-variants.test.ts
-```
-
-Expected: FAIL (likely `parseSigmaBoolean` returns old `{ raw }` shape if Step 4 hasn't been applied, or `serializeSigmaBoolean` not exported).
-
-- [ ] **Step 11: Apply Steps 4-6 (TS edits) if not yet done**
-
-(Steps 3-6 are the actual edits; Step 10's red was meant as a checkpoint that the test runs against intended shape.) Re-run:
-
-```bash
-npx vitest run packages/ergoscript/test/wire/sigma-boolean-variants.test.ts
-```
-
-Expected: PASS (all per-variant entries round-trip byte-identically).
-
-- [ ] **Step 12: Run the full ergoscript suite — acceptance gate**
-
-```bash
-npx vitest run packages/ergoscript/
-```
-
-Expected: ALL prior 1894 tests + new variant tests PASS. Particular attention to:
-- `test/wire/corpus.test.ts` (or wherever the 255-fixture roundtrip lives) — still PASS
-- `test/parse-mutation.test.ts` (6221-flip suite) — still PASS
-- `test/address.test.ts` — `isP2PK` / `p2pkPublicKey` still PASS
-
-If any prior test fails, the refactor regressed something — bisect to the change that broke it (most likely `address.ts` Step 6 or `serialize-svalue.ts` Step 5).
-
-- [ ] **Step 13: Typecheck**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: zero errors.
-
-- [ ] **Step 14: Two-stage review (orchestrator)**
-
-Dispatch two parallel review subagents:
-- **Spec-compliance:** reads `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md` § Architecture / Wire-format migration + this Task 1, plus the diff. Verifies all 6 variants supported; opcodes match sigma-rust; new error codes shape match spec.
-- **Code-quality:** reads diff. Verifies TS idioms, exhaustive `_exhaust: never` in `serializeSigmaBoolean`, no `any` leaks, defensive copies on `.slice()` for Uint8Array fields, comments cite sigma-rust source lines.
-
-Apply fix commits if review surfaces issues.
-
-- [ ] **Step 15: Commit**
-
-```bash
-git add -A
-git commit -m "$(cat <<'EOF'
-refactor(ergoscript): structural SigmaBoolean wire-format (phase 2g-medium task 1)
-
-Replaces the opaque {raw: Uint8Array} shape from phase 2a with a 6-variant
-discriminated union (TrivialProp / ProveDlog / ProveDhTuple / Cand / Cor /
-Cthreshold). Wire parser dispatches recursively on opcode; new
-serializeSigmaBoolean walks structural to emit byte-identical output.
-isP2PK / p2pkPublicKey refactored to walk structural via sb.tag.
-
-Round-trip invariant unchanged. Existing 255-fixture roundtrip + 6221-flip
-mutation suites pass post-refactor.
-
-Adds: SigmaBooleanSerializeError class; 'cthreshold-k-out-of-range',
-'sigma-conjecture-empty-items' parse codes.
-
-Per-variant wire fixtures (TrivialProp×2, ProveDlog, ProveDhTuple, Cand,
-Cor, Cthreshold) generated via fixture-gen.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 2: `@noble/curves` adapter
-
-**Files:**
-- Modify: `packages/ergoscript/package.json` — add `@noble/curves: 2.2.0` to `dependencies`
-- Create: `packages/ergoscript/src/crypto/secp256k1.ts` — thin adapter (~9 functions)
-- Create: `packages/ergoscript/test/crypto/secp256k1.test.ts` — unit tests for adapter
-
-**Sigma-rust sources:**
-- `ergo-chain-types/src/ec_point.rs:21, 44, 74-152` — `EcPoint` wrapper; `GROUP_SIZE = 33` SEC1; identity = 33 zero bytes; `Mul<&EcPoint>` is point-addition
-- `ergotree-interpreter/src/sigma_protocol/wscalar.rs:60-76` — `scalar_from_bytes` (32 BE → mod n) + challenge-to-scalar (24 bytes → left-pad 8 zeros → mod n)
-- `ergotree-interpreter/src/sigma_protocol/dlog_group.rs:46-48` — secp256k1 group order n
-
-**Key behavior:** Localize the `@noble/curves` dependency surface to one file. Expose only the 9 operations the leaf-only verifier (Task 6) uses. Handle the Ergo identity convention (33 zero bytes ↔ point-at-infinity); this is NOT native SEC1 — `@noble/curves` does not encode/decode identity by default.
-
-- [ ] **Step 1: Confirm `@noble/curves@2.2.0` API surface**
-
-```bash
-# Check if @noble/hashes@2.2.0 is already a dep (version-locked pair)
-node -e "console.log(require('/home/mwaddip/projects/ergots/packages/ergoscript/package.json').dependencies)"
-```
-
-Read the `@noble/curves` README/types for the `secp256k1` module. Expected API surface (v2.x):
-- `import { secp256k1 } from '@noble/curves/secp256k1.js'` (or `.js` may be omitted depending on ESM resolution)
-- `secp256k1.Point` — Point class with `BASE` static, `fromBytes(bytes)`, `fromHex(hex)`, `toBytes(compressed?)`, `add(other)`, `negate()`, `multiply(scalar)`, `equals(other)`
-- `secp256k1.CURVE.n` — group order (BigInt)
-- Identity (point-at-infinity) is `secp256k1.Point.ZERO` or `Point.IDENTITY` (check API)
-- `Point.fromBytes(zeros33)` likely throws (off-curve) — handle in adapter
-
-Verify by reading `node_modules/@noble/curves` source after adding the dep.
-
-- [ ] **Step 2: Add `@noble/curves: 2.2.0` to package.json**
-
-Read current `packages/ergoscript/package.json` (do not write blindly). Add to `dependencies`:
-
-```json
-"@noble/curves": "2.2.0"
-```
-
-Pin exact version (no caret) — version-locked pair with `@noble/hashes: 2.2.0`. Run `npm install` (or workspace-aware equivalent — check repo root for `npm-workspaces` setup):
-
-```bash
-cd /home/mwaddip/projects/ergots
-npm install
-```
-
-Verify install:
-
-```bash
-ls -la node_modules/@noble/curves/
-node -e "import('@noble/curves/secp256k1.js').then(m => console.log(Object.keys(m)))" 2>&1 | head -10
-```
-
-- [ ] **Step 3: Write the failing test for the adapter**
-
-Create `packages/ergoscript/test/crypto/secp256k1.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  decodePoint, encodePoint, pointAdd, pointNegate, pointMul,
-  basePoint, groupOrder, scalarFromBytes, scalarFromChallenge,
-} from '../../src/crypto/secp256k1'
-
-const ZERO_33 = new Uint8Array(33)  // Ergo identity
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-describe('secp256k1 adapter', () => {
-  describe('identity convention (33 zero bytes ↔ point-at-infinity)', () => {
-    it('decodePoint(33 zeros) returns identity', () => {
-      const identity = decodePoint(ZERO_33)
-      // Add identity to basePoint, should equal basePoint
-      const sum = pointAdd(basePoint, identity)
-      expect(bytesEqual(encodePoint(sum), encodePoint(basePoint))).toBe(true)
-    })
-
-    it('encodePoint(identity) returns 33 zero bytes', () => {
-      const identity = decodePoint(ZERO_33)
-      const encoded = encodePoint(identity)
-      expect(bytesEqual(encoded, ZERO_33)).toBe(true)
-    })
-  })
-
-  describe('basePoint encoding', () => {
-    it('encodePoint(basePoint) is 33 bytes starting with 0x02 or 0x03', () => {
-      const bytes = encodePoint(basePoint)
-      expect(bytes.length).toBe(33)
-      expect([0x02, 0x03]).toContain(bytes[0])
-    })
-
-    it('encodePoint(basePoint) round-trips through decodePoint', () => {
-      const bytes = encodePoint(basePoint)
-      const decoded = decodePoint(bytes)
-      const reEncoded = encodePoint(decoded)
-      expect(bytesEqual(reEncoded, bytes)).toBe(true)
-    })
-  })
-
-  describe('groupOrder', () => {
-    it('matches secp256k1 n', () => {
-      // n = FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
-      expect(groupOrder).toBe(
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n
-      )
-    })
-  })
-
-  describe('scalarFromBytes (32 BE → mod n)', () => {
-    it('decodes 32-byte big-endian scalar', () => {
-      const bytes = new Uint8Array(32)
-      bytes[31] = 5
-      expect(scalarFromBytes(bytes)).toBe(5n)
-    })
-
-    it('reduces values ≥ n', () => {
-      // n + 1 in big-endian
-      const nPlus1Hex = (groupOrder + 1n).toString(16).padStart(64, '0')
-      const bytes = new Uint8Array(32)
-      for (let i = 0; i < 32; i++) bytes[i] = parseInt(nPlus1Hex.slice(i*2, i*2+2), 16)
-      expect(scalarFromBytes(bytes)).toBe(1n)
-    })
-  })
-
-  describe('scalarFromChallenge (24 bytes → left-pad 8 zeros → mod n)', () => {
-    it('left-pads with 8 zero bytes before reduction', () => {
-      const challenge = new Uint8Array(24)
-      challenge[23] = 7
-      // 24-byte value 7 → left-padded becomes 32-byte BE value 7
-      expect(scalarFromChallenge(challenge)).toBe(7n)
-    })
-
-    it('all-zero challenge → scalar 0', () => {
-      expect(scalarFromChallenge(new Uint8Array(24))).toBe(0n)
-    })
-
-    it('max 24-byte value fits comfortably in 32 bytes after left-pad', () => {
-      const challenge = new Uint8Array(24).fill(0xff)
-      const expected = (1n << 192n) - 1n
-      expect(scalarFromChallenge(challenge)).toBe(expected)
-    })
-  })
-
-  describe('point ops', () => {
-    it('pointMul(basePoint, 1) === basePoint', () => {
-      const result = pointMul(basePoint, 1n)
-      expect(bytesEqual(encodePoint(result), encodePoint(basePoint))).toBe(true)
-    })
-
-    it('pointMul(basePoint, 0) === identity', () => {
-      const result = pointMul(basePoint, 0n)
-      expect(bytesEqual(encodePoint(result), ZERO_33)).toBe(true)
-    })
-
-    it('pointMul(basePoint, n) === identity', () => {
-      const result = pointMul(basePoint, groupOrder)
-      expect(bytesEqual(encodePoint(result), ZERO_33)).toBe(true)
-    })
-
-    it('pointAdd(p, negate(p)) === identity', () => {
-      const p2 = pointMul(basePoint, 12345n)
-      const negP2 = pointNegate(p2)
-      const sum = pointAdd(p2, negP2)
-      expect(bytesEqual(encodePoint(sum), ZERO_33)).toBe(true)
-    })
-  })
-
-  describe('decodePoint rejects off-curve bytes', () => {
-    it('throws on invalid SEC1 tag', () => {
-      const bytes = new Uint8Array(33)
-      bytes[0] = 0xff  // invalid tag (not 0x02, 0x03, or 0x00)
-      expect(() => decodePoint(bytes)).toThrow()
-    })
-
-    it('throws on wrong length', () => {
-      expect(() => decodePoint(new Uint8Array(32))).toThrow()
-      expect(() => decodePoint(new Uint8Array(34))).toThrow()
-    })
-  })
-})
-```
-
-- [ ] **Step 4: Run test, verify it fails (module not found)**
-
-```bash
-npx vitest run packages/ergoscript/test/crypto/secp256k1.test.ts
-```
-
-Expected: FAIL with `Cannot find module '../../src/crypto/secp256k1'`.
-
-- [ ] **Step 5: Implement the adapter**
-
-Create `packages/ergoscript/src/crypto/secp256k1.ts`:
-
-```ts
-/**
- * secp256k1 adapter — phase 2g-medium.
- *
- * Thin wrapper over `@noble/curves@2.2.0`'s secp256k1 module. Exposes only
- * the operations the leaf-only sigma-protocol verifier uses (Task 6).
- * Localizes the curves dependency surface so future @noble/curves upgrades
- * touch one file.
- *
- * **Ergo identity convention:** 33 zero bytes ↔ point-at-infinity. This is
- * NOT native SEC1 — sigma-rust's `ec_point.rs:130-152` introduces this
- * convention to make sigma-proof bytes round-trip cleanly. The adapter
- * handles the conversion; no caller needs to know.
- *
- * Source: ~/projects/sigma-rust/sigma-rust/ergo-chain-types/src/ec_point.rs
- */
-
-import { secp256k1 } from '@noble/curves/secp256k1.js'
-
-const ZERO_33 = new Uint8Array(33)
-const POINT_BYTES = 33  // SEC1 compressed
-
-export type Point = ReturnType<typeof secp256k1.Point.BASE.multiply>
-
-export const basePoint: Point = secp256k1.Point.BASE
-export const groupOrder: bigint = secp256k1.CURVE.n
-
-function isZero33(bytes: Uint8Array): boolean {
-  if (bytes.length !== POINT_BYTES) return false
-  for (let i = 0; i < POINT_BYTES; i++) if (bytes[i] !== 0) return false
-  return true
-}
-
-/**
- * Decode a 33-byte SEC1 compressed point. The Ergo convention: 33 zero bytes
- * decodes to the identity (point-at-infinity).
- *
- * Throws on wrong length or invalid SEC1 encoding.
- */
-export function decodePoint(bytes: Uint8Array): Point {
-  if (bytes.length !== POINT_BYTES) {
-    throw new Error(`decodePoint: expected ${POINT_BYTES} bytes, got ${bytes.length}`)
-  }
-  if (isZero33(bytes)) {
-    // Ergo identity convention — return the curve identity (point-at-infinity).
-    // @noble/curves exposes this as `Point.ZERO` in v2.x.
-    return secp256k1.Point.ZERO
-  }
-  return secp256k1.Point.fromBytes(bytes)
-}
-
-/**
- * Encode a Point to 33-byte SEC1 compressed. Identity → 33 zero bytes (Ergo
- * convention).
- */
-export function encodePoint(p: Point): Uint8Array {
-  if (p.equals(secp256k1.Point.ZERO)) return new Uint8Array(POINT_BYTES)
-  const bytes = p.toBytes(true)  // compressed
-  if (bytes.length !== POINT_BYTES) {
-    throw new Error(`encodePoint: produced ${bytes.length} bytes, expected ${POINT_BYTES}`)
-  }
-  return bytes
-}
-
-export function pointAdd(a: Point, b: Point): Point {
-  return a.add(b)
-}
-
-export function pointNegate(p: Point): Point {
-  return p.negate()
-}
-
-export function pointMul(p: Point, k: bigint): Point {
-  // @noble/curves throws if k === 0n on Point.BASE.multiply in some versions;
-  // handle by returning identity explicitly.
-  if (k === 0n) return secp256k1.Point.ZERO
-  // multiply accepts scalar in [0, n); reduce defensively.
-  const kReduced = ((k % groupOrder) + groupOrder) % groupOrder
-  if (kReduced === 0n) return secp256k1.Point.ZERO
-  return p.multiply(kReduced)
-}
-
-/**
- * Decode a 32-byte big-endian scalar, reducing mod n.
- * Mirrors sigma-rust's `Scalar::reduce_bytes` (`wscalar.rs:60-67`).
- */
-export function scalarFromBytes(bytes: Uint8Array): bigint {
-  if (bytes.length !== 32) {
-    throw new Error(`scalarFromBytes: expected 32 bytes, got ${bytes.length}`)
-  }
-  let n = 0n
-  for (let i = 0; i < 32; i++) {
-    n = (n << 8n) | BigInt(bytes[i]!)
-  }
-  return n % groupOrder
-}
-
-/**
- * Decode a 24-byte challenge by left-padding with 8 zero bytes (treating it
- * as the low-order 24 bytes of a 32-byte big-endian scalar), then reducing
- * mod n.
- *
- * Source: sigma-rust `wscalar.rs:69-76`.
- *
- * Critical: the left-pad direction matters. Right-pad gives the wrong scalar
- * and silently breaks every verification.
- */
-export function scalarFromChallenge(challenge: Uint8Array): bigint {
-  if (challenge.length !== 24) {
-    throw new Error(`scalarFromChallenge: expected 24 bytes, got ${challenge.length}`)
-  }
-  const padded = new Uint8Array(32)
-  padded.set(challenge, 8)  // left-pad: 8 zero bytes then the 24-byte challenge
-  return scalarFromBytes(padded)
-}
-```
-
-(If `@noble/curves@2.2.0`'s identity API differs — e.g., `Point.IDENTITY` instead of `Point.ZERO`, or `BASE.toAffine().isZero()` — adjust accordingly. The test in Step 3 catches API drift.)
-
-- [ ] **Step 6: Run test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/crypto/secp256k1.test.ts
-```
-
-Expected: all tests PASS. If `Point.ZERO` doesn't exist, check the actual API:
-
-```bash
-node -e "import('@noble/curves/secp256k1.js').then(m => console.log(Object.keys(m.secp256k1.Point)))"
-```
-
-Adjust the `Point.ZERO` references in `secp256k1.ts` accordingly.
-
-- [ ] **Step 7: Run full ergoscript suite**
-
-```bash
-npx vitest run packages/ergoscript/
-```
-
-Expected: all prior tests + new adapter tests PASS. The adapter is standalone — no risk of regressing prior code.
-
-- [ ] **Step 8: Typecheck**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: zero errors.
-
-- [ ] **Step 9: Browser-compat scan**
-
-```bash
-grep -E "Buffer|process\.|require\(|node:" packages/ergoscript/src/crypto/secp256k1.ts
-```
-
-Expected: no output. The adapter is pure ESM, no Node built-ins.
-
-- [ ] **Step 10: Two-stage review (orchestrator)**
-
-- **Spec-compliance:** verifies adapter exposes exactly the 9 functions specified in the design spec (Section 2 of `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md`); identity convention handled; left-pad direction correct in `scalarFromChallenge`.
-- **Code-quality:** verifies pin-exact `@noble/curves: 2.2.0` (no caret); browser-clean; no `any` leaks; comments cite sigma-rust source lines.
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add -A
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): @noble/curves@2.2.0 adapter for secp256k1 (phase 2g-medium task 2)
-
-Thin wrapper exposing 9 ops: decodePoint/encodePoint (SEC1 33-byte with
-Ergo identity convention — 33 zero bytes ↔ point-at-infinity), pointAdd/
-pointNegate/pointMul, basePoint, groupOrder, scalarFromBytes (32 BE → mod
-n), scalarFromChallenge (24 bytes → left-pad 8 zeros → mod n).
-
-Localizes the curves dep surface to one file (src/crypto/secp256k1.ts).
-Version-locked pair with @noble/hashes@2.2.0.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 3: `CreateProveDlog` eval arm + P2PK short-circuit
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/create-prove-dlog.ts` — arm
-- Modify: `packages/ergoscript/src/eval/const.ts` — 45 additional JitCost when value.kind === 'SigmaProp'
-- Modify: `packages/ergoscript/src/eval/eval.ts` — add `case 'CreateProveDlog'`
-- Modify: `packages/ergoscript/src/eval/errors.ts` — document `'sigma-prop-input-not-group-element'`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/create_prove_dlog.rs` — C1 fixture
-- Create: `fixture-gen/src/cmds/ergoscript/eval/p2pk_short_circuit.rs` — smoking-gun fixture
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` — add `pub mod`s
-- Modify: `fixture-gen/src/main.rs` — wire `generate_and_write` calls
-- Create: `packages/ergoscript/test/eval/create-prove-dlog.test.ts`
-- Create: `packages/ergoscript/test/eval/p2pk-short-circuit.test.ts`
-
-**Sigma-rust sources:**
-- `ergotree-ir/src/mir/create_provedlog.rs:14-17, 39-46` — MIR shape `{ input: Box<Expr> }`; `OneArgOpTryBuild` requires `input.tpe == SGroupElement`
-- `ergotree-interpreter/src/eval/create_provedlog.rs:10-29` — eval; `add_jit_cost(10)`; wrap `Value::GroupElement(*ecpoint)` as `ProveDlog::new(*ecpoint)`
-- `ergotree-interpreter/src/eval.rs:138-158, 268-278` — `EVAL_SIGMA_PROP_CONSTANT = 50` short-circuit for `Const(SSigmaProp, _)` and `ConstPlaceholder` resolving to a SigmaProp
-
-**Key behavior:**
-
-`evalCreateProveDlog`: Pattern A cost `Fixed(10)` BEFORE eval-child; evaluate input; verify `kind === 'GroupElement'`; wrap as `{ kind: 'SigmaProp', value: { tag: 'ProveDlog', h: input.value } }`. Throws `'sigma-prop-input-not-group-element'` on type mismatch.
-
-`evalConst` P2PK short-circuit: when the constant's value is a `SigmaProp`, charge an additional 45 JitCost (total 5 + 45 = 50, matching sigma-rust's `EVAL_SIGMA_PROP_CONSTANT`).
-
-- [ ] **Step 1: Read sigma-rust source**
-
-```bash
-sed -n '1,50p' ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/create_provedlog.rs
-sed -n '1,40p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/create_provedlog.rs
-sed -n '130,170p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval.rs
-sed -n '260,290p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval.rs
-```
-
-Confirm: `add_jit_cost(10)` charged before input eval; `EVAL_SIGMA_PROP_CONSTANT = 50` applied as a flat charge on Const-resolved SigmaProps; both `Const` and `ConstPlaceholder` paths short-circuit.
-
-- [ ] **Step 2: Read existing TS state**
-
-```bash
-cat /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/const.ts
-grep -n "case 'Const'" /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/eval.ts | head -5
-grep -n "CreateProveDlog" /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
-```
-
-Confirm: `CreateProveDlog` MIR variant already exists in `mir/types.ts` (phase 2a parsed it). Confirm the existing `Const` arm shape (lines ~20-23 from prior Explore findings).
-
-- [ ] **Step 3: Write the failing test for CreateProveDlog**
-
-Create `packages/ergoscript/test/eval/create-prove-dlog.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue, captureEvalError, rehydrateEvalOpts } from '../_helpers'
-
-interface CreateProveDlogEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: any
-  expected_value_json: any | null
-  expected_cost: number
-  expected_error_code: string | null
-}
-
-interface CreateProveDlogFixture {
-  description: string
-  entries: CreateProveDlogEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/create-prove-dlog.json')
-const fixture: CreateProveDlogFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('CreateProveDlog eval arm', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-
-      if (entry.expected_error_code !== null) {
-        const err = captureEvalError(() => evaluateWith(tree, ctx))
-        expect(err?.code).toBe(entry.expected_error_code)
-        return
-      }
-
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 4: Run test, verify it fails (fixture missing)**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/create-prove-dlog.test.ts
-```
-
-Expected: FAIL — fixture file not yet generated.
-
-- [ ] **Step 5: Write the Rust fixture-gen for CreateProveDlog**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/create_prove_dlog.rs`. Mirror the existing `coll_fold.rs` pattern (use `try_eval_out::<Value<'static>>` against a controlled or default Context). Entries:
-
-```rust
-//! CreateProveDlog C1 fixture (phase 2g-medium Task 3).
-//!
-//! Entries:
-//!   - basic: ProveDlog from a known GroupElement constant; cost = 10 + envelope
-//!   - identity-point: ProveDlog from the 33-zero-bytes identity (Ergo convention)
-//!   - cost-limit: tight jitCostLimit triggers 'cost-limit-exceeded'
-
-use crate::common::write_file;
-use anyhow::Result;
-use ergo_chain_types::EcPoint;
-use ergotree_ir::ergo_tree::ErgoTreeHeaderFlags;
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::mir::create_provedlog::CreateProveDlog;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::stype::SType;
-use ergotree_interpreter::eval::try_eval_out;
-use ergotree_interpreter::eval::context::Context;
-use ergotree_interpreter::eval::env::Env;
-use ergotree_interpreter::sigma_protocol::dlog_protocol::INTERACTIVE_PROVER_CHALLENGE_SIZE;  // not used here, retained for reference
-use sigma_test_util::force_any_val;
-use serde::Serialize;
-
-#[derive(Serialize)]
-struct CreateProveDlogEntry {
-    name: String,
-    tree_bytes_hex: String,
-    opts_json: serde_json::Value,
-    expected_value_json: Option<serde_json::Value>,
-    expected_cost: u32,
-    expected_error_code: Option<String>,
-}
-
-#[derive(Serialize)]
-struct CreateProveDlogFixture {
-    description: &'static str,
-    entries: Vec<CreateProveDlogEntry>,
-}
-
-fn build_tree(body: Expr) -> Result<(Vec<u8>, String)> {
-    use ergotree_ir::ergo_tree::ErgoTree;
-    let tree = ErgoTree::new(
-        ErgoTree::header_v0_no_segregation(),  // adjust based on existing helper in fixture-gen
-        &body
-    )?;
-    let bytes = tree.sigma_serialize_bytes()?;
-    let hex = hex::encode(&bytes);
-    Ok((bytes, hex))
-}
-
-fn run_value(body: &Expr) -> Result<(serde_json::Value, u32)> {
-    let ctx = force_any_val::<Context>();
-    let env = Env::empty();
-    let (val, cost) = try_eval_out::<ergotree_ir::mir::value::Value>(body, &env, &ctx)?;
-    // Cost = ctx.jit_cost after eval - cost before (here ctx is fresh, so just final).
-    let value_json = value_to_json(&val);
-    Ok((value_json, cost as u32))
-}
-
-fn value_to_json(v: &ergotree_ir::mir::value::Value) -> serde_json::Value {
-    // For SigmaProp values, recursively serialize to match the TS hydrateSValue shape.
-    // Use sigma_boolean_to_json from wire/sigma_boolean_variants.rs (Task 1) — share it.
-    use ergotree_ir::mir::value::Value;
-    match v {
-        Value::SigmaProp(sp) => serde_json::json!({
-            "kind": "SigmaProp",
-            "value": crate::cmds::ergoscript::wire::sigma_boolean_variants::sigma_boolean_to_json(sp.value())
-        }),
-        // Reuse existing value_to_json helpers in fixture-gen if available; otherwise
-        // include only the kinds this fixture needs.
-        _ => unimplemented!("value_to_json: only SigmaProp expected for CreateProveDlog"),
-    }
-}
-
-pub fn generate() -> Result<()> {
-    let mut entries = Vec::new();
-
-    // Entry 1: basic — wrap a known GroupElement Constant
-    let pk: EcPoint = force_any_val::<EcPoint>();
-    let pk_const = Expr::Const(Constant {
-        tpe: SType::SGroupElement,
-        v: ergotree_ir::mir::value::Value::GroupElement(Box::new(pk.clone())),
-    });
-    let basic_expr = Expr::CreateProveDlog(CreateProveDlog::new(pk_const.clone())?);
-    let (tree_bytes, tree_hex) = build_tree(basic_expr.clone())?;
-    let (expected_value, expected_cost) = run_value(&basic_expr)?;
-    entries.push(CreateProveDlogEntry {
-        name: "basic".to_string(),
-        tree_bytes_hex: tree_hex,
-        opts_json: serde_json::json!({}),
-        expected_value_json: Some(expected_value),
-        expected_cost,
-        expected_error_code: None,
-    });
-
-    // Entry 2: identity point (33 zeros)
-    let identity_pt = EcPoint::from_sigma_bytes(&[0u8; 33])?;
-    let identity_const = Expr::Const(Constant {
-        tpe: SType::SGroupElement,
-        v: ergotree_ir::mir::value::Value::GroupElement(Box::new(identity_pt)),
-    });
-    let identity_expr = Expr::CreateProveDlog(CreateProveDlog::new(identity_const.clone())?);
-    let (tree_bytes2, tree_hex2) = build_tree(identity_expr.clone())?;
-    let (expected_value2, expected_cost2) = run_value(&identity_expr)?;
-    entries.push(CreateProveDlogEntry {
-        name: "identity-point".to_string(),
-        tree_bytes_hex: tree_hex2,
-        opts_json: serde_json::json!({}),
-        expected_value_json: Some(expected_value2),
-        expected_cost: expected_cost2,
-        expected_error_code: None,
-    });
-
-    // Entry 3: cost-limit-exceeded
-    entries.push(CreateProveDlogEntry {
-        name: "cost-limit-exceeded".to_string(),
-        tree_bytes_hex: hex::encode(&tree_bytes),  // reuse basic tree bytes
-        opts_json: serde_json::json!({ "jitCostLimit": 5 }),  // less than the arm's 10
-        expected_value_json: None,
-        expected_cost: 0,
-        expected_error_code: Some("cost-limit-exceeded".to_string()),
-    });
-
-    let file = CreateProveDlogFixture {
-        description: "CreateProveDlog C1 fixture — wraps a GroupElement input into a SigmaProp{ProveDlog, h}; Pattern A cost Fixed(10).",
-        entries,
-    };
-    write_file(
-        "packages/ergoscript/test/fixtures/eval/create-prove-dlog.json",
-        serde_json::to_string_pretty(&file)?,
-    )
-}
-```
-
-(Adjust imports and helper function references to match the existing `fixture-gen` module structure. The `value_to_json` and `build_tree` helpers likely already exist in a `common.rs` or similar — reuse them.)
-
-Add `pub mod create_prove_dlog;` to `fixture-gen/src/cmds/ergoscript/eval/mod.rs`. Add the call to `fixture-gen/src/main.rs`.
-
-- [ ] **Step 6: Write Rust fixture-gen for P2PK short-circuit smoking-gun**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/p2pk_short_circuit.rs`. The fixture entry is a bare `Const(SSigmaProp, ProveDlog(pk))` tree:
-
-```rust
-//! P2PK short-circuit smoking-gun (phase 2g-medium Task 3).
-//!
-//! A bare Const(SSigmaProp, ProveDlog(pk)) tree evaluates with cost = 50
-//! (sigma-rust's EVAL_SIGMA_PROP_CONSTANT), NOT 5 (standard Const charge).
-//!
-//! Source: ergotree-interpreter/src/eval.rs:138-158, 268-278
-use crate::common::write_file;
-use anyhow::Result;
-use ergo_chain_types::EcPoint;
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::value::Value;
-use ergotree_ir::sigma_protocol::sigma_boolean::{ProveDlog, SigmaBoolean, SigmaProofOfKnowledgeTree};
-use ergotree_ir::types::stype::SType;
-use sigma_test_util::force_any_val;
-use serde::Serialize;
-
-// Reuse types from create_prove_dlog.rs or define inline
-#[derive(Serialize)]
-struct P2pkEntry {
-    name: String,
-    tree_bytes_hex: String,
-    opts_json: serde_json::Value,
-    expected_value_json: serde_json::Value,
-    expected_cost: u32,
-}
-
-#[derive(Serialize)]
-struct P2pkFixture {
-    description: &'static str,
-    entries: Vec<P2pkEntry>,
-}
-
-pub fn generate() -> Result<()> {
-    let pk: EcPoint = force_any_val::<EcPoint>();
-    let sb = SigmaBoolean::ProofOfKnowledge(
-        SigmaProofOfKnowledgeTree::ProveDlog(ProveDlog::new(pk.clone()))
-    );
-    let body = Expr::Const(Constant {
-        tpe: SType::SSigmaProp,
-        v: Value::SigmaProp(Box::new(ergotree_ir::sigma_protocol::sigma_boolean::SigmaProp::new(sb.clone()))),
-    });
-
-    // Build tree + serialize + run eval, capture cost = 50.
-    // ... (mirror Task 3 Step 5 pattern)
-
-    let entries = vec![ /* ... */ ];
-    let file = P2pkFixture {
-        description: "P2PK short-circuit: Const(SSigmaProp, ProveDlog(pk)) charges 50 JitCost via EVAL_SIGMA_PROP_CONSTANT.",
-        entries,
-    };
-    write_file(
-        "packages/ergoscript/test/fixtures/eval/p2pk-short-circuit.json",
-        serde_json::to_string_pretty(&file)?,
-    )
-}
-```
-
-Add the `pub mod` + `generate_and_write` wiring.
-
-- [ ] **Step 7: Run fixture-gen and verify determinism**
-
-```bash
-cd /home/mwaddip/projects/ergots
-cargo run --release -p fixture-gen
-ls -la packages/ergoscript/test/fixtures/eval/create-prove-dlog.json packages/ergoscript/test/fixtures/eval/p2pk-short-circuit.json
-cargo run --release -p fixture-gen
-git diff packages/ergoscript/test/fixtures/  # must be empty
-```
-
-- [ ] **Step 8: Add the EvalError code to `eval/errors.ts`**
-
-Read the current `eval/errors.ts` to find the right place to add the new code (likely a comment-grouped section). Add:
-
-```ts
-// --- phase 2g-medium: sigma-protocol primitives ---
-
-/**
- * `CreateProveDlog` / `CreateProveDhTuple` input expression evaluated to a
- * non-GroupElement SValue. Wire-format invariants make this unreachable for
- * parser-produced trees (sigma-rust's `OneArgOpTryBuild`/`new` reject at
- * construction); defensive against `ConstantPlaceholder` injection and
- * future MIR shape changes.
- */
-'sigma-prop-input-not-group-element',
-```
-
-(The exact format depends on whether `errors.ts` uses a string-literal union, a documented constant list, or runtime enum-like object. Match the existing pattern.)
-
-- [ ] **Step 9: Write the P2PK short-circuit test**
-
-Create `packages/ergoscript/test/eval/p2pk-short-circuit.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from '../_helpers'
-
-interface P2pkEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: any
-  expected_value_json: any
-  expected_cost: number
-}
-
-interface P2pkFixture {
-  description: string
-  entries: P2pkEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/p2pk-short-circuit.json')
-const fixture: P2pkFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('P2PK short-circuit (Const(SSigmaProp, _) = 50 JitCost)', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext({})
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-      expect(ctx.jitCost).toBe(50)  // sanity check: locks the EVAL_SIGMA_PROP_CONSTANT charge
-    })
-  }
-})
-```
-
-- [ ] **Step 10: Run both tests, verify FAIL**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/create-prove-dlog.test.ts packages/ergoscript/test/eval/p2pk-short-circuit.test.ts
-```
-
-Expected: FAIL — `CreateProveDlog` arm not implemented; P2PK charge is 5 not 50.
-
-- [ ] **Step 11: Implement `evalCreateProveDlog`**
-
-Create `packages/ergoscript/src/eval/create-prove-dlog.ts`:
-
-```ts
-/**
- * `CreateProveDlog` evaluator arm — wraps a GroupElement into a
- * SigmaProp{ProveDlog, h}.
- *
- * Pattern A: Fixed(10) cost BEFORE eval-child.
- * Source: ergotree-interpreter/src/eval/create_provedlog.rs:10-29
- */
-
-import type { CreateProveDlog } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import type { SValue } from '../mir/types'
-import { evalExpr } from './eval'
-
-export function evalCreateProveDlog(e: CreateProveDlog, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(10)
-  const input = evalExpr(e.input, env, ctx)
-  if (input.kind !== 'GroupElement') {
-    throw new EvalError(
-      `CreateProveDlog: expected GroupElement input, got ${input.kind}`,
-      'sigma-prop-input-not-group-element'
-    )
-  }
-  return { kind: 'SigmaProp', value: { tag: 'ProveDlog', h: input.value } }
-}
-```
-
-(`CreateProveDlog`'s MIR shape — `{ tag: 'CreateProveDlog', input: Expr }` — is already declared in `mir/types.ts` from phase 2a. Confirm with `grep -n "CreateProveDlog" packages/ergoscript/src/mir/types.ts`.)
-
-- [ ] **Step 12: Wire `CreateProveDlog` into `eval/eval.ts`**
-
-Add the case line. Find the existing `switch (e.tag)` block and add:
-
-```ts
-case 'CreateProveDlog': return evalCreateProveDlog(e, env, ctx)
-```
-
-Plus the import at the top:
-
-```ts
-import { evalCreateProveDlog } from './create-prove-dlog'
-```
-
-- [ ] **Step 13: Modify `eval/const.ts` for P2PK short-circuit**
-
-Current (lines 20-23):
-
-```ts
-export function evalConst(e: Const, _env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(5)
-  return e.value
-}
-```
-
-Replace with:
-
-```ts
-export function evalConst(e: Const, _env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(5)
-  // P2PK short-circuit: a Const(SSigmaProp, _) charges an additional 45
-  // JitCost (total = 50), matching sigma-rust's EVAL_SIGMA_PROP_CONSTANT.
-  // Source: ergotree-interpreter/src/eval.rs:138-158, 268-278
-  if (e.value.kind === 'SigmaProp') {
-    ctx.addCost(45)
-  }
-  return e.value
-}
-```
-
-Also check `eval/const-placeholder.ts` (or wherever ConstPlaceholder is handled). The same 45-additional charge applies when a ConstPlaceholder resolves to a SigmaProp:
-
-```bash
-grep -rn "ConstPlaceholder\|evalConstPlaceholder" /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/
-```
-
-Apply the same conditional `addCost(45)` after the placeholder resolves to its SValue.
-
-- [ ] **Step 14: Run tests, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/create-prove-dlog.test.ts packages/ergoscript/test/eval/p2pk-short-circuit.test.ts
-```
-
-Expected: all entries PASS.
-
-- [ ] **Step 15: Run full ergoscript suite**
-
-```bash
-npx vitest run packages/ergoscript/
-```
-
-Expected: all prior 1894 tests + new tests PASS. The P2PK short-circuit modification to `evalConst` adds cost ONLY when `kind === 'SigmaProp'` — existing Const tests with Boolean/Long/Int/Coll values are unaffected. Confirm by checking `evaluate-const.test.ts` or equivalent passes.
-
-- [ ] **Step 16: Typecheck**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: zero errors.
-
-- [ ] **Step 17: Two-stage review (orchestrator)**
-
-- **Spec-compliance:** `evalCreateProveDlog` matches `create_provedlog.rs:10-29` (cost 10, Pattern A, error code). P2PK short-circuit charges +45 (total 50). Smoking-gun fixture asserts exactly 50.
-- **Code-quality:** EvalError code added to taxonomy in alphabetical or thematic location matching existing convention; comment cites source line; no `any` leaks.
-
-- [ ] **Step 18: Commit**
-
-```bash
-git add -A
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): CreateProveDlog eval arm + P2PK 50-JitCost short-circuit (phase 2g-medium task 3)
-
-evalCreateProveDlog: Pattern A Fixed(10); throws 'sigma-prop-input-not-
-group-element' on non-GroupElement input. Wraps SigmaProp{ProveDlog, h}.
-
-evalConst: adds 45 additional JitCost when value.kind === 'SigmaProp'
-(total = 50), matching sigma-rust's EVAL_SIGMA_PROP_CONSTANT. Smoking-gun
-fixture (p2pk-short-circuit) locks this charge.
-
-C1 fixture: create-prove-dlog (basic, identity-point, cost-limit-
-exceeded). Coverage 42 → 43 of ~70 arms.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 4: `CreateProveDhTuple` eval arm
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/create-prove-dh-tuple.ts` — arm
-- Modify: `packages/ergoscript/src/eval/eval.ts` — add `case 'CreateProveDhTuple'`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/create_prove_dh_tuple.rs` — C1 fixture
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` — add `pub mod`
-- Modify: `fixture-gen/src/main.rs` — wire `generate_and_write`
-- Create: `packages/ergoscript/test/eval/create-prove-dh-tuple.test.ts`
-
-**Sigma-rust sources:**
-- `ergotree-ir/src/mir/create_prove_dh_tuple.rs:18-42` — MIR `{ g, h, u, v: Box<Expr> }`; all four must be `SGroupElement`
-- `ergotree-interpreter/src/eval/create_prove_dh_tuple.rs:12-25` — eval; `add_jit_cost(20)`; wrap
-
-**Key behavior:** Pattern A cost `Fixed(20)` BEFORE eval-children; evaluate all four inputs; each must be `GroupElement`; wrap as `{ kind: 'SigmaProp', value: { tag: 'ProveDhTuple', g, h, u, v } }`. Reuses error code `'sigma-prop-input-not-group-element'` from Task 3 — no new code.
-
-- [ ] **Step 1: Read sigma-rust source**
-
-```bash
-sed -n '1,45p' ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/create_prove_dh_tuple.rs
-sed -n '1,35p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/create_prove_dh_tuple.rs
-```
-
-Confirm: `Fixed(20)` cost; four fields evaluated in `g, h, u, v` order; each checked for `Value::GroupElement`.
-
-- [ ] **Step 2: Write the failing test**
-
-Create `packages/ergoscript/test/eval/create-prove-dh-tuple.test.ts`. Mirror Task 3 Step 3 exactly with `CreateProveDhTuple` substituted for `CreateProveDlog` and `create-prove-dh-tuple.json` as the fixture path. (Copy-edit, then change identifier references.) Same imports + fixture-loading pattern.
-
-- [ ] **Step 3: Write the Rust fixture-gen for CreateProveDhTuple**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/create_prove_dh_tuple.rs`. Mirror the Task 3 Step 5 pattern. Entries:
-
-1. **`basic`** — four distinct GroupElement constants → SigmaProp{ProveDhTuple, g, h, u, v}; cost = 20 (+ Const charges for the 4 inputs).
-2. **`identity-g`** — `g` is 33 zeros (identity); rest are non-identity. Same wrap, but `g` field is identity.
-3. **`g-not-group-element`** — `g` is a `Const(SInt, 5)` (hand-built MIR — fixture-gen Rust will reject at `CreateProveDhTuple::new` so this MUST be hand-built in TS, not generated by Rust. Write this entry as a TS-only inline test rather than a Rust-generated fixture — same pattern as 2c LogicalNot's inline error tests). See Step 4.
-4. **`cost-limit-exceeded`** — `jitCostLimit: 10` (less than 20), reuses basic tree bytes; expects error.
-
-Add `pub mod create_prove_dh_tuple;` + main.rs wiring.
-
-- [ ] **Step 4: Add inline TS-only error test for non-GroupElement input**
-
-In `packages/ergoscript/test/eval/create-prove-dh-tuple.test.ts`, append an inline test that bypasses the parser (since sigma-rust's `try_build` rejects mismatched types at construction):
-
-```ts
-import type { CreateProveDhTuple, Expr } from '../../src/mir/types'
-
-describe('CreateProveDhTuple inline error cases', () => {
-  it("throws 'sigma-prop-input-not-group-element' when g is non-GroupElement", () => {
-    const ge: Expr = { tag: 'Const', tpe: { tag: 'SGroupElement' },
-      value: { kind: 'GroupElement', value: new Uint8Array(33) } }
-    const badG: Expr = { tag: 'Const', tpe: { tag: 'SInt' },
-      value: { kind: 'Int', value: 5 } }
-    const expr: CreateProveDhTuple = { tag: 'CreateProveDhTuple', g: badG, h: ge, u: ge, v: ge }
-    const ctx = makeContext({})
-    const err = captureEvalError(() => evalExpr(expr, emptyEnv(), ctx))
-    expect(err?.code).toBe('sigma-prop-input-not-group-element')
-  })
-  // Symmetric tests for h, u, v
-  // (Repeat the pattern 3 more times with badH/badU/badV in respective positions)
-})
-```
-
-(Import `evalExpr` from `'../../src/eval/eval'`; import `emptyEnv` from `'../../src/eval/env'` or equivalent.)
-
-- [ ] **Step 5: Run fixture-gen + determinism check**
-
-```bash
-cd /home/mwaddip/projects/ergots
-cargo run --release -p fixture-gen
-cargo run --release -p fixture-gen  # rerun
-git diff packages/ergoscript/test/fixtures/  # must be empty
-```
-
-- [ ] **Step 6: Run test, verify FAIL**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/create-prove-dh-tuple.test.ts
-```
-
-Expected: FAIL — arm not implemented.
-
-- [ ] **Step 7: Implement `evalCreateProveDhTuple`**
-
-Create `packages/ergoscript/src/eval/create-prove-dh-tuple.ts`:
-
-```ts
-/**
- * `CreateProveDhTuple` evaluator arm — wraps 4 GroupElements into a
- * SigmaProp{ProveDhTuple, g, h, u, v}.
- *
- * Pattern A: Fixed(20) cost BEFORE eval-children.
- * Source: ergotree-interpreter/src/eval/create_prove_dh_tuple.rs:12-25
- */
-
-import type { CreateProveDhTuple, SValue, Expr } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-
-function expectGroupElement(v: SValue, fieldName: string): Uint8Array {
-  if (v.kind !== 'GroupElement') {
-    throw new EvalError(
-      `CreateProveDhTuple: expected GroupElement for ${fieldName}, got ${v.kind}`,
-      'sigma-prop-input-not-group-element'
-    )
-  }
-  return v.value
-}
-
-export function evalCreateProveDhTuple(e: CreateProveDhTuple, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(20)
-  const g = expectGroupElement(evalExpr(e.g, env, ctx), 'g')
-  const h = expectGroupElement(evalExpr(e.h, env, ctx), 'h')
-  const u = expectGroupElement(evalExpr(e.u, env, ctx), 'u')
-  const v = expectGroupElement(evalExpr(e.v, env, ctx), 'v')
-  return { kind: 'SigmaProp', value: { tag: 'ProveDhTuple', g, h, u, v } }
-}
-```
-
-- [ ] **Step 8: Wire into `eval/eval.ts`**
-
-Add the case + import:
-
-```ts
-import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
-
-// in the switch:
-case 'CreateProveDhTuple': return evalCreateProveDhTuple(e, env, ctx)
-```
-
-- [ ] **Step 9: Run test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/eval/create-prove-dh-tuple.test.ts
-```
-
-Expected: all entries PASS (including the 4 inline error tests).
-
-- [ ] **Step 10: Run full suite + typecheck**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: all 1894+ prior tests + Task 3 tests + Task 4 tests PASS; zero typecheck errors.
-
-- [ ] **Step 11: Two-stage review (orchestrator)**
-
-- **Spec-compliance:** `evalCreateProveDhTuple` matches `create_prove_dh_tuple.rs:12-25` (cost 20, Pattern A, evaluation order g→h→u→v); error code reused, not duplicated.
-- **Code-quality:** `expectGroupElement` is a local helper (not promoted — 4 callers within one file, per Decision #10); comment cites source.
-
-- [ ] **Step 12: Commit**
-
-```bash
-git add -A
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): CreateProveDhTuple eval arm (phase 2g-medium task 4)
-
-evalCreateProveDhTuple: Pattern A Fixed(20); evaluates g/h/u/v in order;
-each must be GroupElement. Wraps SigmaProp{ProveDhTuple, g, h, u, v}.
-
-Reuses 'sigma-prop-input-not-group-element' code from Task 3.
-
-C1 fixture: create-prove-dh-tuple (basic, identity-g, cost-limit-
-exceeded) + 4 inline TS-only error tests for per-position non-GroupElement
-inputs (hand-built MIR since sigma-rust try_build rejects at construction).
-Coverage 43 → 44 of ~70 arms.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 5: Verifier infrastructure modules
-
-**Files:**
-- Create: `packages/ergoscript/src/sigma/errors.ts` — `VerifyError` class + codes
-- Create: `packages/ergoscript/src/sigma/challenge.ts` — 24-byte challenge ops + scalar conversion
-- Create: `packages/ergoscript/src/sigma/sig-serializer.ts` — parse sigma-proof bytes guided by SigmaBoolean tree (leaf-only paths)
-- Create: `packages/ergoscript/src/sigma/fiat-shamir.ts` — serialize SigmaBoolean + commitments for blake2b hash input
-- Create: `packages/ergoscript/test/sigma/challenge.test.ts`
-- Create: `packages/ergoscript/test/sigma/sig-serializer.test.ts`
-- Create: `packages/ergoscript/test/sigma/fiat-shamir.test.ts`
-
-**Sigma-rust sources:**
-- `ergotree-interpreter/src/sigma_protocol.rs:104-110` — `SOUNDNESS_BITS = 192, SOUNDNESS_BYTES = 24, GROUP_SIZE = 32`
-- `ergotree-interpreter/src/sigma_protocol/challenge.rs:28-49` — Challenge struct + XOR + 24-byte serialization
-- `ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:118-255` — sigma-proof byte format
-- `ergotree-interpreter/src/sigma_protocol/fiat_shamir.rs:70-200` — tree-to-bytes serialization + 24-byte hash truncation
-- `ergotree-interpreter/src/sigma_protocol/wscalar.rs:60-76` — scalar conversions (already adapted in Task 2)
-
-**Key behavior:** Ship the primitives Task 6 will compose into the full verifier. Each module is unit-tested in isolation. No orchestration in this task — that's Task 6.
-
-- [ ] **Step 1: Read sigma-rust source**
-
-```bash
-sed -n '100,120p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol.rs
-cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/challenge.rs
-sed -n '60,80p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/fiat_shamir.rs
-sed -n '140,200p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/fiat_shamir.rs
-sed -n '110,170p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs
-```
-
-Confirm: challenges are 24 bytes; Fiat-Shamir takes `blake2b256(input)` then first 24 bytes; `prop_bytes` at lines 148-157 wraps SigmaProp in ErgoTree v0 + constant-segregation=true; child counts in Fiat-Shamir use `put_i16_be_bytes` (2-byte BE, not VLQ).
-
-- [ ] **Step 2: Create `sigma/errors.ts`**
-
-```ts
-/**
- * `VerifyError` — typed failure surface for `verifySignature` and the
- * sigma-protocol verifier infrastructure (phase 2g-medium).
- *
- * Distinct from `EvalError` (which is for eval-time arm failures); the
- * verifier is a separate public function and surface area.
- *
- * Codes:
- *   - 'conjecture-not-implemented'  — Cand/Cor/Cthreshold input (deferred to 2g-combinators)
- *   - 'empty-signature'             — signature byte sequence is empty
- *   - 'truncated-signature'         — signature ran out of bytes before tree walk completed
- *   - 'point-not-on-curve'          — SEC1 decode rejected a leaf's pubkey/component
- *   - 'scalar-out-of-range'         — z scalar read from signature is >= group order n
- */
-
-export class VerifyError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message)
-    this.name = 'VerifyError'
-  }
-}
-
-export type VerifyErrorCode =
-  | 'conjecture-not-implemented'
-  | 'empty-signature'
-  | 'truncated-signature'
-  | 'point-not-on-curve'
-  | 'scalar-out-of-range'
-```
-
-- [ ] **Step 3: Write test for `sigma/challenge.ts`**
-
-Create `packages/ergoscript/test/sigma/challenge.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { challengeXor, CHALLENGE_BYTES } from '../../src/sigma/challenge'
-
-function makeChallenge(fillByte: number): Uint8Array {
-  return new Uint8Array(CHALLENGE_BYTES).fill(fillByte)
-}
-
-describe('challenge primitives', () => {
-  it('CHALLENGE_BYTES === 24', () => {
-    expect(CHALLENGE_BYTES).toBe(24)
-  })
-
-  describe('challengeXor', () => {
-    it('XOR of all-zeros and x = x', () => {
-      const zeros = makeChallenge(0)
-      const ones = makeChallenge(0xff)
-      const result = challengeXor(zeros, ones)
-      for (let i = 0; i < CHALLENGE_BYTES; i++) expect(result[i]).toBe(0xff)
-    })
-
-    it('XOR of x and x = zeros', () => {
-      const x = makeChallenge(0xa5)
-      const result = challengeXor(x, x)
-      for (let i = 0; i < CHALLENGE_BYTES; i++) expect(result[i]).toBe(0)
-    })
-
-    it('is commutative', () => {
-      const a = new Uint8Array(CHALLENGE_BYTES)
-      const b = new Uint8Array(CHALLENGE_BYTES)
-      for (let i = 0; i < CHALLENGE_BYTES; i++) { a[i] = i; b[i] = (i * 3 + 7) % 256 }
-      const ab = challengeXor(a, b)
-      const ba = challengeXor(b, a)
-      for (let i = 0; i < CHALLENGE_BYTES; i++) expect(ab[i]).toBe(ba[i])
-    })
-
-    it('throws on length mismatch', () => {
-      expect(() => challengeXor(new Uint8Array(24), new Uint8Array(23))).toThrow()
-      expect(() => challengeXor(new Uint8Array(23), new Uint8Array(24))).toThrow()
-    })
-  })
-})
-```
-
-- [ ] **Step 4: Implement `sigma/challenge.ts`**
-
-```ts
-/**
- * 24-byte sigma-protocol challenge operations.
- *
- * Challenges in Ergo's sigma protocols are 24 bytes (`SOUNDNESS_BITS = 192`).
- * The constant is hard-coded at the protocol level — Cthreshold polynomials
- * require GF(2^192). See sigma-rust `sigma_protocol.rs:104-107`.
- *
- * Scalar conversion (24-byte challenge → 32-byte scalar via left-pad) is
- * provided by `crypto/secp256k1.ts::scalarFromChallenge`; this module is
- * for byte-level operations on the 24-byte form.
- */
-
-export const CHALLENGE_BYTES = 24
-
-/**
- * Bytewise XOR of two challenges. Used to derive the last child's challenge
- * in a Cor (sig_serializer.rs:199-205) — defer to 2g-combinators verifier.
- */
-export function challengeXor(a: Uint8Array, b: Uint8Array): Uint8Array {
-  if (a.length !== CHALLENGE_BYTES || b.length !== CHALLENGE_BYTES) {
-    throw new Error(`challengeXor: expected ${CHALLENGE_BYTES} bytes, got ${a.length}/${b.length}`)
-  }
-  const result = new Uint8Array(CHALLENGE_BYTES)
-  for (let i = 0; i < CHALLENGE_BYTES; i++) result[i] = a[i]! ^ b[i]!
-  return result
-}
-```
-
-- [ ] **Step 5: Run challenge test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/sigma/challenge.test.ts
-```
-
-Expected: PASS.
-
-- [ ] **Step 6: Write test for `sigma/sig-serializer.ts` (leaf-only paths)**
-
-Create `packages/ergoscript/test/sigma/sig-serializer.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { readProofBytes, ProofBytesReader } from '../../src/sigma/sig-serializer'
-import { CHALLENGE_BYTES } from '../../src/sigma/challenge'
-import { VerifyError } from '../../src/sigma/errors'
-
-describe('ProofBytesReader', () => {
-  it('reads a 24-byte top-level challenge from a 56-byte ProveDlog proof', () => {
-    const proof = new Uint8Array(56)
-    for (let i = 0; i < 24; i++) proof[i] = 0xa0 + i
-    for (let i = 0; i < 32; i++) proof[24 + i] = 0xb0 + i
-    const reader = new ProofBytesReader(proof)
-    const challenge = reader.readChallenge()
-    expect(challenge.length).toBe(CHALLENGE_BYTES)
-    expect(challenge[0]).toBe(0xa0)
-    expect(challenge[23]).toBe(0xa0 + 23)
-  })
-
-  it('reads a 32-byte scalar following the challenge', () => {
-    const proof = new Uint8Array(56)
-    proof[24] = 0xff  // first byte of the 32-byte scalar
-    proof[55] = 0x01  // last byte
-    const reader = new ProofBytesReader(proof)
-    reader.readChallenge()
-    const scalar = reader.readScalarBytes()
-    expect(scalar.length).toBe(32)
-    expect(scalar[0]).toBe(0xff)
-    expect(scalar[31]).toBe(0x01)
-  })
-
-  it('throws truncated-signature when challenge bytes missing', () => {
-    const reader = new ProofBytesReader(new Uint8Array(10))
-    expect(() => reader.readChallenge()).toThrow(VerifyError)
-    try { new ProofBytesReader(new Uint8Array(10)).readChallenge() }
-    catch (e: any) { expect(e.code).toBe('truncated-signature') }
-  })
-
-  it('throws truncated-signature when scalar bytes missing', () => {
-    const reader = new ProofBytesReader(new Uint8Array(30))
-    reader.readChallenge()  // succeeds (24 bytes)
-    expect(() => reader.readScalarBytes()).toThrow(VerifyError)
-  })
-
-  it('throws empty-signature on zero-length input via readProofBytes guard', () => {
-    expect(() => readProofBytes(new Uint8Array(0))).toThrow(VerifyError)
-    try { readProofBytes(new Uint8Array(0)) }
-    catch (e: any) { expect(e.code).toBe('empty-signature') }
-  })
-})
-```
-
-- [ ] **Step 7: Implement `sigma/sig-serializer.ts`**
-
-```ts
-/**
- * Sigma-proof byte reader — phase 2g-medium leaf-only.
- *
- * Provides primitives for reading proof bytes structurally guided by a
- * SigmaBoolean tree. The verifier (Task 6) composes these into the full
- * tree walk.
- *
- * Per-leaf format (sigma-rust `sig_serializer.rs:148-172`):
- *   ProveDlog:     [24-byte challenge if required] + [32-byte z scalar]
- *   ProveDhTuple:  [24-byte challenge if required] + [32-byte z scalar]
- *
- * Top-level always has the 24-byte challenge (`sig_serializer.rs:143`).
- *
- * Conjecture handling (Cand inherits parent; Cor XORs; Cthreshold
- * polynomial) is NOT in 2g-medium — deferred to 2g-combinators.
- */
-
-import { CHALLENGE_BYTES } from './challenge'
-import { VerifyError } from './errors'
-
-export const SCALAR_BYTES = 32
-
-export class ProofBytesReader {
-  private pos: number = 0
-
-  constructor(private readonly bytes: Uint8Array) {}
-
-  remaining(): number {
-    return this.bytes.length - this.pos
-  }
-
-  readChallenge(): Uint8Array {
-    return this.readN(CHALLENGE_BYTES)
-  }
-
-  readScalarBytes(): Uint8Array {
-    return this.readN(SCALAR_BYTES)
-  }
-
-  private readN(n: number): Uint8Array {
-    if (this.remaining() < n) {
-      throw new VerifyError(
-        `truncated-signature: needed ${n} bytes, have ${this.remaining()}`,
-        'truncated-signature'
-      )
-    }
-    const slice = this.bytes.slice(this.pos, this.pos + n)
-    this.pos += n
-    return slice
-  }
-
-  /** Assert all bytes consumed (defense against trailing garbage; optional). */
-  assertConsumed(): void {
-    if (this.remaining() > 0) {
-      throw new VerifyError(
-        `truncated-signature: ${this.remaining()} trailing bytes`,
-        'truncated-signature'
-      )
-    }
-  }
-}
-
-/**
- * Construct a ProofBytesReader, rejecting empty input.
- *
- * Sigma-rust returns `Ok(false)` on empty proofs (`sig_serializer.rs:118-128`);
- * TS surfaces as a typed throw for caller telemetry per design Decision #5.
- */
-export function readProofBytes(signature: Uint8Array): ProofBytesReader {
-  if (signature.length === 0) {
-    throw new VerifyError('empty-signature: proof bytes are empty', 'empty-signature')
-  }
-  return new ProofBytesReader(signature)
-}
-```
-
-- [ ] **Step 8: Run sig-serializer test, verify PASS**
-
-```bash
-npx vitest run packages/ergoscript/test/sigma/sig-serializer.test.ts
-```
-
-Expected: PASS.
-
-- [ ] **Step 9: Write test for `sigma/fiat-shamir.ts`**
-
-Create `packages/ergoscript/test/sigma/fiat-shamir.test.ts`:
-
-```ts
-import { describe, it, expect } from 'vitest'
-import { propBytes, fiatShamirHash, FIAT_SHAMIR_HASH_BYTES } from '../../src/sigma/fiat-shamir'
-import { hexToBytes } from '../_helpers'
+  cthresholdReduce,
+  candNormalized,
+  corNormalized,
+} from '../../src/mir/sigma-boolean-normalize'
 import type { SigmaBoolean } from '../../src/mir/types'
 
-describe('Fiat-Shamir primitives', () => {
-  it('FIAT_SHAMIR_HASH_BYTES === 24', () => {
-    expect(FIAT_SHAMIR_HASH_BYTES).toBe(24)
+const T: SigmaBoolean = { tag: 'TrivialProp', value: true }
+const F: SigmaBoolean = { tag: 'TrivialProp', value: false }
+const D = (n: number): SigmaBoolean => ({
+  tag: 'ProveDlog',
+  h: new Uint8Array(33).fill(n),
+})
+
+describe('candNormalized', () => {
+  it('filters TrivialProp(true) (identity)', () => {
+    expect(candNormalized([D(1), T, D(2)])).toEqual({
+      tag: 'Cand',
+      items: [D(1), D(2)],
+    })
+  })
+  it('returns TrivialProp(false) on any TrivialProp(false) (absorbing)', () => {
+    expect(candNormalized([D(1), F, D(2)])).toEqual(F)
+  })
+  it('returns TrivialProp(true) on empty after filter', () => {
+    expect(candNormalized([T, T])).toEqual(T)
+  })
+  it('unwraps single child', () => {
+    expect(candNormalized([D(1), T])).toEqual(D(1))
+  })
+  it('returns Cand for 2+ non-trivial', () => {
+    expect(candNormalized([D(1), D(2)])).toEqual({
+      tag: 'Cand',
+      items: [D(1), D(2)],
+    })
+  })
+})
+
+describe('corNormalized', () => {
+  it('filters TrivialProp(false) (identity)', () => {
+    expect(corNormalized([D(1), F, D(2)])).toEqual({
+      tag: 'Cor',
+      items: [D(1), D(2)],
+    })
+  })
+  it('returns TrivialProp(true) on any TrivialProp(true) (absorbing)', () => {
+    expect(corNormalized([D(1), T, D(2)])).toEqual(T)
+  })
+  it('returns TrivialProp(false) on empty after filter', () => {
+    expect(corNormalized([F, F])).toEqual(F)
+  })
+  it('unwraps single child', () => {
+    expect(corNormalized([D(1), F])).toEqual(D(1))
+  })
+  it('returns Cor for 2+ non-trivial', () => {
+    expect(corNormalized([D(1), D(2)])).toEqual({
+      tag: 'Cor',
+      items: [D(1), D(2)],
+    })
+  })
+})
+
+describe('cthresholdReduce', () => {
+  it('k=0 → TrivialProp(true)', () => {
+    expect(cthresholdReduce(0, [D(1), D(2), D(3)])).toEqual(T)
+  })
+  it('k>n → TrivialProp(false)', () => {
+    expect(cthresholdReduce(4, [D(1), D(2), D(3)])).toEqual(F)
+  })
+  it('k=1 with no trivials → Cor', () => {
+    expect(cthresholdReduce(1, [D(1), D(2), D(3)])).toEqual({
+      tag: 'Cor',
+      items: [D(1), D(2), D(3)],
+    })
+  })
+  it('k=n with no trivials → Cand', () => {
+    expect(cthresholdReduce(3, [D(1), D(2), D(3)])).toEqual({
+      tag: 'Cand',
+      items: [D(1), D(2), D(3)],
+    })
+  })
+  it('k=2 of 3 → Cthreshold(k=2, items)', () => {
+    expect(cthresholdReduce(2, [D(1), D(2), D(3)])).toEqual({
+      tag: 'Cthreshold',
+      k: 2,
+      items: [D(1), D(2), D(3)],
+    })
+  })
+  it('TrivialProp(true) child decrements both k and n', () => {
+    // [T, D(1), D(2)] with k=2 → after T: curr_k=1, children_left=2; immediately Cor[D(1), D(2)]
+    expect(cthresholdReduce(2, [T, D(1), D(2)])).toEqual({
+      tag: 'Cor',
+      items: [D(1), D(2)],
+    })
+  })
+  it('TrivialProp(false) child decrements only n', () => {
+    // [F, D(1), D(2)] with k=2 → after F: curr_k=2, children_left=2; immediately Cand[D(1), D(2)]
+    expect(cthresholdReduce(2, [F, D(1), D(2)])).toEqual({
+      tag: 'Cand',
+      items: [D(1), D(2)],
+    })
+  })
+  it('mid-loop curr_k==1 collapse appends remaining', () => {
+    // k=3 of 4 with [T, T, D(1), D(2)]: after first T curr_k=2,n=3; after second T curr_k=1,n=2 → Cor with [D(1), D(2)] appended
+    expect(cthresholdReduce(3, [T, T, D(1), D(2)])).toEqual({
+      tag: 'Cor',
+      items: [D(1), D(2)],
+    })
+  })
+  it('mid-loop curr_k==children_left collapse appends remaining', () => {
+    // k=3 of 4 with [F, D(1), D(2), D(3)]: after F curr_k=3,n=3 → Cand with [D(1), D(2), D(3)] appended
+    expect(cthresholdReduce(3, [F, D(1), D(2), D(3)])).toEqual({
+      tag: 'Cand',
+      items: [D(1), D(2), D(3)],
+    })
+  })
+})
+```
+
+- [ ] **Step 3: Run tests, verify they fail.**
+
+Run: `cd packages/ergoscript && npx vitest run test/mir/sigma-boolean-normalize.test.ts`
+Expected: All tests fail with module-not-found.
+
+- [ ] **Step 4: Implement** `packages/ergoscript/src/mir/sigma-boolean-normalize.ts`:
+
+```ts
+import type { SigmaBoolean } from './types'
+
+// Direct port of cand.rs:29-50
+// Filters TrivialProp(true) (identity element for AND).
+// If any TrivialProp(false) → TrivialProp(false) (absorbing).
+// Empty after filter → TrivialProp(true).
+// Single child → that child unwrapped.
+// Else → Cand{items}.
+export function candNormalized(items: SigmaBoolean[]): SigmaBoolean {
+  for (const item of items) {
+    if (item.tag === 'TrivialProp' && item.value === false) {
+      return { tag: 'TrivialProp', value: false }
+    }
+  }
+  const filtered = items.filter(
+    (item) => !(item.tag === 'TrivialProp' && item.value === true),
+  )
+  if (filtered.length === 0) return { tag: 'TrivialProp', value: true }
+  if (filtered.length === 1) return filtered[0]!
+  return { tag: 'Cand', items: filtered }
+}
+
+// Direct port of cor.rs:29-50 (mirrors candNormalized with absorbing/identity swapped)
+export function corNormalized(items: SigmaBoolean[]): SigmaBoolean {
+  for (const item of items) {
+    if (item.tag === 'TrivialProp' && item.value === true) {
+      return { tag: 'TrivialProp', value: true }
+    }
+  }
+  const filtered = items.filter(
+    (item) => !(item.tag === 'TrivialProp' && item.value === false),
+  )
+  if (filtered.length === 0) return { tag: 'TrivialProp', value: false }
+  if (filtered.length === 1) return filtered[0]!
+  return { tag: 'Cor', items: filtered }
+}
+
+// Direct port of cthreshold.rs:34-84
+export function cthresholdReduce(
+  k: number,
+  items: SigmaBoolean[],
+): SigmaBoolean {
+  if (k === 0) return { tag: 'TrivialProp', value: true }
+  if (k > items.length) return { tag: 'TrivialProp', value: false }
+
+  let currK = k
+  let childrenLeft = items.length
+  const accumulated: SigmaBoolean[] = []
+
+  for (let i = 0; i < items.length; i++) {
+    // Mid-loop short-circuit BEFORE processing item i
+    if (currK === 1) {
+      accumulated.push(...items.slice(i))
+      return corNormalized(accumulated)
+    }
+    if (currK === childrenLeft) {
+      accumulated.push(...items.slice(i))
+      return candNormalized(accumulated)
+    }
+
+    const item = items[i]!
+    if (item.tag === 'TrivialProp' && item.value === true) {
+      currK -= 1
+      childrenLeft -= 1
+    } else if (item.tag === 'TrivialProp' && item.value === false) {
+      childrenLeft -= 1
+    } else {
+      accumulated.push(item)
+    }
+  }
+
+  if (currK === 1) return corNormalized(accumulated)
+  if (currK === childrenLeft) return candNormalized(accumulated)
+  return { tag: 'Cthreshold', k: currK, items: accumulated }
+}
+```
+
+- [ ] **Step 5: Run tests, verify pass.**
+
+Run: `cd packages/ergoscript && npx vitest run test/mir/sigma-boolean-normalize.test.ts`
+Expected: All tests pass.
+
+- [ ] **Step 6: Run full ergoscript suite to check no regressions.**
+
+Run: `cd packages/ergoscript && npm test`
+Expected: Prior 2017 tests + new normalize tests all pass.
+
+- [ ] **Step 7: Typecheck.**
+
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+Expected: No errors.
+
+- [ ] **Step 8: Commit.**
+
+```bash
+git add packages/ergoscript/src/mir/sigma-boolean-normalize.ts packages/ergoscript/test/mir/sigma-boolean-normalize.test.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): add SigmaBoolean normalization helpers (phase 2g-combinators task 1)
+
+cthresholdReduce / candNormalized / corNormalized pure functions.
+Direct port of sigma-rust's cthreshold.rs:34-84, cand.rs:29-50,
+cor.rs:29-50. Foundation for the 3 sigma-combinator eval arms
+(Atleast/SigmaAnd/SigmaOr) shipping in Tasks 4-6.
+
+No public-surface change; module is internal-only.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 2: GF(2^192) element — `Gf2_192Element` class (dedicated session)
+
+**Files:**
+- Create: `packages/ergoscript/src/crypto/gf2_192.ts` (Part 1: element class only; polynomial added in Task 3)
+- Test: `packages/ergoscript/test/crypto/gf2_192-element.test.ts`
+- Fixture-gen: `fixture-gen/src/cmds/ergoscript/crypto/gf2_192_element_ops.rs` and `mod.rs`
+- Fixture file: `packages/ergoscript/test/fixtures/crypto/gf2_192-element-ops.json`
+- Modify: `fixture-gen/Cargo.toml`, `fixture-gen/src/cmds/ergoscript/mod.rs`, `fixture-gen/src/main.rs`
+
+**Sigma-rust source-read (REQUIRED before writing any TS):**
+
+```bash
+cat ~/projects/sigma-rust/sigma-rust/gf2_192/src/lib.rs
+cat ~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192.rs
+```
+
+Locked details to extract:
+- `IRRED_PENTANOMIAL: i64 = 0xE7` at line 31 — verify this is the low-bit representation of `x^7 + x^2 + x + 1` (the reduction part of x^192 + x^7 + x^2 + x + 1).
+- `IRRED_MULS [i64; 16]` precomputed table at lines 35-55 — port verbatim.
+- Internal repr: `word: [i64; 3]` — three 64-bit words, low-to-high.
+- `multiply` algorithm at lines 82-153 — 4-bit nibble iteration with table lookup for reduction.
+- `invert` at lines 173-200 — Fermat's z^(2^192 - 2) via square-and-multiply chain.
+- `sqr` at lines 203-258 — bit-interleave shortcut.
+- Byte conversion (`From<[u8; 24]>` etc.) at lines 315-394 — byte order is BE.
+
+- [ ] **Step 1: Add `gf2_192` workspace dep to fixture-gen `Cargo.toml`.**
+
+Modify `fixture-gen/Cargo.toml`:
+
+```toml
+[dependencies]
+# ... existing deps
+gf2_192 = { path = "../../sigma-rust/sigma-rust/gf2_192" }
+```
+
+(Path may need adjustment based on absolute path resolution; alternative is git dep at the pinned revision.)
+
+- [ ] **Step 2: Add `crypto` module to fixture-gen.**
+
+Modify `fixture-gen/src/cmds/ergoscript/mod.rs`:
+
+```rust
+pub mod crypto;
+pub mod eval;
+pub mod verify;
+pub mod wire;
+```
+
+Create `fixture-gen/src/cmds/ergoscript/crypto/mod.rs`:
+
+```rust
+pub mod gf2_192_element_ops;
+// pub mod gf2_192_poly_ops; // added in Task 3
+```
+
+- [ ] **Step 3: Write fixture-gen for element ops.**
+
+Create `fixture-gen/src/cmds/ergoscript/crypto/gf2_192_element_ops.rs`. Should generate ~70 entries covering:
+- `add` (~10): zero+zero, zero+x, x+zero, x+x=zero, random pairs.
+- `multiply` (~25): zero*x, one*x, x*one, random pairs, edge values forcing reduction (high bits set), known orthogonal vectors.
+- `sqr` (~10): zero, one, random.
+- `invert` (~10): invert(1)=1, invert(random); cross-check via `x * invert(x) == 1`.
+- `equals` (~10): trivially equal, trivially not-equal, byte-wise comparison.
+- `serialize` (~10): from_bytes/to_bytes round-trip.
+
+Entry shape:
+
+```rust
+#[derive(serde::Serialize)]
+struct ElementOpFixture {
+    name: String,
+    op: String,  // "add", "multiply", "sqr", "invert", "equals", "from_bytes", "to_bytes"
+    inputs: Vec<String>,  // hex-encoded 24-byte values
+    expected: String,     // hex-encoded output (24 bytes for element ops; "true"/"false" for equals)
+}
+
+pub fn generate_fixtures() -> Vec<ElementOpFixture> {
+    use gf2_192::Gf2_192;
+    let mut entries = Vec::new();
+
+    // Pattern: hard-code seeded "random" by index for determinism
+    let r1 = Gf2_192::from([0x12u8; 24]);
+    let r2 = Gf2_192::from([0x34u8; 24]);
+    // ... etc
+
+    // add: zero + zero
+    let zero = Gf2_192::new();
+    entries.push(ElementOpFixture {
+        name: "add-zero-zero".into(),
+        op: "add".into(),
+        inputs: vec![hex::encode(zero.to_bytes()), hex::encode(zero.to_bytes())],
+        expected: hex::encode(zero.to_bytes()),  // 0 ⊕ 0 = 0
+    });
+
+    // ... fill in all entries
+
+    entries
+}
+```
+
+Note on `Gf2_192` Rust API: `add` is `^` (XOR) since GF(2^n) addition is XOR. `multiply` is the `multiply()` function. Helper for "convert to 24 BE bytes": `Gf2_192::to_i8_slice(&mut [i8; 24], 0)` per `gf2_192.rs:264-269` or manual; use whichever the crate exposes. The fixture-gen needs to emit BE-hex consistent with what TS will deserialize.
+
+- [ ] **Step 4: Wire fixture-gen into main.rs.**
+
+Modify `fixture-gen/src/main.rs` to add:
+
+```rust
+generate_and_write(
+    "ergoscript/crypto/gf2_192-element-ops",
+    cmds::ergoscript::crypto::gf2_192_element_ops::generate_fixtures(),
+)?;
+```
+
+- [ ] **Step 5: Run fixture-gen, commit fixtures.**
+
+```bash
+cd fixture-gen && cargo run --release
+cd ..
+git add packages/ergoscript/test/fixtures/crypto/gf2_192-element-ops.json fixture-gen/
+# (commit deferred to Step 14 with TS code)
+```
+
+Run determinism check:
+
+```bash
+cd fixture-gen && cargo run --release  # second run; expect no diff
+git status -- packages/ergoscript/test/fixtures/  # expect clean
+```
+
+- [ ] **Step 6: Write the failing TS tests.**
+
+`packages/ergoscript/test/crypto/gf2_192-element.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+import { Gf2_192Element } from '../../src/crypto/gf2_192'
+
+const fixturePath = resolve(__dirname, '../fixtures/crypto/gf2_192-element-ops.json')
+const fixtures: ElementOpFixture[] = JSON.parse(readFileSync(fixturePath, 'utf8'))
+
+interface ElementOpFixture {
+  name: string
+  op: 'add' | 'multiply' | 'sqr' | 'invert' | 'equals' | 'from_bytes' | 'to_bytes'
+  inputs: string[]
+  expected: string
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return Uint8Array.from(hex.match(/.{2}/g)!.map(b => parseInt(b, 16)))
+}
+function bytesToHex(b: Uint8Array): string {
+  return Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('')
+}
+
+describe('Gf2_192Element operations (cross-validated against sigma-rust)', () => {
+  for (const f of fixtures) {
+    it(f.name, () => {
+      switch (f.op) {
+        case 'add': {
+          const a = Gf2_192Element.fromBytes(hexToBytes(f.inputs[0]!))
+          const b = Gf2_192Element.fromBytes(hexToBytes(f.inputs[1]!))
+          expect(bytesToHex(a.add(b).toBytes())).toBe(f.expected)
+          break
+        }
+        case 'multiply': {
+          const a = Gf2_192Element.fromBytes(hexToBytes(f.inputs[0]!))
+          const b = Gf2_192Element.fromBytes(hexToBytes(f.inputs[1]!))
+          expect(bytesToHex(a.multiply(b).toBytes())).toBe(f.expected)
+          break
+        }
+        case 'sqr': {
+          const a = Gf2_192Element.fromBytes(hexToBytes(f.inputs[0]!))
+          expect(bytesToHex(a.sqr().toBytes())).toBe(f.expected)
+          break
+        }
+        case 'invert': {
+          const a = Gf2_192Element.fromBytes(hexToBytes(f.inputs[0]!))
+          expect(bytesToHex(a.invert().toBytes())).toBe(f.expected)
+          break
+        }
+        case 'equals': {
+          const a = Gf2_192Element.fromBytes(hexToBytes(f.inputs[0]!))
+          const b = Gf2_192Element.fromBytes(hexToBytes(f.inputs[1]!))
+          expect(a.equals(b)).toBe(f.expected === 'true')
+          break
+        }
+        case 'from_bytes':
+        case 'to_bytes': {
+          const a = Gf2_192Element.fromBytes(hexToBytes(f.inputs[0]!))
+          expect(bytesToHex(a.toBytes())).toBe(f.expected)
+          break
+        }
+      }
+    })
+  }
+})
+
+describe('Gf2_192Element static constants', () => {
+  it('ZERO is 24 zero bytes', () => {
+    expect(bytesToHex(Gf2_192Element.ZERO.toBytes())).toBe('00'.repeat(24))
+    expect(Gf2_192Element.ZERO.isZero()).toBe(true)
+  })
+  it('ONE is one-in-low-bit (BE)', () => {
+    expect(Gf2_192Element.ONE.isOne()).toBe(true)
+    // ONE * x == x (multiplicative identity)
+    const x = Gf2_192Element.fromBytes(hexToBytes('12'.repeat(24)))
+    expect(bytesToHex(Gf2_192Element.ONE.multiply(x).toBytes())).toBe('12'.repeat(24))
+  })
+})
+
+describe('Gf2_192Element round-trip', () => {
+  it('fromBytes(toBytes(x)) === x', () => {
+    const x = hexToBytes('deadbeef'.repeat(6))
+    expect(bytesToHex(Gf2_192Element.fromBytes(x).toBytes())).toBe(bytesToHex(x))
+  })
+  it('throws on wrong-length input', () => {
+    expect(() => Gf2_192Element.fromBytes(new Uint8Array(23))).toThrow(/length/i)
+    expect(() => Gf2_192Element.fromBytes(new Uint8Array(25))).toThrow(/length/i)
+  })
+})
+```
+
+- [ ] **Step 7: Run tests, verify they fail.**
+
+Run: `cd packages/ergoscript && npx vitest run test/crypto/gf2_192-element.test.ts`
+Expected: All tests fail with module-not-found.
+
+- [ ] **Step 8: Implement `Gf2_192Element` in `packages/ergoscript/src/crypto/gf2_192.ts`.**
+
+Implementation skeleton — internal repr `[bigint, bigint, bigint]` (low-to-high). The full multiplication algorithm is intricate; implement it carefully following `gf2_192.rs:82-153`. Cite the exact sigma-rust algorithm in code comments.
+
+```ts
+// Direct port of sigma-rust's gf2_192 crate.
+// Irreducible polynomial: x^192 + x^7 + x^2 + x + 1.
+// Source: ~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192.rs
+
+const MASK_64: bigint = (1n << 64n) - 1n
+
+// 0xE7 = 11100111 in binary = x^7 + x^6 + x^5 + x^2 + x + 1 (low bits of x^192 after reduction)
+// Per gf2_192.rs:31
+const IRRED_PENTANOMIAL: bigint = 0xE7n
+
+// Precomputed table: IRRED_MULS_TABLE[i] = IRRED_PENTANOMIAL * x^i (in GF(2)).
+// Used for 4-bit nibble multiplication reduction.
+// Implementer: open ~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192.rs at
+// lines 35-55. Each of the 16 i64 values in `IRRED_MULS` is transcribed VERBATIM
+// here as a BigInt literal (suffix with `n`). Cast i64 → unsigned-equivalent via
+// `& MASK_64` if any high-bit-set value appears. Cross-validation fixtures
+// (~70 multiply entries) catch any transcription error on the first test run.
+const IRRED_MULS_TABLE: readonly bigint[] = [
+  // 16 entries to be transcribed from gf2_192.rs:35-55
+] as const
+
+export class Gf2_192Element {
+  // Internal repr: three 64-bit BigInts, low-to-high (word[0] is bits 0-63).
+  private constructor(private readonly words: [bigint, bigint, bigint]) {}
+
+  static readonly ZERO = new Gf2_192Element([0n, 0n, 0n])
+  static readonly ONE = new Gf2_192Element([1n, 0n, 0n])
+
+  static fromBytes(bytes: Uint8Array): Gf2_192Element {
+    if (bytes.length !== 24) {
+      throw new Error(`Gf2_192Element.fromBytes: expected 24 bytes, got ${bytes.length}`)
+    }
+    // BE byte order. Reconstruct three 64-bit words.
+    // Bytes[0..8] is word[2] (high); bytes[8..16] is word[1]; bytes[16..24] is word[0] (low).
+    // Confirm byte order at implementation by cross-validating with one fixture entry.
+    const w2 = bytesToBigIntBE(bytes.subarray(0, 8))
+    const w1 = bytesToBigIntBE(bytes.subarray(8, 16))
+    const w0 = bytesToBigIntBE(bytes.subarray(16, 24))
+    return new Gf2_192Element([w0, w1, w2])
+  }
+
+  toBytes(): Uint8Array {
+    const out = new Uint8Array(24)
+    bigIntToBytesBE(this.words[2], out, 0, 8)
+    bigIntToBytesBE(this.words[1], out, 8, 8)
+    bigIntToBytesBE(this.words[0], out, 16, 8)
+    return out  // defensive: new array, caller may mutate
+  }
+
+  add(other: Gf2_192Element): Gf2_192Element {
+    // GF(2^n) addition is XOR
+    return new Gf2_192Element([
+      this.words[0] ^ other.words[0],
+      this.words[1] ^ other.words[1],
+      this.words[2] ^ other.words[2],
+    ])
+  }
+
+  multiply(other: Gf2_192Element): Gf2_192Element {
+    // 4-bit nibble multiplication with table-based reduction.
+    // Implementer: port gf2_192.rs:82-153 line-for-line. Algorithm:
+    //   1. Treat 'other' (b) as polynomial; iterate over its 192 bits in groups of 4 (48 nibbles).
+    //   2. For each nibble, look up IRRED_MULS_TABLE[nibble] for partial reduction contribution.
+    //   3. Accumulate into 384-bit intermediate (6 BigInts: lo[3] + hi[3]) via XOR.
+    //   4. Reduce upper 192 bits using IRRED_MULS_TABLE entries for each set bit.
+    // Mask intermediate values with `& MASK_64` after any operation that can produce ≥ 2^64.
+    // Cite the line range in implementation comments. Cross-validation fixtures
+    // (~25 multiply entries) catch byte-level mismatches against sigma-rust.
+    throw new Error('Gf2_192Element.multiply: implementation pending — port gf2_192.rs:82-153')
+  }
+
+  sqr(): Gf2_192Element {
+    // Bit-interleave squaring per gf2_192.rs:203-258.
+    // Implementer: in characteristic-2 fields, x^2 is computed by inserting a zero
+    // bit between every input bit (e.g., bit i in x becomes bit 2i in x^2), THEN
+    // reducing the upper 192 bits using IRRED_MULS_TABLE. Port the bit-interleave
+    // step (sigma-rust uses standard de-Bruijn-style precomputation or per-byte
+    // expansion table) then call the same reduction subroutine used by multiply().
+    // Cross-validation fixtures (~10 sqr entries) catch any error.
+    throw new Error('Gf2_192Element.sqr: implementation pending — port gf2_192.rs:203-258')
+  }
+
+  invert(): Gf2_192Element {
+    // Fermat-style invert via z^(2^192 - 2) per gf2_192.rs:173-200.
+    // Implementer: in GF(2^192), the nonzero elements form a multiplicative group of
+    // order (2^192 - 1). So z^(-1) = z^(2^192 - 2). Sigma-rust uses an explicit
+    // square-and-multiply chain (NOT a generic pow function) — port that chain
+    // verbatim. Throws or returns Gf2_192Element.ZERO for invert(ZERO) — match
+    // sigma-rust's exact behavior at line 174-176 (likely an assert/panic; in TS
+    // we throw an Error). Cross-validation fixtures (~10 invert entries) + the
+    // round-trip property `x * invert(x) == 1` catch errors.
+    if (this.isZero()) {
+      throw new Error('Gf2_192Element.invert: cannot invert zero')
+    }
+    throw new Error('Gf2_192Element.invert: implementation pending — port gf2_192.rs:173-200')
+  }
+
+  equals(other: Gf2_192Element): boolean {
+    return (
+      this.words[0] === other.words[0] &&
+      this.words[1] === other.words[1] &&
+      this.words[2] === other.words[2]
+    )
+  }
+
+  isZero(): boolean {
+    return this.words[0] === 0n && this.words[1] === 0n && this.words[2] === 0n
+  }
+
+  isOne(): boolean {
+    return this.words[0] === 1n && this.words[1] === 0n && this.words[2] === 0n
+  }
+}
+
+function bytesToBigIntBE(bytes: Uint8Array): bigint {
+  let v = 0n
+  for (const b of bytes) v = (v << 8n) | BigInt(b)
+  return v
+}
+
+function bigIntToBytesBE(v: bigint, out: Uint8Array, offset: number, len: number): void {
+  for (let i = len - 1; i >= 0; i--) {
+    out[offset + i] = Number(v & 0xFFn)
+    v >>= 8n
+  }
+}
+```
+
+The implementer MUST transcribe the `IRRED_MULS_TABLE` values and fully implement `multiply` / `sqr` / `invert` referencing the sigma-rust source. The cross-validation fixtures are the correctness gate.
+
+- [ ] **Step 9: Run tests, iterate until all pass.**
+
+Run: `cd packages/ergoscript && npx vitest run test/crypto/gf2_192-element.test.ts`
+
+Iterate on `multiply` / `sqr` / `invert` implementations. Common failure points:
+- BigInt vs i64 sign behavior: BigInts in TS are arbitrary precision; sigma-rust uses i64. Mask high bits explicitly via `& MASK_64` after any operation that could produce values ≥ 2^64.
+- Endianness: sigma-rust stores `word: [i64; 3]` with word[0] being low-bits. Confirm via the fixture round-trip tests first (`from_bytes`/`to_bytes`) before debugging multiply.
+- Off-by-one in nibble iteration (192 bits = 48 nibbles).
+
+- [ ] **Step 10: Run full ergoscript suite.**
+
+Run: `cd packages/ergoscript && npm test`
+Expected: Prior 2017 + new GF(2^192) element tests all pass.
+
+- [ ] **Step 11: Typecheck.**
+
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+Expected: No errors.
+
+- [ ] **Step 12: Bundle scan (browser-clean).**
+
+Run: `cd packages/ergoscript && grep -rn 'Buffer\|process\.\|require\|node:' src/crypto/gf2_192.ts`
+Expected: No matches. Confirms no Node-specific imports leaked into the crypto module.
+
+- [ ] **Step 13: Final determinism re-run.**
+
+Run: `cd fixture-gen && cargo run --release`
+Expected: No diff in `packages/ergoscript/test/fixtures/`.
+
+- [ ] **Step 14: Commit.**
+
+```bash
+git add packages/ergoscript/src/crypto/gf2_192.ts \
+        packages/ergoscript/test/crypto/gf2_192-element.test.ts \
+        packages/ergoscript/test/fixtures/crypto/gf2_192-element-ops.json \
+        fixture-gen/Cargo.toml \
+        fixture-gen/src/cmds/ergoscript/crypto/mod.rs \
+        fixture-gen/src/cmds/ergoscript/crypto/gf2_192_element_ops.rs \
+        fixture-gen/src/cmds/ergoscript/mod.rs \
+        fixture-gen/src/main.rs
+
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): add Gf2_192Element with table-optimized multiply (phase 2g-combinators task 2)
+
+Pure-TypeScript port of sigma-rust's gf2_192 crate element type.
+Internal repr [bigint, bigint, bigint] (low-to-high 64-bit words);
+4-bit nibble multiplication with IRRED_MULS_TABLE reduction per
+gf2_192.rs:82-153; Fermat-style invert per gf2_192.rs:173-200;
+bit-interleave sqr per gf2_192.rs:203-258. 24-byte BE serialization.
+
+Cross-validation fixtures (~70 entries across add/multiply/sqr/invert/
+equals/serialize) byte-compared against sigma-rust's gf2_192 crate
+output at fixture-gen time. Determinism gate via two-run cargo.
+
+Browser-clean (no Buffer/node:* imports). Foundation for Task 3's
+polynomial layer and Task 9's Cthreshold verifier walk.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 3: GF(2^192) polynomial — `Gf2_192Poly` class (dedicated session)
+
+**Files:**
+- Modify: `packages/ergoscript/src/crypto/gf2_192.ts` (add `Gf2_192Poly` class)
+- Test: `packages/ergoscript/test/crypto/gf2_192-poly.test.ts`
+- Fixture-gen: `fixture-gen/src/cmds/ergoscript/crypto/gf2_192_poly_ops.rs`
+- Fixture file: `packages/ergoscript/test/fixtures/crypto/gf2_192-poly-ops.json`
+- Modify: `fixture-gen/src/cmds/ergoscript/crypto/mod.rs`, `fixture-gen/src/main.rs`
+
+**Sigma-rust source-read (REQUIRED before writing any TS):**
+
+```bash
+cat ~/projects/sigma-rust/sigma-rust/gf2_192/src/gf2_192poly.rs
+```
+
+Locked details:
+- Internal repr: `coeffs: Vec<Gf2_192>` where `coeffs[0]` is the degree-0 (constant) coefficient and `coeffs[degree]` is the highest. The polynomial is `sum(coeffs[i] * x^i)` over GF(2^192).
+- `interpolate(points: &[u8], values: &[Gf2_192], value_at_zero: Gf2_192)` at lines 71-115. Standard Lagrange basis. The (0, value_at_zero) point is interpolation-special-cased — it becomes coeff[0] of the result.
+- `evaluate(x: u8) -> Gf2_192` at lines 116-132. Horner's method.
+- `to_bytes() -> Vec<u8>` at lines 133-160. Length = `degree * 24`. **Skips degree-0 coefficient** — caller serializes it separately (in our case, it's the parent challenge in the conjecture verifier).
+
+- [ ] **Step 1: Add `gf2_192_poly_ops` module to fixture-gen.**
+
+Modify `fixture-gen/src/cmds/ergoscript/crypto/mod.rs`:
+
+```rust
+pub mod gf2_192_element_ops;
+pub mod gf2_192_poly_ops;
+```
+
+- [ ] **Step 2: Write fixture-gen for polynomial ops.**
+
+Create `fixture-gen/src/cmds/ergoscript/crypto/gf2_192_poly_ops.rs`. ~25 entries:
+
+- `interpolate` (~8): 2-point (one non-zero point + value_at_zero), 3-point, 5-point, 8-point. Vary value_at_zero (zero, nonzero).
+- `evaluate` (~10): For each interpolated polynomial, evaluate at points 0, 1, ..., n+1 and capture results. Confirms polynomial passes through expected points AND extrapolates correctly.
+- `to_bytes` (~5): Capture serialized byte sequence for polynomials of varying degree (degree 1, 2, 4, 7).
+- `fromCoefficientsAndConstant` round-trip (~2): Serialize a polynomial, deserialize, evaluate at same points, assert byte-equal results.
+
+```rust
+#[derive(serde::Serialize)]
+struct PolyOpFixture {
+    name: String,
+    op: String,  // "interpolate", "evaluate", "to_bytes", "from_coeffs_and_const"
+    // For interpolate: u8 array of points (excluding 0), 24-byte hex values, 24-byte value_at_zero
+    // For evaluate: polynomial bytes + value_at_zero + point (u8), expected 24-byte hex
+    // For to_bytes: polynomial spec (points + values + value_at_zero), expected bytes hex
+    inputs: PolyInputs,
+    expected: String,
+}
+
+#[derive(serde::Serialize)]
+struct PolyInputs {
+    points: Option<Vec<u8>>,
+    values_hex: Option<Vec<String>>,
+    value_at_zero_hex: Option<String>,
+    poly_bytes_hex: Option<String>,
+    eval_point: Option<u8>,
+}
+
+pub fn generate_fixtures() -> Vec<PolyOpFixture> {
+    use gf2_192::gf2_192poly::Gf2_192Poly;
+    use gf2_192::Gf2_192;
+    // ...
+}
+```
+
+- [ ] **Step 3: Wire into main.rs and run fixture-gen.**
+
+Modify `fixture-gen/src/main.rs`:
+
+```rust
+generate_and_write(
+    "ergoscript/crypto/gf2_192-poly-ops",
+    cmds::ergoscript::crypto::gf2_192_poly_ops::generate_fixtures(),
+)?;
+```
+
+Run:
+
+```bash
+cd fixture-gen && cargo run --release
+cd fixture-gen && cargo run --release  # determinism check
+git status -- packages/ergoscript/test/fixtures/  # expect clean after second run
+```
+
+- [ ] **Step 4: Write the failing tests.**
+
+`packages/ergoscript/test/crypto/gf2_192-poly.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+import { Gf2_192Element, Gf2_192Poly } from '../../src/crypto/gf2_192'
+
+const fixturePath = resolve(__dirname, '../fixtures/crypto/gf2_192-poly-ops.json')
+const fixtures: PolyOpFixture[] = JSON.parse(readFileSync(fixturePath, 'utf8'))
+
+interface PolyOpFixture {
+  name: string
+  op: 'interpolate' | 'evaluate' | 'to_bytes' | 'from_coeffs_and_const'
+  inputs: {
+    points?: number[]
+    values_hex?: string[]
+    value_at_zero_hex?: string
+    poly_bytes_hex?: string
+    eval_point?: number
+  }
+  expected: string
+}
+
+function hexToBytes(hex: string): Uint8Array { /* ... */ }
+function bytesToHex(b: Uint8Array): string { /* ... */ }
+
+describe('Gf2_192Poly operations (cross-validated against sigma-rust)', () => {
+  for (const f of fixtures) {
+    it(f.name, () => {
+      switch (f.op) {
+        case 'interpolate': {
+          const values = f.inputs.values_hex!.map(h =>
+            Gf2_192Element.fromBytes(hexToBytes(h)),
+          )
+          const valueAtZero = Gf2_192Element.fromBytes(hexToBytes(f.inputs.value_at_zero_hex!))
+          const poly = Gf2_192Poly.interpolate(f.inputs.points!, values, valueAtZero)
+          expect(bytesToHex(poly.toBytes())).toBe(f.expected)
+          break
+        }
+        case 'evaluate': {
+          const poly = Gf2_192Poly.fromCoefficientsAndConstant(
+            hexToBytes(f.inputs.poly_bytes_hex!),
+            Gf2_192Element.fromBytes(hexToBytes(f.inputs.value_at_zero_hex!)),
+          )
+          const result = poly.evaluate(f.inputs.eval_point!)
+          expect(bytesToHex(result.toBytes())).toBe(f.expected)
+          break
+        }
+        case 'to_bytes': {
+          const values = f.inputs.values_hex!.map(h =>
+            Gf2_192Element.fromBytes(hexToBytes(h)),
+          )
+          const valueAtZero = Gf2_192Element.fromBytes(hexToBytes(f.inputs.value_at_zero_hex!))
+          const poly = Gf2_192Poly.interpolate(f.inputs.points!, values, valueAtZero)
+          expect(bytesToHex(poly.toBytes())).toBe(f.expected)
+          break
+        }
+        case 'from_coeffs_and_const': {
+          // Round-trip: bytes → poly → evaluate → bytes
+          const poly = Gf2_192Poly.fromCoefficientsAndConstant(
+            hexToBytes(f.inputs.poly_bytes_hex!),
+            Gf2_192Element.fromBytes(hexToBytes(f.inputs.value_at_zero_hex!)),
+          )
+          const evaluated = poly.evaluate(f.inputs.eval_point!)
+          expect(bytesToHex(evaluated.toBytes())).toBe(f.expected)
+          break
+        }
+      }
+    })
+  }
+})
+
+describe('Gf2_192Poly invariants', () => {
+  it('interpolate creates polynomial passing through specified points', () => {
+    const valueAtZero = Gf2_192Element.fromBytes(new Uint8Array(24).fill(0x42))
+    const points = [1, 2, 3]
+    const values = points.map(p => Gf2_192Element.fromBytes(new Uint8Array(24).fill(p)))
+    const poly = Gf2_192Poly.interpolate(points, values, valueAtZero)
+
+    expect(poly.evaluate(0).equals(valueAtZero)).toBe(true)
+    for (let i = 0; i < points.length; i++) {
+      expect(poly.evaluate(points[i]!).equals(values[i]!)).toBe(true)
+    }
   })
 
-  it('propBytes wraps SigmaProp in ErgoTree v0 + constant-segregation=true', () => {
-    // A ProveDlog leaf with a known h. propBytes(sb) should produce the
-    // byte-serialization of an ErgoTree whose body is
-    // Const(SSigmaProp, sb) and whose header is v0 with constant-segregation.
+  it('degree property equals (number of points)', () => {
+    const valueAtZero = Gf2_192Element.ZERO
+    const points = [1, 2, 3, 5]
+    const values = points.map(p => Gf2_192Element.fromBytes(new Uint8Array(24).fill(p)))
+    const poly = Gf2_192Poly.interpolate(points, values, valueAtZero)
+    expect(poly.degree).toBe(4)  // 4 points + the (0, valueAtZero) gives degree-4 polynomial
+    expect(poly.toBytes().length).toBe(4 * 24)
+  })
+})
+```
+
+- [ ] **Step 5: Run tests, verify failure.**
+
+Run: `cd packages/ergoscript && npx vitest run test/crypto/gf2_192-poly.test.ts`
+Expected: All tests fail (Gf2_192Poly doesn't exist yet).
+
+- [ ] **Step 6: Implement `Gf2_192Poly` in `packages/ergoscript/src/crypto/gf2_192.ts`.**
+
+Append to the existing file:
+
+```ts
+// Polynomial over GF(2^192).
+// Internal repr: coeffs[0] is degree-0 (constant); coeffs[degree] is highest.
+// Per gf2_192poly.rs:60.
+export class Gf2_192Poly {
+  private constructor(private readonly coeffs: Gf2_192Element[]) {}
+
+  get degree(): number {
+    return this.coeffs.length - 1
+  }
+
+  // Lagrange interpolation through (0, valueAtZero) and each (points[i], values[i]).
+  // points must be distinct u8 values, all != 0.
+  // Per gf2_192poly.rs:71-115.
+  static interpolate(
+    points: number[],
+    values: Gf2_192Element[],
+    valueAtZero: Gf2_192Element,
+  ): Gf2_192Poly {
+    if (points.length !== values.length) {
+      throw new Error('Gf2_192Poly.interpolate: points and values length mismatch')
+    }
+    for (const p of points) {
+      if (p === 0) throw new Error('Gf2_192Poly.interpolate: points must be != 0')
+      if (p < 0 || p > 255 || !Number.isInteger(p)) {
+        throw new Error('Gf2_192Poly.interpolate: points must be u8')
+      }
+    }
+    // Check distinctness
+    const seen = new Set<number>()
+    for (const p of points) {
+      if (seen.has(p)) throw new Error('Gf2_192Poly.interpolate: duplicate points')
+      seen.add(p)
+    }
+    // Implementer: port gf2_192poly.rs:71-115 line-for-line. The (0, valueAtZero)
+    // point is interpolation-special-cased — sigma-rust prepends it to the points
+    // array internally and computes Lagrange basis over the combined (n+1)-point set.
+    // The Lagrange basis L_i(x) = prod_{j != i} (x - p_j) / (p_i - p_j). In GF(2^192):
+    //   - (x - p_j) and (p_i - p_j) reduce to XOR (since subtraction is addition is XOR).
+    //   - Division uses Gf2_192Element.invert.
+    //   - p_i and p_j are u8 values; convert via Gf2_192Element.fromBytes(zeroPad24(p)) or
+    //     by setting the low word to BigInt(p) directly.
+    // Result polynomial coefficients fill coeffs[0..=n]. Cross-validation fixtures
+    // (~8 interpolate entries) catch errors.
+    throw new Error('Gf2_192Poly.interpolate: implementation pending — port gf2_192poly.rs:71-115')
+  }
+
+  // Reconstruct polynomial from serialized non-constant coefficients + the constant.
+  // Used by the verifier: constant = parent challenge as Gf2_192Element; coefficients
+  // are read from the proof bytes (length = degree * 24).
+  static fromCoefficientsAndConstant(
+    coefficientBytes: Uint8Array,
+    constant: Gf2_192Element,
+  ): Gf2_192Poly {
+    if (coefficientBytes.length % 24 !== 0) {
+      throw new Error('Gf2_192Poly.fromCoefficientsAndConstant: bytes length must be multiple of 24')
+    }
+    const degree = coefficientBytes.length / 24
+    const coeffs: Gf2_192Element[] = [constant]
+    for (let i = 0; i < degree; i++) {
+      coeffs.push(Gf2_192Element.fromBytes(coefficientBytes.subarray(i * 24, (i + 1) * 24)))
+    }
+    return new Gf2_192Poly(coeffs)
+  }
+
+  // Horner's method.
+  // Per gf2_192poly.rs:116-132.
+  evaluate(x: number): Gf2_192Element {
+    if (x < 0 || x > 255 || !Number.isInteger(x)) {
+      throw new Error('Gf2_192Poly.evaluate: x must be u8')
+    }
+    if (x === 0) return this.coeffs[0]!  // by definition
+    // Implementer: port gf2_192poly.rs:116-132. Horner's method:
+    //   result = coeffs[degree]
+    //   for i from (degree - 1) down to 0:
+    //     result = result.multiply(xAsElement).add(coeffs[i])
     //
-    // The exact bytes depend on the ErgoTree wire format. The most direct
-    // way to lock this is a fixture from sigma-rust — defer the byte-equality
-    // assertion to the Task 6 verifier-fixture stage. Here we just verify
-    // propBytes returns non-empty, starts with a valid ErgoTree header byte.
-    const h = new Uint8Array(33)
-    h[0] = 0x02  // SEC1 compressed pubkey tag
-    for (let i = 1; i < 33; i++) h[i] = i
-    const sb: SigmaBoolean = { tag: 'ProveDlog', h }
-    const bytes = propBytes(sb)
-    expect(bytes.length).toBeGreaterThan(33)  // ErgoTree envelope adds bytes
-    // ErgoTree v0 + constant-segregation: header byte should be 0x10 (bit 4 set).
-    // (Confirm exact byte at Task 6 — depends on ErgoTree builder used.)
-    expect((bytes[0]! & 0b00010000) !== 0).toBe(true)
-  })
-
-  it('fiatShamirHash truncates blake2b-256 output to 24 bytes', () => {
-    const result = fiatShamirHash(new Uint8Array(10))
-    expect(result.length).toBe(FIAT_SHAMIR_HASH_BYTES)
-  })
-
-  // More tests added at Task 6 (byte-equivalence with sigma-rust fixtures).
-})
-```
-
-- [ ] **Step 10: Implement `sigma/fiat-shamir.ts`**
-
-```ts
-/**
- * Fiat-Shamir tree-to-bytes serialization for sigma-protocol verification.
- *
- * The verifier (Task 6) reconstructs the root challenge by:
- *   1. Walking the SigmaBoolean tree to build a byte-string (this module).
- *   2. Appending the message.
- *   3. Hashing with blake2b-256.
- *   4. Taking the first 24 bytes.
- *
- * **Critical byte-format details:**
- *
- *  - `prop_bytes` for a leaf: wrap the SigmaProp in an ErgoTree with
- *    `version=0, hasSize=false, constantSegregation=true` BEFORE serializing
- *    (sigma-rust `fiat_shamir.rs:148-157`, `sigma_boolean.rs:303-312`).
- *  - Leaf prefix byte: `1`; internal-node prefix: `0`
- *    (`fiat_shamir.rs::LEAF_PREFIX = 1`).
- *  - Conjecture child counts use `put_i16_be_bytes` — 2-byte BIG-ENDIAN,
- *    NOT VLQ (`fiat_shamir.rs:197`). This differs from the wire format.
- *  - `Cthreshold` k is `put_u8` in Fiat-Shamir (`fiat_shamir.rs:184`);
- *    Cand=0, Cor=1, Cthreshold=2 conjecture-type bytes (`proof_tree.rs:131-135`).
- *
- * NOTE: 2g-medium ships only the leaf path of `propBytes` + the hash
- * primitive. The full tree-walker for conjectures ships in 2g-combinators.
- */
-
-import { blake2b } from '@noble/hashes/blake2.js'
-import type { SigmaBoolean, ErgoTree } from '../mir/types'
-import { serializeTree } from '../wire/ergo-tree'
-// (Adjust import names if the existing serializer lives elsewhere.)
-
-export const FIAT_SHAMIR_HASH_BYTES = 24
-
-/**
- * Wrap a SigmaBoolean in an ErgoTree(v0, constant-segregation=true) and
- * serialize. Used at every leaf during Fiat-Shamir tree construction.
- *
- * Source: sigma-rust `fiat_shamir.rs:148-157`.
- */
-export function propBytes(sb: SigmaBoolean): Uint8Array {
-  // Construct: ErgoTree{ header: v0 + constant-segregation=true, body: Const(SSigmaProp, sb) }
-  const tree: ErgoTree = {
-    header: {
-      version: 0,
-      hasSize: false,
-      constantSegregation: true,
-      rawHeader: 0b00010000,  // version=0 (bits 0-2 = 0), hasSize=false (bit 3 = 0), constSeg=true (bit 4 = 1)
-    },
-    constantTypes: [{ tag: 'SSigmaProp' }],
-    constants: [{ kind: 'SigmaProp', value: sb }],
-    // Body is a ConstPlaceholder(0) referencing the segregated constant.
-    body: { tag: 'ConstPlaceholder', id: 0, tpe: { tag: 'SSigmaProp' } },
+    // Where xAsElement is the GF(2^192) embedding of the u8 x (low word = BigInt(x),
+    // other words = 0n). This works because GF(2^8) ⊂ GF(2^192) via the same
+    // pentanomial reduction.
+    //
+    // sigma-rust optimizes via `Gf2_192::mul_by_i8` (a specialized variant that
+    // doesn't allocate a full Gf2_192Element). Implementer may match that
+    // optimization or use the slower generic multiply — cross-validation fixtures
+    // confirm output byte-equality either way.
+    throw new Error('Gf2_192Poly.evaluate: implementation pending — port gf2_192poly.rs:116-132')
   }
-  return serializeTree(tree)
+
+  // Serializes coeffs[1..=degree], NOT coeffs[0]. Length = degree * 24.
+  // Per gf2_192poly.rs:133-160.
+  toBytes(): Uint8Array {
+    const out = new Uint8Array(this.degree * 24)
+    for (let i = 0; i < this.degree; i++) {
+      const elemBytes = this.coeffs[i + 1]!.toBytes()
+      out.set(elemBytes, i * 24)
+    }
+    return out
+  }
 }
-
-/** Hash an arbitrary byte sequence with blake2b-256 and truncate to 24 bytes. */
-export function fiatShamirHash(input: Uint8Array): Uint8Array {
-  const digest = blake2b(input, { dkLen: 32 })
-  return digest.slice(0, FIAT_SHAMIR_HASH_BYTES)
-}
 ```
 
-(Adjust the `ErgoTree` construction to match the existing project shape — `TreeHeader.rawHeader`, `constantTypes`, etc. Read `mir/types.ts` and `wire/ergo-tree.ts` to confirm the exact constructor pattern.)
+The implementer fills in `interpolate` (full Lagrange in GF(2^192)) and `evaluate` (Horner's). Implementation references gf2_192poly.rs explicitly.
 
-- [ ] **Step 11: Run fiat-shamir test, verify PASS**
+- [ ] **Step 7: Run tests, iterate.**
 
+Common failure points:
+- Lagrange basis denominator inversion: in GF(2^192), division by `(points[i] - points[j])` requires `invert(points[i] - points[j])`. Since `-` is `+` is XOR in GF(2), the denominator is XOR of two u8 values cast into Gf2_192Element.
+- Horner's method evaluates from highest-degree down; off-by-one risk.
+- Empty `points[]` case: polynomial is just `constant`; degree 0; toBytes is empty.
+
+- [ ] **Step 8: Run full ergoscript suite, typecheck, bundle scan.**
+
+Run:
 ```bash
-npx vitest run packages/ergoscript/test/sigma/fiat-shamir.test.ts
+cd packages/ergoscript && npm test
+cd packages/ergoscript && npx tsc --noEmit
+grep -n 'Buffer\|process\.\|node:' packages/ergoscript/src/crypto/gf2_192.ts
 ```
 
-Expected: PASS. The byte-format assertion is approximate at this stage; Task 6's verifier-positive fixture provides the true byte-equivalence check.
+Expected: all pass; no Node imports.
 
-- [ ] **Step 12: Run full suite + typecheck**
+- [ ] **Step 9: Determinism re-run.**
 
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
+Run: `cd fixture-gen && cargo run --release`
+Expected: No diff in fixtures.
 
-Expected: all prior tests + Task 5 unit tests PASS; zero typecheck errors.
-
-- [ ] **Step 13: Browser-compat scan**
+- [ ] **Step 10: Commit.**
 
 ```bash
-grep -E "Buffer|process\.|require\(|node:" packages/ergoscript/src/sigma/
-```
+git add packages/ergoscript/src/crypto/gf2_192.ts \
+        packages/ergoscript/test/crypto/gf2_192-poly.test.ts \
+        packages/ergoscript/test/fixtures/crypto/gf2_192-poly-ops.json \
+        fixture-gen/src/cmds/ergoscript/crypto/gf2_192_poly_ops.rs \
+        fixture-gen/src/cmds/ergoscript/crypto/mod.rs \
+        fixture-gen/src/main.rs
 
-Expected: no output. The new `sigma/` modules are pure ESM.
-
-- [ ] **Step 14: Two-stage review (orchestrator)**
-
-- **Spec-compliance:** Cite source lines for each module's behavior (`challenge.rs` for 24-byte size; `sig_serializer.rs:118-128, 143, 148-172` for proof byte reader; `fiat_shamir.rs:70-76, 148-157, 197` for Fiat-Shamir primitives).
-- **Code-quality:** all modules browser-clean; `VerifyError` exported correctly; no `any` leaks; defensive copies where Uint8Array slices are returned.
-
-- [ ] **Step 15: Commit**
-
-```bash
-git add -A
 git commit -m "$(cat <<'EOF'
-feat(ergoscript): verifier infrastructure modules (phase 2g-medium task 5)
+feat(ergoscript): add Gf2_192Poly with Lagrange interpolation (phase 2g-combinators task 3)
 
-Four new modules under src/sigma/:
-  - errors.ts:       VerifyError class + 5 codes
-  - challenge.ts:    24-byte XOR primitives (CHALLENGE_BYTES = 24)
-  - sig-serializer.ts: ProofBytesReader (readChallenge / readScalarBytes);
-                     readProofBytes guard for empty signatures
-  - fiat-shamir.ts:  propBytes (ErgoTree v0 + constant-segregation=true
-                     wrap; sigma-rust fiat_shamir.rs:148-157);
-                     fiatShamirHash (blake2b-256 truncated to 24 bytes)
+Polynomial layer over Gf2_192Element. interpolate() per
+gf2_192poly.rs:71-115 (Lagrange basis with (0, value_at_zero)
+special-cased); evaluate() per gf2_192poly.rs:116-132 (Horner's
+method); toBytes() per gf2_192poly.rs:133-160 (degree * 24 bytes,
+skips constant coefficient). fromCoefficientsAndConstant() is the
+verifier-path constructor used by the Cthreshold conjecture walk in
+Task 9.
 
-Per-module unit tests. Conjecture walk paths (Cand/Cor/Cthreshold) deferred
-to 2g-combinators; this task ships leaf-only primitives.
+Cross-validation fixtures (~25 entries) byte-compared against
+sigma-rust's gf2_192poly. Determinism gate via two-run cargo.
+
+Browser-clean. Closes the GF(2^192) layer.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -2375,611 +1180,972 @@ EOF
 
 ---
 
-## Task 6: `verifySignature` impl + verifier fixtures (V1 + V2)
-
-**⚠ Confidence-escalation flag (OVERRIDES #2):** This is the load-bearing crypto-verification task. Implementer + reviewer MUST cite specific sigma-rust source lines for each correctness-sensitive equation. See "Confidence-escalation flag" in the plan header.
+## Task 4: Atleast arm + `_sigma-helpers.ts`
 
 **Files:**
-- Create: `packages/ergoscript/src/sigma/verifier.ts` — `verifySignature` orchestration
-- Modify: `packages/ergoscript/src/index.ts` — re-export `verifySignature`, `VerifyError`, `SigmaBoolean` type
-- Create: `fixture-gen/src/cmds/ergoscript/verify/mod.rs` — module hub
-- Create: `fixture-gen/src/cmds/ergoscript/verify/verifier_positive.rs` — V1 positive
-- Create: `fixture-gen/src/cmds/ergoscript/verify/verifier_reject.rs` — V1 conjecture + malformed
-- Create: `fixture-gen/src/cmds/ergoscript/verify/verifier_mutation.rs` — V2 byte-flip
-- Modify: `fixture-gen/src/cmds/ergoscript/mod.rs` — add `pub mod verify;`
-- Modify: `fixture-gen/src/main.rs` — wire calls
-- Create: `packages/ergoscript/test/sigma/verifier.test.ts`
+- Create: `packages/ergoscript/src/eval/_sigma-helpers.ts`
+- Create: `packages/ergoscript/src/eval/atleast.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Modify: `packages/ergoscript/src/eval/errors.ts`
+- Test: `packages/ergoscript/test/eval/atleast.test.ts`
+- Test: `packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts` (C3.a — created here, extended in Tasks 5-6)
+- Fixture-gen: `fixture-gen/src/cmds/ergoscript/eval/atleast.rs`
+- Fixture: `packages/ergoscript/test/fixtures/eval/atleast.json`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`, `fixture-gen/src/main.rs`
 
-**Sigma-rust sources:**
-- `ergotree-interpreter/src/sigma_protocol/verifier.rs:60-125` — verify pipeline (`verify_signature` entry at line 91; combined `Verifier::verify` at line 60)
-- `ergotree-interpreter/src/sigma_protocol/dlog_protocol.rs:113-184` — Schnorr verify equation `a = g^z * (h^challenge)^-1`; deterministic-nonce signer (lines 113-149)
-- `ergotree-interpreter/src/sigma_protocol/dht_protocol.rs:132-157` — DH-tuple two-commitment verify
-- `ergotree-interpreter/src/sigma_protocol/prover/test_prover.rs` (or `prover/mod.rs`) — test-prover entry for fixture-gen
-- `ergotree-interpreter/src/sigma_protocol/sig_serializer.rs:118-255` — proof byte format full reference
-- `ergotree-interpreter/src/sigma_protocol/fiat_shamir.rs:140-200` — tree-to-bytes including leaf prefix + prop_bytes wrap
-
-**Key behavior:** `verifySignature(sb, message, signature) → boolean`. Algorithm:
-
-1. If `sb.tag === 'TrivialProp'`, return `sb.value`.
-2. Initialize `ProofBytesReader(signature)` — guards empty proof.
-3. Walk `sb` once; if any node is `Cand`/`Cor`/`Cthreshold`, throw `'conjecture-not-implemented'`.
-4. Read top-level 24-byte challenge.
-5. For the (single) leaf, read 32-byte scalar `z`.
-6. Compute commitment(s) via Schnorr (ProveDlog) or DH-tuple (ProveDhTuple) math.
-7. Build Fiat-Shamir input: `propBytes(sb)` ++ commitment bytes ++ message.
-8. `recomputed_challenge = fiatShamirHash(input)`.
-9. Return `bytewise_equal(recomputed_challenge, top_level_challenge)`.
-
-The exact byte format of Fiat-Shamir tree-walking is replicated byte-by-byte from `fiat_shamir.rs:140-200`. Mismatch = silent verification failure. The V1 positive fixtures (real sigma-rust-signed proofs) are the only correctness signal.
-
-- [ ] **Step 1: Locate sigma-rust's test-prover entry**
+**Sigma-rust source-read:**
 
 ```bash
-ls ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/prover/
-grep -rn "pub fn prove\|impl.*Prover.*for" ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/prover/ | head -20
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/atleast.rs
+cat ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/atleast.rs
 ```
 
-Identify the test-prover (likely `TestProver` in `prover/test_prover.rs`) and its `prove(ergo_tree, ctx, message)` signature. Confirm it uses deterministic-nonce signing.
+Lock cost: `add_per_item_jit_cost(20, 3, 5, n)` per `atleast.rs:34` (Pattern B). MIR shape: `{ bound: Expr<SInt>, input: Expr<Coll<SSigmaProp>> }`.
 
-- [ ] **Step 2: Read sigma-rust's verifier.rs pipeline**
+- [ ] **Step 1: Add 3 new EvalError codes.**
 
-```bash
-sed -n '60,130p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/verifier.rs
-sed -n '160,200p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/dlog_protocol.rs
-sed -n '120,170p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/dht_protocol.rs
-sed -n '140,205p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/fiat_shamir.rs
-```
+Modify `packages/ergoscript/src/eval/errors.ts` to add `'atleast-bound-not-int'`, `'sigma-prop-coll-elem-not-sigma-prop'`, `'sigma-prop-input-not-coll'` to the `EvalErrorCode` union.
 
-For each correctness-sensitive equation, note the exact source line:
-- Schnorr commitment: `a = g^z * (h^challenge)^-1` — Rust `Mul<&EcPoint>` is point-addition (`ec_point.rs:74-79`), so TS equivalent is `pointAdd(pointMul(basePoint, z), pointNegate(pointMul(h, challenge)))`.
-- DH-tuple: two such equations (one for `a` using `g, u`; one for `b` using `h, v`).
-- Fiat-Shamir leaf: `LEAF_PREFIX (1 byte) | propBytes_length (put_i16_be_bytes) | propBytes | commitment_length (put_i16_be_bytes) | commitment_bytes`.
+- [ ] **Step 2: Create `_sigma-helpers.ts` with failing test.**
 
-- [ ] **Step 3: Write Rust fixture-gen for V1 positive**
+`packages/ergoscript/test/eval/_sigma-helpers.test.ts`:
 
-Create `fixture-gen/src/cmds/ergoscript/verify/verifier_positive.rs`:
+```ts
+import { describe, expect, it } from 'vitest'
+import { expectSigmaProp, extractSigmaPropColl } from '../../src/eval/_sigma-helpers'
+import { EvalError } from '../../src/eval/errors'
 
-```rust
-//! V1 positive verifier fixtures (phase 2g-medium Task 6).
-//!
-//! Invokes sigma-rust's test-prover to generate real (sb, msg, sig) triples
-//! for the leaf-only verifier scope: ProveDlog and ProveDhTuple.
-//! Sigma-rust uses deterministic-nonce signing (dlog_protocol.rs:113-149),
-//! so fixtures are reproducible.
-
-use crate::common::write_file;
-use anyhow::Result;
-use ergo_chain_types::EcPoint;
-use ergotree_interpreter::sigma_protocol::prover::{Prover, TestProver, PrivateInput};
-use ergotree_interpreter::sigma_protocol::private_input::DlogProverInput;
-use ergotree_ir::sigma_protocol::sigma_boolean::{ProveDlog, ProveDhTuple, SigmaBoolean, SigmaProofOfKnowledgeTree};
-use ergotree_ir::serialization::SigmaSerializable;
-use serde::Serialize;
-use sigma_test_util::force_any_val;
-
-#[derive(Serialize)]
-struct PositiveEntry {
-    name: String,
-    sigma_boolean_json: serde_json::Value,
-    message_hex: String,
-    signature_hex: String,
-    expected_result: bool,  // always true for positive entries
-}
-
-#[derive(Serialize)]
-struct PositiveFixture {
-    description: &'static str,
-    entries: Vec<PositiveEntry>,
-}
-
-fn entry_prove_dlog(name: &str, secret: DlogProverInput, message: &[u8]) -> Result<PositiveEntry> {
-    let prover = TestProver { secrets: vec![PrivateInput::DlogProverInput(secret.clone())] };
-    let pk: ProveDlog = secret.public_image();
-    let sb = SigmaBoolean::ProofOfKnowledge(SigmaProofOfKnowledgeTree::ProveDlog(pk.clone()));
-    // Build the ErgoTree wrapping Const(SSigmaProp, sb). The TestProver's
-    // canonical entry is prove(&self, tree: &ErgoTree, ctx: &Context, message: &[u8]).
-    let sigma_prop = ergotree_ir::sigma_protocol::sigma_boolean::SigmaProp::new(sb.clone());
-    let body = ergotree_ir::mir::expr::Expr::Const(
-        ergotree_ir::mir::constant::Constant {
-            tpe: ergotree_ir::types::stype::SType::SSigmaProp,
-            v: ergotree_ir::mir::value::Value::SigmaProp(Box::new(sigma_prop)),
-        }
-    );
-    let tree: ergotree_ir::ergo_tree::ErgoTree = body.try_into()?;
-    let ctx = force_any_val::<ergotree_interpreter::eval::context::Context>();
-    let proof = prover.prove(&tree, &ctx, message)?;
-    Ok(PositiveEntry {
-        name: name.to_string(),
-        sigma_boolean_json: crate::cmds::ergoscript::wire::sigma_boolean_variants::sigma_boolean_to_json(&sb),
-        message_hex: hex::encode(message),
-        signature_hex: hex::encode(proof.proof.to_bytes()),
-        expected_result: true,
-    })
-}
-
-pub fn generate() -> Result<()> {
-    let mut entries = Vec::new();
-
-    // ≥ 5 ProveDlog entries with varied keys + message lengths
-    for (i, msg) in [
-        b"" as &[u8],
-        b"a",
-        b"abcdef",
-        &[0u8; 32],
-        &[0xff; 100],
-    ].iter().enumerate() {
-        let secret = force_any_val::<DlogProverInput>();
-        entries.push(entry_prove_dlog(&format!("prove-dlog-{}", i), secret, msg)?);
-    }
-
-    // ≥ 5 ProveDhTuple entries (use TestProver's DhTupleProverInput equivalent)
-    // ... (mirror the dlog loop; consult prover/test_prover.rs for the DH-tuple secret type)
-
-    let file = PositiveFixture {
-        description: "V1 positive verifier fixtures — real sigma-rust-signed (sb, msg, sig) triples.",
-        entries,
-    };
-    write_file(
-        "packages/ergoscript/test/fixtures/verify/verifier-positive.json",
-        serde_json::to_string_pretty(&file)?,
+describe('expectSigmaProp', () => {
+  it('returns inner SigmaBoolean on success', () => {
+    const sb = { tag: 'TrivialProp' as const, value: true }
+    expect(expectSigmaProp({ kind: 'SigmaProp', value: sb }, 'test')).toEqual(sb)
+  })
+  it('throws sigma-prop-coll-elem-not-sigma-prop on non-SigmaProp', () => {
+    expect(() => expectSigmaProp({ kind: 'Int', value: 42 }, 'test')).toThrow(
+      expect.objectContaining({ code: 'sigma-prop-coll-elem-not-sigma-prop' }),
     )
-}
-```
+  })
+})
 
-(The `Prover::prove` API may take an `ErgoTree` or a `SigmaBoolean` directly — adjust based on actual sigma-rust signature. The implementer reads `prover/mod.rs` at task time.)
-
-- [ ] **Step 4: Write Rust fixture-gen for V1 reject + malformed**
-
-Create `fixture-gen/src/cmds/ergoscript/verify/verifier_reject.rs`:
-
-```rust
-//! V1 reject + malformed verifier fixtures (phase 2g-medium Task 6).
-
-use crate::common::write_file;
-use anyhow::Result;
-use serde::Serialize;
-
-#[derive(Serialize)]
-struct RejectEntry {
-    name: String,
-    sigma_boolean_json: serde_json::Value,
-    message_hex: String,
-    signature_hex: String,
-    /// One of: 'returns-false', or a VerifyError code like 'conjecture-not-implemented'.
-    expected_outcome: String,
-}
-
-// ... (entries for: Cand input (expects 'conjecture-not-implemented'); Cor input;
-//      Cthreshold input; empty signature (expects 'empty-signature'); truncated sig;
-//      z scalar = group order n exactly (expects 'scalar-out-of-range');
-//      TrivialProp(false) + any sig (expects returns-false))
-```
-
-Generate one entry per VerifyError code + TrivialProp cases.
-
-- [ ] **Step 5: Write Rust fixture-gen for V2 mutation**
-
-Create `fixture-gen/src/cmds/ergoscript/verify/verifier_mutation.rs`. Take ONE positive entry (the simplest ProveDlog with empty message) and produce 56 mutation variants — each flips one byte of the signature. Each entry asserts the verifier returns `false` (most flips) or throws a typed `VerifyError` (when the flip lands on a structurally-invalid scalar bytes etc.).
-
-```rust
-//! V2 byte-flip mutation fixtures (phase 2g-medium Task 6).
-//!
-//! Takes one positive ProveDlog (sb, msg, sig) triple and produces 56
-//! mutation variants — each flips one byte of the signature. Verifier
-//! must return false or throw VerifyError on every mutation.
-
-use anyhow::Result;
-use crate::common::write_file;
-use serde::Serialize;
-
-#[derive(Serialize)]
-struct MutationEntry {
-    name: String,
-    sigma_boolean_json: serde_json::Value,
-    message_hex: String,
-    /// Signature bytes after flipping the byte at `flip_offset`.
-    mutated_signature_hex: String,
-    flip_offset: usize,
-    /// 'false' or a VerifyError code.
-    expected_outcome: String,
-}
-
-pub fn generate() -> Result<()> {
-    // Generate the baseline triple (mirror Task 6 Step 3 with the simplest ProveDlog).
-    // ... let (sb, msg, sig) = build_baseline();
-    let mut entries = Vec::new();
-    let sig_len = 56;  // 24-byte challenge + 32-byte z for a single leaf
-    for offset in 0..sig_len {
-        let mut mutated = sig.clone();
-        mutated[offset] ^= 0xff;  // flip all bits at this byte
-        entries.push(MutationEntry {
-            name: format!("flip-byte-{:02}", offset),
-            // ... (sb, msg, mutated_signature_hex)
-            flip_offset: offset,
-            expected_outcome: "false-or-error".to_string(),
-        });
+describe('extractSigmaPropColl', () => {
+  it('returns SigmaBoolean[] on Coll[SigmaProp] input', () => {
+    const sb1 = { tag: 'TrivialProp' as const, value: true }
+    const sb2 = { tag: 'TrivialProp' as const, value: false }
+    const value = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SSigmaProp' as const },
+      items: [
+        { kind: 'SigmaProp' as const, value: sb1 },
+        { kind: 'SigmaProp' as const, value: sb2 },
+      ],
     }
-    let file = /* ... */;
-    write_file("packages/ergoscript/test/fixtures/verify/verifier-mutation.json", serde_json::to_string_pretty(&file)?)
+    expect(extractSigmaPropColl(value, 'test')).toEqual([sb1, sb2])
+  })
+  it('throws sigma-prop-input-not-coll on non-Coll', () => {
+    expect(() =>
+      extractSigmaPropColl({ kind: 'Int', value: 42 }, 'test'),
+    ).toThrow(expect.objectContaining({ code: 'sigma-prop-input-not-coll' }))
+  })
+  it('throws sigma-prop-coll-elem-not-sigma-prop on non-SigmaProp item', () => {
+    const value = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SAny' as const },
+      items: [{ kind: 'Int' as const, value: 42 }],
+    }
+    expect(() => extractSigmaPropColl(value, 'test')).toThrow(
+      expect.objectContaining({ code: 'sigma-prop-coll-elem-not-sigma-prop' }),
+    )
+  })
+})
+```
+
+- [ ] **Step 3: Implement `_sigma-helpers.ts`.**
+
+```ts
+import { EvalError } from './errors'
+import type { SValue } from '../mir/types'
+import type { SigmaBoolean } from '../mir/types'
+
+export function expectSigmaProp(value: SValue, callerName: string): SigmaBoolean {
+  if (value.kind !== 'SigmaProp') {
+    throw new EvalError(
+      'sigma-prop-coll-elem-not-sigma-prop',
+      `${callerName}: expected SigmaProp, got ${value.kind}`,
+    )
+  }
+  return value.value
+}
+
+export function extractSigmaPropColl(value: SValue, callerName: string): SigmaBoolean[] {
+  if (value.kind !== 'Coll') {
+    throw new EvalError(
+      'sigma-prop-input-not-coll',
+      `${callerName}: expected Coll[SigmaProp], got ${value.kind}`,
+    )
+  }
+  return value.items.map((item, idx) =>
+    expectSigmaProp(item, `${callerName} item ${idx}`),
+  )
 }
 ```
 
-- [ ] **Step 6: Wire fixture-gen modules**
+- [ ] **Step 4: Run helper tests, verify pass.**
 
-Add `pub mod verify;` to `fixture-gen/src/cmds/ergoscript/mod.rs`. Create `fixture-gen/src/cmds/ergoscript/verify/mod.rs`:
+Run: `cd packages/ergoscript && npx vitest run test/eval/_sigma-helpers.test.ts`
+Expected: All pass.
+
+- [ ] **Step 5: Write Atleast fixture-gen.**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/atleast.rs`. ~10 entries:
+
+- Basic 2-of-3 ProveDlogs.
+- k=0 → TrivialProp(true).
+- k=4 of 3 (out of range, but allowed at construction?) — verify per atleast.rs whether this is rejected at parse or runtime.
+- k=1 of 3 → Cor (collapse).
+- k=3 of 3 → Cand (collapse).
+- TrivialProp(true) child mixed.
+- TrivialProp(false) child mixed.
+- Cost-limit overshoot.
+- Error: non-Int bound (inline TS only).
+- Error: non-Coll input (inline TS only).
+
+Each entry follows the established `EvalFixture` schema (name, tree_bytes_hex, opts_json, expected_value_json, expected_cost, expected_error_code).
+
+Add `pub mod atleast;` to `fixture-gen/src/cmds/ergoscript/eval/mod.rs`. Add `generate_and_write` call to `main.rs`.
+
+- [ ] **Step 6: Run fixture-gen, determinism check.**
+
+```bash
+cd fixture-gen && cargo run --release
+cd fixture-gen && cargo run --release  # determinism
+git status -- packages/ergoscript/test/fixtures/eval/atleast.json  # expect clean after second run
+```
+
+- [ ] **Step 7: Write Atleast TS failing test.**
+
+`packages/ergoscript/test/eval/atleast.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+import { parseTree, evaluate } from '../../src'
+import { captureEvalError } from '../_helpers'
+import { hydrateSValue, hexToBytes } from '../_helpers'
+
+const fixturePath = resolve(__dirname, '../fixtures/eval/atleast.json')
+const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8'))
+
+describe('Atleast eval arm', () => {
+  for (const f of fixtures) {
+    it(f.name, () => {
+      const tree = parseTree(hexToBytes(f.tree_bytes_hex))
+      const opts = f.opts_json ?? {}
+      if (f.expected_error_code) {
+        const err = captureEvalError(() => evaluate(tree, opts))
+        expect(err.code).toBe(f.expected_error_code)
+      } else {
+        const result = evaluate(tree, opts)
+        expect(result.value).toEqual(hydrateSValue(f.expected_value_json))
+        expect(result.cost).toBe(f.expected_cost)
+      }
+    })
+  }
+
+  // Inline error tests: non-Int bound and non-Coll input are not constructible via
+  // sigma-rust's MIR builders, so test via direct MIR injection.
+  it('throws atleast-bound-not-int on non-Int bound', () => {
+    // Hand-build an Atleast Expr with bound = Const(SLong, 2n)
+    // ... [defer to implementation]
+  })
+})
+```
+
+- [ ] **Step 8: Run, verify failure.**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/atleast.test.ts`
+Expected: Fail with "Atleast not implemented" or similar.
+
+- [ ] **Step 9: Implement Atleast arm.**
+
+`packages/ergoscript/src/eval/atleast.ts`:
+
+```ts
+import type { Atleast } from '../mir/types'
+import type { SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './context'
+import { evalExpr } from './eval'
+import { cthresholdReduce } from '../mir/sigma-boolean-normalize'
+import { extractSigmaPropColl } from './_sigma-helpers'
+import { EvalError } from './errors'
+
+export function evalAtleast(e: Atleast, env: Env, ctx: EvalContext): SValue {
+  const boundV = evalExpr(e.bound, env, ctx)
+  if (boundV.kind !== 'Int') {
+    throw new EvalError(
+      'atleast-bound-not-int',
+      `Atleast: expected Int bound, got ${boundV.kind}`,
+    )
+  }
+  const inputV = evalExpr(e.input, env, ctx)
+  const items = extractSigmaPropColl(inputV, 'Atleast')
+  // Pattern B: per-item cost AFTER eval-children
+  ctx.addPerItemCost(20, 3, 5, items.length)
+  return { kind: 'SigmaProp', value: cthresholdReduce(boundV.value, items) }
+}
+```
+
+- [ ] **Step 10: Wire into central dispatch.**
+
+Modify `packages/ergoscript/src/eval/eval.ts` to add:
+
+```ts
+case 'Atleast': return evalAtleast(e, env, ctx)
+```
+
+(Import at top: `import { evalAtleast } from './atleast'`.)
+
+- [ ] **Step 11: Run Atleast tests, verify pass.**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/atleast.test.ts`
+Expected: All fixture entries pass.
+
+- [ ] **Step 12: Add C3.a mutation tests for Atleast.**
+
+`packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts` — new file. Apply C3.a operators from the 2f Coll HOFs design (constant replacement, child swap, etc.) to Atleast's fixtures. Target ≥ 90% kill rate. The pattern is established; see `packages/ergoscript/test/eval-mutation/coll-hofs.test.ts` for reference (if exists) or `_mutation-operators.ts`.
+
+If an established mutation framework is in place, this is ~30 lines of configuration. If not, defer the test creation to a follow-up — but log the gap.
+
+- [ ] **Step 13: Run full suite + typecheck + bundle scan.**
+
+```bash
+cd packages/ergoscript && npm test
+cd packages/ergoscript && npx tsc --noEmit
+```
+
+Expected: all pass.
+
+- [ ] **Step 14: Commit.**
+
+```bash
+git add packages/ergoscript/src/eval/_sigma-helpers.ts \
+        packages/ergoscript/src/eval/atleast.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/src/eval/errors.ts \
+        packages/ergoscript/test/eval/_sigma-helpers.test.ts \
+        packages/ergoscript/test/eval/atleast.test.ts \
+        packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts \
+        packages/ergoscript/test/fixtures/eval/atleast.json \
+        fixture-gen/src/cmds/ergoscript/eval/atleast.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): add Atleast eval arm + _sigma-helpers module (phase 2g-combinators task 4)
+
+evalAtleast: Pattern B addPerItemCost(20, 3, 5, n); calls
+cthresholdReduce(k, items). Source: atleast.rs:19-58.
+
+_sigma-helpers.ts adds expectSigmaProp + extractSigmaPropColl;
+promoted ahead of YAGNI threshold per phase 2g-combinators design
+decision #3 (3 callers across 3 files in Tasks 4-6).
+
+Three new EvalError codes: 'atleast-bound-not-int',
+'sigma-prop-coll-elem-not-sigma-prop', 'sigma-prop-input-not-coll'.
+Coverage 44 -> 45.
+
+C3.a mutation testing engaged for Atleast (>=90% kill rate target);
+extended in Tasks 5-6 for SigmaAnd/SigmaOr.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 5: SigmaAnd arm
+
+**Files:**
+- Create: `packages/ergoscript/src/eval/sigma-and.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts`
+- Test: `packages/ergoscript/test/eval/sigma-and.test.ts`
+- Test extension: `packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts`
+- Fixture-gen: `fixture-gen/src/cmds/ergoscript/eval/sigma_and.rs`
+- Fixture: `packages/ergoscript/test/fixtures/eval/sigma-and.json`
+
+**Sigma-rust source-read:** `eval/sigma_and.rs:13-28` — cost `addPerItemCost(10, 2, 1, n)`; MIR has `items: Expr[]`.
+
+- [ ] **Step 1: Source-read sigma-rust's `sigma_and.rs` and `mir/sigma_and.rs`. Confirm `items: SigmaPropItems` is an Expr array, not a single Coll expression.**
+
+- [ ] **Step 2: Write fixture-gen for SigmaAnd.**
+
+`fixture-gen/src/cmds/ergoscript/eval/sigma_and.rs`. ~10 entries:
+
+- 2-leaf basic (Cand([ProveDlog, ProveDlog])).
+- 3-leaf basic.
+- With TrivialProp(true) child (identity → filtered).
+- With TrivialProp(false) child (absorbing → TrivialProp(false)).
+- Single child (after filter → unwrap).
+- Empty after filter (only TrivialProp(true) children) → TrivialProp(true).
+- 5-leaf.
+- Mixed Dlog/DhTuple.
+- Cost-limit.
+- Error: non-SigmaProp item (inline TS only).
+
+Add `pub mod sigma_and;` to `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + main.rs call.
+
+- [ ] **Step 3: Run fixture-gen, determinism check.**
+
+- [ ] **Step 4: Write failing TS tests** at `packages/ergoscript/test/eval/sigma-and.test.ts` (mirror of atleast.test.ts shape).
+
+- [ ] **Step 5: Implement `evalSigmaAnd`.**
+
+`packages/ergoscript/src/eval/sigma-and.ts`:
+
+```ts
+import type { SigmaAnd } from '../mir/types'
+import type { SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './context'
+import { evalExpr } from './eval'
+import { candNormalized } from '../mir/sigma-boolean-normalize'
+import { expectSigmaProp } from './_sigma-helpers'
+
+export function evalSigmaAnd(e: SigmaAnd, env: Env, ctx: EvalContext): SValue {
+  const items = e.items.map((item) => expectSigmaProp(evalExpr(item, env, ctx), 'SigmaAnd'))
+  ctx.addPerItemCost(10, 2, 1, items.length)
+  return { kind: 'SigmaProp', value: candNormalized(items) }
+}
+```
+
+- [ ] **Step 6: Wire into eval.ts.**
+
+Add `case 'SigmaAnd': return evalSigmaAnd(e, env, ctx)`.
+
+- [ ] **Step 7: Run tests; iterate; extend C3.a mutation tests for SigmaAnd in `sigma-combinators.test.ts`.**
+
+- [ ] **Step 8: Full suite + typecheck + commit.**
+
+```bash
+git add packages/ergoscript/src/eval/sigma-and.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/sigma-and.test.ts \
+        packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts \
+        packages/ergoscript/test/fixtures/eval/sigma-and.json \
+        fixture-gen/src/cmds/ergoscript/eval/sigma_and.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+
+git commit -m "feat(ergoscript): add SigmaAnd eval arm (phase 2g-combinators task 5)
+
+evalSigmaAnd: Pattern B addPerItemCost(10, 2, 1, n); calls
+candNormalized(items). Source: sigma_and.rs:13-28. MIR carries
+items: Expr[] (not a single Coll expression).
+
+Coverage 45 -> 46. C3.a mutation testing extended.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Task 6: SigmaOr arm
+
+**Files:** mirror of Task 5 but `sigma-or.ts` / `sigma_or.rs` / `sigma-or.json`.
+
+**Sigma-rust source-read:** `eval/sigma_or.rs:13-28` — same cost as SigmaAnd; calls `Cor::normalized`. MIR has `items: Expr[]` (same shape as SigmaAnd).
+
+- [ ] **Step 1: Source-read sigma-rust's `sigma_or.rs` and `mir/sigma_or.rs`. Confirm `items: SigmaPropItems` is an Expr array.**
+
+- [ ] **Step 2: Write fixture-gen for SigmaOr.**
+
+`fixture-gen/src/cmds/ergoscript/eval/sigma_or.rs`. ~10 entries with absorbing/identity SWAPPED relative to SigmaAnd:
+
+- 2-leaf basic (Cor([ProveDlog, ProveDlog])).
+- 3-leaf basic.
+- With TrivialProp(true) child → TrivialProp(true) (absorbing for OR).
+- With TrivialProp(false) child (identity → filtered).
+- Single child (after filter → unwrap).
+- Empty after filter (only TrivialProp(false) children) → TrivialProp(false).
+- 5-leaf.
+- Mixed Dlog/DhTuple.
+- Cost-limit.
+- Error: non-SigmaProp item (inline TS only).
+
+Add `pub mod sigma_or;` to `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `generate_and_write` call in `main.rs`.
+
+- [ ] **Step 3: Run fixture-gen, determinism check.**
+
+```bash
+cd fixture-gen && cargo run --release
+cd fixture-gen && cargo run --release  # determinism
+git status -- packages/ergoscript/test/fixtures/eval/sigma-or.json  # expect clean after second run
+```
+
+- [ ] **Step 4: Write the failing TS tests** at `packages/ergoscript/test/eval/sigma-or.test.ts`. Same fixture-driven structure as `sigma-and.test.ts` from Task 5; load `sigma-or.json`; assert value + cost + error-code per entry.
+
+- [ ] **Step 5: Run, verify failure.**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/sigma-or.test.ts`
+Expected: Fail with "SigmaOr not implemented" or similar.
+
+- [ ] **Step 6: Implement `evalSigmaOr`.**
+
+`packages/ergoscript/src/eval/sigma-or.ts`:
+
+```ts
+import type { SigmaOr } from '../mir/types'
+import type { SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './context'
+import { evalExpr } from './eval'
+import { corNormalized } from '../mir/sigma-boolean-normalize'
+import { expectSigmaProp } from './_sigma-helpers'
+
+export function evalSigmaOr(e: SigmaOr, env: Env, ctx: EvalContext): SValue {
+  const items = e.items.map((item) => expectSigmaProp(evalExpr(item, env, ctx), 'SigmaOr'))
+  ctx.addPerItemCost(10, 2, 1, items.length)
+  return { kind: 'SigmaProp', value: corNormalized(items) }
+}
+```
+
+- [ ] **Step 7: Wire into central dispatch.**
+
+Modify `packages/ergoscript/src/eval/eval.ts` to add:
+
+```ts
+case 'SigmaOr': return evalSigmaOr(e, env, ctx)
+```
+
+(Import at top: `import { evalSigmaOr } from './sigma-or'`.)
+
+- [ ] **Step 8: Run SigmaOr tests, verify pass; extend C3.a mutation tests for SigmaOr in `sigma-combinators.test.ts`.**
+
+- [ ] **Step 9: Run full suite, typecheck.**
+
+```bash
+cd packages/ergoscript && npm test
+cd packages/ergoscript && npx tsc --noEmit
+```
+
+Expected: all pass.
+
+- [ ] **Step 10: Commit.**
+
+```bash
+git add packages/ergoscript/src/eval/sigma-or.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/eval/sigma-or.test.ts \
+        packages/ergoscript/test/eval-mutation/sigma-combinators.test.ts \
+        packages/ergoscript/test/fixtures/eval/sigma-or.json \
+        fixture-gen/src/cmds/ergoscript/eval/sigma_or.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+
+git commit -m "feat(ergoscript): add SigmaOr eval arm (phase 2g-combinators task 6)
+
+evalSigmaOr: Pattern B addPerItemCost(10, 2, 1, n); calls
+corNormalized(items). Source: sigma_or.rs:13-28.
+
+Coverage 46 -> 47. C3.a mutation testing extended. Closes the
+3-arm eval-arm trio for sigma combinators.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Task 7: Sig-serializer `readBytes` extension
+
+**Files:**
+- Modify: `packages/ergoscript/src/sigma/sig-serializer.ts`
+- Test: `packages/ergoscript/test/sigma/sig-serializer.test.ts`
+
+**Sigma-rust source-read:** Confirm `r.read_exact(&mut buf)` semantics at `sig_serializer.rs:223` — reads exactly `buf.len()` bytes or returns an error.
+
+- [ ] **Step 1: Read sigma-rust's `r.read_exact` usage. The verifier reads `(n-k)*24` bytes for Cthreshold polynomials in one call. Confirm error mode: truncation → error → maps to our `'truncated-signature'`.**
+
+- [ ] **Step 2: Write the failing test.**
+
+Add to `packages/ergoscript/test/sigma/sig-serializer.test.ts`:
+
+```ts
+describe('ProofBytesReader.readBytes', () => {
+  it('returns the next n bytes', () => {
+    const r = readProofBytes(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+    expect(Array.from(r.readBytes(3))).toEqual([1, 2, 3])
+    expect(Array.from(r.readBytes(2))).toEqual([4, 5])
+  })
+  it('throws truncated-signature on underrun', () => {
+    const r = readProofBytes(new Uint8Array([1, 2, 3]))
+    expect(() => r.readBytes(5)).toThrow(
+      expect.objectContaining({ code: 'truncated-signature' }),
+    )
+  })
+  it('returns defensive copies', () => {
+    const buf = new Uint8Array([1, 2, 3, 4])
+    const r = readProofBytes(buf)
+    const result = r.readBytes(2)
+    result[0] = 99
+    expect(buf[0]).toBe(1)  // original unchanged
+  })
+})
+```
+
+- [ ] **Step 3: Run test, verify failure.**
+
+- [ ] **Step 4: Implement.**
+
+Add to `packages/ergoscript/src/sigma/sig-serializer.ts`:
+
+```ts
+class ProofBytesReader {
+  // ... existing methods (readChallenge, readScalarBytes, assertConsumed)
+
+  readBytes(n: number): Uint8Array {
+    if (this.pos + n > this.bytes.length) {
+      throw new VerifyError(
+        'truncated-signature',
+        `ProofBytesReader.readBytes: needed ${n} bytes, have ${this.bytes.length - this.pos}`,
+      )
+    }
+    // Defensive copy
+    const out = this.bytes.slice(this.pos, this.pos + n)
+    this.pos += n
+    return out
+  }
+}
+```
+
+- [ ] **Step 5: Run, full suite, typecheck.**
+
+- [ ] **Step 6: Commit.**
+
+```bash
+git add packages/ergoscript/src/sigma/sig-serializer.ts \
+        packages/ergoscript/test/sigma/sig-serializer.test.ts
+
+git commit -m "feat(ergoscript): add ProofBytesReader.readBytes (phase 2g-combinators task 7)
+
+Reads n bytes with defensive .slice() copy; throws 'truncated-signature'
+on underrun. Used by Task 9's Cthreshold verifier walk to read the
+(n-k)*24 polynomial bytes.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Task 8: Fixture-gen conjecture signing (Cand + Cor + Cthreshold)
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/verify/verifier_cand.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/verify/verifier_cor.rs`
+- Create: `fixture-gen/src/cmds/ergoscript/verify/verifier_cthreshold.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/verify/mod.rs`
+- Modify: `fixture-gen/src/main.rs`
+- Output fixtures: `packages/ergoscript/test/fixtures/verify/verifier-cand*.json` and -cor / -cthreshold variants
+
+**Sigma-rust source-reads:**
+
+```bash
+# Existing 2g-medium manual signing recipe
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/dlog_protocol.rs
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/dht_protocol.rs
+# Polynomial construction for prover side
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/prover.rs | sed -n '560,610p'  # simulated path
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/prover.rs | sed -n '840,910p'  # real path
+```
+
+Lock conjecture-signing recipes per design spec § Fixture-gen manual deterministic conjecture signing. Reuse the 2g-medium pattern (in `verifier_positive.rs`) for the leaf signing primitive; build conjecture orchestration on top.
+
+- [ ] **Step 1: Implement Cand fixture-gen.**
+
+`fixture-gen/src/cmds/ergoscript/verify/verifier_cand.rs`. Recipe:
+1. For each fixture: pick conjecture tree shape (Cand[ProveDlog, ProveDlog], or nested).
+2. Derive root challenge deterministically: `blake2b256(domain || fixture-name || msg)[:24]`.
+3. For each leaf: sign with the SAME root challenge using manual deterministic Schnorr/DhTuple primitive from 2g-medium.
+4. Concatenate signature bytes: root challenge (24) || leaf1's z scalar (32) || leaf2's z scalar (32) || ... (no per-leaf challenges in proof).
+5. Cross-validate: call sigma-rust's `verify_signature(sb, msg, sig)`. Panic if false.
+
+~7 positive entries + ~3 reject (wrong scalar, empty sig, truncated sig) + ~30 mutation (byte-flip each signature byte) per the V2 strategy.
+
+- [ ] **Step 2: Implement Cor fixture-gen.**
+
+Recipe:
+1. For each fixture: pick conjecture tree shape (Cor[ProveDlog, ProveDlog, ProveDlog]) and pick which leaf is "real" (we know its secret).
+2. Derive root challenge deterministically.
+3. For each simulated child (n-1 children): pick deterministic challenge `blake2b256(domain || child-index || msg)[:24]`. Pick deterministic z scalar. Compute commitment as `commitment = (g * z) + (-(pk * scalarFromChallenge(child-challenge)))` — backward Schnorr.
+4. Real child's challenge = XOR(root, all simulated children's challenges).
+5. Sign real child with its challenge using deterministic nonce.
+6. Concatenate signature bytes: root challenge (24) || sim1 challenge (24) || sim1 z (32) || sim2 challenge (24) || sim2 z (32) || ... || real child z (32) [no challenge for real child since it's last in array order].
+7. Cross-validate via sigma-rust.
+
+**Critical:** the "last child" in the proof byte order may NOT be the "real" child. Sigma-rust's prover algorithm determines child-position deterministically; the verifier reads in tree-order and XOR-derives the last. The fixture-gen must put the real child LAST in the tree to match this protocol.
+
+Cross-check by inspecting `prover.rs:570-604` (simulated path placement).
+
+~7 positive + ~3 reject + ~30 mutation per V2.
+
+- [ ] **Step 3: Implement Cthreshold fixture-gen.**
+
+Recipe:
+1. For each fixture: pick (k, n) and conjecture tree. Pick which k children are "real".
+2. Derive root challenge deterministically.
+3. For each simulated child ((n-k) of them): pick deterministic challenge + z + compute commitment (backward Schnorr).
+4. Build polynomial via Lagrange: interpolate through (0, root_challenge_as_Gf2_192) and (sim_idx_i, sim_challenge_i_as_Gf2_192) for each simulated child. Use sigma-rust's `Gf2_192Poly::interpolate`.
+5. For each real child at index j (1-based): derive its challenge = polynomial.evaluate(j). Sign real child with that challenge.
+6. Concatenate signature bytes: root challenge (24) || polynomial bytes (`(n-k)*24`) || child1 z (32) || child2 z (32) || ... || childN z (32) (no per-child challenges).
+7. Cross-validate via sigma-rust.
+
+~7 positive (varying k and n: 2-of-3, 1-of-3 collapsed during eval but verify-stage tree may still be Cthreshold, 3-of-5, 2-of-5 mixed Dlog/DhTuple) + ~3 reject (corrupted polynomial bytes, truncated, wrong scalar) + ~50 mutation (byte-flip each signature byte INCLUDING polynomial bytes).
+
+- [ ] **Step 4: Wire into mod.rs + main.rs.**
+
+`fixture-gen/src/cmds/ergoscript/verify/mod.rs`:
 
 ```rust
-pub mod verifier_positive;
-pub mod verifier_reject;
-pub mod verifier_mutation;
+pub mod verifier_positive;     // existing from 2g-medium
+pub mod verifier_reject;        // existing
+pub mod verifier_mutation;      // existing
+pub mod verifier_cand;          // NEW
+pub mod verifier_cor;           // NEW
+pub mod verifier_cthreshold;    // NEW
 ```
 
-Add 3 `generate_and_write` calls to `fixture-gen/src/main.rs`.
+`fixture-gen/src/main.rs` — add `generate_and_write` calls for the 9 new fixture files (3 conjectures × 3 categories: positive/reject/mutation).
 
-- [ ] **Step 7: Run fixture-gen + determinism check**
+- [ ] **Step 5: Run fixture-gen, determinism gate.**
 
 ```bash
-cd /home/mwaddip/projects/ergots
-cargo run --release -p fixture-gen
-ls -la packages/ergoscript/test/fixtures/verify/
-cargo run --release -p fixture-gen  # rerun
-git diff packages/ergoscript/test/fixtures/verify/  # must be empty (deterministic prover)
+cd fixture-gen && cargo run --release
+cd fixture-gen && cargo run --release  # determinism check
+git status -- packages/ergoscript/test/fixtures/verify/  # expect clean
 ```
 
-If non-empty, sigma-rust's prover is being invoked in non-deterministic mode — investigate. Likely cause: `force_any_val::<DlogProverInput>()` outside `TestRunner::deterministic()`.
+The cross-validation gate (sigma-rust's `verify_signature` returns true on every positive fixture) is built INTO the fixture-gen — if it panics, fixtures don't get written. The two-run gate catches non-determinism.
 
-- [ ] **Step 8: Write the failing verifier test**
+- [ ] **Step 6: Commit (fixture-only commit; TS verifier code in Task 9).**
 
-Create `packages/ergoscript/test/sigma/verifier.test.ts`:
+```bash
+git add fixture-gen/src/cmds/ergoscript/verify/verifier_cand.rs \
+        fixture-gen/src/cmds/ergoscript/verify/verifier_cor.rs \
+        fixture-gen/src/cmds/ergoscript/verify/verifier_cthreshold.rs \
+        fixture-gen/src/cmds/ergoscript/verify/mod.rs \
+        fixture-gen/src/main.rs \
+        packages/ergoscript/test/fixtures/verify/
+
+git commit -m "$(cat <<'EOF'
+test(ergoscript): add fixture-gen for Cand/Cor/Cthreshold signatures (phase 2g-combinators task 8)
+
+Manual deterministic conjecture signing recipes extending 2g-medium's
+leaf-only pattern. Cand inherits root challenge; Cor XORs simulated
+children's challenges to derive real-child challenge; Cthreshold
+constructs Lagrange polynomial through (0, root) and simulated
+children's (index, challenge) points, evaluates at real-children's
+1-based indices.
+
+Cross-validation gate at fixture-gen time (sigma-rust's verify_signature
+returns true on every positive fixture; panic on rejection). Determinism
+gate via two-run cargo. V1 positive (~21) + V1 reject (~9) + V2
+mutation (~110) entries across 3 conjectures.
+
+TS verifier implementation in Task 9.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 9: Verifier conjecture walk + V1 + V2
+
+**Files:**
+- Modify: `packages/ergoscript/src/sigma/verifier.ts`
+- Modify: `packages/ergoscript/src/sigma/errors.ts`
+- Create: `packages/ergoscript/test/sigma/verifier-conjecture.test.ts`
+
+**Sigma-rust source-read (REQUIRED before writing any TS):**
+
+```bash
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/verifier.rs
+cat ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/sigma_protocol/sig_serializer.rs
+```
+
+Locked details to extract from the source (Task 9 implementer cites in code comments):
+- Per-conjecture challenge derivation in `sig_serializer.rs:174-245`.
+- Commitment aggregation in `verifier.rs:60-125`. The recursive `compute_commitments` walk feeds leaf commitments up to the root for the Fiat-Shamir hash check.
+- The `unchecked_tree` data structure may need a TS analog OR can be inlined as recursive walk state. Decide at implementation time.
+
+- [ ] **Step 1: Add 3 new VerifyError codes.**
+
+Modify `packages/ergoscript/src/sigma/errors.ts` to add `'cthreshold-polynomial-bytes-mismatch'`, `'cor-derived-challenge-mismatch'`, `'cthreshold-derived-challenge-mismatch'` to `VerifyErrorCode`. Add code comment annotating `'conjecture-not-implemented'` as reserved (no longer thrown by 2g-combinators).
+
+- [ ] **Step 2: Write the failing tests.**
+
+`packages/ergoscript/test/sigma/verifier-conjecture.test.ts`:
 
 ```ts
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { verifySignature } from '../../src/sigma/verifier'
-import { VerifyError } from '../../src/sigma/errors'
-import { hexToBytes } from '../_helpers'
-import type { SigmaBoolean } from '../../src/mir/types'
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+import { verifySignature, VerifyError } from '../../src'
+import { hexToBytes, parseSigmaBoolean } from '../_helpers'
 
-// Reuse hydrateSigmaBoolean helper from sigma-boolean-variants.test.ts
-// (consider promoting to test/_helpers/index.ts at Task 1 if not yet done)
-function hydrateSigmaBoolean(json: any): SigmaBoolean {
-  // ... (same as Task 1 Step 9)
+// Helper to load a fixture file
+function loadFixtures(name: string) {
+  return JSON.parse(
+    readFileSync(resolve(__dirname, `../fixtures/verify/${name}.json`), 'utf8'),
+  )
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
-describe('verifySignature — V1 positive', () => {
-  const fixture = JSON.parse(readFileSync(
-    join(__dirname, '../fixtures/verify/verifier-positive.json'), 'utf-8'))
-  for (const entry of fixture.entries) {
-    it(`${entry.name} — verifies`, () => {
-      const sb = hydrateSigmaBoolean(entry.sigma_boolean_json)
-      const msg = hexToBytes(entry.message_hex)
-      const sig = hexToBytes(entry.signature_hex)
-      expect(verifySignature(sb, msg, sig)).toBe(true)
+// Cand positive
+describe('verifySignature: Cand positive', () => {
+  const fixtures = loadFixtures('verifier-cand')
+  for (const f of fixtures) {
+    it(f.name, () => {
+      const sb = parseSigmaBoolean(hexToBytes(f.sb_bytes_hex))
+      const result = verifySignature(sb, hexToBytes(f.message_hex), hexToBytes(f.signature_hex))
+      expect(result).toBe(true)
     })
   }
 })
 
-describe('verifySignature — V1 reject + malformed', () => {
-  const fixture = JSON.parse(readFileSync(
-    join(__dirname, '../fixtures/verify/verifier-reject.json'), 'utf-8'))
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const sb = hydrateSigmaBoolean(entry.sigma_boolean_json)
-      const msg = hexToBytes(entry.message_hex)
-      const sig = hexToBytes(entry.signature_hex)
-      if (entry.expected_outcome === 'returns-false') {
-        expect(verifySignature(sb, msg, sig)).toBe(false)
+// Cand reject
+describe('verifySignature: Cand reject', () => {
+  const fixtures = loadFixtures('verifier-cand-reject')
+  for (const f of fixtures) {
+    it(f.name, () => {
+      const sb = parseSigmaBoolean(hexToBytes(f.sb_bytes_hex))
+      if (f.expected_error_code) {
+        expect(() =>
+          verifySignature(sb, hexToBytes(f.message_hex), hexToBytes(f.signature_hex)),
+        ).toThrow(expect.objectContaining({ code: f.expected_error_code }))
       } else {
-        // expected_outcome is a VerifyError code
-        try {
-          verifySignature(sb, msg, sig)
-          throw new Error('expected VerifyError throw')
-        } catch (e: any) {
-          expect(e).toBeInstanceOf(VerifyError)
-          expect(e.code).toBe(entry.expected_outcome)
-        }
+        expect(
+          verifySignature(sb, hexToBytes(f.message_hex), hexToBytes(f.signature_hex)),
+        ).toBe(false)
       }
     })
   }
 })
 
-describe('verifySignature — V2 mutation', () => {
-  const fixture = JSON.parse(readFileSync(
-    join(__dirname, '../fixtures/verify/verifier-mutation.json'), 'utf-8'))
-  for (const entry of fixture.entries) {
-    it(`${entry.name} — rejects`, () => {
-      const sb = hydrateSigmaBoolean(entry.sigma_boolean_json)
-      const msg = hexToBytes(entry.message_hex)
-      const sig = hexToBytes(entry.mutated_signature_hex)
-      let outcome: 'false' | 'throw' = 'false'
+// Cand mutation
+describe('verifySignature: Cand mutation', () => {
+  const fixtures = loadFixtures('verifier-cand-mutation')
+  for (const f of fixtures) {
+    it(f.name, () => {
+      const sb = parseSigmaBoolean(hexToBytes(f.sb_bytes_hex))
+      // Each mutation must yield false or a typed VerifyError
+      let result: boolean | string
       try {
-        const result = verifySignature(sb, msg, sig)
-        if (result === true) throw new Error(`mutation at offset ${entry.flip_offset} PASSED verify — verifier vulnerability!`)
-      } catch (e: any) {
-        if (!(e instanceof VerifyError)) throw e
-        outcome = 'throw'
+        result = verifySignature(sb, hexToBytes(f.message_hex), hexToBytes(f.signature_hex))
+      } catch (e) {
+        result = (e as VerifyError).code
       }
-      // Either outcome is acceptable; the only forbidden outcome is `true`.
+      // Must be false or a defined VerifyError code (never true)
+      if (typeof result === 'boolean') {
+        expect(result).toBe(false)
+      } else {
+        expect(typeof result).toBe('string')
+      }
     })
   }
 })
+
+// Symmetric Cor and Cthreshold blocks (copy structure)
+// ... [Cor positive/reject/mutation]
+// ... [Cthreshold positive/reject/mutation]
 ```
 
-- [ ] **Step 9: Run test, verify FAIL (verifier not implemented)**
+- [ ] **Step 3: Run tests, verify failure.**
 
-```bash
-npx vitest run packages/ergoscript/test/sigma/verifier.test.ts
-```
+Run: `cd packages/ergoscript && npx vitest run test/sigma/verifier-conjecture.test.ts`
+Expected: All tests fail (conjecture-not-implemented thrown).
 
-Expected: FAIL — `verifySignature` not exported.
+- [ ] **Step 4: Refactor `verifier.ts` to recursive structure.**
 
-- [ ] **Step 10: Implement `sigma/verifier.ts`**
+Replace the 2g-medium `verifySignature` body's conjecture-rejection guard with a recursive walk. High-level shape:
 
 ```ts
-/**
- * `verifySignature` — leaf-only sigma-protocol verifier (phase 2g-medium).
- *
- * Algorithm:
- *   1. TrivialProp short-circuit (returns sb.value, ignores signature)
- *   2. Reject conjecture variants (Cand/Cor/Cthreshold) → 'conjecture-not-implemented'
- *   3. Parse top-level 24-byte challenge from signature
- *   4. Per-leaf read 32-byte z scalar
- *   5. Compute Schnorr (ProveDlog) or DH-tuple (ProveDhTuple) commitment(s)
- *   6. Build Fiat-Shamir input: propBytes(sb) ++ commitment_bytes ++ message
- *   7. fiatShamirHash → 24-byte recomputed challenge
- *   8. Return bytewise equal(recomputed, top_level_challenge)
- *
- * Source: ergotree-interpreter/src/sigma_protocol/verifier.rs:91-125
- */
-
-import type { SigmaBoolean } from '../mir/types'
-import { VerifyError } from './errors'
-import { ProofBytesReader, readProofBytes } from './sig-serializer'
-import { CHALLENGE_BYTES } from './challenge'
-import { propBytes, fiatShamirHash } from './fiat-shamir'
-import {
-  decodePoint, encodePoint, pointAdd, pointMul, pointNegate,
-  basePoint, scalarFromBytes, scalarFromChallenge,
-} from '../crypto/secp256k1'
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-function assertNoConjecture(sb: SigmaBoolean): void {
-  switch (sb.tag) {
-    case 'TrivialProp':
-    case 'ProveDlog':
-    case 'ProveDhTuple':
-      return
-    case 'Cand':
-    case 'Cor':
-    case 'Cthreshold':
-      throw new VerifyError(
-        `verifySignature: ${sb.tag} not implemented in phase 2g-medium (leaf-only verifier; deferred to 2g-combinators)`,
-        'conjecture-not-implemented'
-      )
-  }
-}
-
-/**
- * Schnorr commitment for ProveDlog leaf.
- *
- * Equation: a = (basePoint * z) + negate(decodePoint(h) * scalarFromChallenge(challenge))
- *
- * Source: sigma-rust dlog_protocol.rs:173-184. Note: sigma-rust's
- * `Mul<&EcPoint>` is point-addition (ec_point.rs:74-79); the spec
- * equation uses multiplicative notation for an additive group operation.
- */
-function commitmentProveDlog(h: Uint8Array, challenge: Uint8Array, zBytes: Uint8Array): Uint8Array {
-  const z = scalarFromBytes(zBytes)
-  const e = scalarFromChallenge(challenge)
-  const gz = pointMul(basePoint, z)
-  const hPoint = decodePoint(h)
-  const he = pointMul(hPoint, e)
-  const negHe = pointNegate(he)
-  const a = pointAdd(gz, negHe)
-  return encodePoint(a)
-}
-
-/**
- * DH-tuple two commitments for ProveDhTuple leaf.
- *
- * Equations:
- *   a = (decodePoint(g) * z) + negate(decodePoint(u) * scalarFromChallenge(challenge))
- *   b = (decodePoint(h) * z) + negate(decodePoint(v) * scalarFromChallenge(challenge))
- *
- * Source: sigma-rust dht_protocol.rs:132-157.
- */
-function commitmentProveDhTuple(
-  g: Uint8Array, h: Uint8Array, u: Uint8Array, v: Uint8Array,
-  challenge: Uint8Array, zBytes: Uint8Array
-): { a: Uint8Array; b: Uint8Array } {
-  const z = scalarFromBytes(zBytes)
-  const e = scalarFromChallenge(challenge)
-  const a = pointAdd(pointMul(decodePoint(g), z), pointNegate(pointMul(decodePoint(u), e)))
-  const b = pointAdd(pointMul(decodePoint(h), z), pointNegate(pointMul(decodePoint(v), e)))
-  return { a: encodePoint(a), b: encodePoint(b) }
-}
+import { Gf2_192Element, Gf2_192Poly } from '../crypto/gf2_192'
+import { challengeXor } from './challenge'
 
 export function verifySignature(
   sb: SigmaBoolean,
   message: Uint8Array,
-  signature: Uint8Array
+  signature: Uint8Array,
 ): boolean {
-  // Step 1: TrivialProp short-circuit
+  if (signature.length === 0) {
+    throw new VerifyError('empty-signature', 'signature is empty')
+  }
   if (sb.tag === 'TrivialProp') return sb.value
 
-  // Step 2: empty signature → 'empty-signature' typed throw (per Decision #5)
   const reader = readProofBytes(signature)
+  const rootChallenge = reader.readChallenge()  // 24 bytes
 
-  // Step 3: reject conjecture variants
-  assertNoConjecture(sb)
+  // Recursively walk; compute per-leaf commitments
+  const commitments = computeCommitments(sb, rootChallenge, reader, message)
 
-  // Step 4: parse top-level challenge
-  const challenge = reader.readChallenge()
+  // Fiat-Shamir: recompute root challenge from tree + commitments + message
+  const recomputed = fiatShamirHashOverTree(sb, commitments, message)
+  return bytesEqual(recomputed, rootChallenge)
+}
 
-  // Step 5: per-leaf z scalar + commitment
-  let commitmentBytes: Uint8Array
+// Recursive walk:
+// - Reads per-leaf scalars from reader.
+// - Derives per-child challenges according to Cand/Cor/Cthreshold rules.
+// - Computes per-leaf commitments via Schnorr/DhTuple math.
+// - Returns the aggregated commitment structure mirroring sigma-rust's UncheckedTree shape.
+function computeCommitments(
+  sb: SigmaBoolean,
+  challenge: Uint8Array,
+  reader: ProofBytesReader,
+  message: Uint8Array,
+): CommitmentTree {
   switch (sb.tag) {
+    case 'TrivialProp':
+      // TrivialProp at non-root is an unusual case; sigma-rust likely treats it as a leaf-style accept.
+      // Confirm at implementation.
+      return { tag: 'TrivialProp', value: sb.value }
     case 'ProveDlog': {
-      const zBytes = reader.readScalarBytes()
-      commitmentBytes = commitmentProveDlog(sb.h, challenge, zBytes)
-      break
+      const z = reader.readScalarBytes()  // 32 bytes
+      const commitment = commitmentProveDlog(sb.h, challenge, z)
+      return { tag: 'ProveDlogCommitment', h: sb.h, challenge, commitment }
     }
     case 'ProveDhTuple': {
-      const zBytes = reader.readScalarBytes()
-      const { a, b } = commitmentProveDhTuple(sb.g, sb.h, sb.u, sb.v, challenge, zBytes)
-      // Concatenate a || b for the Fiat-Shamir input
-      commitmentBytes = new Uint8Array(a.length + b.length)
-      commitmentBytes.set(a, 0)
-      commitmentBytes.set(b, a.length)
-      break
+      const z = reader.readScalarBytes()
+      const { a, b } = commitmentProveDhTuple(sb.g, sb.h, sb.u, sb.v, challenge, z)
+      return { tag: 'ProveDhTupleCommitment', /* fields */, commitment_a: a, commitment_b: b }
     }
-    // TrivialProp and conjectures already handled above
-    default: {
-      const _exhaust: never = sb
-      throw new Error(`unreachable: ${JSON.stringify(_exhaust)}`)
+    case 'Cand': {
+      // All children inherit parent challenge
+      const childrenCommitments = sb.items.map((child) =>
+        computeCommitments(child, challenge, reader, message),
+      )
+      return { tag: 'CandCommitment', items: childrenCommitments }
+    }
+    case 'Cor': {
+      // First (n-1) children have explicit challenges in the proof
+      const childChallenges: Uint8Array[] = []
+      for (let i = 0; i < sb.items.length - 1; i++) {
+        childChallenges.push(reader.readChallenge())
+      }
+      // Last child's challenge = XOR(parent, all read challenges)
+      const xored = childChallenges.reduce(
+        (acc, c) => challengeXor(acc, c),
+        challenge.slice(),
+      )
+      childChallenges.push(xored)
+      const childrenCommitments = sb.items.map((child, idx) =>
+        computeCommitments(child, childChallenges[idx]!, reader, message),
+      )
+      return { tag: 'CorCommitment', items: childrenCommitments, challenges: childChallenges }
+    }
+    case 'Cthreshold': {
+      // Read (n-k)*24 polynomial bytes
+      const n = sb.items.length
+      const k = sb.k
+      const polyBytes = reader.readBytes((n - k) * 24)
+      // Reconstruct polynomial: constant = parent challenge as Gf2_192Element
+      const constant = Gf2_192Element.fromBytes(challenge)
+      const poly = Gf2_192Poly.fromCoefficientsAndConstant(polyBytes, constant)
+      // Derive each child's challenge as poly.evaluate(i+1)
+      const childrenCommitments = sb.items.map((child, idx) => {
+        const childChallenge = poly.evaluate(idx + 1).toBytes()
+        return computeCommitments(child, childChallenge, reader, message)
+      })
+      return { tag: 'CthresholdCommitment', items: childrenCommitments, poly }
     }
   }
-
-  // Step 6: Fiat-Shamir input
-  const prop = propBytes(sb)
-  // Per fiat_shamir.rs:140-200, the leaf format is:
-  //   LEAF_PREFIX (1) | put_i16_be(prop.length) | prop | put_i16_be(commitment.length) | commitment
-  const LEAF_PREFIX = 1
-  const fiatInput = buildFiatShamirLeaf(LEAF_PREFIX, prop, commitmentBytes, message)
-
-  // Step 7: hash → 24-byte recomputed challenge
-  const recomputed = fiatShamirHash(fiatInput)
-
-  // Step 8: compare
-  return bytesEqual(recomputed, challenge)
-}
-
-function buildFiatShamirLeaf(
-  prefix: number, prop: Uint8Array, commitment: Uint8Array, message: Uint8Array
-): Uint8Array {
-  // 1 + 2 + prop.length + 2 + commitment.length + message.length
-  const total = 1 + 2 + prop.length + 2 + commitment.length + message.length
-  const out = new Uint8Array(total)
-  let off = 0
-  out[off++] = prefix
-  // put_i16_be (big-endian, NOT VLQ)
-  out[off++] = (prop.length >> 8) & 0xff
-  out[off++] = prop.length & 0xff
-  out.set(prop, off); off += prop.length
-  out[off++] = (commitment.length >> 8) & 0xff
-  out[off++] = commitment.length & 0xff
-  out.set(commitment, off); off += commitment.length
-  out.set(message, off)
-  return out
 }
 ```
 
-- [ ] **Step 11: Re-export from `index.ts`**
+The exact Fiat-Shamir tree-serialization-and-hash logic for conjectures (the `fiatShamirHashOverTree` function) is governed by `sigma-rust/.../fiat_shamir.rs`. Implementer reads the source and ports the byte layout for internal nodes:
 
-Modify `packages/ergoscript/src/index.ts` to add:
+- Internal-node prefix byte is `0`; leaf prefix byte is `1` (already established in 2g-medium).
+- Internal nodes serialize: `prefix(1=0) | child_count(i16 BE) | recurse(child1) | recurse(child2) | ...`. (Confirm at `fiat_shamir.rs:180-200`.)
 
-```ts
-export { verifySignature } from './sigma/verifier'
-export { VerifyError } from './sigma/errors'
-export type { SigmaBoolean } from './mir/types'  // structural type now public
-```
+The hash is `blake2b256(tree_bytes || message)`, taking the first 24 bytes.
 
-- [ ] **Step 12: Run verifier test, verify PASS**
+- [ ] **Step 5: Run V1 positive tests; iterate until all pass.**
 
-```bash
-npx vitest run packages/ergoscript/test/sigma/verifier.test.ts
-```
+Iterate on:
+- Cand challenge inheritance.
+- Cor XOR direction (parent then fold children, NOT all-including-parent in one pass).
+- Cthreshold polynomial reconstruction order (constant + remaining coefficients in order from the proof bytes).
+- Cthreshold polynomial evaluation at 1-based indices.
+- Fiat-Shamir tree serialization order.
 
-Expected: ALL positive entries PASS; all reject entries throw correctly; all 56 mutation entries return false or throw (none returns true).
+The V1 fixtures are sigma-rust-signed and cross-validated; any verifier algorithm bug surfaces as one or more fixtures returning false.
 
-If any V1 positive entry FAILS — the recomputed challenge doesn't byte-equal the captured one — the bug is in `verifier.ts` orchestration or one of the Task 5 primitives. Most likely:
-- Wrong Fiat-Shamir leaf byte format (put_i16_be vs VLQ)
-- `propBytes` not wrapping in ErgoTree v0 + constant-segregation=true correctly
-- Schnorr commitment wrong direction (e.g., `pointAdd(gz, he)` instead of `pointAdd(gz, pointNegate(he))`)
-- `scalarFromChallenge` right-padding instead of left-padding
+- [ ] **Step 6: Run V1 reject tests.**
 
-Debug by adding per-byte trace logging against the first positive entry. Compare to sigma-rust's verifier byte-by-byte using `RUST_LOG=debug` if available.
+Each entry must return false or throw the expected VerifyError code.
 
-- [ ] **Step 13: Run full ergoscript suite**
+- [ ] **Step 7: Run V2 mutation tests.**
 
-```bash
-npx vitest run packages/ergoscript/
-```
+Every byte-flip must yield false or a typed error (never true). Polynomial-bytes mutations for Cthreshold must reject.
 
-Expected: all 1894+ prior tests + Task 3-5 tests + Task 6 tests PASS.
-
-- [ ] **Step 14: Typecheck**
+- [ ] **Step 8: Run full suite.**
 
 ```bash
-npx tsc --noEmit -p packages/ergoscript
+cd packages/ergoscript && npm test
+cd packages/ergoscript && npx tsc --noEmit
 ```
 
-Expected: zero errors.
+Expected: prior 2017 + new normalization + GF(2^192) + Atleast/SigmaAnd/SigmaOr + verifier-conjecture tests all pass.
 
-- [ ] **Step 15: Browser-compat scan + bundle audit**
+- [ ] **Step 9: Bundle scan.**
 
 ```bash
-grep -rE "Buffer|process\.|require\(|node:" packages/ergoscript/src/sigma/ packages/ergoscript/src/crypto/
+grep -rn 'Buffer\|process\.\|node:' packages/ergoscript/src/
 ```
 
-Expected: no output.
+Expected: no Node-specific imports in `src/`.
 
-- [ ] **Step 16: Two-stage review (orchestrator) — ⚠ crypto-sensitive**
-
-Both reviewers MUST cite source lines for each crypto-correctness claim:
-
-- **Spec-compliance:**
-  - Schnorr commitment equation matches `dlog_protocol.rs:173-184`
-  - DH-tuple commitment matches `dht_protocol.rs:132-157`
-  - Fiat-Shamir leaf format matches `fiat_shamir.rs:140-200` (LEAF_PREFIX=1, put_i16_be for lengths)
-  - propBytes wraps SigmaProp in ErgoTree v0 + constant-segregation=true (`fiat_shamir.rs:148-157`)
-  - Challenge-to-scalar uses LEFT-pad (not right-pad) per `wscalar.rs:69-76`
-  - TrivialProp short-circuit ignores signature
-  - All V1 positive fixtures verify
-  - All V2 mutations (56 byte-flips) reject
-  
-- **Code-quality:**
-  - No `any` leaks in cryptographic paths
-  - Defensive copies where needed
-  - No untyped numeric coercion (BigInt arithmetic in adapter only)
-  - `_exhaust: never` in the verifier switch
-  - All Uint8Array slices are safe (no view leaks)
-
-- [ ] **Step 17: Commit**
+- [ ] **Step 10: Corpus regression check.**
 
 ```bash
-git add -A
+cd packages/ergoscript && npx vitest run test/corpus-eval.test.ts
+```
+
+Expected: `success=0 not-impl=18 other=0` (unchanged).
+
+- [ ] **Step 11: Commit.**
+
+```bash
+git add packages/ergoscript/src/sigma/verifier.ts \
+        packages/ergoscript/src/sigma/errors.ts \
+        packages/ergoscript/test/sigma/verifier-conjecture.test.ts
+
 git commit -m "$(cat <<'EOF'
-feat(ergoscript): verifySignature impl + V1/V2 verifier fixtures (phase 2g-medium task 6)
+feat(ergoscript): verifier extension for Cand/Cor/Cthreshold conjectures (phase 2g-combinators task 9)
 
-verifySignature(sigmaBoolean, message, signature) → boolean.
+verifySignature now handles the full SigmaBoolean surface. Recursive
+walk per sig_serializer.rs:174-245:
+- Cand: all children inherit parent's challenge.
+- Cor: read explicit challenges for first (n-1) children; last derived
+  via XOR(parent, all read children).
+- Cthreshold: read (n-k)*24 polynomial bytes; reconstruct polynomial
+  with constant = parent challenge as Gf2_192Element; derive each
+  child's challenge via polynomial.evaluate(1-based-index).
 
-Leaf-only verifier handles TrivialProp + ProveDlog + ProveDhTuple. Throws
-VerifyError 'conjecture-not-implemented' on Cand/Cor/Cthreshold inputs
-(deferred to 2g-combinators).
+Fiat-Shamir tree hash extended for internal nodes per fiat_shamir.rs.
+Leaf prefix=1 (existing); internal prefix=0; child-count is i16-BE
+(NOT VLQ — gotcha carryover from 2g-medium).
 
-Composes Task 5 infrastructure: ProofBytesReader, propBytes (ErgoTree v0
-constant-seg=true wrap), fiatShamirHash. Schnorr commitment equation from
-dlog_protocol.rs:173-184; DH-tuple two-commitment from dht_protocol.rs:
-132-157. Fiat-Shamir leaf format put_i16_be (BE) per fiat_shamir.rs:197.
+Three new VerifyError codes: 'cthreshold-polynomial-bytes-mismatch',
+'cor-derived-challenge-mismatch', 'cthreshold-derived-challenge-mismatch'.
+'conjecture-not-implemented' code stays declared but is now unreachable.
 
-Fixtures (generated via sigma-rust's deterministic-nonce TestProver):
-  - verify/verifier-positive.json     V1 positive ≥ 5 ProveDlog + ≥ 5 ProveDhTuple
-  - verify/verifier-reject.json       V1 reject (conjecture) + malformed
-  - verify/verifier-mutation.json     V2 56 byte-flips on baseline proof
+Closes umbrella phase 2g. Coverage 47 of ~70 arms.
 
-Public re-exports from index.ts: verifySignature, VerifyError, SigmaBoolean.
-
-Coverage 44 of ~70 arms (eval-arm count unchanged from Task 4).
+V1 positive (~21) + V1 reject (~9) + V2 mutation (~110) fixtures
+from Task 8 all pass.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -2988,137 +2154,53 @@ EOF
 
 ---
 
-## Task 7: Docs update — `facts/ergoscript.md` + umbrella plan
+## Task 10: Docs update
 
 **Files:**
-- Modify: `facts/ergoscript.md` — extend with v0.2.0 → v0.3.0 (or extend in-place) phase 2g-medium block
-- Modify: `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — annotate phase 2g row with "delivered as 2g-medium + 2g-combinators" split
+- Modify: `facts/ergoscript.md`
+- Modify: `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella)
 
-**Key content to add to `facts/ergoscript.md`:**
+- [ ] **Step 1: Update `facts/ergoscript.md`.**
 
-1. **Phase 2g-medium "Ships additionally" block** (mirror prior phases' style; insert in chronological position after phase 2f Coll HOFs block):
+Make additive edits:
 
-   - 2 more per-variant arms wired: `CreateProveDlog` (Pattern A, `Fixed(10)`), `CreateProveDhTuple` (Pattern A, `Fixed(20)`). Coverage 42 → 44.
-   - One new `EvalError` code: `'sigma-prop-input-not-group-element'`.
-   - **Structural `SigmaBoolean`** — the opaque `{ raw: Uint8Array }` shape from phase 2a is replaced with a 6-variant discriminated union (TrivialProp / ProveDlog / ProveDhTuple / Cand / Cor / Cthreshold). All 6 variants parse + serialize via the wire codec; the runtime verifier (this slice) walks only the 3 leaf-style variants.
-   - **New public function: `verifySignature(sigmaBoolean, message, signature) → boolean`** with precondition/postcondition/error taxonomy section.
-   - **New error class: `VerifyError`** with code taxonomy (`'conjecture-not-implemented'`, `'empty-signature'`, `'truncated-signature'`, `'point-not-on-curve'`, `'scalar-out-of-range'`).
-   - **2 new `SigmaBooleanParseError` codes:** `'cthreshold-k-out-of-range'`, `'sigma-conjecture-empty-items'`.
-   - **`SigmaProp` SValue shape:** `value` is now structural `SigmaBoolean` (was opaque `{ raw }`).
-   - **P2PK short-circuit:** `Const(SSigmaProp, _)` charges 50 JitCost (was 5) via `EVAL_SIGMA_PROP_CONSTANT` mirror.
-   - **New runtime dep:** `@noble/curves@2.2.0` (secp256k1; version-locked pair with `@noble/hashes@2.2.0`).
+- Add a new "Ships additionally (phase 2g-combinators)" section after the 2g-medium block.
+  - 3 new eval arms documented (Atleast, SigmaAnd, SigmaOr) with cost values and source citations.
+  - 3 new normalization helpers documented as internal modules.
+  - GF(2^192) module added (Gf2_192Element + Gf2_192Poly types + public surface + byte format).
+  - Verifier extension documented: `verifySignature` now handles full SigmaBoolean surface; per-conjecture rules.
+  - 3 new EvalError codes added to the v0.2.0 taxonomy.
+  - 3 new VerifyError codes added; `'conjecture-not-implemented'` annotated as reserved.
+- Update "Coverage" line: 44 → 47 of ~70 arms.
+- Update "Does NOT ship yet" — remove Atleast, SigmaAnd, SigmaOr, conjecture verifier extension. Keep method-call dispatch (2g.5), AVL+ (2h), predefs (2i), cost validation (2j).
+- Update dependencies section to note no new TS runtime deps (still `@noble/curves@2.2.0` + `@noble/hashes@2.2.0`); `gf2_192` is hand-rolled in pure TS.
 
-2. **"Does NOT ship yet" updates** — move `Atleast`/`SigmaAnd`/`SigmaOr` from "phase 2g" to "phase 2g-combinators"; add conjecture-verifier-walk to the 2g-combinators bucket.
+- [ ] **Step 2: Update umbrella plan.**
 
-3. **Coverage line:** "**42 / ~70 `Expr` variants**" → "**44 / ~70 `Expr` variants**".
+Modify `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — annotate the phase 2g entry to indicate both 2g-medium AND 2g-combinators have shipped:
 
-4. **EvalError taxonomy total:** "35 codes" → "36 codes".
+> | **2g — Sigma protocol** | ... | ✅ shipped as **2g-medium** (2026-05-16) + **2g-combinators** (2026-05-17). Full SigmaBoolean verifier surface (leaf + Cand/Cor/Cthreshold); 3 new eval arms (Atleast/SigmaAnd/SigmaOr); GF(2^192) module. |
 
-5. **Public-surface section:** add the new `verifySignature` signature next to `evaluate` / `evaluateWith`. Document precondition (`sigmaBoolean` is a valid SigmaBoolean; `signature` is a `Uint8Array`) and postcondition (boolean if leaf-only verifier reached a result; throws `VerifyError` for malformed inputs or conjecture-not-implemented).
+- [ ] **Step 3: Optional version bump.**
 
-**Umbrella plan update:**
+The slice introduces 3 new eval arms + completes the verifier surface. Natural milestone for v0.2.0 → v0.3.0 in `facts/ergoscript.md`'s VERSION constant. Decision: leave to user direction (the npm publish discussion at end of slice).
 
-Edit `docs/specs/2026-05-13-ergoscript-interpreter-design.md`. Find the phase-plan table row for **2g — Sigma protocol**. Replace the "Done criterion" with:
-
-> Sigma-protocol leaf primitives ship as **2g-medium** (this slice — leaf-only verifier; structural SigmaBoolean; `CreateProveDlog`/`CreateProveDhTuple` arms; `@noble/curves@2.2.0` adapter; `verifySignature` public). The 3 deferred sigma combinators (`Atleast`/`SigmaAnd`/`SigmaOr`) plus the conjecture verifier extension (`Cand`/`Cor` XOR walks + `Cthreshold` GF(2^192) polynomial Lagrange interpolation) ship as **2g-combinators** (follow-up slice). ✅ 2g-medium shipped 2026-05-16.
-
-**Tasks:**
-
-- [ ] **Step 1: Read current `facts/ergoscript.md` to plan insertion points**
+- [ ] **Step 4: Commit.**
 
 ```bash
-grep -n "Ships additionally\|Does NOT ship yet\|Coverage after\|EvalError codes" /home/mwaddip/projects/ergots/facts/ergoscript.md | head -30
-```
+git add facts/ergoscript.md docs/specs/2026-05-13-ergoscript-interpreter-design.md
 
-Identify the insertion location for the phase 2g-medium block (after phase 2f Coll HOFs block) and the update locations for coverage, taxonomy total, deferred-variants section.
-
-- [ ] **Step 2: Insert phase 2g-medium "Ships additionally" block**
-
-Mirror the structure of the phase 2f Coll HOFs block (search for "phase 2f Coll HOFs" headings). Cover items 1-5 from "Key content" above with numbered subsections analogous to prior phases (e.g., `49.`, `50.`, `51.` continuing the slice numbering).
-
-- [ ] **Step 3: Update Coverage / EvalError-total / "Does NOT ship yet" sections**
-
-- Change every occurrence of "42 of ~70" to "44 of ~70".
-- Change "35 EvalError codes" to "36 EvalError codes".
-- In the "Does NOT ship yet" section, move `Atleast`/`SigmaAnd`/`SigmaOr` from "phase 2g" to "phase 2g-combinators" bucket. Add conjecture-verifier-walk as a bullet under "phase 2g-combinators".
-
-- [ ] **Step 4: Add `verifySignature` to the public-surface section**
-
-In `facts/ergoscript.md`'s "Primary export" or "Public surface" section, add:
-
-```ts
-verifySignature(sigmaBoolean: SigmaBoolean, message: Uint8Array, signature: Uint8Array): boolean
-class VerifyError extends Error { code: string }
-```
-
-With precondition / postcondition / error-taxonomy paragraphs mirroring the style of `evaluate`, `parseTree`, etc.
-
-- [ ] **Step 5: Document `VerifyError` codes**
-
-Add a `VerifyError` code-taxonomy subsection (mirror the `EvalError` taxonomy section style):
-
-```markdown
-### `VerifyError` taxonomy (v0.3.0 — phase 2g-medium)
-
-- `'conjecture-not-implemented'` — Cand/Cor/Cthreshold input. Deferred to 2g-combinators.
-- `'empty-signature'` — signature byte sequence is empty.
-- `'truncated-signature'` — proof ran out of bytes during tree walk.
-- `'point-not-on-curve'` — SEC1 decode rejected a leaf component.
-- `'scalar-out-of-range'` — z scalar in signature is ≥ group order n.
-```
-
-- [ ] **Step 6: Document the structural `SigmaBoolean` type change**
-
-In the "Type invariants" section, replace the old opaque `SigmaBoolean` description with:
-
-```markdown
-- `SigmaBoolean` (v0.3.0 — phase 2g-medium) is a 6-variant discriminated union (`TrivialProp` / `ProveDlog` / `ProveDhTuple` / `Cand` / `Cor` / `Cthreshold`). Wire parser produces all 6; the runtime verifier (phase 2g-medium leaf-only) walks only the 3 leaf-style variants. Cand/Cor/Cthreshold conjecture walks ship in 2g-combinators.
-```
-
-- [ ] **Step 7: Update dependencies section**
-
-Add `@noble/curves@2.2.0` to the runtime dependency listing.
-
-- [ ] **Step 8: Update umbrella plan**
-
-```bash
-grep -n "^| \*\*2g\|^| 2g " /home/mwaddip/projects/ergots/docs/specs/2026-05-13-ergoscript-interpreter-design.md
-```
-
-Find the phase 2g row in the phase-plan table. Replace with the "delivered as" annotation from "Umbrella plan update" above.
-
-- [ ] **Step 9: Verify no broken references**
-
-```bash
-grep -rn "phase 2g\b\|sigma protocol" /home/mwaddip/projects/ergots/facts/ /home/mwaddip/projects/ergots/docs/specs/ | head -20
-```
-
-Spot-check that all references to phase 2g are consistent with the new "2g-medium + 2g-combinators" split.
-
-- [ ] **Step 10: Two-stage review (orchestrator)**
-
-- **Spec-compliance:** facts/ergoscript.md updates align with `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md` § Validation against this spec at Task 8 finalize (checklist items 1-7).
-- **Code-quality:** doc prose matches existing style; tables align; no broken cross-references.
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add -A
 git commit -m "$(cat <<'EOF'
-docs(ergoscript): bump facts to phase 2g-medium + annotate umbrella plan (phase 2g-medium task 7)
+docs(ergoscript): phase 2g-combinators facts + umbrella update
 
-facts/ergoscript.md:
-  - Coverage 42 → 44 arms
-  - 36 EvalError codes (1 new: 'sigma-prop-input-not-group-element')
-  - New public function verifySignature documented with pre/postcondition
-  - New VerifyError class with 5-code taxonomy
-  - Structural SigmaBoolean type (6 variants) replaces opaque {raw}
-  - P2PK short-circuit (50 JitCost) on Const(SSigmaProp, _) documented
-  - @noble/curves@2.2.0 added to dependency listing
-  - 2 new SigmaBooleanParseError codes
+facts/ergoscript.md additively documents the 3 new eval arms (Atleast/
+SigmaAnd/SigmaOr), 3 new EvalError codes, 3 new VerifyError codes,
+GF(2^192) module (Gf2_192Element + Gf2_192Poly), and the verifier
+extension that closes the umbrella phase 2g promise. Coverage line
+updated to 47 of ~70 arms.
 
-docs/specs/2026-05-13-ergoscript-interpreter-design.md:
-  - Phase 2g row annotated as "delivered as 2g-medium + 2g-combinators"
+Umbrella plan annotated for 2g-combinators complete; phase 2g now
+fully shipped (across 2g-medium + 2g-combinators sub-slices).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -3127,190 +2209,95 @@ EOF
 
 ---
 
-## Task 8: Finalize — SESSION_CONTEXT + memory + push
+## Task 11: Finalize (memories, SESSION_CONTEXT, push)
 
 **Files:**
-- Modify: `packages/ergoscript/SESSION_CONTEXT.md` — phase 2g-medium done snapshot (gitignored, local-only)
+- Create/modify: `packages/ergoscript/SESSION_CONTEXT.md`
 - Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`
-- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md`
-- Create: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/reference_sigma_verifier_internals.md`
-- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md` — hook lines
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md` (closeout — all 6 things shipped)
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/reference_sigma_verifier_internals.md` (extend with conjecture-walk details)
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_fixture_gen_cargo_gotchas.md` (extend with manual conjecture-signing recipes + gf2_192 dep note)
+- Create: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/reference_gf2_192_internals.md` (NEW: polynomial byte format + interpolation invariants + IRRED_PENTANOMIAL value)
+- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md`
 
-**Key memory updates:**
+- [ ] **Step 1: Write SESSION_CONTEXT.md snapshot.**
 
-`project_ergots_direction.md`: phase 2g-medium shipped (44 arms; new `verifySignature` public; structural SigmaBoolean; @noble/curves dep added); next is **2g-combinators** (3 deferred sigma combinators + conjecture verifier extension including Cthreshold GF(2^192) polynomial), then 2g.5 method-call dispatch.
+Match the 2g-medium SESSION_CONTEXT.md shape. Include: phase completed, coverage 47, new EvalError codes, new VerifyError codes, new modules (`mir/sigma-boolean-normalize.ts`, `crypto/gf2_192.ts`, `eval/_sigma-helpers.ts`, 3 new arm files), key design decisions, fixture counts.
 
-`project_sigma_combinators_deferred.md`: extend scope of next slice — 2g-combinators now bundles the 3 deferred eval arms (`Atleast`/`SigmaAnd`/`SigmaOr`) WITH the conjecture verifier walk (Cand XOR-inherit-parent / Cor XOR-derive-last / Cthreshold GF(2^192) polynomial Lagrange interpolation). Source line references preserved.
+- [ ] **Step 2: Update auto-loaded memories.**
 
-`reference_sigma_verifier_internals.md`: NEW. Lock the load-bearing crypto details for future reference (so future sessions don't need to re-derive them):
+- `project_ergots_direction.md` — phase 2g-combinators done; coverage 47; next is 2g.5 method-call dispatch.
+- `project_sigma_combinators_deferred.md` — CLOSEOUT. Note all 6 deferred items shipped. Move to historical/archive or mark as closed.
+- `reference_sigma_verifier_internals.md` — extend with: Cand inherits parent challenge; Cor XOR direction (parent ⊕ each read child = last child's challenge); Cthreshold polynomial reconstruction (constant = parent; (n-k) coefficients from proof bytes in order; evaluate at 1-based child indices); Fiat-Shamir internal-node prefix byte 0 vs leaf prefix byte 1.
+- `project_fixture_gen_cargo_gotchas.md` — extend with: gf2_192 crate added as path dep; manual conjecture-signing recipes (Cand/Cor/Cthreshold) + cross-validation gate (sigma-rust's verify_signature panic on false).
+- NEW `reference_gf2_192_internals.md` — IRRED_PENTANOMIAL = 0xE7 = x^7+x^6+x^5+x^2+x+1 (low bits of x^192 after reduction); irreducible = x^192 + x^7 + x^2 + x + 1; 24-byte BE serialization; polynomial degree = `coeffs.length - 1`; `toBytes` length = `degree * 24` (skips constant); `Gf2_192Poly.fromCoefficientsAndConstant` is verifier-path; `interpolate` is fixture-gen-path; 1-based child indices for conjecture polynomial evaluation; identity 0n vs ONE 1n in low word.
 
-```markdown
----
-name: reference-sigma-verifier-internals
-description: Phase 2g-medium sigma-protocol verifier — key byte-format and crypto-equation details that must replicate sigma-rust exactly.
-metadata:
-  type: reference
----
+- [ ] **Step 3: Update MEMORY.md index.**
 
-Phase 2g-medium verifier internals — locked details that survive across sessions:
+Add hook lines for `reference_gf2_192_internals` (new); update lines for `project_ergots_direction`, `project_sigma_combinators_deferred`, `reference_sigma_verifier_internals`, `project_fixture_gen_cargo_gotchas`.
 
-- **Challenge size:** 24 bytes (`SOUNDNESS_BITS = 192`). Hard-coded; not modernizable (Cthreshold polynomial requires GF(2^192)).
-- **Challenge → scalar:** left-pad with 8 zero bytes to 32 bytes, then reduce mod n. Source: sigma-rust `wscalar.rs:69-76`. Right-pad would silently break every verify.
-- **Schnorr verify equation (ProveDlog):** `a = (basePoint * z) + negate(decodePoint(h) * scalarFromChallenge(challenge))`. Source: `dlog_protocol.rs:173-184`. Sigma-rust's `Mul<&EcPoint>` is **point addition** (`ec_point.rs:74-79`) — the spec equation uses multiplicative notation for the additive group operation.
-- **DH-tuple verify equations:** two commitments per leaf — `a` from `(g, u)`; `b` from `(h, v)`. Source: `dht_protocol.rs:132-157`.
-- **Fiat-Shamir leaf format:** `LEAF_PREFIX (=1 byte) | put_i16_be(prop.length) | prop_bytes | put_i16_be(commitment.length) | commitment_bytes`. Source: `fiat_shamir.rs:140-200`. **`put_i16_be_bytes` is 2-byte big-endian, NOT VLQ** — same conceptual field as wire-format child-count but different encoding.
-- **`prop_bytes`:** wrap SigmaProp in `ErgoTree{ version: 0, hasSize: false, constantSegregation: true }` BEFORE serializing. Source: `fiat_shamir.rs:148-157`, `sigma_boolean.rs:303-312`. Byte-equivalence with sigma-rust is the only correctness signal — V1 positive fixtures (sigma-rust-signed) are the test gate.
-- **Fiat-Shamir hash:** `blake2b-256(input)` then take the **first 24 bytes**. Source: `fiat_shamir.rs:70-76`.
-- **Identity point convention:** 33 zero bytes ↔ point-at-infinity is **Ergo convention**, NOT native SEC1. Source: `ec_point.rs:130-152`. The `crypto/secp256k1.ts` adapter handles the conversion in both directions; no caller needs to know.
-- **Group order n:** secp256k1. Available as `groupOrder` from the adapter.
-- **Verifier is NOT tree-version-gated.** Sigma proof bytes and verify math don't change between V0–V7 trees. ErgoTree v0 is hard-coded in the `prop_bytes` wrap (`fiat_shamir.rs:151`) regardless of the source tree's version.
-- **`put_u16` is overloaded:** VLQ-encoded in wire format (`cand.rs:67-69`); 2-byte big-endian in Fiat-Shamir (`fiat_shamir.rs:197`). Same conceptual field, different encodings. A mismatch is a silent verify-failure cause.
-
-Why this memory: phase 2g-medium's verifier touches non-obvious sigma-protocol details that, if drifted from sigma-rust, cause silent verification failures (the worst kind of bug for a verifier). Locking the cites makes future sessions cheap to context-restore.
-
-How to apply: when modifying any code under `src/sigma/`, `src/crypto/secp256k1.ts`, or future `2g-combinators` slice, cross-check this memory against the proposed change. If a detail here contradicts the change, re-read the cited sigma-rust source before proceeding.
-
-Related: [[project-sigma-combinators-deferred]], [[reference-source-first-discipline]].
-```
-
-`MEMORY.md` index: update the hook lines for `project_ergots_direction` and `project_sigma_combinators_deferred`; add a new line for `reference_sigma_verifier_internals`.
-
-`SESSION_CONTEXT.md` (gitignored): fresh snapshot mirroring the phase 2f Coll HOFs format (state summary, coverage, test counts, new EvalError codes, new modules, new public surface, key design decisions, files changed, next steps).
-
-**Tasks:**
-
-- [ ] **Step 1: Read current memory files**
+- [ ] **Step 4: Full final verification.**
 
 ```bash
-cat /home/mwaddip/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md
-cat /home/mwaddip/.claude/projects/-home-mwaddip-projects-ergots/memory/project_sigma_combinators_deferred.md
-cat /home/mwaddip/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md
+cd packages/ergoscript
+npm test           # full suite passes
+npx tsc --noEmit   # clean
+grep -rn 'Buffer\|process\.\|node:' src/  # browser-clean
+
+cd ../..
+cd fixture-gen && cargo run --release  # determinism third pass
+git status -- packages/ergoscript/test/fixtures/  # clean
 ```
 
-- [ ] **Step 2: Update `project_ergots_direction.md`**
-
-Update the body to reflect phase 2g-medium done. Bump the "Next" line to 2g-combinators (then 2g.5 method-call dispatch).
-
-- [ ] **Step 3: Update `project_sigma_combinators_deferred.md`**
-
-Extend scope of the next slice to include conjecture verifier extensions (Cand XOR walk, Cor XOR-derive-last, Cthreshold GF(2^192) polynomial) alongside the 3 eval arms.
-
-- [ ] **Step 4: Write the new `reference_sigma_verifier_internals.md`**
-
-Use the content draft from "Key memory updates" above. Save to `~/.claude/projects/-home-mwaddip-projects-ergots/memory/reference_sigma_verifier_internals.md`.
-
-- [ ] **Step 5: Update `MEMORY.md` index**
-
-Update hook lines:
-
-```markdown
-- [Ergots project direction](project_ergots_direction.md) — phase 2g-medium shipped (44 arms; verifySignature public); next is 2g-combinators, then 2g.5 method-call dispatch
-- [Sigma combinators deferred](project_sigma_combinators_deferred.md) — Atleast/SigmaAnd/SigmaOr eval arms + conjecture verifier extension (Cand/Cor walks + Cthreshold GF(2^192) polynomial) all in 2g-combinators
-- [Sigma verifier internals](reference_sigma_verifier_internals.md) — locked crypto details for the 2g-medium verifier (challenge/scalar conversion; Schnorr equation; Fiat-Shamir byte format; identity convention)
-```
-
-- [ ] **Step 6: Update `packages/ergoscript/SESSION_CONTEXT.md`**
-
-Overwrite with the phase 2g-medium done snapshot. Mirror the phase 2f Coll HOFs `SESSION_CONTEXT.md` structure. Include:
-
-- Phase completed: 2g-medium — structural SigmaBoolean + CreateProveDlog/CreateProveDhTuple + verifySignature + P2PK short-circuit
-- Coverage 44 of ~70 arms
-- Test counts (current ergoscript count + new C1/V1/V2/wire-variant tests)
-- New EvalError code (1)
-- New VerifyError class with 5 codes
-- New SigmaBooleanParseError codes (2)
-- New runtime dep: @noble/curves@2.2.0
-- New modules: `src/crypto/secp256k1.ts`, `src/sigma/{errors,challenge,sig-serializer,fiat-shamir,verifier}.ts`
-- Modified files summary
-- Key design decisions (mirror Section 4 of the design spec)
-- C2 corpus: still `success=0 not-impl=18 other=0` — phase 2g-medium does not unlock the corpus (2g.5 method-call dispatch is the unlocker)
-- Behavior changes: structural SigmaBoolean shape (was opaque); P2PK Const charges 50 (was 5)
-- Next steps: brainstorm 2g-combinators OR brainstorm 2g.5 method-call dispatch out of order OR npm publish v0.3.0
-
-- [ ] **Step 7: Commit memory + SESSION_CONTEXT updates**
+- [ ] **Step 5: Final commit + push.**
 
 ```bash
-# Memory files live outside the repo (in ~/.claude/...); they're not git-tracked here.
-# Commit only the in-repo files: SESSION_CONTEXT.md is gitignored, so no commit for it.
-# The umbrella spec was committed in Task 7; this task may have no in-repo diff
-# beyond SESSION_CONTEXT.md (which is gitignored). Verify:
+git add packages/ergoscript/SESSION_CONTEXT.md
 
-cd /home/mwaddip/projects/ergots
-git status
-```
-
-If `git status` shows no tracked changes (memory files outside repo; SESSION_CONTEXT.md gitignored), skip the commit. Otherwise commit:
-
-```bash
-git add -A
 git commit -m "$(cat <<'EOF'
-chore(ergots): finalize phase 2g-medium — memory + session context (phase 2g-medium task 8)
+chore(ergoscript): phase 2g-combinators session context + memory updates
 
-Memory updates (outside repo):
-  - project_ergots_direction: phase 2g-medium shipped; next 2g-combinators
-  - project_sigma_combinators_deferred: extended to include conjecture verifier
-  - reference_sigma_verifier_internals: NEW — crypto details locked
+SESSION_CONTEXT.md snapshot at end of phase 2g-combinators. Coverage
+47 of ~70 arms; 39 EvalError codes; 8 VerifyError codes (1 reserved);
+new modules (mir/sigma-boolean-normalize, crypto/gf2_192,
+eval/_sigma-helpers, 3 new arm files); manual conjecture-signing
+fixture-gen recipes documented in memory.
+
+Auto-loaded memories updated:
+- project_ergots_direction (phase 2g-combinators done; next 2g.5)
+- project_sigma_combinators_deferred (CLOSEOUT — all 6 shipped)
+- reference_sigma_verifier_internals (extended)
+- project_fixture_gen_cargo_gotchas (extended)
+- reference_gf2_192_internals (NEW)
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
-```
 
-- [ ] **Step 8: Run full ergoscript suite one final time**
-
-```bash
-npx vitest run packages/ergoscript/
-npx tsc --noEmit -p packages/ergoscript
-```
-
-Expected: all tests PASS; zero typecheck errors.
-
-- [ ] **Step 9: Verify Layer C2 corpus regression gate**
-
-```bash
-npx vitest run packages/ergoscript/test/corpus-eval.test.ts
-```
-
-Expected: `success=0 not-impl=18 other=0`. The `expect(other).toBe(0)` regression gate stays green.
-
-- [ ] **Step 10: Verify no `.wasm` bundle / Node built-ins in shipped code**
-
-```bash
-grep -rE "Buffer|process\.|require\(|node:|\.wasm" packages/ergoscript/src/ | grep -v -E "//|\.test\.|/test/" | head -20
-```
-
-Expected: no output (or only the existing test-file references documented in CLAUDE.md).
-
-- [ ] **Step 11: Push to origin**
-
-```bash
 git push origin master
 ```
 
-Verify the push succeeded and the branch is up-to-date with origin.
+---
 
-- [ ] **Step 12: Spec-compliance final check**
+## End-of-slice verification checklist
 
-Re-read `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md` § Validation against this spec at Task 8 finalize. For each of the 15 checklist items, confirm it's satisfied:
+After Task 11 commits, run this checklist before signing off:
 
-1. ✅ Coverage line in `facts/ergoscript.md` reflects 42 → 44 (Task 7)
-2. ✅ EvalError taxonomy: `'sigma-prop-input-not-group-element'` documented (Task 7)
-3. ✅ VerifyError class documented with 5 codes (Task 7)
-4. ✅ SigmaBoolean shape change documented (Task 7)
-5. ✅ `verifySignature` documented with pre/postcondition (Task 7)
-6. ✅ `@noble/curves@2.2.0` in dependencies section (Task 7)
-7. ✅ P2PK short-circuit (50 JitCost) documented on Const arm (Task 7)
-8. ✅ Umbrella plan annotated for 2g-medium + 2g-combinators split (Task 7)
-9. ✅ SESSION_CONTEXT.md snapshot matches end state (Task 8)
-10. ✅ project_ergots_direction memory updated (Task 8)
-11. ✅ project_sigma_combinators_deferred memory updated (Task 8)
-12. ✅ MEMORY.md hook lines updated (Task 8)
-13. ✅ Test counts: prior tests stay green + new tests pass; all in node + jsdom (Tasks 1-8 verification gates)
-14. ✅ `expect(other).toBe(0)` regression gate stays green (Task 8 Step 9)
-15. ✅ No new browser-incompatible primitives; bundle-scan passes (Task 8 Step 10)
-
-Phase 2g-medium done. Next: user picks the follow-up (2g-combinators / 2g.5 method-call dispatch / npm publish v0.3.0 / something else).
+- [ ] `npm test` (ergoscript): all tests pass in both `node` and `jsdom`.
+- [ ] `npx tsc --noEmit` (ergoscript): zero errors.
+- [ ] Bundle scan: `grep -rn 'Buffer\|process\.\|node:' packages/ergoscript/src/` returns no matches.
+- [ ] `cargo run --release` (fixture-gen) twice: zero diff in `packages/ergoscript/test/fixtures/`.
+- [ ] Corpus regression: `npx vitest run test/corpus-eval.test.ts` shows `success=0 not-impl=18 other=0` (unchanged from 2g-medium).
+- [ ] V1 positive fixtures (~21 across 3 conjectures) all return `true`.
+- [ ] V1 reject fixtures (~9) all return `false` or throw expected `VerifyError`.
+- [ ] V2 mutation fixtures (~110) all return `false` or throw a typed `VerifyError` (never `true`).
+- [ ] GF(2^192) cross-validation fixtures (~95) all byte-equal sigma-rust output.
+- [ ] C1 fixtures (~30 across 3 eval arms) all value+cost match.
+- [ ] C3.a mutation kill rate ≥ 90% per arm (Atleast/SigmaAnd/SigmaOr).
+- [ ] `facts/ergoscript.md` coverage line reads 47 of ~70 arms.
+- [ ] `git status` clean (modulo gitignored `SESSION_CONTEXT.md` and `HANDOFF_PROMPT.md`).
+- [ ] `master` pushed to origin.
 
 ---
 
-*End of plan.*
+*End of implementation plan. Source-first discipline; per-task commits; no artificial stops.*
