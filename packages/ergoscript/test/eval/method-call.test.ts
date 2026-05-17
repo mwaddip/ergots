@@ -23,21 +23,24 @@ describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
       methodId: 255,
       obj: { tag: 'Context' },
     }
-    const ctx = makeContext({})
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrow(EvalError)
+    // Use a fresh ctx for each invocation so cost assertions are unambiguous.
+    const ctx1 = makeContext({})
+    expect(() => evalPropertyCall(e, Env.empty(), ctx1)).toThrow(EvalError)
+    // Cost charging: 4 (dispatcher) + 1 (Context arm) = 5 per call.
+    expect(ctx1.jitCost).toBeGreaterThanOrEqual(5)
+
+    const ctx2 = makeContext({})
     try {
-      evalPropertyCall(e, Env.empty(), ctx)
+      evalPropertyCall(e, Env.empty(), ctx2)
     } catch (err) {
       expect((err as EvalError).code).toBe('method-not-implemented')
       expect((err as EvalError).message).toContain('typeId=255')
       expect((err as EvalError).message).toContain('methodId=255')
     }
-    // Cost charging: 4 (dispatcher) + 1 (Context arm) = 5; charged in BOTH throws above (× 2).
-    // We assert ≥ 4 once, allowing for the obj evaluation to have completed.
-    expect(ctx.jitCost).toBeGreaterThanOrEqual(4)
+    expect(ctx2.jitCost).toBeGreaterThanOrEqual(5)
   })
 
-  it("MethodCall variant also throws on unknown pair", () => {
+  it("MethodCall variant charges cost 4 and throws 'method-not-implemented' on unknown pair", () => {
     const e: MethodCall = {
       tag: 'MethodCall',
       typeId: 255,
@@ -46,7 +49,18 @@ describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
       args: [],
       explicitTypeArgs: {},
     }
-    const ctx = makeContext({})
-    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrow(EvalError)
+    const ctx1 = makeContext({})
+    expect(() => evalMethodCall(e, Env.empty(), ctx1)).toThrow(EvalError)
+    expect(ctx1.jitCost).toBeGreaterThanOrEqual(5)
+
+    const ctx2 = makeContext({})
+    try {
+      evalMethodCall(e, Env.empty(), ctx2)
+    } catch (err) {
+      expect((err as EvalError).code).toBe('method-not-implemented')
+      expect((err as EvalError).message).toContain('typeId=255')
+      expect((err as EvalError).message).toContain('methodId=255')
+    }
+    expect(ctx2.jitCost).toBeGreaterThanOrEqual(5)
   })
 })

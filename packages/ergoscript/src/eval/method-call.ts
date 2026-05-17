@@ -10,11 +10,13 @@
  * while the registry has only 3 entries. Promote to a subdirectory when
  * count grows.
  *
- * Error codes:
+ * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
  *                                  also reused for defensive shape mismatches in registered handlers.
- *   'context-obj-not-context'   — SContext.dataInputs got a non-Context obj (Task 5).
- *   'cost-limit-exceeded'       — cost exceeds jitCostLimit.
+ *
+ * Codes callers may also observe (owned by other modules):
+ *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
+ *   'context-obj-not-context'   — will be thrown by the SContext handler (Task 5, not yet registered).
  */
 
 import type { MethodCall, PropertyCall, SType, SValue } from '../mir/types'
