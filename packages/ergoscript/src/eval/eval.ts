@@ -19,6 +19,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalAnd } from './and'
+import { evalAtleast } from './atleast'
 import { evalApply } from './apply'
 import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
@@ -62,7 +63,6 @@ import { evalValUse } from './val-use'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalXorOf } from './xor-of'
-import { evalAtleast } from './atleast'
 
 export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
   switch (e.tag) {

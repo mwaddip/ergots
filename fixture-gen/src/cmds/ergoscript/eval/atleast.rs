@@ -51,18 +51,10 @@ use serde_json::{json, Value as JsonValue};
 use sigma_test_util::force_any_val;
 use std::sync::Arc;
 
-/// Build a ProveDlog from a seeded generator multiple. Deterministic: each
-/// unique `seed` produces a different curve point from the secp256k1 generator.
-/// We abuse the `generator()` (G) for seed=0, and chain rotations for others.
-/// For full determinism without random number generator, we just use the same
-/// generator point replicated — sigma-rust evaluates identically regardless,
-/// and the fixture is about the Atleast/Cthreshold structural logic, not the
-/// specific keys.
-fn prove_dlog(seed: u8) -> SigmaBoolean {
-    // Use the generator for all seeds — the Atleast eval only cares about the
-    // structural SigmaBoolean form, not the actual key values. Using the same
-    // point for all three items keeps fixtures simple and deterministic.
-    let _ = seed; // suppress unused warning
+/// Build a ProveDlog from the secp256k1 generator point. The Atleast eval only
+/// cares about the structural SigmaBoolean form, not the actual key values.
+/// Using the same generator point for all items keeps fixtures simple and deterministic.
+fn prove_dlog() -> SigmaBoolean {
     let pt = generator();
     SigmaBoolean::ProofOfKnowledge(SigmaProofOfKnowledgeTree::ProveDlog(ProveDlog::new(pt)))
 }
@@ -200,9 +192,9 @@ pub fn generate() -> anyhow::Result<AtleastFixture> {
     // Three distinct ProveDlog leaves for k-of-3 tests.
     // We use the same generator point for all three — the eval logic is about
     // structure, not the specific keys. Sigma-rust evaluates fine with identical points.
-    let p = prove_dlog(0);
-    let q = prove_dlog(1);
-    let r = prove_dlog(2);
+    let p = prove_dlog();
+    let q = prove_dlog();
+    let r = prove_dlog();
 
     // basic 2-of-3: Cthreshold(2, [P,Q,R])
     entries.push(success_entry("atleast_2_of_3", 2, vec![p.clone(), q.clone(), r.clone()])?);

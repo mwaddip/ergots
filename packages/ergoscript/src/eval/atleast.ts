@@ -25,8 +25,7 @@
  *   'atleast-bound-out-of-range'      — bound > 255 or bound > items.length
  */
 
-import type { Atleast } from '../mir/types'
-import type { SValue } from '../mir/types'
+import type { Atleast, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
