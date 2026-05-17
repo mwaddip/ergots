@@ -19,7 +19,7 @@ import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import type { MethodCall, PropertyCall } from '../../src/mir/types'
-import { hexToBytes, hydrateSValue, synthesizeStubBox } from '../_helpers'
+import { hexToBytes, hydrateSValue, synthesizeStubBox, captureEvalError } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -92,6 +92,43 @@ describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
       expect((err as EvalError).message).toContain('methodId=255')
     }
     expect(ctx2.jitCost).toBeGreaterThanOrEqual(5)
+  })
+})
+
+describe('registered method handler defensive throws', () => {
+  it("SBox.tokens throws 'method-not-implemented' when obj is not Box", () => {
+    // typeId=99, methodId=8 is the SBox.tokens handler.
+    // Passing a Context obj produces { kind: 'Context' } from evalExpr, which
+    // is not 'Box' — triggers the defensive shape-guard throw.
+    const e: PropertyCall = {
+      tag: 'PropertyCall',
+      typeId: 99,
+      methodId: 8,
+      obj: { tag: 'Context' },
+    }
+    const ctx = makeContext({})
+    const err = captureEvalError(() => evalPropertyCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('method-not-implemented')
+    expect(err.message).toContain('Box')
+  })
+
+  it("SContext.dataInputs throws 'context-obj-not-context' when obj is not Context", () => {
+    // typeId=101, methodId=1 is the SContext.dataInputs handler.
+    // Passing GlobalVars.SelfBox produces { kind: 'Box', value: ... } from evalExpr,
+    // which is not 'Context' — triggers the defensive shape-guard throw.
+    const e: PropertyCall = {
+      tag: 'PropertyCall',
+      typeId: 101,
+      methodId: 1,
+      obj: { tag: 'GlobalVars', kind: 'SelfBox' },
+    }
+    const stubBox = synthesizeStubBox()
+    const ctx = makeContext({ selfBox: stubBox })
+    const err = captureEvalError(() => evalPropertyCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('context-obj-not-context')
+    expect(err.message).toContain('Context')
   })
 })
 
