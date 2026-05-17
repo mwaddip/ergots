@@ -181,7 +181,7 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  *   Option                       → EQ_OPTION_COST = 4 + recursive inner cost if both Some (line 19)
  *   Coll                         → COLL_MATCH_TYPE_COST = 1 always, then if lengths equal:
  *                                   addPerItemJitCost(perItemCost(elem), n) (lines 27, 108-117)
- *   Unit/SigmaProp/Lambda/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 131-135)
+ *   Unit/SigmaProp/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
  *   Box/AvlTree                  → throw 'not-implemented-yet' (runtime shapes land in 2e/2h)
  *
  * Different `kind` → `false` (no cross-type coercion, matching sigma-rust's
@@ -311,10 +311,17 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return false
     }
 
-    // Box, AvlTree, Context: not equality-comparable via BinOp in v0 ErgoScript.
+    // Context: falls into catch-all arm → EQ_PRIM_COST, always equal.
+    // Sigma-rust data_value_comparer.rs:130-135: `_ => { ctx.add_jit_cost(EQ_PRIM_COST)?; Ok(lv == rv) }`
+    // Value::Context is a unit variant; Context == Context is always true via PartialEq.
+    case 'Context': {
+      ctx.addCost(EQ_PRIM_COST)
+      return true
+    }
+
+    // Box, AvlTree: not equality-comparable via BinOp in v0 ErgoScript.
     case 'Box':
     case 'AvlTree':
-    case 'Context':
       throw new EvalError(
         `BinOp.Relation.Eq: ${a.kind} equality not yet implemented in this slice`,
         'not-implemented-yet'
@@ -387,9 +394,10 @@ function primitiveValueEqual(a: SValue, b: SValue): boolean {
       return primitiveValueEqual(oa.value, ob.value)
     }
     case 'Lambda': return false
+    // Context: unit variant, always equal (mirrors catch-all in data_value_comparer.rs:130-135).
+    case 'Context': return true
     case 'Box':
     case 'AvlTree':
-    case 'Context':
       throw new EvalError(
         `sValueEquals inner Coll: ${a.kind} equality not yet implemented`,
         'not-implemented-yet'

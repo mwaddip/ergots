@@ -122,6 +122,23 @@ describe('sValueEquals — Option[Int] (unit tests, no fixture)', () => {
 })
 
 // ---------------------------------------------------------------------------
+// sValueEquals unit tests: Context (not fixture-driven — Context is never a
+// Const literal, so no fixture can express Context == Context directly)
+// ---------------------------------------------------------------------------
+// Value::Context is a unit variant; falls into data_value_comparer.rs catch-all:
+// EQ_PRIM_COST = 3. Context == Context is always true.
+
+describe('sValueEquals — Context (unit tests, no fixture)', () => {
+  it('Context == Context → true, cost 3 (EQ_PRIM_COST)', () => {
+    const ctx = makeContext()
+    const context: { kind: 'Context' } = { kind: 'Context' }
+    const result = sValueEquals(context, context, ctx)
+    expect(result).toBe(true)
+    expect(ctx.jitCost).toBe(3)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // sTypeEquals unit tests
 // ---------------------------------------------------------------------------
 describe('sTypeEquals', () => {
