@@ -169,8 +169,8 @@ export type EvalErrorCode =
   | 'sigma-prop-input-not-group-element'
 
   // -------------------------------------------------------------------------
-  // Phase 2g-combinators — Atleast + sigma helpers (3 new codes)
-  // Total taxonomy: 36 → 39.
+  // Phase 2g-combinators — Atleast + sigma helpers (4 new codes)
+  // Total taxonomy: 36 → 40.
   // -------------------------------------------------------------------------
   /**
    * `Atleast`: bound expression evaluated to a non-Int SValue. Wire-format
@@ -211,7 +211,7 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2g.5 — method-call dispatch + SigmaPropBytes (1 new code)
-  // Total taxonomy: 39 → 40.
+  // Total taxonomy: 40 → 41.
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropBytes`: input expression evaluated to a non-SigmaProp SValue.
