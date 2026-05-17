@@ -16,6 +16,15 @@ Ergo ecosystem — `sigma-js` (Scala.js cross-compile) exists but carries
 Scala.js runtime baggage, opaque companion-object identifiers, and large
 bundles. Pure native TS is the differentiator.
 
+The wider and ultimate target is a complete port of `sigma-rust`, module
+by module, such that the library can serve as the verification kernel of
+an Ergo validating node. Wallet/light-client correctness (the Fleet SDK
+replacement use case above) is a strict subset of validating-node
+correctness, so completing the latter completes the former.
+Browser-runnable remains an additional axis — validating-node correctness
+does not require in-browser execution, but the project's browser-first
+rules continue to apply throughout.
+
 The port proceeds layer by layer (the proof package's discipline). Each
 phase ships a complete feature of the interpreter; later phases extend
 without breaking earlier ones.
@@ -34,10 +43,6 @@ without breaking earlier ones.
 - **AOT interpreter.** Upstream is deprecating AOT in v5.0.1
   (per `~/projects/sigmastate-interpreter/docs/aot-jit-switch.md`).
   We target `R5.0-JIT-verify` semantics exclusively.
-- **Consensus-level cost enforcement.** We match cost values per evaluation
-  (phase 2j) but the package does not enforce `MaxBlockCost`-style limits;
-  that's a node-level concern. A caller-provided `costLimit` parameter is
-  available for use cases that want it.
 - **Side effects in evaluation.** No filesystem, network, clock, PRNG, or
   `globalThis` reads. Same discipline as the proof package.
 
@@ -59,12 +64,40 @@ ergoscript phases reach that maturity only at 1.0.
 | **2e — Box / Context model** | `SBox`, `SContext`, `SHeader`, `SPreHeader` + all accessor methods. | Trees reaching `SELF.value`, `INPUTS(0).R4`, `HEIGHT`, etc., evaluate against fixture-captured contexts. ✅ shipped as realized phases 2f-narrow (Box wire + 7 Box-extract arms) + 2f-medium (full chain-state Context + 6 arms: GlobalVars, GetVar, OptionGet, OptionIsDefined, OptionGetOrElse, SelectField) |
 | **2f — Collection operations** | map/filter/fold/forall/exists/size/append/slice/etc. | Collection method tests pass against captured sigma-rust evaluations. ✅ shipped 2026-05-16 as phase 2f Coll HOFs (9 arms: SizeOf, Append, ByIndex, Slice, MapColl, Filter, Fold, Exists, ForAll; 42/~70 arms total; Layer C3.a mutation testing at ≥ 90% kill rate per arm) |
 | **2g — Sigma protocol** | `proveDlog` → `proveDhTuple` → `CAND` / `COR` / `CTHRESHOLD` composition. `@noble/curves` added. | ✅ shipped as **2g-medium** (2026-05-16) + **2g-combinators** (2026-05-17). Full SigmaBoolean verifier surface (leaf + Cand/Cor/Cthreshold); 3 new eval arms (Atleast/SigmaAnd/SigmaOr); pure-TS GF(2^192) module (Gf2_192Element + Gf2_192Poly); normalization helpers (cthresholdReduce/candNormalized/corNormalized); coverage 44 → 47 of ~70 arms; 4 new EvalError codes (36 → 40); 3 new VerifyError codes (5 → 8). |
-| **2g.5 — Method-call dispatch** | MethodCall-routed Coll methods (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`) and numeric shift ops (`SNumericTypeMethods.shiftLeft/Right`). | ✅ shipped 2026-05-17 as **phase 2g.5** (measured corpus demand was much smaller than the original projection). 4 new eval arms (`Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`); 3 registered handlers (`SBox.tokens`, `SContext.dataInputs`, `SColl.indexOf`); `EvalOpts.dataInputs` field; `SValue.Context` variant; 3 new EvalError codes (40 → 43); C2 corpus unlocked at `success=18/18`. Broader method surface (Coll utilities, Header methods, Bit shifts) deferred to optional phase 2g.6. See `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md`. |
+| **2g.5 — Method-call dispatch** | MethodCall-routed Coll methods (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`) and numeric shift ops (`SNumericTypeMethods.shiftLeft/Right`). | ✅ shipped 2026-05-17 as **phase 2g.5** (measured corpus demand was much smaller than the original projection). 4 new eval arms (`Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`); 3 registered handlers (`SBox.tokens`, `SContext.dataInputs`, `SColl.indexOf`); `EvalOpts.dataInputs` field; `SValue.Context` variant; 3 new EvalError codes (40 → 43); C2 corpus unlocked at `success=18/18`. Broader method surface (Coll utilities, Header methods, Bit shifts) deferred to phase 2g.6. See `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md`. |
+| **2g.6 — Broader method-call surface** | Additional method-call handlers beyond 2g.5's three: Header methods, Coll utilities (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`, etc.), BinOp Bit shifts via `SNumericTypeMethods.shiftLeft/Right`, additional SBox/SContext/SGlobal methods. Specific method set scoped per the wider-mainnet corpus measurement (Task B). | Method-call demand observed in the wider-corpus survey is fully covered; no remaining `'method-not-implemented'` throws against the survey corpus. |
 | **2h — AVL+ trees** | `SAvlTree`, contains / get / update + membership-proof verification. Reference is the `mwaddip/ergo_avltree_rust` fork (`main` HEAD `879545c`, including the three open upstream PRs #10/#11/#13). `integration/ergots` gains a `[patch.crates-io] ergo_avltree_rust = { path = … }` at the start of this phase. | Real AVL+ proofs from mainnet boxes verify against the fork-corrected semantics. |
 | **2i — Predefs and oddments** | `substConstants`, `blake2b256`, `sha256`, `longToByteArray`, `byteArrayToBigInt`, `decodePoint`, `groupGenerator`, etc. | The remaining `SigmaPredef` surface evaluates. |
-| **2j — Cost accounting** | Port JIT cost model from `integration/ergots`. Cost-charging is plumbed as a no-op from phase 2b forward; this phase fills in real cost values. | Cost values match sigma-rust's per-evaluation totals on the full corpus. |
+| **2j — Cost accounting** | Port JIT cost model from `integration/ergots`. Cost-charging is plumbed as a no-op from phase 2b forward; this phase fills in real cost values. | Cost values match sigma-rust's per-evaluation totals byte-for-byte on every block in the validation corpus (or a strong sample thereof — exact N decided in phase 2j planning). Byte-exact cost agreement is consensus-critical: a 1-unit cost drift between this verifier and JVM nodes is a hard fork. CI runs cost-equivalence on the validation corpus, not just the C2 mainnet-boxes corpus. |
 
 **Note on realized vs planned phase numbering:** The umbrella plan above uses the original numbered sequence (2a–2j). Implementation revealed that several umbrella phases were each delivered across multiple narrower slices. The realized phase labels used in `facts/ergoscript.md` are: 2f-narrow (Box wire), 2f Stop α/β/γ (Box-extract arms), 2f-medium (chain-state Context), 2f Coll HOFs (9 collection HOF arms), 2g-medium (sigma protocol, leaf-only verifier), 2g-combinators (full SigmaBoolean verifier + Atleast/SigmaAnd/SigmaOr + GF(2^192)), 2g.5 (method-call dispatch + C2 corpus unlocker — measured demand was 4 arms + 3 handlers, not the full original projection). These realized labels are the historical record in `facts/ergoscript.md`; the umbrella table above maps them to the original planned phases. Do not renumber older docs — the realized labels in `facts/` are stable references.
+
+## v1.0.0 release gate — validating-node-complete
+
+The library's v1.0.0 release defines "validating-node-complete":
+
+1. **100% pass-rate** against the validation corpus (every tree in every
+   block parses, evaluates, and verifies — value+cost+signature agreement
+   with sigma-rust's eval oracle on a strong-sample mainnet-block corpus;
+   exact corpus size and selection methodology defined in phase 2j
+   planning).
+2. **Byte-exact cost agreement** with sigma-rust on every evaluation in
+   the validation corpus. A 1-unit cost drift between this verifier and
+   JVM nodes is a hard fork; consensus correctness requires byte-exact
+   agreement.
+3. **AVL+ membership-proof verification** (phase 2h) implemented and
+   validated against fork-corrected `ergo_avltree_rust` semantics.
+4. **All method dispatches** appearing in the validation corpus are
+   implemented (no `'method-not-implemented'` throws against survey
+   trees).
+5. **All `Expr` arms** appearing in the validation corpus are implemented
+   (no `'not-implemented-yet'` throws against survey trees).
+6. **All predefs** appearing in the validation corpus are implemented
+   (phase 2i).
+
+Wallet/light-client correctness is a strict subset of these criteria, so
+v1.0.0 also unblocks the Fleet SDK WASM-replacement use case
+automatically.
 
 ## Architecture
 
@@ -309,6 +342,7 @@ the proof package's approach.
 | Mainnet boxes (real) | REST-fetch from local `ergo-node-rust:9052` | Phase 2a | Real boxes' `ergoTree` bytes — mainnet-fixture pattern from proof package, applied to scripts |
 | sigma-rust unit tests | `~/projects/sigma-rust/sigma-rust/ergotree-{ir,interpreter}/src/.../tests/` | All phases | Per-opcode fixture-gen commands extracted from existing Rust tests |
 | sigmastate-interpreter Scala tests | `~/projects/sigmastate-interpreter/.../shared/src/test/scala/` | Where Rust has parity gaps | Cross-version property tests, JIT cost spec. Reference when sigma-rust doesn't cover a case |
+| Mainnet blocks (validated against sigma-rust) | REST-fetch from local `ergo-node-rust:9052` (`/blocks/{height}`, `/transactions/{tx_id}`); cross-validated against sigma-rust's eval oracle | Phase 2g.6+; corpus shape and size finalized in Task B planning | Block-level pass-rate testing; load-bearing for phase 2j cost-equivalence and the library-level validating-node-complete exit gate |
 
 ### Cross-runtime testing
 
@@ -397,7 +431,7 @@ in phase 2a planning. Rejection becomes `ErgoTreeParseError` with
 | Risk | Mitigation |
 |---|---|
 | Cross-version semantics drift (Script v1/v2/v3) | Each fixture tagged with its script version; tests assert per-version semantics. AOT interpreter for pre-v3 historical blocks is a non-goal |
-| Cost-parity drift between TS and `integration/ergots`'s JIT cost model | Phase 2j captures cost-per-evaluation as fixture values; CI runs cost-equivalence assertion on every corpus tree |
+| Cost-parity drift between TS and `integration/ergots`'s JIT cost model (CONSENSUS-CRITICAL: any drift is a hard fork) | Phase 2j captures cost-per-evaluation as fixture values; CI runs cost-equivalence on the validation corpus (broad mainnet-block sample, not just the C2 mainnet-boxes corpus). Per-arm cost reads are cross-verified at fixture-gen time against sigma-rust's `try_eval_out` cost oracle. |
 | `@noble/curves` API drift between 2.x minors | Pin exact `2.2.0` (no caret); upgrade only with explicit version bump + full corpus re-run |
 | Scala.js `sigma-js` accidentally imported by downstream | Bundle scan in CI rejects Scala.js identifier patterns; README explicitly distinguishes |
 | TS language-server slowdown on 80-arm union | Acknowledged in type-model rationale. Monitor; refactor to ops-interface map if hover times exceed ~200ms |
