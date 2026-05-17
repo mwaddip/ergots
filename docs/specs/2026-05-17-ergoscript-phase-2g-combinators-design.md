@@ -648,4 +648,18 @@ Task 11's spec-compliance check verifies:
 
 ---
 
+## Implementation corrections
+
+During Tasks 2-6 implementation, source-reading sigma-rust revealed several spec errors. The implementation followed source; this spec is amended for accuracy:
+
+1. **`IRRED_PENTANOMIAL = 0x87`** (not `0xE7` as initially specified). Sigma-rust at `gf2_192.rs:31` defines `(1i64 << 7) | (1i64 << 2) | (1i64 << 1) | 1i64 = 0x87`. The `0xE7` value would silently break every multiplication that triggers reduction.
+2. **`Gf2_192Element` byte serialization is LE-per-word**, not BE. Sigma-rust at `gf2_192.rs:315-324` writes `bytes[i + 8*j] = (word[j] >> (i << 3)) & 0xFF` (little-endian within each 8-byte word, low word first).
+3. **`SigmaAnd`/`SigmaOr` cost is Pattern A** (before eval-children), not Pattern B. Sigma-rust at `sigma_and.rs:19` and `sigma_or.rs:19` charges `add_per_item_jit_cost` immediately, before `try_mapped_ref` evaluates the children. `Atleast` IS Pattern B (per `atleast.rs:34` — after eval-children).
+4. **A 4th `EvalError` code (`'atleast-bound-out-of-range'`) was added** beyond the spec's 3. Sigma-rust at `atleast.rs:48-53` rejects `bound > input.len()` as a runtime error before `Cthreshold::reduce` is called. The TS arm mirrors this with an explicit pre-check.
+5. **`Gf2_192Poly.interpolate` uses Newton-form incremental construction**, not direct Lagrange basis evaluation. Both compute the same polynomial but Newton-form matches sigma-rust's `gf2_192poly.rs:71-115`. The TS port preserves this for byte-equivalence stability.
+
+These corrections do not affect the spec's overall scope, public surface, or task structure — they are implementation-detail clarifications discovered via source-first discipline.
+
+---
+
 *End of design spec.*

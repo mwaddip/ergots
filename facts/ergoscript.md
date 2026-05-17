@@ -252,6 +252,94 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 56. **New runtime dependency:** `@noble/curves@2.2.0` (secp256k1 point ops + Schnorr-style verification).
     Pins the same version-locked pair as `@noble/hashes@2.2.0`. Added to `packages/ergoscript/package.json`.
 
+**Ships additionally (phase 2g-combinators — sigma combinators + full conjecture verifier):**
+
+57. **3 new eval arms** (coverage 44 → 47 of ~70 arms):
+    - **`Atleast`** — `Int × Coll[SigmaProp] → SigmaProp`; Pattern B `addPerItemCost(20, 3, 5, n)` AFTER
+      eval-children; calls `cthresholdReduce(k, items)` (where `k` is the Int bound extracted from
+      `bound.value`). Defensive throws: `'atleast-bound-not-int'` (bound expression returned non-Int);
+      `'atleast-bound-out-of-range'` (bound < 0, > 255, or > items.length — checked before delegating
+      to `cthresholdReduce`). Source: `atleast.rs:19-58`.
+    - **`SigmaAnd`** — `Coll[SigmaProp via items: Expr[]] → SigmaProp`; **Pattern A**
+      `addPerItemCost(10, 2, 1, n)` BEFORE eval-children (per `sigma_and.rs:19`); calls
+      `candNormalized(items)`. Note: MIR shape is `items: Expr[]` (each individually evaluated),
+      NOT a single `Coll[SigmaProp]` input.
+    - **`SigmaOr`** — symmetric to `SigmaAnd` but calls `corNormalized(items)`. Pattern A
+      `addPerItemCost(10, 2, 1, n)` BEFORE eval-children.
+
+58. **3 normalization helpers** in `mir/sigma-boolean-normalize.ts`:
+    - **`cthresholdReduce(k, items)`** — direct port of `cthreshold.rs:34-84`. Collapses:
+      `k === 0` → `TrivialProp(true)`; `k > items.length` → `TrivialProp(false)`; mid-loop
+      short-circuits on `curr_k === 1` (→ Cor) or `curr_k === children_left` (→ Cand); final
+      collapse rules post-loop. TrivialProp children are consumed without being appended.
+    - **`candNormalized(items)`** — direct port of `cand.rs:29-50`. Filters `TrivialProp(true)`;
+      returns `TrivialProp(false)` if any child is `TrivialProp(false)` (absorbing); returns
+      `TrivialProp(true)` for empty list; unwraps single child; else `{ tag: 'Cand', items }`.
+    - **`corNormalized(items)`** — direct port of `cor.rs:29-50`. Symmetric: filters
+      `TrivialProp(false)`, absorbing `TrivialProp(true)`, identity `TrivialProp(false)` for empty list.
+
+59. **GF(2^192) module** in `crypto/gf2_192.ts`:
+    - **`Gf2_192Element` class**: internal `[bigint, bigint, bigint]` (three unsigned-64-bit BigInts).
+      Operations: `add` (XOR), `multiply` (4-bit nibble table per `gf2_192.rs:82-153`), `sqr`,
+      `invert` (Fermat's little theorem: z^(2^192 - 2)), `equals`, `isZero`, `isOne`.
+      Static: `ZERO`, `ONE`, `fromBytes(bytes: Uint8Array)`, `toBytes(): Uint8Array`.
+      Byte serialization: **24-byte LE-per-word** (little-endian within each 8-byte word, low word
+      first, per `gf2_192.rs:315-324`). NOTE: this corrects the 2g-combinators design spec which
+      said BE; source is authoritative.
+      Irreducible polynomial: x^192 + x^7 + x^2 + x + 1. `IRRED_PENTANOMIAL = 0x87n`
+      (`gf2_192.rs:31`: `(1i64 << 7) | (1i64 << 2) | (1i64 << 1) | 1i64`). NOTE: this corrects the
+      design spec which said `0xE7`.
+    - **`Gf2_192Poly` class**: Newton-form incremental construction (matching sigma-rust's
+      `gf2_192poly.rs:71-115`). Operations: `interpolate(points, values, valueAtZero)` (fixture-gen
+      path; passes through given points + (0, valueAtZero)); `fromCoefficientsAndConstant(bytes,
+      constant)` (verifier path; reconstructs polynomial from proof coefficient bytes + parent
+      challenge as degree-0 constant); `evaluate(x: number): Gf2_192Element` (Horner's method;
+      `x` is 1-based child index in conjecture context); `toBytes(): Uint8Array` (serializes
+      degree-1 through degree-N coefficients only, length = `degree * 24`; skips constant).
+    - No new TS runtime dependencies. GF(2^192) is pure TS via `bigint`. Already on
+      `@noble/curves@2.2.0` + `@noble/hashes@2.2.0` from 2g-medium.
+
+60. **Verifier extension** — `verifySignature` now handles the FULL `SigmaBoolean` surface:
+    - **`TrivialProp`** / **`ProveDlog`** / **`ProveDhTuple`**: unchanged from 2g-medium.
+    - **`Cand`**: all children inherit the parent's 24-byte challenge. Per `sig_serializer.rs:174-186`.
+      No per-child challenges in proof bytes for Cand. Recurse on each child; all must return `true`.
+    - **`Cor`**: read explicit 24-byte challenges for first (n-1) children from proof bytes; last
+      child's challenge = bitwise XOR(parent challenge, all (n-1) read challenges). Per
+      `sig_serializer.rs:187-214`. Recurse on all n children with their per-child challenge.
+    - **`Cthreshold`**: read `(n-k)*24` polynomial bytes (no length prefix; `n-k` derived from tree
+      structure); reconstruct `Gf2_192Poly` with `constant = parent challenge as Gf2_192Element`;
+      each child i (0-based array index) gets challenge = `polynomial.evaluate(i+1).toBytes()`
+      (1-based eval point). Per `sig_serializer.rs:215-245`. Recurse on all n children.
+    - **Fiat-Shamir internal-node byte layout**: `INTERNAL_NODE_PREFIX(0) | conj_type(0/1/2) |
+      [k_byte if Cthreshold] | put_i16_be(n) | children...` (per `fiat_shamir.rs:170-201`).
+    - The code `'conjecture-not-implemented'` becomes structurally unreachable but stays declared in
+      `VerifyErrorCode` for ABI stability.
+    - `ProofBytesReader.readBytes(n)` — new method reading exactly n bytes; throws
+      `'truncated-signature'` on underrun. Used by Cthreshold verifier path.
+
+61. **4 new `EvalError` codes** (36 → 40; note: the design spec said 39, but a 4th code was added
+    during implementation for `Atleast`'s pre-`cthresholdReduce` bound check):
+    - `'atleast-bound-not-int'` — `Atleast` arm: `bound` expression evaluated to non-Int.
+    - `'atleast-bound-out-of-range'` — `Atleast` arm: `bound` (after Int extraction) is `< 0`,
+      `> 255`, or `> items.length`. Checked before delegating to `cthresholdReduce`.
+    - `'sigma-prop-coll-elem-not-sigma-prop'` — `Atleast`/`SigmaAnd`/`SigmaOr` (via
+      `eval/_sigma-helpers.ts::expectSigmaProp`): a `Coll[SigmaProp]` item or individual `items`
+      expression evaluated to a non-SigmaProp `SValue`.
+    - `'sigma-prop-input-not-coll'` — `Atleast` (via `eval/_sigma-helpers.ts::extractSigmaPropColl`):
+      `Atleast`'s `input` expression evaluated to non-Coll SValue. (`SigmaAnd`/`SigmaOr` take
+      `items: Expr[]`, not a Coll input, so this code applies only to `Atleast`.)
+
+62. **3 new `VerifyError` codes** (5 → 8):
+    - `'cthreshold-polynomial-bytes-mismatch'` — currently thrown only on the defensive `k > n`
+      check inside the verifier walk; reserved for future strict-check passes.
+    - `'cor-derived-challenge-mismatch'` — reserved; not thrown in this slice.
+    - `'cthreshold-derived-challenge-mismatch'` — reserved; not thrown in this slice.
+    - (The existing `'conjecture-not-implemented'` code remains declared as RESERVED — no longer
+      thrown by 2g-combinators; kept for ABI stability.)
+
+**Coverage after 2g-combinators: 47 of ~70 `Expr` variants have implemented arms** (44 prior +
+3 new: `Atleast`, `SigmaAnd`, `SigmaOr`). Full `SigmaBoolean` verifier surface shipped.
+
 **Ships additionally (phase 2f Stop γ — Box canonical-bytes serializer + 3 hash extractors):**
 
 36. 3 more per-variant arms wired: `ExtractBytes` (Box → Coll[Byte] of full canonical
@@ -336,18 +424,6 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 
 - **`Xor`** (byte-array XOR) — later phase (likely 2i alongside other predefs). Operates on
   `Coll[Byte] × Coll[Byte] → Coll[Byte]`; not a logical/threshold aggregator despite the name.
-- **`Atleast`** — phase 2g-combinators: calls `Cthreshold::reduce(k, children)` which performs
-  sigma-protocol-level normalization (can collapse to `Cor`, `Cand`, `Cthreshold`, or `TrivialProp`
-  depending on inputs). Deferred together with `SigmaAnd`/`SigmaOr` and the conjecture verifier
-  extension for unified testing in `2g-combinators`.
-- **`SigmaAnd`** — phase 2g-combinators: calls `Cand::normalized(items)` — same normalization family
-  as `Atleast`.
-- **`SigmaOr`** — phase 2g-combinators: calls `Cor::normalized(items)` — same normalization family
-  as `Atleast`.
-- **Conjecture verifier walk** — `verifySignature` currently throws `'conjecture-not-implemented'` on
-  `Cand`/`Cor`/`Cthreshold` inputs. Phase 2g-combinators extends the verifier: `Cand`/`Cor`
-  (XOR-based challenge derivation + tree walk) and `Cthreshold` (GF(2^192) polynomial Lagrange
-  interpolation). Deferred together with the construction arms above.
 - Header chain-state model + method-call dispatch (`Context` fields + 6 arms ship in 2f medium; `Header` runtime + method calls deferred to 2g.5).
 - **MethodCall-routed Coll methods** (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`) — deferred to phase 2g.5: method-call dispatch. These differ from the HOFs above (which have dedicated MIR nodes); these are method-call opcodes routed through the `MethodCall` MIR arm.
 - Sigma protocol prover (`prove`). `verifySignature` ships in 2g-medium (leaf-only: TrivialProp, ProveDlog, ProveDhTuple). Full conjecture-verifier coverage ships in 2g-combinators.
@@ -415,19 +491,25 @@ type ErgoTree, TreeHeader, SType, SValue, Expr, SigmaBoolean
 - **Postcondition (failure):** Throws `AddressDecodeError` with `code` `'bad-base58'`, `'too-short'`, `'checksum-mismatch'`, `'invalid-p2pk-length'`, `'p2sh-unsupported'`, or `'unknown-type'`. A P2S address carrying malformed tree bytes throws `ErgoTreeParseError` (or a downstream parser error) — those bubble up unwrapped.
 - **Round-trip invariant:** For any tree `t` and matching network `n`, `ergoTreeFromAddress(addressFromErgoTree(t, n))` parses to a structurally equivalent `ErgoTree`. P2SH addresses are NOT round-trippable through this function (they are derived from a 24-byte hash, not a serialized tree) and decoding one throws `p2sh-unsupported`.
 
-#### `verifySignature(sigmaBoolean, message, signature)` *(phase 2g-medium)*
+#### `verifySignature(sigmaBoolean, message, signature)` *(phase 2g-medium; extended in 2g-combinators)*
 
 - **Precondition:** `sigmaBoolean` is a valid `SigmaBoolean` (typically the `.value` from a `SValue.kind: 'SigmaProp'`). `message` is any `Uint8Array` (the hash/message signed by the prover). `signature` is the serialized Schnorr proof bytes as produced by sigma-rust's prover (or an equivalent conformant prover).
-- **Postcondition (success, leaf inputs):**
+- **Postcondition (success — full 6-variant surface from 2g-combinators):**
   - `TrivialProp(true)` → returns `true` (signature is ignored, per sigma-rust `verifier.rs:97`).
   - `TrivialProp(false)` → returns `false` (signature is ignored).
   - `ProveDlog` or `ProveDhTuple` → returns `true` if and only if the Schnorr-style proof in `signature` is valid for `sigmaBoolean` and `message`. Returns `false` for a syntactically valid but cryptographically incorrect proof. (A proof is syntactically valid if it contains a 24-byte challenge and the correct number of 32-byte scalars for the leaf type.)
+  - `Cand` → verifies recursively; all children inherit the parent 24-byte challenge; returns `true` iff all children verify.
+  - `Cor` → reads explicit challenges for first (n-1) children from proof bytes; derives last child's challenge via XOR(parent, read challenges); returns `true` iff all children verify.
+  - `Cthreshold` → reads `(n-k)*24` polynomial coefficient bytes; reconstructs `Gf2_192Poly` with constant = parent challenge; each child i (0-based) gets challenge = `polynomial.evaluate(i+1)`; returns `true` iff all children verify.
 - **Postcondition (failure):** Throws `VerifyError` in these cases:
-  - `'conjecture-not-implemented'` — `sigmaBoolean` is `Cand`, `Cor`, or `Cthreshold`. These require conjecture tree-walk logic deferred to `2g-combinators`. No return value; always throws.
+  - `'conjecture-not-implemented'` — **RESERVED; no longer thrown** (2g-combinators ships the full conjecture walk). Code stays declared for ABI stability.
   - `'empty-signature'` — `signature.length === 0`. A typed throw (vs sigma-rust's `Ok(false)`) so callers can distinguish "no proof provided" from "incorrect proof". (Decision #5 in the design spec.)
-  - `'truncated-signature'` — the signature ran out of bytes during tree-walk parsing (e.g., challenge present but 32-byte scalar bytes missing).
+  - `'truncated-signature'` — the signature ran out of bytes during tree-walk parsing (e.g., challenge present but 32-byte scalar bytes missing, or polynomial bytes shorter than `(n-k)*24`).
   - `'point-not-on-curve'` — a pubkey/component byte-array on a `ProveDlog` or `ProveDhTuple` leaf failed secp256k1 decompression (off-curve or invalid encoding).
-  - `'scalar-out-of-range'` — **reserved; currently not thrown.** `scalarFromBytes` reduces mod n silently (mirroring sigma-rust's `Scalar::reduce_bytes` at `wscalar.rs:60-67`). The code is declared in `VerifyErrorCode` for a future slice that chooses to surface raw-bytes-≥-n as a typed throw.
+  - `'scalar-out-of-range'` — **reserved; currently not thrown.** `scalarFromBytes` reduces mod n silently (mirroring sigma-rust's `Scalar::reduce_bytes` at `wscalar.rs:60-67`). Declared in `VerifyErrorCode` for a future slice.
+  - `'cthreshold-polynomial-bytes-mismatch'` — thrown on defensive `k > n` check inside verifier; reserved for future strict-check passes.
+  - `'cor-derived-challenge-mismatch'` — reserved; not thrown in this slice.
+  - `'cthreshold-derived-challenge-mismatch'` — reserved; not thrown in this slice.
 - **No tree-version gating.** The verifier does not read `treeVersion`; sigma-protocol verification is tree-version-independent.
 - **Trailing bytes accepted.** Extra bytes after the last parsed scalar are silently ignored (mirrors sigma-rust's `proof_append_some_byte` proptest at `verifier.rs:229-235`).
 - **Not a cost-charging operation.** `verifySignature` is a separate public function from `evaluate`; it does not interact with `EvalContext` or `jitCost`. Callers who want both evaluation cost and signature verification compose `evaluateWith` + `verifySignature` manually.
@@ -593,7 +675,7 @@ Per-class code enumeration (every code below is emitted by current source):
 - **`ExprTpeError`** (raised by `exprTpe`, the SType-of-Expr projection): `'apply-func-not-sfunc'`, `'bin-op-kind-unhandled'`, `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'select-field-input-not-stuple'`, `'select-field-out-of-range'`, `'tpe-not-implemented'`.
 - **`ReaderError`** (raised by `ByteReader`): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`.
 - **`AddressDecodeError`**: `'bad-base58'`, `'too-short'`, `'checksum-mismatch'`, `'invalid-p2pk-length'`, `'p2sh-unsupported'`, `'unknown-type'`.
-- **`VerifyError`** (phase 2g-medium): `'conjecture-not-implemented'` (Cand/Cor/Cthreshold input; deferred to 2g-combinators), `'empty-signature'` (signature byte sequence is empty — typed throw per Decision #5 in the design spec; sigma-rust returns `Ok(false)` here), `'truncated-signature'` (proof ran out of bytes during tree-walk parsing — challenge present but scalar bytes missing), `'point-not-on-curve'` (SEC1 decode rejected a leaf pubkey/component — off-curve or malformed encoding). The code `'scalar-out-of-range'` is declared in `VerifyErrorCode` but currently **not thrown** — `scalarFromBytes` reduces mod n silently, matching sigma-rust's `Scalar::reduce_bytes` posture; reserved for a future slice.
+- **`VerifyError`** (phase 2g-medium + 2g-combinators; 8 codes total): `'conjecture-not-implemented'` (**RESERVED — no longer thrown** as of 2g-combinators; conjecture walk is now implemented; code stays declared for ABI stability), `'empty-signature'` (signature byte sequence is empty — typed throw per Decision #5 in the design spec; sigma-rust returns `Ok(false)` here), `'truncated-signature'` (proof ran out of bytes during tree-walk parsing — challenge present but scalar bytes missing, or Cthreshold polynomial bytes shorter than `(n-k)*24`), `'point-not-on-curve'` (SEC1 decode rejected a leaf pubkey/component — off-curve or malformed encoding). The code `'scalar-out-of-range'` is declared in `VerifyErrorCode` but currently **not thrown** — `scalarFromBytes` reduces mod n silently, matching sigma-rust's `Scalar::reduce_bytes` posture; reserved for a future slice. Three new codes added in 2g-combinators: `'cthreshold-polynomial-bytes-mismatch'` (thrown on defensive `k > n` check inside verifier walk; reserved for future strict checks), `'cor-derived-challenge-mismatch'` (**reserved; not thrown in this slice**), `'cthreshold-derived-challenge-mismatch'` (**reserved; not thrown in this slice**).
 
 No other error classes are emitted by this package. Internal panics (e.g. a bug in `@noble/hashes` or `@noble/curves`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
 
@@ -640,7 +722,7 @@ interface EvalContext extends EvalOpts {
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` (so callers who want the tree's segregated constants picked up automatically don't need to do anything extra) and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised from inside the recursive evaluator (e.g. an unhandled variant deep inside a `BlockValue`) bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** 44 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from 2g-medium: `CreateProveDlog`, `CreateProveDhTuple`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2g-combinators–2h add the remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** 47 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from 2g-medium: `CreateProveDlog`, `CreateProveDhTuple` + 3 from 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2g.5–2h add the remaining arms; the `evaluate` signature itself is stable.
 
 #### `evaluateWith(tree, ctx)`
 
@@ -857,18 +939,42 @@ The following code was added in phase 2g-medium (CreateProveDlog, CreateProveDhT
   non-GroupElement inputs at construction time); defensive against `ConstantPlaceholder`
   injection and future MIR shape changes. Message includes the arm name and the actual kind.
 
+The following codes were added in phase 2g-combinators (Atleast, SigmaAnd, SigmaOr eval arms):
+
+- **`'atleast-bound-not-int'`** — `Atleast` arm: the `bound` expression evaluated to an `SValue`
+  whose `kind !== 'Int'`. Wire-format invariants (sigma-rust's `Atleast::new` requires
+  `bound.post_eval_tpe == SInt`) make this unreachable for parser-produced trees; defensive
+  against `ConstantPlaceholder` injection. Message includes the actual kind.
+
+- **`'atleast-bound-out-of-range'`** — `Atleast` arm: after extracting an `Int` bound, the value
+  is `< 0`, `> 255`, or `> items.length`. Checked explicitly before delegating to
+  `cthresholdReduce`, mirroring sigma-rust `atleast.rs:48-53` which rejects `bound > input.len()`
+  as a runtime error. Message includes the bound value and (for `> items.length`) the collection
+  length.
+
+- **`'sigma-prop-coll-elem-not-sigma-prop'`** — `Atleast` / `SigmaAnd` / `SigmaOr` arm (via
+  `eval/_sigma-helpers.ts::expectSigmaProp`): an item from a `Coll[SigmaProp]` or from the
+  `items: Expr[]` array evaluated to an `SValue` whose `kind !== 'SigmaProp'`. Wire-format
+  invariants enforce SSigmaProp for each item; defensive against `ConstantPlaceholder` injection.
+  Message includes the arm name, the offending index, and the actual kind.
+
+- **`'sigma-prop-input-not-coll'`** — `Atleast` arm (via `extractSigmaPropColl`): the `input`
+  expression evaluated to an `SValue` whose `kind !== 'Coll'`. Applies only to `Atleast` (whose
+  `input` is a single `Coll[SigmaProp]` expression); `SigmaAnd` / `SigmaOr` take `items: Expr[]`
+  individually, so this code does not apply to them. Message includes the actual kind.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
-### `VerifyError` taxonomy (phase 2g-medium)
+### `VerifyError` taxonomy (phase 2g-medium + 2g-combinators; 8 codes total)
 
 `VerifyError` is distinct from `EvalError`: it is thrown by `verifySignature` only, not by the
 recursive evaluator. The two surfaces don't interact — a caller composing `evaluateWith` + `verifySignature` may encounter both, but they carry separate `code` namespaces.
 
-- **`'conjecture-not-implemented'`** — `verifySignature` encountered a `Cand`, `Cor`, or
-  `Cthreshold` node in `sigmaBoolean`. The conjecture tree-walk logic (`Cand`/`Cor`
-  XOR-based challenge derivation; `Cthreshold` GF(2^192) polynomial Lagrange interpolation) is
-  deferred to `2g-combinators`. This is the leaf-only verifier's scope guard: it walks `sb` once
-  before proceeding and throws immediately if any conjecture node is found.
+- **`'conjecture-not-implemented'`** — **RESERVED; no longer thrown as of 2g-combinators.** Was
+  thrown in 2g-medium when `verifySignature` encountered a `Cand`, `Cor`, or `Cthreshold` node.
+  The full conjecture walk ships in 2g-combinators; this code stays declared in `VerifyErrorCode`
+  for ABI stability. Callers that catch this code keep compiling and running — they will simply
+  never see it thrown.
 
 - **`'empty-signature'`** — `signature.length === 0`. Sigma-rust returns `Ok(false)` for an
   empty proof via the `[] => false` match arm in `verify_signature` (`verifier.rs:99-100`);
@@ -877,8 +983,10 @@ recursive evaluator. The two surfaces don't interact — a caller composing `eva
   (Acknowledged divergence from sigma-rust; Decision #5 in the design spec.)
 
 - **`'truncated-signature'`** — the signature ran out of bytes before the tree-walk parsing
-  completed. Typical case: a 24-byte challenge was present but the following 32-byte scalar
-  bytes were absent. Mirrors sigma-rust's `SigParsingError::ScalarRead*` family.
+  completed. Cases: a 24-byte challenge was present but 32-byte scalar bytes were absent; OR
+  Cthreshold polynomial bytes were shorter than `(n-k)*24` (no length prefix — the count is
+  derived from the SigmaBoolean tree structure). Mirrors sigma-rust's `SigParsingError::ScalarRead*`
+  family and `'truncated-signature'` throw in `readBytes(n)` for the polynomial-bytes path.
 
 - **`'point-not-on-curve'`** — a pubkey or point-component byte-array on a `ProveDlog` or
   `ProveDhTuple` leaf failed secp256k1 decompression. Causes: off-curve coordinates,
@@ -890,12 +998,27 @@ recursive evaluator. The two surfaces don't interact — a caller composing `eva
   code is declared in `VerifyErrorCode` for a future slice that chooses to surface
   raw-bytes-≥-group-order-n as a typed throw per Decision #6 in the design spec.
 
+The following codes were added in phase 2g-combinators (conjecture verifier walk):
+
+- **`'cthreshold-polynomial-bytes-mismatch'`** — thrown on the defensive `k > n` check inside
+  the Cthreshold verifier walk (internal guard); reserved for future strict structural-validation
+  passes. Rarely reached in practice (`parseSigmaBoolean` already rejects `k > items.length`
+  at parse time per `'cthreshold-k-out-of-range'`).
+
+- **`'cor-derived-challenge-mismatch'`** — **reserved; not thrown in this slice.** Declared for
+  a future pass that explicitly validates the XOR-derived last child's challenge recomputes
+  against the Fiat-Shamir hash.
+
+- **`'cthreshold-derived-challenge-mismatch'`** — **reserved; not thrown in this slice.** Declared
+  for a future pass that explicitly validates polynomial-derived child challenges against the
+  Fiat-Shamir hash at each leaf.
+
 ### Coverage and stability
 
-- **44 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from phase 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from phase 2g-medium: `CreateProveDlog`, `CreateProveDhTuple`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g-medium complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; `'context-field-missing'` is tolerated in the not-impl bucket (corpus runs without chain state). Full unlock waits for method-call dispatch (phase 2g.5).
+- **47 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from phase 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from phase 2g-medium: `CreateProveDlog`, `CreateProveDhTuple` + 3 from phase 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g-combinators complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; `'context-field-missing'` is tolerated in the not-impl bucket (corpus runs without chain state). Full unlock waits for method-call dispatch (phase 2g.5).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
-- **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added `height?: number`, `selfBox?: ErgoBox`, `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`, `preHeader?: PreHeader`, `extension?: ContextExtension` — all optional, all live. Phase 2g-medium adds no new `EvalOpts` fields (`verifySignature` is a separate public function, not part of eval cost accounting). Phase 2h may add `headers` and `dataInputs` when Header / AvlTree arms land.
-- **`@noble/curves@2.2.0` added in phase 2g-medium.** Version-locked pair with `@noble/hashes@2.2.0`. Used by the secp256k1 adapter (`crypto/secp256k1.ts`) and the sigma verifier. No prior dep wave introduced a new runtime dep; this is the first since phase 2a's `@noble/hashes`.
+- **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added `height?: number`, `selfBox?: ErgoBox`, `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`, `preHeader?: PreHeader`, `extension?: ContextExtension` — all optional, all live. Phase 2g-medium adds no new `EvalOpts` fields (`verifySignature` is a separate public function, not part of eval cost accounting). Phase 2g-combinators adds no new `EvalOpts` fields. Phase 2h may add `headers` and `dataInputs` when Header / AvlTree arms land.
+- **`@noble/curves@2.2.0` added in phase 2g-medium.** Version-locked pair with `@noble/hashes@2.2.0`. Used by the secp256k1 adapter (`crypto/secp256k1.ts`) and the sigma verifier. Phase 2g-combinators adds no new runtime dependencies — `GF(2^192)` is pure TS via `bigint`; the existing `@noble/curves@2.2.0` + `@noble/hashes@2.2.0` pair is sufficient.
 
 ## Cross-references
 
