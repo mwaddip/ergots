@@ -37,6 +37,18 @@ export class ProofBytesReader {
     return this.readN(SCALAR_BYTES)
   }
 
+  /**
+   * Read the next `n` bytes and return a defensive copy.
+   *
+   * Used by the Cthreshold verifier walk to read the `(n-k)*24`
+   * polynomial bytes inline in the proof stream.
+   *
+   * Throws `'truncated-signature'` on underrun.
+   */
+  readBytes(n: number): Uint8Array {
+    return this.readN(n)
+  }
+
   private readN(n: number): Uint8Array {
     if (this.remaining() < n) {
       throw new VerifyError(

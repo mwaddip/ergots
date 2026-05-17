@@ -50,3 +50,24 @@ describe('ProofBytesReader', () => {
     catch (e: any) { expect(e.code).toBe('empty-signature') }
   })
 })
+
+describe('ProofBytesReader.readBytes', () => {
+  it('returns the next n bytes', () => {
+    const r = new ProofBytesReader(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+    expect(Array.from(r.readBytes(3))).toEqual([1, 2, 3])
+    expect(Array.from(r.readBytes(2))).toEqual([4, 5])
+  })
+  it('throws truncated-signature on underrun', () => {
+    const r = new ProofBytesReader(new Uint8Array([1, 2, 3]))
+    expect(() => r.readBytes(5)).toThrow(
+      expect.objectContaining({ code: 'truncated-signature' }),
+    )
+  })
+  it('returns defensive copies', () => {
+    const buf = new Uint8Array([1, 2, 3, 4])
+    const r = new ProofBytesReader(buf)
+    const result = r.readBytes(2)
+    result[0] = 99
+    expect(buf[0]).toBe(1)  // original unchanged
+  })
+})
