@@ -1,0 +1,172 @@
+{
+  "description": "Cor conjecture positive fixtures (phase 2g-combinators Task 8). Real leaf is LAST. Signature layout: root (24) || sim_0_c (24) || sim_0_z (32) || ... || sim_{n-2}_c (24) || sim_{n-2}_z (32) || last_real_z (32). Last child's challenge is derived by verifier via XOR. Includes flat 2/3/4/5-leaf cases, mixed simulated dlog+dht, and real-DH-tuple-last. Each cross-validated against sigma-rust's verify_signature.",
+  "entries": [
+    {
+      "name": "cor-2-dlog-empty-msg",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0239f537fbc144560e3276e6b8c8891a2453f829c4b59422ca61363fb67cc98cc4",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0361a28ec61c234b9a0224d21405447e82801649a896894a288712870f7ea03913",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "",
+      "signature_hex": "45aade1c4cb3bec13f07d4bd5b927a0e3e06da7bce192df48cc3c7d5566f7942faceff5d16fba029acf594f0847c9c4c103764c457cefada055b97f94d771224592fe5bede6f74653964ff4572a9c0bbe4e66799ce8790db4be33b61fb9cba4bfc3bd6fe61f60c719e829106604cced8",
+      "expected_result": true
+    },
+    {
+      "name": "cor-2-dlog-msg-abc",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "03507a065ca05651a0077ceb02f150994adf8074720bfd0e5fc3db2ab2ca7801ca",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0351bd0f7c4c42d02b71d05f62e534307145db07438ee8e3c88c9216c692ad0bae",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "616263",
+      "signature_hex": "aa79983dae64abf332dfc470dbcfe88e051b9d4168b3eb64788ddb47e71c89a20ffc35d6ed57c84c281979aa83c0895dfdfb99bcc9032e2f49d7d3de89d803b0da9410b287038528995777692b47575bbb10e045b94c65ed197125ac13fab318bad6e8c787af4e57b71fb66793aa974d",
+      "expected_result": true
+    },
+    {
+      "name": "cor-3-dlog",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0305b230608790e8c0f8c9c343034c78be8d9bef615d163aab38c6ec91794e5e89",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "03dec8017a2738c2362f88e5ccdcd9ceae2c3d19be37fcedcbd369aeb143ad9c61",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02383484c0e2f27dee85e77ea35868cd13da902f7bf64a8f74d18d39bd14e4fbd2",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "74687265652d646c6f672d636f72",
+      "signature_hex": "a65c8e6576a9b8cf3ec968157e704775030dde3075de61d994797ffb0ca36a0069d65873897c94b3ec2574c89a942349542cfd0bdb29b106fdc45220271bd48b2e4446c34b7aa49074c6615527903243b81df64bf58acc8b5cce147d6d47e0557e0822bad19ba01ce1210bd38d49ecfabe61ec6acb842716f090a11d46cc1dd20103513725a3aa189e937fe628c6513d2eb5ff95959f4ef087c2ce5890bc41c8cf9b189fa6264810",
+      "expected_result": true
+    },
+    {
+      "name": "cor-4-dlog",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "02e9a8fffde1a06633a953917deb0d84f96b5edc90dfb393e7311eb7726336ca5c",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0218090c7b3c7e6eb2022d0de7cd4dc25260e694130dfb9f93446a292743974f40",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02df661e87905a7afb75b7a45a9ee1f97f3530f89101c50edce37f4da316c6d40a",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "022d324699a49a42aae23ebd8b2139ce27c1f76b16957e640845a960e10104a9ac",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "666f7572",
+      "signature_hex": "c783a25263d561120aa0306653a6701ac87e4b6c13abf0b2f481b87775ef02dabcf40ae51df85cdd73f2f75e73bb9940762fbfd5662a783a66b9529485553f3ba913982f4e3c99f9bd9ef9ce7f734547e945cf122e6fe990f1b477ae8c7a4a48f3ee44770ec425da14ac776ad1bfc4d05f6b594418f2992ebab3141173bd32c95c9a2f96a55705d1942a8f4f3c9fcbbff3c981aaa50d63e222e3cf296e39dfe91a74bab90b3b3a9aafc4e5baa179a7a4f3957ae55f7f060825e8d97cada57cd877d666d23d0094a78c7a34acd7c9d6e7bab6f46843e1ce5fa4d796d1f5d9e9ed",
+      "expected_result": true
+    },
+    {
+      "name": "cor-5-dlog",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0212fe35b90e5bcab07aad8251100327b39bef65c0f076f9d1a78fa7db7906650b",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0379bdebfb6c585069b3e81b85eeb34afefc33dd67d3aab9307c8e85c7c1df8285",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ad8cfd371ce162021f22030a290810de52ea831a8aec6a745b5fe91b28e4d3e5",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02c8989786e7d25d0c01d0064131086e85b1d7ef735dfe20f3828b4d1135bb7210",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "03fe9fe59146d96559784ae40f594778def8761c6d45bd4e3bc467a0e26b95fc60",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "666976652d646c6f672d636f722d6d7367",
+      "signature_hex": "bafd45efba08b3255812bfef634c9cb88889581641bf36b4ee2678992e9d7357d4b70b505634ebd2b27d38caadc61a7a1bb1ebdc798b73ed55080e6307f2b0cf88d055b0d75bac5937bcce22c78f869a0962ef1037959741b4fb6fcefe5ee2d4592c83dd17737454e0e2276019a757480893caa1a806958f8eddd3f05fdf357d162827d0c170aacd127da313d63bd677db644d4c04931639b2f07354708b5b4254ef6149a19c829865455176554492b8cbbde1ebec4ce98ad36cfdc88c01283ec9868a920d4764d5799fafea38457a9beafa04b648ae75922c70c1ae77c1e756906e362a2a0e9c1870ac4d6f7020ff149dc260b9dfb73daa4d239818fce5334a7dbf65cc74c700ef4e2e115f0e7a4116ed71de2ac588dd99",
+      "expected_result": true
+    },
+    {
+      "name": "cor-mixed-sim-dlog-sim-dht-real-dlog",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "021f11b29be328aab3ffc3520eb4c6822051478f1c547168d3253bac570e150bd9",
+            "tag": "ProveDlog"
+          },
+          {
+            "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "h": "030fa23d563111bb65b1ba5cd0f49aafb8809734e87131dfe1bedeb6ba508a81f0",
+            "tag": "ProveDhTuple",
+            "u": "0300f7531bba95c4185d4d404a44fa256eabb2ba721e82bcbd9966a09e5dabb0eb",
+            "v": "03a4bad239909855be49316672db279fde0998532fad9b4d73291eeee38ef304c8"
+          },
+          {
+            "h": "035ab44528b7b941b6c01bc5f2c8671f757190cc6c2feb6df2cd38bc6bc77a9dc8",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "6d697865642d636f72",
+      "signature_hex": "cb15fe312a523ae22dec3ae823e0095067df8242dcad1834f636c067198eb85c0e8fb506082f9e59012fa039a9c792d29d203af87d3cb3dc9a62d2f718cc018b6400b8a39939f5b6ab0183ef24f86692e180ca19f86b784349974cb89e337c5ed1fae91c86d3f70e2ec4062b971f114d752c9ae2b5c5fe5d59e5b813ccacf6d41e22894db87f65a2814a6b039ab8f97e0083ca603154e87eb5bf95883093fef1bb83193976493977",
+      "expected_result": true
+    },
+    {
+      "name": "cor-real-dht-last",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "02dfb687a95c6937e2732ff6929a8a7f94d3a44039acfa2b53da23b45122d90ea5",
+            "tag": "ProveDlog"
+          },
+          {
+            "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "h": "0243291feef442dd214505d14651e4d36bc5579980bd4653893b6ff28e6e944a4d",
+            "tag": "ProveDhTuple",
+            "u": "032f6e2facf6f1dcdbe3ce70030477e6b2401cc7fa76f8f79f75557007ffcbd0ad",
+            "v": "02b6d9886f78b8053b222f71d62b1aa5583944c447904c15afc7137d3809d7e705"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "6468742d6c617374",
+      "signature_hex": "3cc4f396f75fd0ef98fcbbe4ecf95a420cb514b93b9438881063fb85dc98d80603c11f1f4ac116c45641c1bca74394371169d78c8f60a359abaabae986989d56f8df2eb7afbd0ec5154a89ae52ba22cbd4787e2d205ad003ba1ea0e0656fa15c22aab0e25dab45d03683e72267b55e81",
+      "expected_result": true
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "description": "Cand conjecture positive fixtures (phase 2g-combinators Task 8). Cand-all-real recipe: every leaf shares root_challenge; signature is root (24) || z_1 (32) || ... || z_n (32). Includes flat 2/3/5-leaf cases, mixed dlog+dht, nested Cand-of-Cand, and a Cand-with-nested-Cor (Cor's challenge is inherited from parent Cand). Each fixture is cross-validated against sigma-rust's verify_signature before write.",
+  "entries": [
+    {
+      "name": "cand-2-dlog-empty-msg",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0216f67aa2d424c6db02ad23d9eea578f80204a7e72cc784d0e4fc01cc8e3bab4e",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "03f387a2a62487d6c6ef717029ff16d17e981348aad1891ab4820c386bbe68ef7e",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "",
+      "signature_hex": "699f8ec02cd84cedd203ae8eebc31f4137e3671037124f8015a2275d85a8fa2a80fc0dd272369338ea39f02811e012b080735e89decee4173e3e421717fcb452e82b1d13068614605426612d096448a55e62d9711ee59834",
+      "expected_result": true
+    },
+    {
+      "name": "cand-2-dlog-msg-abc",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "02663c856c49f6bf3455c701accf0ba3a3925ffbbbd8c7da196f566c86cbb45b4c",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ee1cd32f38eb03e13503b05a6dff45c7a73129cf4361a15daff1a0b65a23979a",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "616263",
+      "signature_hex": "6b822cda8f93ea4de70b79bccffe32edc7082ed7f7c561539bd302dd530656ca3fbed5462fc85c3ab2f6b81ebd1fcd60632d61edf693b7de45437c3e1e65b178ab2c3d40130e257c40d0bad46e418b9e55e917c4e3da0ee1",
+      "expected_result": true
+    },
+    {
+      "name": "cand-3-dlog",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "032a2c72901d14a44ae815970b9c994ee910b9ab55b17046f1f06f5d51e10bc1fb",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0206545f1ff490a282b6cca873477fae2eb266dcb3d8bfe664d02bc14de5912e9c",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "03fdfd6cb59e7ff790a27a88d4bfc796e96c21ac37c1c769949ff6ec16461c99a2",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "74687265652d646c6f67",
+      "signature_hex": "cc3d05f80aeab6f58b142670d2fcf734cdce7440f1e0215d5a80d01704a2d8362a8b683c5b72de0fc7efcb2f8da51c3980902af8cc32b150ee9ebf196d272502933d58122a415a54d0786ffcd89dd73c191f82bdeb474abd96ec8ceac616562d3d4e23b6d8ebc1ad43a0e619bed92166f5b9e56e02930402",
+      "expected_result": true
+    },
+    {
+      "name": "cand-5-dlog",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "03a108c3749cae5ff18da0816330c143fb960764bb92a3d15c35bcf589ec52d0c5",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "03bfb8828dfcfb5bd991e2f93b99dbc11731913a9ba3e9b79615dd840ba459201e",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "022ce9919cd75ef48ef0f269a09b1481c2df7efd09ad6e2950336773a169ee9376",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02dc249b4f516e147a872ef2a48b190ee8e3d675447f860d31247f6a0ce90139d3",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0365c95eec4aa62c67f0171a10b18a92a053ec94d0327a14fad377ba51f5543a34",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "666976652d646c6f672d6c6f6e672d6d657373616765",
+      "signature_hex": "f4be9e4cc77a3a722c5b6a7e58108b4b83801b21f7c68048699c60399d265997b6781a4f761f592727a2c62deb0c1aa639ff0de56d082e45a240f6331bff67150560076723f2d3cbcb22533c8c6d7ce5b3dcbe9e554f2b2efdad76b856610d3c2e673c229e44f757907750c29a2633112499d43d1c4bfc1615ef229fd26d6b273fb9f5e9239b7a49646059cde9bf75e07fd93ff070894e2fb647fc5700713ba3c17bef3534c7b17f53c0c5037a6a20abbbeec418560a558d",
+      "expected_result": true
+    },
+    {
+      "name": "cand-mixed-dlog-dht",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "037b5391341afd8ee1cfff41446b32616287bd4a7cf642b41a2ffd7d178193ee8f",
+            "tag": "ProveDlog"
+          },
+          {
+            "g": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "h": "03ecea7038984cb9096c1a93bf8ce8777acd42d20eb86138384ae11ab95386ada1",
+            "tag": "ProveDhTuple",
+            "u": "035acb2bdccb06e1fc4363c6fe6882e223afc56288d9f256105fce3bafc02235ee",
+            "v": "02c40843e5adfda1c9a4ffaf6ebac4f7f202b56974a1a3a90c3ee8351fa33c4cf0"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "6d69786564",
+      "signature_hex": "c52c86f177cf2f595dbd9a8b20f78edbff00dc6862ad5d733e84e0b43ca20ad30c1a5c39263338a95c4b82cc4aa0ce4ff84d6cdb4039846c32117df2a9a76288936142ed1443085742bad45ae086532e9ad6f13ab4704c67",
+      "expected_result": true
+    },
+    {
+      "name": "cand-nested-cand-of-cand",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "024ea403dfedb182ccf1343cb41046b8bbe2092ef4f217ed1c48edadf1675b5f74",
+            "tag": "ProveDlog"
+          },
+          {
+            "items": [
+              {
+                "h": "0380d6105e4e5f69ee8a488fedecc316fae401a8090c4564a4fff3b4a12062c61d",
+                "tag": "ProveDlog"
+              },
+              {
+                "h": "02b316fa0effcac9615615b1ec7679dbabc4ee031aa7086fdc9d6785957cdab378",
+                "tag": "ProveDlog"
+              }
+            ],
+            "tag": "Cand"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "",
+      "signature_hex": "bb121039effcfd5868acbb52d8fd1f271bbb9c297a70255db43ddd3b60487dd86a8f9c51931f70954f634b56be6898aa7f206ee8655a2051682d656e6daa4b16157c25c39f1902f8fe6e8ea0deb8820defeb565fc9fe0a341b2db15cc7de1b27b9a54ff2d998fba4bbe9afc32a1af3917682185a47caa44a",
+      "expected_result": true
+    },
+    {
+      "name": "cand-with-nested-cor-mixed-real-sim",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "024f485b2bbbc16ea7a46589656dfc4a24981e407186e8ee68551fedc019ebfb3f",
+            "tag": "ProveDlog"
+          },
+          {
+            "items": [
+              {
+                "h": "034a7237bf8b7f942065d4f4c45acf75d1ec2b1e5c96918ad82319afb5d2713939",
+                "tag": "ProveDlog"
+              },
+              {
+                "h": "03fe5c2dfafe60d6dd18460e0f494689156ba969fd9d4b894bc0775b1c12af8b83",
+                "tag": "ProveDlog"
+              }
+            ],
+            "tag": "Cor"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "6e65737465642d636f722d696e736964652d63616e64",
+      "signature_hex": "0d4e782b15693065e4498d684bd273606f37cff2aeeea19ec59d22fa7f658d42514397cea0a9e130e5472ddd09294e33422a5f87df9f5e3a94d7dfe0392fc6ce1ae3a7ad5170f01b5f6f38b216023b2822c48950755d4281e419f403ee51a96847be1e554e4cb55115a01d3b02a2cdf7d5afcfa99b046bbab3025fd86087dd505eea3ad2305396cf58d5ef5c540bccb5",
+      "expected_result": true
+    }
+  ]
+}

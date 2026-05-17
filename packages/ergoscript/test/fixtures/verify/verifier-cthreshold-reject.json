@@ -1,0 +1,77 @@
+{
+  "description": "Cthreshold reject fixtures: truncated, empty, zeroed-polynomial variants of a baseline 2-of-3 Cthreshold. Verifier must reject (error or false).",
+  "entries": [
+    {
+      "name": "ct-truncated-sig",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "024aae59dd27b906c775199cea634548ffe274b3269153125b21ace7f3a7f1831b",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "022e50c364f7930e55559a0f420398458b58ba910f0d4c9278076539dcc5f558b2",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0374de0a65584f033fe8bd833dd9ecbd039fa9c71a5804ae19c7d92aef2e8f3dde",
+            "tag": "ProveDlog"
+          }
+        ],
+        "k": 2,
+        "tag": "Cthreshold"
+      },
+      "message_hex": "626173656c696e652d6374",
+      "signature_hex": "51e00977d66766e2bd44e1ef03ee02557d859c62dbc3af6f49e6755327d3c6f7462382c3d342c58a297374d40c5290adace5",
+      "expected_outcome": "truncated-signature"
+    },
+    {
+      "name": "ct-empty-sig",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "024aae59dd27b906c775199cea634548ffe274b3269153125b21ace7f3a7f1831b",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "022e50c364f7930e55559a0f420398458b58ba910f0d4c9278076539dcc5f558b2",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0374de0a65584f033fe8bd833dd9ecbd039fa9c71a5804ae19c7d92aef2e8f3dde",
+            "tag": "ProveDlog"
+          }
+        ],
+        "k": 2,
+        "tag": "Cthreshold"
+      },
+      "message_hex": "626173656c696e652d6374",
+      "signature_hex": "",
+      "expected_outcome": "empty-signature"
+    },
+    {
+      "name": "ct-zeroed-polynomial",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "024aae59dd27b906c775199cea634548ffe274b3269153125b21ace7f3a7f1831b",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "022e50c364f7930e55559a0f420398458b58ba910f0d4c9278076539dcc5f558b2",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0374de0a65584f033fe8bd833dd9ecbd039fa9c71a5804ae19c7d92aef2e8f3dde",
+            "tag": "ProveDlog"
+          }
+        ],
+        "k": 2,
+        "tag": "Cthreshold"
+      },
+      "message_hex": "626173656c696e652d6374",
+      "signature_hex": "51e00977d66766e2bd44e1ef03ee02557d859c62dbc3af6f000000000000000000000000000000000000000000000000ace544c57cf8921618d2ca2315ba7f68fb0fdea48f24bfd104e12a971da905d5835ec47342925c3f75bc821ce85bbb858b3ebfa9007d709b43b373dc8008b0335f06b42a5bc7ee1cd486179009435a36ec9e907809c004e64792ce0ca5026479",
+      "expected_outcome": "returns-false"
+    }
+  ]
+}

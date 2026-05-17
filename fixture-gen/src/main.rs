@@ -227,5 +227,43 @@ fn main() -> anyhow::Result<()> {
         &cmds::ergoscript::verify::verifier_mutation::generate()?,
     )?;
 
+    // Phase 2g-combinators Task 8: Cand/Cor/Cthreshold conjecture verifier fixtures.
+    write_ergoscript_json(
+        "verify/verifier-cand.json",
+        &cmds::ergoscript::verify::verifier_cand::generate()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cand-reject.json",
+        &cmds::ergoscript::verify::verifier_cand::generate_reject()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cand-mutation.json",
+        &cmds::ergoscript::verify::verifier_cand::generate_mutation()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cor.json",
+        &cmds::ergoscript::verify::verifier_cor::generate()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cor-reject.json",
+        &cmds::ergoscript::verify::verifier_cor::generate_reject()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cor-mutation.json",
+        &cmds::ergoscript::verify::verifier_cor::generate_mutation()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cthreshold.json",
+        &cmds::ergoscript::verify::verifier_cthreshold::generate()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cthreshold-reject.json",
+        &cmds::ergoscript::verify::verifier_cthreshold::generate_reject()?,
+    )?;
+    write_ergoscript_json(
+        "verify/verifier-cthreshold-mutation.json",
+        &cmds::ergoscript::verify::verifier_cthreshold::generate_mutation()?,
+    )?;
+
     Ok(())
 }

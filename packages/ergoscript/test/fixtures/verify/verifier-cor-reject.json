@@ -1,0 +1,62 @@
+{
+  "description": "Cor reject fixtures: truncated, empty, zeroed-sim-challenge variants of a baseline Cor-2-dlog. Verifier must reject (error or false).",
+  "entries": [
+    {
+      "name": "cor-truncated-sig",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "030343c8ba300f674f9476fd4dd479d796ee614b13653ac903df0e04ee573fdffa",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0382dd56bdb9f862390a0f27612b1a3c53ede4b406ee2bde22827b252371e3b198",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "626173656c696e652d636f72",
+      "signature_hex": "573f71f47510d6b982e5be71a2a38a06fd4a066ae787d1dfbd5fe51aa1a83f492a8ec0b5a1d2a17a",
+      "expected_outcome": "truncated-signature"
+    },
+    {
+      "name": "cor-empty-sig",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "030343c8ba300f674f9476fd4dd479d796ee614b13653ac903df0e04ee573fdffa",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0382dd56bdb9f862390a0f27612b1a3c53ede4b406ee2bde22827b252371e3b198",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "626173656c696e652d636f72",
+      "signature_hex": "",
+      "expected_outcome": "empty-signature"
+    },
+    {
+      "name": "cor-zeroed-sim-challenge",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "030343c8ba300f674f9476fd4dd479d796ee614b13653ac903df0e04ee573fdffa",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0382dd56bdb9f862390a0f27612b1a3c53ede4b406ee2bde22827b252371e3b198",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cor"
+      },
+      "message_hex": "626173656c696e652d636f72",
+      "signature_hex": "573f71f47510d6b982e5be71a2a38a06fd4a066ae787d1df0000000000000000000000000000000000000000000000000f2f26af8453b330f5b213ea7262614780ac2d417de8061c8741bf2ee6f5c7eabf85be2d39a46c2066a69a0362137471e0cad352c8bbb857d2f90f862f73405b",
+      "expected_outcome": "returns-false"
+    }
+  ]
+}

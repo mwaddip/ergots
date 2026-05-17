@@ -1,0 +1,62 @@
+{
+  "description": "Cand reject fixtures: malformed (truncated, empty) and wrong-but-valid-shaped (swapped z) Cand-2-dlog signatures. The verifier must reject each one (either by typed error or by returning false).",
+  "entries": [
+    {
+      "name": "cand-truncated-sig",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "signature_hex": "1108999a447d97702fde",
+      "expected_outcome": "truncated-signature"
+    },
+    {
+      "name": "cand-empty-sig",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "signature_hex": "",
+      "expected_outcome": "empty-signature"
+    },
+    {
+      "name": "cand-swapped-z-values",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223d14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382e",
+      "expected_outcome": "returns-false"
+    }
+  ]
+}

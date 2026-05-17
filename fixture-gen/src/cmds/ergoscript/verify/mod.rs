@@ -28,3 +28,9 @@
 pub mod verifier_positive;
 pub mod verifier_reject;
 pub mod verifier_mutation;
+
+// Phase 2g-combinators Task 8: Cand/Cor/Cthreshold conjecture fixtures.
+pub mod verifier_cand;
+pub mod verifier_conj_common;
+pub mod verifier_cor;
+pub mod verifier_cthreshold;

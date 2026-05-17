@@ -1,0 +1,1766 @@
+{
+  "description": "Cand byte-flip mutation fixtures: 88 single-byte mutations of a baseline Cand-2-dlog signature. The verifier must return false or throw VerifyError on every entry; returning true is a vulnerability.",
+  "baseline_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+  "entries": [
+    {
+      "name": "cand-flip-byte-00",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "ee08999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 0,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-01",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "11f7999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 1,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-02",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108669a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 2,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-03",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "11089965447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 3,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-04",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999abb7d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 4,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-05",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a448297702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 5,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-06",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d68702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 6,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-07",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d978f2fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 7,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-08",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d9770d0dea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 8,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-09",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702f21a3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 9,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-10",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fde5cc269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 10,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-11",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea33d69c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 11,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-12",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c296c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 12,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-13",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c2693891ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 13,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-14",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c76eea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 14,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-15",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c79115735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 15,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-16",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea8c5a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 16,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-17",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea73a582f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 17,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-18",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a7df58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 18,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-19",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a820a8d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 19,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-20",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f572901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 20,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-21",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d6f1223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 21,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-22",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d90ed23eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 22,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-23",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d9012dceae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 23,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-24",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d90122315e77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 24,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-25",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223ea187a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 25,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-26",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae78570bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 26,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-27",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a8fbc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 27,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-28",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70437e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 28,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-29",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc8143fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 29,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-30",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7ebcfcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 30,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-31",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e4303bba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 31,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-32",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fc44a2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 32,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-33",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbb5dbf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 33,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-34",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba24038a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 34,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-35",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bfc7a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 35,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-36",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf3857c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 36,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-37",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a83ef352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 37,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-38",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c10c52453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 38,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-39",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f3ad453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 39,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-40",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352ba3b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 40,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-41",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f35245c47052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 41,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-42",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b8f52b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 42,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-43",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b70adb957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 43,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-44",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b70524657784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 44,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-45",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b9a8784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 45,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-46",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957874989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 46,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-47",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b95778b689f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 47,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-48",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784976f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 48,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-49",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b9577849890958a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 49,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-50",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f6a7a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 50,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-51",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f6585bf59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 51,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-52",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a40a9e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 52,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-53",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f561382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 53,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-54",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59ec72ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 54,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-55",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e38d1d14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 55,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-56",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382e2e4f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 56,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-57",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed1b033b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 57,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-58",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14fccb17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 58,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-59",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f334e7b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 59,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-60",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b1842ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 60,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-61",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17bd1a71e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 61,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-62",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2e581e912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 62,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-63",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea7e1912a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 63,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-64",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e6e2a321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 64,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-65",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e91d5321e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 65,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-66",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912acd1e4762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 66,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-67",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a32e14762b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 67,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-68",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321eb862b145b02139dddb62b052416836601e856e79",
+      "flip_offset": 68,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-69",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e479db145b02139dddb62b052416836601e856e79",
+      "flip_offset": 69,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-70",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e47624e45b02139dddb62b052416836601e856e79",
+      "flip_offset": 70,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-71",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b1bab02139dddb62b052416836601e856e79",
+      "flip_offset": 71,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-72",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b1454f2139dddb62b052416836601e856e79",
+      "flip_offset": 72,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-73",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b0de39dddb62b052416836601e856e79",
+      "flip_offset": 73,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-74",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b021c6dddb62b052416836601e856e79",
+      "flip_offset": 74,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-75",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b0213922db62b052416836601e856e79",
+      "flip_offset": 75,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-76",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dd2462b052416836601e856e79",
+      "flip_offset": 76,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-77",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb9db052416836601e856e79",
+      "flip_offset": 77,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-78",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb624f52416836601e856e79",
+      "flip_offset": 78,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-79",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b0ad416836601e856e79",
+      "flip_offset": 79,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-80",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052be6836601e856e79",
+      "flip_offset": 80,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-81",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052419736601e856e79",
+      "flip_offset": 81,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-82",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b0524168c9601e856e79",
+      "flip_offset": 82,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-83",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b0524168369f1e856e79",
+      "flip_offset": 83,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-84",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b05241683660e1856e79",
+      "flip_offset": 84,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-85",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e7a6e79",
+      "flip_offset": 85,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-86",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e859179",
+      "flip_offset": 86,
+      "expected_outcome": "false-or-error"
+    },
+    {
+      "name": "cand-flip-byte-87",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "0396f27f497b79b44aaaaeaf8c96c67cdd0d431558aeb588d40cf84c5806af230f",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "02ba96c47d9db5f03a9a013e68d54e464ee1993c355b6df9633fa687ca1e4b6581",
+            "tag": "ProveDlog"
+          }
+        ],
+        "tag": "Cand"
+      },
+      "message_hex": "626173656c696e65",
+      "mutated_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e86",
+      "flip_offset": 87,
+      "expected_outcome": "false-or-error"
+    }
+  ]
+}
