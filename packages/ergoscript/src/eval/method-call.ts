@@ -13,10 +13,10 @@
  * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
  *                                  also reused for defensive shape mismatches in registered handlers.
+ *   'context-obj-not-context'   — thrown by the SContext.dataInputs handler when obj is not Context.
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
- *   'context-obj-not-context'   — will be thrown by the SContext handler (Task 5, not yet registered).
  */
 
 import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'
@@ -27,10 +27,12 @@ import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
 
-// Module-level SType singletons for tokensCollOf return type:
-// Coll[STuple[SColl[Byte], Long]] — matches sigma-rust sbox.rs:TOKENS_EVAL_FN tpe.
+// Module-level SType singletons used in handler helpers.
+// Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
+// SBox — element type for dataInputsCollOf.
 const SLONG: SType = { tag: 'SLong' }
 const STUPLE_COLLBYTE_LONG: SType = { tag: 'STuple', items: [SCOLL_BYTE, SLONG] }
+const SBOX: SType = { tag: 'SBox' }
 
 type MethodHandler = (
   obj: SValue,
@@ -92,6 +94,20 @@ function registerHandlers(): void {
     }
     return tokensCollOf(obj.value)
   })
+
+  // SContext.dataInputs (PropertyCall, typeId=101, methodId=1)
+  // Source: ergotree-interpreter/src/eval/scontext.rs:17-31 — DATA_INPUTS_EVAL_FN
+  // Cost 15 (Pattern A within handler). Returns Coll[Box] from ctx.dataInputs ?? [].
+  HANDLERS.set(handlerKey(101, 1), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.dataInputs expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context'
+      )
+    }
+    return dataInputsCollOf(ctx.dataInputs ?? [])
+  })
 }
 
 registerHandlers()
@@ -107,5 +123,16 @@ function tokensCollOf(box: ErgoBox): SValue {
       kind: 'Tuple',
       items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: t.amount }],
     })),
+  }
+}
+
+// ---------- SContext.dataInputs helper ----------
+
+/** Convert an ErgoBox[] to a Coll[Box] SValue. */
+function dataInputsCollOf(boxes: ErgoBox[]): SValue {
+  return {
+    kind: 'Coll',
+    elem: SBOX,
+    items: boxes.map((b) => ({ kind: 'Box', value: b })),
   }
 }

@@ -1,10 +1,11 @@
 /**
- * Layer C1 — `MethodCall` + `PropertyCall` dispatcher + SBox.tokens handler.
+ * Layer C1 — `MethodCall` + `PropertyCall` dispatcher + SBox.tokens + SContext.dataInputs handlers.
  *
  * Task 3: dispatcher + registry with ZERO registered handlers (cost + unknown-pair throw).
  * Task 4: SBox.tokens handler (typeId=99, methodId=8) — fixture-driven C1 tests.
+ * Task 5: SContext.dataInputs handler (typeId=101, methodId=1) — fixture-driven C1 tests.
  *
- * Source: ergotree-interpreter/src/eval/{method_call,property_call,sbox}.rs
+ * Source: ergotree-interpreter/src/eval/{method_call,property_call,sbox,scontext}.rs
  */
 
 import fs from 'node:fs'
@@ -94,7 +95,7 @@ describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
   })
 })
 
-describe('method-call fixture entries (Task 4: SBox.tokens)', () => {
+describe('method-call fixture entries (Tasks 4-5: SBox.tokens + SContext.dataInputs)', () => {
   for (const entry of fixture.entries) {
     it(entry.name, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
@@ -104,11 +105,14 @@ describe('method-call fixture entries (Task 4: SBox.tokens)', () => {
           amount: BigInt(t.amount),
         })),
       })
+      const dataInputsCount = entry.ctx?.data_inputs_count ?? 0
+      const dataInputs = Array.from({ length: dataInputsCount }, () => synthesizeStubBox({}))
       const ctx = makeContext({
         constants: tree.constants,
         selfBox: stubBox,
         inputs: [stubBox],
         outputs: [stubBox],
+        dataInputs,
       })
       const value = evaluateWith(tree, ctx)
       expect(value).toEqual(hydrateSValue(entry.expected_value_json))

@@ -1,14 +1,19 @@
 //! Method-call dispatcher fixtures — phase 2g.5 Tasks 4, 5, 6.
 //!
-//! Task 4 (this file's initial population): SBox.tokens handler.
+//! Task 4 (SBox.tokens handler):
 //!   PropertyCall typeId=99, methodId=8. Cost 15 (Pattern A within handler).
 //!   Returns Coll[(Coll[Byte], Long)] from self_box.tokens.
 //!   Source: ergotree-interpreter/src/eval/sbox.rs:72-79 — TOKENS_EVAL_FN.
+//!   Three sub-cases: 0 tokens, 1 token, 2 tokens.
 //!
-//! Three sub-cases: 0 tokens, 1 token, 2 tokens.
+//! Task 5 (SContext.dataInputs handler):
+//!   PropertyCall typeId=101, methodId=1. Cost 15 (Pattern A within handler).
+//!   Returns Coll[Box] from ctx.data_inputs.
+//!   Source: ergotree-interpreter/src/eval/scontext.rs:17-31 — DATA_INPUTS_EVAL_FN.
+//!   Two sub-cases: 0 data-inputs, 2 data-inputs.
 //!
-//! Each entry includes a `ctx` field hint so the TS test knows which stub box
-//! to synthesize (token ids + amounts as deterministic, hex-encoded values).
+//! Each entry includes a `ctx` field hint so the TS test knows how to
+//! synthesize the evaluation context.
 
 use core::cell::Cell;
 
@@ -26,6 +31,7 @@ use ergotree_ir::mir::global_vars::GlobalVars;
 use ergotree_ir::mir::property_call::PropertyCall;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::types::sbox;
+use ergotree_ir::types::scontext;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use sigma_ser::ScorexSerializable;
@@ -154,6 +160,59 @@ fn tokens_property_call_tree() -> anyhow::Result<(ErgoTree, String)> {
     Ok((tree, hex))
 }
 
+/// Build a controlled Context where self_box has tokens and data_inputs has
+/// `data_inputs_count` deterministic stub boxes (no tokens, value=1_000_000).
+fn controlled_context_with_data_inputs(
+    self_box: &'static ErgoBox,
+    data_input_boxes: Vec<&'static ErgoBox>,
+) -> Context<'static> {
+    let gen_bytes = hex::decode(
+        "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+    )
+    .expect("decode gen bytes");
+    let miner_pk: EcPoint = EcPoint::scorex_parse_bytes(&gen_bytes).expect("parse gen point");
+
+    let base_ctx = force_any_val::<Context<'static>>();
+    let pre_header = PreHeader {
+        version: 1,
+        parent_id: BlockId(Digest32::zero()),
+        timestamp: 1_700_000_000_000u64,
+        n_bits: 0x1d00ffff,
+        height: 1,
+        miner_pk: Box::new(miner_pk),
+        votes: Votes([0, 0, 0]),
+    };
+
+    let ext: &'static ContextExtension = Box::leak(Box::new(ContextExtension::empty()));
+    let ext_provider: &'static SimpleExtProvider =
+        Box::leak(Box::new(SimpleExtProvider(ContextExtension::empty())));
+
+    let data_inputs_opt = if data_input_boxes.is_empty() {
+        None
+    } else {
+        Some(
+            ergotree_ir::chain::context::TxIoVec::from_vec(data_input_boxes)
+                .expect("data_inputs TxIoVec"),
+        )
+    };
+
+    Context {
+        height: 1,
+        self_box,
+        outputs: std::slice::from_ref(self_box),
+        data_inputs: data_inputs_opt,
+        inputs: vec![self_box].try_into().expect("inputs TxIoVec"),
+        pre_header,
+        headers: base_ctx.headers,
+        extension: ext,
+        tree_version: Cell::new(ErgoTreeVersion::V0),
+        extension_provider: ext_provider,
+        jit_cost: Cell::new(0),
+        jit_cost_limit: None,
+        constants: None,
+    }
+}
+
 fn sbox_tokens_entry(name: &str, tokens: Vec<Token>) -> anyhow::Result<MethodCallEntry> {
     let (tree, tree_bytes_hex) = tokens_property_call_tree()?;
 
@@ -184,6 +243,45 @@ fn sbox_tokens_entry(name: &str, tokens: Vec<Token>) -> anyhow::Result<MethodCal
     })
 }
 
+/// Build a SContext.dataInputs PropertyCall tree (PropertyCall on Expr::Context).
+fn data_inputs_property_call_tree() -> anyhow::Result<(ErgoTree, String)> {
+    let pc: Expr =
+        PropertyCall::new(Expr::Context, scontext::DATA_INPUTS_PROPERTY.clone())?.into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &pc)?;
+    let hex = hex::encode(tree.sigma_serialize_bytes()?);
+    Ok((tree, hex))
+}
+
+fn scontext_data_inputs_entry(
+    name: &str,
+    data_inputs_count: usize,
+) -> anyhow::Result<MethodCallEntry> {
+    let (tree, tree_bytes_hex) = data_inputs_property_call_tree()?;
+
+    // Build `data_inputs_count` deterministic stub boxes (empty tokens, value=1_000_000).
+    let data_input_boxes: Vec<&'static ErgoBox> = (0..data_inputs_count)
+        .map(|_| {
+            let b: &'static ErgoBox = Box::leak(Box::new(box_with_tokens(vec![])));
+            b
+        })
+        .collect();
+
+    let self_box: &'static ErgoBox = Box::leak(Box::new(box_with_tokens(vec![])));
+    let ctx = controlled_context_with_data_inputs(self_box, data_input_boxes);
+
+    let val: ergotree_ir::mir::value::Value<'static> =
+        try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+
+    Ok(MethodCallEntry {
+        name: name.to_string(),
+        tree_bytes_hex,
+        ctx: json!({ "data_inputs_count": data_inputs_count }),
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    })
+}
+
 pub fn generate() -> anyhow::Result<MethodCallFixture> {
     let mut entries = Vec::new();
 
@@ -198,8 +296,12 @@ pub fn generate() -> anyhow::Result<MethodCallFixture> {
         vec![make_token(0x01, 100), make_token(0x02, 200)],
     )?);
 
+    // SContext.dataInputs — two sub-cases: 0 data-inputs, 2 data-inputs.
+    entries.push(scontext_data_inputs_entry("scontext_data_inputs_empty", 0)?);
+    entries.push(scontext_data_inputs_entry("scontext_data_inputs_2_boxes", 2)?);
+
     Ok(MethodCallFixture {
-        description: "MethodCall/PropertyCall dispatcher + SBox.tokens handler (phase 2g.5 Tasks 4-6). PropertyCall typeId=99, methodId=8. Source: eval/sbox.rs:72-79.",
+        description: "MethodCall/PropertyCall dispatcher + SBox.tokens + SContext.dataInputs handlers (phase 2g.5 Tasks 4-5). Sources: eval/sbox.rs:72-79, eval/scontext.rs:17-31.",
         entries,
     })
 }

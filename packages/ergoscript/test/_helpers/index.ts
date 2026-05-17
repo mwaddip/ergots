@@ -172,8 +172,12 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
 /**
  * Construct a minimal ErgoBox SValue for use in fixture-driven tests.
  *
- * Provides sensible zero-value defaults for all required fields. Pass
- * `opts.tokens` to override the token list (Tasks 4-7 use this to drive
+ * `ergoTreeBytes` matches the Rust fixture-gen's `minimal_ergo_tree()`:
+ *   ErgoTreeHeader::v1(false) + Const(true) → `09020101`
+ * This ensures byte-for-byte equality with sigma-rust's stub boxes in
+ * `expected_value_json` fixtures (e.g. SContext.dataInputs entries).
+ *
+ * Pass `opts.tokens` to override the token list (Tasks 4-7 use this to drive
  * SBox.tokens fixture entries with 0, 1, and 2 tokens).
  *
  * Required fields per `mir/types.ts:ErgoBox`:
@@ -182,7 +186,7 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
 export function synthesizeStubBox(opts?: { tokens?: { id: Uint8Array; amount: bigint }[] }): ErgoBox {
   return {
     value: 1_000_000n,
-    ergoTreeBytes: new Uint8Array(),
+    ergoTreeBytes: hexToBytes('09020101'), // minimal_ergo_tree() = v1(false) + Const(true)
     registers: {},
     tokens: opts?.tokens ?? [],
     creationHeight: 0,

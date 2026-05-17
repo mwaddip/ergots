@@ -51,6 +51,13 @@ export interface EvalOpts {
   preHeader?: PreHeader
   /** Context-extension key-value map. GetVar reads .values[varId]. */
   extension?: ContextExtension
+  /**
+   * Transaction data-inputs (read-only boxes). Mirrors sigma-rust
+   * `Context::data_inputs` (`ergotree-ir/src/chain/context.rs`).
+   * SContext.dataInputs (PropertyCall typeId=101, methodId=1) reads this.
+   * `undefined` treated as empty (matches sigma-rust `map_or(Arc::new([]), ...)`).
+   */
+  dataInputs?: ErgoBox[]
 }
 
 export interface EvalContext extends EvalOpts {
@@ -83,6 +90,7 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     outputs: opts.outputs,
     preHeader: opts.preHeader,
     extension: opts.extension,
+    dataInputs: opts.dataInputs,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {

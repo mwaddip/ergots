@@ -1,5 +1,5 @@
 {
-  "description": "MethodCall/PropertyCall dispatcher + SBox.tokens handler (phase 2g.5 Tasks 4-6). PropertyCall typeId=99, methodId=8. Source: eval/sbox.rs:72-79.",
+  "description": "MethodCall/PropertyCall dispatcher + SBox.tokens + SContext.dataInputs handlers (phase 2g.5 Tasks 4-5). Sources: eval/sbox.rs:72-79, eval/scontext.rs:17-31.",
   "entries": [
     {
       "name": "sbox_tokens_empty",
@@ -529,6 +529,61 @@
         "kind": "Coll"
       },
       "expected_cost": 29
+    },
+    {
+      "name": "scontext_data_inputs_empty",
+      "tree_bytes_hex": "00db6501fe",
+      "ctx": {
+        "data_inputs_count": 0
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBox"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 20
+    },
+    {
+      "name": "scontext_data_inputs_2_boxes",
+      "tree_bytes_hex": "00db6501fe",
+      "ctx": {
+        "data_inputs_count": 2
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBox"
+        },
+        "items": [
+          {
+            "kind": "Box",
+            "value": {
+              "creation_height": 0,
+              "ergo_tree_bytes_hex": "09020101",
+              "index": 0,
+              "registers": {},
+              "tokens": [],
+              "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+              "value_nanoerg": "1000000"
+            }
+          },
+          {
+            "kind": "Box",
+            "value": {
+              "creation_height": 0,
+              "ergo_tree_bytes_hex": "09020101",
+              "index": 0,
+              "registers": {},
+              "tokens": [],
+              "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+              "value_nanoerg": "1000000"
+            }
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 20
     }
   ]
 }
