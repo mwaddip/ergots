@@ -210,8 +210,8 @@ export type EvalErrorCode =
   | 'atleast-bound-out-of-range'
 
   // -------------------------------------------------------------------------
-  // Phase 2g.5 — method-call dispatch + SigmaPropBytes (1 new code)
-  // Total taxonomy: 40 → 41.
+  // Phase 2g.5 — method-call dispatch + SigmaPropBytes (2 new codes)
+  // Total taxonomy: 40 → 42.
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropBytes`: input expression evaluated to a non-SigmaProp SValue.
@@ -222,3 +222,15 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/sigma_prop_bytes.rs:18-23
    */
   | 'sigma-prop-bytes-input-not-sigma-prop'
+  /**
+   * `MethodCall` / `PropertyCall` dispatcher: the `(typeId, methodId)` pair
+   * has no registered handler in the HANDLERS registry. Also reused for
+   * defensive shape mismatches inside registered handlers (e.g., obj.kind
+   * doesn't match what the handler expects). Option 1 of the error-taxonomy
+   * decision in the design spec (compact taxonomy; revisit if any defensive
+   * throw becomes externally-meaningful).
+   *
+   * Source: ergotree-interpreter/src/eval/method_call.rs:17,
+   *         ergotree-interpreter/src/eval/property_call.rs:16
+   */
+  | 'method-not-implemented'

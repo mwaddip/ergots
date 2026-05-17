@@ -54,6 +54,7 @@ import { evalExtractScriptBytes } from './extract-script-bytes'
 import { evalFuncValue } from './func-value'
 import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
+import { evalMethodCall, evalPropertyCall } from './method-call'
 import { evalNegation } from './negation'
 import { evalOr } from './or'
 import { evalSelectField } from './select-field'
@@ -114,6 +115,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalNegation(e, env, ctx)
     case 'Or':
       return evalOr(e, env, ctx)
+    case 'PropertyCall':
+      return evalPropertyCall(e, env, ctx)
     case 'Upcast':
       return evalUpcast(e, env, ctx)
     case 'Downcast':
@@ -148,6 +151,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalGlobalVars(e, env, ctx)
     case 'Map':
       return evalMap(e, env, ctx)
+    case 'MethodCall':
+      return evalMethodCall(e, env, ctx)
     case 'OptionGet':
       return evalOptionGet(e, env, ctx)
     case 'OptionGetOrElse':
