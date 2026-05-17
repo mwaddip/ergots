@@ -26,6 +26,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
+import { primitiveValueEqual } from './bin-op/relation'
 
 // Module-level SType singletons used in handler helpers.
 // Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
@@ -107,6 +108,39 @@ function registerHandlers(): void {
       )
     }
     return dataInputsCollOf(ctx.dataInputs ?? [])
+  })
+
+  // SColl.indexOf (MethodCall, typeId=12, methodId=26)
+  // Source: ergotree-interpreter/src/eval/scoll.rs:21-50 — INDEX_OF_EVAL_FN
+  // Pattern B cost: addPerItemCost(20, 10, 2, n) AFTER extracting Coll, BEFORE search.
+  // 'from < 0' clamped to 0. Returns Int index or -1.
+  HANDLERS.set(handlerKey(12, 26), (obj, args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.indexOf expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy (option 1)
+      )
+    }
+    const n = obj.items.length
+    ctx.addPerItemCost(20, 10, 2, n) // Pattern B; source: scoll.rs:31
+    if (args.length !== 2) {
+      throw new EvalError(
+        `SColl.indexOf expects 2 args; got ${args.length}`,
+        'method-not-implemented'
+      )
+    }
+    const [target, fromArg] = args as [SValue, SValue]
+    if (fromArg!.kind !== 'Int') {
+      throw new EvalError(
+        `SColl.indexOf expects 'from' to be Int; got '${fromArg!.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    const from = Math.max(0, (fromArg as Extract<SValue, { kind: 'Int' }>).value)
+    for (let i = from; i < n; i++) {
+      if (primitiveValueEqual(obj.items[i]!, target!)) return { kind: 'Int', value: i }
+    }
+    return { kind: 'Int', value: -1 }
   })
 }
 

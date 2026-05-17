@@ -1,5 +1,5 @@
 {
-  "description": "MethodCall/PropertyCall dispatcher + SBox.tokens + SContext.dataInputs handlers (phase 2g.5 Tasks 4-5). Sources: eval/sbox.rs:72-79, eval/scontext.rs:17-31.",
+  "description": "MethodCall/PropertyCall dispatcher + SBox.tokens + SContext.dataInputs + SColl.indexOf handlers (phase 2g.5 Tasks 4-6). Sources: eval/sbox.rs:72-79, eval/scontext.rs:17-31, eval/scoll.rs:21-50.",
   "entries": [
     {
       "name": "sbox_tokens_empty",
@@ -584,6 +584,56 @@
         "kind": "Coll"
       },
       "expected_cost": 20
+    },
+    {
+      "name": "scoll_index_of_found",
+      "tree_bytes_hex": "00dc0c1a11030204060205040400",
+      "ctx": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 59
+    },
+    {
+      "name": "scoll_index_of_found_from_1",
+      "tree_bytes_hex": "00dc0c1a11030204060205040402",
+      "ctx": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 59
+    },
+    {
+      "name": "scoll_index_of_not_found_after_from",
+      "tree_bytes_hex": "00dc0c1a11030204060205040404",
+      "ctx": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -1
+      },
+      "expected_cost": 59
+    },
+    {
+      "name": "scoll_index_of_clamped_from_neg",
+      "tree_bytes_hex": "00dc0c1a11030204060205040409",
+      "ctx": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 59
+    },
+    {
+      "name": "scoll_index_of_not_found",
+      "tree_bytes_hex": "00dc0c1a11030204060205c6010400",
+      "ctx": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -1
+      },
+      "expected_cost": 59
     }
   ]
 }

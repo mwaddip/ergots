@@ -282,6 +282,59 @@ fn scontext_data_inputs_entry(
     })
 }
 
+/// Build a `SColl.indexOf` MethodCall expression:
+///   `coll_values.indexOf(target, from)` where coll_values is a `Coll[Long]`.
+///
+/// Uses `MethodCall::new` with `INDEX_OF_METHOD.clone().with_concrete_types`
+/// to fill the T type variable with SLong, exactly as in sigma-rust's test
+/// `eval_index_of` (scoll.rs:448-458).
+fn scoll_index_of_entry(
+    name: &str,
+    coll_values: &[i64],
+    target: i64,
+    from: i32,
+) -> anyhow::Result<MethodCallEntry> {
+    use ergotree_ir::mir::method_call::MethodCall;
+    use ergotree_ir::types::scoll;
+    use ergotree_ir::types::stype::SType;
+    use ergotree_ir::types::stype_param::STypeVar;
+
+    // Build Coll[Long] constant from the slice.
+    let coll_const: ergotree_ir::mir::constant::Constant = coll_values.to_vec().into();
+    let coll_expr: Expr = coll_const.into();
+
+    let target_expr: Expr = ergotree_ir::mir::constant::Constant::from(target).into();
+    let from_expr: Expr = ergotree_ir::mir::constant::Constant::from(from).into();
+
+    let mc_expr: Expr = MethodCall::new(
+        coll_expr,
+        scoll::INDEX_OF_METHOD
+            .clone()
+            .with_concrete_types(&[(STypeVar::t(), SType::SLong)].iter().cloned().collect()),
+        vec![target_expr, from_expr],
+    )?
+    .into();
+
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &mc_expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+    // Use a minimal controlled context (no tokens / data_inputs needed for indexOf).
+    let self_box: &'static ErgoBox = Box::leak(Box::new(box_with_tokens(vec![])));
+    let ctx = controlled_context(self_box);
+
+    let val: ergotree_ir::mir::value::Value<'static> =
+        try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+
+    Ok(MethodCallEntry {
+        name: name.to_string(),
+        tree_bytes_hex,
+        ctx: json!({}),
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    })
+}
+
 pub fn generate() -> anyhow::Result<MethodCallFixture> {
     let mut entries = Vec::new();
 
@@ -300,8 +353,40 @@ pub fn generate() -> anyhow::Result<MethodCallFixture> {
     entries.push(scontext_data_inputs_entry("scontext_data_inputs_empty", 0)?);
     entries.push(scontext_data_inputs_entry("scontext_data_inputs_2_boxes", 2)?);
 
+    // SColl.indexOf — five sub-cases (scoll.rs:21-50; source: eval_index_of test).
+    // [1L, 2L, 3L].indexOf(2L, 0)  → 1  (found at first search position)
+    entries.push(scoll_index_of_entry("scoll_index_of_found", &[1i64, 2, 3], 2, 0)?);
+    // [1L, 2L, 3L].indexOf(2L, 1)  → 1  (found when starting from index 1)
+    entries.push(scoll_index_of_entry(
+        "scoll_index_of_found_from_1",
+        &[1i64, 2, 3],
+        2,
+        1,
+    )?);
+    // [1L, 2L, 3L].indexOf(2L, 2)  → -1 (target before 'from'; not found)
+    entries.push(scoll_index_of_entry(
+        "scoll_index_of_not_found_after_from",
+        &[1i64, 2, 3],
+        2,
+        2,
+    )?);
+    // [1L, 2L, 3L].indexOf(2L, -5) → 1  (negative 'from' clamped to 0)
+    entries.push(scoll_index_of_entry(
+        "scoll_index_of_clamped_from_neg",
+        &[1i64, 2, 3],
+        2,
+        -5,
+    )?);
+    // [1L, 2L, 3L].indexOf(99L, 0) → -1 (target not in coll)
+    entries.push(scoll_index_of_entry(
+        "scoll_index_of_not_found",
+        &[1i64, 2, 3],
+        99,
+        0,
+    )?);
+
     Ok(MethodCallFixture {
-        description: "MethodCall/PropertyCall dispatcher + SBox.tokens + SContext.dataInputs handlers (phase 2g.5 Tasks 4-5). Sources: eval/sbox.rs:72-79, eval/scontext.rs:17-31.",
+        description: "MethodCall/PropertyCall dispatcher + SBox.tokens + SContext.dataInputs + SColl.indexOf handlers (phase 2g.5 Tasks 4-6). Sources: eval/sbox.rs:72-79, eval/scontext.rs:17-31, eval/scoll.rs:21-50.",
         entries,
     })
 }

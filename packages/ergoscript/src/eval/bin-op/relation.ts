@@ -347,8 +347,12 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
  * Note: sigma-rust uses `Ok(lv == rv)` for the whole Coll after bulk cost
  * — meaning it doesn't recurse into eq_with_cost per element but uses Rust's
  * structural PartialEq. We mirror this by doing plain value comparison here.
+ *
+ * This function is also exported for use by SColl.indexOf, which uses `==`
+ * (PartialEq) directly in sigma-rust, not `eq_with_cost` — so no cost is
+ * charged per comparison in the search loop.
  */
-function primitiveValueEqual(a: SValue, b: SValue): boolean {
+export function primitiveValueEqual(a: SValue, b: SValue): boolean {
   if (a.kind !== b.kind) return false
   switch (a.kind) {
     case 'Boolean': return a.value === (b as typeof a).value
