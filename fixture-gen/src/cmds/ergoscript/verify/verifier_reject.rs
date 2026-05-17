@@ -1,17 +1,18 @@
-//! V1 reject + malformed verifier fixtures (phase 2g-medium Task 6).
+//! V1 reject + malformed verifier fixtures (phase 2g-medium Task 6, updated 2g-combinators Task 9).
 //!
 //! Covers:
 //!   - TrivialProp(true)  + arbitrary sig → returns true (short-circuit, sig ignored)
 //!   - TrivialProp(false) + arbitrary sig → returns false (short-circuit, sig ignored)
-//!   - Cand input                         → throws 'conjecture-not-implemented'
-//!   - Cor input                          → throws 'conjecture-not-implemented'
-//!   - Cthreshold input                   → throws 'conjecture-not-implemented'
 //!   - Empty signature on ProveDlog       → throws 'empty-signature'
 //!   - Truncated signature (10 of 56)     → throws 'truncated-signature'
 //!
 //! TrivialProp short-circuit per verifier.rs:96-98 ignores the signature.
-//! Conjecture rejection is the verifier's 2g-medium contract (deferred to
-//! 2g-combinators).
+//!
+//! As of phase 2g-combinators (Task 9), the verifier handles Cand/Cor/Cthreshold
+//! natively; the prior "Cand/Cor/Cthreshold → conjecture-not-implemented"
+//! entries have been removed from this fixture. Conjecture-specific reject
+//! coverage now lives in verifier-cand-reject.json / verifier-cor-reject.json /
+//! verifier-cthreshold-reject.json (Task 8 fixtures).
 //!
 //! Source: ergotree-interpreter/src/sigma_protocol/verifier.rs:91-111
 
@@ -19,14 +20,19 @@ use crate::cmds::ergoscript::verify::verifier_positive::build_baseline_triple;
 use crate::cmds::ergoscript::wire::sigma_boolean_variants::sigma_boolean_to_json;
 use anyhow::Result;
 use ergo_chain_types::ec_point::generator;
-use ergotree_ir::sigma_protocol::sigma_boolean::cand::Cand;
-use ergotree_ir::sigma_protocol::sigma_boolean::cor::Cor;
-use ergotree_ir::sigma_protocol::sigma_boolean::cthreshold::Cthreshold;
 use ergotree_ir::sigma_protocol::sigma_boolean::{
-    ProveDlog, SigmaBoolean, SigmaConjecture, SigmaConjectureItems, SigmaProofOfKnowledgeTree,
+    ProveDlog, SigmaBoolean, SigmaProofOfKnowledgeTree,
 };
 use serde::Serialize;
 use serde_json::Value as JsonValue;
+
+/// Concrete ProveDlog at the secp256k1 generator — used as the leaf in the
+/// empty/truncated reject entries. (No conjecture nesting needed in 2g-combinators.)
+fn dlog_leaf() -> SigmaBoolean {
+    SigmaBoolean::ProofOfKnowledge(SigmaProofOfKnowledgeTree::ProveDlog(ProveDlog::new(
+        generator(),
+    )))
+}
 
 #[derive(Serialize)]
 pub struct RejectEntry {
@@ -35,8 +41,7 @@ pub struct RejectEntry {
     pub message_hex: String,
     pub signature_hex: String,
     /// One of: 'returns-true', 'returns-false', or a VerifyError code
-    /// like 'conjecture-not-implemented' / 'empty-signature' /
-    /// 'truncated-signature'.
+    /// like 'empty-signature' / 'truncated-signature'.
     pub expected_outcome: String,
 }
 
@@ -44,34 +49,6 @@ pub struct RejectEntry {
 pub struct RejectFixture {
     pub description: &'static str,
     pub entries: Vec<RejectEntry>,
-}
-
-fn dlog_leaf() -> SigmaBoolean {
-    // A concrete ProveDlog (secp256k1 generator) — we only need a structurally
-    // valid leaf to nest inside conjectures.
-    SigmaBoolean::ProofOfKnowledge(SigmaProofOfKnowledgeTree::ProveDlog(ProveDlog::new(
-        generator(),
-    )))
-}
-
-fn dlog_leaf_alt() -> SigmaBoolean {
-    // A second leaf that compares non-equal to dlog_leaf() so SigmaConjectureItems
-    // dedup-aware constructors (where present) treat them as distinct.
-    use ergo_chain_types::ec_point::exponentiate_gen;
-    use k256::Scalar;
-    let two = Scalar::from(2u64);
-    SigmaBoolean::ProofOfKnowledge(SigmaProofOfKnowledgeTree::ProveDlog(ProveDlog::new(
-        exponentiate_gen(&two),
-    )))
-}
-
-fn dlog_leaf_third() -> SigmaBoolean {
-    use ergo_chain_types::ec_point::exponentiate_gen;
-    use k256::Scalar;
-    let three = Scalar::from(3u64);
-    SigmaBoolean::ProofOfKnowledge(SigmaProofOfKnowledgeTree::ProveDlog(ProveDlog::new(
-        exponentiate_gen(&three),
-    )))
 }
 
 pub fn generate() -> Result<RejectFixture> {
@@ -99,48 +76,13 @@ pub fn generate() -> Result<RejectFixture> {
         expected_outcome: "returns-false".to_string(),
     });
 
-    // 3. Cand input → 'conjecture-not-implemented'.
-    let cand = SigmaBoolean::SigmaConjecture(SigmaConjecture::Cand(Cand {
-        items: SigmaConjectureItems::try_from(vec![dlog_leaf(), dlog_leaf_alt()])?,
-    }));
-    entries.push(RejectEntry {
-        name: "cand-two-leaves".to_string(),
-        sigma_boolean_json: sigma_boolean_to_json(&cand),
-        message_hex: String::new(),
-        signature_hex: hex::encode(&baseline_sig),
-        expected_outcome: "conjecture-not-implemented".to_string(),
-    });
+    // Note: Cand/Cor/Cthreshold entries that previously asserted
+    // 'conjecture-not-implemented' have been removed in phase 2g-combinators.
+    // The verifier now handles conjectures natively; conjecture reject coverage
+    // lives in verifier-cand-reject.json / verifier-cor-reject.json /
+    // verifier-cthreshold-reject.json (Task 8 fixtures).
 
-    // 4. Cor input → 'conjecture-not-implemented'.
-    let cor = SigmaBoolean::SigmaConjecture(SigmaConjecture::Cor(Cor {
-        items: SigmaConjectureItems::try_from(vec![dlog_leaf(), dlog_leaf_alt()])?,
-    }));
-    entries.push(RejectEntry {
-        name: "cor-two-leaves".to_string(),
-        sigma_boolean_json: sigma_boolean_to_json(&cor),
-        message_hex: String::new(),
-        signature_hex: hex::encode(&baseline_sig),
-        expected_outcome: "conjecture-not-implemented".to_string(),
-    });
-
-    // 5. Cthreshold input → 'conjecture-not-implemented'.
-    let cthresh = SigmaBoolean::SigmaConjecture(SigmaConjecture::Cthreshold(Cthreshold {
-        k: 2,
-        children: SigmaConjectureItems::try_from(vec![
-            dlog_leaf(),
-            dlog_leaf_alt(),
-            dlog_leaf_third(),
-        ])?,
-    }));
-    entries.push(RejectEntry {
-        name: "cthreshold-2-of-3".to_string(),
-        sigma_boolean_json: sigma_boolean_to_json(&cthresh),
-        message_hex: String::new(),
-        signature_hex: hex::encode(&baseline_sig),
-        expected_outcome: "conjecture-not-implemented".to_string(),
-    });
-
-    // 6. Empty signature on a ProveDlog → 'empty-signature'.
+    // 3. Empty signature on a ProveDlog → 'empty-signature'.
     entries.push(RejectEntry {
         name: "prove-dlog-empty-signature".to_string(),
         sigma_boolean_json: sigma_boolean_to_json(&dlog_leaf()),
@@ -149,7 +91,7 @@ pub fn generate() -> Result<RejectFixture> {
         expected_outcome: "empty-signature".to_string(),
     });
 
-    // 7. Truncated signature (10 of 56 bytes) → 'truncated-signature'.
+    // 4. Truncated signature (10 of 56 bytes) → 'truncated-signature'.
     let truncated = &baseline_sig[..10];
     entries.push(RejectEntry {
         name: "prove-dlog-truncated-signature".to_string(),
@@ -160,7 +102,7 @@ pub fn generate() -> Result<RejectFixture> {
     });
 
     Ok(RejectFixture {
-        description: "V1 reject + malformed verifier fixtures (phase 2g-medium Task 6). Covers TrivialProp short-circuits, conjecture rejection, empty / truncated signatures.",
+        description: "V1 reject + malformed verifier fixtures (phase 2g-medium Task 6, updated 2g-combinators Task 9). Covers TrivialProp short-circuits and empty / truncated signatures on a ProveDlog leaf. Conjecture-specific reject fixtures live in verifier-{cand,cor,cthreshold}-reject.json.",
         entries,
     })
 }

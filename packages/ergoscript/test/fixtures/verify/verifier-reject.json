@@ -1,5 +1,5 @@
 {
-  "description": "V1 reject + malformed verifier fixtures (phase 2g-medium Task 6). Covers TrivialProp short-circuits, conjecture rejection, empty / truncated signatures.",
+  "description": "V1 reject + malformed verifier fixtures (phase 2g-medium Task 6, updated 2g-combinators Task 9). Covers TrivialProp short-circuits and empty / truncated signatures on a ProveDlog leaf. Conjecture-specific reject fixtures live in verifier-{cand,cor,cthreshold}-reject.json.",
   "entries": [
     {
       "name": "trivial-true-short-circuit",
@@ -20,68 +20,6 @@
       "message_hex": "616e792d6d657373616765",
       "signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
       "expected_outcome": "returns-false"
-    },
-    {
-      "name": "cand-two-leaves",
-      "sigma_boolean_json": {
-        "items": [
-          {
-            "h": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-            "tag": "ProveDlog"
-          },
-          {
-            "h": "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-            "tag": "ProveDlog"
-          }
-        ],
-        "tag": "Cand"
-      },
-      "message_hex": "",
-      "signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
-      "expected_outcome": "conjecture-not-implemented"
-    },
-    {
-      "name": "cor-two-leaves",
-      "sigma_boolean_json": {
-        "items": [
-          {
-            "h": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-            "tag": "ProveDlog"
-          },
-          {
-            "h": "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-            "tag": "ProveDlog"
-          }
-        ],
-        "tag": "Cor"
-      },
-      "message_hex": "",
-      "signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
-      "expected_outcome": "conjecture-not-implemented"
-    },
-    {
-      "name": "cthreshold-2-of-3",
-      "sigma_boolean_json": {
-        "items": [
-          {
-            "h": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-            "tag": "ProveDlog"
-          },
-          {
-            "h": "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-            "tag": "ProveDlog"
-          },
-          {
-            "h": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
-            "tag": "ProveDlog"
-          }
-        ],
-        "k": 2,
-        "tag": "Cthreshold"
-      },
-      "message_hex": "",
-      "signature_hex": "6e76772204b960a58dd4344339d429915ddbe1a7cff9b79f19ac51f5f4c1cb4becaa77007a9cef879c1cea3d822d37ec8cbe0acbcea88572",
-      "expected_outcome": "conjecture-not-implemented"
     },
     {
       "name": "prove-dlog-empty-signature",
