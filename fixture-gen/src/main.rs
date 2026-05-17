@@ -186,6 +186,15 @@ fn main() -> anyhow::Result<()> {
         cmds::ergoscript::eval::p2pk_short_circuit::generate()?;
     write_ergoscript_json("eval/p2pk-short-circuit.json", &p2pk_short_circuit_fixture)?;
 
+    // Phase 2g-combinators Task 2: GF(2^192) element-arithmetic cross-validation
+    // fixtures (`gf2_192-element-ops.json`). Lives under `crypto/` to mirror the
+    // TS package layout (`packages/ergoscript/src/crypto/gf2_192.ts`).
+    std::fs::create_dir_all(ergoscript_fixtures_dir().join("crypto"))?;
+    write_ergoscript_json(
+        "crypto/gf2_192-element-ops.json",
+        &cmds::ergoscript::crypto::gf2_192_element_ops::generate()?,
+    )?;
+
     // Phase 2g-medium Task 6: leaf-only sigma-protocol verifier fixtures.
     std::fs::create_dir_all(ergoscript_fixtures_dir().join("verify"))?;
     write_ergoscript_json(

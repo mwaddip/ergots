@@ -54,3 +54,7 @@ proptest = "1.6"
 # DlogProverInput / DhTupleProverInput secrets directly from 32-byte seeds.
 # Pinned to the same version the sigma-rust workspace uses (Cargo.toml:41).
 k256 = { version = "0.13.1", default-features = false, features = ["arithmetic", "ecdsa"] }
+# Phase 2g-combinators Task 2 fixtures cross-validate the TS port of GF(2^192)
+# element arithmetic against sigma-rust's `gf2_192` crate (the same crate the
+# Cthreshold conjecture verifier uses for polynomial interpolation).
+gf2_192 = { path = "../../sigma-rust/sigma-rust/gf2_192" }

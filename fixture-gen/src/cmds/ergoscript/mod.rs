@@ -27,6 +27,7 @@
 pub mod corpus_ecosystem_14;
 pub mod corpus_legacy_45;
 pub mod corpus_significant_15;
+pub mod crypto;
 pub mod eval;
 pub mod mainnet_boxes;
 pub mod synthetic_expr;

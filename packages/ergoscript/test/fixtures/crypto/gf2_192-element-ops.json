@@ -1,0 +1,647 @@
+[
+  {
+    "name": "add/zero+zero",
+    "op": "add",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000",
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "add/zero+pat_a",
+    "op": "add",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "add/pat_a+zero",
+    "op": "add",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "add/pat_a+pat_a",
+    "op": "add",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "add/pat_a+pat_b",
+    "op": "add",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "ffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+    "name": "add/pat_b+pat_a",
+    "op": "add",
+    "inputs": [
+      "fedcba9876543210fedcba9876543210fedcba9876543210",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "ffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+    "name": "add/pat_c+pat_d",
+    "op": "add",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122",
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "dfadbeefcafef00d1122334455667788aabbccddee0011a2"
+  },
+  {
+    "name": "add/ones+pat_a",
+    "op": "add",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "fedcba9876543210fedcba9876543210fedcba9876543210"
+  },
+  {
+    "name": "add/hi_word0+hi_word2",
+    "op": "add",
+    "inputs": [
+      "000000000000008000000000000000000000000000000000",
+      "000000000000000000000000000000000000000000000080"
+    ],
+    "expected": "000000000000008000000000000000000000000000000080"
+  },
+  {
+    "name": "add/byte8_set+byte16_set",
+    "op": "add",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000",
+      "000000000000000000000000000000000100000000000000"
+    ],
+    "expected": "000000000000000001000000000000000100000000000000"
+  },
+  {
+    "name": "multiply/zero*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "multiply/pat_a*zero",
+    "op": "multiply",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "multiply/one*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "multiply/pat_a*one",
+    "op": "multiply",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "multiply/one*one",
+    "op": "multiply",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000",
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "010000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "multiply/pat_a*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "17f47ffb05891793ed40de5aa428b6324ce17ffb05891793"
+  },
+  {
+    "name": "multiply/pat_a*pat_b",
+    "op": "multiply",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "51db7a54869d3f114379dbf5273c9eb0e2d87a54869d3f11"
+  },
+  {
+    "name": "multiply/pat_b*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "fedcba9876543210fedcba9876543210fedcba9876543210",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "51db7a54869d3f114379dbf5273c9eb0e2d87a54869d3f11"
+  },
+  {
+    "name": "multiply/pat_a*pat_c",
+    "op": "multiply",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "deadbeefcafef00d1122334455667788aabbccddee001122"
+    ],
+    "expected": "fda1cb8f07d2486119fa3c43a6fc81b5c61347a8668d4db7"
+  },
+  {
+    "name": "multiply/pat_b*pat_c",
+    "op": "multiply",
+    "inputs": [
+      "fedcba9876543210fedcba9876543210fedcba9876543210",
+      "deadbeefcafef00d1122334455667788aabbccddee001122"
+    ],
+    "expected": "ec587b1abf0c7c2db9b9d5c39229feb3afd7eab19ea1eff4"
+  },
+  {
+    "name": "multiply/pat_c*pat_d",
+    "op": "multiply",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122",
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "eb7e09474b3026e16951b726d1ea0c4922c051a61dba6ad1"
+  },
+  {
+    "name": "multiply/hi_word0*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "000000000000008000000000000000000000000000000000",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "803425cb06cbda34ba91a2b3c4d5e6f78091a2b3c4d5e6f7"
+  },
+  {
+    "name": "multiply/hi_word2*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "000000000000000000000000000000000000000000000080",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "262925cb06cbda34f93425cb06cbda34f93425cb06cbda34"
+  },
+  {
+    "name": "multiply/hi_word2*hi_word2",
+    "op": "multiply",
+    "inputs": [
+      "000000000000000000000000000000000000000000000080",
+      "000000000000000000000000000000000000000000000080"
+    ],
+    "expected": "6710000000000000000000000000000000000000000000c0"
+  },
+  {
+    "name": "multiply/ones*ones",
+    "op": "multiply",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    ],
+    "expected": "2f4055555555555555555555555555555555555555555555"
+  },
+  {
+    "name": "multiply/ones*one",
+    "op": "multiply",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "ffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+    "name": "multiply/ones*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "462f05af83142882ae3905af83142882ae3905af83142882"
+  },
+  {
+    "name": "multiply/pat_d*pat_d",
+    "op": "multiply",
+    "inputs": [
+      "010000000000000000000000000000000000000000000080",
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "6610000000000000000000000000000000000000000000c0"
+  },
+  {
+    "name": "multiply/pat_d*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "010000000000000000000000000000000000000000000080",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "270a60ac8f6017dbf81760ac8f6017dbf81760ac8f6017db"
+  },
+  {
+    "name": "multiply/byte8_set*byte16_set",
+    "op": "multiply",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000",
+      "000000000000000000000000000000000100000000000000"
+    ],
+    "expected": "870000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "multiply/byte8_set*byte8_set",
+    "op": "multiply",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000",
+      "000000000000000001000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000000100000000000000"
+  },
+  {
+    "name": "multiply/byte16_set*byte16_set",
+    "op": "multiply",
+    "inputs": [
+      "000000000000000000000000000000000100000000000000",
+      "000000000000000000000000000000000100000000000000"
+    ],
+    "expected": "000000000000000087000000000000000000000000000000"
+  },
+  {
+    "name": "multiply/pat_a*pat_d",
+    "op": "multiply",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "270a60ac8f6017dbf81760ac8f6017dbf81760ac8f6017db"
+  },
+  {
+    "name": "multiply/pat_c*pat_a",
+    "op": "multiply",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "fda1cb8f07d2486119fa3c43a6fc81b5c61347a8668d4db7"
+  },
+  {
+    "name": "multiply/pat_c*pat_b",
+    "op": "multiply",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122",
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "ec587b1abf0c7c2db9b9d5c39229feb3afd7eab19ea1eff4"
+  },
+  {
+    "name": "sqr/zero",
+    "op": "sqr",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "sqr/one",
+    "op": "sqr",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "010000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "sqr/hi_word0",
+    "op": "sqr",
+    "inputs": [
+      "000000000000008000000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000400000000000000000"
+  },
+  {
+    "name": "sqr/hi_word2",
+    "op": "sqr",
+    "inputs": [
+      "000000000000000000000000000000000000000000000080"
+    ],
+    "expected": "6710000000000000000000000000000000000000000000c0"
+  },
+  {
+    "name": "sqr/pat_a",
+    "op": "sqr",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "17f47ffb05891793ed40de5aa428b6324ce17ffb05891793"
+  },
+  {
+    "name": "sqr/pat_b",
+    "op": "sqr",
+    "inputs": [
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "38b42aae50dc42c6b8158b0ff17de36719b42aae50dc42c6"
+  },
+  {
+    "name": "sqr/pat_c",
+    "op": "sqr",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122"
+    ],
+    "expected": "adaf3522b5a49fb5b9af2c2d93cc4f1e84862f0482820c0e"
+  },
+  {
+    "name": "sqr/pat_d",
+    "op": "sqr",
+    "inputs": [
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "6610000000000000000000000000000000000000000000c0"
+  },
+  {
+    "name": "sqr/ones",
+    "op": "sqr",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    ],
+    "expected": "2f4055555555555555555555555555555555555555555555"
+  },
+  {
+    "name": "sqr/byte8_set",
+    "op": "sqr",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000000100000000000000"
+  },
+  {
+    "name": "invert/one",
+    "op": "invert",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "010000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "invert/hi_word0",
+    "op": "invert",
+    "inputs": [
+      "000000000000008000000000000000000000000000000000"
+    ],
+    "expected": "31000000000000000000000000000000b6a8f17ed2954360"
+  },
+  {
+    "name": "invert/hi_word2",
+    "op": "invert",
+    "inputs": [
+      "000000000000000000000000000000000000000000000080"
+    ],
+    "expected": "f0a8f17ed29543608b1aef275d3904b6a8f17ed29543608b"
+  },
+  {
+    "name": "invert/pat_a",
+    "op": "invert",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "0bc43fe6fe31ecbbb9e2d30e8508d26f57e511bfaf4182e9"
+  },
+  {
+    "name": "invert/pat_b",
+    "op": "invert",
+    "inputs": [
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "4c0cfcc51c9be5b880fe45ea55c8129e60bca3ff11d9385d"
+  },
+  {
+    "name": "invert/pat_c",
+    "op": "invert",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122"
+    ],
+    "expected": "23651b94045d444397b9670915e0afa4aa47de8e59df5cbb"
+  },
+  {
+    "name": "invert/pat_d",
+    "op": "invert",
+    "inputs": [
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "06d59dbcec31f8332dae9142a0ba93973d067fa6c5355208"
+  },
+  {
+    "name": "invert/ones",
+    "op": "invert",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    ],
+    "expected": "fda3a718825fcd6ec9d1530cc1af66b7e4e82986e057b3db"
+  },
+  {
+    "name": "invert/byte8_set",
+    "op": "invert",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000"
+    ],
+    "expected": "5b0000000000000000000000000000005bd4783fe9ca21b0"
+  },
+  {
+    "name": "invert/byte16_set",
+    "op": "invert",
+    "inputs": [
+      "000000000000000000000000000000000100000000000000"
+    ],
+    "expected": "2c000000000000005bd4783fe9ca21b0458df793ae1c025b"
+  },
+  {
+    "name": "equals/zero==zero",
+    "op": "equals",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000",
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "true"
+  },
+  {
+    "name": "equals/one==one",
+    "op": "equals",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000",
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "true"
+  },
+  {
+    "name": "equals/pat_a==pat_a",
+    "op": "equals",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "true"
+  },
+  {
+    "name": "equals/zero==one",
+    "op": "equals",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000",
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "false"
+  },
+  {
+    "name": "equals/one==zero",
+    "op": "equals",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000",
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "false"
+  },
+  {
+    "name": "equals/pat_a==pat_b",
+    "op": "equals",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "false"
+  },
+  {
+    "name": "equals/hi_word0==hi_word2",
+    "op": "equals",
+    "inputs": [
+      "000000000000008000000000000000000000000000000000",
+      "000000000000000000000000000000000000000000000080"
+    ],
+    "expected": "false"
+  },
+  {
+    "name": "equals/ones==ones",
+    "op": "equals",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff",
+      "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    ],
+    "expected": "true"
+  },
+  {
+    "name": "equals/pat_c==pat_d",
+    "op": "equals",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122",
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "false"
+  },
+  {
+    "name": "equals/byte8_set==byte16_set",
+    "op": "equals",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000",
+      "000000000000000000000000000000000100000000000000"
+    ],
+    "expected": "false"
+  },
+  {
+    "name": "round_trip/zero",
+    "op": "round_trip",
+    "inputs": [
+      "000000000000000000000000000000000000000000000000"
+    ],
+    "expected": "000000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "round_trip/one",
+    "op": "round_trip",
+    "inputs": [
+      "010000000000000000000000000000000000000000000000"
+    ],
+    "expected": "010000000000000000000000000000000000000000000000"
+  },
+  {
+    "name": "round_trip/hi_word0",
+    "op": "round_trip",
+    "inputs": [
+      "000000000000008000000000000000000000000000000000"
+    ],
+    "expected": "000000000000008000000000000000000000000000000000"
+  },
+  {
+    "name": "round_trip/hi_word2",
+    "op": "round_trip",
+    "inputs": [
+      "000000000000000000000000000000000000000000000080"
+    ],
+    "expected": "000000000000000000000000000000000000000000000080"
+  },
+  {
+    "name": "round_trip/pat_a",
+    "op": "round_trip",
+    "inputs": [
+      "0123456789abcdef0123456789abcdef0123456789abcdef"
+    ],
+    "expected": "0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  {
+    "name": "round_trip/pat_b",
+    "op": "round_trip",
+    "inputs": [
+      "fedcba9876543210fedcba9876543210fedcba9876543210"
+    ],
+    "expected": "fedcba9876543210fedcba9876543210fedcba9876543210"
+  },
+  {
+    "name": "round_trip/pat_c",
+    "op": "round_trip",
+    "inputs": [
+      "deadbeefcafef00d1122334455667788aabbccddee001122"
+    ],
+    "expected": "deadbeefcafef00d1122334455667788aabbccddee001122"
+  },
+  {
+    "name": "round_trip/pat_d",
+    "op": "round_trip",
+    "inputs": [
+      "010000000000000000000000000000000000000000000080"
+    ],
+    "expected": "010000000000000000000000000000000000000000000080"
+  },
+  {
+    "name": "round_trip/ones",
+    "op": "round_trip",
+    "inputs": [
+      "ffffffffffffffffffffffffffffffffffffffffffffffff"
+    ],
+    "expected": "ffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+    "name": "round_trip/byte8_set",
+    "op": "round_trip",
+    "inputs": [
+      "000000000000000001000000000000000000000000000000"
+    ],
+    "expected": "000000000000000001000000000000000000000000000000"
+  }
+]
