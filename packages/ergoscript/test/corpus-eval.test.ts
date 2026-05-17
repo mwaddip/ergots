@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../src/wire/ergo-tree'
 import { evaluateWith } from '../src/eval/evaluate'
 import { makeContext, EvalError } from '../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from './_helpers'
+import { hexToBytes, hydrateSValue, synthesizeStubBox } from './_helpers'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url
 // is a node-only import, allowed in test files per the browser-first rule.
@@ -75,7 +75,34 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
       // ConstPlaceholder throws 'const-placeholder-no-constants' instead
       // of 'not-implemented-yet', which would silently classify as `other`
       // once phase 2c+ lands more arms.
-      const ctx = makeContext({ constants: tree.constants })
+      // Deterministic context matching the proptest-generated context used when
+      // the corpus fixture was regenerated with `TestRunner::deterministic()`.
+      // fixture-gen/src/check_ctx.rs printed:
+      //   inputs.len() = 2 (each with 1 token)
+      //   outputs.len() = 2 (outputs[0]: 2 tokens, outputs[1]: 0 tokens)
+      //   data_inputs = Some(1)
+      //   height = 509659521
+      // Sizes must match for ByIndex access to succeed and for per-item costs
+      // to match the sigma-rust oracle. Token counts matter for SBox.tokens cost.
+      const dummyTokenId = new Uint8Array(32) // 32-byte all-zeros token id
+      const stubBoxWith1Token = synthesizeStubBox({
+        tokens: [{ id: dummyTokenId, amount: 1n }],
+      })
+      const stubBoxWith2Tokens = synthesizeStubBox({
+        tokens: [
+          { id: dummyTokenId, amount: 1n },
+          { id: dummyTokenId, amount: 1n },
+        ],
+      })
+      const stubBoxWith0Tokens = synthesizeStubBox({})
+      const ctx = makeContext({
+        constants: tree.constants,
+        selfBox: stubBoxWith1Token,
+        inputs: [stubBoxWith1Token, stubBoxWith1Token],
+        outputs: [stubBoxWith2Tokens, stubBoxWith0Tokens],
+        dataInputs: [stubBoxWith0Tokens],
+        height: 509659521,
+      })
 
       // Skip value-equality when sigma-rust returned an Opaque value
       // (chiefly SigmaProp results — see file header). Cost is still
@@ -128,5 +155,8 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
     // `evalSuccess + notImplYet` cover the two expected outcomes; anything
     // in `other` is a regression we want to investigate, not silently log.
     expect(other).toBe(0)
+    // Phase 2g.5 unlock assertion: all 18 sigma-rust-evaluable mainnet trees
+    // must succeed in TS eval. If this drops below 18, a regression occurred.
+    expect(evalSuccess).toBe(18)
   })
 })

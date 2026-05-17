@@ -101,13 +101,18 @@ pub fn value_to_json(v: &Value) -> JsonValue {
                 .expect("EcPoint sigma_serialize_bytes");
             json!({ "kind": "GroupElement", "bytes_hex": hex::encode(&bytes) })
         }
-        // SigmaProp: emit canonical wire bytes as hex string.
-        // `prop_bytes()` calls sigma_serialize_bytes on the constant ErgoTree
-        // wrapping the SigmaBoolean — same bytes the TS `SigmaBoolean.raw` field holds.
+        // SigmaProp: emit the inner SigmaBoolean wire bytes (bare, without the
+        // ErgoTree header wrapper). Matches the C1 eval fixtures (sigma_or.rs etc.)
+        // which use `sp.value().sigma_serialize_bytes()`. The TS hydrateSValue arm
+        // calls `parseSigmaBoolean(bytes)` on these bare bytes.
+        //
+        // Previously used `prop_bytes()` which wraps in a v0 ErgoTree header (0x00 0x08
+        // prefix), but the C1 fixtures and hydrateSValue expect bare SigmaBoolean.
         Value::SigmaProp(sp) => {
             let bytes = sp
-                .prop_bytes()
-                .expect("SigmaProp prop_bytes");
+                .value()
+                .sigma_serialize_bytes()
+                .expect("SigmaBoolean sigma_serialize_bytes");
             json!({ "kind": "SigmaProp", "raw_hex": hex::encode(&bytes) })
         }
         // Unit: no payload.

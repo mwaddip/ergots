@@ -11,7 +11,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R6 to be of type Long, got Coll[Boolean]"
+        "error_kind": "Spanned:Misc: ByIndex: index Int(1) out of bounds for collection size 1"
       }
     },
     {
@@ -23,7 +23,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -35,7 +35,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -47,7 +47,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -59,7 +59,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -71,7 +71,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:Misc: ByIndex: index Int(0) out of bounds for collection size 0"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -83,7 +83,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R6 to be of type Long, got Coll[Boolean]"
+        "error_kind": "Spanned:Misc: ByIndex: index Int(1) out of bounds for collection size 1"
       }
     },
     {
@@ -95,7 +95,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -107,7 +107,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -119,7 +119,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -131,7 +131,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:Misc: ByIndex: index Int(0) out of bounds for collection size 0"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -155,7 +155,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -167,7 +167,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -179,7 +179,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -193,9 +193,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d3"
+          "raw_hex": "d3"
         },
-        "jit_cost": 354
+        "jit_cost": 416
       }
     },
     {
@@ -207,7 +207,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -221,9 +221,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 339
+        "jit_cost": 336
       }
     },
     {
@@ -235,7 +235,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type GroupElement, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -247,7 +247,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -259,7 +259,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -283,7 +283,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -295,7 +295,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -307,7 +307,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -319,7 +319,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -331,7 +331,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -343,7 +343,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -355,7 +355,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -379,7 +379,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -391,7 +391,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -403,7 +403,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -415,7 +415,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -427,7 +427,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -439,7 +439,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type GroupElement, got Short"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -451,7 +451,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -463,7 +463,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -475,7 +475,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -487,7 +487,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -499,7 +499,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -511,7 +511,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -523,7 +523,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -535,7 +535,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -547,7 +547,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:Misc: ByIndex: index Int(0) out of bounds for collection size 0"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -559,7 +559,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -571,7 +571,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -595,7 +595,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -607,7 +607,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -619,7 +619,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -631,7 +631,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -643,7 +643,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -667,7 +667,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -679,7 +679,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -703,7 +703,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -715,7 +715,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -727,7 +727,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -739,7 +739,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -751,7 +751,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -763,7 +763,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -775,7 +775,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type GroupElement, got Short"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -799,7 +799,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -811,7 +811,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -835,7 +835,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -847,7 +847,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -871,7 +871,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -907,7 +907,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 1 to have type SColl(STuple([SColl(SByte), SColl(SByte)])), found \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -919,7 +919,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -943,7 +943,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SColl(SColl(SByte)), found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -955,7 +955,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -979,7 +979,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R6 to be of type Long, got Coll[Boolean]"
+        "error_kind": "Spanned:Misc: ByIndex: index Int(1) out of bounds for collection size 1"
       }
     },
     {
@@ -991,7 +991,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type SigmaProp, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1003,7 +1003,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SInt, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1015,7 +1015,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1027,7 +1027,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1039,7 +1039,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1051,7 +1051,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1063,7 +1063,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Int, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1075,7 +1075,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1087,7 +1087,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1099,7 +1099,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Long], got (Boolean, Long)"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1111,7 +1111,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Long], got (Boolean, Long)"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1123,7 +1123,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1135,7 +1135,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SInt, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1159,7 +1159,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SColl(STuple([SColl(SByte), SColl(SByte)])), found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1195,7 +1195,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Int], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1207,7 +1207,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type GroupElement, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1219,7 +1219,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1231,7 +1231,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1243,7 +1243,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Byte], got Short"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1267,7 +1267,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1279,7 +1279,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1291,7 +1291,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1303,7 +1303,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1327,7 +1327,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1339,7 +1339,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1351,7 +1351,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1363,7 +1363,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1375,7 +1375,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1387,7 +1387,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1399,7 +1399,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Long], got (Boolean, Long)"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1411,7 +1411,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1423,7 +1423,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1435,7 +1435,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1459,7 +1459,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 1 to have type SColl(STuple([SColl(SByte), SColl(SByte)])), found \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1495,7 +1495,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 1 to have type SColl(STuple([SColl(SByte), SColl(SByte)])), found \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1519,7 +1519,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SColl(SColl(SByte)), found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1531,7 +1531,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SByte, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1543,7 +1543,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Byte], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1557,9 +1557,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 934
+        "jit_cost": 886
       }
     },
     {
@@ -1573,9 +1573,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 964
+        "jit_cost": 916
       }
     },
     {
@@ -1589,9 +1589,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 964
+        "jit_cost": 916
       }
     },
     {
@@ -1605,9 +1605,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1621,9 +1621,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1637,9 +1637,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1653,9 +1653,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1669,9 +1669,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1685,9 +1685,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1701,9 +1701,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1717,9 +1717,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1733,9 +1733,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1747,7 +1747,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SLong, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1759,7 +1759,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Long], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1783,7 +1783,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Int, got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1797,9 +1797,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1813,9 +1813,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1829,9 +1829,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 1033
+        "jit_cost": 977
       }
     },
     {
@@ -1843,7 +1843,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SColl(STuple([SColl(SByte), SColl(SByte)])), found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1855,7 +1855,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type SigmaProp, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1867,7 +1867,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Long], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1891,7 +1891,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1903,7 +1903,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type AvlTree, got SigmaProp"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1915,7 +1915,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R5 to be of type Coll[Long], got (Boolean, Long)"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1939,7 +1939,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:Misc: ByIndex: index Int(0) out of bounds for collection size 0"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1951,7 +1951,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Coll[Byte]], got Coll[Byte]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1975,7 +1975,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Coll[Long], got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -1999,7 +1999,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:ArithmeticException: (365104317502186802) * (3000) resulted in overflow"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -2011,7 +2011,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SInt, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -2035,7 +2035,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Int, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -2049,9 +2049,9 @@
         "ok": true,
         "value_json": {
           "kind": "SigmaProp",
-          "raw_hex": "0008d2"
+          "raw_hex": "d2"
         },
-        "jit_cost": 765
+        "jit_cost": 853
       }
     },
     {
@@ -2063,7 +2063,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Int, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -2087,7 +2087,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type Int, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -2099,7 +2099,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:TryExtractFrom: TryExtractFromError(\"GetVar: expected extension value id 0 to have type SInt, found \\\"[]: SColl(SInt)\\\" in context extension map {0: \\\"[]: SColl(SInt)\\\", 1: \\\"\\\\\\\"fc\\\\\\\": SColl(SByte)\\\", 2: \\\"BoundedVec { inner: [16436, 1494619431, SigmaProp(SigmaConjecture(Cor(Cor { items: BoundedVec { inner: [ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 })), ProofOfKnowledge(ProveDlog(ProveDlog { h: EC:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 }))], witness: NonEmpty(()) } }))), 61], witness: NonEmpty(()) }: STuple([SShort, SInt, SSigmaProp, SByte])\\\"}\")"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {
@@ -2135,7 +2135,7 @@
       "sigma_rust_eval": {
         "context_kind": "synthetic-empty",
         "ok": false,
-        "error_kind": "Spanned:UnexpectedValue: Expected register R4 to be of type GroupElement, got Coll[Coll[Byte]]"
+        "error_kind": "Spanned:NotFound: calling Option.get on None"
       }
     },
     {

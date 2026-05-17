@@ -60,6 +60,8 @@ export function hydrateSValue(json: any): SValue {
       return { kind: 'GroupElement', value: hexToBytes(json.bytes_hex) }
     case 'SigmaProp': {
       // Phase 2g-medium: raw_hex bytes are parsed into the structural SigmaBoolean.
+      // Both C1 eval fixtures (sigma-or.rs, etc.) and the corpus fixture (mainnet_boxes.rs)
+      // use bare SigmaBoolean bytes (produced by `sp.value().sigma_serialize_bytes()`).
       const bytes = hexToBytes(json.raw_hex as string)
       return { kind: 'SigmaProp', value: parseSigmaBoolean(new ByteReader(bytes)) }
     }
