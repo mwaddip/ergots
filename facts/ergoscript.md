@@ -340,6 +340,76 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 **Coverage after 2g-combinators: 47 of ~70 `Expr` variants have implemented arms** (44 prior +
 3 new: `Atleast`, `SigmaAnd`, `SigmaOr`). Full `SigmaBoolean` verifier surface shipped.
 
+**Ships additionally (phase 2g.5 — method-call dispatch + C2 corpus unlocker):**
+
+63. **4 new eval arms** (coverage 47 → 51 of ~70 arms):
+    - **`Context`** — returns the `Value::Context` sentinel; cost 1 (Pattern A, charged via
+      `ctx.addCost(1)`). Required for handlers that need to type-check their `obj` (currently
+      `SContext.dataInputs`). Source: `ergotree-interpreter/src/eval/expr.rs:38`.
+    - **`SigmaPropBytes`** — serializes a SigmaProp to its prop-bytes form; cost
+      `addPerItemCost(35, 6, 1, 1)` (Pattern A, BEFORE eval-children); returns
+      `Coll[Byte]` from `sigmaPropBytesOf(sigmaBoolean)`. Throws
+      `'sigma-prop-bytes-input-not-sigma-prop'` if the input evaluates to a non-SigmaProp SValue.
+      Source: `ergotree-interpreter/src/eval/sigma_prop_bytes.rs:9-24`.
+    - **`MethodCall`** — dispatcher; cost 4 (Pattern A); evals obj + args; routes to per-method
+      handler via `(typeId, methodId)` registry in `eval/method-call.ts`; throws
+      `'method-not-implemented'` for unregistered pairs. Source:
+      `ergotree-interpreter/src/eval/method_call.rs:11-23`.
+    - **`PropertyCall`** — same dispatcher shape as `MethodCall` with empty args; cost 4
+      (Pattern A); shares the same registry. Source:
+      `ergotree-interpreter/src/eval/property_call.rs:10-20`.
+
+64. **1 new `SValue` kind variant:** `{ kind: 'Context' }`. Mirrors sigma-rust's `Value::Context`.
+    Required for handlers that type-check their `obj` argument — currently `SContext.dataInputs`
+    checks `obj.kind === 'Context'`. Added to the `SValue` union in `mir/types.ts` alongside the
+    other opaque sentinel kinds.
+
+65. **`EvalOpts` / `EvalContext` gains 1 new optional field:**
+    `dataInputs?: ErgoBox[]` — transaction data-inputs (read-only boxes). Mirrors sigma-rust's
+    `Context::data_inputs` (`ergotree-ir/src/chain/context.rs`). `SContext.dataInputs` reads
+    this. `undefined` is treated as empty (matches sigma-rust
+    `map_or(Arc::new([]), ...)`). `makeContext` threads it through unchanged.
+
+66. **New module: `eval/method-call.ts`** — exports `evalMethodCall` and `evalPropertyCall`
+    dispatchers; contains the module-internal `HANDLERS` registry (a `Map<string, MethodHandler>`
+    keyed by `"typeId:methodId"`); registers 3 handlers at module initialization:
+    - **`SBox.tokens`** (`PropertyCall`, typeId=99, methodId=8): cost 15 (Pattern A within
+      handler); returns `Coll[(Coll[Byte], Long)]` — each token as a `(tokenId, amount)` tuple.
+      Throws `'method-not-implemented'` for non-Box obj (reuse per error-taxonomy Decision #1
+      in design spec). Source: `ergotree-interpreter/src/eval/sbox.rs:72-79`.
+    - **`SContext.dataInputs`** (`PropertyCall`, typeId=101, methodId=1): cost 15 (Pattern A
+      within handler); validates `obj.kind === 'Context'` (throws `'context-obj-not-context'`
+      on mismatch); returns `ctx.dataInputs ?? []` as `Coll[Box]`. Source:
+      `ergotree-interpreter/src/eval/scontext.rs:17-31`.
+    - **`SColl.indexOf`** (`MethodCall`, typeId=12, methodId=26): cost
+      `addPerItemCost(20, 10, 2, n)` (Pattern B — charged AFTER extracting the Coll, BEFORE
+      the linear search); `from < 0` clamped to 0; returns `Int` index of first matching element
+      or `-1` if not found. Comparison via the existing `primitiveValueEqual` helper. Source:
+      `ergotree-interpreter/src/eval/scoll.rs:21-50`.
+
+67. **New module: `eval/sigma-prop-bytes.ts`** — exports `evalSigmaPropBytes`; calls
+    `sigmaPropBytesOf(sigmaBoolean)` from `sigma/prop-bytes.ts` to serialize the inner
+    `SigmaBoolean` to its prop-bytes form.
+
+68. **New module: `eval/context.ts`** — exports `evalContext`; one-liner arm, `ctx.addCost(1)`;
+    returns `{ kind: 'Context' }`.
+
+69. **New module: `sigma/prop-bytes.ts`** — exports `sigmaPropBytesOf(sb: SigmaBoolean):
+    Uint8Array`; factored from the fiat-shamir module so both `SigmaPropBytes` arm and the
+    verifier path can share the same serialization logic without a circular dependency.
+
+70. **3 new `EvalError` codes** (40 → 43; see updated EvalError taxonomy below):
+    - `'sigma-prop-bytes-input-not-sigma-prop'`
+    - `'method-not-implemented'`
+    - `'context-obj-not-context'`
+
+**Coverage after 2g.5: 51 of ~70 `Expr` variants have implemented arms.** C2 corpus
+(`mainnet_boxes` subset evaluable by sigma-rust under a synthetic context) unlocked at
+`success=18/18` — all 18 entries that reached `'context-field-missing'` or
+`'not-implemented-yet'` in prior phases now evaluate cleanly when given a synthetic-context
+stub (`outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2g.5
+**COMPLETE.** See `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md`.
+
 **Ships additionally (phase 2f Stop γ — Box canonical-bytes serializer + 3 hash extractors):**
 
 36. 3 more per-variant arms wired: `ExtractBytes` (Box → Coll[Byte] of full canonical
@@ -424,8 +494,8 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 
 - **`Xor`** (byte-array XOR) — later phase (likely 2i alongside other predefs). Operates on
   `Coll[Byte] × Coll[Byte] → Coll[Byte]`; not a logical/threshold aggregator despite the name.
-- Header chain-state model + method-call dispatch (`Context` fields + 6 arms ship in 2f medium; `Header` runtime + method calls deferred to 2g.5).
-- **MethodCall-routed Coll methods** (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`) — deferred to phase 2g.5: method-call dispatch. These differ from the HOFs above (which have dedicated MIR nodes); these are method-call opcodes routed through the `MethodCall` MIR arm.
+- Header chain-state model (`Header` runtime + header-accessor methods) — deferred to phase 2h or a future slice.
+- **Broader method-call surface beyond the 3 registered handlers:** Coll utilities (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`), Header methods, `SNumericTypeMethods` Bit shifts, additional `SBox`/`SContext`/`SGlobal` methods. Optional phase 2g.6 if/when mainnet demand surfaces. The registry infrastructure is shipped (phase 2g.5); adding handlers is a per-method micro-task.
 - Sigma protocol prover (`prove`). `verifySignature` ships in 2g-medium (leaf-only: TrivialProp, ProveDlog, ProveDhTuple). Full conjecture-verifier coverage ships in 2g-combinators.
 - AVL+ membership-proof verification (`verifyMembershipProof`, `lookupInTree`) — later phase.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch lands.
@@ -615,6 +685,7 @@ type SValue =
   | { kind: 'Tuple'; items: SValue[] }
   | { kind: 'Option'; elem: SType; value: SValue | null }
   | { kind: 'Lambda'; closure: Closure }
+  | { kind: 'Context' }                              // phase 2g.5 — Context Expr arm sentinel
 ```
 
 `Expr` is the 68-variant discriminated union over MIR nodes, keyed on `tag`. Each variant's payload mirrors sigma-rust's `mir/<variant>.rs` struct fields. Full list and per-variant shapes live in `packages/ergoscript/src/mir/types.ts`; adding a variant requires corresponding arms in `wire/parse.ts` and `wire/serialize.ts` (both files use exhaustive switches to make additions compile-time-visible).
@@ -686,7 +757,7 @@ No other error classes are emitted by this package. Internal panics (e.g. a bug 
 1. **Layer 1 — Parse + round-trip on every fixture**: `test/corpus.test.ts` loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip. Current state: 255 passing fixtures + 1 mainnet stub + 6 fixtures flagged `known_unstable` (upstream sigma-rust itself does not round-trip them; tracked in `fixture-gen/known_unstable.json`).
 2. **Layer 2 — Evaluation correctness**: per-arm unit tests under `test/eval/*.test.ts` (one file per implemented arm) cover happy paths, every `EvalError` code, and cost telemetry assertions. Layer C2 (`test/corpus-eval.test.ts`) cross-checks the TS evaluator against the sigma-rust eval oracle on every `mainnet_boxes` fixture whose body is fully covered by the implemented arms — 18 / 173 such fixtures are currently evaluable by sigma-rust under a synthetic-empty context; the rest hit `not-implemented-yet` and are skipped (informational aggregate logged). The 18 evaluable mainnet trees all still hit `'not-implemented-yet'` after phase 2d-B (they require arms beyond the current 17 — method calls, context access, collection HOFs, etc.); `other=0` confirms no undocumented codes are emitted. Phases 2e+ will progressively unlock more fixtures as arms land.
 3. **Layer 3 — Mutation tests**: `test/parse-mutation.test.ts` performs single-byte flips at varied offsets across every fixture and asserts each mutation either throws one of the typed error classes above OR is byte-identical (a flip that lands in a tolerated padding region). Current state: 6221 mutations exercised; 66% throw a typed error class, 0 throw an untyped error, 100% taxonomy coverage (every error class above is hit at least once).
-4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 1894/1894 ergoscript tests + 305 proof tests = 2199 total, passing in both runtimes. (+208 since 2f medium: 9 HOF arm fixtures, 58 C3.a mutation tests, and supporting infrastructure tests.)
+4. **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments. Current state: 2615/2615 ergoscript tests + 305 proof tests = 2920 total, passing in both runtimes. (+416 since 2f Coll HOFs: phase 2g-medium + 2g-combinators sigma tests, 2g.5 method-call / context / sigma-prop-bytes fixtures, and corpus-eval unlocked at success=18/18.)
 
 ## v0.2.0 — Evaluator surface (phase 2b)
 
@@ -706,6 +777,14 @@ interface EvalOpts {
   jitCostLimit?: number          // undefined = unlimited (signing-style)
   constants?: SValue[]           // overrides tree.constants for ConstPlaceholder
   treeVersion?: number           // 0..7; auto-derived from tree.header.version in evaluate(); arms default to 0 on undefined
+  // Chain-state fields (phase 2f medium + 2g.5):
+  height?: number                // current block height
+  selfBox?: ErgoBox              // spending box
+  inputs?: ErgoBox[]             // transaction inputs
+  outputs?: ErgoBox[]            // transaction outputs
+  preHeader?: PreHeader          // pre-header of current block
+  extension?: ContextExtension   // context-extension key-value map
+  dataInputs?: ErgoBox[]         // transaction data-inputs (phase 2g.5)
 }
 
 interface EvalContext extends EvalOpts {
@@ -722,7 +801,7 @@ interface EvalContext extends EvalOpts {
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` (so callers who want the tree's segregated constants picked up automatically don't need to do anything extra) and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised from inside the recursive evaluator (e.g. an unhandled variant deep inside a `BlockValue`) bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** 47 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from 2g-medium: `CreateProveDlog`, `CreateProveDhTuple` + 3 from 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2g.5–2h add the remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** 51 of ~70 `Expr` variants currently have implemented arms (8 from 2b + 3 from 2c + 4 from 2d-A + 2 from 2d-B + 3 from 2e + 7 from 2f narrow + 6 from 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from 2g-medium: `CreateProveDlog`, `CreateProveDhTuple` + 3 from 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr` + 4 from 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`). Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2h–2j add the remaining arms; the `evaluate` signature itself is stable.
 
 #### `evaluateWith(tree, ctx)`
 
@@ -963,6 +1042,30 @@ The following codes were added in phase 2g-combinators (Atleast, SigmaAnd, Sigma
   `input` is a single `Coll[SigmaProp]` expression); `SigmaAnd` / `SigmaOr` take `items: Expr[]`
   individually, so this code does not apply to them. Message includes the actual kind.
 
+The following codes were added in phase 2g.5 (Context, SigmaPropBytes, MethodCall, PropertyCall arms):
+
+- **`'sigma-prop-bytes-input-not-sigma-prop'`** — `SigmaPropBytes` arm received an input
+  `SValue` whose `kind !== 'SigmaProp'`. Wire-format invariants (`OneArgOpTryBuild::try_build`
+  checks `post_eval_tpe` at construction time) make this unreachable for parser-produced trees;
+  defensive against `ConstantPlaceholder` injection. Source:
+  `ergotree-interpreter/src/eval/sigma_prop_bytes.rs:18-23`. Message includes the actual kind.
+
+- **`'method-not-implemented'`** — `MethodCall` / `PropertyCall` dispatcher: the
+  `(typeId, methodId)` pair has no registered handler in the `HANDLERS` registry. Also reused
+  for defensive shape mismatches inside registered handlers (e.g., `SBox.tokens` got a non-Box
+  `obj`, `SColl.indexOf` got a non-Coll `obj`, or `SColl.indexOf` received the wrong number of
+  args or wrong arg type). Error-taxonomy Decision #1 in the design spec: compact taxonomy;
+  `'method-not-implemented'` covers both "dispatch miss" and "handler shape mismatch" to keep
+  the code count low. Message includes the offending typeId/methodId or the shape mismatch
+  detail.
+
+- **`'context-obj-not-context'`** — `SContext.dataInputs` handler: the `obj` argument evaluated
+  to an `SValue` whose `kind !== 'Context'`. Wire-format invariants (sigma-rust's
+  `PropertyCall` construction via ergotree-ir type-checker) make this unreachable for
+  parser-produced trees; defensive against `ConstantPlaceholder` injection or hand-crafted MIR
+  trees. Source: `ergotree-interpreter/src/eval/scontext.rs:17-31`. Message includes the
+  actual kind.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class (`ExprParseError`, `SValueParseError`, etc.) — those represent contract violations and are bugs, not eval-input issues.
 
 ### `VerifyError` taxonomy (phase 2g-medium + 2g-combinators; 8 codes total)
@@ -1015,10 +1118,10 @@ The following codes were added in phase 2g-combinators (conjecture verifier walk
 
 ### Coverage and stability
 
-- **47 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from phase 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from phase 2g-medium: `CreateProveDlog`, `CreateProveDhTuple` + 3 from phase 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g-combinators complete, the mainnet corpus aggregate is `success=0 not-impl=18 other=0`; `'context-field-missing'` is tolerated in the not-impl bucket (corpus runs without chain state). Full unlock waits for method-call dispatch (phase 2g.5).
+- **51 / ~70 `Expr` variants** have arms in v0.2.0 (8 from phase 2b + 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp` + 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast` + 2 from phase 2d-B: `And`, `Or` + 3 from phase 2e: `FuncValue`, `Apply`, `XorOf` + 2 from phase 2f Stop α: `ExtractAmount`, `ExtractScriptBytes` + 2 from phase 2f Stop β: `ExtractRegisterAs`, `ExtractCreationInfo` + 3 from phase 2f Stop γ: `ExtractBytes`, `ExtractBytesWithNoRef`, `ExtractId` + 6 from phase 2f medium: `GlobalVars`, `GetVar`, `OptionGet`, `OptionIsDefined`, `OptionGetOrElse`, `SelectField` + 9 from phase 2f Coll HOFs: `SizeOf`, `Append`, `ByIndex`, `Slice`, `MapColl`, `Filter`, `Fold`, `Exists`, `ForAll` + 2 from phase 2g-medium: `CreateProveDlog`, `CreateProveDhTuple` + 3 from phase 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr` + 4 from phase 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`). Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.5 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (corpus runs with synthetic-context stubs providing `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`).
 - **Public function signatures are stable** from v0.2.0 onward. Future arms slot into the central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
-- **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added `height?: number`, `selfBox?: ErgoBox`, `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`, `preHeader?: PreHeader`, `extension?: ContextExtension` — all optional, all live. Phase 2g-medium adds no new `EvalOpts` fields (`verifySignature` is a separate public function, not part of eval cost accounting). Phase 2g-combinators adds no new `EvalOpts` fields. Phase 2h may add `headers` and `dataInputs` when Header / AvlTree arms land.
-- **`@noble/curves@2.2.0` added in phase 2g-medium.** Version-locked pair with `@noble/hashes@2.2.0`. Used by the secp256k1 adapter (`crypto/secp256k1.ts`) and the sigma verifier. Phase 2g-combinators adds no new runtime dependencies — `GF(2^192)` is pure TS via `bigint`; the existing `@noble/curves@2.2.0` + `@noble/hashes@2.2.0` pair is sufficient.
+- **`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added `height?: number`, `selfBox?: ErgoBox`, `inputs?: ErgoBox[]`, `outputs?: ErgoBox[]`, `preHeader?: PreHeader`, `extension?: ContextExtension` — all optional, all live. Phase 2g-medium adds no new `EvalOpts` fields (`verifySignature` is a separate public function, not part of eval cost accounting). Phase 2g-combinators adds no new `EvalOpts` fields. Phase 2g.5 adds `dataInputs?: ErgoBox[]` (read by the `SContext.dataInputs` PropertyCall handler). Phase 2h may add `headers` when Header arms land.
+- **`@noble/curves@2.2.0` added in phase 2g-medium.** Version-locked pair with `@noble/hashes@2.2.0`. Used by the secp256k1 adapter (`crypto/secp256k1.ts`) and the sigma verifier. Phase 2g-combinators adds no new runtime dependencies — `GF(2^192)` is pure TS via `bigint`; the existing `@noble/curves@2.2.0` + `@noble/hashes@2.2.0` pair is sufficient. Phase 2g.5 adds no new runtime dependencies.
 
 ## Cross-references
 
