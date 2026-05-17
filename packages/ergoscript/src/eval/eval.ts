@@ -37,6 +37,7 @@ import { evalSizeOf } from './coll-size'
 import { evalCollection } from './collection'
 import { evalConst } from './const'
 import { evalConstPlaceholder } from './const-placeholder'
+import { evalContext } from './context'
 import { evalDowncast } from './downcast'
 import { evalExtractAmount } from './extract-amount'
 import { evalExtractBytes } from './extract-bytes'
@@ -86,6 +87,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalConst(e, env, ctx)
     case 'ConstPlaceholder':
       return evalConstPlaceholder(e, env, ctx)
+    case 'Context':
+      return evalContext(e, env, ctx)
     case 'ValDef':
       return evalValDef(e, env, ctx)
     case 'ValUse':

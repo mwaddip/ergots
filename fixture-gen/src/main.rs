@@ -195,6 +195,10 @@ fn main() -> anyhow::Result<()> {
         cmds::ergoscript::eval::p2pk_short_circuit::generate()?;
     write_ergoscript_json("eval/p2pk-short-circuit.json", &p2pk_short_circuit_fixture)?;
 
+    // Phase 2g.5 Task 1: Context Expr arm — trivial sentinel arm (cost 1).
+    let context_fixture = cmds::ergoscript::eval::context::generate()?;
+    write_ergoscript_json("eval/context.json", &context_fixture)?;
+
     // Phase 2g-combinators Task 2: GF(2^192) element-arithmetic cross-validation
     // fixtures (`gf2_192-element-ops.json`). Lives under `crypto/` to mirror the
     // TS package layout (`packages/ergoscript/src/crypto/gf2_192.ts`).

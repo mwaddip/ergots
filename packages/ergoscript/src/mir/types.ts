@@ -826,6 +826,7 @@ export type SValue =
   | { kind: 'Box'; value: ErgoBox }
   | { kind: 'AvlTree'; value: AvlTreeData }
   | { kind: 'Unit' }
+  | { kind: 'Context' }
   | { kind: 'Coll'; elem: SType; items: SValue[] }
   | { kind: 'Tuple'; items: SValue[] }
   | { kind: 'Option'; elem: SType; value: SValue | null }

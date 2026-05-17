@@ -1,0 +1,14 @@
+{
+  "corpus": "eval_context",
+  "entries": [
+    {
+      "name": "context_sentinel",
+      "tree_bytes_hex": "00fe",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Context"
+      },
+      "expected_cost": 1
+    }
+  ]
+}

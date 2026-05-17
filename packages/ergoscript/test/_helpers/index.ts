@@ -65,6 +65,8 @@ export function hydrateSValue(json: any): SValue {
     }
     case 'Unit':
       return { kind: 'Unit' }
+    case 'Context':
+      return { kind: 'Context' }
     case 'Coll':
       return {
         kind: 'Coll',

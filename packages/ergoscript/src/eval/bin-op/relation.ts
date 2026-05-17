@@ -311,9 +311,10 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return false
     }
 
-    // Box and AvlTree: shapes not yet defined in phase 2e/2h. Throw deferred.
+    // Box, AvlTree, Context: not equality-comparable via BinOp in v0 ErgoScript.
     case 'Box':
     case 'AvlTree':
+    case 'Context':
       throw new EvalError(
         `BinOp.Relation.Eq: ${a.kind} equality not yet implemented in this slice`,
         'not-implemented-yet'
@@ -388,6 +389,7 @@ function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Lambda': return false
     case 'Box':
     case 'AvlTree':
+    case 'Context':
       throw new EvalError(
         `sValueEquals inner Coll: ${a.kind} equality not yet implemented`,
         'not-implemented-yet'
