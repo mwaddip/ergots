@@ -75,13 +75,16 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
       // ConstPlaceholder throws 'const-placeholder-no-constants' instead
       // of 'not-implemented-yet', which would silently classify as `other`
       // once phase 2c+ lands more arms.
-      // Deterministic context matching the proptest-generated context used when
-      // the corpus fixture was regenerated with `TestRunner::deterministic()`.
-      // fixture-gen/src/check_ctx.rs printed:
-      //   inputs.len() = 2 (each with 1 token)
-      //   outputs.len() = 2 (outputs[0]: 2 tokens, outputs[1]: 0 tokens)
-      //   data_inputs = Some(1)
-      //   height = 509659521
+
+      // Deterministic context matching corpus_context() in
+      // fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs (the authoritative
+      // source). If that function's shape changes, update this stub to match.
+      //
+      //   inputs:      [box(1 token), box(1 token)]  (self = inputs[0])
+      //   outputs:     [box(2 tokens), box(0 tokens)]
+      //   data_inputs: Some([box(0 tokens)])
+      //   height:      0
+      //
       // Sizes must match for ByIndex access to succeed and for per-item costs
       // to match the sigma-rust oracle. Token counts matter for SBox.tokens cost.
       const dummyTokenId = new Uint8Array(32) // 32-byte all-zeros token id
@@ -101,7 +104,7 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
         inputs: [stubBoxWith1Token, stubBoxWith1Token],
         outputs: [stubBoxWith2Tokens, stubBoxWith0Tokens],
         dataInputs: [stubBoxWith0Tokens],
-        height: 509659521,
+        height: 0,
       })
 
       // Skip value-equality when sigma-rust returned an Opaque value
@@ -125,12 +128,14 @@ describe('Corpus eval — mainnet_boxes (Layer C2)', () => {
         if (code === 'not-implemented-yet') {
           notImplYet++
         } else if (code === 'context-field-missing') {
-          // 'context-field-missing' is expected once phase 2f medium lands:
-          // corpus eval runs with a synthetic empty context (no chain state),
-          // so any tree that reaches a GlobalVars arm (Height, SelfBox, etc.)
-          // or GetVar arm now throws 'context-field-missing' instead of
-          // 'not-implemented-yet'. This is correct behaviour — the arm is
-          // implemented but the corpus run doesn't provide context data.
+          // Safety-net fallback for corpus entries that become evaluable in
+          // future phases but whose trees reference context fields not supplied
+          // by the current stub (e.g. GetVar, or a GlobalVars arm that needs
+          // a real chain state). None of the 18 currently-evaluable trees hit
+          // this branch — they all succeed or throw 'not-implemented-yet'.
+          // The branch exists so that the 155 non-evaluable entries don't
+          // silently land in `other` if a future phase makes them evaluable
+          // before the context stub is enriched.
           notImplYet++
         } else {
           other++
