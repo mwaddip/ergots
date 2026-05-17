@@ -25,6 +25,12 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
+import { SCOLL_BYTE } from './_box-synthesis'
+
+// Module-level SType singletons for tokensCollOf return type:
+// Coll[STuple[SColl[Byte], Long]] — matches sigma-rust sbox.rs:TOKENS_EVAL_FN tpe.
+const SLONG: SType = { tag: 'SLong' }
+const STUPLE_COLLBYTE_LONG: SType = { tag: 'STuple', items: [SCOLL_BYTE, SLONG] }
 
 type MethodHandler = (
   obj: SValue,
@@ -94,12 +100,9 @@ registerHandlers()
 
 /** Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue. */
 function tokensCollOf(box: ErgoBox): SValue {
-  const sColl: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
-  const sLong: SType = { tag: 'SLong' }
-  const itemTpe: SType = { tag: 'STuple', items: [sColl, sLong] }
   return {
     kind: 'Coll',
-    elem: itemTpe,
+    elem: STUPLE_COLLBYTE_LONG,
     items: box.tokens.map((t) => ({
       kind: 'Tuple',
       items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: t.amount }],
