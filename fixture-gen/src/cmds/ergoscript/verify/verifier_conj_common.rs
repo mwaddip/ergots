@@ -50,9 +50,9 @@ pub const GROUP_SIZE: usize = 32;
 
 /// ConjectureType byte tags written into the Fiat-Shamir tree
 /// (mirrors `proof_tree::ConjectureType` discriminants).
-pub const CONJ_AND: u8 = 0;
-pub const CONJ_OR: u8 = 1;
-pub const CONJ_THRESHOLD: u8 = 2;
+const CONJ_AND: u8 = 0;
+const CONJ_OR: u8 = 1;
+const CONJ_THRESHOLD: u8 = 2;
 
 const INTERNAL_NODE_PREFIX: u8 = 0;
 const LEAF_PREFIX: u8 = 1;

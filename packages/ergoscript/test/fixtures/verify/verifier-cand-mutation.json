@@ -1,9 +1,9 @@
 {
-  "description": "Cand byte-flip mutation fixtures: 88 single-byte mutations of a baseline Cand-2-dlog signature. The verifier must return false or throw VerifyError on every entry; returning true is a vulnerability.",
+  "description": "Cand byte-flip mutation fixtures: 88 single-byte mutations of a baseline Cand-2-dlog signature. Regions: root-challenge (0-23), scalar-z (24-87). The verifier must return false or throw VerifyError on every entry; returning true is a vulnerability.",
   "baseline_signature_hex": "1108999a447d97702fdea3c269c791ea735a82f58d901223eae77a70bc7e43fcbba2bf38a8c1f352453b7052b957784989f658a4f59e382ed14f33b17b2ea71e912a321e4762b145b02139dddb62b052416836601e856e79",
   "entries": [
     {
-      "name": "cand-flip-byte-00",
+      "name": "cand-flip-byte-00-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -23,7 +23,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-01",
+      "name": "cand-flip-byte-01-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -43,7 +43,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-02",
+      "name": "cand-flip-byte-02-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -63,7 +63,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-03",
+      "name": "cand-flip-byte-03-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -83,7 +83,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-04",
+      "name": "cand-flip-byte-04-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -103,7 +103,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-05",
+      "name": "cand-flip-byte-05-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -123,7 +123,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-06",
+      "name": "cand-flip-byte-06-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -143,7 +143,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-07",
+      "name": "cand-flip-byte-07-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -163,7 +163,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-08",
+      "name": "cand-flip-byte-08-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -183,7 +183,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-09",
+      "name": "cand-flip-byte-09-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -203,7 +203,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-10",
+      "name": "cand-flip-byte-10-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -223,7 +223,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-11",
+      "name": "cand-flip-byte-11-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -243,7 +243,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-12",
+      "name": "cand-flip-byte-12-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -263,7 +263,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-13",
+      "name": "cand-flip-byte-13-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -283,7 +283,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-14",
+      "name": "cand-flip-byte-14-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -303,7 +303,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-15",
+      "name": "cand-flip-byte-15-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -323,7 +323,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-16",
+      "name": "cand-flip-byte-16-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -343,7 +343,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-17",
+      "name": "cand-flip-byte-17-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -363,7 +363,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-18",
+      "name": "cand-flip-byte-18-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -383,7 +383,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-19",
+      "name": "cand-flip-byte-19-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -403,7 +403,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-20",
+      "name": "cand-flip-byte-20-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -423,7 +423,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-21",
+      "name": "cand-flip-byte-21-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -443,7 +443,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-22",
+      "name": "cand-flip-byte-22-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -463,7 +463,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-23",
+      "name": "cand-flip-byte-23-root-challenge",
       "sigma_boolean_json": {
         "items": [
           {
@@ -483,7 +483,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-24",
+      "name": "cand-flip-byte-24-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -503,7 +503,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-25",
+      "name": "cand-flip-byte-25-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -523,7 +523,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-26",
+      "name": "cand-flip-byte-26-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -543,7 +543,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-27",
+      "name": "cand-flip-byte-27-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -563,7 +563,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-28",
+      "name": "cand-flip-byte-28-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -583,7 +583,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-29",
+      "name": "cand-flip-byte-29-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -603,7 +603,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-30",
+      "name": "cand-flip-byte-30-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -623,7 +623,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-31",
+      "name": "cand-flip-byte-31-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -643,7 +643,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-32",
+      "name": "cand-flip-byte-32-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -663,7 +663,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-33",
+      "name": "cand-flip-byte-33-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -683,7 +683,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-34",
+      "name": "cand-flip-byte-34-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -703,7 +703,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-35",
+      "name": "cand-flip-byte-35-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -723,7 +723,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-36",
+      "name": "cand-flip-byte-36-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -743,7 +743,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-37",
+      "name": "cand-flip-byte-37-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -763,7 +763,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-38",
+      "name": "cand-flip-byte-38-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -783,7 +783,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-39",
+      "name": "cand-flip-byte-39-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -803,7 +803,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-40",
+      "name": "cand-flip-byte-40-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -823,7 +823,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-41",
+      "name": "cand-flip-byte-41-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -843,7 +843,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-42",
+      "name": "cand-flip-byte-42-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -863,7 +863,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-43",
+      "name": "cand-flip-byte-43-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -883,7 +883,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-44",
+      "name": "cand-flip-byte-44-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -903,7 +903,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-45",
+      "name": "cand-flip-byte-45-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -923,7 +923,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-46",
+      "name": "cand-flip-byte-46-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -943,7 +943,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-47",
+      "name": "cand-flip-byte-47-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -963,7 +963,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-48",
+      "name": "cand-flip-byte-48-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -983,7 +983,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-49",
+      "name": "cand-flip-byte-49-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1003,7 +1003,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-50",
+      "name": "cand-flip-byte-50-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1023,7 +1023,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-51",
+      "name": "cand-flip-byte-51-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1043,7 +1043,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-52",
+      "name": "cand-flip-byte-52-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1063,7 +1063,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-53",
+      "name": "cand-flip-byte-53-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1083,7 +1083,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-54",
+      "name": "cand-flip-byte-54-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1103,7 +1103,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-55",
+      "name": "cand-flip-byte-55-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1123,7 +1123,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-56",
+      "name": "cand-flip-byte-56-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1143,7 +1143,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-57",
+      "name": "cand-flip-byte-57-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1163,7 +1163,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-58",
+      "name": "cand-flip-byte-58-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1183,7 +1183,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-59",
+      "name": "cand-flip-byte-59-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1203,7 +1203,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-60",
+      "name": "cand-flip-byte-60-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1223,7 +1223,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-61",
+      "name": "cand-flip-byte-61-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1243,7 +1243,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-62",
+      "name": "cand-flip-byte-62-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1263,7 +1263,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-63",
+      "name": "cand-flip-byte-63-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1283,7 +1283,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-64",
+      "name": "cand-flip-byte-64-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1303,7 +1303,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-65",
+      "name": "cand-flip-byte-65-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1323,7 +1323,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-66",
+      "name": "cand-flip-byte-66-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1343,7 +1343,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-67",
+      "name": "cand-flip-byte-67-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1363,7 +1363,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-68",
+      "name": "cand-flip-byte-68-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1383,7 +1383,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-69",
+      "name": "cand-flip-byte-69-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1403,7 +1403,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-70",
+      "name": "cand-flip-byte-70-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1423,7 +1423,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-71",
+      "name": "cand-flip-byte-71-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1443,7 +1443,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-72",
+      "name": "cand-flip-byte-72-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1463,7 +1463,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-73",
+      "name": "cand-flip-byte-73-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1483,7 +1483,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-74",
+      "name": "cand-flip-byte-74-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1503,7 +1503,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-75",
+      "name": "cand-flip-byte-75-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1523,7 +1523,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-76",
+      "name": "cand-flip-byte-76-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1543,7 +1543,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-77",
+      "name": "cand-flip-byte-77-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1563,7 +1563,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-78",
+      "name": "cand-flip-byte-78-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1583,7 +1583,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-79",
+      "name": "cand-flip-byte-79-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1603,7 +1603,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-80",
+      "name": "cand-flip-byte-80-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1623,7 +1623,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-81",
+      "name": "cand-flip-byte-81-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1643,7 +1643,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-82",
+      "name": "cand-flip-byte-82-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1663,7 +1663,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-83",
+      "name": "cand-flip-byte-83-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1683,7 +1683,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-84",
+      "name": "cand-flip-byte-84-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1703,7 +1703,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-85",
+      "name": "cand-flip-byte-85-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1723,7 +1723,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-86",
+      "name": "cand-flip-byte-86-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {
@@ -1743,7 +1743,7 @@
       "expected_outcome": "false-or-error"
     },
     {
-      "name": "cand-flip-byte-87",
+      "name": "cand-flip-byte-87-scalar-z",
       "sigma_boolean_json": {
         "items": [
           {

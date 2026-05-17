@@ -231,7 +231,7 @@ fn sign_flat_cor(children: &[CorChild], msg: &[u8]) -> Result<(SigmaBoolean, Vec
     let n = children.len();
     anyhow::ensure!(n >= 2, "Cor needs at least 2 children");
     let last = &children[n - 1];
-    let CorChild::Real { w, r, .. } = last else {
+    let CorChild::Real { .. } = last else {
         anyhow::bail!("sign_flat_cor: last child must be Real");
     };
     let mut last_c = root;
@@ -254,8 +254,6 @@ fn sign_flat_cor(children: &[CorChild], msg: &[u8]) -> Result<(SigmaBoolean, Vec
         },
         _ => anyhow::bail!("unreachable"),
     };
-    let _ = (w, r); // silence unused-var lint for the outer let binding
-
     // Serialize.
     let mut sig = Vec::new();
     sig.extend_from_slice(&root);
@@ -438,8 +436,10 @@ pub fn generate_mutation() -> Result<CorMutationFixture> {
     for offset in 0..sig_len {
         let mut mutated = sig.clone();
         mutated[offset] ^= 0xff;
+        // sig = root_challenge (24) || sim_c (24) || sim_z (32) || last_real_z (32).
+        let region = if offset < 24 { "root-challenge" } else { "payload" };
         entries.push(CorMutationEntry {
-            name: format!("cor-flip-byte-{:03}", offset),
+            name: format!("cor-flip-byte-{:03}-{}", offset, region),
             sigma_boolean_json: sigma_boolean_to_json(&sb),
             message_hex: hex::encode(&msg),
             mutated_signature_hex: hex::encode(&mutated),
@@ -450,8 +450,8 @@ pub fn generate_mutation() -> Result<CorMutationFixture> {
 
     Ok(CorMutationFixture {
         description: "Cor byte-flip mutation fixtures: 112 single-byte-flip mutations of \
-            a baseline Cor-2-dlog signature. The verifier must return false or throw \
-            VerifyError on every entry.",
+            a baseline Cor-2-dlog signature. Regions: root-challenge (0-23), payload \
+            (24-111). The verifier must return false or throw VerifyError on every entry.",
         baseline_signature_hex: hex::encode(&sig),
         entries,
     })

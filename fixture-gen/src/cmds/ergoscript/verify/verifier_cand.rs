@@ -516,10 +516,10 @@ pub fn generate_reject() -> Result<CandRejectFixture> {
     // 3. Wrong-but-valid-shaped signature: swap z_1 and z_2 → root_challenge mismatch.
     let mut swapped = sig.clone();
     let n = sig.len();
+    debug_assert_eq!(n, 88, "baseline Cand-2-dlog sig must be 88 bytes");
     // sig = root(24) || z1(32) || z2(32). Swap the two z blocks.
     swapped[24..56].copy_from_slice(&sig[56..88]);
     swapped[56..88].copy_from_slice(&sig[24..56]);
-    debug_assert_eq!(n, 88, "baseline Cand-2-dlog sig must be 88 bytes");
     entries.push(CandRejectEntry {
         name: "cand-swapped-z-values".to_string(),
         sigma_boolean_json: sigma_boolean_to_json(&sb),
@@ -545,8 +545,10 @@ pub fn generate_mutation() -> Result<CandMutationFixture> {
     for offset in 0..sig_len {
         let mut mutated = sig.clone();
         mutated[offset] ^= 0xff;
+        // sig = root_challenge (24) || z1 (32) || z2 (32).
+        let region = if offset < 24 { "root-challenge" } else { "scalar-z" };
         entries.push(CandMutationEntry {
-            name: format!("cand-flip-byte-{:02}", offset),
+            name: format!("cand-flip-byte-{:02}-{}", offset, region),
             sigma_boolean_json: sigma_boolean_to_json(&sb),
             message_hex: hex::encode(&msg),
             mutated_signature_hex: hex::encode(&mutated),
@@ -557,8 +559,9 @@ pub fn generate_mutation() -> Result<CandMutationFixture> {
 
     Ok(CandMutationFixture {
         description: "Cand byte-flip mutation fixtures: 88 single-byte mutations of a \
-            baseline Cand-2-dlog signature. The verifier must return false or throw \
-            VerifyError on every entry; returning true is a vulnerability.",
+            baseline Cand-2-dlog signature. Regions: root-challenge (0-23), scalar-z \
+            (24-87). The verifier must return false or throw VerifyError on every entry; \
+            returning true is a vulnerability.",
         baseline_signature_hex: hex::encode(&sig),
         entries,
     })
