@@ -64,3 +64,12 @@ ergo-lib = { path = "../../sigma-rust/sigma-rust/ergo-lib", features = ["std", "
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 rand = "0.8"
 chrono = "0.4"
+# Phase 2h-a — AVL+ fixture generation. Uses the fork's BatchAVLProver
+# to generate (startingDigest, proof, operations) triples that the TS
+# verifier consumes. The fork (~/projects/ergo_avltree_rust/, HEAD 879545c)
+# applies upstream PRs #10/#11/#13 with semantics corrections that the
+# TS verifier must mirror.
+ergo_avltree_rust = "0.1.1"
+
+[patch.crates-io]
+ergo_avltree_rust = { path = "/home/mwaddip/projects/ergo_avltree_rust" }

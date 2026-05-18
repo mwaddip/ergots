@@ -36,6 +36,9 @@ fn main() -> anyhow::Result<()> {
     if args.get(1).map(|s| s.as_str()) == Some("wider_corpus") {
         return cmds::wider_corpus::run();
     }
+    if args.get(1).map(|s| s.as_str()) == Some("avltree") {
+        return cmds::avltree::run();
+    }
 
     std::fs::create_dir_all(proof_fixtures_dir())?;
     std::fs::create_dir_all(ergoscript_fixtures_dir())?;

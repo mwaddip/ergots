@@ -11,3 +11,4 @@ pub mod compare;
 pub mod envelope;
 pub mod ergoscript;
 pub mod wider_corpus;
+pub mod avltree;
