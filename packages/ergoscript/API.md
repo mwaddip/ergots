@@ -219,7 +219,7 @@ class ErgoTreeSerializeError extends Error { readonly code: string }
 class AddressDecodeError     extends Error { readonly code: string }
 ```
 
-Internal modules (`wire/`, `mir/`) emit additional typed error classes (`ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`); these surface from `parseTree` / `serializeTree` unwrapped — callers see the innermost typed failure. The full error taxonomy with every emitted code is documented in `facts/ergoscript.md` § "Error taxonomy".
+Internal modules (`wire/`, `mir/`) emit additional typed error classes (`ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`); these surface from `parseTree` / `serializeTree` unwrapped — callers see the innermost typed failure. The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
 
 ### `ErgoTreeParseError` codes
 
