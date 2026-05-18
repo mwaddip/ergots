@@ -687,6 +687,246 @@ fn unknown_mod_3leaves_absent() -> Result<AvlFixture> {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-op batch fixtures (T21)
+// ---------------------------------------------------------------------------
+
+/// Empty op list on a 3-leaf tree. Proof covers no key paths; digest unchanged.
+fn batch_0ops() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    generate_fixture(
+        "batch-0ops",
+        32,
+        None,
+        &initial,
+        vec![],
+        vec![],
+        false,
+    )
+}
+
+/// Insert key K then Lookup K — verifier should find it.
+fn batch_2ops_insert_then_lookup() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let k = key(0x10);
+    let v = val(0xAA, 8);
+    let ops = vec![
+        Operation::Insert(KeyValue { key: k.clone(), value: v.clone() }),
+        Operation::Lookup(k),
+    ];
+    generate_fixture(
+        "batch-2ops-insert-then-lookup",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+/// Insert key K with value V1 then Update K with V2 — final stored value is V2.
+fn batch_2ops_insert_then_update() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let k = key(0x20);
+    let v1 = val(0x11, 8);
+    let v2 = val(0x22, 8);
+    let ops = vec![
+        Operation::Insert(KeyValue { key: k.clone(), value: v1 }),
+        Operation::Update(KeyValue { key: k, value: v2 }),
+    ];
+    generate_fixture(
+        "batch-2ops-insert-then-update",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+/// Insert key K then Remove K — net-zero change; tree should return to its
+/// pre-insert state (though the actual digest may differ due to structural
+/// rebalancing history — what matters is that the Rust verifier agrees).
+fn batch_2ops_insert_then_remove() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let k = key(0x30);
+    let v = val(0x33, 8);
+    let ops = vec![
+        Operation::Insert(KeyValue { key: k.clone(), value: v }),
+        Operation::Remove(k),
+    ];
+    generate_fixture(
+        "batch-2ops-insert-then-remove",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+/// Build a key with a 2-byte distinguishable prefix so the 32-byte keys are
+/// clearly distinct.
+fn key2(hi: u8, lo: u8) -> Bytes {
+    let mut b = vec![0u8; 32];
+    b[0] = hi;
+    b[1] = lo;
+    Bytes::from(b)
+}
+
+/// 16 mixed operations on a 5-leaf initial tree.
+fn batch_16ops_mixed() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = (0x01u8..=0x05)
+        .map(|i| (key(i), val(i, 8)))
+        .collect();
+
+    // Keys 0xA0..0xA7 are new (absent in initial); keys 0x01..0x05 are present.
+    let ops = vec![
+        // Insert 4 new keys
+        Operation::Insert(KeyValue { key: key2(0xA0, 0), value: val(0xA0, 8) }),
+        Operation::Insert(KeyValue { key: key2(0xA1, 0), value: val(0xA1, 8) }),
+        Operation::Insert(KeyValue { key: key2(0xA2, 0), value: val(0xA2, 8) }),
+        Operation::Insert(KeyValue { key: key2(0xA3, 0), value: val(0xA3, 8) }),
+        // Lookup 2 newly inserted keys
+        Operation::Lookup(key2(0xA0, 0)),
+        Operation::Lookup(key2(0xA1, 0)),
+        // Update 2 original keys
+        Operation::Update(KeyValue { key: key(0x01), value: val(0xFF, 8) }),
+        Operation::Update(KeyValue { key: key(0x02), value: val(0xEE, 8) }),
+        // InsertOrUpdate (insert path — absent)
+        Operation::InsertOrUpdate(KeyValue { key: key2(0xB0, 0), value: val(0xB0, 8) }),
+        // InsertOrUpdate (update path — present)
+        Operation::InsertOrUpdate(KeyValue { key: key(0x03), value: val(0xDD, 8) }),
+        // RemoveIfExists (present)
+        Operation::RemoveIfExists(key(0x04)),
+        // RemoveIfExists (absent — no-op)
+        Operation::RemoveIfExists(key2(0xC0, 0)),
+        // Remove (present)
+        Operation::Remove(key(0x05)),
+        // Lookup a key that was just removed (should be absent)
+        Operation::Lookup(key(0x05)),
+        // UnknownModification on an existing key
+        Operation::UnknownModification(key(0x01)),
+        // Final lookup on a newly inserted key
+        Operation::Lookup(key2(0xA2, 0)),
+    ];
+    generate_fixture(
+        "batch-16ops-mixed",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+/// 256 distinct inserts into an empty tree.  Stresses tree depth and
+/// previousLeaf-chaining in the proof decoder.
+///
+/// Keys are structured as [hi, lo, 0x00, ..., 0x00] where (hi, lo) runs
+/// over (0x01, 0x00)..(0x01, 0xFF) for 255 keys, then (0x02, 0x00) for 1 more.
+/// All keys are strictly less than the positive-infinity sentinel [0xFF; 32].
+fn batch_256ops_inserts() -> Result<AvlFixture> {
+    // 255 keys: [0x01, lo, 0, ..., 0] for lo in 0x00..=0xFE
+    let mut ops: Vec<Operation> = (0x00u8..=0xFEu8)
+        .map(|lo| {
+            let k = key2(0x01, lo);
+            Operation::Insert(KeyValue { key: k, value: val(lo, 8) })
+        })
+        .collect();
+    // 256th key: [0x02, 0x00, 0x00, ..., 0x00]
+    ops.push(Operation::Insert(KeyValue {
+        key: key2(0x02, 0x00),
+        value: val(0x42, 8),
+    }));
+    assert_eq!(ops.len(), 256);
+
+    generate_fixture(
+        "batch-256ops-inserts",
+        32,
+        None,
+        &[],           // empty initial tree
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+/// 100 mixed ops on a starting tree of ~50 leaves.
+/// Leaves: keys 0x01..=0x32 (50 leaves), values matching byte.
+/// Ops:
+///   - Insert 20 new keys (0xC0..=0xD3)
+///   - Update 10 existing keys (0x01..=0x0A, new value 0xF0)
+///   - Lookup 10 existing keys (0x0B..=0x14)
+///   - Remove 10 existing keys (0x15..=0x1E)
+///   - RemoveIfExists 10 existing keys (0x1F..=0x28)
+///   - InsertOrUpdate 10 new keys (0xD4..=0xDD, insert path)
+///   - InsertOrUpdate 10 existing keys (0x29..=0x32, update path)
+///   - Lookup 10 previously removed keys (0x15..=0x1E, now absent)
+///   Total = 20+10+10+10+10+10+10+10 = 90; pad with 10 more:
+///   - UnknownModification on 10 existing keys (0x01..=0x0A)
+fn batch_stress_mixed_100() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = (0x01u8..=0x32)
+        .map(|i| (key(i), val(i, 8)))
+        .collect();
+    assert_eq!(initial.len(), 50);
+
+    let mut ops: Vec<Operation> = Vec::with_capacity(100);
+
+    // Insert 20 new keys
+    for i in 0xC0u8..=0xD3u8 {
+        ops.push(Operation::Insert(KeyValue { key: key(i), value: val(i, 8) }));
+    }
+    // Update 10 existing keys
+    for i in 0x01u8..=0x0Au8 {
+        ops.push(Operation::Update(KeyValue { key: key(i), value: val(0xF0, 8) }));
+    }
+    // Lookup 10 existing keys
+    for i in 0x0Bu8..=0x14u8 {
+        ops.push(Operation::Lookup(key(i)));
+    }
+    // Remove 10 existing keys
+    for i in 0x15u8..=0x1Eu8 {
+        ops.push(Operation::Remove(key(i)));
+    }
+    // RemoveIfExists 10 existing keys
+    for i in 0x1Fu8..=0x28u8 {
+        ops.push(Operation::RemoveIfExists(key(i)));
+    }
+    // InsertOrUpdate 10 new keys (insert path)
+    for i in 0xD4u8..=0xDDu8 {
+        ops.push(Operation::InsertOrUpdate(KeyValue { key: key(i), value: val(i, 8) }));
+    }
+    // InsertOrUpdate 10 existing keys (update path)
+    for i in 0x29u8..=0x32u8 {
+        ops.push(Operation::InsertOrUpdate(KeyValue { key: key(i), value: val(0xBB, 8) }));
+    }
+    // Lookup 10 previously removed keys (now absent)
+    for i in 0x15u8..=0x1Eu8 {
+        ops.push(Operation::Lookup(key(i)));
+    }
+    // UnknownModification 10 existing keys (0x01..=0x0A, which were updated above)
+    for i in 0x01u8..=0x0Au8 {
+        ops.push(Operation::UnknownModification(key(i)));
+    }
+
+    assert_eq!(ops.len(), 100);
+
+    generate_fixture(
+        "batch-stress-mixed-100",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -751,6 +991,15 @@ pub fn run() -> Result<()> {
     // --- UnknownModification ---
     write_fixture("unknown-mod-3leaves-present", &unknown_mod_3leaves_present()?)?;
     write_fixture("unknown-mod-3leaves-absent", &unknown_mod_3leaves_absent()?)?;
+
+    // --- Multi-op batches (T21) ---
+    write_fixture("batch-0ops", &batch_0ops()?)?;
+    write_fixture("batch-2ops-insert-then-lookup", &batch_2ops_insert_then_lookup()?)?;
+    write_fixture("batch-2ops-insert-then-update", &batch_2ops_insert_then_update()?)?;
+    write_fixture("batch-2ops-insert-then-remove", &batch_2ops_insert_then_remove()?)?;
+    write_fixture("batch-16ops-mixed", &batch_16ops_mixed()?)?;
+    write_fixture("batch-256ops-inserts", &batch_256ops_inserts()?)?;
+    write_fixture("batch-stress-mixed-100", &batch_stress_mixed_100()?)?;
 
     Ok(())
 }
