@@ -1,5 +1,7 @@
 # `facts/ergoscript.md` Split Implementation Plan
 
+**Status: ✅ COMPLETE 2026-05-18** (facts/ergoscript.md split from 1,203 lines into meta hub (94 lines) + 3 slice files: ergoscript-wire.md (207), ergoscript-eval.md (352), ergoscript-sigma.md (139). CLAUDE.md reads-list updated. One deep-link in packages/ergoscript/API.md redirected to the wire slice. All other cross-references are vague and continue to land on the meta hub via its lookup table. Total facts/ content compressed ~34% via deduplication. No code, test, or fixture changes; no broken refs.)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Split `facts/ergoscript.md` (currently 1,203 lines after phase 2g.6) into a meta file (~150 lines) plus three per-slice contract files (`facts/ergoscript-wire.md`, `facts/ergoscript-eval.md`, `facts/ergoscript-sigma.md`), aligned with the umbrella spec's `/wire` / `/eval` / `/sigma` subpath-export plan.
