@@ -15,8 +15,10 @@ use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::property_call::PropertyCall;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::types::scontext::PRE_HEADER_PROPERTY;
+use proptest::arbitrary::Arbitrary;
+use proptest::strategy::Strategy;
+use proptest::test_runner::TestRunner;
 use serde_json::json;
-use sigma_test_util::force_any_val;
 
 use super::common::{preheader_to_json, value_to_json, EvalFixture, EvalFixtureFile};
 
@@ -32,7 +34,13 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
     let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
     let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
-    let ctx = force_any_val::<Context>();
+    // Use deterministic TestRunner (fixed seed) so fixture bytes are stable across
+    // re-runs. `force_any_val::<Context>()` seeds from the OS RNG and causes fixture drift.
+    let mut runner = TestRunner::deterministic();
+    let ctx = Context::arbitrary()
+        .new_tree(&mut runner)
+        .unwrap()
+        .current();
     let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
     let cost = ctx.jit_cost_value();
 

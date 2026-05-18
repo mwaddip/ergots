@@ -6,18 +6,18 @@
       "tree_bytes_hex": "00db6903db6503fe",
       "opts_json": {
         "preHeader": {
-          "height": 2703202,
-          "minerPk": "000000000000000000000000000000000000000000000000000000000000000000",
-          "nBits": 1152298316,
-          "parentId": "3c4a0e57872219da3f3fe221c1b25ccdaadc4012c418639fad5c2c789404ee36",
-          "timestamp": "2475076109737",
+          "height": 6943011,
+          "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+          "nBits": 4039541346,
+          "parentId": "66e14faf9fd13436b9df37cd98193b6e22362966aa08c4350b8657b4d6ee717a",
+          "timestamp": "1193801626139",
           "version": 1,
-          "votes": "0cbc1d"
+          "votes": "fb1110"
         }
       },
       "expected_value_json": {
         "kind": "Long",
-        "value": "2475076109737"
+        "value": "1193801626139"
       },
       "expected_cost": 34
     }

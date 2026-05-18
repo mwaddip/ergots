@@ -22,8 +22,9 @@ import { analyzeBox, emptyResult, type CorpusBox, type AnalysisResult, type Meth
 import { KNOWN_METHODS } from './_known-methods'
 
 // Set of Expr.tag values NOT yet wired in eval/eval.ts central dispatch.
-// Sourced from eval/eval.ts central dispatch as of 2026-05-18.
+// Sourced from eval/eval.ts central dispatch as of 2026-05-18 (phase 2g.6).
 // Re-verify against current src/eval/eval.ts when re-running on a corpus.
+// 'Global' removed here after phase 2g.6 shipped the Global arm (Task 1).
 const UNIMPLEMENTED_TAGS = new Set([
   'SubstConstants',
   'ByteArrayToLong',
@@ -31,7 +32,6 @@ const UNIMPLEMENTED_TAGS = new Set([
   'LongToByteArray',
   'CalcBlake2b256',
   'CalcSha256',
-  'Global',
   'Xor',
   'SigmaPropIsProven',
   'ZkProofBlock',

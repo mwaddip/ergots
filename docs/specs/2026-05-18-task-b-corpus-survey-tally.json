@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generatedAt": "2026-05-18T11:06:39.415Z",
+    "generatedAt": "2026-05-18T14:22:41.201Z",
     "fixtureSource": "packages/ergoscript/test/fixtures/mainnet_boxes_wider.json",
     "fixtureMeta": {
       "generatedAt": "2026-05-18T09:59:57.556330741+00:00",
@@ -452,7 +452,8 @@
       "typeId": 106,
       "methodId": 1,
       "methodName": "SGlobal.groupGenerator",
-      "implemented": false
+      "implemented": true,
+      "implementedIn": "2g.6"
     },
     {
       "totalAppearances": 40,
@@ -462,7 +463,8 @@
       "typeId": 12,
       "methodId": 29,
       "methodName": "SColl.zip",
-      "implemented": false
+      "implemented": true,
+      "implementedIn": "2g.6"
     },
     {
       "totalAppearances": 70,
@@ -492,7 +494,8 @@
       "typeId": 12,
       "methodId": 14,
       "methodName": "SColl.indices",
-      "implemented": false
+      "implemented": true,
+      "implementedIn": "2g.6"
     },
     {
       "totalAppearances": 7,
@@ -502,7 +505,8 @@
       "typeId": 105,
       "methodId": 3,
       "methodName": "SPreHeader.timestamp",
-      "implemented": false
+      "implemented": true,
+      "implementedIn": "2g.6"
     },
     {
       "totalAppearances": 7,
@@ -512,7 +516,8 @@
       "typeId": 101,
       "methodId": 3,
       "methodName": "SContext.preHeader",
-      "implemented": false
+      "implemented": true,
+      "implementedIn": "2g.6"
     },
     {
       "totalAppearances": 3,
@@ -611,17 +616,6 @@
       ]
     },
     {
-      "tag": "Global",
-      "distinctBoxes": 120,
-      "exampleBoxIds": [
-        "1b5e68b9bcf640f7e3ec23ee96eb32ca5801f896d7f9d0cec1d3506a91318479",
-        "57eb7ee4f0a8c6560af0fd16bd339a2fe270d0af163f3ef044c1275ef45e8e67",
-        "25668cfa791821a3b6f5a451435cdae987cd7cb1d474eec8b0e87314596623ec",
-        "6e74d2501c2612886648d7f526e049908b453af6f07eda3a03660e71e451fb1d",
-        "6b8ed6abbd054e892eeabec59ecf385749d7a93821bd371207767a1cf3a9c4ef"
-      ]
-    },
-    {
       "tag": "ByteArrayToLong",
       "distinctBoxes": 33,
       "exampleBoxIds": [
@@ -657,61 +651,6 @@
   "phase2g6Priority": [
     {
       "rank": 1,
-      "totalAppearances": 120,
-      "distinctBoxes": 120,
-      "random": 110,
-      "mustInclude": 10,
-      "typeId": 106,
-      "methodId": 1,
-      "methodName": "SGlobal.groupGenerator",
-      "implemented": false
-    },
-    {
-      "rank": 2,
-      "totalAppearances": 40,
-      "distinctBoxes": 35,
-      "random": 40,
-      "mustInclude": 0,
-      "typeId": 12,
-      "methodId": 29,
-      "methodName": "SColl.zip",
-      "implemented": false
-    },
-    {
-      "rank": 3,
-      "totalAppearances": 13,
-      "distinctBoxes": 8,
-      "random": 13,
-      "mustInclude": 0,
-      "typeId": 12,
-      "methodId": 14,
-      "methodName": "SColl.indices",
-      "implemented": false
-    },
-    {
-      "rank": 4,
-      "totalAppearances": 7,
-      "distinctBoxes": 7,
-      "random": 3,
-      "mustInclude": 4,
-      "typeId": 105,
-      "methodId": 3,
-      "methodName": "SPreHeader.timestamp",
-      "implemented": false
-    },
-    {
-      "rank": 5,
-      "totalAppearances": 7,
-      "distinctBoxes": 7,
-      "random": 3,
-      "mustInclude": 4,
-      "typeId": 101,
-      "methodId": 3,
-      "methodName": "SContext.preHeader",
-      "implemented": false
-    },
-    {
-      "rank": 6,
       "totalAppearances": 4,
       "distinctBoxes": 2,
       "random": 4,
@@ -722,7 +661,7 @@
       "implemented": false
     },
     {
-      "rank": 7,
+      "rank": 2,
       "totalAppearances": 1,
       "distinctBoxes": 1,
       "random": 1,

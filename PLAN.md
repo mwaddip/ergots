@@ -1,5 +1,7 @@
 # Phase 2g.6 — Broader Method-Call Surface: Implementation Plan
 
+**Status: ✅ COMPLETE 2026-05-18** (5 method handlers + Global Expr arm + 2 SValue variants shipped; wider-corpus re-survey confirms 5 methods now `implemented: true`; full test suite green under node + jsdom (2658 tests); fixture-gen determinism preserved — `force_any_val` replaced with `TestRunner::deterministic()` in scontext_pre_header + spreheader_timestamp fixtures.)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Land the 5 method handlers locked by Task B's wider-mainnet corpus survey (`SGlobal.groupGenerator`, `SColl.zip`, `SColl.indices`, `SContext.preHeader`, `SPreHeader.timestamp`), extending the 2g.5 `HANDLERS` registry in `eval/method-call.ts`, plus 1 new `Expr` arm (`Global`) and 2 new `SValue` variants (`{ kind: 'Global' }` sentinel, `{ kind: 'PreHeader'; value: PreHeader }` value carrier).
