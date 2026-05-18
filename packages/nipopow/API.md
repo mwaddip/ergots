@@ -1,13 +1,13 @@
-# API — `@mwaddip/ergots-proof`
+# API — `@ergots/nipopow`
 
-Public surface for the verifier package. The wire format and verification semantics this implements come from `ergo-nipopow` (sigma-rust); see `facts/proof.md` in the repo root for the load-bearing interface contract.
+Public surface for the verifier package. The wire format and verification semantics this implements come from `ergo-nipopow` (sigma-rust); see `facts/nipopow.md` in the repo root for the load-bearing interface contract.
 
 ## Entry points
 
 | Import path | Purpose |
 |---|---|
-| `@mwaddip/ergots-proof` | Parse, serialize, verify, and compare NiPoPoW proofs |
-| `@mwaddip/ergots-proof/envelope` | P2P wire envelope for message codes 90 / 91 |
+| `@ergots/nipopow` | Parse, serialize, verify, and compare NiPoPoW proofs |
+| `@ergots/nipopow/envelope` | P2P wire envelope for message codes 90 / 91 |
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, or other Node built-ins.
 
@@ -23,7 +23,7 @@ import {
   type NipopowProof, type Header, type PoPowHeader, type AutolykosSolution,
   type VerifyOptions, type VerificationResult,
   ProofParseError, ProofVerificationError,
-} from '@mwaddip/ergots-proof';
+} from '@ergots/nipopow';
 ```
 
 ### `parseProof(bytes)`
@@ -111,7 +111,7 @@ import {
   GET_NIPOPOW_PROOF_MAX_SIZE, NIPOPOW_PROOF_MAX_SIZE,
   type GetNipopowProofRequest,
   EnvelopeParseError,
-} from '@mwaddip/ergots-proof/envelope';
+} from '@ergots/nipopow/envelope';
 ```
 
 ### Constants

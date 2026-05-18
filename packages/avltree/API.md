@@ -1,4 +1,4 @@
-# API — `@mwaddip/ergots-avltree`
+# API — `@ergots/avltree`
 
 Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (HEAD `879545c`); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
 
@@ -18,7 +18,7 @@ import {
   type OperationResult,
   AvlVerifyError,
   type AvlVerifyErrorCode,
-} from '@mwaddip/ergots-avltree';
+} from '@ergots/avltree';
 ```
 
 ---
@@ -267,6 +267,6 @@ try {
 
 - `facts/avltree.md` (repo root) — load-bearing interface contract referenced by downstream packages
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, validation strategy, error model detail
-- `facts/ergoscript-eval.md` — upstream consumer: `SAvlTree.*` method handlers in `@mwaddip/ergots-ergoscript` phase 2h-b
+- `facts/ergoscript-eval.md` — upstream consumer: `SAvlTree.*` method handlers in `@ergots/ergoscript` phase 2h-b
 - [KMZ16 paper](https://eprint.iacr.org/2016/994) — AVL+ authenticated dictionary
 - [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (HEAD `879545c`)

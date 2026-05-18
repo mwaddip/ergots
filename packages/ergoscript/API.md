@@ -1,4 +1,4 @@
-# API — `@mwaddip/ergots-ergoscript`
+# API — `@ergots/ergoscript`
 
 Public surface for the ErgoTree wire-format package. The wire format and serialization semantics this implements come from `ergotree-ir` (sigma-rust, branch `integration/ergots`); see [`facts/ergoscript.md`](../../facts/ergoscript.md) in the repo root for the load-bearing interface contract.
 
@@ -6,7 +6,7 @@ Public surface for the ErgoTree wire-format package. The wire format and seriali
 
 | Import path | Purpose |
 |---|---|
-| `@mwaddip/ergots-ergoscript` | Parse + serialize ErgoTree; address ↔ ErgoTree conversion |
+| `@ergots/ergoscript` | Parse + serialize ErgoTree; address ↔ ErgoTree conversion |
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, or other Node built-ins. No WASM.
 
@@ -26,7 +26,7 @@ import {
   type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
-} from '@mwaddip/ergots-ergoscript';
+} from '@ergots/ergoscript';
 ```
 
 ### `parseTree(bytes)`
