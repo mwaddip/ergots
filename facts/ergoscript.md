@@ -438,26 +438,30 @@ stub (`outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phas
       medium `GlobalVars.GroupGenerator`). Source:
       `ergotree-interpreter/src/eval/sglobal.rs:32-41`.
     - **`SColl.zip`** (`MethodCall`, typeId=12, methodId=29): cost
-      `addPerItemCost(10, 1, 10, min(left.length, right.length))` (Pattern A within
-      handler); validates both inputs are `Coll` (throws `'method-not-implemented'` on
-      mismatch); returns a `Coll[(A, B)]` — `{ kind: 'Coll', elem: { tag: 'STuple',
-      items: [left.elem, right.elem] }, items: zipped }` where each item is `{ kind:
-      'Tuple', items: [lv, rv] }`. Truncates to the shorter collection (zip stops at the
-      end of the shorter input). Source: `ergotree-interpreter/src/eval/scoll.rs:138-169`.
-    - **`SColl.indices`** (`PropertyCall`, typeId=12, methodId=14): cost
-      `addPerItemCost(20, 1, 10, coll.length)` (Pattern A within handler); validates
-      input is `Coll` (throws `'method-not-implemented'` on mismatch); returns a
-      `Coll[Int]` of 0-based indices `[0, 1, …, n-1]` of the same length as the input
-      collection. Source: `ergotree-interpreter/src/eval/scoll.rs:171-193`.
+      `addPerItemCost(10, 1, 10, obj.length)` (Pattern B — charged after obj `Coll`
+      extraction; `n` is the obj's length, NOT `min(obj, arg)`); validates both inputs
+      are `Coll` (throws `'method-not-implemented'` on mismatch); returns a
+      `Coll[(A, B)]` — `{ kind: 'Coll', elem: { tag: 'STuple', items: [left.elem,
+      right.elem] }, items: zipped }` where each item is `{ kind: 'Tuple', items:
+      [lv, rv] }`. Truncates to the shorter collection (zip stops at the end of the
+      shorter input). Source: `ergotree-interpreter/src/eval/scoll.rs:138-169`.
+    - **`SColl.indices`** (`MethodCall`, typeId=12, methodId=14): cost
+      `addPerItemCost(20, 2, 16, coll.length)` (Pattern B — charged after `Coll`
+      extraction); validates input is `Coll` (throws `'method-not-implemented'` on
+      mismatch); also throws `'method-not-implemented'` on overflow if `n > 2^31 - 1`
+      (symmetry with sigma-rust's `i32::try_from` panic); returns a `Coll[Int]` of
+      0-based indices `[0, 1, …, n-1]` of the same length as the input collection.
+      Source: `ergotree-interpreter/src/eval/scoll.rs:171-193`.
     - **`SContext.preHeader`** (`PropertyCall`, typeId=101, methodId=3): cost 15 (Pattern A
       within handler); validates `obj.kind === 'Context'` (throws `'context-obj-not-context'`
       on mismatch — same code reused from `SContext.dataInputs`); reads
       `ctx.preHeader` and returns `{ kind: 'PreHeader', value: ctx.preHeader }`. If
       `ctx.preHeader` is absent throws `'context-field-missing'` (same code reused from 2f
       medium `GlobalVars`). Source: `ergotree-interpreter/src/eval/scontext.rs:72-81`.
-    - **`SPreHeader.timestamp`** (`PropertyCall`, typeId=105, methodId=3): cost 15 (Pattern A
+    - **`SPreHeader.timestamp`** (`PropertyCall`, typeId=105, methodId=3): cost 10 (Pattern A
       within handler); validates `obj.kind === 'PreHeader'` (throws `'method-not-implemented'`
-      on mismatch); returns `{ kind: 'Long', value: BigInt(obj.value.timestamp) }`. Source:
+      on mismatch); returns `{ kind: 'Long', value: obj.value.timestamp }` (timestamp is
+      already `bigint` in the `PreHeader` interface — no conversion). Source:
       `ergotree-interpreter/src/eval/spreheader.rs:20-24`.
 
 74. **Zero new `EvalError` codes** — all 5 handlers reuse existing codes:
