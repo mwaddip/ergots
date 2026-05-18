@@ -1,6 +1,6 @@
-# `@mwaddip/ergots-ergoscript` — Sigma-Protocol Verifier Contract
+# `@ergots/ergoscript` — Sigma-Protocol Verifier Contract
 
-This file documents the **sigma-protocol verifier slice** of the `@mwaddip/ergots-ergoscript` boundary contract (phases 2g-medium and 2g-combinators). It covers the public `verifySignature` entry point, the `SigmaBoolean` 6-variant discriminated union, the `VerifyError` taxonomy, and pointers to the internal helpers.
+This file documents the **sigma-protocol verifier slice** of the `@ergots/ergoscript` boundary contract (phases 2g-medium and 2g-combinators). It covers the public `verifySignature` entry point, the `SigmaBoolean` 6-variant discriminated union, the `VerifyError` taxonomy, and pointers to the internal helpers.
 
 For cross-cutting guarantees see [`facts/ergoscript.md`](./ergoscript.md). For the evaluator surface (which produces `SValue.SigmaProp` values consumed by `verifySignature`) see [`facts/ergoscript-eval.md`](./ergoscript-eval.md). For the wire-format parser that produces `SigmaBoolean` from on-wire bytes see [`facts/ergoscript-wire.md`](./ergoscript-wire.md).
 

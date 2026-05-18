@@ -1,6 +1,6 @@
-# `@mwaddip/ergots-ergoscript` — Evaluator Surface Contract
+# `@ergots/ergoscript` — Evaluator Surface Contract
 
-This file documents the **evaluator slice** of the `@mwaddip/ergots-ergoscript` boundary contract (phases 2b through 2g.6). It is also the canonical home for the `SValue` / `SType` / `Expr` discriminated unions, which are produced by the wire layer (see [`facts/ergoscript-wire.md`](./ergoscript-wire.md)) and consumed across the package.
+This file documents the **evaluator slice** of the `@ergots/ergoscript` boundary contract (phases 2b through 2g.6). It is also the canonical home for the `SValue` / `SType` / `Expr` discriminated unions, which are produced by the wire layer (see [`facts/ergoscript-wire.md`](./ergoscript-wire.md)) and consumed across the package.
 
 For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/ergoscript.md`](./ergoscript.md). For the sigma-protocol verifier (which consumes `SValue.SigmaProp` produced by this layer) see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md).
 

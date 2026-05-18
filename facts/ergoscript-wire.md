@@ -1,6 +1,6 @@
-# `@mwaddip/ergots-ergoscript` — Wire Format Contract
+# `@ergots/ergoscript` — Wire Format Contract
 
-This file documents the **wire-format slice** of the `@mwaddip/ergots-ergoscript` boundary contract (phase 2a). For cross-cutting guarantees (browser-compat, determinism, ESM-only, no-WASM, runtime deps) and forward pointers to other slices, see [`facts/ergoscript.md`](./ergoscript.md). For the evaluator surface (which consumes the `SValue` / `SType` / `Expr` types this layer produces) see [`facts/ergoscript-eval.md`](./ergoscript-eval.md). For sigma-protocol verification see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md).
+This file documents the **wire-format slice** of the `@ergots/ergoscript` boundary contract (phase 2a). For cross-cutting guarantees (browser-compat, determinism, ESM-only, no-WASM, runtime deps) and forward pointers to other slices, see [`facts/ergoscript.md`](./ergoscript.md). For the evaluator surface (which consumes the `SValue` / `SType` / `Expr` types this layer produces) see [`facts/ergoscript-eval.md`](./ergoscript-eval.md). For sigma-protocol verification see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md).
 
 Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`, `ergotree-ir/src/serialization/`, and `ergotree-ir/src/mir/` (branch `integration/ergots`, HEAD `ed5452cf`). Where this file is silent, those are canonical.
 
