@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-18
-**Package:** `@mwaddip/ergots-ergoscript` (Task B — pre-phase-2g.6 corpus widening + method-demand survey)
+**Package:** `@ergots/ergoscript` (Task B — pre-phase-2g.6 corpus widening + method-demand survey)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella; this Task B is the pre-2g.6 data-driven scoping work mandated by the goal-expansion captured in the 2026-05-17 umbrella spec edits — Task A)
 **Sister specs:**
 - `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` (immediate predecessor — method-call dispatcher + 3 corpus-unlocker handlers; established the data-driven scoping discipline that motivates Task B at a wider scale)
@@ -21,7 +21,7 @@ Produce two artifacts that scope phase 2g.6 (and the subsequent phases 2h/2i) wi
 
 Together these answer: "across actual mainnet activity (current circulation + known-regression edge cases), which method-call handlers does phase 2g.6 need to land?" The 2g.5 brainstorm measured 3 method pairs from 173 boxes; Task B's wider sample is the discipline applied at scale. The handoff projection of 2g.6 ("Header methods, Coll utilities, Bit shifts via `SNumericTypeMethods`") was speculative; Task B replaces speculation with measurement.
 
-Public function signatures are unchanged. `facts/ergoscript.md` is unchanged. No `@mwaddip/ergots-ergoscript` source code is modified — Task B touches only `fixture-gen/`, `packages/ergoscript/test/fixtures/`, `packages/ergoscript/scripts/`, and `docs/specs/`.
+Public function signatures are unchanged. `facts/ergoscript.md` is unchanged. No `@ergots/ergoscript` source code is modified — Task B touches only `fixture-gen/`, `packages/ergoscript/test/fixtures/`, `packages/ergoscript/scripts/`, and `docs/specs/`.
 
 ## Background — why Task B precedes phase 2g.6
 
@@ -366,7 +366,7 @@ The ergo_avltree_rust commit `69765ef` (LabelOnly persistence-state issue) is re
 After Task B ships, the natural follow-ups are:
 
 - **Phase 2g.6 design spec** consumes the prioritization deliverable. Each method on the recommended list gets a per-method micro-task: source-read sigma-rust handler → write fixture → write TS handler → cost cross-validate.
-- **`@mwaddip/ergots-ergoscript@0.3.0` npm publish** is a natural milestone before or after Task B; user's call on timing.
+- **`@ergots/ergoscript@0.3.0` npm publish** is a natural milestone before or after Task B; user's call on timing.
 - **AVL+ membership-proof corpus** for phase 2h — separate task, separate fixture shape (requires AVL+ digests, sibling paths, etc. — not ergoTree bytes).
 - **Block-level validation corpus** for phase 2j — extends Task B's must-include set with full eval contexts (block context per tx, dataInputs, post-state digests) and sigma-rust cost oracle per tree. Task B's `transactions_700000_700050.json` import is the seed.
 

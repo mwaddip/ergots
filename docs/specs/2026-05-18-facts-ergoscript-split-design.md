@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-18
-**Package:** `@mwaddip/ergots-ergoscript` (documentation refactor; no code or behavior change)
+**Package:** `@ergots/ergoscript` (documentation refactor; no code or behavior change)
 **Phase plan:** documentation hygiene; tracks post-phase-2g.6 file growth
 **Brainstorm transcript:** session 2026-05-18 (post-phase-2g.6 ship)
 
@@ -15,8 +15,8 @@ The split is driven by file growth (1,203 lines is hard to read in one Read; ~43
 ## Non-goals
 
 - **Code or behavior change.** This is pure documentation refactor; no `packages/ergoscript/src/` files are touched, no tests are added or removed.
-- **Splitting `facts/proof.md`.** At 196 lines it's comfortably within bounds; no growth pressure.
-- **Splitting the npm package itself.** `@mwaddip/ergots-ergoscript` stays a single published package. Subpath exports remain a "extract when a real consumer needs it" decision (per the umbrella spec); this spec only pre-marks where the seams would fall in the contract.
+- **Splitting `facts/nipopow.md`.** At 196 lines it's comfortably within bounds; no growth pressure.
+- **Splitting the npm package itself.** `@ergots/ergoscript` stays a single published package. Subpath exports remain a "extract when a real consumer needs it" decision (per the umbrella spec); this spec only pre-marks where the seams would fall in the contract.
 - **Preemptively creating empty placeholder files for future phases.** `facts/ergoscript-avl.md` and `facts/ergoscript-cost.md` are NOT created now — each future phase's design spec creates its own slice file as part of the phase's facts-update step.
 - **Rewriting content.** The split is mostly cut-and-paste of existing material into new file homes; copy-edits are out of scope for this refactor.
 - **Updating cross-refs in every existing design spec.** Only deep-link refs (the ones that name a specific section that's moved to a slice file) get updated; vague refs ("see facts/ergoscript.md") land on the hub via the lookup table and stay as-is.
@@ -158,7 +158,7 @@ At end of Phase 1, the new files exist alongside the old one. **Don't yet delete
 
 ### Source
 - `facts/ergoscript.md` (current, 1,203 lines) — the file being split
-- `facts/proof.md` (196 lines) — sister contract; pattern reference for the meta file's structure
+- `facts/nipopow.md` (196 lines) — sister contract; pattern reference for the meta file's structure
 
 ### Sister specs
 - `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella spec; names `/wire` as a plausible future subpath export (the architectural justification for this split)
