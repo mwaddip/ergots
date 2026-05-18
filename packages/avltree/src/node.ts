@@ -154,12 +154,17 @@ export function newLabel(label: Uint8Array): LabelNode {
  *
  * Result is memoised in `node.labelCache` (null on a freshly constructed node;
  * callers that mutate a subtree must reset labelCache to null on all ancestors).
+ *
+ * Returns a defensively-sliced copy of the label so callers cannot mutate
+ * the internal cache (or the LabelNode's stored digest). The cache itself
+ * is preserved across calls; only the return value is fresh.
  */
 export function label(node: AvlNode): Uint8Array {
-  // LabelOnly: stored label IS the label; return directly without hashing.
-  if (node.kind === 'label') return node.label
-  // Cache hit: return the previously computed digest.
-  if (node.labelCache !== null) return node.labelCache
+  // LabelOnly: stored label IS the label; return a slice so the caller
+  // cannot mutate the stored digest.
+  if (node.kind === 'label') return node.label.slice()
+  // Cache hit: return a fresh slice so the caller cannot corrupt the cache.
+  if (node.labelCache !== null) return node.labelCache.slice()
 
   let result: Uint8Array
   if (node.kind === 'leaf') {
@@ -189,7 +194,8 @@ export function label(node: AvlNode): Uint8Array {
     result = blake2b(input, { dkLen: 32 })
   }
   node.labelCache = result
-  return result
+  // Return a fresh slice — the cache holds `result`; the caller gets a copy.
+  return result.slice()
 }
 
 /**
