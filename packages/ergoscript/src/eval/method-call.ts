@@ -32,9 +32,11 @@ import { primitiveValueEqual } from './bin-op/relation'
 // Module-level SType singletons used in handler helpers.
 // Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
 // SBox — element type for dataInputsCollOf.
+// SInt — element type for indicesCollOf.
 const SLONG: SType = { tag: 'SLong' }
 const STUPLE_COLLBYTE_LONG: SType = { tag: 'STuple', items: [SCOLL_BYTE, SLONG] }
 const SBOX: SType = { tag: 'SBox' }
+const SINT: SType = { tag: 'SInt' }
 
 type MethodHandler = (
   obj: SValue,
@@ -157,6 +159,29 @@ function registerHandlers(): void {
     }
     return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
   })
+
+  // SColl.indices (MethodCall, typeId=12, methodId=14)
+  // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
+  // Pattern B cost: addPerItemCost(20, 2, 16, n) AFTER Coll extraction.
+  // Returns Coll[Int] = 0..n-1. Overflow guard at n > 2^31-1 (mirrors sigma-rust
+  // i32::try_from(i)? throw).
+  HANDLERS.set(handlerKey(12, 14), (obj, _args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.indices expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    const n = obj.items.length
+    if (n > 0x7fffffff) {
+      throw new EvalError(
+        `SColl.indices: length ${n} exceeds i32 range`,
+        'method-not-implemented' // symmetry with sigma-rust's TryFromIntError throw
+      )
+    }
+    ctx.addPerItemCost(20, 2, 16, n) // Pattern B; source: scoll.rs:179
+    return indicesCollOf(n)
+  })
 }
 
 registerHandlers()
@@ -184,4 +209,13 @@ function dataInputsCollOf(boxes: ErgoBox[]): SValue {
     elem: SBOX,
     items: boxes.map((b) => ({ kind: 'Box', value: b })),
   }
+}
+
+// ---------- SColl.indices helper ----------
+
+/** Build a Coll[Int] = [0, 1, ..., n-1]. */
+function indicesCollOf(n: number): SValue {
+  const items: SValue[] = []
+  for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
+  return { kind: 'Coll', elem: SINT, items }
 }

@@ -1,0 +1,126 @@
+{
+  "corpus": "eval_scoll_indices",
+  "entries": [
+    {
+      "name": "empty",
+      "tree_bytes_hex": "00dc0c0e110000",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 29
+    },
+    {
+      "name": "three_elements",
+      "tree_bytes_hex": "00dc0c0e110314283c00",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 31
+    },
+    {
+      "name": "seventeen_elements_two_chunks",
+      "tree_bytes_hex": "00dc0c0e111100020406080a0c0e10121416181a1c1e2000",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 2
+          },
+          {
+            "kind": "Int",
+            "value": 3
+          },
+          {
+            "kind": "Int",
+            "value": 4
+          },
+          {
+            "kind": "Int",
+            "value": 5
+          },
+          {
+            "kind": "Int",
+            "value": 6
+          },
+          {
+            "kind": "Int",
+            "value": 7
+          },
+          {
+            "kind": "Int",
+            "value": 8
+          },
+          {
+            "kind": "Int",
+            "value": 9
+          },
+          {
+            "kind": "Int",
+            "value": 10
+          },
+          {
+            "kind": "Int",
+            "value": 11
+          },
+          {
+            "kind": "Int",
+            "value": 12
+          },
+          {
+            "kind": "Int",
+            "value": 13
+          },
+          {
+            "kind": "Int",
+            "value": 14
+          },
+          {
+            "kind": "Int",
+            "value": 15
+          },
+          {
+            "kind": "Int",
+            "value": 16
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 33
+    }
+  ]
+}
