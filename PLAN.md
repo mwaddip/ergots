@@ -668,7 +668,7 @@ git commit -m "feat(avltree): node.ts — Leaf/Internal/Label node types + const
 
 ### Task 7: `node.ts` — blake2b-256 labeling
 
-**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_node.rs` — `label()` methods on each node kind, roughly lines 80-170. Internal nodes hash `(0x01, leftLabel, rightLabel, balanceByte)`; leaves hash `(0x00, key, value, nextLeafKey)`.
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_node.rs` — `label()` methods on each node kind, roughly lines 80-170. Internal nodes hash `(0x01, balanceByte, leftLabel, rightLabel)` — **balance precedes child labels per `Node::Internal` branch at lines ~100-109**; leaves hash `(0x00, key, value, nextLeafKey)`.
 
 **Files:**
 - Modify: `packages/avltree/src/node.ts` (add `label()` function)
@@ -734,7 +734,8 @@ import { blake2b } from '@noble/hashes/blake2.js'
  * Compute 32-byte blake2b-256 label for a node.
  * Ports batch_node.rs::Node::label() (the dispatch) and the per-kind hash inputs:
  *   - Leaf:     blake2b256(0x00 || key || value || nextLeafKey)         — lines ~110-130
- *   - Internal: blake2b256(0x01 || leftLabel || rightLabel || balance)  — lines ~140-170
+ *   - Internal: blake2b256(0x01 || balance || leftLabel || rightLabel)  — lines ~100-109
+ *     (balance precedes child labels — VERIFY against Rust source before implementing)
  *   - Label:    return stored label directly
  *
  * Result is cached on the node (labelCache field).
@@ -749,13 +750,15 @@ export function label(node: AvlNode): Uint8Array {
     // Reference: batch_node.rs lines ~110-130
     input = concat([new Uint8Array([0x00]), node.key, node.value, node.nextLeafKey])
   } else {
-    // Internal: 0x01 || leftLabel || rightLabel || balanceByte
-    // Reference: batch_node.rs lines ~140-170
+    // Internal: 0x01 || balance || leftLabel || rightLabel
+    // Reference: batch_node.rs ~lines 100-109 (Node::Internal branch of Node::label())
     // Balance encoded as one byte (signed-i8 form): -1 → 0xff, 0 → 0x00, 1 → 0x01
+    // IMPORTANT: balance precedes the child labels (NOT follows). Source-first
+    // discipline: verify against the Rust source before implementing.
     const leftLbl = label(node.left)
     const rightLbl = label(node.right)
     const balanceByte = new Uint8Array([node.balance & 0xff])
-    input = concat([new Uint8Array([0x01]), leftLbl, rightLbl, balanceByte])
+    input = concat([new Uint8Array([0x01]), balanceByte, leftLbl, rightLbl])
   }
   const result = blake2b(input, { dkLen: 32 })
   node.labelCache = result
