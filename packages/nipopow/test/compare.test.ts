@@ -46,7 +46,7 @@ describe('compareProofs', () => {
     }
   });
 
-  // facts/proof.md: parse failures MUST throw; do NOT silently return false.
+  // facts/nipopow.md: parse failures MUST throw; do NOT silently return false.
   test('compareProofs throws ProofParseError on malformed a', () => {
     const valid = hexToBytes(fixtures[0]!.a_hex);
     const malformed = new Uint8Array([0xff, 0xff, 0xff]);

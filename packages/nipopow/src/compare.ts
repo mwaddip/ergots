@@ -63,7 +63,7 @@ const ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8C
  * Compare two NiPoPoW proofs. Returns true iff proof-a is strictly better than
  * proof-b per KMZ17 §4.3.
  *
- * Parse failures throw ProofParseError (per facts/proof.md: do NOT return false).
+ * Parse failures throw ProofParseError (per facts/nipopow.md: do NOT return false).
  */
 export function compareProofs(a: Uint8Array, b: Uint8Array): boolean {
   // Parse both — throws ProofParseError on malformed bytes.

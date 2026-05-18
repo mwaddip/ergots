@@ -2,7 +2,7 @@
  * verifyProof: public entry point composing parseProof + hasValidConnections +
  * monotonic-heights + per-header Autolykos PoW (v2 only; v1 skipped as Unsupported per sigma-rust).
  *
- * facts/proof.md postconditions:
+ * facts/nipopow.md postconditions:
  *   - headers.length === totalHeaders
  *   - headers heights are strictly increasing
  *   - headers[last].height === suffixTipHeight

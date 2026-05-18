@@ -212,7 +212,7 @@ export function serializeGetNipopowProof(req: GetNipopowProofRequest): Uint8Arra
  * Round-trip note: future-padding bytes are intentionally stripped. Code-91
  * is a framing codec — the output is passed to `parseProof`, never re-emitted
  * verbatim. Use `serializeNipopowProofEnvelope(inner)` to produce a normalized
- * envelope (pad_length=0). See `facts/proof.md` § Round-trip invariant.
+ * envelope (pad_length=0). See `facts/nipopow.md` § Round-trip invariant.
  *
  * @throws {EnvelopeParseError} with codes: 'oversized', 'invalid-length', 'truncated'
  */

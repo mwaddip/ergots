@@ -9,7 +9,7 @@ export class ByteWriter {
   writeU8(byte: number): void {
     if (!Number.isInteger(byte) || byte < 0 || byte > 0xff) {
       // Programming error, not user input — serializers must never pass an
-      // out-of-range byte. Plain Error matches facts/proof.md's taxonomy for
+      // out-of-range byte. Plain Error matches facts/nipopow.md's taxonomy for
       // internal contract violations. Do NOT introduce a typed WriterError
       // class; the asymmetry with ReaderError is intentional.
       throw new Error(`writeU8: out of range: ${byte}`);
