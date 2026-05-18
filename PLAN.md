@@ -1881,23 +1881,23 @@ export function verifyAvlBatch(
 }
 
 function validateConfig(config: AvlTreeConfig): void {
-  if (config.keyLength <= 0) throw new AvlVerifyError('invalid-config-key-length', `keyLength must be > 0; got ${config.keyLength}`)
+  if (config.keyLength <= 0) throw new AvlVerifyError(`keyLength must be > 0; got ${config.keyLength}`, 'invalid-config-key-length')
   if (config.valueLengthOpt !== null && config.valueLengthOpt < 0)
-    throw new AvlVerifyError('invalid-config-value-length', `valueLengthOpt must be >= 0 or null`)
+    throw new AvlVerifyError(`valueLengthOpt must be >= 0 or null`, 'invalid-config-value-length')
   if (config.maxNumOperations !== undefined && config.maxNumOperations < 0)
-    throw new AvlVerifyError('invalid-config-max-ops', `maxNumOperations must be >= 0`)
+    throw new AvlVerifyError(`maxNumOperations must be >= 0`, 'invalid-config-max-ops')
   if (config.maxDeletes !== undefined && config.maxNumOperations !== undefined && config.maxDeletes > config.maxNumOperations)
-    throw new AvlVerifyError('invalid-config-max-ops', `maxDeletes must be <= maxNumOperations`)
+    throw new AvlVerifyError(`maxDeletes must be <= maxNumOperations`, 'invalid-config-max-ops')
 }
 
 function validateStartingDigest(d: Uint8Array): void {
-  if (d.length !== 33) throw new AvlVerifyError('invalid-starting-digest-length', `startingDigest must be 33 bytes; got ${d.length}`)
+  if (d.length !== 33) throw new AvlVerifyError(`startingDigest must be 33 bytes; got ${d.length}`, 'invalid-starting-digest-length')
 }
 
 function validateOperationShape(op: Operation, config: AvlTreeConfig): void {
-  if (op.key.length !== config.keyLength) throw new AvlVerifyError('operation-key-length-mismatch', `op.key.length=${op.key.length} != config.keyLength=${config.keyLength}`)
+  if (op.key.length !== config.keyLength) throw new AvlVerifyError(`op.key.length=${op.key.length} != config.keyLength=${config.keyLength}`, 'operation-key-length-mismatch')
   if ('value' in op && config.valueLengthOpt !== null && op.value.length !== config.valueLengthOpt)
-    throw new AvlVerifyError('operation-value-length-mismatch', `op.value.length=${op.value.length} != config.valueLengthOpt=${config.valueLengthOpt}`)
+    throw new AvlVerifyError(`op.value.length=${op.value.length} != config.valueLengthOpt=${config.valueLengthOpt}`, 'operation-value-length-mismatch')
 }
 ```
 
