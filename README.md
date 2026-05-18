@@ -8,23 +8,29 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 | Package | Status | What |
 |---|---|---|
-| `@mwaddip/ergots-proof` | **published v0.1.0** | NiPoPoW proof parse / serialize / verify / compare, P2P envelope codec |
-| `@mwaddip/ergots-ergoscript` | **in development** (local v0.2.0, pre-publish) | ErgoTree parser + serializer + partial evaluator (11 of ~70 Expr arms). Wire format complete; evaluator covers Const/ConstPlaceholder/BlockValue/ValDef/ValUse/Tuple/Collection/If/LogicalNot/BoolToSigmaProp + all 22 BinOp sub-ops across Arith/Relation/Logical/Bit families. Sigma-protocol, AVL+, lambdas, chain-state model planned for later phases. |
-| Wallet / transaction-broadcaster (naming TBD) | **planned** | Phase 3. Browser bootstraps state from a verified proof, locally verifies a transaction using `ergots-ergoscript`, broadcasts via a conformant Ergo node. |
+| `@ergots/nipopow` | **local v0.1.0** (was published as `@mwaddip/ergots-proof@0.1.0` pre-rename) | NiPoPoW proof parse / serialize / verify / compare, P2P envelope codec |
+| `@ergots/avltree` | **local v0.1.0**, ready to publish | Batch AVL+ authenticated-tree verifier (`verifyAvlBatch`, `verifyAvlLookup`). 140 tests, 50 corpus fixtures, ≥90% mutation kill rate per Operation variant. |
+| `@ergots/ergoscript` | **in development** (local v0.2.x, pre-publish) | ErgoTree parser + serializer + partial evaluator (52 of ~70 Expr arms; 8-entry method-handler registry). Wire format complete; sigma-protocol verifier shipped (full SigmaBoolean surface incl. Cand/Cor/Cthreshold conjecture walks). AVL+ integration + cost validation planned for later phases. |
+| Wallet / transaction-broadcaster (naming TBD) | **planned** | Phase 3. Browser bootstraps state from a verified proof, locally verifies a transaction using `@ergots/ergoscript`, broadcasts via a conformant Ergo node. |
 
-A WebSocket gossip layer (`@mwaddip/ergots-gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md) for the full rationale.
+A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md) for the full rationale.
 
 ## Layout
 
 ```
 ergots/
 ├── packages/
-│   ├── proof/                @mwaddip/ergots-proof
-│   └── ergoscript/           @mwaddip/ergots-ergoscript
+│   ├── nipopow/              @ergots/nipopow
+│   ├── avltree/              @ergots/avltree
+│   └── ergoscript/           @ergots/ergoscript
 ├── fixture-gen/              Rust crate — generates byte-for-byte test fixtures
 ├── facts/                    Interface contracts (load-bearing across packages)
-│   ├── proof.md
-│   └── ergoscript.md
+│   ├── nipopow.md
+│   ├── avltree.md
+│   ├── ergoscript.md        (meta hub)
+│   ├── ergoscript-wire.md
+│   ├── ergoscript-eval.md
+│   └── ergoscript-sigma.md
 └── docs/
     └── specs/                Design specs (the *why* and *how-we-chose*)
 ```
