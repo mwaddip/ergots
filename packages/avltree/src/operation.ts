@@ -1,6 +1,10 @@
 /**
  * Ports operation.rs's Operation enum and update_fn.
  * Source: ergo_avltree_rust/src/operation.rs (107 lines).
+ *
+ * Note: Rust's KeyValue { key, value } and KeyDelta { key, delta } structs
+ * are flattened inline onto the variants here — TS-idiomatic for discriminated
+ * unions, intentional divergence from the Rust struct shape.
  */
 
 /** Ports operation.rs::Operation enum (lines 13-22). */
@@ -35,7 +39,6 @@ function i64ToBeBytes(value: bigint): Uint8Array {
   const bytes = new Uint8Array(8)
   const view = new DataView(bytes.buffer)
   // setBigInt64 writes a signed 64-bit integer in big-endian order.
-  // Ports Rust i64::to_be_bytes (operation.rs:91, 98) via BigEndian::write_i64.
   view.setBigInt64(0, value, false)
   return bytes
 }
@@ -44,6 +47,11 @@ function i64ToBeBytes(value: bigint): Uint8Array {
  * Decode 8-byte big-endian as a signed i64.
  * Ports BigEndian::read_i64 (operation.rs:94).
  * Interprets byte[0] bit 7 as the sign bit (two's complement).
+ *
+ * Precondition: bytes.length >= 8. Caller must ensure this — malformed proof
+ * inputs are rejected upstream by the AvlTreeConfig length check (the
+ * verifier rejects values shorter than valueLengthOpt before this function
+ * is reached). Calling with bytes.length < 8 throws RangeError from DataView.
  */
 function beBytesToI64(bytes: Uint8Array): bigint {
   const view = new DataView(bytes.buffer, bytes.byteOffset, 8)
@@ -56,6 +64,14 @@ function beBytesToI64(bytes: Uint8Array): bigint {
  * Per-op old-value → new-value transform used by the AVL+ batch verifier
  * at the matching leaf. Returns ok+newValue on success, ok:false+reason on
  * precondition failure. null = key is absent (or removal result).
+ *
+ * WARNING: For `Lookup` ops, the verifier's tree-walking code (modify.ts /
+ * delete.ts) MUST short-circuit BEFORE calling updateFn — mirrors Rust's
+ * handling at authenticated_tree_ops.rs:280-282, 303-305. Passing a Lookup
+ * op into updateFn always returns { ok: true, newValue: null }, which the
+ * naive caller would treat as "remove key" — a critical bug. The Lookup
+ * branch here exists as a defensive stub but should never be reached in
+ * practice.
  */
 export function updateFn(op: Operation, oldValue: Uint8Array | null): UpdateFnResult {
   switch (op.tag) {

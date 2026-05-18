@@ -94,6 +94,17 @@ describe('updateFn — UpdateLongBy', () => {
     const op: Operation = { tag: 'UpdateLongBy', key, delta: 0n }
     expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
   })
+  it('no-op when present and delta == 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 0n }
+    const existing = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 7])  // arbitrary present value
+    const r = updateFn(op, existing)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      // The Rust source returns `m` which is `Some(old)` — value unchanged.
+      expect(r.newValue).not.toBeNull()
+      expect(Array.from(r.newValue!)).toEqual([0, 0, 0, 0, 0, 0, 0, 7])
+    }
+  })
   it('adds delta when present and result > 0', () => {
     const op: Operation = { tag: 'UpdateLongBy', key, delta: 3n }
     const existing = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 5])  // i64 BE: 5
