@@ -5,15 +5,18 @@
  * Pattern A: cost 4 charged BEFORE eval-children. Source: method_call.rs:17,
  * property_call.rs:16.
  *
- * The registry is module-internal. Tasks 4-6 register handlers below the
+ * The registry is module-internal. Handlers are registered inline below the
  * dispatcher definition (in this same file) — keeping co-location simple
- * while the registry has only 3 entries. Promote to a subdirectory when
- * count grows.
+ * while the registry size is moderate (6 entries after 2g.6 Tasks 1-4;
+ * up to 8 after Tasks 6-7 complete). Promote to a subdirectory if/when
+ * count grows beyond ~12.
  *
  * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
- *                                  also reused for defensive shape mismatches in registered handlers.
- *   'context-obj-not-context'   — thrown by the SContext.dataInputs handler when obj is not Context.
+ *                                  also reused for defensive shape mismatches in 5+ registered handlers
+ *                                  (per the design spec's option-1 error taxonomy).
+ *   'context-obj-not-context'   — thrown by SContext.dataInputs handler when obj is not Context;
+ *                                  also reused by SContext.preHeader (Task 6) for the same shape.
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
