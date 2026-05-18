@@ -222,6 +222,10 @@ fn main() -> anyhow::Result<()> {
     let scoll_zip_fixture = cmds::ergoscript::eval::scoll_zip::generate()?;
     write_ergoscript_json("eval/scoll-zip.json", &scoll_zip_fixture)?;
 
+    // Phase 2g.6 Task 6: SContext.preHeader handler (PropertyCall typeId=101, methodId=3).
+    let scontext_pre_header_fixture = cmds::ergoscript::eval::scontext_pre_header::generate()?;
+    write_ergoscript_json("eval/scontext-pre-header.json", &scontext_pre_header_fixture)?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

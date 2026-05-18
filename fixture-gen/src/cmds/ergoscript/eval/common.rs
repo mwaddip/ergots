@@ -5,6 +5,7 @@
 //! `expected_cost` come from running `expr.eval(env, ctx)` against a
 //! synthetic Context built from `opts_json`.
 
+use ergo_chain_types::PreHeader;
 use ergotree_ir::chain::ergo_box::ErgoBox;
 use ergotree_ir::mir::value::CollKind;
 use ergotree_ir::mir::value::NativeColl;
@@ -124,6 +125,10 @@ pub fn value_to_json(v: &Value) -> JsonValue {
         // CBox: emit as structured ErgoBox JSON (phase 2f medium).
         // Mirrors the TS `SValue` Box variant: `{ kind: 'Box', value: ErgoBox }`.
         Value::CBox(b) => json!({ "kind": "Box", "value": ergo_box_to_json(b) }),
+        // PreHeader: emit as structured JSON (phase 2g.6 Task 6).
+        // Mirrors the TS `SValue` PreHeader variant: `{ kind: 'PreHeader', value: PreHeader }`.
+        // Delegates to `preheader_to_json` for the inner PreHeader shape.
+        Value::PreHeader(ph) => json!({ "kind": "PreHeader", "value": preheader_to_json(ph) }),
         // Other variants extended as later arm tasks need them.
         // Fallback: capture variants we haven't formally encoded yet
         // (AvlTree, Lambda, etc.).
@@ -166,6 +171,31 @@ pub fn ergo_box_to_json(b: &ErgoBox) -> JsonValue {
         "creation_height": b.creation_height,
         "tx_id_hex": hex::encode(b.transaction_id.0.0.as_ref()),
         "index": b.index,
+    })
+}
+
+/// Encode a `PreHeader` as inner JSON matching the TS `PreHeader` interface schema.
+///
+/// Coordination contract with `hydrateSValue` (test/_helpers/index.ts):
+///   - `timestamp` MUST be a JSON string (`u64.to_string()`), not a number.
+///     The TS side does `BigInt(v.timestamp as string)`.
+///   - `parentId`, `minerPk`, `votes` are hex-encoded byte arrays.
+///   - `version`, `nBits`, `height` are plain JSON numbers.
+///
+/// Schema mirrors `packages/ergoscript/src/mir/types.ts::PreHeader`.
+pub fn preheader_to_json(ph: &PreHeader) -> JsonValue {
+    let miner_pk_bytes = ph
+        .miner_pk
+        .sigma_serialize_bytes()
+        .expect("EcPoint sigma_serialize_bytes");
+    json!({
+        "version": ph.version,
+        "parentId": hex::encode(ph.parent_id.0.0.as_ref()),
+        "timestamp": ph.timestamp.to_string(),
+        "nBits": ph.n_bits,
+        "height": ph.height,
+        "minerPk": hex::encode(&miner_pk_bytes),
+        "votes": hex::encode(ph.votes.0.as_ref()),
     })
 }
 

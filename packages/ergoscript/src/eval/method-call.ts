@@ -116,6 +116,26 @@ function registerHandlers(): void {
     return dataInputsCollOf(ctx.dataInputs ?? [])
   })
 
+  // SContext.preHeader (PropertyCall, typeId=101, methodId=3)
+  // Source: ergotree-interpreter/src/eval/scontext.rs:72-81 — PRE_HEADER_EVAL_FN
+  // Pattern A cost 15 (charged before obj check). Returns { kind: 'PreHeader', value: ctx.preHeader }.
+  HANDLERS.set(handlerKey(101, 3), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.preHeader expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context' // reuses existing code (also used by SContext.dataInputs)
+      )
+    }
+    if (ctx.preHeader === undefined) {
+      throw new EvalError(
+        `SContext.preHeader: ctx.preHeader is undefined`,
+        'context-field-missing'
+      )
+    }
+    return { kind: 'PreHeader', value: ctx.preHeader }
+  })
+
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
   // Source: ergotree-interpreter/src/eval/scoll.rs:21-50 — INDEX_OF_EVAL_FN
   // Pattern B cost: addPerItemCost(20, 10, 2, n) AFTER extracting Coll, BEFORE search.

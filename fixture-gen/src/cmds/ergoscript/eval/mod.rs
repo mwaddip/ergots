@@ -22,6 +22,7 @@ pub mod collection;
 pub mod coll_size;
 pub mod scoll_indices;
 pub mod scoll_zip;
+pub mod scontext_pre_header;
 pub mod common;
 pub mod context;
 pub mod global;

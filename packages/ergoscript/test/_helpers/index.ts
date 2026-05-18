@@ -169,6 +169,21 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
     result.selfBox = hydrateErgoBox(optsObj.selfBox)
   }
 
+  if (optsObj.preHeader !== undefined) {
+    // Inner PreHeader JSON shape (from preheader_to_json in fixture-gen):
+    //   { version, parentId, timestamp (string), nBits, height, minerPk, votes }
+    const v = optsObj.preHeader as Record<string, unknown>
+    result.preHeader = {
+      version: v.version as number,
+      parentId: hexToBytes(v.parentId as string),
+      timestamp: BigInt(v.timestamp as string),
+      nBits: v.nBits as number,
+      height: v.height as number,
+      minerPk: hexToBytes(v.minerPk as string),
+      votes: hexToBytes(v.votes as string),
+    }
+  }
+
   const extRaw = optsObj.extension as
     | { values: Record<string, { tpe: SType; value: unknown } | undefined> }
     | undefined

@@ -1,0 +1,33 @@
+{
+  "corpus": "eval_scontext_pre_header",
+  "entries": [
+    {
+      "name": "context_pre_header",
+      "tree_bytes_hex": "00db6503fe",
+      "opts_json": {
+        "preHeader": {
+          "height": 3757584,
+          "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+          "nBits": 3200277132,
+          "parentId": "048da5619eb52918a071692f192142e515ec8d39a74043550c1a0216c822a275",
+          "timestamp": "2211055626363",
+          "version": 1,
+          "votes": "487fbf"
+        }
+      },
+      "expected_value_json": {
+        "kind": "PreHeader",
+        "value": {
+          "height": 3757584,
+          "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+          "nBits": 3200277132,
+          "parentId": "048da5619eb52918a071692f192142e515ec8d39a74043550c1a0216c822a275",
+          "timestamp": "2211055626363",
+          "version": 1,
+          "votes": "487fbf"
+        }
+      },
+      "expected_cost": 20
+    }
+  ]
+}
