@@ -1,22 +1,22 @@
 {
   "name": "single-leaf-insert",
-  "starting_digest_hex": "4ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900",
-  "proof_hex": "020000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000004",
+  "startingDigestHex": "4ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900",
+  "proofHex": "020000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000004",
   "config": {
-    "key_length": 32,
-    "value_length_opt": null,
-    "max_num_operations": 1,
-    "max_deletes": 0
+    "keyLength": 32,
+    "valueLengthOpt": null,
+    "maxNumOperations": 1,
+    "maxDeletes": 0
   },
   "operations": [
     {
       "tag": "Insert",
-      "key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
-      "value_hex": "5555555555555555"
+      "keyHex": "4242424242424242424242424242424242424242424242424242424242424242",
+      "valueHex": "5555555555555555"
     }
   ],
-  "expected_new_digest_hex": "4df991e4ac6553dc57e9794e74005dcb5b9c413005fbc69d98945b1a9512b98001",
-  "expected_results_hex": [
+  "expectedNewDigestHex": "4df991e4ac6553dc57e9794e74005dcb5b9c413005fbc69d98945b1a9512b98001",
+  "expectedResultsHex": [
     null
   ]
 }

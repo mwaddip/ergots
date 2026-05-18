@@ -11,6 +11,7 @@ use std::path::PathBuf;
 
 /// Fixture shape: deserialized by the TS corpus tests.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AvlFixture {
     name: String,
     starting_digest_hex: String,
@@ -22,6 +23,7 @@ struct AvlFixture {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AvlConfig {
     key_length: usize,
     value_length_opt: Option<usize>,
@@ -30,7 +32,7 @@ struct AvlConfig {
 }
 
 #[derive(Serialize)]
-#[serde(tag = "tag", rename_all = "PascalCase")]
+#[serde(tag = "tag", rename_all = "PascalCase", rename_all_fields = "camelCase")]
 enum OpJson {
     Lookup {
         key_hex: String,
@@ -65,13 +67,14 @@ enum OpJson {
 fn fixtures_dir() -> PathBuf {
     let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     here.parent()
-        .unwrap()
+        .expect("fixture-gen has a parent directory")
         .join("packages/avltree/test/fixtures/avltree")
 }
 
 fn write_fixture(name: &str, fixture: &AvlFixture) -> Result<()> {
-    std::fs::create_dir_all(fixtures_dir())?;
-    let path = fixtures_dir().join(format!("{}.json", name));
+    let dir = fixtures_dir();
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{}.json", name));
     let json = serde_json::to_string_pretty(fixture)?;
     std::fs::write(&path, json + "\n")?;
     println!("wrote {}", path.display());

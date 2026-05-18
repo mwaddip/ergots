@@ -973,14 +973,9 @@ function hexToBytes(h: string): Uint8Array {
 describe('parseProofPackedTree — single-leaf-insert', () => {
   it('reconstructs a tree that labels to startingDigest', () => {
     const f = loadFixture('single-leaf-insert')
-    const startingDigest = hexToBytes(f.starting_digest_hex)
-    const proof = hexToBytes(f.proof_hex)
-    const config: AvlTreeConfig = {
-      keyLength: f.config.key_length,
-      valueLengthOpt: f.config.value_length_opt,
-      maxNumOperations: f.config.max_num_operations,
-      maxDeletes: f.config.max_deletes,
-    }
+    const startingDigest = hexToBytes(f.startingDigestHex)
+    const proof = hexToBytes(f.proofHex)
+    const config: AvlTreeConfig = f.config  // JSON emits camelCase directly
     const result = parseProofPackedTree(proof, config, startingDigest)
     // For pre-insert empty tree, proof may decode to an empty tree.
     // For pre-insert tree containing some leaves, the reconstructed root labels to startingDigest.
@@ -988,11 +983,11 @@ describe('parseProofPackedTree — single-leaf-insert', () => {
   })
   it('rejects truncated proof', () => {
     const f = loadFixture('single-leaf-insert')
-    const truncated = hexToBytes(f.proof_hex).slice(0, 5)
-    const startingDigest = hexToBytes(f.starting_digest_hex)
+    const truncated = hexToBytes(f.proofHex).slice(0, 5)
+    const startingDigest = hexToBytes(f.startingDigestHex)
     const result = parseProofPackedTree(truncated, {
-      keyLength: f.config.key_length,
-      valueLengthOpt: f.config.value_length_opt,
+      keyLength: f.config.keyLength,
+      valueLengthOpt: f.config.valueLengthOpt,
     }, startingDigest)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(['proof-truncated', 'proof-malformed']).toContain(result.reason)
@@ -1798,24 +1793,19 @@ describe('verifyAvlBatch — per-fixture corpus', () => {
   for (const fname of fixtures) {
     it(`matches Rust verifier output: ${fname}`, () => {
       const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
-      const startingDigest = hexToBytes(f.starting_digest_hex)
-      const proof = hexToBytes(f.proof_hex)
-      const config: AvlTreeConfig = {
-        keyLength: f.config.key_length,
-        valueLengthOpt: f.config.value_length_opt,
-        maxNumOperations: f.config.max_num_operations,
-        maxDeletes: f.config.max_deletes,
-      }
+      const startingDigest = hexToBytes(f.startingDigestHex)
+      const proof = hexToBytes(f.proofHex)
+      const config: AvlTreeConfig = f.config  // JSON emits camelCase directly
       const operations = f.operations.map(jsonToOp)
       const result = verifyAvlBatch(startingDigest, proof, config, operations)
-      // Fixture may indicate expected failure via expected_new_digest_hex === null.
-      if (f.expected_new_digest_hex === null) {
+      // Fixture may indicate expected failure via expectedNewDigestHex === null.
+      if (f.expectedNewDigestHex === null) {
         expect(result).toBeNull()
         return
       }
       expect(result).not.toBeNull()
-      expect(Array.from(result!.newDigest)).toEqual(Array.from(hexToBytes(f.expected_new_digest_hex)))
-      const expectedResults = f.expected_results_hex.map((h: string | null) =>
+      expect(Array.from(result!.newDigest)).toEqual(Array.from(hexToBytes(f.expectedNewDigestHex)))
+      const expectedResults = f.expectedResultsHex.map((h: string | null) =>
         h === null ? null : hexToBytes(h),
       )
       expect(result!.results.length).toBe(expectedResults.length)
@@ -1952,18 +1942,18 @@ describe('verifyAvlLookup — Lookup fixtures', () => {
       // Lookup fixtures contain exactly one Lookup operation.
       expect(f.operations.length).toBe(1)
       expect(f.operations[0].tag).toBe('Lookup')
-      const key = hexToBytes(f.operations[0].key_hex)
+      const key = hexToBytes(f.operations[0].keyHex)
       const result = verifyAvlLookup(
-        hexToBytes(f.starting_digest_hex),
-        hexToBytes(f.proof_hex),
+        hexToBytes(f.startingDigestHex),
+        hexToBytes(f.proofHex),
         {
-          keyLength: f.config.key_length,
-          valueLengthOpt: f.config.value_length_opt,
+          keyLength: f.config.keyLength,
+          valueLengthOpt: f.config.valueLengthOpt,
         },
         key,
       )
       // Match expected:
-      const expected = f.expected_results_hex[0]
+      const expected = f.expectedResultsHex[0]
       expect(result).not.toBeNull()
       if (expected === null) expect(result!.value).toBeNull()
       else expect(Array.from(result!.value!)).toEqual(Array.from(hexToBytes(expected)))
@@ -2248,7 +2238,7 @@ describe('AVL+ mutation testing', () => {
   for (const fname of fixtures) {
     it(`≥90% byte-flip kill rate on ${fname}`, () => {
       const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
-      const proof = hexToBytes(f.proof_hex)
+      const proof = hexToBytes(f.proofHex)
       let killed = 0
       let survived = 0
       for (let i = 0; i < proof.length; i++) {
@@ -2256,9 +2246,9 @@ describe('AVL+ mutation testing', () => {
         const mutated = new Uint8Array(proof)
         mutated[i] ^= 0xff
         const result = verifyAvlBatch(
-          hexToBytes(f.starting_digest_hex),
+          hexToBytes(f.startingDigestHex),
           mutated,
-          { keyLength: f.config.key_length, valueLengthOpt: f.config.value_length_opt },
+          { keyLength: f.config.keyLength, valueLengthOpt: f.config.valueLengthOpt },
           f.operations.map(jsonToOp),
         )
         if (result === null) killed++
