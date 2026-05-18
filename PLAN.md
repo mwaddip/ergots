@@ -1,899 +1,2546 @@
-# `facts/ergoscript.md` Split Implementation Plan
-
-**Status: ✅ COMPLETE 2026-05-18** (facts/ergoscript.md split from 1,203 lines into meta hub (94 lines) + 3 slice files: ergoscript-wire.md (207), ergoscript-eval.md (352), ergoscript-sigma.md (139). CLAUDE.md reads-list updated. One deep-link in packages/ergoscript/API.md redirected to the wire slice. All other cross-references are vague and continue to land on the meta hub via its lookup table. Total facts/ content compressed ~34% via deduplication. No code, test, or fixture changes; no broken refs.)
+# `@mwaddip/ergots-avltree` Implementation Plan (Phase 2h-a)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Split `facts/ergoscript.md` (currently 1,203 lines after phase 2g.6) into a meta file (~150 lines) plus three per-slice contract files (`facts/ergoscript-wire.md`, `facts/ergoscript-eval.md`, `facts/ergoscript-sigma.md`), aligned with the umbrella spec's `/wire` / `/eval` / `/sigma` subpath-export plan.
+**Goal:** Build and ship a new pure-TypeScript, browser-runnable npm package `@mwaddip/ergots-avltree` — a byte-faithful verifier-only port of the standalone Rust crate `ergo_avltree_rust` (the fork at `~/projects/ergo_avltree_rust/` HEAD `879545c` with 3 upstream PRs applied), implementing the batch AVL+ authenticated tree algorithm (KMZ16 / 2016/994).
 
-**Architecture:** Three sequential phases, each producing one or more commits. Phase 1 creates the three new slice files by extracting content from `ergoscript.md` (no deletions yet — duplication is intentional and temporary). Phase 2 trims `ergoscript.md` to the meta + lookup table. Phase 3 updates cross-references in `CLAUDE.md`, the ergoscript package README/API/PLAN, and the ~14 design specs that deep-link to specific sections.
+**Architecture:** New workspace package `packages/avltree/` parallel to `packages/proof/` and `packages/ergoscript/`. Internal stateful `BatchAvlVerifier` class wrapped by functional public API (`verifyAvlBatch` + `verifyAvlLookup`). Algorithm content TS-idiomatically decomposed (Approach B from the design spec) across ~12 source files; cross-fidelity to `ergo_avltree_rust` preserved via per-function JSDoc source comments + canonical Source Mapping table in `facts/avltree.md`. Validation via three fixture-driven test layers + cross-runtime (node + jsdom) + mutation testing (≥90% kill rate per Operation variant). Fixture generation uses `ergo_avltree_rust`'s `BatchAVLProver` at fixture-gen-time (Rust-side determinism: `TestRunner::deterministic()`).
 
-**Tech Stack:** Markdown only. No code changes, no test changes, no fixture changes. Verification via `wc -l`, `grep`, and manual content review.
+**Tech Stack:** TypeScript 5.5+, vitest 2.x (node + jsdom), tsup 8.x bundler, `@noble/hashes@2.2.0` (blake2b-256 only — no `@noble/curves`). Rust fixture-gen depends on the local `ergo_avltree_rust` fork via `[patch.crates-io]`. ESM only. No `Buffer`, no `node:*` outside test setup, no WASM direct or transitive.
 
 **Reference oracles:**
-- Design spec: `/home/mwaddip/projects/ergots/docs/specs/2026-05-18-facts-ergoscript-split-design.md` (the authoritative source for this plan)
-- Current file: `/home/mwaddip/projects/ergots/facts/ergoscript.md` (1,203 lines; the source material)
-- Sister contract: `/home/mwaddip/projects/ergots/facts/proof.md` (196 lines; structural reference for the meta file's shape)
-- Section structure (from `grep '^##\? ' facts/ergoscript.md`):
-  - Line 1: Header
-  - Line 19: `## Scope`
-  - Line 576: `## Public surface`
-  - Line 631: `#### verifySignature(...)` (the sigma surface section)
-  - Line 654: `### Internal modules (current monorepo surface)`
-  - Line 695: `### Round-trip invariant`
-  - Line 707: `## Type invariants`
-  - Line 767: `## Determinism and purity`
-  - Line 773: `## Browser-compat guarantees`
-  - Line 784: `## Error taxonomy` (wire errors: ErgoTreeParseError, ErgoTreeSerializeError)
-  - Line 822: `## Test plan summary`
-  - Line 831: `## v0.2.0 — Evaluator surface (phase 2b)` (the giant eval section)
-  - Line 900: `### EvalError taxonomy (v0.2.0)`
-  - Line 1140: `### VerifyError taxonomy (phase 2g-medium + 2g-combinators; 8 codes total)`
-  - Line 1188: `### Coverage and stability`
-  - Line 1195: `## Cross-references`
+- Design spec: `docs/specs/2026-05-18-ergots-avltree-package-design.md` (authoritative for this plan)
+- Interface contract (to be written in this plan, Task 26): `facts/avltree.md`
+- Rust source (canonical): `~/projects/ergo_avltree_rust/src/` (HEAD `879545c`)
+  - `batch_avl_verifier.rs` — verifier struct + `reconstruct_tree` + `perform_one_operation`
+  - `authenticated_tree_ops.rs` — trait with `modify_helper`, `delete_helper`, rotations
+  - `batch_node.rs` — `Node`, `LeafNode`, `InternalNode`, `LabelNode`, `AVLTree` + blake2b labeling
+  - `operation.rs` — `Operation` enum + `update_fn` semantics
+- Sister contracts: `facts/proof.md` (structural reference for `facts/avltree.md`)
+- Project conventions: `CLAUDE.md`, `OVERRIDES.md`
 
-**Out of scope (per design spec § Non-goals):**
-- Code or behavior change (`packages/ergoscript/src/` is untouched)
-- Splitting `facts/proof.md` (it's 196 lines, comfortably within bounds)
-- Splitting the npm package itself (one published package stays)
-- Preemptively creating `facts/ergoscript-avl.md` or `facts/ergoscript-cost.md` (each future phase creates its own slice file)
-- Rewriting / copy-editing existing content (the split is mostly extraction)
-- Updating cross-refs in every existing spec — only deep-link refs naming moved sections (vague refs stay; they land on the meta hub)
+**Memories invoked by this plan:**
+- [[feedback-rust-port-style]] — TS-idiomatic decomposition + per-function JSDoc comments + Source Mapping table
+- [[reference-source-first-discipline]] — read Rust BEFORE writing TS for each task
+- [[feedback-pure-typescript-no-wasm]] — all-TS is project identity; no WASM at any layer
+- [[project-fixture-gen-cargo-gotchas]] — Rust-side determinism via `TestRunner::deterministic()`; the bug 2g.6 Task 8 caught
+- [[feedback-no-artificial-stops]] — flat task list with per-task commits
 
 ---
 
 ## File structure
 
-**Created in this phase:**
+### New files (created by this plan)
 
 ```
-ergots/
-└── facts/
-    ├── ergoscript-wire.md            NEW (Task 1): phase 2a wire-format slice
-    ├── ergoscript-eval.md            NEW (Task 2): phases 2b-2g.6 eval surface
-    └── ergoscript-sigma.md           NEW (Task 3): phase 2g sigma-protocol verifier
+packages/avltree/
+├── src/
+│   ├── index.ts                   public exports only
+│   ├── verify.ts                  verifyAvlBatch + verifyAvlLookup wrappers (Tasks 18-19)
+│   ├── batch-verifier.ts          BatchAvlVerifier class + tree state (Task 17)
+│   ├── proof-decode.ts            parseProofPackedTree (Task 9)
+│   ├── tree-traversal.ts          nextDirectionIsLeft, replayComparison, keyMatchesLeaf (Tasks 10-11)
+│   ├── modify.ts                  modifyHelper decomposed (Tasks 14-15)
+│   ├── delete.ts                  deleteHelper + change* helpers (Task 16)
+│   ├── rotation.ts                doubleLeftRotate, doubleRightRotate (Task 12)
+│   ├── node.ts                    Leaf/Internal/Label nodes + blake2b labeling (Tasks 6-7)
+│   ├── operation.ts               Operation discriminated union + updateFn (Task 5)
+│   ├── errors.ts                  AvlVerifyError + 6 codes (Task 4)
+│   └── types.ts                   AvlTreeConfig + internal aliases (Task 3)
+├── test/
+│   ├── fixtures/                  JSON + binary fixtures from fixture-gen
+│   ├── operation.test.ts          Task 5: Operation/updateFn unit tests
+│   ├── node-label.test.ts         Task 7: blake2b labeling tests
+│   ├── proof-decode.test.ts       Task 9: tree reconstruction tests
+│   ├── tree-traversal.test.ts     Tasks 10-11: direction/replay primitives unit tests
+│   ├── rotation.test.ts           Task 12: rotation primitives unit tests
+│   ├── verify-batch.test.ts       Task 18: batch wrapper tests
+│   ├── verify-lookup.test.ts      Task 19: lookup wrapper tests
+│   ├── corpus.test.ts             Task 24: bulk synthetic corpus run
+│   └── mutation.test.ts           Task 25: ≥90% mutation kill rate per Operation variant
+├── package.json                   Task 1
+├── tsconfig.json                  Task 1
+├── tsup.config.ts                 Task 1
+├── vitest.config.ts               Task 1 (node env)
+├── vitest.browser.config.ts       Task 1 (jsdom env)
+├── README.md                      Task 28
+└── API.md                         Task 28
+
+facts/
+└── avltree.md                     Task 26 (interface contract + Source Mapping table)
+
+fixture-gen/src/cmds/
+└── avltree.rs                     Tasks 8, 13, 21-23 (synthetic fixture generation)
 ```
 
-**Modified in this phase:**
+### Modified files
 
+- `package.json` (root) — Task 2: workspace already covers `packages/*`; no change unless tooling needs adjustment.
+- `fixture-gen/Cargo.toml` — Task 2: add `[patch.crates-io] ergo_avltree_rust = { path = "/home/mwaddip/projects/ergo_avltree_rust" }`; add `ergo_avltree_rust` as direct dependency.
+- `fixture-gen/src/main.rs` — Task 2: add `avltree` subcommand dispatch.
+- `fixture-gen/src/cmds/mod.rs` — Task 2: register `avltree` module.
+- `CLAUDE.md` — Task 26: update read-first list with `facts/avltree.md`.
+- `docs/specs/2026-05-18-ergots-avltree-package-design.md` — already committed in brainstorm.
+
+---
+
+## Tasks
+
+### Task 1: Scaffold `packages/avltree/`
+
+**Files:**
+- Create: `packages/avltree/package.json`
+- Create: `packages/avltree/tsconfig.json`
+- Create: `packages/avltree/tsup.config.ts`
+- Create: `packages/avltree/vitest.config.ts`
+- Create: `packages/avltree/vitest.browser.config.ts`
+- Create: `packages/avltree/src/index.ts` (empty placeholder)
+- Reference: `packages/proof/{package.json,tsconfig.json,tsup.config.ts,vitest.config.ts}` — copy-adapt these.
+
+- [ ] **Step 1: Author `packages/avltree/package.json`**
+
+```json
+{
+  "name": "@mwaddip/ergots-avltree",
+  "version": "0.0.0",
+  "publishConfig": { "access": "public" },
+  "description": "Pure-TypeScript Ergo batch AVL+ authenticated tree verifier — proof verification + per-operation result computation.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwaddip/ergots.git",
+    "directory": "packages/avltree"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "jsdom": "^29.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": { "node": ">=20" },
+  "keywords": ["ergo", "avl-tree", "blockchain", "verifier", "browser"]
+}
 ```
-ergots/
-├── facts/
-│   └── ergoscript.md                 MODIFIED (Task 4): trim to ~150 lines (meta + lookup table)
-├── CLAUDE.md                         MODIFIED (Task 5): update reads-first list
-├── packages/ergoscript/
-│   ├── README.md                     MODIFIED (Task 6, if deep-refs exist): update slice pointers
-│   ├── API.md                        MODIFIED (Task 6, if deep-refs exist): update slice pointers
-│   └── PLAN.md                       NOT modified (it now holds THIS plan; will be overwritten at next phase)
-└── docs/specs/*-ergoscript-*.md      MODIFIED (Task 7, ~14 files): update deep-link refs only
+
+- [ ] **Step 2: Author `packages/avltree/tsconfig.json`** — same content as `packages/proof/tsconfig.json`.
+
+- [ ] **Step 3: Author `packages/avltree/tsup.config.ts`** — single entry `src/index.ts` to `dist/index.js`, ESM only, source maps, declarations. Match the proof package's tsup config.
+
+- [ ] **Step 4: Author `packages/avltree/vitest.config.ts`** — node environment, sets up `test/` glob.
+
+- [ ] **Step 5: Author `packages/avltree/vitest.browser.config.ts`** — jsdom environment, same test glob.
+
+- [ ] **Step 6: Create empty `packages/avltree/src/index.ts`** with just `// Public exports — populated incrementally.`
+
+- [ ] **Step 7: Verify workspace integration**
+
+Run: `cd /home/mwaddip/projects/ergots && npm install`
+Expected: Workspaces resolve; `node_modules/@mwaddip/ergots-avltree` symlink exists.
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS (empty source compiles cleanly).
+
+Run: `npm test -w @mwaddip/ergots-avltree`
+Expected: vitest reports "No test files found" (0 tests, PASS).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/avltree/
+git commit -m "feat(avltree): scaffold @mwaddip/ergots-avltree package"
 ```
 
 ---
 
-## Phase 1: Create the three new slice files
-
-Three independent tasks; each produces one new file plus one commit. The source material lives in `facts/ergoscript.md` and is too large to Read in one call (~43k tokens), so each task reads its source section(s) by offset/limit.
-
-### Task 1: Author `facts/ergoscript-wire.md`
+### Task 2: Add `ergo_avltree_rust` patch + fixture-gen subcommand stub
 
 **Files:**
-- Source: `facts/ergoscript.md` (read sections by line range)
-- Create: `facts/ergoscript-wire.md`
+- Modify: `fixture-gen/Cargo.toml`
+- Modify: `fixture-gen/src/main.rs`
+- Modify: `fixture-gen/src/cmds/mod.rs`
+- Create: `fixture-gen/src/cmds/avltree.rs` (stub — full body added in later tasks)
 
-**Content extraction map (from `facts/ergoscript.md`):**
-- Lines 1-18: header pattern (don't copy verbatim — author a slice-specific header)
-- Lines 19-575: `## Scope` and wire-format material
-- Lines 576-630: `parseTree` / `serializeTree` / address helpers from `## Public surface`
-- Lines 695-706: `### Round-trip invariant`
-- Lines 784-821: `## Error taxonomy` — extract ONLY `ErgoTreeParseError` and `ErgoTreeSerializeError` (eval/sigma error classes go to their respective slices)
+- [ ] **Step 1: Add patch + dep to `fixture-gen/Cargo.toml`**
 
-**Cross-cutting NOT to copy** (these stay in the meta file in Phase 2):
-- Lines 767-783: `## Determinism and purity` + `## Browser-compat guarantees` (cross-cutting; meta-file scope)
-- Lines 822-830: `## Test plan summary` (cross-cutting; meta-file scope)
+Append under the existing `[dependencies]` section:
 
-- [ ] **Step 1: Read the wire-format source sections**
-
-Run: `cd /home/mwaddip/projects/ergots && wc -l facts/ergoscript.md`
-Expected: `1203 facts/ergoscript.md`
-
-Read lines 1-100, 100-200, ..., chunked through 575 to absorb the Scope section.
-Then read lines 576-720 to absorb Public surface (wire parts) + Round-trip invariant.
-Then read lines 784-821 to absorb the wire-side error taxonomy.
-
-- [ ] **Step 2: Author `facts/ergoscript-wire.md`**
-
-Create the file with this structure (compose the body from the extracted material, retaining wording):
-
-```markdown
-# `@mwaddip/ergots-ergoscript` — Wire Format Contract
-
-This file documents the **wire-format slice** of the `@mwaddip/ergots-ergoscript`
-boundary contract. For cross-cutting guarantees (browser-compat, determinism, ESM-only,
-no-WASM, runtime deps) and forward pointers to other slices, see [`facts/ergoscript.md`](./ergoscript.md).
-
-## Scope
-
-[Insert the wire-format-relevant subset of the original Scope section. The original
-Scope at lines 19-575 covers a lot of ground; pull only what concerns parse/serialize/address.]
-
-## Public surface
-
-### `parseTree(bytes)`
-[From lines 603-608]
-
-### `serializeTree(tree)`
-[From lines 609-614]
-
-### `isP2PK(tree)` / `p2pkPublicKey(tree)`
-[From lines 615-621]
-
-### `addressFromErgoTree(tree, network)` / `ergoTreeFromAddress(address)`
-[From lines 622-630]
-
-## Types
-
-`ErgoTree` and `TreeHeader` are defined here (the wire layer's primary output shape).
-The discriminated-union types `SValue` / `SType` / `Expr` are shared across the
-wire and eval surfaces — their canonical definitions live in
-[`ergoscript-eval.md`](./ergoscript-eval.md). `parseTree` returns an `ErgoTree`
-containing an `Expr` body and `SValue[]` constants.
-
-### `interface ErgoTree`
-[Extract from lines 707-766 — only the ErgoTree and TreeHeader interfaces;
-SValue/SType/Expr go to the eval slice]
-
-## Round-trip invariant
-
-[From lines 695-706]
-
-## Error taxonomy
-
-### `class ErgoTreeParseError extends Error`
-[Extract from lines 784-821 — only ErgoTreeParseError]
-
-### `class ErgoTreeSerializeError extends Error`
-[Extract from lines 784-821 — only ErgoTreeSerializeError]
-
-## Coverage
-
-100% of MIR variants parse and serialize byte-identically against the PR 862 corpora
-(45 legacy + 14 ecosystem + 9 sig-15 = 68 trees) plus mainnet boxes (12,712 from
-Task B's wider corpus + 173 from the original C2 corpus).
-
-## Cross-references
-
-- [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting
-- [`facts/ergoscript-eval.md`](./ergoscript-eval.md) — evaluator surface (shared types live there)
-- [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) — sigma-protocol verifier
-- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella spec
-- `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`) — byte-format oracle
+```toml
+# Phase 2h-a — AVL+ fixture generation. Uses the fork's BatchAVLProver
+# to generate (startingDigest, proof, operations) triples that the TS
+# verifier consumes. The fork (~/projects/ergo_avltree_rust/, HEAD 879545c)
+# applies upstream PRs #10/#11/#13 with semantics corrections that the
+# TS verifier must mirror.
+ergo_avltree_rust = "0.1.1"
 ```
 
-The `[Insert ...]` and `[Extract from ...]` markers tell you what to fill in from the source. Keep exact wording where possible; this is extraction, not rewriting.
+At the very bottom of `fixture-gen/Cargo.toml`, add:
 
-- [ ] **Step 3: Verify the file**
-
-Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript-wire.md`
-Expected: somewhere in the 300-500 line range (large enough to hold the wire surface; smaller than the full original).
-
-Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript-wire.md`
-Expected: at least 6 (Scope, Public surface, Types, Round-trip invariant, Error taxonomy, Coverage, Cross-references).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git -C /home/mwaddip/projects/ergots add facts/ergoscript-wire.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs(facts): create facts/ergoscript-wire.md — phase 2a wire-format slice
-
-Per the facts/ergoscript.md split design (5da8289): extracts the
-wire-format surface (parseTree, serializeTree, address helpers, ErgoTree
-types, round-trip invariant, ErgoTreeParseError/SerializeError) into its
-own slice contract.
-
-Does NOT yet remove content from facts/ergoscript.md — duplication is
-intentional during the multi-phase split. Phase 2 trims the meta file.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+```toml
+[patch.crates-io]
+ergo_avltree_rust = { path = "/home/mwaddip/projects/ergo_avltree_rust" }
 ```
 
----
+- [ ] **Step 2: Create `fixture-gen/src/cmds/avltree.rs` stub**
 
-### Task 2: Author `facts/ergoscript-eval.md`
+```rust
+use anyhow::Result;
 
-**Files:**
-- Source: `facts/ergoscript.md` (read sections by line range)
-- Create: `facts/ergoscript-eval.md`
-
-**Content extraction map:**
-- Line 631: `#### verifySignature(...)` — SKIP; this goes to ergoscript-sigma.md (Task 3)
-- Lines 654-694: `### Internal modules` — extract only the eval-related modules; defer sigma modules to Task 3
-- Lines 707-766: `## Type invariants` — extract the `SValue` / `SType` / `Expr` definitions (this slice owns them per the spec's "shared types policy"; also extract any other eval-side interfaces)
-- Lines 831-899: `## v0.2.0 — Evaluator surface (phase 2b)` — the public exports + EvalContext / EvalOpts
-- Lines 900-1139: `### EvalError taxonomy (v0.2.0)` — all 43 codes
-- The method-handler registry content (per phase 2g.5 + 2g.6) — locate via `grep -n 'method-handler' facts/ergoscript.md` or `grep -n 'HANDLERS' facts/ergoscript.md`; should be in the v0.2.0 section near line 1000-1100
-- Eval-arm coverage table — locate via `grep -n 'arm' facts/ergoscript.md` or `grep -n 'coverage' facts/ergoscript.md`
-- Lines 1188-1194: `### Coverage and stability` — extract eval-specific coverage; cross-cutting summary stays in meta
-
-- [ ] **Step 1: Read the eval source sections**
-
-Read in chunks: 707-830 (types + browser-compat boundary), then 831-1000, then 1000-1140, then 1188-1203.
-
-- [ ] **Step 2: Author `facts/ergoscript-eval.md`**
-
-Create the file with this structure:
-
-```markdown
-# `@mwaddip/ergots-ergoscript` — Evaluator Surface Contract
-
-This file documents the **evaluator slice** of the `@mwaddip/ergots-ergoscript`
-boundary contract (phases 2b through 2g.6). It also serves as the canonical home
-for the `SValue` / `SType` / `Expr` discriminated unions, which are produced by
-the wire layer (see [`ergoscript-wire.md`](./ergoscript-wire.md)) and consumed
-across the package.
-
-For cross-cutting guarantees (browser-compat, determinism, etc.) see
-[`facts/ergoscript.md`](./ergoscript.md). For the sigma-protocol verifier see
-[`facts/ergoscript-sigma.md`](./ergoscript-sigma.md).
-
-## Public surface (v0.2.0)
-
-### `evaluate(tree, opts?)`
-[From lines 868-874]
-
-### `evaluateWith(tree, ctx)`
-[From lines 875-880]
-
-### `makeContext(opts?)`
-[From lines 881-886]
-
-## Interfaces
-
-### `interface EvalOpts`
-[Extract from lines 831-867 + any later additions; should include jitCostLimit,
-constants, treeVersion, height, selfBox, inputs, outputs, preHeader, extension, dataInputs]
-
-### `interface EvalContext extends EvalOpts`
-[Methods: addCost, addPerItemCost — from lines 887-899]
-
-## Type invariants
-
-### `type SValue`
-[Extract the discriminated union from lines 707-766; should include Boolean, Byte,
-Short, Int, Long, BigInt, GroupElement, SigmaProp, Box, AvlTree, Unit, Context,
-Global, Coll, Tuple, Option, Lambda, PreHeader (the last two are the post-2g.5
-and post-2g.6 additions respectively)]
-
-### `type SType`
-[Extract from lines 707-766]
-
-### `type Expr` (~80 variants, partial coverage of 52)
-[Extract the union definition; defer per-variant detail to the coverage table below]
-
-## Error taxonomy
-
-### `class EvalError extends Error` (43 codes)
-[Extract from lines 900-1139 — all 43 codes with brief descriptions]
-
-## Eval arm coverage (52 of ~70)
-
-[Table or list, organized by phase:
-- Phase 2b (consts + chassis): Const, ConstPlaceholder, BlockValue, ValDef, ValUse, Tuple, Collection, If
-- Phase 2c (operators): BinOp, LogicalNot, BoolToSigmaProp, ...
-- Phase 2d (conditionals/blocks/lambdas): If, FuncValue, Apply, ...
-- Phase 2e (box/context model): GlobalVars, SelfBox, ExtractAmount, ExtractScriptBytes, ...
-- Phase 2f (Coll HOFs): Map, Filter, Fold, Exists, ForAll, SizeOf, ByIndex, Slice, Append
-- Phase 2g (sigma helpers): Atleast, SigmaAnd, SigmaOr, CreateProveDlog, CreateProveDhTuple
-- Phase 2g.5 (method-call dispatch): MethodCall, PropertyCall, Context, SigmaPropBytes
-- Phase 2g.6 (broader methods): Global
-Pull the exact arm list from the source; this is illustrative.]
-
-## Method-handler registry (8 entries)
-
-[Per the 2g.5 + 2g.6 facts updates. List each by (typeId, methodId) → method name +
-cost pattern + brief semantics. The 8 entries are:
-1. SBox.tokens (99, 8) — Pattern A cost 15
-2. SContext.dataInputs (101, 1) — Pattern A cost 15
-3. SColl.indexOf (12, 26) — Pattern B addPerItemCost(20, 10, 2, n)
-4. SGlobal.groupGenerator (106, 1) — Pattern A cost 10
-5. SColl.zip (12, 29) — Pattern B addPerItemCost(10, 1, 10, n)
-6. SColl.indices (12, 14) — Pattern B addPerItemCost(20, 2, 16, n)
-7. SContext.preHeader (101, 3) — Pattern A cost 15
-8. SPreHeader.timestamp (105, 3) — Pattern A cost 10
-Pull the exact wording from the corresponding section in the source file.]
-
-## Coverage and stability
-
-[From lines 1188-1194 — eval-specific portion only]
-
-## Cross-references
-
-- [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting
-- [`facts/ergoscript-wire.md`](./ergoscript-wire.md) — wire format
-- [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) — sigma-protocol verifier
-- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella spec
-- `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` — method-call dispatcher
-- `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` — most recent eval phase
+/// AVL+ fixture generator. Subcommand entry point.
+/// Full implementation arrives task-by-task (Tasks 8, 13, 21, 22, 23).
+pub fn run() -> Result<()> {
+    println!("avltree fixture-gen: no fixtures defined yet (stub)");
+    Ok(())
+}
 ```
 
-- [ ] **Step 3: Verify the file**
+- [ ] **Step 3: Register `avltree` in `fixture-gen/src/cmds/mod.rs`**
 
-Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
-Expected: 600-800 lines (this is the biggest slice; contains the 43-code EvalError taxonomy and the method-handler registry).
+Append: `pub mod avltree;`
 
-Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
-Expected: at least 8 sections (Public surface, Interfaces, Type invariants, Error taxonomy, Eval arm coverage, Method-handler registry, Coverage and stability, Cross-references).
+- [ ] **Step 4: Add subcommand dispatch in `fixture-gen/src/main.rs`**
 
-Run: `grep -c '###' /home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
-Expected: at least 5 sub-sections.
+Modify the args dispatch near line 41:
 
-- [ ] **Step 4: Commit**
-
-```bash
-git -C /home/mwaddip/projects/ergots add facts/ergoscript-eval.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs(facts): create facts/ergoscript-eval.md — phases 2b-2g.6 eval surface
-
-Per the facts/ergoscript.md split design (5da8289): extracts the evaluator
-public surface (evaluate, evaluateWith, makeContext), EvalContext/EvalOpts
-interfaces, the 43 EvalError codes, SValue/SType/Expr discriminated unions
-(canonical home; wire slice cross-refs here), eval arm coverage (52/~70),
-and the 8-entry method-handler registry into its own slice contract.
-
-The growth surface for future phases (2h adds AVL+ methods, 2i adds predef
-arms) — those phase specs extend this file directly rather than the meta hub.
-
-Does NOT yet remove content from facts/ergoscript.md — duplication is
-intentional during the multi-phase split. Phase 2 trims the meta file.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+```rust
+let args: Vec<String> = std::env::args().collect();
+if args.get(1).map(|s| s.as_str()) == Some("wider_corpus") {
+    return cmds::wider_corpus::run();
+}
+if args.get(1).map(|s| s.as_str()) == Some("avltree") {
+    return cmds::avltree::run();
+}
 ```
 
----
+- [ ] **Step 5: Verify Rust build**
 
-### Task 3: Author `facts/ergoscript-sigma.md`
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo build`
+Expected: Compiles cleanly. Resolves `ergo_avltree_rust` to the local fork via the patch.
 
-**Files:**
-- Source: `facts/ergoscript.md` (read sections by line range)
-- Create: `facts/ergoscript-sigma.md`
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo run -- avltree`
+Expected: Prints "avltree fixture-gen: no fixtures defined yet (stub)".
 
-**Content extraction map:**
-- Line 631: `#### verifySignature(...)` (the sigma verifier public surface)
-- Lines 654-694: `### Internal modules` — extract only the sigma-related entries (the GF(2^192) module, the secp256k1 adapter, fiat-shamir, prop-bytes, verifier internals)
-- Lines 1140-1187: `### VerifyError taxonomy (phase 2g-medium + 2g-combinators; 8 codes total)`
-- `SigmaBoolean` discriminated union — locate via `grep -n 'SigmaBoolean' facts/ergoscript.md`; the 6-variant union (TrivialProp, ProveDlog, ProveDhTuple, Cand, Cor, Cthreshold) is defined somewhere in the file
-- Any other sigma-specific public types
-
-- [ ] **Step 1: Read the sigma source sections**
-
-Read lines 631-700 (verifySignature + internal modules), then 1140-1200 (VerifyError).
-
-Locate `SigmaBoolean` via grep:
-```bash
-grep -n 'SigmaBoolean\|interface.*SigmaBoolean\|type.*SigmaBoolean' /home/mwaddip/projects/ergots/facts/ergoscript.md
-```
-
-Read whichever range contains the canonical definition.
-
-- [ ] **Step 2: Author `facts/ergoscript-sigma.md`**
-
-Create the file with this structure:
-
-```markdown
-# `@mwaddip/ergots-ergoscript` — Sigma-Protocol Verifier Contract
-
-This file documents the **sigma-protocol verifier slice** of the
-`@mwaddip/ergots-ergoscript` boundary contract (phases 2g-medium and
-2g-combinators). It covers the public `verifySignature` entry point, the
-`SigmaBoolean` discriminated union, the `VerifyError` taxonomy, and a
-pointer to the internal helpers.
-
-For cross-cutting guarantees see [`facts/ergoscript.md`](./ergoscript.md).
-For the evaluator surface (which produces `SigmaProp` SValues consumed by
-`verifySignature`) see [`facts/ergoscript-eval.md`](./ergoscript-eval.md).
-
-## Public surface (phase 2g)
-
-### `verifySignature(sigmaBoolean, message, signature)`
-[From line 631 onward — pull the full signature, parameters, return value,
-guarantees, and any throws documentation]
-
-## Types
-
-### `type SigmaBoolean` (6 variants)
-[Extract the discriminated union: TrivialProp, ProveDlog, ProveDhTuple, Cand,
-Cor, Cthreshold. Each variant's fields. Where this type comes from (produced
-by EvalSValue.SigmaProp; consumed by verifySignature).]
-
-## Error taxonomy
-
-### `class VerifyError extends Error` (8 codes)
-[From lines 1140-1187 — all 8 codes with brief descriptions]
-
-## Internal helpers (not part of the public contract)
-
-[From the lines 654-694 portion that's sigma-related. Brief one-line per module:
-- `eval/sigma/fiat-shamir.ts` — Fiat-Shamir challenge construction
-- `eval/sigma/prop-bytes.ts` — SigmaBoolean → bytes serialization
-- `eval/sigma/verifier.ts` — the verifySignature core
-- `crypto/gf2_192.ts` — GF(2^192) module for Cthreshold polynomial interpolation
-- `crypto/secp256k1.ts` — @noble/curves adapter for ProveDlog / ProveDhTuple
-
-These are not part of the public contract but useful for understanding the
-implementation. See `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md`
-and `docs/specs/2026-05-17-ergoscript-phase-2g-combinators-design.md` for design rationale.]
-
-## Coverage
-
-Full SigmaBoolean verifier surface: TrivialProp, ProveDlog, ProveDhTuple leaf
-verification (phase 2g-medium), plus Cand/Cor/Cthreshold conjecture-walk
-verification (phase 2g-combinators). 8 VerifyError codes total.
-
-## Cross-references
-
-- [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting
-- [`facts/ergoscript-wire.md`](./ergoscript-wire.md) — wire format
-- [`facts/ergoscript-eval.md`](./ergoscript-eval.md) — evaluator (produces `SigmaProp` SValues)
-- `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md` — leaf-verifier design
-- `docs/specs/2026-05-17-ergoscript-phase-2g-combinators-design.md` — conjecture-verifier design
-```
-
-- [ ] **Step 3: Verify the file**
-
-Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript-sigma.md`
-Expected: 100-200 lines (this is the smallest slice; sigma-protocol surface is narrow).
-
-Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript-sigma.md`
-Expected: at least 5 sections (Public surface, Types, Error taxonomy, Internal helpers, Coverage, Cross-references).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git -C /home/mwaddip/projects/ergots add facts/ergoscript-sigma.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs(facts): create facts/ergoscript-sigma.md — phase 2g sigma verifier slice
-
-Per the facts/ergoscript.md split design (5da8289): extracts the sigma-protocol
-verifier surface (verifySignature, SigmaBoolean 6-variant union, 8 VerifyError
-codes, internal-helper module pointers) into its own slice contract.
-
-Does NOT yet remove content from facts/ergoscript.md — duplication is
-intentional during the multi-phase split. Phase 2 trims the meta file.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Phase 2: Trim `facts/ergoscript.md` to the meta + lookup table
-
-### Task 4: Trim `facts/ergoscript.md`
-
-**Files:**
-- Modify: `facts/ergoscript.md`
-
-**What stays in the meta file (~150 lines target):**
-- Header / scope statement (one paragraph: what this package is)
-- Cross-cutting guarantees (browser-compat, determinism, ESM-only, no-WASM, runtime deps) — from lines 767-783 of the original
-- Package shape (one paragraph; subpath strategy "none initially")
-- Error-model overview (one paragraph: typed error classes per surface with structural `code` fields — points to slice files for the specific codes)
-- Test-corpus layout (one paragraph naming C1/C2/C3.a layers — from lines 822-830)
-- Coverage summary table (one row per slice)
-- "Where to find what" lookup table (forward pointers to slice files)
-- Cross-references to `docs/specs/` umbrella and the three slice files
-
-**What gets removed (now lives in the slice files):**
-- Lines 19-575 (Scope — much of this is wire-specific): trimmed to a one-paragraph scope statement
-- Lines 576-694 (Public surface, Internal modules): removed (slice files own these)
-- Lines 695-706 (Round-trip invariant): removed (wire slice)
-- Lines 707-766 (Type invariants): removed (eval slice)
-- Lines 784-821 (Error taxonomy — wire side): removed (wire slice)
-- Lines 831-1187 (v0.2.0 evaluator + EvalError + VerifyError + everything): removed (eval + sigma slices)
-- Lines 1188-1194 (Coverage and stability): replaced with the new summary table
-
-- [ ] **Step 1: Read the current meta-relevant sections**
-
-Read lines 1-30 (header + scope opening), 767-830 (cross-cutting + test plan), 1188-1203 (coverage + cross-refs).
-
-- [ ] **Step 2: Verify the slice files contain everything**
-
-Run:
-```bash
-wc -l /home/mwaddip/projects/ergots/facts/ergoscript-*.md
-```
-
-Expected: three files exist (wire, eval, sigma). Sum of lines + new meta target (~150) should be roughly equal to original 1,203 + some redundancy (each slice has its own header / cross-refs section, adding ~50 lines total of new boilerplate).
-
-- [ ] **Step 3: Replace `facts/ergoscript.md` with the trimmed meta version**
-
-Use the Write tool to overwrite `facts/ergoscript.md` with this content:
-
-```markdown
-# `@mwaddip/ergots-ergoscript` — Interface Contract (Meta)
-
-This is the **meta hub** for the `@mwaddip/ergots-ergoscript` boundary contract.
-Cross-cutting guarantees (browser-compat, determinism, package shape) live here.
-For surface-specific contracts (public API, types, error codes), see the slice
-files below.
-
-## Scope
-
-[One-paragraph scope statement. Pull the essential framing from the original
-lines 19-30 — "pure-TypeScript port of sigma-rust's ergotree-ir + ergotree-interpreter,
-validated byte-for-byte and value-for-value." Drop the per-section detail; it
-lives in the slice files now.]
-
-## Where to find what
-
-| Concern | File |
-|---|---|
-| Wire format (parse, serialize, address helpers, `ErgoTree` / `TreeHeader` types) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface, `EvalError` (43 codes), `SValue` / `SType` / `Expr` discriminated unions, method-handler registry (8 entries), eval arm coverage (52/~70) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
-| Sigma-protocol verifier (`verifySignature`), `SigmaBoolean` 6-variant union, `VerifyError` (8 codes) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
-| AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
-| Cost validation (`evaluateWithCost`) | (future, phase 2j) |
-
-## Cross-cutting guarantees
-
-### Browser-compat
-
-[From lines 773-783 — verbatim or near-verbatim]
-
-### Determinism
-
-[From lines 767-772 — verbatim or near-verbatim]
-
-### Package shape
-
-One published npm package, `@mwaddip/ergots-ergoscript`. **Subpath exports —
-none initially.** If a downstream consumer eventually needs finer tree-shaking
-(e.g., just the wire layer for a wallet PoC), introduce a `/wire`, `/eval`, or
-`/sigma` subpath at that point. The slice contract files above are pre-marked
-seams; the package itself stays unified until real consumer demand justifies a split.
-
-### Runtime dependencies
-
-- `@noble/hashes@2.2.0` (blake2b, sha-256, sha-512)
-- `@noble/curves@2.2.0` (secp256k1 point ops; introduced in phase 2g-medium)
-
-No `Buffer`, no `node:*` outside test files, no WASM.
-
-## Error model overview
-
-The package exports multiple typed error classes, one per surface, each carrying
-a structural `code: string` for programmatic dispatch:
-
-- `ErgoTreeParseError`, `ErgoTreeSerializeError` — wire layer; see [`ergoscript-wire.md`](./ergoscript-wire.md)
-- `EvalError` — evaluator layer (43 codes); see [`ergoscript-eval.md`](./ergoscript-eval.md)
-- `VerifyError` — sigma-protocol verifier (8 codes); see [`ergoscript-sigma.md`](./ergoscript-sigma.md)
-
-Common discipline: `.message` is human-readable; `.code` matches a fixed enum of
-structural reason strings for programmatic handling. No other error classes are
-exported.
-
-## Test-corpus layout
-
-The package validates implementation via three layers per the project's TDD discipline:
-
-- **Layer C1** — per-arm fixtures: each evaluator arm has a fixture (or set of sub-cases)
-  asserting both value and cost against sigma-rust's `try_eval_out` oracle.
-- **Layer C2** — corpus eval: real mainnet trees (currently 18 evaluable; hard regression
-  gate `expect(evalSuccess).toBe(18)`).
-- **Layer C3.a** — operator-driven mutation testing (Coll HOF-oriented; method handlers
-  deferred per 2g.5/2g.6 posture).
-
-Cross-runtime: vitest runs each test under both `node` and `jsdom` environments.
-
-See `docs/specs/` for per-phase test-strategy detail.
-
-## Coverage summary
-
-| Slice | Status |
-|---|---|
-| Wire format | 100% of MIR variants parse + serialize byte-identically |
-| Evaluator | 52 of ~70 `Expr` arms wired; 8 method handlers; 43 `EvalError` codes |
-| Sigma verifier | Full `SigmaBoolean` surface (leaf + conjecture walk); 8 `VerifyError` codes |
-| AVL+ | (not yet — phase 2h) |
-| Cost validation | (not yet — phase 2j) |
-
-When a slice file's coverage changes, this table is updated in the same commit.
-
-## Cross-references
-
-- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella interpreter design
-- `docs/specs/2026-05-18-facts-ergoscript-split-design.md` — this file's split design
-- `facts/proof.md` — sister contract for `@mwaddip/ergots-proof`
-- `CLAUDE.md` — project conventions (read-first files include this meta + relevant slices)
-```
-
-- [ ] **Step 4: Verify the trimmed file**
-
-Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript.md`
-Expected: around 150 lines (target). 100-200 is acceptable.
-
-Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript.md`
-Expected: at least 6 sections (Scope, Where to find what, Cross-cutting guarantees, Error model overview, Test-corpus layout, Coverage summary, Cross-references).
-
-- [ ] **Step 5: Sanity-check that no content was lost**
-
-Pick 3-5 distinctive phrases from sections that were moved to the slice files (e.g., a specific error code, a specific function signature, a specific cost value). For each, grep across `facts/`:
-
-```bash
-grep -l 'specific phrase' /home/mwaddip/projects/ergots/facts/ergoscript*.md
-```
-
-Expected: each phrase appears in exactly one slice file (not in meta, not in two slices). If it appears in zero files, it was lost — re-extract.
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo run --release`
+Expected: Existing fixtures regenerate; subcommand-less invocation works (the default-dispatch path).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C /home/mwaddip/projects/ergots add facts/ergoscript.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs(facts): trim facts/ergoscript.md to meta hub + lookup table
-
-Per the facts/ergoscript.md split design (5da8289): trims facts/ergoscript.md
-from 1,203 lines to ~150 lines. Removes wire/eval/sigma surface content
-(now lives in the three slice files added in Phase 1). Retains the meta hub:
-scope statement, lookup table forwarding to slice files, cross-cutting
-guarantees (browser-compat, determinism, package shape, runtime deps),
-error-model overview, test-corpus layout, and coverage summary table.
-
-Vague cross-references from other docs ("see facts/ergoscript.md") still
-land here and forward correctly via the lookup table.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+git add fixture-gen/
+git commit -m "feat(fixture-gen): add ergo_avltree_rust patch + avltree subcommand stub"
 ```
 
 ---
 
-## Phase 3: Update cross-references + governance
-
-Three tasks (5, 6, 7); one sanity-check task (8).
-
-### Task 5: Update `CLAUDE.md` reads-list
+### Task 3: `types.ts` — `AvlTreeConfig` + internal aliases
 
 **Files:**
-- Modify: `/home/mwaddip/projects/ergots/CLAUDE.md`
+- Create: `packages/avltree/src/types.ts`
 
-- [ ] **Step 1: Locate the read-first list**
+- [ ] **Step 1: Author `packages/avltree/src/types.ts`**
 
-Run: `grep -n 'facts/ergoscript' /home/mwaddip/projects/ergots/CLAUDE.md`
+```ts
+/**
+ * Internal byte-array aliases. Document intent; the TS type is just Uint8Array.
+ * Mirrors operation.rs's ADKey / ADValue / ADDigest type aliases.
+ */
+export type ADKey = Uint8Array
+export type ADValue = Uint8Array
+export type ADDigest = Uint8Array         // 33 bytes: 32-byte root label + 1-byte tree height
 
-Note each line that references `facts/ergoscript.md`. The "Read-first files" section is currently near the top of the file.
+/** NodeId is the conceptual identifier of a node; in TS we hold direct object refs. */
+export type NodeId = Node | null
+/** Forward-decl for circular ref. Defined in node.ts. */
+export type Node = unknown
 
-- [ ] **Step 2: Update the read-first entry**
+/** Public verifier-input config. Mirrors AVLTree's structural fields in ergo_avltree_rust. */
+export interface AvlTreeConfig {
+  /** Bytes per key. Must be > 0. */
+  keyLength: number
+  /** Bytes per value; null = variable length per leaf. */
+  valueLengthOpt: number | null
+  /** DoS guard — max operations across this batch. */
+  maxNumOperations?: number
+  /** Max deletions across this batch. Defaults to maxNumOperations. */
+  maxDeletes?: number
+}
 
-Find the current entry for `facts/ergoscript.md`. Replace it with:
-
-```markdown
-   - `facts/ergoscript.md` — meta hub for `@mwaddip/ergots-ergoscript`; points to per-slice files
-   - `facts/ergoscript-wire.md` — wire format (parseTree, serializeTree, address helpers, ErgoTree types)
-   - `facts/ergoscript-eval.md` — evaluator surface (evaluate, EvalError 43 codes, SValue/SType/Expr, method-handler registry, eval arm coverage)
-   - `facts/ergoscript-sigma.md` — sigma-protocol verifier (verifySignature, SigmaBoolean, VerifyError 8 codes)
+/** Per-operation result. Returned in VerifyAvlBatchResult.results. */
+export type OperationResult = Uint8Array | null  // null = key was absent before op
 ```
 
-Adjust formatting to match the surrounding style (whether the original used dashes, asterisks, or numbered bullets).
+- [ ] **Step 2: Verify typecheck**
 
-If `facts/ergoscript.md` is referenced anywhere else in CLAUDE.md (e.g., "Project facts" section), update the wording to clarify that it's the meta hub.
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 3: Commit**
 
-Run: `grep -n 'facts/ergoscript' /home/mwaddip/projects/ergots/CLAUDE.md`
+```bash
+git add packages/avltree/src/types.ts
+git commit -m "feat(avltree): types.ts — AvlTreeConfig + internal aliases"
+```
 
-Expected: the read-first entry now lists 4 files (meta + 3 slices); any other references mention the meta as a hub.
+---
+
+### Task 4: `errors.ts` — `AvlVerifyError` + 6 codes
+
+**Files:**
+- Create: `packages/avltree/src/errors.ts`
+
+- [ ] **Step 1: Author `packages/avltree/src/errors.ts`**
+
+```ts
+/**
+ * Programmer-error rejections. See facts/avltree.md § Error model for the
+ * full taxonomy. Verification failures (untrusted-input rejection) return
+ * null from public wrappers and are NOT thrown — see AvlVerifyFailReason
+ * (currently internal, tracked on BatchAvlVerifier.lastFailReason).
+ */
+export type AvlVerifyErrorCode =
+  | 'invalid-config-key-length'
+  | 'invalid-config-value-length'
+  | 'invalid-config-max-ops'
+  | 'invalid-starting-digest-length'
+  | 'operation-key-length-mismatch'
+  | 'operation-value-length-mismatch'
+
+export class AvlVerifyError extends Error {
+  readonly code: AvlVerifyErrorCode
+  constructor(code: AvlVerifyErrorCode, message: string) {
+    super(message)
+    this.name = 'AvlVerifyError'
+    this.code = code
+  }
+}
+
+/**
+ * Internal verification-failure reason taxonomy (10 reasons). Tracked by
+ * BatchAvlVerifier.lastFailReason but NOT exposed in the public API on v0.1.0.
+ * Promoted to a getLastFailReason() method if/when the internal class is
+ * promoted to public surface (deferred per design spec's option-3 decision).
+ */
+export type AvlVerifyFailReason =
+  | 'proof-truncated'
+  | 'proof-malformed'
+  | 'digest-mismatch'
+  | 'directions-exhausted'
+  | 'leaf-key-out-of-order'
+  | 'max-nodes-exceeded'
+  | 'operation-precondition-failed'
+  | 'tree-poisoned'
+  | 'empty-tree'
+  | 'operation-required-but-not-allowed'  // reserved for ABI stability
+```
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/errors.ts
+git commit -m "feat(avltree): errors.ts — AvlVerifyError + 6 codes; internal AvlVerifyFailReason taxonomy"
+```
+
+---
+
+### Task 5: `operation.ts` — `Operation` discriminated union + `updateFn`
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/operation.rs` (whole file, 107 lines).
+
+**Files:**
+- Create: `packages/avltree/src/operation.ts`
+- Create: `packages/avltree/test/operation.test.ts`
+
+- [ ] **Step 1: Write the failing tests** at `packages/avltree/test/operation.test.ts`
+
+```ts
+import { describe, expect, it } from 'vitest'
+import type { Operation } from '../src/operation.js'
+import { updateFn } from '../src/operation.js'
+
+const key = new Uint8Array([1, 2, 3])
+const val = new Uint8Array([10, 20])
+const valNew = new Uint8Array([99])
+
+describe('updateFn — Lookup', () => {
+  it('returns null on key absent', () => {
+    const op: Operation = { tag: 'Lookup', key }
+    expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
+  })
+  it('returns null even when key present (lookups never modify)', () => {
+    const op: Operation = { tag: 'Lookup', key }
+    expect(updateFn(op, val)).toEqual({ ok: true, newValue: null })
+  })
+})
+
+describe('updateFn — Insert', () => {
+  it('inserts when key absent', () => {
+    const op: Operation = { tag: 'Insert', key, value: val }
+    expect(updateFn(op, null)).toEqual({ ok: true, newValue: val })
+  })
+  it('fails when key already exists', () => {
+    const op: Operation = { tag: 'Insert', key, value: val }
+    expect(updateFn(op, val)).toEqual({ ok: false, reason: 'key-already-exists' })
+  })
+})
+
+describe('updateFn — Update', () => {
+  it('updates when key exists', () => {
+    const op: Operation = { tag: 'Update', key, value: valNew }
+    expect(updateFn(op, val)).toEqual({ ok: true, newValue: valNew })
+  })
+  it('fails when key absent', () => {
+    const op: Operation = { tag: 'Update', key, value: valNew }
+    expect(updateFn(op, null)).toEqual({ ok: false, reason: 'key-not-found' })
+  })
+})
+
+describe('updateFn — InsertOrUpdate', () => {
+  it('inserts when absent', () => {
+    const op: Operation = { tag: 'InsertOrUpdate', key, value: valNew }
+    expect(updateFn(op, null)).toEqual({ ok: true, newValue: valNew })
+  })
+  it('overwrites when present', () => {
+    const op: Operation = { tag: 'InsertOrUpdate', key, value: valNew }
+    expect(updateFn(op, val)).toEqual({ ok: true, newValue: valNew })
+  })
+})
+
+describe('updateFn — Remove', () => {
+  it('removes when present', () => {
+    const op: Operation = { tag: 'Remove', key }
+    expect(updateFn(op, val)).toEqual({ ok: true, newValue: null })
+  })
+  it('fails when absent', () => {
+    const op: Operation = { tag: 'Remove', key }
+    expect(updateFn(op, null)).toEqual({ ok: false, reason: 'key-not-found' })
+  })
+})
+
+describe('updateFn — RemoveIfExists', () => {
+  it('removes when present', () => {
+    const op: Operation = { tag: 'RemoveIfExists', key }
+    expect(updateFn(op, val)).toEqual({ ok: true, newValue: null })
+  })
+  it('no-op when absent', () => {
+    const op: Operation = { tag: 'RemoveIfExists', key }
+    expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
+  })
+})
+
+describe('updateFn — UpdateLongBy', () => {
+  it('inserts when absent and delta > 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 5n }
+    const r = updateFn(op, null)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.newValue).not.toBeNull()
+      // 5n as 8 big-endian bytes:
+      expect(Array.from(r.newValue!)).toEqual([0, 0, 0, 0, 0, 0, 0, 5])
+    }
+  })
+  it('fails when absent and delta < 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -5n }
+    expect(updateFn(op, null)).toEqual({
+      ok: false,
+      reason: 'decrement-on-absent-key',
+    })
+  })
+  it('no-op when absent and delta == 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 0n }
+    expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
+  })
+  it('adds delta when present and result > 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 3n }
+    const existing = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 5])  // i64 BE: 5
+    const r = updateFn(op, existing)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      // 5 + 3 = 8
+      expect(Array.from(r.newValue!)).toEqual([0, 0, 0, 0, 0, 0, 0, 8])
+    }
+  })
+  it('removes when present and result == 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -5n }
+    const existing = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 5])
+    const r = updateFn(op, existing)
+    expect(r).toEqual({ ok: true, newValue: null })
+  })
+  it('fails when present and result < 0', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -10n }
+    const existing = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 5])
+    expect(updateFn(op, existing)).toEqual({
+      ok: false,
+      reason: 'result-negative',
+    })
+  })
+})
+
+describe('updateFn — UnknownModification', () => {
+  it('returns oldValue unchanged', () => {
+    const op: Operation = { tag: 'UnknownModification', key }
+    expect(updateFn(op, val)).toEqual({ ok: true, newValue: val })
+    expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
+  })
+})
+```
+
+- [ ] **Step 2: Run failing tests**
+
+Run: `npx vitest run packages/avltree/test/operation.test.ts`
+Expected: FAIL with "Cannot find module '../src/operation.js'".
+
+- [ ] **Step 3: Author `packages/avltree/src/operation.ts`**
+
+```ts
+/** Ports operation.rs's Operation enum + update_fn (operation.rs:13-107). */
+
+export type Operation =
+  | { tag: 'Lookup'; key: Uint8Array }
+  | { tag: 'UnknownModification'; key: Uint8Array }
+  | { tag: 'Insert'; key: Uint8Array; value: Uint8Array }
+  | { tag: 'Update'; key: Uint8Array; value: Uint8Array }
+  | { tag: 'InsertOrUpdate'; key: Uint8Array; value: Uint8Array }
+  | { tag: 'UpdateLongBy'; key: Uint8Array; delta: bigint }
+  | { tag: 'Remove'; key: Uint8Array }
+  | { tag: 'RemoveIfExists'; key: Uint8Array }
+
+/** Internal per-op result: success with new value (or null = remove), or precondition failure. */
+export type UpdateFnResult =
+  | { ok: true; newValue: Uint8Array | null }
+  | { ok: false; reason: UpdateFnFailReason }
+
+export type UpdateFnFailReason =
+  | 'key-already-exists'           // Insert on existing key
+  | 'key-not-found'                // Update or Remove on absent key
+  | 'decrement-on-absent-key'      // UpdateLongBy delta < 0 on absent key
+  | 'result-negative'              // UpdateLongBy result < 0
+
+/** Encode i64 (bigint) as 8-byte big-endian. Used by UpdateLongBy. */
+function i64ToBeBytes(value: bigint): Uint8Array {
+  // Implementation: mask to 64 bits, write 8 bytes MSB-first.
+  // Ports BigEndian::write_i64 via i64::to_be_bytes (operation.rs:91, 98).
+}
+
+/** Decode 8-byte big-endian as i64. */
+function beBytesToI64(bytes: Uint8Array): bigint {
+  // Ports BigEndian::read_i64 (operation.rs:94).
+}
+
+/** Ports operation.rs::Operation::update_fn (lines 64-106). */
+export function updateFn(op: Operation, oldValue: Uint8Array | null): UpdateFnResult {
+  // Switch on op.tag; implement each branch per the Rust source.
+  // - Lookup → { ok: true, newValue: null }
+  // - UnknownModification → { ok: true, newValue: oldValue }
+  // - Insert → if absent: ok with op.value; if present: 'key-already-exists'
+  // - Update → if absent: 'key-not-found'; if present: ok with op.value
+  // - InsertOrUpdate → ok with op.value (regardless)
+  // - Remove → if absent: 'key-not-found'; if present: ok with null
+  // - RemoveIfExists → ok with null (regardless)
+  // - UpdateLongBy → see lines 89-105 in Rust; the i64 delta cases
+}
+```
+
+The engineer reads the Rust source and fills in `i64ToBeBytes`, `beBytesToI64`, and the body of `updateFn` per the Rust semantics. All TS branches must produce results matching the Rust `update_fn` semantics.
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `npx vitest run packages/avltree/test/operation.test.ts`
+Expected: All 15+ tests PASS.
+
+- [ ] **Step 5: Add per-function source comments**
+
+In `operation.ts`, ensure each function has a JSDoc header naming its Rust counterpart and line range. Format:
+
+```ts
+/** Ports operation.rs::Operation::update_fn (lines 64-106). Per-op old-value → new-value transform. */
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/avltree/src/operation.ts packages/avltree/test/operation.test.ts
+git commit -m "feat(avltree): operation.ts — Operation union + updateFn semantics"
+```
+
+---
+
+### Task 6: `node.ts` — node type structure (no labeling yet)
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_node.rs` (struct definitions, lines ~50-200).
+
+**Files:**
+- Create: `packages/avltree/src/node.ts` (first half — types only; labeling comes in Task 7)
+
+- [ ] **Step 1: Author the type definitions in `packages/avltree/src/node.ts`**
+
+```ts
+import type { ADKey, ADValue } from './types.js'
+
+/** Tree node — discriminated union over Leaf, Internal, Label. Ports batch_node.rs::Node. */
+export type AvlNode = LeafNode | InternalNode | LabelNode
+
+/** A real leaf with key, value, and pointer-to-next-leaf-key. */
+export interface LeafNode {
+  readonly kind: 'leaf'
+  readonly key: ADKey
+  readonly value: ADValue
+  readonly nextLeafKey: ADKey
+  // Cached label (computed on demand). Mutable so we can cache.
+  labelCache: Uint8Array | null
+}
+
+/** Internal node with left/right subtrees and AVL balance ∈ {-1, 0, 1}. */
+export interface InternalNode {
+  readonly kind: 'internal'
+  left: AvlNode
+  right: AvlNode
+  balance: Balance
+  labelCache: Uint8Array | null
+}
+
+/** Label-only node — a stub that exists only as a hash reference (from a label-in-packaged-proof token). */
+export interface LabelNode {
+  readonly kind: 'label'
+  readonly label: Uint8Array  // 32 bytes (blake2b-256)
+}
+
+/** AVL balance bit. Rust uses i8; we narrow to the three valid values. */
+export type Balance = -1 | 0 | 1
+
+/** Constructors — ports batch_node.rs::LeafNode::new / InternalNode::new (lines roughly 100-160). */
+
+export function newLeaf(key: ADKey, value: ADValue, nextLeafKey: ADKey): LeafNode {
+  return { kind: 'leaf', key, value, nextLeafKey, labelCache: null }
+}
+
+export function newInternal(
+  left: AvlNode,
+  right: AvlNode,
+  balance: Balance,
+): InternalNode {
+  return { kind: 'internal', left, right, balance, labelCache: null }
+}
+
+export function newLabel(label: Uint8Array): LabelNode {
+  // Defensive: copy to ensure immutability.
+  return { kind: 'label', label: new Uint8Array(label) }
+}
+```
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/node.ts
+git commit -m "feat(avltree): node.ts — Leaf/Internal/Label node types + constructors"
+```
+
+---
+
+### Task 7: `node.ts` — blake2b-256 labeling
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_node.rs` — `label()` methods on each node kind, roughly lines 80-170. Internal nodes hash `(0x01, leftLabel, rightLabel, balanceByte)`; leaves hash `(0x00, key, value, nextLeafKey)`.
+
+**Files:**
+- Modify: `packages/avltree/src/node.ts` (add `label()` function)
+- Create: `packages/avltree/test/node-label.test.ts`
+
+- [ ] **Step 1: Write the failing tests** at `packages/avltree/test/node-label.test.ts`
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { newLeaf, newInternal, newLabel, label } from '../src/node.js'
+
+// These fixtures come from running the Rust reference on the same inputs.
+// Engineer regenerates via: cargo run -p fixture-gen -- avltree (Task 13).
+// Until Task 13 lands, use these inline known-values from the Rust source.
+
+describe('label — leaf node', () => {
+  it('hashes a known leaf to a known digest', () => {
+    const key = new Uint8Array([0x01, 0x02, 0x03, 0x04])
+    const value = new Uint8Array([0xaa, 0xbb])
+    const nextKey = new Uint8Array([0xff, 0xff, 0xff, 0xff])
+    const leaf = newLeaf(key, value, nextKey)
+    const lbl = label(leaf)
+    expect(lbl.length).toBe(32)
+    // Specific bytes TBD via Task 13's fixture-gen output.
+    // For now, assert the cache is populated after first call:
+    expect(label(leaf)).toBe(lbl)  // same reference (cached)
+  })
+})
+
+describe('label — internal node', () => {
+  it('hashes a known internal to a known digest', () => {
+    const leftLeaf = newLeaf(new Uint8Array([1]), new Uint8Array([10]), new Uint8Array([5]))
+    const rightLeaf = newLeaf(new Uint8Array([5]), new Uint8Array([50]), new Uint8Array([255]))
+    const internal = newInternal(leftLeaf, rightLeaf, 0)
+    const lbl = label(internal)
+    expect(lbl.length).toBe(32)
+    // Idempotence:
+    expect(label(internal)).toBe(lbl)
+  })
+})
+
+describe('label — label node', () => {
+  it('returns the stored label directly', () => {
+    const stored = new Uint8Array(32).fill(0xab)
+    const node = newLabel(stored)
+    const lbl = label(node)
+    expect(Array.from(lbl)).toEqual(Array.from(stored))
+  })
+})
+```
+
+- [ ] **Step 2: Run failing tests**
+
+Run: `npx vitest run packages/avltree/test/node-label.test.ts`
+Expected: FAIL — `label` not exported.
+
+- [ ] **Step 3: Add `label()` to `packages/avltree/src/node.ts`**
+
+```ts
+import { blake2b } from '@noble/hashes/blake2.js'
+
+/**
+ * Compute 32-byte blake2b-256 label for a node.
+ * Ports batch_node.rs::Node::label() (the dispatch) and the per-kind hash inputs:
+ *   - Leaf:     blake2b256(0x00 || key || value || nextLeafKey)         — lines ~110-130
+ *   - Internal: blake2b256(0x01 || leftLabel || rightLabel || balance)  — lines ~140-170
+ *   - Label:    return stored label directly
+ *
+ * Result is cached on the node (labelCache field).
+ */
+export function label(node: AvlNode): Uint8Array {
+  if (node.kind === 'label') return node.label
+  if (node.labelCache !== null) return node.labelCache
+
+  let input: Uint8Array
+  if (node.kind === 'leaf') {
+    // Concatenate: 0x00 || key || value || nextLeafKey
+    // Reference: batch_node.rs lines ~110-130
+    input = concat([new Uint8Array([0x00]), node.key, node.value, node.nextLeafKey])
+  } else {
+    // Internal: 0x01 || leftLabel || rightLabel || balanceByte
+    // Reference: batch_node.rs lines ~140-170
+    // Balance encoded as one byte (signed-i8 form): -1 → 0xff, 0 → 0x00, 1 → 0x01
+    const leftLbl = label(node.left)
+    const rightLbl = label(node.right)
+    const balanceByte = new Uint8Array([node.balance & 0xff])
+    input = concat([new Uint8Array([0x01]), leftLbl, rightLbl, balanceByte])
+  }
+  const result = blake2b(input, { dkLen: 32 })
+  node.labelCache = result
+  return result
+}
+
+function concat(parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((n, p) => n + p.length, 0)
+  const out = new Uint8Array(total)
+  let i = 0
+  for (const p of parts) { out.set(p, i); i += p.length }
+  return out
+}
+```
+
+- [ ] **Step 4: Run tests to verify**
+
+Run: `npx vitest run packages/avltree/test/node-label.test.ts`
+Expected: All tests PASS (cache idempotence, length check).
+
+Note: The "specific bytes TBD" assertions stay loose until Task 13's fixture-gen regenerates real expected values; convert those to byte-equality assertions then.
+
+- [ ] **Step 5: Verify cross-runtime under jsdom**
+
+Run: `npx vitest run --config packages/avltree/vitest.browser.config.ts packages/avltree/test/node-label.test.ts`
+Expected: All tests PASS under jsdom.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/avltree/src/node.ts packages/avltree/test/node-label.test.ts
+git commit -m "feat(avltree): node.ts — blake2b-256 labeling for leaf/internal/label nodes"
+```
+
+---
+
+### Task 8: fixture-gen — first single-leaf-tree fixture
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_avl_prover.rs` — `BatchAVLProver::new` + simple flow producing a proof. Looking at the prover API:
+- `new(keyLength, valueLengthOpt, oldRootOption, collectChangedNodes) -> BatchAVLProver`
+- `perform_one_operation(&Operation) -> ...`
+- `generate_proof() -> SerializedAdProof`
+- `digest() -> Option<ADDigest>`
+
+**Files:**
+- Modify: `fixture-gen/src/cmds/avltree.rs`
+- Create (regenerated): `packages/avltree/test/fixtures/avltree/single-leaf-insert.json` + `.bin`
+
+- [ ] **Step 1: Implement first fixture generator in `fixture-gen/src/cmds/avltree.rs`**
+
+```rust
+use anyhow::Result;
+use bytes::Bytes;
+use ergo_avltree_rust::batch_avl_prover::BatchAVLProver;
+use ergo_avltree_rust::batch_avl_verifier::BatchAVLVerifier;
+use ergo_avltree_rust::batch_node::AVLTree;
+use ergo_avltree_rust::operation::{KeyValue, Operation};
+use serde::Serialize;
+use std::path::PathBuf;
+
+/// Fixture shape: deserialized by the TS corpus tests.
+#[derive(Serialize)]
+struct AvlFixture {
+    name: String,
+    starting_digest_hex: String,
+    proof_hex: String,
+    config: AvlConfig,
+    operations: Vec<OpJson>,
+    expected_new_digest_hex: String,
+    expected_results_hex: Vec<Option<String>>,  // null = key absent
+}
+
+#[derive(Serialize)]
+struct AvlConfig {
+    key_length: usize,
+    value_length_opt: Option<usize>,
+    max_num_operations: Option<usize>,
+    max_deletes: Option<usize>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "tag", rename_all = "PascalCase")]
+enum OpJson {
+    Lookup { key_hex: String },
+    Insert { key_hex: String, value_hex: String },
+    Update { key_hex: String, value_hex: String },
+    InsertOrUpdate { key_hex: String, value_hex: String },
+    UpdateLongBy { key_hex: String, delta: i64 },
+    Remove { key_hex: String },
+    RemoveIfExists { key_hex: String },
+    UnknownModification { key_hex: String },
+}
+
+fn fixtures_dir() -> PathBuf {
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    here.parent().unwrap().join("packages/avltree/test/fixtures/avltree")
+}
+
+fn write_fixture(name: &str, fixture: &AvlFixture) -> Result<()> {
+    std::fs::create_dir_all(fixtures_dir())?;
+    let path = fixtures_dir().join(format!("{}.json", name));
+    let json = serde_json::to_string_pretty(fixture)?;
+    std::fs::write(&path, json + "\n")?;
+    println!("wrote {}", path.display());
+    Ok(())
+}
+
+/// First fixture: Insert a single key into an empty tree.
+fn single_leaf_insert() -> Result<AvlFixture> {
+    let key_length = 32;
+    let value_length_opt = None;
+    let mut prover = BatchAVLProver::new(
+        AVLTree::new(|_| Bytes::new(), key_length, value_length_opt),
+        true,
+    );
+    let starting_digest = prover.digest().expect("empty-tree digest");
+
+    let key = Bytes::from(vec![0x42u8; 32]);
+    let value = Bytes::from(vec![0x55u8; 8]);
+    let op = Operation::Insert(KeyValue { key: key.clone(), value: value.clone() });
+
+    prover.perform_one_operation(&op)?;
+    let proof = prover.generate_proof();
+    let new_digest = prover.digest().expect("post-insert digest");
+
+    // Cross-verify with the Rust verifier so our expected results are authoritative.
+    let mut verifier = BatchAVLVerifier::new(
+        &starting_digest,
+        &proof,
+        AVLTree::new(|_| Bytes::new(), key_length, value_length_opt),
+        Some(1),
+        Some(0),
+    )?;
+    let result = verifier.perform_one_operation(&op)?;
+    let verifier_new_digest = verifier.digest().expect("verifier post-op digest");
+    assert_eq!(new_digest, verifier_new_digest, "prover/verifier digest mismatch");
+
+    Ok(AvlFixture {
+        name: "single-leaf-insert".to_string(),
+        starting_digest_hex: hex::encode(&starting_digest),
+        proof_hex: hex::encode(&proof),
+        config: AvlConfig {
+            key_length,
+            value_length_opt,
+            max_num_operations: Some(1),
+            max_deletes: Some(0),
+        },
+        operations: vec![OpJson::Insert {
+            key_hex: hex::encode(&key),
+            value_hex: hex::encode(&value),
+        }],
+        expected_new_digest_hex: hex::encode(&new_digest),
+        expected_results_hex: vec![result.map(|v| hex::encode(&v))],
+    })
+}
+
+pub fn run() -> Result<()> {
+    write_fixture("single-leaf-insert", &single_leaf_insert()?)?;
+    Ok(())
+}
+```
+
+- [ ] **Step 2: Run fixture-gen**
+
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo run -- avltree`
+Expected: prints "wrote .../packages/avltree/test/fixtures/avltree/single-leaf-insert.json".
+
+- [ ] **Step 3: Verify determinism**
+
+Run: `cargo run -- avltree && git diff packages/avltree/test/fixtures/`
+Expected: First run creates fixture; second run produces no diff. If diff appears, the prover or hex encoding is non-deterministic — investigate before proceeding. (Determinism: `BatchAVLProver::new` should be deterministic with a fixed `KeySerializer` closure; no RNG should be in the path.)
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git -C /home/mwaddip/projects/ergots add CLAUDE.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs: update CLAUDE.md reads-list for facts/ergoscript.md split
-
-Per the split design (5da8289): updates the read-first files list to
-include the three new slice contracts (ergoscript-wire.md,
-ergoscript-eval.md, ergoscript-sigma.md) alongside the meta hub.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+git add fixture-gen/src/cmds/avltree.rs packages/avltree/test/fixtures/avltree/single-leaf-insert.json
+git commit -m "feat(fixture-gen): first AVL+ fixture — single-leaf-insert"
 ```
 
 ---
 
-### Task 6: Update `packages/ergoscript/` README / API / PLAN deep-refs
+### Task 9: `proof-decode.ts` — `parseProofPackedTree`
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs` lines 58-143 (`reconstruct_tree`). Tokens defined in `authenticated_tree_ops.rs` (search for `LABEL_IN_PACKAGED_PROOF`, `LEAF_IN_PACKAGED_PROOF`, `END_OF_TREE_IN_PACKAGED_PROOF`).
 
 **Files:**
-- Modify (if deep-refs exist): `packages/ergoscript/README.md`, `packages/ergoscript/API.md`
-- DO NOT modify: `packages/ergoscript/PLAN.md` (or the root `PLAN.md`) — those are working plans, not reference docs
+- Create: `packages/avltree/src/proof-decode.ts`
+- Create: `packages/avltree/test/proof-decode.test.ts`
 
-- [ ] **Step 1: Find all references**
+- [ ] **Step 1: Write failing test** at `packages/avltree/test/proof-decode.test.ts`
 
-Run: `grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/packages/ergoscript/ /home/mwaddip/projects/ergots/README.md 2>/dev/null`
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+import { parseProofPackedTree } from '../src/proof-decode.js'
+import type { AvlTreeConfig } from '../src/types.js'
 
-For each reference, determine:
-- Vague (`see facts/ergoscript.md`) → leave as-is; it lands on the meta hub
-- Deep-link (`facts/ergoscript.md#evalerror-taxonomy` or "the EvalError taxonomy in facts/ergoscript.md") → update to point to the right slice file
+const __dirname = dirname(fileURLToPath(import.meta.url))
+function loadFixture(name: string): any {
+  const path = resolve(__dirname, `fixtures/avltree/${name}.json`)
+  return JSON.parse(readFileSync(path, 'utf-8'))
+}
 
-- [ ] **Step 2: Update each deep-link reference**
+function hexToBytes(h: string): Uint8Array {
+  const out = new Uint8Array(h.length / 2)
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16)
+  return out
+}
 
-For each deep-link found in Step 1, edit the source file to point at the right slice. Example patterns:
-
-- "the EvalError taxonomy in facts/ergoscript.md" → "the EvalError taxonomy in facts/ergoscript-eval.md"
-- "the SValue discriminated union in facts/ergoscript.md" → "the SValue discriminated union in facts/ergoscript-eval.md"
-- "verifySignature documented in facts/ergoscript.md" → "verifySignature documented in facts/ergoscript-sigma.md"
-- "parseTree returns ErgoTree (see facts/ergoscript.md)" → "parseTree returns ErgoTree (see facts/ergoscript-wire.md)"
-
-- [ ] **Step 3: Verify**
-
-Run: `grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/packages/ergoscript/ /home/mwaddip/projects/ergots/README.md 2>/dev/null`
-
-Expected: every deep-link reference now points to a slice file; vague refs still point to the meta.
-
-- [ ] **Step 4: Commit (only if any files were actually changed)**
-
-```bash
-git -C /home/mwaddip/projects/ergots add packages/ergoscript/README.md packages/ergoscript/API.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs(ergoscript): update package README/API deep-refs for facts split
-
-Per the split design (5da8289): redirects deep-link references that named
-specific sections now living in slice files (ergoscript-wire.md,
-ergoscript-eval.md, ergoscript-sigma.md). Vague references to the meta
-hub stay as-is.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+describe('parseProofPackedTree — single-leaf-insert', () => {
+  it('reconstructs a tree that labels to startingDigest', () => {
+    const f = loadFixture('single-leaf-insert')
+    const startingDigest = hexToBytes(f.starting_digest_hex)
+    const proof = hexToBytes(f.proof_hex)
+    const config: AvlTreeConfig = {
+      keyLength: f.config.key_length,
+      valueLengthOpt: f.config.value_length_opt,
+      maxNumOperations: f.config.max_num_operations,
+      maxDeletes: f.config.max_deletes,
+    }
+    const result = parseProofPackedTree(proof, config, startingDigest)
+    // For pre-insert empty tree, proof may decode to an empty tree.
+    // For pre-insert tree containing some leaves, the reconstructed root labels to startingDigest.
+    expect(result.ok).toBe(true)
+  })
+  it('rejects truncated proof', () => {
+    const f = loadFixture('single-leaf-insert')
+    const truncated = hexToBytes(f.proof_hex).slice(0, 5)
+    const startingDigest = hexToBytes(f.starting_digest_hex)
+    const result = parseProofPackedTree(truncated, {
+      keyLength: f.config.key_length,
+      valueLengthOpt: f.config.value_length_opt,
+    }, startingDigest)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(['proof-truncated', 'proof-malformed']).toContain(result.reason)
+  })
+})
 ```
 
-If no files changed in Step 2, skip the commit (and note this in the task completion report).
+- [ ] **Step 2: Run failing test**
+
+Run: `npx vitest run packages/avltree/test/proof-decode.test.ts`
+Expected: FAIL — `proof-decode.js` not found.
+
+- [ ] **Step 3: Author `packages/avltree/src/proof-decode.ts`**
+
+```ts
+import { newInternal, newLabel, newLeaf, label } from './node.js'
+import type { AvlNode, LeafNode, Balance } from './node.js'
+import type { AvlTreeConfig } from './types.js'
+import type { AvlVerifyFailReason } from './errors.js'
+
+// Token codes — mirror ergo_avltree_rust constants in authenticated_tree_ops.rs.
+const LABEL_IN_PACKAGED_PROOF = 1
+const LEAF_IN_PACKAGED_PROOF = 2
+const END_OF_TREE_IN_PACKAGED_PROOF = 3
+
+const DIGEST_LENGTH = 32
+
+export interface ParseProofOk {
+  readonly ok: true
+  readonly root: AvlNode
+  readonly height: number
+  /** Byte offset where the directions bit-string begins. */
+  readonly directionsStart: number
+}
+export interface ParseProofFail {
+  readonly ok: false
+  readonly reason: AvlVerifyFailReason
+}
+export type ParseProofResult = ParseProofOk | ParseProofFail
+
+/**
+ * Ports batch_avl_verifier.rs::BatchAVLVerifier::reconstruct_tree (lines 58-143).
+ * Decodes the proof's packed post-order tree representation, validates against
+ * startingDigest, and returns the reconstructed root + the offset where the
+ * directions bit-string begins.
+ */
+export function parseProofPackedTree(
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  startingDigest: Uint8Array,
+): ParseProofResult {
+  // Implementation follows the Rust source:
+  // 1. Loop reading proof[i] tokens:
+  //    - LABEL_IN_PACKAGED_PROOF: read 32 bytes, push newLabel(label) onto stack.
+  //    - LEAF_IN_PACKAGED_PROOF: read key (config.keyLength bytes) [or use
+  //      previousLeaf.nextNodeKey() if previousLeaf is set], read nextLeafKey
+  //      (config.keyLength), read value (config.valueLengthOpt bytes,
+  //      or 4-byte BE length-prefix followed by that many bytes if valueLengthOpt
+  //      is null). Push newLeaf(...).
+  //    - END_OF_TREE_IN_PACKAGED_PROOF: break loop.
+  //    - Other byte n: pop two children (right, then left), push
+  //      newInternal(left, right, n as Balance) onto stack.
+  // 2. Assert stack.length === 1.
+  // 3. Compute rootLabel = label(root); assert startingDigest[0..32] === rootLabel.
+  //    (startingDigest is 33 bytes; last byte is height.)
+  // 4. Height = startingDigest[32].
+  // 5. Bounds-check EVERY proof[i] read (returning 'proof-truncated' on OOB).
+  // 6. Return { ok: true, root, height, directionsStart: i + 1 }.
+  //
+  // Per [[feedback-rust-port-style]]: this is the cleanest 1:1 port we can do,
+  // since the algorithm is a tight state machine. Add per-function JSDoc
+  // comment naming batch_avl_verifier.rs:58-143.
+}
+```
+
+The engineer fills in the body per the Rust source, with explicit bounds-checks before every `proof[i]` read.
+
+- [ ] **Step 4: Run tests to verify**
+
+Run: `npx vitest run packages/avltree/test/proof-decode.test.ts`
+Expected: Both tests PASS.
+
+- [ ] **Step 5: Run typecheck + cross-runtime**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json && npx vitest run --config packages/avltree/vitest.browser.config.ts packages/avltree/test/proof-decode.test.ts`
+Expected: Both PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/avltree/src/proof-decode.ts packages/avltree/test/proof-decode.test.ts
+git commit -m "feat(avltree): proof-decode.ts — packed post-order tree reconstruction"
+```
 
 ---
 
-### Task 7: Update design-spec deep-refs
+### Task 10: `tree-traversal.ts` — `nextDirectionIsLeft`
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs` lines 192-203.
 
 **Files:**
-- Modify (selectively): `docs/specs/*-ergoscript-*.md` and any other spec docs containing deep-links to moved sections
+- Create: `packages/avltree/src/tree-traversal.ts`
+- Create: `packages/avltree/test/tree-traversal.test.ts`
 
-- [ ] **Step 1: Find all references**
+- [ ] **Step 1: Write failing test** at `packages/avltree/test/tree-traversal.test.ts`
 
-Run: `grep -rln 'facts/ergoscript' /home/mwaddip/projects/ergots/docs/`
+```ts
+import { describe, expect, it } from 'vitest'
+import { nextDirectionIsLeft, type TraversalState } from '../src/tree-traversal.js'
 
-Expected: ~14 spec files plus possibly a few more. List them.
-
-- [ ] **Step 2: Inspect each file for deep-links**
-
-For each file in the list, run:
-```bash
-grep -n 'facts/ergoscript' /home/mwaddip/projects/ergots/docs/specs/<filename>
+describe('nextDirectionIsLeft', () => {
+  it('reads bit 0 of byte 0 as left=true', () => {
+    // proof[0] bit 0 set → left=true
+    const proof = new Uint8Array([0b00000001])
+    const state: TraversalState = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0 }
+    expect(nextDirectionIsLeft(proof, state)).toBe(true)
+    expect(state.directionsIndex).toBe(1)
+    expect(state.lastRightStep).toBe(0)  // not updated on left
+  })
+  it('reads bit 0 of byte 0 as left=false (right step)', () => {
+    const proof = new Uint8Array([0b00000000])
+    const state: TraversalState = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0 }
+    expect(nextDirectionIsLeft(proof, state)).toBe(false)
+    expect(state.directionsIndex).toBe(1)
+    expect(state.lastRightStep).toBe(0)  // captures the index where right step happened
+  })
+  it('advances bit position across byte boundary', () => {
+    // Bits: 0,0,0,0,0,0,0,0, 1,1,1,1,...
+    const proof = new Uint8Array([0x00, 0xff])
+    const state: TraversalState = { directionsIndex: 7, lastRightStep: 0, replayIndex: 0 }
+    expect(nextDirectionIsLeft(proof, state)).toBe(false)   // bit 7 of byte 0
+    expect(nextDirectionIsLeft(proof, state)).toBe(true)    // bit 0 of byte 1
+    expect(state.directionsIndex).toBe(9)
+  })
+})
 ```
 
-Classify each match:
-- Vague (`see facts/ergoscript.md`, `facts/ergoscript.md — interface contract`) → leave as-is
-- Deep-link (mentions a specific section / type / error code / handler that's now in a slice file) → update
+- [ ] **Step 2: Run failing test**
 
-- [ ] **Step 3: Update each deep-link reference**
+Run: `npx vitest run packages/avltree/test/tree-traversal.test.ts`
+Expected: FAIL — module not found.
 
-Edit each spec file to point deep-links at the right slice file. Common patterns to watch for:
+- [ ] **Step 3: Author `packages/avltree/src/tree-traversal.ts`**
 
-- References to `EvalError` codes (43 of them) → `facts/ergoscript-eval.md`
-- References to `SValue` / `SType` / `Expr` definitions → `facts/ergoscript-eval.md`
-- References to the method-handler registry → `facts/ergoscript-eval.md`
-- References to `verifySignature` / `SigmaBoolean` / `VerifyError` → `facts/ergoscript-sigma.md`
-- References to `parseTree` / `serializeTree` / address helpers → `facts/ergoscript-wire.md`
-- References to `ErgoTreeParseError` / `ErgoTreeSerializeError` → `facts/ergoscript-wire.md`
+```ts
+/**
+ * Mutable verifier traversal state. Mirrors the directions/replay indices
+ * on BatchAVLVerifier (batch_avl_verifier.rs lines 26-33).
+ */
+export interface TraversalState {
+  directionsIndex: number
+  lastRightStep: number
+  replayIndex: number
+}
 
-- [ ] **Step 4: Verify**
+/**
+ * Ports batch_avl_verifier.rs::BatchAVLVerifier::next_direction_is_left (lines 192-203).
+ * Reads one bit from the proof's "directions" bit-string at position
+ * state.directionsIndex; advances the index by 1. Returns true if the bit is set
+ * (left), false otherwise (right) — also updates state.lastRightStep when right.
+ *
+ * Bit indexing: byte offset = i >> 3; bit offset = 1 << (i & 7).
+ */
+export function nextDirectionIsLeft(
+  proof: Uint8Array,
+  state: TraversalState,
+): boolean {
+  const i = state.directionsIndex
+  // Read bit i of proof byte (i >> 3).
+  // Implementer: bounds-check; if i >> 3 >= proof.length, this is a 'directions-exhausted'
+  // failure that the caller will surface. For now, callers ensure they don't over-read.
+  const left = (proof[i >> 3] & (1 << (i & 7))) !== 0
+  if (!left) state.lastRightStep = i
+  state.directionsIndex = i + 1
+  return left
+}
+```
 
-Run: `grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/docs/`
+- [ ] **Step 4: Run test to verify**
 
-Spot-check 3-4 random matches and confirm each points at the correct slice (or correctly remains pointing at the meta hub for vague references).
+Run: `npx vitest run packages/avltree/test/tree-traversal.test.ts`
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git -C /home/mwaddip/projects/ergots add docs/specs/
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs(specs): update design-spec deep-refs for facts/ergoscript split
-
-Per the split design (5da8289): redirects deep-link references across the
-~14 ergoscript design specs that named specific sections now living in
-slice files. Vague references continue to land on the meta hub.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+git add packages/avltree/src/tree-traversal.ts packages/avltree/test/tree-traversal.test.ts
+git commit -m "feat(avltree): tree-traversal.ts — nextDirectionIsLeft primitive"
 ```
-
-If no specs needed updating (all references were vague), skip the commit and note this.
 
 ---
 
-### Task 8: Final sanity check + PLAN.md status update
+### Task 11: `tree-traversal.ts` — `replayComparison` + `keyMatchesLeaf`
+
+**Source-port reference:**
+- `replayComparison`: `batch_avl_verifier.rs` lines 239-251
+- `keyMatchesLeaf`: `batch_avl_verifier.rs` lines 213-227
 
 **Files:**
-- Modify: `PLAN.md` (mark phase complete)
+- Modify: `packages/avltree/src/tree-traversal.ts`
+- Modify: `packages/avltree/test/tree-traversal.test.ts`
 
-- [ ] **Step 1: Full grep sweep**
+- [ ] **Step 1: Append failing tests to `packages/avltree/test/tree-traversal.test.ts`**
 
-Run:
-```bash
-grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/CLAUDE.md /home/mwaddip/projects/ergots/docs/ /home/mwaddip/projects/ergots/packages/ /home/mwaddip/projects/ergots/README.md /home/mwaddip/projects/ergots/facts/ 2>/dev/null
+```ts
+import { replayComparison, keyMatchesLeaf } from '../src/tree-traversal.js'
+import { newLeaf } from '../src/node.js'
+
+describe('replayComparison', () => {
+  // Specific bit patterns: see batch_avl_verifier.rs lines 239-251.
+  it('returns 0 when replayIndex equals lastRightStep', () => {
+    const proof = new Uint8Array([0xff])
+    const state: TraversalState = { directionsIndex: 8, lastRightStep: 4, replayIndex: 4 }
+    expect(replayComparison(proof, state)).toBe(0)
+    expect(state.replayIndex).toBe(5)
+  })
+  it('returns 1 when bit unset and replayIndex < lastRightStep', () => {
+    const proof = new Uint8Array([0x00])
+    const state: TraversalState = { directionsIndex: 8, lastRightStep: 4, replayIndex: 2 }
+    expect(replayComparison(proof, state)).toBe(1)
+  })
+  it('returns -1 otherwise', () => {
+    const proof = new Uint8Array([0xff])
+    const state: TraversalState = { directionsIndex: 8, lastRightStep: 4, replayIndex: 2 }
+    expect(replayComparison(proof, state)).toBe(-1)
+  })
+})
+
+describe('keyMatchesLeaf', () => {
+  it('returns true when key === leaf.key', () => {
+    const key = new Uint8Array([1, 2, 3])
+    const leaf = newLeaf(key, new Uint8Array([10]), new Uint8Array([5, 6, 7]))
+    expect(keyMatchesLeaf(key, leaf)).toEqual({ ok: true, matches: true })
+  })
+  it('returns false when leaf.key < key < leaf.nextLeafKey', () => {
+    const leaf = newLeaf(new Uint8Array([1, 0, 0]), new Uint8Array([10]), new Uint8Array([2, 0, 0]))
+    expect(keyMatchesLeaf(new Uint8Array([1, 5, 0]), leaf)).toEqual({ ok: true, matches: false })
+  })
+  it('fails when key not in [leaf.key, leaf.nextLeafKey)', () => {
+    const leaf = newLeaf(new Uint8Array([1, 0, 0]), new Uint8Array([10]), new Uint8Array([2, 0, 0]))
+    expect(keyMatchesLeaf(new Uint8Array([5, 0, 0]), leaf)).toEqual({ ok: false, reason: 'leaf-key-out-of-order' })
+  })
+  it('fails when key < leaf.key', () => {
+    const leaf = newLeaf(new Uint8Array([1, 0, 0]), new Uint8Array([10]), new Uint8Array([2, 0, 0]))
+    expect(keyMatchesLeaf(new Uint8Array([0, 5, 0]), leaf)).toEqual({ ok: false, reason: 'leaf-key-out-of-order' })
+  })
+})
 ```
 
-Read every match. Confirm:
-- Every reference resolves to an existing file (no `facts/ergoscript-bogus.md` typos)
-- Vague references land on the meta hub correctly (the meta hub has the lookup table forwarding them)
-- Deep-link references point to the right slice
+- [ ] **Step 2: Run failing tests**
 
-- [ ] **Step 2: Verify file structure**
+Run: `npx vitest run packages/avltree/test/tree-traversal.test.ts`
+Expected: FAIL — `replayComparison` and `keyMatchesLeaf` not exported.
 
-Run:
-```bash
-ls -la /home/mwaddip/projects/ergots/facts/
-wc -l /home/mwaddip/projects/ergots/facts/*.md
+- [ ] **Step 3: Append to `packages/avltree/src/tree-traversal.ts`**
+
+```ts
+import type { LeafNode } from './node.js'
+import type { AvlVerifyFailReason } from './errors.js'
+
+/** Lexicographic comparison of two Uint8Arrays. Returns -1, 0, 1. */
+function compareBytes(a: Uint8Array, b: Uint8Array): number {
+  const min = Math.min(a.length, b.length)
+  for (let i = 0; i < min; i++) {
+    if (a[i] < b[i]) return -1
+    if (a[i] > b[i]) return 1
+  }
+  return a.length - b.length === 0 ? 0 : (a.length < b.length ? -1 : 1)
+}
+
+/** Ports batch_avl_verifier.rs::BatchAVLVerifier::replay_comparison (lines 239-251). */
+export function replayComparison(
+  proof: Uint8Array,
+  state: TraversalState,
+): -1 | 0 | 1 {
+  const i = state.replayIndex
+  let ret: -1 | 0 | 1
+  if (i === state.lastRightStep) {
+    ret = 0
+  } else {
+    const bit = (proof[i >> 3] & (1 << (i & 7))) !== 0
+    if (!bit && i < state.lastRightStep) ret = 1
+    else ret = -1
+  }
+  state.replayIndex = i + 1
+  return ret
+}
+
+export type KeyMatchesResult =
+  | { ok: true; matches: boolean }
+  | { ok: false; reason: AvlVerifyFailReason }
+
+/** Ports batch_avl_verifier.rs::BatchAVLVerifier::key_matches_leaf (lines 213-227). */
+export function keyMatchesLeaf(key: Uint8Array, leaf: LeafNode): KeyMatchesResult {
+  const cmp = compareBytes(key, leaf.key)
+  if (cmp === 0) return { ok: true, matches: true }
+  // Otherwise: assert leaf.key < key AND key < leaf.nextLeafKey.
+  if (cmp < 0) return { ok: false, reason: 'leaf-key-out-of-order' }
+  // key > leaf.key. Check key < leaf.nextLeafKey.
+  if (compareBytes(key, leaf.nextLeafKey) >= 0) return { ok: false, reason: 'leaf-key-out-of-order' }
+  return { ok: true, matches: false }
+}
 ```
 
-Expected: 4 active `.md` files in `facts/`:
-- `ergoscript.md` — ~150 lines (meta hub)
-- `ergoscript-wire.md` — 300-500 lines
-- `ergoscript-eval.md` — 600-800 lines
-- `ergoscript-sigma.md` — 100-200 lines
-- (plus `proof.md` at 196 lines, untouched)
+- [ ] **Step 4: Run tests to verify**
 
-- [ ] **Step 3: Update PLAN.md to mark phase complete**
+Run: `npx vitest run packages/avltree/test/tree-traversal.test.ts`
+Expected: All tests PASS.
 
-Edit `/home/mwaddip/projects/ergots/PLAN.md`. Add a status line at the top below the title:
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/avltree/src/tree-traversal.ts packages/avltree/test/tree-traversal.test.ts
+git commit -m "feat(avltree): tree-traversal.ts — replayComparison + keyMatchesLeaf"
+```
+
+---
+
+### Task 12: `rotation.ts` — `doubleLeftRotate` + `doubleRightRotate`
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs` lines 135-220 (the two double-rotation helpers).
+
+**Files:**
+- Create: `packages/avltree/src/rotation.ts`
+- Create: `packages/avltree/test/rotation.test.ts`
+
+- [ ] **Step 1: Write failing tests at `packages/avltree/test/rotation.test.ts`**
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { doubleLeftRotate, doubleRightRotate } from '../src/rotation.js'
+import { newInternal, newLeaf, label } from '../src/node.js'
+
+describe('doubleLeftRotate', () => {
+  it('rotates a known unbalanced sub-tree', () => {
+    // Construct an unbalanced tree shape that requires a double-left rotation.
+    // Specific shape: see Rust source, double_left_rotate lines 135-170.
+    // Engineer builds the input + expected output from the Rust algorithm.
+    // For now, regression-test invariant: post-rotation tree labels deterministically.
+    const leaf1 = newLeaf(new Uint8Array([1]), new Uint8Array([10]), new Uint8Array([2]))
+    const leaf2 = newLeaf(new Uint8Array([2]), new Uint8Array([20]), new Uint8Array([3]))
+    const leaf3 = newLeaf(new Uint8Array([3]), new Uint8Array([30]), new Uint8Array([255]))
+    const inner = newInternal(leaf2, leaf3, 1)
+    const root = newInternal(leaf1, inner, 0)
+    const rotated = doubleLeftRotate(root)
+    expect(rotated.kind).toBe('internal')
+    expect(label(rotated).length).toBe(32)
+  })
+})
+
+describe('doubleRightRotate', () => {
+  it('rotates a known unbalanced sub-tree (mirror of left)', () => {
+    const leaf1 = newLeaf(new Uint8Array([1]), new Uint8Array([10]), new Uint8Array([2]))
+    const leaf2 = newLeaf(new Uint8Array([2]), new Uint8Array([20]), new Uint8Array([3]))
+    const leaf3 = newLeaf(new Uint8Array([3]), new Uint8Array([30]), new Uint8Array([255]))
+    const inner = newInternal(leaf1, leaf2, -1)
+    const root = newInternal(inner, leaf3, 0)
+    const rotated = doubleRightRotate(root)
+    expect(rotated.kind).toBe('internal')
+    expect(label(rotated).length).toBe(32)
+  })
+})
+```
+
+Note: Once Task 13 generates rotation-specific fixtures, replace these regression-only tests with byte-equality assertions against the Rust output. Track in Task 24.
+
+- [ ] **Step 2: Run failing tests**
+
+Run: `npx vitest run packages/avltree/test/rotation.test.ts`
+Expected: FAIL — module not found.
+
+- [ ] **Step 3: Author `packages/avltree/src/rotation.ts`**
+
+```ts
+import type { InternalNode } from './node.js'
+import { newInternal } from './node.js'
+
+/**
+ * Ports authenticated_tree_ops.rs::AuthenticatedTreeOps::double_left_rotate (lines 135-170).
+ * Rebalances a node whose right child has its own right-leaning imbalance.
+ * Returns the new sub-root.
+ */
+export function doubleLeftRotate(node: InternalNode): InternalNode {
+  // Per Rust: requires node.right to be Internal, node.right.left to be Internal.
+  // 1. Promote the new sub-root (node.right.left's original position becomes root-like).
+  // 2. Reassign children + balances per the Rust formula.
+  // See lines 135-170 for the exact balance reassignment.
+  // Implementer fills in.
+}
+
+/**
+ * Ports authenticated_tree_ops.rs::AuthenticatedTreeOps::double_right_rotate (lines 171-220).
+ * Mirror of doubleLeftRotate for the symmetric case.
+ */
+export function doubleRightRotate(node: InternalNode): InternalNode {
+  // See Rust source.
+}
+```
+
+- [ ] **Step 4: Run tests to verify**
+
+Run: `npx vitest run packages/avltree/test/rotation.test.ts`
+Expected: PASS (regression-only assertions; replaced with byte-equality in Task 24).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/avltree/src/rotation.ts packages/avltree/test/rotation.test.ts
+git commit -m "feat(avltree): rotation.ts — doubleLeftRotate + doubleRightRotate"
+```
+
+---
+
+### Task 13: fixture-gen — per-Operation-variant fixtures (all 8)
+
+**Files:**
+- Modify: `fixture-gen/src/cmds/avltree.rs` (extend with per-variant generators)
+
+- [ ] **Step 1: Extend `fixture-gen/src/cmds/avltree.rs` with generators for all 8 Operation variants**
+
+For each Operation variant, generate at least 2 fixtures:
+- **Lookup**: tree-of-3-leaves, key present; tree-of-3-leaves, key absent
+- **Insert**: empty-tree (covered by single-leaf-insert from Task 8); tree-of-3-leaves; tree-of-100-leaves
+- **Update**: tree-of-3-leaves, key present; (negative case where key absent — verifier should reject)
+- **InsertOrUpdate**: tree-of-3-leaves, key absent (insert path); tree-of-3-leaves, key present (update path)
+- **UpdateLongBy**: tree-with-existing-i64, positive delta (no remove); positive delta producing remove (result=0); negative delta producing remove; negative delta on absent (verifier should reject)
+- **Remove**: tree-of-3-leaves, key present; (negative case)
+- **RemoveIfExists**: tree-of-3-leaves, key present; tree-of-3-leaves, key absent (no-op)
+- **UnknownModification**: tree-of-3-leaves, key present (returns oldValue); tree-of-3-leaves, key absent (returns null)
+
+For each fixture, the prover constructs the tree, applies the operation(s), generates the proof, and the verifier cross-checks. Helper signature:
+
+```rust
+fn generate_fixture(
+    name: &str,
+    key_length: usize,
+    value_length_opt: Option<usize>,
+    initial_kvs: Vec<(Bytes, Bytes)>,  // pre-state
+    operations: Vec<Operation>,         // operations to apply
+) -> Result<AvlFixture>
+```
+
+Each fixture's name encodes its purpose: `lookup-3leaves-present`, `lookup-3leaves-absent`, `insert-3leaves`, `update-3leaves-present`, `update-3leaves-absent-fail`, `update-long-by-positive-add`, etc.
+
+- [ ] **Step 2: Run fixture-gen**
+
+Run: `cargo run -p fixture-gen -- avltree`
+Expected: Produces ~20 JSON fixtures in `packages/avltree/test/fixtures/avltree/`.
+
+- [ ] **Step 3: Verify determinism**
+
+Run: `cargo run -p fixture-gen -- avltree && git diff packages/avltree/test/fixtures/`
+Expected: No diff on second run.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add fixture-gen/src/cmds/avltree.rs packages/avltree/test/fixtures/avltree/
+git commit -m "feat(fixture-gen): per-Operation-variant AVL+ fixtures"
+```
+
+---
+
+### Task 14: `modify.ts` — Lookup + Insert + Update + InsertOrUpdate cases
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs::modify_helper` (lines 262-398). The Lookup case + Insert/Update/InsertOrUpdate share most code; UpdateLongBy and UnknownModification are extensions.
+
+**Files:**
+- Create: `packages/avltree/src/modify.ts`
+
+This task gets tested integratively via `BatchAvlVerifier` in Task 17 + corpus in Task 24. No standalone test file — the modify path is only meaningful within a verifier run. Per the design spec's "Modify and delete tests really require batch-verifier" decision.
+
+- [ ] **Step 1: Author `packages/avltree/src/modify.ts`**
+
+```ts
+import { newInternal, newLeaf, type AvlNode, type LeafNode, type Balance } from './node.js'
+import { nextDirectionIsLeft, keyMatchesLeaf, type TraversalState } from './tree-traversal.js'
+import { doubleLeftRotate, doubleRightRotate } from './rotation.js'
+import { updateFn, type Operation, type UpdateFnFailReason } from './operation.js'
+import type { AvlVerifyFailReason } from './errors.js'
+
+export type ModifyOk = {
+  readonly ok: true
+  readonly newSubtreeRoot: AvlNode
+  /** Change in subtree height: -1 (shrank), 0, or 1 (grew). */
+  readonly heightDelta: -1 | 0 | 1
+  /** Old value at this key, or null if key was absent. */
+  readonly oldValue: Uint8Array | null
+}
+export type ModifyFail = { readonly ok: false; readonly reason: AvlVerifyFailReason }
+export type ModifyResult = ModifyOk | ModifyFail
+
+/**
+ * Ports authenticated_tree_ops.rs::modify_helper (lines 262-398).
+ * Walks the tree per the proof's directions, applies the operation at the
+ * matching leaf, and rebalances the subtree on the way back up.
+ *
+ * Handles: Lookup, Insert, Update, InsertOrUpdate. UpdateLongBy and
+ * UnknownModification deferred to Task 15 (separate function or extension).
+ *
+ * Per [[feedback-rust-port-style]]: decomposed into 4 helpers below.
+ */
+export function modifyHelper(
+  node: AvlNode,
+  op: Operation,
+  proof: Uint8Array,
+  state: TraversalState,
+): ModifyResult {
+  // Top-level: dispatch by node.kind.
+  // - If label-node: this means the proof doesn't have full coverage of
+  //   the path; this is a verification failure (the proof should have
+  //   included the necessary leaves/internals along the operation path).
+  //   Return { ok: false, reason: 'proof-malformed' }.
+  // - If leaf: handle via handleLeafNode.
+  // - If internal: handle via handleInternalNode (recurse).
+}
+
+/** Ports modify_helper's leaf-node branch (authenticated_tree_ops.rs:280-330). */
+function handleLeafNode(
+  leaf: LeafNode,
+  op: Operation,
+  proof: Uint8Array,
+  state: TraversalState,
+): ModifyResult {
+  // 1. Call keyMatchesLeaf(op.key, leaf). On failure, return that reason.
+  // 2. Branch on (matches, op.tag):
+  //    - matches: invoke updateFn(op, leaf.value); update or create new subtree.
+  //    - !matches: key is between leaf.key and leaf.nextLeafKey;
+  //      for insert-class ops, split the leaf into 2 (newLeaf + this);
+  //      for read-class ops, return as not-found.
+}
+
+/** Ports modify_helper's internal-node branch (authenticated_tree_ops.rs:331-368). */
+function handleInternalNode(
+  node: InternalNode,
+  op: Operation,
+  proof: Uint8Array,
+  state: TraversalState,
+): ModifyResult {
+  // 1. Read direction: const goLeft = nextDirectionIsLeft(proof, state).
+  // 2. Recurse: modifyHelper on the chosen subtree.
+  // 3. On the way back up: if height changed, may need to rebalance via
+  //    rebalance(...).
+  // 4. Construct new internal node with updated subtree.
+}
+
+/** Ports modify_helper's rebalance section (authenticated_tree_ops.rs:369-398). */
+function rebalance(
+  node: InternalNode,
+  childHeightDelta: -1 | 0 | 1,
+  childWasLeft: boolean,
+): { node: AvlNode; heightDelta: -1 | 0 | 1 } {
+  // Determine if rotation is needed based on the post-recursion balance.
+  // If |balance| > 1, perform the appropriate single or double rotation.
+  // doubleLeftRotate or doubleRightRotate from rotation.ts; single rotations
+  // can be implemented inline (they're simpler than the doubles).
+}
+```
+
+The engineer fills in the body, using `~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs` lines 262-398 as the algorithmic reference.
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS (will surface unused imports if Step 3 deferred — that's fine, Task 15 uses them).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/modify.ts
+git commit -m "feat(avltree): modify.ts — modifyHelper for Lookup/Insert/Update/InsertOrUpdate"
+```
+
+---
+
+### Task 15: `modify.ts` — UpdateLongBy + UnknownModification extensions
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs::modify_helper` — the UpdateLongBy and UnknownModification branches are interleaved within the same function. Read carefully.
+
+**Files:**
+- Modify: `packages/avltree/src/modify.ts`
+
+- [ ] **Step 1: Extend `modify.ts` to handle UpdateLongBy + UnknownModification**
+
+Both share the modifyHelper structure but have specific value-handling. UpdateLongBy goes through `operation.ts::updateFn`'s i64-delta logic (already implemented in Task 5). UnknownModification returns oldValue unchanged.
+
+The engineer extends `handleLeafNode` and possibly `handleInternalNode` to dispatch correctly for these op tags.
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/modify.ts
+git commit -m "feat(avltree): modify.ts — extend for UpdateLongBy + UnknownModification"
+```
+
+---
+
+### Task 16: `delete.ts` — `deleteHelper` for Remove + RemoveIfExists
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs::delete_helper` (lines 446-540) + `change_next_leaf_key_of_max_node` (lines 400-416) + `change_key_and_value_of_min_node` (lines 417-445).
+
+**Files:**
+- Create: `packages/avltree/src/delete.ts`
+
+- [ ] **Step 1: Author `packages/avltree/src/delete.ts`**
+
+```ts
+import { newInternal, newLeaf, type AvlNode, type InternalNode, type LeafNode } from './node.js'
+import { nextDirectionIsLeft, replayComparison, keyMatchesLeaf, type TraversalState } from './tree-traversal.js'
+import { doubleLeftRotate, doubleRightRotate } from './rotation.js'
+import { updateFn, type Operation } from './operation.js'
+import type { ModifyResult } from './modify.js'
+
+/**
+ * Ports authenticated_tree_ops.rs::delete_helper (lines 446-540). Handles
+ * Remove and RemoveIfExists.
+ *
+ * Distinguishing feature vs modifyHelper: deletes go down the tree TWICE.
+ * First pass uses nextDirectionIsLeft (consumes direction bits) to find the
+ * leaf. Second pass uses replayComparison (re-uses same bits via replayIndex)
+ * to splice the leaf out + fix the parent chain.
+ */
+export function deleteHelper(
+  node: AvlNode,
+  op: Operation,
+  proof: Uint8Array,
+  state: TraversalState,
+): ModifyResult {
+  // Implementation per Rust source. Key steps:
+  // 1. Save replayIndex := directionsIndex at start.
+  // 2. First pass: walk via nextDirectionIsLeft, find the leaf for op.key.
+  // 3. Apply updateFn(op, leaf.value) — for Remove, returns ok with newValue:null
+  //    or 'key-not-found'; for RemoveIfExists, returns ok with null regardless.
+  // 4. Second pass: walk via replayComparison, splice out the leaf, fix
+  //    parent's nextLeafKey via changeNextLeafKeyOfMaxNode or
+  //    changeKeyAndValueOfMinNode.
+  // 5. Rebalance up.
+}
+
+/** Ports change_next_leaf_key_of_max_node (lines 400-416). */
+function changeNextLeafKeyOfMaxNode(node: AvlNode, newKey: Uint8Array): AvlNode {
+  // Walk to the rightmost leaf in subtree; replace its nextLeafKey.
+}
+
+/** Ports change_key_and_value_of_min_node (lines 417-445). */
+function changeKeyAndValueOfMinNode(node: AvlNode, newKey: Uint8Array, newValue: Uint8Array): AvlNode {
+  // Walk to the leftmost leaf in subtree; replace its key + value.
+}
+```
+
+The engineer fills in the bodies per the Rust source.
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/delete.ts
+git commit -m "feat(avltree): delete.ts — deleteHelper + change* helpers for Remove/RemoveIfExists"
+```
+
+---
+
+### Task 17: `batch-verifier.ts` — `BatchAvlVerifier` class
+
+**Source-port reference:** `~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs` — the `BatchAVLVerifier` struct (lines 21-34), constructor (lines 37-55), `perform_one_operation` (lines 157-172).
+
+**Files:**
+- Create: `packages/avltree/src/batch-verifier.ts`
+
+- [ ] **Step 1: Author `packages/avltree/src/batch-verifier.ts`**
+
+```ts
+import { parseProofPackedTree } from './proof-decode.js'
+import { modifyHelper } from './modify.js'
+import { deleteHelper } from './delete.js'
+import { label, type AvlNode } from './node.js'
+import type { TraversalState } from './tree-traversal.js'
+import type { Operation } from './operation.js'
+import type { AvlTreeConfig } from './types.js'
+import type { AvlVerifyFailReason } from './errors.js'
+
+/**
+ * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl).
+ * Internal. Constructed by verify.ts's wrappers; consumers should use
+ * verifyAvlBatch/verifyAvlLookup instead.
+ */
+export class BatchAvlVerifier {
+  readonly proof: Uint8Array
+  readonly config: AvlTreeConfig
+  root: AvlNode | null
+  height: number
+  /** Internal failure reason (option-3: not exposed publicly on v0.1.0). */
+  lastFailReason: AvlVerifyFailReason | null = null
+
+  private state: TraversalState
+
+  /** Ports BatchAVLVerifier::new (lines 37-55) + reconstruct_tree (58-143). */
+  constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
+    this.proof = proof
+    this.config = config
+    this.state = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0 }
+    this.root = null
+    this.height = 0
+
+    const decoded = parseProofPackedTree(proof, config, startingDigest)
+    if (!decoded.ok) {
+      this.lastFailReason = decoded.reason
+      return
+    }
+    this.root = decoded.root
+    this.height = decoded.height
+    this.state.directionsIndex = decoded.directionsStart
+  }
+
+  /** True if the constructor's proof decoding succeeded. */
+  get isValid(): boolean {
+    return this.root !== null
+  }
+
+  /** Ports BatchAVLVerifier::perform_one_operation (lines 157-172). */
+  performOneOperation(op: Operation): Uint8Array | null | { failed: true } {
+    if (this.root === null) {
+      // Already-poisoned tree from a previous failure.
+      this.lastFailReason ??= 'tree-poisoned'
+      return { failed: true }
+    }
+    this.state.replayIndex = this.state.directionsIndex
+    const result =
+      op.tag === 'Remove' || op.tag === 'RemoveIfExists'
+        ? deleteHelper(this.root, op, this.proof, this.state)
+        : modifyHelper(this.root, op, this.proof, this.state)
+    if (!result.ok) {
+      this.root = null
+      this.lastFailReason = result.reason
+      return { failed: true }
+    }
+    this.root = result.newSubtreeRoot
+    // height adjust per result.heightDelta
+    this.height = Math.max(0, this.height + result.heightDelta)
+    return result.oldValue
+  }
+
+  /** Compute current digest: blake2b(root) || heightByte. */
+  digest(): Uint8Array | null {
+    if (this.root === null) return null
+    const rootLabel = label(this.root)
+    const out = new Uint8Array(33)
+    out.set(rootLabel, 0)
+    out[32] = this.height & 0xff
+    return out
+  }
+}
+```
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/batch-verifier.ts
+git commit -m "feat(avltree): batch-verifier.ts — BatchAvlVerifier orchestrator"
+```
+
+---
+
+### Task 18: `verify.ts` — `verifyAvlBatch` wrapper
+
+**Files:**
+- Create: `packages/avltree/src/verify.ts`
+- Create: `packages/avltree/test/verify-batch.test.ts`
+
+- [ ] **Step 1: Write failing test** at `packages/avltree/test/verify-batch.test.ts`
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+import { verifyAvlBatch } from '../src/verify.js'
+import type { Operation } from '../src/operation.js'
+import type { AvlTreeConfig } from '../src/types.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const FIXTURES = resolve(__dirname, 'fixtures/avltree')
+
+function hexToBytes(h: string): Uint8Array { /* ... */ }
+function jsonToOp(o: any): Operation { /* ... convert OpJson → Operation, hex → Uint8Array ... */ }
+
+describe('verifyAvlBatch — per-fixture corpus', () => {
+  const fixtures = readdirSync(FIXTURES).filter((f) => f.endsWith('.json'))
+  for (const fname of fixtures) {
+    it(`matches Rust verifier output: ${fname}`, () => {
+      const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
+      const startingDigest = hexToBytes(f.starting_digest_hex)
+      const proof = hexToBytes(f.proof_hex)
+      const config: AvlTreeConfig = {
+        keyLength: f.config.key_length,
+        valueLengthOpt: f.config.value_length_opt,
+        maxNumOperations: f.config.max_num_operations,
+        maxDeletes: f.config.max_deletes,
+      }
+      const operations = f.operations.map(jsonToOp)
+      const result = verifyAvlBatch(startingDigest, proof, config, operations)
+      // Fixture may indicate expected failure via expected_new_digest_hex === null.
+      if (f.expected_new_digest_hex === null) {
+        expect(result).toBeNull()
+        return
+      }
+      expect(result).not.toBeNull()
+      expect(Array.from(result!.newDigest)).toEqual(Array.from(hexToBytes(f.expected_new_digest_hex)))
+      const expectedResults = f.expected_results_hex.map((h: string | null) =>
+        h === null ? null : hexToBytes(h),
+      )
+      expect(result!.results.length).toBe(expectedResults.length)
+      for (let i = 0; i < result!.results.length; i++) {
+        const got = result!.results[i]
+        const expect_ = expectedResults[i]
+        if (expect_ === null) expect(got).toBeNull()
+        else expect(Array.from(got!)).toEqual(Array.from(expect_))
+      }
+    })
+  }
+})
+```
+
+- [ ] **Step 2: Run failing test**
+
+Run: `npx vitest run packages/avltree/test/verify-batch.test.ts`
+Expected: FAIL — `verify.js` not found.
+
+- [ ] **Step 3: Author `packages/avltree/src/verify.ts`**
+
+```ts
+import { BatchAvlVerifier } from './batch-verifier.js'
+import { AvlVerifyError } from './errors.js'
+import type { AvlTreeConfig } from './types.js'
+import type { Operation } from './operation.js'
+
+export interface VerifyAvlBatchResult {
+  readonly newDigest: Uint8Array
+  readonly results: (Uint8Array | null)[]
+}
+
+/**
+ * Public wrapper. Verifies the proof against startingDigest, applies each
+ * operation in order, returns the resulting newDigest + per-op old-values.
+ * Returns null on any verification failure. Throws AvlVerifyError on
+ * programmer error (invalid config or input shape).
+ */
+export function verifyAvlBatch(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  operations: Operation[],
+): VerifyAvlBatchResult | null {
+  // 1. Validate shapes — throw AvlVerifyError on any of the 6 programmer-error codes.
+  validateConfig(config)
+  validateStartingDigest(startingDigest)
+  for (const op of operations) validateOperationShape(op, config)
+
+  // 2. Construct verifier — proof decoding inside the constructor.
+  const v = new BatchAvlVerifier(startingDigest, proof, config)
+  if (!v.isValid) return null
+
+  // 3. Apply operations one at a time.
+  const results: (Uint8Array | null)[] = []
+  for (const op of operations) {
+    const r = v.performOneOperation(op)
+    if (typeof r === 'object' && r !== null && 'failed' in r) return null
+    results.push(r as Uint8Array | null)
+  }
+
+  // 4. Compute final digest.
+  const newDigest = v.digest()
+  if (newDigest === null) return null
+  return { newDigest, results }
+}
+
+function validateConfig(config: AvlTreeConfig): void {
+  if (config.keyLength <= 0) throw new AvlVerifyError('invalid-config-key-length', `keyLength must be > 0; got ${config.keyLength}`)
+  if (config.valueLengthOpt !== null && config.valueLengthOpt < 0)
+    throw new AvlVerifyError('invalid-config-value-length', `valueLengthOpt must be >= 0 or null`)
+  if (config.maxNumOperations !== undefined && config.maxNumOperations < 0)
+    throw new AvlVerifyError('invalid-config-max-ops', `maxNumOperations must be >= 0`)
+  if (config.maxDeletes !== undefined && config.maxNumOperations !== undefined && config.maxDeletes > config.maxNumOperations)
+    throw new AvlVerifyError('invalid-config-max-ops', `maxDeletes must be <= maxNumOperations`)
+}
+
+function validateStartingDigest(d: Uint8Array): void {
+  if (d.length !== 33) throw new AvlVerifyError('invalid-starting-digest-length', `startingDigest must be 33 bytes; got ${d.length}`)
+}
+
+function validateOperationShape(op: Operation, config: AvlTreeConfig): void {
+  if (op.key.length !== config.keyLength) throw new AvlVerifyError('operation-key-length-mismatch', `op.key.length=${op.key.length} != config.keyLength=${config.keyLength}`)
+  if ('value' in op && config.valueLengthOpt !== null && op.value.length !== config.valueLengthOpt)
+    throw new AvlVerifyError('operation-value-length-mismatch', `op.value.length=${op.value.length} != config.valueLengthOpt=${config.valueLengthOpt}`)
+}
+```
+
+- [ ] **Step 4: Run tests to verify**
+
+Run: `npx vitest run packages/avltree/test/verify-batch.test.ts`
+Expected: All fixture-driven tests PASS (every fixture verifier-output matches Rust).
+
+- [ ] **Step 5: Run typecheck + cross-runtime**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Run: `npx vitest run --config packages/avltree/vitest.browser.config.ts packages/avltree/test/verify-batch.test.ts`
+Expected: Both PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/avltree/src/verify.ts packages/avltree/test/verify-batch.test.ts
+git commit -m "feat(avltree): verify.ts — verifyAvlBatch wrapper + corpus-driven tests"
+```
+
+---
+
+### Task 19: `verify.ts` — `verifyAvlLookup` wrapper
+
+**Files:**
+- Modify: `packages/avltree/src/verify.ts`
+- Create: `packages/avltree/test/verify-lookup.test.ts`
+
+- [ ] **Step 1: Write failing test** at `packages/avltree/test/verify-lookup.test.ts`
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { verifyAvlLookup } from '../src/verify.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const FIXTURES = resolve(__dirname, 'fixtures/avltree')
+
+function hexToBytes(h: string): Uint8Array { /* ... */ }
+
+describe('verifyAvlLookup — Lookup fixtures', () => {
+  const fixtures = readdirSync(FIXTURES).filter((f) => f.startsWith('lookup-'))
+  for (const fname of fixtures) {
+    it(`returns expected value for ${fname}`, () => {
+      const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
+      // Lookup fixtures contain exactly one Lookup operation.
+      expect(f.operations.length).toBe(1)
+      expect(f.operations[0].tag).toBe('Lookup')
+      const key = hexToBytes(f.operations[0].key_hex)
+      const result = verifyAvlLookup(
+        hexToBytes(f.starting_digest_hex),
+        hexToBytes(f.proof_hex),
+        {
+          keyLength: f.config.key_length,
+          valueLengthOpt: f.config.value_length_opt,
+        },
+        key,
+      )
+      // Match expected:
+      const expected = f.expected_results_hex[0]
+      expect(result).not.toBeNull()
+      if (expected === null) expect(result!.value).toBeNull()
+      else expect(Array.from(result!.value!)).toEqual(Array.from(hexToBytes(expected)))
+    })
+  }
+})
+```
+
+- [ ] **Step 2: Run failing test**
+
+Run: `npx vitest run packages/avltree/test/verify-lookup.test.ts`
+Expected: FAIL — `verifyAvlLookup` not exported.
+
+- [ ] **Step 3: Add `verifyAvlLookup` to `packages/avltree/src/verify.ts`**
+
+```ts
+export function verifyAvlLookup(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  key: Uint8Array,
+): { value: Uint8Array | null } | null {
+  const result = verifyAvlBatch(startingDigest, proof, config, [{ tag: 'Lookup', key }])
+  if (result === null) return null
+  return { value: result.results[0] }
+}
+```
+
+- [ ] **Step 4: Run tests to verify**
+
+Run: `npx vitest run packages/avltree/test/verify-lookup.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/avltree/src/verify.ts packages/avltree/test/verify-lookup.test.ts
+git commit -m "feat(avltree): verify.ts — verifyAvlLookup wrapper"
+```
+
+---
+
+### Task 20: `index.ts` — public exports
+
+**Files:**
+- Modify: `packages/avltree/src/index.ts`
+
+- [ ] **Step 1: Author `packages/avltree/src/index.ts`**
+
+```ts
+// Public surface of @mwaddip/ergots-avltree.
+
+export { verifyAvlBatch, verifyAvlLookup, type VerifyAvlBatchResult } from './verify.js'
+export type { AvlTreeConfig, OperationResult } from './types.js'
+export type { Operation } from './operation.js'
+export { AvlVerifyError, type AvlVerifyErrorCode } from './errors.js'
+
+// Internal types (NOT exported): AvlVerifyFailReason, BatchAvlVerifier, node types,
+// modify/delete helpers, rotation primitives, tree-traversal state.
+// These are implementation detail and may change without notice.
+```
+
+- [ ] **Step 2: Verify typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Verify the build works**
+
+Run: `npm run build -w @mwaddip/ergots-avltree`
+Expected: `packages/avltree/dist/index.js` and `dist/index.d.ts` produced. No errors.
+
+- [ ] **Step 4: Verify build is browser-clean** (per project rule)
+
+Run: `grep -E "Buffer|process\\.|require\\(|node:" packages/avltree/dist/`
+Expected: No matches (empty grep output).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/avltree/src/index.ts
+git commit -m "feat(avltree): index.ts — public exports"
+```
+
+---
+
+### Task 21: fixture-gen — multi-op batches
+
+**Files:**
+- Modify: `fixture-gen/src/cmds/avltree.rs`
+
+- [ ] **Step 1: Add multi-op batch generators**
+
+Generate fixtures with varied batch sizes (0, 1, 2, 16, 256 operations) and mixed operation types:
+- `batch-0ops` (empty op list — verifier should accept, return starting digest unchanged)
+- `batch-2ops-insert-then-lookup`
+- `batch-2ops-insert-then-update`
+- `batch-2ops-insert-then-remove`
+- `batch-16ops-mixed` (assorted ops)
+- `batch-256ops-inserts` (256 distinct inserts into an empty tree)
+- `batch-stress-mixed-100` (100 mixed ops on a starting tree of ~50 leaves)
+
+- [ ] **Step 2: Run + verify determinism**
+
+Run: `cargo run -p fixture-gen -- avltree && git diff packages/avltree/test/fixtures/`
+Expected: New fixtures committed; no diff on second run.
+
+- [ ] **Step 3: Run corpus tests**
+
+Run: `npx vitest run packages/avltree/test/verify-batch.test.ts`
+Expected: All new fixtures pass byte-equality.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add fixture-gen/src/cmds/avltree.rs packages/avltree/test/fixtures/avltree/batch-*.json
+git commit -m "feat(fixture-gen): multi-op batch AVL+ fixtures"
+```
+
+---
+
+### Task 22: fixture-gen — edge cases
+
+**Files:**
+- Modify: `fixture-gen/src/cmds/avltree.rs`
+
+- [ ] **Step 1: Add edge-case generators**
+
+- `empty-tree-lookup` (lookup on empty tree)
+- `empty-tree-insert` (covered by single-leaf-insert; ensure name consistent)
+- `single-leaf-tree-various-ops` (one fixture per Operation variant)
+- `all-left-spine-10leaves` (worst-case left-skewed)
+- `all-right-spine-10leaves` (worst-case right-skewed)
+- `balanced-100leaves` + `balanced-1000leaves`
+- `max-depth-tree` (tree at the maximum height that AVL+ allows for the chosen size)
+- `all-deletes-from-balanced-10` (delete all 10 keys; final tree empty)
+- `update-long-by-i64-max-overflow-attempt` (UpdateLongBy with delta approaching i64 boundaries)
+- `update-long-by-result-exactly-zero` (UpdateLongBy with delta == -value → key removed)
+
+- [ ] **Step 2: Run + verify determinism**
+
+Same pattern as Task 21.
+
+- [ ] **Step 3: Run corpus tests**
+
+Run: `npx vitest run packages/avltree/test/verify-batch.test.ts`
+Expected: All edge-case fixtures PASS.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add fixture-gen/src/cmds/avltree.rs packages/avltree/test/fixtures/avltree/
+git commit -m "feat(fixture-gen): edge-case AVL+ fixtures (spines, max-depth, all-deletes, etc.)"
+```
+
+---
+
+### Task 23: fixture-gen — config-variance + adverse cases
+
+**Files:**
+- Modify: `fixture-gen/src/cmds/avltree.rs`
+
+- [ ] **Step 1: Add config-variance generators**
+
+- Fixed vs variable `valueLengthOpt`: at least one fixture each with `valueLengthOpt = null` and `valueLengthOpt = 8`.
+- `keyLength` variants: 1-byte, 8-byte, 32-byte keys.
+- `maxNumOperations` / `maxDeletes` bounds: fixtures that exercise the malicious-proof DoS guard (a proof claiming more nodes than allowed).
+
+- [ ] **Step 2: Add adverse (intentional rejection) fixtures**
+
+These fixtures have `expected_new_digest_hex: null` in the JSON to indicate the TS verifier should return `null`:
+
+- `adverse-truncated-proof` (proof bytes truncated mid-tree-reconstruction)
+- `adverse-swapped-starting-digest` (correct proof but with a different startingDigest)
+- `adverse-mismatched-config` (proof generated with keyLength=8, but config says keyLength=4)
+- `adverse-malicious-extra-nodes` (proof with more nodes than maxNumOperations allows)
+
+To generate adverse fixtures, take a valid (proof, digest) pair and mutate one piece, then ensure the Rust verifier rejects it (`BatchAVLVerifier::new(...)` returns Err) — record that as the expected outcome.
+
+- [ ] **Step 3: Run + verify**
+
+Run: `cargo run -p fixture-gen -- avltree && npx vitest run packages/avltree/test/verify-batch.test.ts`
+Expected: New config-variance fixtures pass byte-equality; adverse fixtures cause `verifyAvlBatch` to return `null` (and the test asserts that).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add fixture-gen/src/cmds/avltree.rs packages/avltree/test/fixtures/avltree/
+git commit -m "feat(fixture-gen): config-variance + adverse AVL+ fixtures"
+```
+
+---
+
+### Task 24: `corpus.test.ts` — bulk synthetic corpus run
+
+**Files:**
+- Create: `packages/avltree/test/corpus.test.ts`
+
+By this task, the per-Operation tests (Task 18, 19) already iterate over all fixtures matching their pattern. This task creates an additional aggregate-style runner that asserts corpus-level invariants (total fixture count, no fixture skipped, etc.). It's a sanity gate for "did we accidentally lose fixtures or skip them?"
+
+- [ ] **Step 1: Author `packages/avltree/test/corpus.test.ts`**
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { verifyAvlBatch } from '../src/verify.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const FIXTURES = resolve(__dirname, 'fixtures/avltree')
+
+describe('AVL+ corpus aggregate', () => {
+  const all = readdirSync(FIXTURES).filter((f) => f.endsWith('.json'))
+  it('contains at least 150 fixtures', () => {
+    expect(all.length).toBeGreaterThanOrEqual(150)
+  })
+  it('every fixture either verifies or is marked adverse (expected_new_digest_hex === null)', () => {
+    let verifiedCount = 0
+    let adverseCount = 0
+    for (const fname of all) {
+      const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
+      // ... parse + invoke verifyAvlBatch ...
+      // increment verifiedCount or adverseCount
+    }
+    expect(verifiedCount + adverseCount).toBe(all.length)
+  })
+})
+```
+
+The implementer fills in the loop to exercise every fixture, classify it, and assert the totals match expectations.
+
+- [ ] **Step 2: Run**
+
+Run: `npx vitest run packages/avltree/test/corpus.test.ts`
+Expected: PASS (≥150 fixtures present; every fixture either verifies or is marked adverse).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/test/corpus.test.ts
+git commit -m "test(avltree): corpus.test.ts — aggregate corpus invariants"
+```
+
+---
+
+### Task 25: `mutation.test.ts` — single-byte flips → typed rejection
+
+**Source-port reference:** `~/projects/ergots/packages/proof/test/parse-mutation.test.ts` (existing pattern) — adapt for AVL+ proof bytes.
+
+**Files:**
+- Create: `packages/avltree/test/mutation.test.ts`
+
+- [ ] **Step 1: Author `packages/avltree/test/mutation.test.ts`**
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { verifyAvlBatch } from '../src/verify.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const FIXTURES = resolve(__dirname, 'fixtures/avltree')
+
+function hexToBytes(h: string): Uint8Array { /* ... */ }
+function bytesToHex(b: Uint8Array): string { /* ... */ }
+
+/**
+ * For each fixture (excluding adverse ones), flip each byte of proof bytes,
+ * one at a time, and assert that verifyAvlBatch either returns null
+ * (verification failure — expected) or returns byte-identical result
+ * (flip landed in a tolerated region — should be rare).
+ *
+ * Target: ≥90% kill rate per Operation variant.
+ */
+describe('AVL+ mutation testing', () => {
+  const fixtures = readdirSync(FIXTURES)
+    .filter((f) => f.endsWith('.json'))
+    .filter((f) => !f.startsWith('adverse-'))
+
+  for (const fname of fixtures) {
+    it(`≥90% byte-flip kill rate on ${fname}`, () => {
+      const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
+      const proof = hexToBytes(f.proof_hex)
+      let killed = 0
+      let survived = 0
+      for (let i = 0; i < proof.length; i++) {
+        // Flip one byte (XOR with 0xff, for instance, or just toggle bit 0).
+        const mutated = new Uint8Array(proof)
+        mutated[i] ^= 0xff
+        const result = verifyAvlBatch(
+          hexToBytes(f.starting_digest_hex),
+          mutated,
+          { keyLength: f.config.key_length, valueLengthOpt: f.config.value_length_opt },
+          f.operations.map(jsonToOp),
+        )
+        if (result === null) killed++
+        // If result !== null and matches expected, it's a survived mutation.
+        else survived++
+      }
+      const killRate = killed / proof.length
+      expect(killRate).toBeGreaterThanOrEqual(0.9)
+    })
+  }
+})
+```
+
+- [ ] **Step 2: Run mutation tests**
+
+Run: `npx vitest run packages/avltree/test/mutation.test.ts`
+Expected: All fixtures PASS the ≥90% kill rate threshold.
+
+- [ ] **Step 3: Investigate any below-threshold fixture**
+
+If any fixture fails the ≥90% threshold, the verifier has a missing bounds check or insufficient byte-level validation. Investigate the surviving mutations:
+- Common suspects: missing OOB checks in `proof-decode.ts`; missing checks in `tree-traversal.ts`; padding regions that are genuinely tolerated.
+- Fix the verifier, re-run.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/avltree/test/mutation.test.ts
+git commit -m "test(avltree): mutation.test.ts — ≥90% byte-flip kill rate per Operation variant"
+```
+
+---
+
+### Task 26: `facts/avltree.md` — interface contract + Source Mapping table
+
+**Files:**
+- Create: `facts/avltree.md`
+- Modify: `CLAUDE.md` (add `facts/avltree.md` to read-first list)
+
+- [ ] **Step 1: Author `facts/avltree.md`**
+
+Structure (model on `facts/proof.md` for shape):
+- **Scope** (one paragraph: what the package is)
+- **Public surface (v0.1.0)** — `verifyAvlBatch`, `verifyAvlLookup`, `Operation`, `AvlTreeConfig`, `VerifyAvlBatchResult`, `AvlVerifyError`
+- **Failure model overview** — Tier 1 (AvlVerifyError, 6 codes) thrown vs Tier 2 (AvlVerifyFailReason, 10 internal reasons) for null return
+- **Cross-cutting guarantees** — determinism, browser-compat, ESM-only, no-WASM, runtime deps (`@noble/hashes@2.2.0` only)
+- **Test corpus** — three layers (per-component, bulk corpus, mutation), ≥90% kill rate per Operation variant, cross-runtime
+- **Coverage** — all 8 Operation variants implemented; verifier-only (no prover)
+- **Source mapping** (THE canonical table — see Step 2)
+- **Cross-references** — design spec, sister contracts, project memories
+
+- [ ] **Step 2: Populate the Source Mapping table**
+
+The canonical map. Add a row per Rust function in the verifier slice:
 
 ```markdown
-**Status: ✅ COMPLETE 2026-05-18** (facts/ergoscript.md split into meta hub + 3 slice files; CLAUDE.md and design-spec deep-refs updated; vague refs continue to land on the meta hub via the lookup table.)
+## Source mapping to `ergo_avltree_rust`
+
+Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, including upstream PRs #10/#11/#13.
+
+| Rust function (file:lines) | TS function(s) (file) | Note |
+|---|---|---|
+| `batch_avl_verifier.rs::BatchAVLVerifier::new` (37-55) | `BatchAvlVerifier` constructor (`batch-verifier.ts`) | 1:1 port |
+| `batch_avl_verifier.rs::reconstruct_tree` (58-143) | `parseProofPackedTree` (`proof-decode.ts`) | 1:1 port; bounds-checks added |
+| `batch_avl_verifier.rs::perform_one_operation` (157-172) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port |
+| `batch_avl_verifier.rs::next_direction_is_left` (192-203) | `nextDirectionIsLeft` (`tree-traversal.ts`) | 1:1 port |
+| `batch_avl_verifier.rs::key_matches_leaf` (213-227) | `keyMatchesLeaf` (`tree-traversal.ts`) | 1:1 port |
+| `batch_avl_verifier.rs::replay_comparison` (239-251) | `replayComparison` (`tree-traversal.ts`) | 1:1 port |
+| `authenticated_tree_ops.rs::modify_helper` (262-398) | `modifyHelper` + `handleLeafNode` + `handleInternalNode` + `rebalance` (`modify.ts`) | Decomposed into 4 helpers |
+| `authenticated_tree_ops.rs::delete_helper` (446-540) | `deleteHelper` (`delete.ts`) | 1:1 port |
+| `authenticated_tree_ops.rs::change_next_leaf_key_of_max_node` (400-416) | `changeNextLeafKeyOfMaxNode` (`delete.ts`) | 1:1 port |
+| `authenticated_tree_ops.rs::change_key_and_value_of_min_node` (417-445) | `changeKeyAndValueOfMinNode` (`delete.ts`) | 1:1 port |
+| `authenticated_tree_ops.rs::double_left_rotate` (135-170) | `doubleLeftRotate` (`rotation.ts`) | 1:1 port |
+| `authenticated_tree_ops.rs::double_right_rotate` (171-220) | `doubleRightRotate` (`rotation.ts`) | 1:1 port |
+| `batch_node.rs::Node::label` (~80-170 across variants) | `label` (`node.ts`) | Dispatch + 3 hash inputs; preserves Rust byte-ordering |
+| `batch_node.rs::LeafNode::new` / `InternalNode::new` / `Node::new_label` | `newLeaf` / `newInternal` / `newLabel` (`node.ts`) | Constructor parity |
+| `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port |
+| `operation.rs::Operation::key` / `Operation::value` | (inline access via discriminated union) | TS idiom replaces method-on-enum |
+```
+
+The implementer adds rows as functions are ported (kept in sync per commit, per [[feedback-rust-port-style]]).
+
+- [ ] **Step 3: Update `CLAUDE.md` read-first list**
+
+Add a new bullet under the read-first files section:
+
+```markdown
+   - `facts/avltree.md` — `@mwaddip/ergots-avltree` interface (proof verifier API + Operation + Source Mapping to ergo_avltree_rust)
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git -C /home/mwaddip/projects/ergots add PLAN.md
-git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
-docs: facts/ergoscript.md split complete — final sanity sweep
-
-Per the split design (5da8289): all cross-references resolve correctly; the
-4-file facts layout is in place (meta hub + wire/eval/sigma slices); no
-broken links via grep sweep. Marks the implementation plan as complete.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+git add facts/avltree.md CLAUDE.md
+git commit -m "docs(facts): facts/avltree.md interface contract + Source Mapping table"
 ```
 
 ---
 
-## Self-review (run before declaring the plan ready)
+### Task 27: Source-mapping JSDoc audit
 
-After implementing all 8 tasks, re-check:
+**Files:**
+- Modify: every TS file in `packages/avltree/src/`
 
-1. **Spec coverage:**
-   - Three new slice files created (Tasks 1-3): wire, eval, sigma ✓
-   - Meta file trimmed to lookup table + cross-cutting (Task 4) ✓
-   - CLAUDE.md updated (Task 5) ✓
-   - Package README/API updated where deep-refs existed (Task 6) ✓
-   - Design specs updated where deep-refs existed (Task 7) ✓
-   - Final sanity sweep (Task 8) ✓
-2. **Type / content consistency:**
-   - `SValue` / `SType` / `Expr` defined canonically in `ergoscript-eval.md` (per spec's "shared types policy"); `ergoscript-wire.md` cross-refs to it
-   - `SigmaProp` SValue defined in `ergoscript-eval.md`; `ergoscript-sigma.md` cross-refs to it (since `verifySignature` takes a `SigmaBoolean`, the eval-side `SigmaProp` is the producer)
-   - All 43 `EvalError` codes appear exactly once across the slice files (in `ergoscript-eval.md`)
-   - All 8 `VerifyError` codes appear exactly once (in `ergoscript-sigma.md`)
-   - `ErgoTreeParseError` and `ErgoTreeSerializeError` appear exactly once (in `ergoscript-wire.md`)
-3. **No placeholders:**
-   - Every step has actual content. The `[Insert ...]` and `[Extract from lines ...]` markers in the Phase 1 file-templates direct the implementer to specific source ranges — they are operational instructions, not placeholders.
-4. **No content loss:**
-   - Task 4 Step 5 explicitly tests for content loss via distinctive-phrase grep
-   - Task 8 Step 1 catches any broken references
+- [ ] **Step 1: Audit pass**
+
+Walk every TS file in `packages/avltree/src/` and ensure each function/method has a one-line JSDoc naming its Rust counterpart per [[feedback-rust-port-style]]. Format:
+
+```ts
+/** Ports modify_helper's leaf-node branch (authenticated_tree_ops.rs:280-330). */
+function handleLeafNode(...) { ... }
+```
+
+Functions without a direct Rust counterpart (e.g., TS-only helpers like `concat()` in `node.ts`) get a brief description of their purpose, no source ref needed.
+
+- [ ] **Step 2: Cross-check against the Source Mapping table**
+
+For every row in `facts/avltree.md`'s Source Mapping table, verify the named TS function exists with a matching JSDoc comment.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/src/
+git commit -m "docs(avltree): per-function JSDoc source comments — Source Mapping audit"
+```
+
+---
+
+### Task 28: `README.md` + `API.md`
+
+**Files:**
+- Create: `packages/avltree/README.md`
+- Create: `packages/avltree/API.md`
+
+- [ ] **Step 1: Author `packages/avltree/README.md`**
+
+Model on `packages/proof/README.md`. Contents:
+- Package name + one-paragraph elevator pitch
+- Install: `npm install @mwaddip/ergots-avltree`
+- Browser-clean note (no WASM, no Buffer, ESM-only, etc.)
+- Quick-start example (verifyAvlBatch with a small proof)
+- Link to `API.md` for full reference
+- Link to `facts/avltree.md` for interface contract
+- License
+
+- [ ] **Step 2: Author `packages/avltree/API.md`**
+
+Full API reference per the public surface. Sections:
+- `verifyAvlBatch(...)` signature + parameters + return type + examples
+- `verifyAvlLookup(...)` signature + parameters + return type + examples
+- `Operation` discriminated union + per-variant semantics
+- `AvlTreeConfig` interface
+- `VerifyAvlBatchResult` interface
+- `AvlVerifyError` class + 6 codes
+- Behavior on failure (null return vs throw)
+- Internal types referenced (`OperationResult`)
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/avltree/README.md packages/avltree/API.md
+git commit -m "docs(avltree): README + API.md"
+```
+
+---
+
+### Task 29: Final verification — CI scans, cross-runtime, publish-ready review
+
+**Files:**
+- (Verification only; no code changes expected unless an issue surfaces)
+
+- [ ] **Step 1: Run full test suite for the avltree package**
+
+Run: `npm test -w @mwaddip/ergots-avltree`
+Expected: All tests PASS under node environment.
+
+- [ ] **Step 2: Run cross-runtime tests under jsdom**
+
+Run: `npm run test:browser -w @mwaddip/ergots-avltree`
+Expected: All tests PASS under jsdom.
+
+- [ ] **Step 3: Run typecheck**
+
+Run: `npx tsc --noEmit -p packages/avltree/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 4: Build for publish**
+
+Run: `npm run build -w @mwaddip/ergots-avltree`
+Expected: `packages/avltree/dist/` contains `index.js`, `index.d.ts`, and source maps.
+
+- [ ] **Step 5: Verify bundle is browser-clean**
+
+Run:
+```bash
+grep -rE "Buffer|process\\.|require\\(|node:" packages/avltree/dist/
+```
+Expected: No matches.
+
+Run:
+```bash
+find packages/avltree/dist -name "*.wasm" -o -name "*.cjs"
+```
+Expected: No matches.
+
+- [ ] **Step 6: Run the full repo test suite + fixture-gen determinism check**
+
+Run: `cd /home/mwaddip/projects/ergots && npm test`
+Expected: All packages' tests pass.
+
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo build && cargo test`
+Expected: PASS.
+
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo run --release && git diff packages/`
+Expected: No diff (regenerated fixtures match committed; determinism check).
+
+- [ ] **Step 7: Confirm version cadence criteria from design spec § Version cadence are all met**
+
+Verify checklist:
+- [x] Full verifier surface implemented (all 8 Operation variants)
+- [x] Both functional wrappers (`verifyAvlBatch`, `verifyAvlLookup`)
+- [x] ≥150 corpus fixtures pass byte-for-byte
+- [x] ≥90% mutation kill rate per Operation variant
+- [x] `facts/avltree.md` complete with Source Mapping table
+- [x] Browser-clean per CI scans (Step 5)
+- [x] README + API.md authored
+
+If all check, the package is **ready for `npm publish`** (timing user's call per project norms).
+
+- [ ] **Step 8: Final review pass for unintentional Rust verbatim copies**
+
+Per CLAUDE.md "Never copy-port code from sigma-rust or ergo-node-rust verbatim" + [[feedback-rust-port-style]]: spot-check a few functions and confirm they're TS-idiomatic, not line-by-line transliterations. Source comments naming Rust counterparts are correct discipline; verbatim TS code matching Rust struct/function names character-by-character is not.
+
+- [ ] **Step 9: Update PLAN.md status header**
+
+At the top of this file, add:
+
+```markdown
+**Status: ✅ COMPLETE 2026-MM-DD** — @mwaddip/ergots-avltree v0.1.0 ready for npm publish.
+[Brief summary of what shipped: source file count, test count, fixture count, mutation kill rate, etc.]
+```
+
+- [ ] **Step 10: Commit + push**
+
+```bash
+git add PLAN.md
+git commit -m "chore(plan): mark 2h-a PLAN complete; @mwaddip/ergots-avltree v0.1.0 ready"
+git push origin master
+```
+
+The package is ready for npm publish whenever the user wants to ship it. 2h-b (ergoscript integration) gets its own brainstorm + spec + PLAN cycle after.
+
+---
+
+## Self-review
+
+**Spec coverage:** Every section of `docs/specs/2026-05-18-ergots-avltree-package-design.md` is implemented by at least one task:
+- Goal + Scope → Tasks 1-20 (full package surface)
+- Non-goals → respected throughout (prover not ported; `BatchAvlVerifier` internal-only; `AvlTreeData` stays in ergoscript)
+- Architecture (file layout) → Task 1 scaffolding + Tasks 3-20 per-file population
+- Architecture (component graph) → enforced by per-task file scope
+- Architecture (data flow) → exercised by Task 18 corpus tests
+- Public API surface → Tasks 18-20
+- Error model (Tier 1 AvlVerifyError) → Task 4 + validation in Task 18
+- Error model (Tier 2 AvlVerifyFailReason) → Task 4 (declared) + Task 17 (tracked on BatchAvlVerifier)
+- Browser-compat → Tasks 1, 7, 18, 29 (CI scan)
+- Validation strategy (3 layers) → Tasks 9, 10, 18, 19, 24, 25
+- Fixture-gen plumbing → Tasks 2, 8, 13, 21-23
+- Confidence escalation → cited in Tasks 9 (proof-decode), 10-11 (traversal), 7 (labeling), 12 (rotations) by virtue of source-first discipline
+- Source-mapping discipline → Tasks 26-27
+- Version cadence → Task 29 final check
+- Risks → mitigations live in the relevant tasks (mutation testing, bounds checks, determinism check, etc.)
+- Open items for PLAN.md (per design spec) → addressed: fixture counts in Tasks 13/21/22, mutation kill rate target in Task 25, source-mapping table population in Task 26
+- Open items for 2h-b → explicitly deferred
+
+**Placeholder scan:** No "TBD" or "TODO" in tasks. Where the implementer is expected to fill in Rust-port detail, the task names the Rust source file + line range explicitly. The note in Task 7 about "Specific bytes TBD via Task 13's fixture-gen output" is acceptable because (a) Task 7's test still has byte-length + cache-idempotence assertions that pass, (b) Task 24 converts those to byte-equality once fixtures land.
+
+**Type consistency:**
+- `Operation` discriminated union: defined in Task 5; used in Tasks 14-19. Tag names + payload shapes consistent.
+- `AvlTreeConfig`: defined in Task 3; used in Tasks 9, 17, 18, 19. Shape consistent.
+- `AvlNode` / `LeafNode` / `InternalNode` / `LabelNode`: defined in Task 6; used in Tasks 7, 9, 11, 12, 14-17. Names consistent.
+- `TraversalState`: defined in Task 10; used in Tasks 11, 14-17.
+- `ModifyResult` / `ModifyOk` / `ModifyFail`: defined in Task 14; used in Tasks 16, 17.
+- `BatchAvlVerifier`: defined in Task 17; used in Task 18.
+- `verifyAvlBatch` / `verifyAvlLookup`: defined in Tasks 18, 19; exported in Task 20.
+- Function names: `nextDirectionIsLeft`, `replayComparison`, `keyMatchesLeaf`, `modifyHelper`, `deleteHelper`, `parseProofPackedTree`, `label`, `newLeaf`, `newInternal`, `newLabel`, `doubleLeftRotate`, `doubleRightRotate`, `updateFn` — all consistent across declaration and usage tasks.
+- `AvlVerifyError` codes (6): `'invalid-config-key-length'`, `'invalid-config-value-length'`, `'invalid-config-max-ops'`, `'invalid-starting-digest-length'`, `'operation-key-length-mismatch'`, `'operation-value-length-mismatch'` — match design spec exactly.
+- `AvlVerifyFailReason` codes (10): `'proof-truncated'`, `'proof-malformed'`, `'digest-mismatch'`, `'directions-exhausted'`, `'leaf-key-out-of-order'`, `'max-nodes-exceeded'`, `'operation-precondition-failed'`, `'tree-poisoned'`, `'empty-tree'`, `'operation-required-but-not-allowed'` — match design spec exactly.
