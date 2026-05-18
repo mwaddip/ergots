@@ -81,18 +81,28 @@ export type Balance = -1 | 0 | 1
 // ---------------------------------------------------------------------------
 
 /**
- * Construct a new leaf node with an empty label cache.
- *
- * Ports LeafNode::new (batch_node.rs lines ~268-274).
+ * Ports batch_node.rs::LeafNode::new (~lines 240-260).
+ * Defensively copies key, value, and nextLeafKey to prevent caller-side
+ * mutations from corrupting the node (or invalidating its cached label later).
  */
 export function newLeaf(key: ADKey, value: ADValue, nextLeafKey: ADKey): LeafNode {
-  return { kind: 'leaf', key, value, nextLeafKey, labelCache: null }
+  return {
+    kind: 'leaf',
+    key: new Uint8Array(key),
+    value: new Uint8Array(value),
+    nextLeafKey: new Uint8Array(nextLeafKey),
+    labelCache: null,
+  }
 }
 
 /**
- * Construct a new internal node with an empty label cache.
+ * Ports batch_node.rs::InternalNode::new (~lines 212-219).
+ * Note: the Rust constructor returns a NodeId = Rc<RefCell<Node>> (smart-
+ * pointer wrapper). TS returns the plain InternalNode value — no ref-
+ * counting needed; the GC handles reference lifecycle.
  *
- * Ports InternalNode::new (batch_node.rs lines ~212-219).
+ * left and right are AvlNode references (object references; no defensive
+ * copy needed). balance is a primitive (Balance = -1 | 0 | 1).
  */
 export function newInternal(
   left: AvlNode,
@@ -103,11 +113,18 @@ export function newInternal(
 }
 
 /**
- * Construct a label-only stub node.
- * Performs a defensive copy so the caller's buffer cannot alias the stored label.
- *
- * Ports Node::new_label (batch_node.rs lines ~166-171).
+ * Ports batch_node.rs::Node::new_label (~lines 264-275).
+ * Defensively copies the label bytes so caller-side mutations don't corrupt
+ * the node. The label is the blake2b-256 digest of a sub-tree the verifier
+ * doesn't have full data for; it MUST be exactly 32 bytes.
+ * @throws RangeError if label.length !== 32 — this represents a bug in
+ *   the caller (proof-decode.ts should always pass 32-byte digests).
  */
 export function newLabel(label: Uint8Array): LabelNode {
+  if (label.length !== 32) {
+    throw new RangeError(
+      `LabelNode.label must be exactly 32 bytes; got ${label.length}`,
+    )
+  }
   return { kind: 'label', label: new Uint8Array(label) }
 }
