@@ -187,6 +187,13 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
     suffixTail.push(tailHeader);
   }
 
+  if (!r.isExhausted) {
+    throw new ProofParseError(
+      `proof: ${r.remaining} trailing bytes after end of suffix_tail`,
+      'trailing-bytes',
+    );
+  }
+
   return { m, k, prefix, suffixHead, suffixTail };
 }
 

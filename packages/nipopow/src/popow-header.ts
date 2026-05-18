@@ -73,6 +73,12 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   }
   const headerReader = new ByteReader(headerBytes);
   const header = parseHeader(headerReader);
+  if (!headerReader.isExhausted) {
+    throw new ProofParseError(
+      `popow_header: ${headerReader.remaining} trailing bytes in header subreader`,
+      'trailing-bytes',
+    );
+  }
 
   // VLQ u32: interlinks count
   const interlinksCount = readVlqU32(reader, 'interlinks_count');
@@ -101,6 +107,12 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   }
   const proofReader = new ByteReader(proofBytes);
   const interlinksProof = parseBatchMerkleProof(proofReader);
+  if (!proofReader.isExhausted) {
+    throw new ProofParseError(
+      `popow_header: ${proofReader.remaining} trailing bytes in proof subreader`,
+      'trailing-bytes',
+    );
+  }
 
   return { header, interlinks, interlinksProof };
 }
