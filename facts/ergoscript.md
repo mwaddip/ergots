@@ -1,6 +1,6 @@
-# `@mwaddip/ergots-ergoscript` — Interface Contract (Meta)
+# `@ergots/ergoscript` — Interface Contract (Meta)
 
-This is the **meta hub** for the `@mwaddip/ergots-ergoscript` boundary contract. Cross-cutting guarantees (browser-compat, determinism, package shape, error-model overview, test-corpus layout) live here. For surface-specific contracts (public API, types, error codes, per-handler semantics) see the slice files below.
+This is the **meta hub** for the `@ergots/ergoscript` boundary contract. Cross-cutting guarantees (browser-compat, determinism, package shape, error-model overview, test-corpus layout) live here. For surface-specific contracts (public API, types, error codes, per-handler semantics) see the slice files below.
 
 ## Scope
 
@@ -39,7 +39,7 @@ Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 
 ### Package shape
 
-One published npm package, `@mwaddip/ergots-ergoscript`. **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
+One published npm package, `@ergots/ergoscript`. **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
 
 ### Runtime dependencies
 
@@ -88,7 +88,7 @@ Cross-runtime: 2658 ergoscript + 305 proof = 2963 tests, passing under both `nod
 
 - `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella interpreter design (phase plan; risks; validation strategy)
 - `docs/specs/2026-05-18-facts-ergoscript-split-design.md` — this file's split design
-- `facts/proof.md` — sister contract for `@mwaddip/ergots-proof`
+- `facts/nipopow.md` — sister contract for `@ergots/nipopow`
 - `CLAUDE.md` — project conventions (read-first files include this meta + relevant slices)
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`, HEAD `ed5452cf`) — byte-format and implementation oracle
 - `~/projects/sigmastate-interpreter/docs/LangSpec.md` — canonical language specification for opcode semantics

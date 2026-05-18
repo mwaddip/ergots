@@ -1,6 +1,6 @@
-# `@mwaddip/ergots-avltree` — Interface Contract
+# `@ergots/avltree` — Interface Contract
 
-The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@mwaddip/ergots-ergoscript` (phase 2h-b), which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
+The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@ergots/ergoscript` (phase 2h-b), which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
 
 Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `879545c` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
 
@@ -20,12 +20,12 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 - `BatchAVLProver` (prover side of `ergo_avltree_rust`). Verifier-only port; the project identity is a verifier kernel.
 - `persistent_batch_avl_prover` and `versioned_avl_storage`. Storage abstractions with no consumer in the verifier path.
 - Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.1.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
-- `AvlTreeData` wire-format MIR type. That stays in `@mwaddip/ergots-ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
+- `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers in phase 2h-b.
 
 ## Public surface (v0.1.0)
 
-### Primary export: `@mwaddip/ergots-avltree`
+### Primary export: `@ergots/avltree`
 
 ```ts
 verifyAvlBatch(

@@ -1,4 +1,4 @@
-# `@mwaddip/ergots-proof` — Interface Contract
+# `@ergots/nipopow` — Interface Contract
 
 The boundary contract for the verifier package. Other packages in this monorepo (`gossip`, `light-client`) read this file to know what they may rely on. The narrative rationale lives in `docs/specs/2026-05-12-nipopow-proof-verifier-design.md`; this file is *only* the interface.
 
@@ -24,7 +24,7 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 
 ## Public surface
 
-### Primary export: `@mwaddip/ergots-proof`
+### Primary export: `@ergots/nipopow`
 
 ```ts
 parseProof(bytes: Uint8Array): NipopowProof
@@ -65,7 +65,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 - **Postcondition:** Returns `true` iff `a` is strictly better than `b` per KMZ17 §4.3 (`is_better_than` in the Rust).
 - **Invariant:** `compareProofs(a, b)` and `compareProofs(b, a)` are not both `true`. Equivalent proofs return `false` in both directions.
 
-### Subpath export: `@mwaddip/ergots-proof/envelope`
+### Subpath export: `@ergots/nipopow/envelope`
 
 ```ts
 parseGetNipopowProof(body: Uint8Array): GetNipopowProofRequest
