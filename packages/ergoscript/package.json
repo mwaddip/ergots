@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "description": "Pure-TS ErgoScript / ErgoTree parser + interpreter (phase 2 of @mwaddip/ergots)",
+  "description": "Pure-TS ErgoScript / ErgoTree parser + interpreter (phase 2 of ergots)",
   "type": "module",
   "license": "MIT",
   "repository": {
