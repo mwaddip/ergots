@@ -103,19 +103,92 @@
 | Error class.code | Count | Example boxIds |
 |---|---|---|
 
-## Phase 2g.6 prioritization (raw — Task 6 authors the clustered version below)
+## Phase 2g.6 prioritization (clustered + tiered)
 
-| Rank | typeId | methodId | Method | distinctBoxes | Random | Must-include |
+Based on the source-segmented tally above, phase 2g.6 should land the
+following method handlers. Methods are grouped by responsibility area
+and tiered by demand. AVL+ methods are deferred to phase 2h per the
+umbrella spec's separation; AVL+ method-pairs surfaced by the survey are
+listed at the bottom for phase 2h planning to consume.
+
+### Tier 1 — High demand, must land in 2g.6 (>= 30 distinct boxes)
+
+| Rank | (typeId, methodId) | Method | distinctBoxes | random | mustInclude | sigma-rust source |
 |---|---|---|---|---|---|---|
-| 1 | 106 | 1 | SGlobal.groupGenerator | 120 | 110 | 10 |
-| 2 | 12 | 29 | SColl.zip | 35 | 40 | 0 |
-| 3 | 100 | 1 | SAvlTree.digest | 33 | 70 | 0 |
-| 4 | 100 | 13 | SAvlTree.update | 33 | 35 | 0 |
-| 5 | 12 | 14 | SColl.indices | 8 | 13 | 0 |
-| 6 | 105 | 3 | SPreHeader.timestamp | 7 | 3 | 4 |
-| 7 | 101 | 3 | SContext.preHeader | 7 | 3 | 4 |
-| 8 | 100 | 12 | SAvlTree.insert | 3 | 3 | 0 |
-| 9 | 100 | 11 | SAvlTree.getMany | 3 | 9 | 0 |
-| 10 | 100 | 10 | SAvlTree.get | 2 | 4 | 0 |
-| 11 | 12 | 15 | SColl.flatten | 2 | 4 | 0 |
-| 12 | 7 | 2 | SGroupElement.getEncoded | 1 | 1 | 0 |
+| 1 | (106, 1) | `SGlobal.groupGenerator` | 120 | 110 | 10 | `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sglobal.rs:49` |
+| 2 | (12, 29) | `SColl.zip` | 35 | 40 | 0 | `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/scoll.rs:103` |
+
+### Tier 2 — Moderate demand or must-include-relevant (should land in 2g.6)
+
+| Rank | (typeId, methodId) | Method | distinctBoxes | random | mustInclude | sigma-rust source |
+|---|---|---|---|---|---|---|
+| 3 | (12, 14) | `SColl.indices` | 8 | 13 | 0 | `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/scoll.rs:123` |
+| 4 | (105, 3) | `SPreHeader.timestamp` | 7 | 3 | 4 | `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/spreheader.rs:63` |
+| 5 | (101, 3) | `SContext.preHeader` | 7 | 3 | 4 | `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/scontext.rs:72` |
+
+### Tier 3 — Long-tail (deferred to a future slice)
+
+| Rank | (typeId, methodId) | Method | distinctBoxes | random | mustInclude |
+|---|---|---|---|---|---|
+| 6 | (12, 15) | `SColl.flatten` | 2 | 4 | 0 |
+| 7 | (7, 2) | `SGroupElement.getEncoded` | 1 | 1 | 0 |
+
+### Deferred to phase 2h — AVL+ tree methods (not phase 2g.6 scope)
+
+These methods surfaced in the survey but belong to phase 2h's AVL+ tree
+surface (per the umbrella spec). Listed here for phase 2h planning.
+
+| (typeId, methodId) | Method | distinctBoxes | random | mustInclude |
+|---|---|---|---|---|
+| (100, 1) | `SAvlTree.digest` | 33 | 70 | 0 |
+| (100, 13) | `SAvlTree.update` | 33 | 35 | 0 |
+| (100, 12) | `SAvlTree.insert` | 3 | 3 | 0 |
+| (100, 11) | `SAvlTree.getMany` | 3 | 9 | 0 |
+| (100, 10) | `SAvlTree.get` | 2 | 4 | 0 |
+
+### Phase 2g.6 scope summary
+
+- **Tier 1 (must land):** 2 methods — `SGlobal.groupGenerator`, `SColl.zip`
+- **Tier 2 (should land):** 3 methods — `SColl.indices`, `SPreHeader.timestamp`, `SContext.preHeader`
+- **Tier 3 (defer):** 2 methods — `SColl.flatten`, `SGroupElement.getEncoded`
+- **Phase 2h handoff:** 5 `SAvlTree.*` methods documented above for 2h planning
+
+Total phase 2g.6 method-handler implementation effort: 5 methods (Tier 1 + Tier 2) at ~2-4 hours per method (TDD discipline, fixture-driven). Estimated ~10-20 hours of focused implementation work.
+
+### Implementation guidance for the phase 2g.6 design spec
+
+For each Tier 1 + Tier 2 method:
+1. Read sigma-rust source (linked in the table) to confirm cost pattern
+   (Pattern A vs B per memory `reference_cost_charging_order_patterns`),
+   return-value shape, and any defensive-error cases.
+2. Author a fixture-gen case (one per method) producing
+   `(tree, context) -> (value, cost)` test vectors.
+3. Implement the TS handler in `eval/method-call.ts` (extend the
+   existing `HANDLERS` registry from phase 2g.5).
+4. Wire the C1 fixture + per-method tests; verify against sigma-rust's
+   `try_eval_out` oracle at fixture-gen time.
+
+### Other observations from the survey
+
+- **Handoff projection accuracy:** The original handoff (per 2g.5 design
+  spec) projected 2g.6 to cover Header methods, additional Coll utilities
+  (`.indices`, `.zip`, `.zipWith`, `.reverse`, `.flatten`, `.getOrElse`),
+  and BinOp Bit shifts via SNumericTypeMethods. The wider-corpus survey
+  confirmed some (`SColl.zip`, `SColl.indices`, `SColl.flatten`) but
+  measured zero demand for `SColl.zipWith`, `SColl.reverse`,
+  `SColl.getOrElse`, BinOp Bit shifts, and most SHeader methods. The
+  survey also surfaced `SGlobal.groupGenerator` as the highest-demand
+  unimplemented method (not in the handoff projection at all).
+- **Parse failures:** 0 out of 12,712 boxes. The wire-layer parser is
+  solid on real mainnet activity.
+- **Unimplemented Expr-arm signal:** The `unimplementedHits` section
+  shows three arms with significant distinct-box counts beyond AVL+:
+  `DecodePoint` (2,660 boxes), `SubstConstants` (2,647 boxes), and
+  `CalcBlake2b256` (442 boxes). `ByteArrayToLong` appears at 33 boxes.
+  `DeserializeContext` and `LongToByteArray` appear at low counts (5 and
+  3 respectively). `Global` at 120 boxes corresponds to
+  `SGlobal.groupGenerator` already captured in Tier 1. `DecodePoint`,
+  `SubstConstants`, and `CalcBlake2b256` are candidates for phase 2i
+  predefs or a dedicated crypto-ops slice; they collectively cover a
+  large fraction of mainnet script activity and merit their own spec
+  before 2g.6 work closes out.
