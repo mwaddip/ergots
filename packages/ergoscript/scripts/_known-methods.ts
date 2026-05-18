@@ -30,9 +30,23 @@ export const KNOWN_METHODS: Map<string, KnownMethod> = new Map([
   ['12:15', { name: 'SColl.flatten', implemented: false }],
   ['12:25', { name: 'SColl.getOrElse', implemented: false }],
 
-  // SHeader methods, SNumericTypeMethods Bit shifts, additional SBox/
-  // SContext/SGlobal methods — consult
-  // ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/{sheader,
-  // snumeric, sbox, scontext, sglobal}.rs at Task 5 implementation time
-  // and widen this table as needed.
+  // ---- Widened in Task B5 based on wider corpus survey ----
+  // SGlobal methods (typeId 106) — from sglobal.rs
+  ['106:1', { name: 'SGlobal.groupGenerator', implemented: false }],
+
+  // SAvlTree methods (typeId 100) — from savltree.rs
+  ['100:1',  { name: 'SAvlTree.digest', implemented: false }],
+  ['100:10', { name: 'SAvlTree.get', implemented: false }],
+  ['100:11', { name: 'SAvlTree.getMany', implemented: false }],
+  ['100:12', { name: 'SAvlTree.insert', implemented: false }],
+  ['100:13', { name: 'SAvlTree.update', implemented: false }],
+
+  // SContext methods (typeId 101) — from scontext.rs
+  ['101:3',  { name: 'SContext.preHeader', implemented: false }],
+
+  // SPreHeader methods (typeId 105) — from spreheader.rs
+  ['105:3',  { name: 'SPreHeader.timestamp', implemented: false }],
+
+  // SGroupElement methods (typeId 7) — from sgroup_elem.rs
+  ['7:2',    { name: 'SGroupElement.getEncoded', implemented: false }],
 ])

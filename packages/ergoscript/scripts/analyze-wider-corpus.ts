@@ -11,8 +11,12 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../src/index'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 import { hexToBytes } from './_hex'
 import { analyzeBox, emptyResult, type CorpusBox, type AnalysisResult, type MethodPairTally } from './_walker'
 import { KNOWN_METHODS } from './_known-methods'

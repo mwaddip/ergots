@@ -1,0 +1,791 @@
+{
+  "meta": {
+    "generatedAt": "2026-05-18T10:46:10.729Z",
+    "fixtureSource": "packages/ergoscript/test/fixtures/mainnet_boxes_wider.json",
+    "fixtureMeta": {
+      "generatedAt": "2026-05-18T09:59:57.556330741+00:00",
+      "nodeVersion": "0.6.1",
+      "randomWindow": {
+        "startHeight": 1688027,
+        "endHeight": 1788027,
+        "seed": "0xd9aa0dcbd0ed4dfb31d66c6703a73c37df2b400823901a20a5b0872206b089ca"
+      },
+      "mustIncludeSingletonBlocks": [
+        342964,
+        670557,
+        680692,
+        942664,
+        1711120
+      ],
+      "mustIncludeRange": {
+        "from": 700000,
+        "to": 700050
+      }
+    },
+    "totalBoxes": 12712,
+    "randomBoxes": 10000,
+    "mustIncludeBoxes": 2712,
+    "parseFailureRate": 0
+  },
+  "tagFrequencies": [
+    {
+      "tag": "Const",
+      "totalAppearances": 7147,
+      "distinctBoxes": 6616,
+      "random": 4966,
+      "mustInclude": 2181
+    },
+    {
+      "tag": "BoolToSigmaProp",
+      "totalAppearances": 9566,
+      "distinctBoxes": 6101,
+      "random": 8984,
+      "mustInclude": 582
+    },
+    {
+      "tag": "BinOp",
+      "totalAppearances": 75124,
+      "distinctBoxes": 6099,
+      "random": 69671,
+      "mustInclude": 5453
+    },
+    {
+      "tag": "ConstPlaceholder",
+      "totalAppearances": 54320,
+      "distinctBoxes": 6099,
+      "random": 50190,
+      "mustInclude": 4130
+    },
+    {
+      "tag": "GlobalVars",
+      "totalAppearances": 38010,
+      "distinctBoxes": 6078,
+      "random": 34740,
+      "mustInclude": 3270
+    },
+    {
+      "tag": "SelectField",
+      "totalAppearances": 18951,
+      "distinctBoxes": 6036,
+      "random": 17841,
+      "mustInclude": 1110
+    },
+    {
+      "tag": "ByIndex",
+      "totalAppearances": 31699,
+      "distinctBoxes": 5290,
+      "random": 30122,
+      "mustInclude": 1577
+    },
+    {
+      "tag": "ExtractScriptBytes",
+      "totalAppearances": 9747,
+      "distinctBoxes": 5146,
+      "random": 9017,
+      "mustInclude": 730
+    },
+    {
+      "tag": "CreateProveDlog",
+      "totalAppearances": 4777,
+      "distinctBoxes": 4707,
+      "random": 4397,
+      "mustInclude": 380
+    },
+    {
+      "tag": "ExtractCreationInfo",
+      "totalAppearances": 4564,
+      "distinctBoxes": 3500,
+      "random": 4056,
+      "mustInclude": 508
+    },
+    {
+      "tag": "SizeOf",
+      "totalAppearances": 4168,
+      "distinctBoxes": 3186,
+      "random": 3757,
+      "mustInclude": 411
+    },
+    {
+      "tag": "SigmaAnd",
+      "totalAppearances": 4388,
+      "distinctBoxes": 2850,
+      "random": 4207,
+      "mustInclude": 181
+    },
+    {
+      "tag": "Collection",
+      "totalAppearances": 7215,
+      "distinctBoxes": 2820,
+      "random": 6447,
+      "mustInclude": 768
+    },
+    {
+      "tag": "And",
+      "totalAppearances": 4015,
+      "distinctBoxes": 2807,
+      "random": 3599,
+      "mustInclude": 416
+    },
+    {
+      "tag": "DecodePoint",
+      "totalAppearances": 2661,
+      "distinctBoxes": 2660,
+      "random": 2364,
+      "mustInclude": 297
+    },
+    {
+      "tag": "SubstConstants",
+      "totalAppearances": 2647,
+      "distinctBoxes": 2647,
+      "random": 2351,
+      "mustInclude": 296
+    },
+    {
+      "tag": "ValUse",
+      "totalAppearances": 77927,
+      "distinctBoxes": 2596,
+      "random": 73786,
+      "mustInclude": 4141
+    },
+    {
+      "tag": "BlockValue",
+      "totalAppearances": 4344,
+      "distinctBoxes": 2577,
+      "random": 4088,
+      "mustInclude": 256
+    },
+    {
+      "tag": "ValDef",
+      "totalAppearances": 21120,
+      "distinctBoxes": 2577,
+      "random": 19675,
+      "mustInclude": 1445
+    },
+    {
+      "tag": "PropertyCall",
+      "totalAppearances": 9929,
+      "distinctBoxes": 2576,
+      "random": 9437,
+      "mustInclude": 492
+    },
+    {
+      "tag": "OptionGet",
+      "totalAppearances": 11279,
+      "distinctBoxes": 2516,
+      "random": 10668,
+      "mustInclude": 611
+    },
+    {
+      "tag": "ExtractRegisterAs",
+      "totalAppearances": 12778,
+      "distinctBoxes": 2503,
+      "random": 12148,
+      "mustInclude": 630
+    },
+    {
+      "tag": "ExtractAmount",
+      "totalAppearances": 7412,
+      "distinctBoxes": 2462,
+      "random": 6975,
+      "mustInclude": 437
+    },
+    {
+      "tag": "OptionIsDefined",
+      "totalAppearances": 3464,
+      "distinctBoxes": 1810,
+      "random": 3430,
+      "mustInclude": 34
+    },
+    {
+      "tag": "SigmaOr",
+      "totalAppearances": 1761,
+      "distinctBoxes": 1721,
+      "random": 1709,
+      "mustInclude": 52
+    },
+    {
+      "tag": "GetVar",
+      "totalAppearances": 1702,
+      "distinctBoxes": 1590,
+      "random": 1691,
+      "mustInclude": 11
+    },
+    {
+      "tag": "LogicalNot",
+      "totalAppearances": 1547,
+      "distinctBoxes": 1532,
+      "random": 1538,
+      "mustInclude": 9
+    },
+    {
+      "tag": "If",
+      "totalAppearances": 5739,
+      "distinctBoxes": 1021,
+      "random": 5506,
+      "mustInclude": 233
+    },
+    {
+      "tag": "Upcast",
+      "totalAppearances": 2805,
+      "distinctBoxes": 772,
+      "random": 2213,
+      "mustInclude": 592
+    },
+    {
+      "tag": "FuncValue",
+      "totalAppearances": 2242,
+      "distinctBoxes": 609,
+      "random": 2089,
+      "mustInclude": 153
+    },
+    {
+      "tag": "ExtractId",
+      "totalAppearances": 562,
+      "distinctBoxes": 464,
+      "random": 493,
+      "mustInclude": 69
+    },
+    {
+      "tag": "Context",
+      "totalAppearances": 465,
+      "distinctBoxes": 457,
+      "random": 406,
+      "mustInclude": 59
+    },
+    {
+      "tag": "Or",
+      "totalAppearances": 449,
+      "distinctBoxes": 447,
+      "random": 394,
+      "mustInclude": 55
+    },
+    {
+      "tag": "CalcBlake2b256",
+      "totalAppearances": 1125,
+      "distinctBoxes": 442,
+      "random": 1050,
+      "mustInclude": 75
+    },
+    {
+      "tag": "Filter",
+      "totalAppearances": 591,
+      "distinctBoxes": 338,
+      "random": 578,
+      "mustInclude": 13
+    },
+    {
+      "tag": "Fold",
+      "totalAppearances": 501,
+      "distinctBoxes": 310,
+      "random": 454,
+      "mustInclude": 47
+    },
+    {
+      "tag": "Apply",
+      "totalAppearances": 1104,
+      "distinctBoxes": 279,
+      "random": 985,
+      "mustInclude": 119
+    },
+    {
+      "tag": "Tuple",
+      "totalAppearances": 522,
+      "distinctBoxes": 250,
+      "random": 483,
+      "mustInclude": 39
+    },
+    {
+      "tag": "Map",
+      "totalAppearances": 342,
+      "distinctBoxes": 246,
+      "random": 312,
+      "mustInclude": 30
+    },
+    {
+      "tag": "ForAll",
+      "totalAppearances": 307,
+      "distinctBoxes": 168,
+      "random": 287,
+      "mustInclude": 20
+    },
+    {
+      "tag": "Slice",
+      "totalAppearances": 241,
+      "distinctBoxes": 145,
+      "random": 239,
+      "mustInclude": 2
+    },
+    {
+      "tag": "CreateProveDhTuple",
+      "totalAppearances": 157,
+      "distinctBoxes": 120,
+      "random": 143,
+      "mustInclude": 14
+    },
+    {
+      "tag": "Global",
+      "totalAppearances": 120,
+      "distinctBoxes": 120,
+      "random": 110,
+      "mustInclude": 10
+    },
+    {
+      "tag": "SigmaPropBytes",
+      "totalAppearances": 124,
+      "distinctBoxes": 107,
+      "random": 93,
+      "mustInclude": 31
+    },
+    {
+      "tag": "Exists",
+      "totalAppearances": 118,
+      "distinctBoxes": 87,
+      "random": 115,
+      "mustInclude": 3
+    },
+    {
+      "tag": "Negation",
+      "totalAppearances": 103,
+      "distinctBoxes": 51,
+      "random": 67,
+      "mustInclude": 36
+    },
+    {
+      "tag": "Append",
+      "totalAppearances": 200,
+      "distinctBoxes": 51,
+      "random": 200,
+      "mustInclude": 0
+    },
+    {
+      "tag": "MethodCall",
+      "totalAppearances": 97,
+      "distinctBoxes": 41,
+      "random": 97,
+      "mustInclude": 0
+    },
+    {
+      "tag": "ByteArrayToLong",
+      "totalAppearances": 645,
+      "distinctBoxes": 33,
+      "random": 645,
+      "mustInclude": 0
+    },
+    {
+      "tag": "Atleast",
+      "totalAppearances": 13,
+      "distinctBoxes": 13,
+      "random": 12,
+      "mustInclude": 1
+    },
+    {
+      "tag": "OptionGetOrElse",
+      "totalAppearances": 24,
+      "distinctBoxes": 7,
+      "random": 20,
+      "mustInclude": 4
+    },
+    {
+      "tag": "DeserializeContext",
+      "totalAppearances": 5,
+      "distinctBoxes": 5,
+      "random": 3,
+      "mustInclude": 2
+    },
+    {
+      "tag": "ExtractBytes",
+      "totalAppearances": 3,
+      "distinctBoxes": 3,
+      "random": 2,
+      "mustInclude": 1
+    },
+    {
+      "tag": "Downcast",
+      "totalAppearances": 7,
+      "distinctBoxes": 3,
+      "random": 7,
+      "mustInclude": 0
+    },
+    {
+      "tag": "LongToByteArray",
+      "totalAppearances": 3,
+      "distinctBoxes": 3,
+      "random": 3,
+      "mustInclude": 0
+    },
+    {
+      "tag": "ExtractBytesWithNoRef",
+      "totalAppearances": 2,
+      "distinctBoxes": 1,
+      "random": 2,
+      "mustInclude": 0
+    }
+  ],
+  "methodPairs": [
+    {
+      "totalAppearances": 9253,
+      "distinctBoxes": 2575,
+      "random": 8834,
+      "mustInclude": 419,
+      "typeId": 99,
+      "methodId": 8,
+      "methodName": "SBox.tokens",
+      "implemented": true,
+      "implementedIn": "2g.5"
+    },
+    {
+      "totalAppearances": 458,
+      "distinctBoxes": 453,
+      "random": 403,
+      "mustInclude": 55,
+      "typeId": 101,
+      "methodId": 1,
+      "methodName": "SContext.dataInputs",
+      "implemented": true,
+      "implementedIn": "2g.5"
+    },
+    {
+      "totalAppearances": 120,
+      "distinctBoxes": 120,
+      "random": 110,
+      "mustInclude": 10,
+      "typeId": 106,
+      "methodId": 1,
+      "methodName": "SGlobal.groupGenerator",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 40,
+      "distinctBoxes": 35,
+      "random": 40,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 29,
+      "methodName": "SColl.zip",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 70,
+      "distinctBoxes": 33,
+      "random": 70,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 1,
+      "methodName": "SAvlTree.digest",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 35,
+      "distinctBoxes": 33,
+      "random": 35,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 13,
+      "methodName": "SAvlTree.update",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 13,
+      "distinctBoxes": 8,
+      "random": 13,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 14,
+      "methodName": "SColl.indices",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 7,
+      "distinctBoxes": 7,
+      "random": 3,
+      "mustInclude": 4,
+      "typeId": 105,
+      "methodId": 3,
+      "methodName": "SPreHeader.timestamp",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 7,
+      "distinctBoxes": 7,
+      "random": 3,
+      "mustInclude": 4,
+      "typeId": 101,
+      "methodId": 3,
+      "methodName": "SContext.preHeader",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 3,
+      "distinctBoxes": 3,
+      "random": 3,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 12,
+      "methodName": "SAvlTree.insert",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 9,
+      "distinctBoxes": 3,
+      "random": 9,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 11,
+      "methodName": "SAvlTree.getMany",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 4,
+      "distinctBoxes": 2,
+      "random": 4,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 10,
+      "methodName": "SAvlTree.get",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 4,
+      "distinctBoxes": 2,
+      "random": 4,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 15,
+      "methodName": "SColl.flatten",
+      "implemented": false
+    },
+    {
+      "totalAppearances": 2,
+      "distinctBoxes": 2,
+      "random": 2,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 26,
+      "methodName": "SColl.indexOf",
+      "implemented": true,
+      "implementedIn": "2g.5"
+    },
+    {
+      "totalAppearances": 1,
+      "distinctBoxes": 1,
+      "random": 1,
+      "mustInclude": 0,
+      "typeId": 7,
+      "methodId": 2,
+      "methodName": "SGroupElement.getEncoded",
+      "implemented": false
+    }
+  ],
+  "unimplementedHits": [
+    {
+      "tag": "DecodePoint",
+      "distinctBoxes": 2660,
+      "exampleBoxIds": [
+        "960b27bcf62ca2a621495e2a06a64e26ccc7159212de53c1b13c729295edc5f7",
+        "de3094f7b87f2fce950f31a8723b3b0c52fd44fa3dd5fe2d9c95273bdf75bc1c",
+        "8b15345c26773c92731802b0fdf1df55713b6610a943a741740ec6c10bafff42",
+        "eab90869c9507b490f6aa8707d34b4c2d42b6216cb3dff2821cc7d7e2c36ee81",
+        "224b0cf2020922df54d93f5e34c5101f9796435285792e139e7d4b2e7ee783cd"
+      ]
+    },
+    {
+      "tag": "SubstConstants",
+      "distinctBoxes": 2647,
+      "exampleBoxIds": [
+        "960b27bcf62ca2a621495e2a06a64e26ccc7159212de53c1b13c729295edc5f7",
+        "de3094f7b87f2fce950f31a8723b3b0c52fd44fa3dd5fe2d9c95273bdf75bc1c",
+        "8b15345c26773c92731802b0fdf1df55713b6610a943a741740ec6c10bafff42",
+        "eab90869c9507b490f6aa8707d34b4c2d42b6216cb3dff2821cc7d7e2c36ee81",
+        "224b0cf2020922df54d93f5e34c5101f9796435285792e139e7d4b2e7ee783cd"
+      ]
+    },
+    {
+      "tag": "CalcBlake2b256",
+      "distinctBoxes": 442,
+      "exampleBoxIds": [
+        "fbaa13b87515b2023cda4c2a541aed6983cbec0e2d9e196ac8cdd21d43eb6ced",
+        "1b5e68b9bcf640f7e3ec23ee96eb32ca5801f896d7f9d0cec1d3506a91318479",
+        "57eb7ee4f0a8c6560af0fd16bd339a2fe270d0af163f3ef044c1275ef45e8e67",
+        "25668cfa791821a3b6f5a451435cdae987cd7cb1d474eec8b0e87314596623ec",
+        "6e74d2501c2612886648d7f526e049908b453af6f07eda3a03660e71e451fb1d"
+      ]
+    },
+    {
+      "tag": "Global",
+      "distinctBoxes": 120,
+      "exampleBoxIds": [
+        "1b5e68b9bcf640f7e3ec23ee96eb32ca5801f896d7f9d0cec1d3506a91318479",
+        "57eb7ee4f0a8c6560af0fd16bd339a2fe270d0af163f3ef044c1275ef45e8e67",
+        "25668cfa791821a3b6f5a451435cdae987cd7cb1d474eec8b0e87314596623ec",
+        "6e74d2501c2612886648d7f526e049908b453af6f07eda3a03660e71e451fb1d",
+        "6b8ed6abbd054e892eeabec59ecf385749d7a93821bd371207767a1cf3a9c4ef"
+      ]
+    },
+    {
+      "tag": "ByteArrayToLong",
+      "distinctBoxes": 33,
+      "exampleBoxIds": [
+        "fbdf13295f9a8987e0559b49b1fff4f16be7077998cf1b4b766ac3dd54551bcd",
+        "ea8e0992bc0d7958ea02831726cfb222bfe4072150947cb750de899b91cd39d1",
+        "6de7d1f1a87852c31f83d704cb3c3e2a98e72c5e46b5d1e09aeaf206ab2ab4bc",
+        "2f9824d74428da45ef962d9b140aeaccf0be6546fa28767774be1b22313a6fc4",
+        "9ac3ae6bd97f166d596472699b5071eeef6c60afdd6d6921fbeb667770405e72"
+      ]
+    },
+    {
+      "tag": "DeserializeContext",
+      "distinctBoxes": 5,
+      "exampleBoxIds": [
+        "fdcb9fcb2075e10e79ef608de2523b3e576ecf2bc7f8960599e3e9a4f968803e",
+        "10938fd14fa900b217d4c0e23f065e216e67252090d682ec3a7a20d2c176ed9e",
+        "a98ff44b5b5091aefb118949f961dfb7335f225d99349b1c455f924e0a8d0755",
+        "bc7046908e38000f2229a96d47b8c1af9345f500cba5fec9d71943092352564b",
+        "1a2e0d1c3a7567e98db1f42e44a1c28012ff150e7e1b741f5660255ec827a226"
+      ]
+    },
+    {
+      "tag": "LongToByteArray",
+      "distinctBoxes": 3,
+      "exampleBoxIds": [
+        "6446283848ee971bb331a0bab56f52b4510bc072ca226aec378a849abd3ae9f9",
+        "f41287a15ccb4ea8bf290f3867ae431188fe74b4b3936d031234801434d8454e",
+        "692c9161704ecafe20d7ca60357e7df98d1fb70f438cb661e88eec86aa5f2c17"
+      ]
+    }
+  ],
+  "parseFailures": [],
+  "phase2g6Priority": [
+    {
+      "rank": 1,
+      "totalAppearances": 120,
+      "distinctBoxes": 120,
+      "random": 110,
+      "mustInclude": 10,
+      "typeId": 106,
+      "methodId": 1,
+      "methodName": "SGlobal.groupGenerator",
+      "implemented": false
+    },
+    {
+      "rank": 2,
+      "totalAppearances": 40,
+      "distinctBoxes": 35,
+      "random": 40,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 29,
+      "methodName": "SColl.zip",
+      "implemented": false
+    },
+    {
+      "rank": 3,
+      "totalAppearances": 70,
+      "distinctBoxes": 33,
+      "random": 70,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 1,
+      "methodName": "SAvlTree.digest",
+      "implemented": false
+    },
+    {
+      "rank": 4,
+      "totalAppearances": 35,
+      "distinctBoxes": 33,
+      "random": 35,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 13,
+      "methodName": "SAvlTree.update",
+      "implemented": false
+    },
+    {
+      "rank": 5,
+      "totalAppearances": 13,
+      "distinctBoxes": 8,
+      "random": 13,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 14,
+      "methodName": "SColl.indices",
+      "implemented": false
+    },
+    {
+      "rank": 6,
+      "totalAppearances": 7,
+      "distinctBoxes": 7,
+      "random": 3,
+      "mustInclude": 4,
+      "typeId": 105,
+      "methodId": 3,
+      "methodName": "SPreHeader.timestamp",
+      "implemented": false
+    },
+    {
+      "rank": 7,
+      "totalAppearances": 7,
+      "distinctBoxes": 7,
+      "random": 3,
+      "mustInclude": 4,
+      "typeId": 101,
+      "methodId": 3,
+      "methodName": "SContext.preHeader",
+      "implemented": false
+    },
+    {
+      "rank": 8,
+      "totalAppearances": 3,
+      "distinctBoxes": 3,
+      "random": 3,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 12,
+      "methodName": "SAvlTree.insert",
+      "implemented": false
+    },
+    {
+      "rank": 9,
+      "totalAppearances": 9,
+      "distinctBoxes": 3,
+      "random": 9,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 11,
+      "methodName": "SAvlTree.getMany",
+      "implemented": false
+    },
+    {
+      "rank": 10,
+      "totalAppearances": 4,
+      "distinctBoxes": 2,
+      "random": 4,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 10,
+      "methodName": "SAvlTree.get",
+      "implemented": false
+    },
+    {
+      "rank": 11,
+      "totalAppearances": 4,
+      "distinctBoxes": 2,
+      "random": 4,
+      "mustInclude": 0,
+      "typeId": 12,
+      "methodId": 15,
+      "methodName": "SColl.flatten",
+      "implemented": false
+    },
+    {
+      "rank": 12,
+      "totalAppearances": 1,
+      "distinctBoxes": 1,
+      "random": 1,
+      "mustInclude": 0,
+      "typeId": 7,
+      "methodId": 2,
+      "methodName": "SGroupElement.getEncoded",
+      "implemented": false
+    }
+  ]
+}
