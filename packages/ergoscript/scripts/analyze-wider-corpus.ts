@@ -80,14 +80,17 @@ function main(): void {
 
   // Phase 2g.6 prioritization: unimplemented method pairs, sorted by
   // distinctBoxes desc with mustInclude as tiebreaker.
-  const phase2g6Priority: MethodPairTally[] = Array.from(result.methodPairs.values())
+  // AVL+ (typeId=100) methods are deferred to phase 2h and excluded here.
+  const allUnimplemented: MethodPairTally[] = Array.from(result.methodPairs.values())
     .filter((p) => p.implemented !== true)
     .sort((a, b) =>
       b.distinctBoxes - a.distinctBoxes || b.mustInclude - a.mustInclude,
     )
+  const phase2g6Priority: MethodPairTally[] = allUnimplemented.filter((p) => p.typeId !== 100)
+  const phase2hAvlMethods: MethodPairTally[] = allUnimplemented.filter((p) => p.typeId === 100)
 
-  writeMarkdown(fixture.boxes, result, phase2g6Priority)
-  writeTallyJson(fixture.boxes, fixture.meta, result, phase2g6Priority)
+  writeMarkdown(fixture.boxes, result, allUnimplemented)
+  writeTallyJson(fixture.boxes, fixture.meta, result, phase2g6Priority, phase2hAvlMethods)
 
   console.log(`wrote ${RESULTS_MD_PATH}`)
   console.log(`wrote ${TALLY_JSON_PATH}`)
@@ -96,6 +99,7 @@ function main(): void {
   console.log(`distinct tags: ${result.tagFrequencies.size}`)
   console.log(`distinct method pairs: ${result.methodPairs.size}`)
   console.log(`phase 2g.6 priority methods: ${phase2g6Priority.length}`)
+  console.log(`phase 2h avl methods: ${phase2hAvlMethods.length}`)
 }
 
 function writeMarkdown(
@@ -187,6 +191,7 @@ function writeTallyJson(
   meta: Record<string, unknown>,
   result: AnalysisResult,
   priority: MethodPairTally[],
+  phase2hAvlMethods: MethodPairTally[],
 ): void {
   const totalBoxes = boxes.length
   const randomBoxes = boxes.filter((b) => b.source === 'random').length
@@ -213,6 +218,7 @@ function writeTallyJson(
       .sort((a, b) => b.distinctBoxes - a.distinctBoxes),
     parseFailures: result.parseFailures,
     phase2g6Priority: priority.map((p, i) => ({ rank: i + 1, ...p })),
+    phase2hAvlMethods: phase2hAvlMethods.map((p, i) => ({ rank: i + 1, ...p })),
   }
   fs.writeFileSync(TALLY_JSON_PATH, JSON.stringify(out, null, 2))
 }

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generatedAt": "2026-05-18T10:46:10.729Z",
+    "generatedAt": "2026-05-18T11:06:39.415Z",
     "fixtureSource": "packages/ergoscript/test/fixtures/mainnet_boxes_wider.json",
     "fixtureMeta": {
       "generatedAt": "2026-05-18T09:59:57.556330741+00:00",
@@ -679,28 +679,6 @@
     },
     {
       "rank": 3,
-      "totalAppearances": 70,
-      "distinctBoxes": 33,
-      "random": 70,
-      "mustInclude": 0,
-      "typeId": 100,
-      "methodId": 1,
-      "methodName": "SAvlTree.digest",
-      "implemented": false
-    },
-    {
-      "rank": 4,
-      "totalAppearances": 35,
-      "distinctBoxes": 33,
-      "random": 35,
-      "mustInclude": 0,
-      "typeId": 100,
-      "methodId": 13,
-      "methodName": "SAvlTree.update",
-      "implemented": false
-    },
-    {
-      "rank": 5,
       "totalAppearances": 13,
       "distinctBoxes": 8,
       "random": 13,
@@ -711,7 +689,7 @@
       "implemented": false
     },
     {
-      "rank": 6,
+      "rank": 4,
       "totalAppearances": 7,
       "distinctBoxes": 7,
       "random": 3,
@@ -722,7 +700,7 @@
       "implemented": false
     },
     {
-      "rank": 7,
+      "rank": 5,
       "totalAppearances": 7,
       "distinctBoxes": 7,
       "random": 3,
@@ -733,40 +711,7 @@
       "implemented": false
     },
     {
-      "rank": 8,
-      "totalAppearances": 3,
-      "distinctBoxes": 3,
-      "random": 3,
-      "mustInclude": 0,
-      "typeId": 100,
-      "methodId": 12,
-      "methodName": "SAvlTree.insert",
-      "implemented": false
-    },
-    {
-      "rank": 9,
-      "totalAppearances": 9,
-      "distinctBoxes": 3,
-      "random": 9,
-      "mustInclude": 0,
-      "typeId": 100,
-      "methodId": 11,
-      "methodName": "SAvlTree.getMany",
-      "implemented": false
-    },
-    {
-      "rank": 10,
-      "totalAppearances": 4,
-      "distinctBoxes": 2,
-      "random": 4,
-      "mustInclude": 0,
-      "typeId": 100,
-      "methodId": 10,
-      "methodName": "SAvlTree.get",
-      "implemented": false
-    },
-    {
-      "rank": 11,
+      "rank": 6,
       "totalAppearances": 4,
       "distinctBoxes": 2,
       "random": 4,
@@ -777,7 +722,7 @@
       "implemented": false
     },
     {
-      "rank": 12,
+      "rank": 7,
       "totalAppearances": 1,
       "distinctBoxes": 1,
       "random": 1,
@@ -785,6 +730,63 @@
       "typeId": 7,
       "methodId": 2,
       "methodName": "SGroupElement.getEncoded",
+      "implemented": false
+    }
+  ],
+  "phase2hAvlMethods": [
+    {
+      "rank": 1,
+      "totalAppearances": 70,
+      "distinctBoxes": 33,
+      "random": 70,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 1,
+      "methodName": "SAvlTree.digest",
+      "implemented": false
+    },
+    {
+      "rank": 2,
+      "totalAppearances": 35,
+      "distinctBoxes": 33,
+      "random": 35,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 13,
+      "methodName": "SAvlTree.update",
+      "implemented": false
+    },
+    {
+      "rank": 3,
+      "totalAppearances": 3,
+      "distinctBoxes": 3,
+      "random": 3,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 12,
+      "methodName": "SAvlTree.insert",
+      "implemented": false
+    },
+    {
+      "rank": 4,
+      "totalAppearances": 9,
+      "distinctBoxes": 3,
+      "random": 9,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 11,
+      "methodName": "SAvlTree.getMany",
+      "implemented": false
+    },
+    {
+      "rank": 5,
+      "totalAppearances": 4,
+      "distinctBoxes": 2,
+      "random": 4,
+      "mustInclude": 0,
+      "typeId": 100,
+      "methodId": 10,
+      "methodName": "SAvlTree.get",
       "implemented": false
     }
   ]
