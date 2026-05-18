@@ -85,6 +85,24 @@ export function verifyAvlBatch(
   return { newDigest, results }
 }
 
+/**
+ * Thin convenience wrapper over verifyAvlBatch for single-key reads.
+ * Returns:
+ *   - { value: Uint8Array } if the key was present
+ *   - { value: null } if the key was absent
+ *   - null if the proof failed verification
+ */
+export function verifyAvlLookup(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  key: Uint8Array,
+): { value: Uint8Array | null } | null {
+  const result = verifyAvlBatch(startingDigest, proof, config, [{ tag: 'Lookup', key }])
+  if (result === null) return null
+  return { value: result.results[0] ?? null }
+}
+
 // ---------------------------------------------------------------------------
 // Internal validators
 // ---------------------------------------------------------------------------
