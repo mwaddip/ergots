@@ -1,7 +1,7 @@
 # Gossip Layer — Considered and Rejected
 
 **Status:** Decision (2026-05-13)
-**Context:** Brainstorming session for the package originally planned as `@mwaddip/ergots-gossip`.
+**Context:** Brainstorming session for the package originally planned as `@ergots/gossip`.
 
 ## What was considered
 
@@ -26,8 +26,8 @@ In short: P2P is deferred to a hypothetical future full-node, which won't have t
 
 The phase plan tightens around the actual end-product: a browser that bootstraps trusted state from a NiPoPoW proof, locally verifies a transaction it constructed, and broadcasts it via any conformant Ergo node.
 
-- ✅ **Phase 1:** `@mwaddip/ergots-proof` — DONE.
-- 🆕 **Phase 2:** `@mwaddip/ergots-ergoscript` — TS ErgoTree parser + interpreter, validated byte-for-byte against `sigma-rust`'s `ergotree-interpreter` crate. Standalone-useful (tooling, simulators, DApp frontends), and the load-bearing piece for phase 3.
+- ✅ **Phase 1:** `@ergots/nipopow` — DONE.
+- 🆕 **Phase 2:** `@ergots/ergoscript` — TS ErgoTree parser + interpreter, validated byte-for-byte against `sigma-rust`'s `ergotree-interpreter` crate. Standalone-useful (tooling, simulators, DApp frontends), and the load-bearing piece for phase 3.
 - 🆕 **Phase 3:** wallet / transaction-broadcaster (package naming deferred) — bootstraps state from a verified proof, builds + locally-verifies (using phase 2) + broadcasts transactions. The HTTP-client / data-fetching layer is *internal to phase 3*, not a separate package, because nothing else is planned to consume it.
 
 The choice between "structural verification only" and "full ErgoScript execution" for phase 3 was discussed; the user chose full ErgoScript on the strength of the standalone usefulness of a TS ErgoScript library, independent of the wallet use case.
@@ -60,6 +60,6 @@ The gossip framing came from a handoff that committed to a phase structure. This
 
 ## References
 
-- `facts/proof.md` — verifier interface contract
+- `facts/nipopow.md` — verifier interface contract
 - `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — verifier design rationale (the template phase 2's spec will follow)
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`, HEAD `ed5452cf` — composition of `ergo-node-integration` cost-parity fixes + upstream PR #862's compiler conformance and Significant-15 corpus, merged 2026-05-13) — reference implementation for the upcoming `ergots-ergoscript` work

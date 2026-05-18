@@ -2,14 +2,14 @@
 
 **Status:** Draft
 **Date:** 2026-05-14
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2b — first evaluator slice)
+**Package:** `@ergots/ergoscript` (phase 2b — first evaluator slice)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec; phases 2a–2j)
 **Interface contract:** `facts/ergoscript.md` (extended additively per phase)
 **Brainstorm transcript:** session 2026-05-14
 
 ## Goal
 
-Ship the smallest evaluator slice of `@mwaddip/ergots-ergoscript` — enough
+Ship the smallest evaluator slice of `@ergots/ergoscript` — enough
 infrastructure to evaluate the no-chain-state subset of ErgoTree
 expressions, with the dispatch chassis sized to scale to all ~70 MIR
 variants across 2c–2j.
@@ -489,7 +489,7 @@ want; programmatic dispatch via `.code` is preferred.
   rationale
 - `facts/ergoscript.md` — boundary contract; extended additively per
   phase
-- `facts/proof.md` — sister contract for the proof package
+- `facts/nipopow.md` — sister contract for the proof package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`,
   HEAD `ed5452cf`) — byte-format and implementation oracle. Phase 2b

@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-13
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2 of the `ergots` monorepo)
+**Package:** `@ergots/ergoscript` (phase 2 of the `ergots` monorepo)
 **Interface contract:** `facts/ergoscript.md` (written in phase 2a; extended per phase — that file wins on any interface disagreement)
 **Brainstorm transcript:** this session, 2026-05-13
 
@@ -39,7 +39,7 @@ without breaking earlier ones.
 - **`ergoscript-compiler` (`.es` source → bytes).** Out of scope until
   upstream `ergoplatform/sigma-rust` PR #862 lands and the remaining 6/15
   sig-15 contracts close. Revisit then as a sibling package
-  (`@mwaddip/ergots-ergoscript-compiler`).
+  (`@ergots/ergoscript-compiler`).
 - **AOT interpreter.** Upstream is deprecating AOT in v5.0.1
   (per `~/projects/sigmastate-interpreter/docs/aot-jit-switch.md`).
   We target `R5.0-JIT-verify` semantics exclusively.
@@ -106,8 +106,8 @@ automatically.
 ```
 ergots/
 ├── packages/
-│   ├── proof/                      @mwaddip/ergots-proof      ✅ shipped
-│   └── ergoscript/                 @mwaddip/ergots-ergoscript ⏳ phase 2
+│   ├── proof/                      @ergots/nipopow      ✅ shipped
+│   └── ergoscript/                 @ergots/ergoscript ⏳ phase 2
 │       ├── src/
 │       │   ├── index.ts                 public surface re-exports
 │       │   ├── mir/
@@ -453,13 +453,13 @@ in phase 2a planning. Rejection becomes `ErgoTreeParseError` with
 2. **Wallet sibling utilities — same package or separate?** v0.1.0 has
    `addressFromErgoTree` / `ergoTreeFromAddress` (no key material). The
    wallet PoC will need mnemonic + BIP32 + key derivation. Those don't
-   depend on ergotree-interpreter. Probably `@mwaddip/ergots-wallet` (the
+   depend on ergotree-interpreter. Probably `ergots-wallet` (the
    phase 3 package). Revisit at phase 3 brainstorm.
 
 3. **`ergoscript-compiler` revisitation trigger.** Out of scope until PR
    862 lands AND a follow-up tightens the remaining 6/15 sig-15
    contracts. After that, separate brainstorm for
-   `@mwaddip/ergots-ergoscript-compiler`. Captured in `project-ergots-direction`
+   `@ergots/ergoscript-compiler`. Captured in `project-ergots-direction`
    memory.
 
 4. **`Context` shape vs sigma-rust's `ErgoStateContext`.** Phase 2e
@@ -471,7 +471,7 @@ in phase 2a planning. Rejection becomes `ErgoTreeParseError` with
 ## Cross-references
 
 - `facts/ergoscript.md` — written in phase 2a, extended per phase
-- `facts/proof.md` — existing interface contract for the verifier
+- `facts/nipopow.md` — existing interface contract for the verifier
   package; reference template for `facts/ergoscript.md`
 - `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — proof
   package design spec; template for this one

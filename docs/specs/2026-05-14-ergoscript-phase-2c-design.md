@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-14
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2c — operators, first slice)
+**Package:** `@ergots/ergoscript` (phase 2c — operators, first slice)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec)
 **Sister spec:** `docs/specs/2026-05-14-ergoscript-phase-2b-design.md` (phase 2b — evaluator chassis + 8 arms)
 **Interface contract:** `facts/ergoscript.md` (extended additively per phase)
@@ -433,7 +433,7 @@ None are blockers. All resolve by source-reading + fixture-driven TDD.
   focused design (evaluator chassis + 8 arms)
 - `facts/ergoscript.md` — boundary contract, extended additively per
   phase
-- `facts/proof.md` — sister contract for the proof package
+- `facts/nipopow.md` — sister contract for the proof package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`,
   HEAD `ed5452cf`) — byte-format and implementation oracle. Phase 2c
