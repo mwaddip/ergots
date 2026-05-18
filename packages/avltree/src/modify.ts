@@ -1,5 +1,6 @@
 /**
- * AVL+ tree modification engine — Lookup / Insert / Update / InsertOrUpdate.
+ * AVL+ tree modification engine — Lookup / Insert / Update / InsertOrUpdate /
+ * UpdateLongBy / UnknownModification.
  *
  * Ports authenticated_tree_ops.rs::AuthenticatedTreeOps::modify_helper
  * (lines 262-385) plus `add_node` (lines 205-219).
@@ -8,14 +9,16 @@
  * reference. Tree-shape changes (Insert split ordering, balance updates,
  * rotation selection) must match exactly or downstream digest comparisons fail.
  *
- * THIS TASK (T14) handles four Operation variants:
- *   - Lookup           — short-circuit at the matching leaf; never invokes updateFn.
- *   - Insert           — succeeds on absent key (tree split), fails on present (precondition).
- *   - Update           — succeeds on present key (value swap), fails on absent.
- *   - InsertOrUpdate   — unconditional set (split on absent, value swap on present).
+ * THIS FILE handles six Operation variants:
+ *   - Lookup             — short-circuit at the matching leaf; never invokes updateFn.
+ *   - Insert             — succeeds on absent key (tree split), fails on present (precondition).
+ *   - Update             — succeeds on present key (value swap), fails on absent.
+ *   - InsertOrUpdate     — unconditional set (split on absent, value swap on present).
+ *   - UpdateLongBy       — add delta to existing i64; result=0 signals needsDelete (T15).
+ *   - UnknownModification — passthrough; tree shape never changes (T15).
  *
- * UpdateLongBy + UnknownModification are added in T15.
- * Remove + RemoveIfExists live in delete.ts (T16) — a different code path.
+ * Remove + RemoveIfExists live in delete.ts (T16) — a structurally different
+ * code path.
  *
  * Per [[feedback-rust-port-style]]: decomposed into TS-idiomatic helpers
  * rather than one ~140-line function, each with per-section source-line
@@ -49,14 +52,22 @@ import type { AvlVerifyFailReason } from './errors.js'
 // ---------------------------------------------------------------------------
 
 /**
- * Success result of `modifyHelper`. Mirrors four of the five Rust return
- * tuple fields (the fifth, `to_delete`, is always false in T14's scope —
- * Remove/RemoveIfExists go through delete.ts).
+ * Success result of `modifyHelper`. Mirrors all five Rust return tuple fields:
+ * (new_root_node, change_happened, height_increased, to_delete, old_value).
  *
  * `changeHappened` distinguishes "the subtree was structurally modified"
  * (Insert/Update/InsertOrUpdate) from "nothing changed" (Lookup). Critical
  * for the recursive rebalance branch: when no change happened the parent
  * returns its original node without creating a new internal node.
+ *
+ * `needsDelete` mirrors Rust's `to_delete` flag (authenticated_tree_ops.rs:234,
+ * lines 288, 351, 377). When true, the leaf at the matching key must be removed
+ * by the caller via `deleteHelper` (T16). The caller (`return_result_of_one_operation`
+ * in T17/BatchAvlVerifier) handles this two-phase dispatch:
+ *   1. modifyHelper returns needsDelete=true (UpdateLongBy result=0 case)
+ *   2. caller calls deleteHelper on the returned newSubtreeRoot
+ * The flag propagates upward through internal nodes in the !changeHappened path
+ * (Rust lines 351, 377 — `(r_node.clone(), false, false, to_delete, old_value)`).
  */
 export type ModifyOk = {
   readonly ok: true
@@ -64,12 +75,20 @@ export type ModifyOk = {
   /** Did this subtree's structure change? Mirrors Rust `ChangeHappened`. */
   readonly changeHappened: boolean
   /**
-   * Change in subtree height. In T14: 0 or +1 only (Insert can grow the
-   * subtree; Lookup/Update never do). Delete paths (T16) can return -1.
+   * Change in subtree height. 0 or +1 for insertions (Insert/UpdateLongBy absent);
+   * 0 for updates and lookups. Delete paths (T16) can return -1.
    */
   readonly heightDelta: -1 | 0 | 1
   /** Old value at this key, or null if key was absent. */
   readonly oldValue: Uint8Array | null
+  /**
+   * Mirrors Rust `to_delete` (authenticated_tree_ops.rs line 288).
+   * True only when UpdateLongBy result == 0: the leaf must be deleted by the
+   * caller via deleteHelper (T16). Always false for all other operations handled
+   * here. When true, changeHappened is always false and newSubtreeRoot is the
+   * unchanged original node (mirroring Rust line 288: `(r_node.clone(), false, false, true, ...)`).
+   */
+  readonly needsDelete: boolean
 }
 export type ModifyFail = { readonly ok: false; readonly reason: AvlVerifyFailReason }
 export type ModifyResult = ModifyOk | ModifyFail
@@ -148,45 +167,74 @@ function handleLeafNode(leaf: LeafNode, op: Operation): ModifyResult {
  * Ports Rust modify_helper lines 278-299 — the `if key_matches_leaf(...)` true branch.
  *
  * key === leaf.key. Behavior by operation:
- *   - Lookup           — short-circuit; return leaf.value as oldValue, no change.
- *                        (Rust lines 280-283.)
- *   - Insert           — updateFn returns 'key-already-exists' → fail.
- *   - Update           — updateFn returns newValue; replace leaf with new value.
- *                        oldValue = leaf.value. (Rust lines 290-296.)
- *   - InsertOrUpdate   — same as Update on match.
- *   - (UnknownModification, UpdateLongBy, Remove, RemoveIfExists — out of T14 scope.)
+ *   - Lookup             — short-circuit; return leaf.value as oldValue, no change.
+ *                          (Rust lines 280-283.)
+ *   - UnknownModification — short-circuit; return leaf.value as oldValue, no change.
+ *                          (Rust lines 280-283 — same path as Lookup: updateFn returns
+ *                          oldValue, so changeHappened=false, tree unmodified.)
+ *   - Insert             — updateFn returns 'key-already-exists' → fail.
+ *   - Update             — updateFn returns newValue; replace leaf with new value.
+ *                          oldValue = leaf.value. (Rust lines 290-296.)
+ *   - InsertOrUpdate     — same as Update on match.
+ *   - UpdateLongBy       — updateFn computes delta+existing. Three sub-cases:
+ *                          a. result > 0  → update leaf value (Rust lines 290-296).
+ *                          b. result == 0 → signal needsDelete=true; tree not yet
+ *                             modified (Rust lines 286-289: to_delete=true,
+ *                             change_happened=false, returns r_node unchanged).
+ *                          c. updateFn fails (result < 0, decrement-on-absent-key)
+ *                             → 'operation-precondition-failed'.
+ *   - (Remove, RemoveIfExists — live in delete.ts T16.)
  */
 function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
-  // Lookup short-circuit (Rust line 280-282). Crucially, the leaf's
-  // existing value is returned and the tree is unmodified.
-  if (op.tag === 'Lookup') {
+  // Lookup + UnknownModification short-circuit (Rust lines 280-283).
+  // UnknownModification's updateFn returns oldValue unchanged — equivalent to
+  // Lookup at the tree-structure level (no modification, return existing value).
+  // We short-circuit before calling updateFn for UnknownModification too, matching
+  // Rust's Lookup branch: (r_node.clone(), false, false, false, Some(r.value)).
+  if (op.tag === 'Lookup' || op.tag === 'UnknownModification') {
     return {
       ok: true,
       newSubtreeRoot: leaf,
       changeHappened: false,
       heightDelta: 0,
       oldValue: leaf.value,
+      needsDelete: false,
     }
   }
 
   // Modification: invoke updateFn with the existing value (Rust line 285).
   const u = updateFn(op, leaf.value)
   if (!u.ok) {
-    // key-already-exists (Insert), key-not-found (irrelevant on match), etc.
+    // key-already-exists (Insert), result-negative (UpdateLongBy), etc.
     // Rust returns `Err(anyhow!(...))?` — TS maps all updateFn failures
     // to 'operation-precondition-failed' (per spec).
     return { ok: false, reason: 'operation-precondition-failed' }
   }
 
-  // newValue === null means "delete" (Remove, RemoveIfExists, UpdateLongBy→0).
-  // These are out of T14's scope; we reject defensively so a future caller
-  // that wires Remove/RemoveIfExists into this path notices the gap.
+  // newValue === null means "delete this leaf" — UpdateLongBy result==0.
+  // Rust lines 286-289:
+  //   None => {  // delete key
+  //     self.on_node_visit(r_node, operation, false);
+  //     (r_node.clone(), false, false, true, Some(r.value))
+  //   }
+  // We return the leaf unchanged (newSubtreeRoot=leaf, changeHappened=false)
+  // and signal needsDelete=true. The caller (BatchAvlVerifier T17) routes this
+  // to deleteHelper (T16) after modifyHelper completes.
+  // Note: Remove/RemoveIfExists (also null) are dispatched through delete.ts
+  // directly (T16) and never reach this function.
   if (u.newValue === null) {
-    return { ok: false, reason: 'operation-precondition-failed' }
+    return {
+      ok: true,
+      newSubtreeRoot: leaf,      // Rust: r_node.clone() — unchanged
+      changeHappened: false,     // Rust: false
+      heightDelta: 0,
+      oldValue: leaf.value,
+      needsDelete: true,         // Rust: to_delete=true
+    }
   }
 
-  // Update / InsertOrUpdate (matched): replace the leaf with a new one
-  // carrying the new value, same key and nextLeafKey (Rust line 293).
+  // Update / InsertOrUpdate / UpdateLongBy (non-zero result): replace the leaf
+  // with a new one carrying the new value, same key and nextLeafKey (Rust line 293).
   // The Rust impl uses `LeafNode::update(r_node, &r.hdr.key.unwrap(), &v, &r.next_node_key)`.
   const newLeafNode = newLeaf(leaf.key, u.newValue, leaf.nextLeafKey)
   return {
@@ -195,6 +243,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
     changeHappened: true,
     heightDelta: 0, // value swap doesn't change subtree height
     oldValue: leaf.value,
+    needsDelete: false,
   }
 }
 
@@ -203,23 +252,33 @@ function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
  * (key falls in the gap [leaf.key, leaf.nextLeafKey)).
  *
  * leaf.key < op.key < leaf.nextLeafKey. Behavior by operation:
- *   - Lookup           — short-circuit; oldValue = null, no change.
- *                        (Rust lines 303-305.)
- *   - Insert           — updateFn returns newValue; SPLIT the leaf via add_node.
- *                        oldValue = null, heightDelta = +1. (Rust lines 313-317.)
- *   - Update           — updateFn returns 'key-not-found' → fail.
- *   - InsertOrUpdate   — same as Insert on absent.
- *   - (UnknownModification, UpdateLongBy, Remove, RemoveIfExists — out of T14 scope.)
+ *   - Lookup             — short-circuit; oldValue = null, no change.
+ *                          (Rust lines 303-305.)
+ *   - UnknownModification — short-circuit; oldValue = null, no change.
+ *                          (Rust lines 303-305 — same path as Lookup: updateFn returns
+ *                          null on absent, so no change happens.)
+ *   - Insert             — updateFn returns newValue; SPLIT the leaf via add_node.
+ *                          oldValue = null, heightDelta = +1. (Rust lines 313-317.)
+ *   - Update             — updateFn returns 'key-not-found' → fail.
+ *   - InsertOrUpdate     — same as Insert on absent.
+ *   - UpdateLongBy delta > 0 — same as Insert on absent (new key inserted with delta).
+ *   - UpdateLongBy delta < 0 — updateFn returns 'decrement-on-absent-key' → fail.
+ *   - UpdateLongBy delta == 0 — updateFn returns null (no-op passthrough) → no change.
+ *   - (Remove, RemoveIfExists — live in delete.ts T16.)
  */
 function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
-  // Lookup short-circuit (Rust lines 303-305): no change, no value.
-  if (op.tag === 'Lookup') {
+  // Lookup + UnknownModification short-circuit (Rust lines 303-305).
+  // For UnknownModification on an absent key: updateFn returns null (oldValue=null),
+  // which we handle in the null branch below — but we short-circuit here for
+  // clarity and to match the Rust structural pattern exactly.
+  if (op.tag === 'Lookup' || op.tag === 'UnknownModification') {
     return {
       ok: true,
       newSubtreeRoot: leaf,
       changeHappened: false,
       heightDelta: 0,
       oldValue: null,
+      needsDelete: false,
     }
   }
 
@@ -227,14 +286,18 @@ function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
   const u = updateFn(op, null)
   if (!u.ok) {
     // key-not-found (Update / Remove), key-already-exists (impossible here),
-    // decrement-on-absent-key (UpdateLongBy — T15 scope).
+    // decrement-on-absent-key (UpdateLongBy with delta < 0 on absent key).
     return { ok: false, reason: 'operation-precondition-failed' }
   }
 
-  // newValue === null on absent key means "no insertion needed"
-  // (Lookup-equivalent — RemoveIfExists, Lookup itself, or UpdateLongBy delta=0).
-  // For T14's 4 ops, this branch is only reachable via the future Lookup
-  // path; defensively return "no change" matching Rust lines 309-311.
+  // newValue === null on absent key means "no insertion needed" — matches
+  // Rust lines 309-311:
+  //   None => {  // don't change anything, just lookup
+  //     self.on_node_visit(r_node, operation, false);
+  //     (r_node.clone(), false, false, false, None)
+  //   }
+  // Reachable for: RemoveIfExists (absent — no-op), UpdateLongBy delta=0 (no-op).
+  // Both: no structural change, no delete needed.
   if (u.newValue === null) {
     return {
       ok: true,
@@ -242,11 +305,13 @@ function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
       changeHappened: false,
       heightDelta: 0,
       oldValue: null,
+      needsDelete: false,
     }
   }
 
-  // Insert / InsertOrUpdate (absent): SPLIT — wrap the existing leaf and
-  // the new leaf into a new internal node. Rust line 316: `self.add_node(r_node, &key, &v)`.
+  // Insert / InsertOrUpdate / UpdateLongBy (absent, delta > 0): SPLIT — wrap
+  // the existing leaf and the new leaf into a new internal node.
+  // Rust line 316: `self.add_node(r_node, &key, &v)`.
   // The new subtree grew by 1 level. (Rust line 316: heightIncreased=true.)
   return {
     ok: true,
@@ -254,6 +319,7 @@ function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
     changeHappened: true,
     heightDelta: 1,
     oldValue: null,
+    needsDelete: false,
   }
 }
 
@@ -339,7 +405,10 @@ function handleInternalNode(
  *      - Construct new internal node with the new left child (line 347).
  */
 function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult {
-  // Case 1: no change happened. Rust line 351: `(r_node.clone(), false, false, to_delete, old_value)`.
+  // Case 1: no change happened. Rust line 351:
+  //   `(r_node.clone(), false, false, to_delete, old_value)`
+  // to_delete propagates upward here — if the child signals needsDelete=true,
+  // the parent returns the original node unchanged but propagates needsDelete.
   if (!child.changeHappened) {
     return {
       ok: true,
@@ -347,6 +416,7 @@ function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult
       changeHappened: false,
       heightDelta: 0,
       oldValue: child.oldValue,
+      needsDelete: child.needsDelete,  // Rust: to_delete propagated upward
     }
   }
 
@@ -374,6 +444,7 @@ function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult
     changeHappened: true,
     heightDelta: myHeightIncreased,
     oldValue: child.oldValue,
+    needsDelete: false,  // changeHappened=true implies to_delete=false in Rust
   }
 }
 
@@ -423,6 +494,7 @@ function rotateLeftDescent(
       changeHappened: true,
       heightDelta: 0, // rotation absorbs the height growth
       oldValue,
+      needsDelete: false,
     }
   }
 
@@ -438,6 +510,7 @@ function rotateLeftDescent(
     changeHappened: true,
     heightDelta: 0,
     oldValue,
+    needsDelete: false,
   }
 }
 
@@ -451,7 +524,9 @@ function rotateLeftDescent(
  *   - Rust line 372: `r_balance = r.balance + 1` (was -1).
  */
 function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResult {
-  // Case 1: no change. Rust line 377.
+  // Case 1: no change. Rust line 377:
+  //   `(r_node.clone(), false, false, to_delete, old_value)`
+  // to_delete (needsDelete) propagates upward here too.
   if (!child.changeHappened) {
     return {
       ok: true,
@@ -459,6 +534,7 @@ function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResul
       changeHappened: false,
       heightDelta: 0,
       oldValue: child.oldValue,
+      needsDelete: child.needsDelete,  // Rust: to_delete propagated upward
     }
   }
 
@@ -484,6 +560,7 @@ function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResul
     changeHappened: true,
     heightDelta: myHeightIncreased,
     oldValue: child.oldValue,
+    needsDelete: false,  // changeHappened=true implies to_delete=false in Rust
   }
 }
 
@@ -521,6 +598,7 @@ function rotateRightDescent(
       changeHappened: true,
       heightDelta: 0,
       oldValue,
+      needsDelete: false,
     }
   }
 
@@ -535,6 +613,7 @@ function rotateRightDescent(
     changeHappened: true,
     heightDelta: 0,
     oldValue,
+    needsDelete: false,
   }
 }
 
