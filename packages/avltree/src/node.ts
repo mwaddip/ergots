@@ -1,12 +1,13 @@
 /**
- * AVL+ tree node types and constructors.
+ * AVL+ tree node types, constructors, and blake2b-256 label computation.
  *
  * Ports batch_node.rs::Node (enum) + LeafNode / InternalNode / LabelOnly structs
- * (lines ~33-52, ~200-275). Labeling logic (blake2b-256 hashing) lives in Task 7.
+ * (lines ~33-52, ~200-275) and Node::label() (lines ~83-112).
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_node.rs
  */
 
+import { blake2b } from '@noble/hashes/blake2.js'
 import type { ADKey, ADValue } from './types.js'
 
 // ---------------------------------------------------------------------------
@@ -127,4 +128,81 @@ export function newLabel(label: Uint8Array): LabelNode {
     )
   }
   return { kind: 'label', label: new Uint8Array(label) }
+}
+
+// ---------------------------------------------------------------------------
+// Label computation
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the 32-byte blake2b-256 label for a node.
+ *
+ * Ports batch_node.rs::Node::label() (lines ~83-112).
+ *
+ * CONSENSUS-CRITICAL — byte layout is load-bearing:
+ *
+ *   LabelNode:  return stored label directly (no re-hash)
+ *   LeafNode:   blake2b256(0x00 || key || value || nextLeafKey)
+ *                 — Rust: hasher.update([0u8]), key, value, next_node_key (lines ~90-94)
+ *   Internal:   blake2b256(0x01 || balance || leftLabel || rightLabel)
+ *                 — Rust: hasher.update([1u8]), [balance as u8], left.label(), right.label() (lines ~101-105)
+ *                 — NOTE: balance comes BEFORE the child labels, not after.
+ *                   The PLAN.md spec had this wrong (said leftLabel || rightLabel || balance).
+ *                   Source is authoritative.
+ *
+ * Balance encoding: i8 → u8 via `& 0xff` (-1 → 0xff, 0 → 0x00, 1 → 0x01).
+ *
+ * Result is memoised in `node.labelCache` (null on a freshly constructed node;
+ * callers that mutate a subtree must reset labelCache to null on all ancestors).
+ */
+export function label(node: AvlNode): Uint8Array {
+  // LabelOnly: stored label IS the label; return directly without hashing.
+  if (node.kind === 'label') return node.label
+  // Cache hit: return the previously computed digest.
+  if (node.labelCache !== null) return node.labelCache
+
+  let result: Uint8Array
+  if (node.kind === 'leaf') {
+    // Leaf: 0x00 || key || value || nextLeafKey
+    // Rust batch_node.rs lines ~89-98: Node::Leaf branch of Node::label()
+    const input = concatBytes([
+      new Uint8Array([0x00]),
+      node.key,
+      node.value,
+      node.nextLeafKey,
+    ])
+    result = blake2b(input, { dkLen: 32 })
+  } else {
+    // Internal: 0x01 || balance || leftLabel || rightLabel
+    // Rust batch_node.rs lines ~100-109: Node::Internal branch of Node::label()
+    // IMPORTANT: balance precedes child labels (not follows — see JSDoc above).
+    const leftLbl = label(node.left)
+    const rightLbl = label(node.right)
+    // Signed i8 → unsigned 8-bit byte: -1 → 0xff, 0 → 0x00, 1 → 0x01
+    const balanceByte = new Uint8Array([node.balance & 0xff])
+    const input = concatBytes([
+      new Uint8Array([0x01]),
+      balanceByte,
+      leftLbl,
+      rightLbl,
+    ])
+    result = blake2b(input, { dkLen: 32 })
+  }
+  node.labelCache = result
+  return result
+}
+
+/**
+ * Concatenate multiple Uint8Array parts into a single contiguous buffer.
+ * Allocates exactly one output array (total length = sum of part lengths).
+ */
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((n, p) => n + p.length, 0)
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const p of parts) {
+    out.set(p, offset)
+    offset += p.length
+  }
+  return out
 }
