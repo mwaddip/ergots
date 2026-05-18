@@ -226,6 +226,10 @@ fn main() -> anyhow::Result<()> {
     let scontext_pre_header_fixture = cmds::ergoscript::eval::scontext_pre_header::generate()?;
     write_ergoscript_json("eval/scontext-pre-header.json", &scontext_pre_header_fixture)?;
 
+    // Phase 2g.6 Task 7: SPreHeader.timestamp handler (PropertyCall typeId=105, methodId=3).
+    let spreheader_timestamp_fixture = cmds::ergoscript::eval::spreheader_timestamp::generate()?;
+    write_ergoscript_json("eval/spreheader-timestamp.json", &spreheader_timestamp_fixture)?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

@@ -7,8 +7,8 @@
  *
  * The registry is module-internal. Handlers are registered inline below the
  * dispatcher definition (in this same file) — keeping co-location simple
- * while the registry size is moderate (7 entries currently; up to 8 after
- * Task 7 completes). Promote to a subdirectory if/when count grows beyond ~12.
+ * while the registry size is moderate (8 entries as of Task 7). Promote to a
+ * subdirectory if/when count grows beyond ~12.
  *
  * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
@@ -135,6 +135,20 @@ function registerHandlers(): void {
       )
     }
     return { kind: 'PreHeader', value: ctx.preHeader }
+  })
+
+  // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
+  // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
+  // Pattern A cost 10 (charged before obj check). Returns Long.
+  HANDLERS.set(handlerKey(105, 3), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.timestamp expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'Long', value: obj.value.timestamp }
   })
 
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)

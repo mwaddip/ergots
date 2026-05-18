@@ -1,0 +1,25 @@
+{
+  "corpus": "eval_spreheader_timestamp",
+  "entries": [
+    {
+      "name": "context_pre_header_timestamp",
+      "tree_bytes_hex": "00db6903db6503fe",
+      "opts_json": {
+        "preHeader": {
+          "height": 2703202,
+          "minerPk": "000000000000000000000000000000000000000000000000000000000000000000",
+          "nBits": 1152298316,
+          "parentId": "3c4a0e57872219da3f3fe221c1b25ccdaadc4012c418639fad5c2c789404ee36",
+          "timestamp": "2475076109737",
+          "version": 1,
+          "votes": "0cbc1d"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "2475076109737"
+      },
+      "expected_cost": 34
+    }
+  ]
+}
