@@ -927,6 +927,309 @@ fn batch_stress_mixed_100() -> Result<AvlFixture> {
 }
 
 // ---------------------------------------------------------------------------
+// Edge-case fixtures (T22)
+// ---------------------------------------------------------------------------
+
+// ---- Empty-tree Lookup ----
+
+/// Lookup on a completely empty tree (no initial KVs).
+/// The proof covers the full negative-to-positive-infinity path.
+fn empty_tree_lookup() -> Result<AvlFixture> {
+    let op = Operation::Lookup(key(0x42));
+    generate_fixture(
+        "empty-tree-lookup",
+        32,
+        None,
+        &[],
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+// ---- Single-leaf tree — one fixture per Operation variant ----
+
+/// Starting tree: one leaf, key=0x01, value=0x01×8 (variable-length value).
+/// Lookup the only key → returns the value.
+fn single_leaf_tree_lookup() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val(0x01, 8))];
+    let op = Operation::Lookup(key(0x01));
+    generate_fixture(
+        "single-leaf-tree-lookup",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Starting tree: one leaf, key=0x01. Insert a second key=0x02.
+/// (The original `single-leaf-insert` inserts into an *empty* tree; this
+/// inserts into a 1-leaf tree, exercising a real path-split.)
+fn single_leaf_tree_insert() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val(0x01, 8))];
+    let op = Operation::Insert(KeyValue {
+        key: key(0x02),
+        value: val(0x02, 8),
+    });
+    generate_fixture(
+        "single-leaf-tree-insert",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Starting tree: one leaf, key=0x01. Update the only key to a new value.
+fn single_leaf_tree_update() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val(0x01, 8))];
+    let op = Operation::Update(KeyValue {
+        key: key(0x01),
+        value: val(0xFF, 8),
+    });
+    generate_fixture(
+        "single-leaf-tree-update",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Starting tree: one leaf, key=0x01. InsertOrUpdate with an absent key →
+/// insert path.
+fn single_leaf_tree_insert_or_update() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val(0x01, 8))];
+    let op = Operation::InsertOrUpdate(KeyValue {
+        key: key(0x02),
+        value: val(0xCC, 8),
+    });
+    generate_fixture(
+        "single-leaf-tree-insert-or-update",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Starting tree: one leaf, key=0x01.  Remove the only leaf → tree becomes
+/// empty (contains only sentinels).
+fn single_leaf_tree_remove() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val(0x01, 8))];
+    let op = Operation::Remove(key(0x01));
+    generate_fixture(
+        "single-leaf-tree-remove",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Starting tree: one leaf, key=0x01.  RemoveIfExists on the only leaf.
+fn single_leaf_tree_remove_if_exists() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val(0x01, 8))];
+    let op = Operation::RemoveIfExists(key(0x01));
+    generate_fixture(
+        "single-leaf-tree-remove-if-exists",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+// ---- Skewed insertion trees ----
+
+/// Build a 10-leaf tree with monotonically increasing keys
+/// ([0x01, 0, …, 0] .. [0x0A, 0, …, 0]).
+/// Monotone inserts force maximal right-rotations during construction; the
+/// resulting tree has a well-defined shape that tests rebalancing.
+/// The "test op" is a Lookup of the middle key to validate the final digest.
+fn all_left_spine_10leaves() -> Result<AvlFixture> {
+    // 10 keys in ascending order: [i, 0, …, 0] for i = 1..=10
+    let initial: Vec<(Bytes, Bytes)> = (1u8..=10u8)
+        .map(|i| (key(i), val(i, 8)))
+        .collect();
+    // Lookup the middle key to produce a non-trivial proof
+    let op = Operation::Lookup(key(0x05));
+    generate_fixture(
+        "all-left-spine-10leaves",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Build a 10-leaf tree with monotonically *decreasing* keys
+/// ([0x0A, 0, …, 0] down to [0x01, 0, …, 0]).
+/// Decreasing inserts force maximal left-rotations; mirror of the above.
+fn all_right_spine_10leaves() -> Result<AvlFixture> {
+    // Keys inserted in descending byte order: 10, 9, …, 1
+    let initial: Vec<(Bytes, Bytes)> = (1u8..=10u8)
+        .rev()
+        .map(|i| (key(i), val(i, 8)))
+        .collect();
+    let op = Operation::Lookup(key(0x05));
+    generate_fixture(
+        "all-right-spine-10leaves",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+// ---- Large balanced trees ----
+
+/// 100-leaf balanced tree; op = Lookup of a key in the middle.
+/// Tests depth traversal on a moderately large tree.
+fn balanced_100leaves() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = (1u8..=100u8)
+        .map(|i| (key(i), val(i, 8)))
+        .collect();
+    let op = Operation::Lookup(key(0x32)); // key 50
+    generate_fixture(
+        "balanced-100leaves",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// 1000-leaf balanced tree; op = Insert of a new key.
+/// Stress-tests both proof generation and TS verifier at significant depth.
+///
+/// Keys: [hi, lo, 0, …, 0] for (hi, lo) in (0x01, 0x00)..(0x03, 0xE7),
+/// covering 1000 keys safely below the [0xFF; 32] sentinel.
+fn balanced_1000leaves() -> Result<AvlFixture> {
+    let mut initial: Vec<(Bytes, Bytes)> = Vec::with_capacity(1000);
+    let mut count = 0u32;
+    'outer: for hi in 0x01u8..=0x04u8 {
+        for lo in 0x00u8..=0xFFu8 {
+            if count >= 1000 {
+                break 'outer;
+            }
+            initial.push((key2(hi, lo), val(lo, 8)));
+            count += 1;
+        }
+    }
+    assert_eq!(initial.len(), 1000);
+    // Insert a new key outside the built range
+    let op = Operation::Insert(KeyValue {
+        key: key2(0x05, 0x00),
+        value: val(0x42, 8),
+    });
+    generate_fixture(
+        "balanced-1000leaves",
+        32,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+// ---- All-deletes from 10-leaf tree ----
+
+/// Start with a 10-leaf tree; remove all 10 leaves one by one in a single
+/// batch.  After all removals the tree contains only sentinels (digest matches
+/// the Rust prover's post-remove digest).
+fn all_deletes_from_balanced_10() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = (1u8..=10u8)
+        .map(|i| (key(i), val(i, 8)))
+        .collect();
+    let ops: Vec<Operation> = (1u8..=10u8)
+        .map(|i| Operation::Remove(key(i)))
+        .collect();
+    generate_fixture(
+        "all-deletes-from-balanced-10",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+// ---- UpdateLongBy i64 boundary cases ----
+
+/// UpdateLongBy near i64::MAX.
+/// Pre-state: key 0x01 = i64::MAX - 1
+/// delta = +1  →  new value = i64::MAX  (valid — no overflow, no removal)
+/// This exercises the largest representable positive result.
+fn update_long_by_i64_max_boundary() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val_i64(i64::MAX - 1))];
+    let op = Operation::UpdateLongBy(KeyDelta {
+        key: key(0x01),
+        delta: 1,
+    });
+    generate_fixture(
+        "update-long-by-i64-max-boundary",
+        32,
+        Some(8),
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// UpdateLongBy that would cross zero into negative → rejected.
+/// Pre-state: key 0x01 = i64(5)
+/// delta = -10  →  new value = -5  →  verifier must reject.
+/// Prover uses Lookup(0x01) to build a valid proof for the key's path;
+/// fixture records UpdateLongBy(0x01, -10) which the verifier rejects.
+fn update_long_by_negative_result_fail() -> Result<AvlFixture> {
+    let initial = vec![(key(0x01), val_i64(5))];
+    let prover_op = Operation::Lookup(key(0x01));
+    let fixture_op = Operation::UpdateLongBy(KeyDelta {
+        key: key(0x01),
+        delta: -10,
+    });
+    generate_fixture(
+        "update-long-by-negative-result-fail",
+        32,
+        Some(8),
+        &initial,
+        vec![prover_op],
+        vec![fixture_op],
+        true, // expects rejection
+    )
+}
+
+// ---- Max-depth note ----
+// AVL+ trees are self-balancing; the maximum height for N leaves is
+// O(1.44 log₂ N).  For 1000 leaves this is ~14 levels — well within any
+// practical limit.  No explicit `max-depth-tree` fixture is needed beyond
+// `balanced-1000leaves` which already stresses depth; a standalone fixture
+// would duplicate that coverage without adding new information.
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -1000,6 +1303,28 @@ pub fn run() -> Result<()> {
     write_fixture("batch-16ops-mixed", &batch_16ops_mixed()?)?;
     write_fixture("batch-256ops-inserts", &batch_256ops_inserts()?)?;
     write_fixture("batch-stress-mixed-100", &batch_stress_mixed_100()?)?;
+
+    // --- Edge cases (T22) ---
+    // Empty tree
+    write_fixture("empty-tree-lookup", &empty_tree_lookup()?)?;
+    // Single-leaf tree, one fixture per Operation variant
+    write_fixture("single-leaf-tree-lookup", &single_leaf_tree_lookup()?)?;
+    write_fixture("single-leaf-tree-insert", &single_leaf_tree_insert()?)?;
+    write_fixture("single-leaf-tree-update", &single_leaf_tree_update()?)?;
+    write_fixture("single-leaf-tree-insert-or-update", &single_leaf_tree_insert_or_update()?)?;
+    write_fixture("single-leaf-tree-remove", &single_leaf_tree_remove()?)?;
+    write_fixture("single-leaf-tree-remove-if-exists", &single_leaf_tree_remove_if_exists()?)?;
+    // Skewed insertion trees (10 leaves)
+    write_fixture("all-left-spine-10leaves", &all_left_spine_10leaves()?)?;
+    write_fixture("all-right-spine-10leaves", &all_right_spine_10leaves()?)?;
+    // Large balanced trees
+    write_fixture("balanced-100leaves", &balanced_100leaves()?)?;
+    write_fixture("balanced-1000leaves", &balanced_1000leaves()?)?;
+    // All-deletes
+    write_fixture("all-deletes-from-balanced-10", &all_deletes_from_balanced_10()?)?;
+    // UpdateLongBy i64 boundary cases
+    write_fixture("update-long-by-i64-max-boundary", &update_long_by_i64_max_boundary()?)?;
+    write_fixture("update-long-by-negative-result-fail", &update_long_by_negative_result_fail()?)?;
 
     Ok(())
 }
