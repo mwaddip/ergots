@@ -1,5 +1,5 @@
 {
-  "name": "@mwaddip/ergots-avltree",
+  "name": "@ergots/avltree",
   "version": "0.0.0",
   "publishConfig": { "access": "public" },
   "description": "Pure-TypeScript Ergo batch AVL+ authenticated tree verifier — proof verification + per-operation result computation.",

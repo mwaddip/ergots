@@ -1,5 +1,5 @@
 {
-  "name": "@mwaddip/ergots-proof",
+  "name": "@ergots/nipopow",
   "version": "0.1.0",
   "publishConfig": {
     "access": "public"
@@ -10,7 +10,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mwaddip/ergots.git",
-    "directory": "packages/proof"
+    "directory": "packages/nipopow"
   },
   "exports": {
     ".": {
