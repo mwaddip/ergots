@@ -1,0 +1,15 @@
+{
+  "corpus": "eval_sglobal_group_generator",
+  "entries": [
+    {
+      "name": "global_group_generator",
+      "tree_bytes_hex": "00db6a01dd",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 19
+    }
+  ]
+}

@@ -20,6 +20,7 @@
  */
 
 import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'
+import { GROUP_GENERATOR_BYTES } from './_group-generator'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
@@ -141,6 +142,20 @@ function registerHandlers(): void {
       if (primitiveValueEqual(obj.items[i]!, target)) return { kind: 'Int', value: i }
     }
     return { kind: 'Int', value: -1 }
+  })
+
+  // SGlobal.groupGenerator (PropertyCall, typeId=106, methodId=1)
+  // Source: ergotree-interpreter/src/eval/sglobal.rs:32-41 — GROUP_GENERATOR_EVAL_FN
+  // Pattern A cost 10 (charged before obj check). Returns 33-byte SEC1 of secp256k1 base point.
+  HANDLERS.set(handlerKey(106, 1), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'Global') {
+      throw new EvalError(
+        `SGlobal.groupGenerator expects a Global obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
   })
 }
 

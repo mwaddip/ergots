@@ -209,6 +209,11 @@ fn main() -> anyhow::Result<()> {
     let global_fixture = cmds::ergoscript::eval::global::generate()?;
     write_ergoscript_json("eval/global.json", &global_fixture)?;
 
+    // Phase 2g.6 Task 2: SGlobal.groupGenerator handler (PropertyCall typeId=106, methodId=1).
+    let sglobal_group_generator_fixture =
+        cmds::ergoscript::eval::sglobal_group_generator::generate()?;
+    write_ergoscript_json("eval/sglobal-group-generator.json", &sglobal_group_generator_fixture)?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

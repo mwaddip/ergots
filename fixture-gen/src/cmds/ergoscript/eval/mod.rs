@@ -23,6 +23,7 @@ pub mod coll_size;
 pub mod common;
 pub mod context;
 pub mod global;
+pub mod sglobal_group_generator;
 pub mod create_prove_dh_tuple;
 pub mod create_prove_dlog;
 pub mod p2pk_short_circuit;
