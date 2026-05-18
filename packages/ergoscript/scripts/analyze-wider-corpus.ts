@@ -17,23 +17,27 @@ import { hexToBytes } from './_hex'
 import { analyzeBox, emptyResult, type CorpusBox, type AnalysisResult, type MethodPairTally } from './_walker'
 import { KNOWN_METHODS } from './_known-methods'
 
-// Set of Expr.tag values NOT yet wired in eval/eval.ts as of phase 2g.5.
-// Derived from facts/ergoscript.md § Coverage at time of analysis.
-// Refer to facts/ergoscript.md when Task 5 runs to make sure this list is
-// current; the analyzer's "unimplementedHits" tally is only as accurate as
-// this set.
+// Set of Expr.tag values NOT yet wired in eval/eval.ts central dispatch.
+// Sourced from eval/eval.ts central dispatch as of 2026-05-18.
+// Re-verify against current src/eval/eval.ts when re-running on a corpus.
 const UNIMPLEMENTED_TAGS = new Set([
-  'LastBlockUtxoRootHash',
-  'CalcBlake2b256',
-  'CalcSha256',
-  'DecodePoint',
+  'SubstConstants',
   'ByteArrayToLong',
   'ByteArrayToBigInt',
   'LongToByteArray',
+  'CalcBlake2b256',
+  'CalcSha256',
+  'Global',
   'Xor',
-  'SubstConstants',
-  // Add any 'not-implemented-yet' tags surfaced by facts/ergoscript.md at
-  // Task 5 implementation time.
+  'SigmaPropIsProven',
+  'ZkProofBlock',
+  'DecodePoint',
+  'DeserializeRegister',
+  'DeserializeContext',
+  'MultiplyGroup',
+  'Exponentiate',
+  'TreeLookup',
+  'CreateAvlTree',
 ])
 
 const FIXTURE_PATH =
@@ -78,8 +82,8 @@ function main(): void {
       b.distinctBoxes - a.distinctBoxes || b.mustInclude - a.mustInclude,
     )
 
-  writeMarkdown(result, phase2g6Priority)
-  writeTallyJson(fixture.meta, result, phase2g6Priority)
+  writeMarkdown(fixture.boxes, result, phase2g6Priority)
+  writeTallyJson(fixture.boxes, fixture.meta, result, phase2g6Priority)
 
   console.log(`wrote ${RESULTS_MD_PATH}`)
   console.log(`wrote ${TALLY_JSON_PATH}`)
@@ -91,15 +95,22 @@ function main(): void {
 }
 
 function writeMarkdown(
+  boxes: CorpusBox[],
   result: AnalysisResult,
   priority: MethodPairTally[],
 ): void {
+  const totalBoxes = boxes.length
+  const randomBoxes = boxes.filter((b) => b.source === 'random').length
+  const mustIncludeBoxes = boxes.filter((b) => b.source.startsWith('must-include')).length
+  const parseFailureRate = totalBoxes > 0 ? result.parseFailures.length / totalBoxes : 0
+
   const lines: string[] = []
   lines.push('# Task B — Wider Mainnet Corpus Survey Results')
   lines.push('')
   lines.push(`**Generated:** ${new Date().toISOString()}`)
   lines.push(`**Source fixture:** \`packages/ergoscript/test/fixtures/mainnet_boxes_wider.json\``)
-  lines.push(`**Parse failures:** ${result.parseFailures.length}`)
+  lines.push(`**Total boxes analyzed:** ${totalBoxes} (random=${randomBoxes}, mustInclude=${mustIncludeBoxes})`)
+  lines.push(`**Parse failures:** ${result.parseFailures.length} (rate: ${(parseFailureRate * 100).toFixed(2)}%)`)
   lines.push('')
 
   lines.push('## Top-level Expr tag frequencies')
@@ -138,14 +149,20 @@ function writeMarkdown(
 
   lines.push('## Parse failures')
   lines.push('')
-  const failGrouped = new Map<string, number>()
+  const failGrouped = new Map<string, { count: number; examples: string[] }>()
   for (const f of result.parseFailures) {
-    failGrouped.set(f.errorCode, (failGrouped.get(f.errorCode) ?? 0) + 1)
+    let entry = failGrouped.get(f.errorCode)
+    if (!entry) {
+      entry = { count: 0, examples: [] }
+      failGrouped.set(f.errorCode, entry)
+    }
+    entry.count++
+    if (entry.examples.length < 3) entry.examples.push(f.boxId)
   }
-  lines.push('| Error code | Count |')
-  lines.push('|---|---|')
-  for (const [code, count] of Array.from(failGrouped.entries()).sort((a, b) => b[1] - a[1])) {
-    lines.push(`| ${code} | ${count} |`)
+  lines.push('| Error class.code | Count | Example boxIds |')
+  lines.push('|---|---|---|')
+  for (const [code, { count, examples }] of Array.from(failGrouped.entries()).sort((a, b) => b[1].count - a[1].count)) {
+    lines.push(`| ${code} | ${count} | ${examples.join(', ')} |`)
   }
   lines.push('')
 
@@ -162,15 +179,25 @@ function writeMarkdown(
 }
 
 function writeTallyJson(
+  boxes: CorpusBox[],
   meta: Record<string, unknown>,
   result: AnalysisResult,
   priority: MethodPairTally[],
 ): void {
+  const totalBoxes = boxes.length
+  const randomBoxes = boxes.filter((b) => b.source === 'random').length
+  const mustIncludeBoxes = boxes.filter((b) => b.source.startsWith('must-include')).length
+  const parseFailureRate = totalBoxes > 0 ? result.parseFailures.length / totalBoxes : 0
+
   const out = {
     meta: {
       generatedAt: new Date().toISOString(),
       fixtureSource: 'packages/ergoscript/test/fixtures/mainnet_boxes_wider.json',
       fixtureMeta: meta,
+      totalBoxes,
+      randomBoxes,
+      mustIncludeBoxes,
+      parseFailureRate,
     },
     tagFrequencies: Array.from(result.tagFrequencies.entries())
       .map(([tag, t]) => ({ tag, ...t }))
@@ -181,7 +208,7 @@ function writeTallyJson(
       .map(([tag, h]) => ({ tag, ...h }))
       .sort((a, b) => b.distinctBoxes - a.distinctBoxes),
     parseFailures: result.parseFailures,
-    phase2g6Priority: priority,
+    phase2g6Priority: priority.map((p, i) => ({ rank: i + 1, ...p })),
   }
   fs.writeFileSync(TALLY_JSON_PATH, JSON.stringify(out, null, 2))
 }

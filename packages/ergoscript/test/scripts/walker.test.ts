@@ -26,7 +26,7 @@ describe('walk', () => {
       id: 1,
       rhs: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
     } as Expr
-    const useNode: Expr = { tag: 'ValUse', id: 1, tpe: { tag: 'SInt' } } as unknown as Expr
+    const useNode: Expr = { tag: 'ValUse', valId: 1, tpe: { tag: 'SInt' } }
     const root: Expr = { tag: 'BlockValue', items: [valDef], result: useNode } as Expr
     walk(root, (e) => visited.push(e.tag))
     expect(visited.sort()).toEqual(['BlockValue', 'Const', 'ValDef', 'ValUse'])
@@ -34,7 +34,7 @@ describe('walk', () => {
 
   it('descends into MethodCall obj + args', () => {
     const visited: string[] = []
-    const obj: Expr = { tag: 'GlobalVars', varType: 'Inputs' } as unknown as Expr
+    const obj: Expr = { tag: 'GlobalVars', kind: 'Inputs' }
     const arg: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } }
     const root: Expr = {
       tag: 'MethodCall',
@@ -43,9 +43,47 @@ describe('walk', () => {
       typeId: 99,
       methodId: 8,
       explicitTypeArgs: {},
-    } as Expr
+    }
     walk(root, (e) => visited.push(e.tag))
     expect(visited.sort()).toEqual(['Const', 'GlobalVars', 'MethodCall'])
+  })
+
+  it('does not visit SType objects nested in Expr fields', () => {
+    const visited: string[] = []
+    // Synthetic Expr with an SType-shaped field (mimicking ExtractRegisterAs.elemTpe)
+    const root = {
+      tag: 'ExtractRegisterAs',
+      input: { tag: 'GlobalVars', kind: 'SelfBox' },
+      registerId: 4,
+      elemTpe: { tag: 'SLong' },  // <-- this should NOT be visited as Expr
+    } as unknown as Expr
+    walk(root, (e) => visited.push(e.tag))
+    expect(visited).toContain('ExtractRegisterAs')
+    expect(visited).toContain('GlobalVars')
+    expect(visited).not.toContain('SLong')
+  })
+
+  it('handles 10,000-deep nested If without stack overflow', () => {
+    // Build a linear chain: If wraps its condition only; trueBranch/falseBranch
+    // are cheap leaf nodes so the structure is a 10,000-deep linked list, not
+    // a DAG. This exercises the iterative worklist's depth handling without
+    // exponential node expansion.
+    const leaf: Expr = {
+      tag: 'Const',
+      tpe: { tag: 'SBoolean' },
+      value: { kind: 'Boolean', value: true },
+    }
+    let node: Expr = leaf
+    for (let i = 0; i < 10_000; i++) {
+      node = { tag: 'If', condition: node, trueBranch: leaf, falseBranch: leaf } as Expr
+    }
+    let count = 0
+    walk(node, () => count++)
+    // 10,000 If nodes + the innermost Const (condition chain) + 2 leaf refs
+    // per If (trueBranch+falseBranch share the same leaf object, but the
+    // worklist pushes references — the same leaf is visited 10,001 times for
+    // trueBranch/falseBranch alone). Any count > 10,000 confirms full traversal.
+    expect(count).toBeGreaterThan(10_000)
   })
 })
 
@@ -98,10 +136,10 @@ describe('analyzeBox', () => {
 
     const tree: Expr = {
       tag: 'PropertyCall',
-      obj: { tag: 'GlobalVars', varType: 'SelfBox' } as unknown as Expr,
+      obj: { tag: 'GlobalVars', kind: 'SelfBox' },
       typeId: 99,
       methodId: 8,
-    } as Expr
+    }
 
     analyzeBox(tree, box, result, knownMethods, unimplementedTags)
 

@@ -72,12 +72,15 @@ function collectExprChildren(node: Record<string, unknown>): Expr[] {
   return out
 }
 
+const STYPE_TAG_PREFIX = /^S[A-Z]/
+
 function isExpr(v: unknown): v is Expr {
   return (
     typeof v === 'object' &&
     v !== null &&
     'tag' in (v as object) &&
-    typeof (v as { tag: unknown }).tag === 'string'
+    typeof (v as { tag: unknown }).tag === 'string' &&
+    !STYPE_TAG_PREFIX.test((v as { tag: string }).tag)
   )
 }
 
