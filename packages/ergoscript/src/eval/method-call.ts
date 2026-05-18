@@ -182,6 +182,35 @@ function registerHandlers(): void {
     ctx.addPerItemCost(20, 2, 16, n) // Pattern B; source: scoll.rs:179
     return indicesCollOf(n)
   })
+
+  // SColl.zip (MethodCall, typeId=12, methodId=29)
+  // Source: ergotree-interpreter/src/eval/scoll.rs:138-169 — ZIP_EVAL_FN
+  // Pattern B cost: addPerItemCost(10, 1, 10, n) where n = obj len (NOT min).
+  // Truncates to the shorter Coll (Rust Iterator::zip semantics).
+  HANDLERS.set(handlerKey(12, 29), (obj, args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.zip expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    const n = obj.items.length
+    ctx.addPerItemCost(10, 1, 10, n) // Pattern B; source: scoll.rs:147
+    if (args.length !== 1) {
+      throw new EvalError(
+        `SColl.zip expects 1 arg; got ${args.length}`,
+        'method-not-implemented'
+      )
+    }
+    const arg = args[0]!
+    if (arg.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.zip expects arg to be a Coll; got '${arg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    return zipCollsOf(obj, arg)
+  })
 }
 
 registerHandlers()
@@ -218,4 +247,23 @@ function indicesCollOf(n: number): SValue {
   const items: SValue[] = []
   for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
   return { kind: 'Coll', elem: SINT, items }
+}
+
+// ---------- SColl.zip helper ----------
+
+/** Zip two Colls into Coll[STuple[T1, T2]], truncating to the shorter input. */
+function zipCollsOf(
+  coll1: SValue & { kind: 'Coll' },
+  coll2: SValue & { kind: 'Coll' }
+): SValue {
+  const len = Math.min(coll1.items.length, coll2.items.length)
+  const items: SValue[] = []
+  for (let i = 0; i < len; i++) {
+    items.push({ kind: 'Tuple', items: [coll1.items[i]!, coll2.items[i]!] })
+  }
+  return {
+    kind: 'Coll',
+    elem: { tag: 'STuple', items: [coll1.elem, coll2.elem] },
+    items,
+  }
 }

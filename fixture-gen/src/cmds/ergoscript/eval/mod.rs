@@ -25,6 +25,7 @@ pub mod context;
 pub mod global;
 pub mod sglobal_group_generator;
 pub mod scoll_indices;
+pub mod scoll_zip;
 pub mod create_prove_dh_tuple;
 pub mod create_prove_dlog;
 pub mod p2pk_short_circuit;

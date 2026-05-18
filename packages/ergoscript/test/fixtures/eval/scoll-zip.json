@@ -1,0 +1,157 @@
+{
+  "corpus": "eval_scoll_zip",
+  "entries": [
+    {
+      "name": "empty_zip_empty",
+      "tree_bytes_hex": "00dc0c1d1100011100",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "tag": "SLong"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "equal_length",
+      "tree_bytes_hex": "00dc0c1d110302040601110314283c",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "tag": "SLong"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [
+          {
+            "items": [
+              {
+                "kind": "Long",
+                "value": "1"
+              },
+              {
+                "kind": "Long",
+                "value": "10"
+              }
+            ],
+            "kind": "Tuple"
+          },
+          {
+            "items": [
+              {
+                "kind": "Long",
+                "value": "2"
+              },
+              {
+                "kind": "Long",
+                "value": "20"
+              }
+            ],
+            "kind": "Tuple"
+          },
+          {
+            "items": [
+              {
+                "kind": "Long",
+                "value": "3"
+              },
+              {
+                "kind": "Long",
+                "value": "30"
+              }
+            ],
+            "kind": "Tuple"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 25
+    },
+    {
+      "name": "short_obj_long_arg",
+      "tree_bytes_hex": "00dc0c1d11010201110314283c",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "tag": "SLong"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [
+          {
+            "items": [
+              {
+                "kind": "Long",
+                "value": "1"
+              },
+              {
+                "kind": "Long",
+                "value": "10"
+              }
+            ],
+            "kind": "Tuple"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 25
+    },
+    {
+      "name": "long_obj_short_arg",
+      "tree_bytes_hex": "00dc0c1d110302040601110114",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "items": [
+            {
+              "tag": "SLong"
+            },
+            {
+              "tag": "SLong"
+            }
+          ],
+          "tag": "STuple"
+        },
+        "items": [
+          {
+            "items": [
+              {
+                "kind": "Long",
+                "value": "1"
+              },
+              {
+                "kind": "Long",
+                "value": "10"
+              }
+            ],
+            "kind": "Tuple"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 25
+    }
+  ]
+}

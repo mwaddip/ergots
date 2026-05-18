@@ -218,6 +218,10 @@ fn main() -> anyhow::Result<()> {
     let scoll_indices_fixture = cmds::ergoscript::eval::scoll_indices::generate()?;
     write_ergoscript_json("eval/scoll-indices.json", &scoll_indices_fixture)?;
 
+    // Phase 2g.6 Task 4: SColl.zip handler (MethodCall typeId=12, methodId=29).
+    let scoll_zip_fixture = cmds::ergoscript::eval::scoll_zip::generate()?;
+    write_ergoscript_json("eval/scoll-zip.json", &scoll_zip_fixture)?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
