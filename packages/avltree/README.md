@@ -1,19 +1,19 @@
-# @mwaddip/ergots-avltree
+# @ergots/avltree
 
 Pure-TypeScript AVL+ authenticated dictionary verifier. Browser-compatible. Validated byte-for-byte against `ergo_avltree_rust` (HEAD `879545c`).
 
-Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The package is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@mwaddip/ergots-ergoscript` (phase 2h-b).
+Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The package is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript` (phase 2h-b).
 
 ## Install
 
 ```bash
-npm install @mwaddip/ergots-avltree
+npm install @ergots/avltree
 ```
 
 ## Usage
 
 ```ts
-import { verifyAvlBatch, verifyAvlLookup, type AvlTreeConfig, type Operation } from '@mwaddip/ergots-avltree';
+import { verifyAvlBatch, verifyAvlLookup, type AvlTreeConfig, type Operation } from '@ergots/avltree';
 
 // Config matches the on-chain tree parameters.
 const config: AvlTreeConfig = {
@@ -65,7 +65,7 @@ The verifier is stateless: inputs in, structured result (or `null`) out. No I/O,
 
 - **Proof construction.** The prover (`BatchAVLProver`) is not ported. Fixture generation lives in the Rust `fixture-gen/` crate.
 - **Storage.** No versioned AVL storage, no IndexedDB, no persistent tree state.
-- **Cost accounting.** Ergo's per-operation cost charging is the responsibility of `@mwaddip/ergots-ergoscript`'s `SAvlTree.*` method handlers.
+- **Cost accounting.** Ergo's per-operation cost charging is the responsibility of `@ergots/ergoscript`'s `SAvlTree.*` method handlers.
 
 ## Reference implementation
 

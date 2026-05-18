@@ -1,11 +1,11 @@
-# @mwaddip/ergots-ergoscript
+# @ergots/ergoscript
 
-Pure-TypeScript ErgoTree parser, serializer, and partial evaluator. Phase 2c of [`@mwaddip/ergots`](https://github.com/mwaddip/ergots). Browser-compatible. Validated byte-for-byte against `ergotree-ir` + `ergotree-interpreter` (sigma-rust).
+Pure-TypeScript ErgoTree parser, serializer, and partial evaluator. Phase 2c of [`ergots`](https://github.com/mwaddip/ergots). Browser-compatible. Validated byte-for-byte against `ergotree-ir` + `ergotree-interpreter` (sigma-rust).
 
 ## Install
 
 ```bash
-npm install @mwaddip/ergots-ergoscript
+npm install @ergots/ergoscript
 ```
 
 ## Usage
@@ -18,7 +18,7 @@ import {
   p2pkPublicKey,
   addressFromErgoTree,
   ergoTreeFromAddress
-} from '@mwaddip/ergots-ergoscript';
+} from '@ergots/ergoscript';
 
 // Parse a serialized ErgoTree:
 const treeBytes: Uint8Array = /* on-wire ErgoTree bytes (e.g. from a box.ergoTree field) */;
@@ -44,7 +44,7 @@ const reconstructed = ergoTreeFromAddress(address);
 ### Evaluator (v0.2.0)
 
 ```ts
-import { evaluate, evaluateWith, makeContext } from '@mwaddip/ergots-ergoscript';
+import { evaluate, evaluateWith, makeContext } from '@ergots/ergoscript';
 
 // Evaluate a tree with default context (no box, no block, no transaction):
 const result = evaluate(tree);

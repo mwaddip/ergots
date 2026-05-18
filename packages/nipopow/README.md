@@ -1,17 +1,17 @@
-# @mwaddip/ergots-proof
+# @ergots/nipopow
 
 Pure-TypeScript Ergo NiPoPoW proof verifier. Browser-compatible. Validated byte-for-byte against `ergo-nipopow` (sigma-rust).
 
 ## Install
 
 ```bash
-npm install @mwaddip/ergots-proof
+npm install @ergots/nipopow
 ```
 
 ## Usage
 
 ```ts
-import { verifyProof, parseProof, compareProofs } from '@mwaddip/ergots-proof';
+import { verifyProof, parseProof, compareProofs } from '@ergots/nipopow';
 
 const proofBytesA: Uint8Array = /* first proof from peer A */;
 const proofBytesB: Uint8Array = /* second proof from peer B */;
@@ -39,7 +39,7 @@ import {
   serializeNipopowProofEnvelope,
   GET_NIPOPOW_PROOF,
   NIPOPOW_PROOF,
-} from '@mwaddip/ergots-proof/envelope';
+} from '@ergots/nipopow/envelope';
 ```
 
 ## Browser compatibility
