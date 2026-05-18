@@ -19,3 +19,9 @@ package-lock.json
 # Local-only session/handoff state (per-developer)
 SESSION_CONTEXT.md
 HANDOFF_PROMPT.md
+
+# In-workspace git worktrees of upstream / sister repos.
+# external/sigma-rust/ is a worktree of ~/projects/sigma-rust/sigma-rust/'s
+# `integration/ergots` branch, owned by this project's fixture-gen toolchain.
+# Worktrees are pinned to specific branches and shouldn't enter ergots' git.
+external/
