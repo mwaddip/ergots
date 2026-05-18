@@ -1708,7 +1708,9 @@ export class BatchAvlVerifier {
     }
     this.root = decoded.root
     this.height = decoded.height
-    this.state.directionsIndex = decoded.directionsStart
+    // directionsStart from proof-decode is a BYTE offset; tree-traversal uses BIT
+    // indexing. Convert: Rust does `(i + 1) * 8` (batch_avl_verifier.rs:141).
+    this.state.directionsIndex = decoded.directionsStart * 8
   }
 
   /** True if the constructor's proof decoding succeeded. */
@@ -1716,27 +1718,58 @@ export class BatchAvlVerifier {
     return this.root !== null
   }
 
-  /** Ports BatchAVLVerifier::perform_one_operation (lines 157-172). */
+  /**
+   * Ports BatchAVLVerifier::perform_one_operation (batch_avl_verifier.rs:157-172)
+   * + return_result_of_one_operation orchestration (authenticated_tree_ops.rs:221-261).
+   *
+   * Two-phase dispatch: ALL 8 op types go through modifyHelper first.
+   *  - Lookup / UnknownModification: short-circuit at leaf-match (no tree change)
+   *  - Insert / Update / InsertOrUpdate / UpdateLongBy (delta != 0 or result > 0):
+   *    handled entirely within modifyHelper
+   *  - Remove / RemoveIfExists / UpdateLongBy result == 0: modifyHelper returns
+   *    needsDelete=true with tree unchanged; phase 2 routes to deleteHelper
+   */
   performOneOperation(op: Operation): Uint8Array | null | { failed: true } {
     if (this.root === null) {
       // Already-poisoned tree from a previous failure.
       this.lastFailReason ??= 'tree-poisoned'
       return { failed: true }
     }
+    // replayIndex set once at the start (Rust line 158); deleteHelper consumes it.
     this.state.replayIndex = this.state.directionsIndex
-    const result =
-      op.tag === 'Remove' || op.tag === 'RemoveIfExists'
-        ? deleteHelper(this.root, op, this.proof, this.state)
-        : modifyHelper(this.root, op, this.proof, this.state)
-    if (!result.ok) {
+
+    // Phase 1: dispatch via modifyHelper for ALL op types.
+    const modifyResult = modifyHelper(this.root, op, this.proof, this.state)
+    if (!modifyResult.ok) {
       this.root = null
-      this.lastFailReason = result.reason
+      this.height = 0  // Rust lines 167-170: poison root AND height
+      this.lastFailReason = modifyResult.reason
       return { failed: true }
     }
-    this.root = result.newSubtreeRoot
-    // height adjust per result.heightDelta
-    this.height = Math.max(0, this.height + result.heightDelta)
-    return result.oldValue
+
+    let newRoot = modifyResult.newSubtreeRoot
+    let heightDelta = modifyResult.heightDelta
+
+    // Phase 2: if needsDelete, dispatch deleteHelper for structural removal.
+    // modifyHelper's heightDelta is 0 for needsDelete cases (tree unchanged at
+    // phase 1). The replayIndex was already set above and was NOT advanced by
+    // modifyHelper's traversal of internal nodes via nextDirectionIsLeft;
+    // deleteHelper consumes it via replayComparison.
+    if (modifyResult.needsDelete) {
+      const deleteResult = deleteHelper(newRoot, op, this.proof, this.state)
+      if (!deleteResult.ok) {
+        this.root = null
+        this.height = 0
+        this.lastFailReason = deleteResult.reason
+        return { failed: true }
+      }
+      newRoot = deleteResult.newSubtreeRoot
+      heightDelta = deleteResult.heightDelta  // 0 or -1
+    }
+
+    this.root = newRoot
+    this.height = Math.max(0, this.height + heightDelta)
+    return modifyResult.oldValue
   }
 
   /** Compute current digest: blake2b(root) || heightByte. */
