@@ -1,8 +1,8 @@
 /**
- * Programmer-error rejections. See facts/avltree.md § Error model for the
- * full taxonomy. Verification failures (untrusted-input rejection) return
- * null from public wrappers and are NOT thrown — see AvlVerifyFailReason
- * (currently internal, tracked on BatchAvlVerifier.lastFailReason).
+ * Six-variant string union of programmer-error codes.
+ * TS-only: Rust uses anyhow::Result throughout (no typed error codes).
+ * Each code corresponds to a shape-validation precondition on the public entry point
+ * (verifyAvlBatch / verifyAvlLookup). See facts/avltree.md § Failure model overview.
  */
 export type AvlVerifyErrorCode =
   | 'invalid-config-key-length'
@@ -12,6 +12,11 @@ export type AvlVerifyErrorCode =
   | 'operation-key-length-mismatch'
   | 'operation-value-length-mismatch'
 
+/**
+ * Programmer-error rejection class. Thrown (never returned) by verifyAvlBatch /
+ * verifyAvlLookup for invalid shapes in calling code: bad config, wrong digest
+ * length, or key/value length mismatches. TS-only: Rust uses anyhow::Result.
+ */
 export class AvlVerifyError extends Error {
   constructor(
     message: string,
