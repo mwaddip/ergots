@@ -10,6 +10,7 @@ Per-project instructions for Claude. Read these alongside the user's global `~/p
    - `facts/ergoscript-wire.md` — wire format slice (`parseTree`, `serializeTree`, address helpers, `ErgoTree` types, wire-layer error classes)
    - `facts/ergoscript-eval.md` — evaluator slice (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 43 codes, `SValue`/`SType`/`Expr` discriminated unions, method-handler registry, eval arm coverage 52/~70)
    - `facts/ergoscript-sigma.md` — sigma-protocol verifier slice (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 8 codes)
+   - `facts/avltree.md` — `@mwaddip/ergots-avltree` interface (verifier surface + Operation variants + Source Mapping table to ergo_avltree_rust)
 2. **`docs/specs/`** — design specs (the *why* and *how-we-chose*; rationale, validation strategy, risks). Current:
    - `2026-05-12-nipopow-proof-verifier-design.md` — `@mwaddip/ergots-proof` v1 design
    - `2026-05-13-no-gossip-decision.md` — why phase 2 is not a gossip layer; new phase plan

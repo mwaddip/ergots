@@ -1,0 +1,219 @@
+# `@mwaddip/ergots-avltree` — Interface Contract
+
+The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@mwaddip/ergots-ergoscript` (phase 2h-b), which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
+
+Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `879545c` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
+
+## Scope
+
+**Ships in this contract (v0.1.0):**
+
+1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values.
+2. `verifyAvlLookup` — thin convenience wrapper over `verifyAvlBatch` for single-key reads.
+3. All 8 `Operation` variants: `Lookup`, `UnknownModification`, `Insert`, `Update`, `InsertOrUpdate`, `UpdateLongBy`, `Remove`, `RemoveIfExists`.
+4. `AvlTreeConfig` — verifier-input shape (key length, optional fixed value length, optional DoS bounds).
+5. `AvlVerifyError` — programmer-error rejection class with 6 typed codes.
+6. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+
+**Does NOT ship:**
+
+- `BatchAVLProver` (prover side of `ergo_avltree_rust`). Verifier-only port; the project identity is a verifier kernel.
+- `persistent_batch_avl_prover` and `versioned_avl_storage`. Storage abstractions with no consumer in the verifier path.
+- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.1.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
+- `AvlTreeData` wire-format MIR type. That stays in `@mwaddip/ergots-ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
+- Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers in phase 2h-b.
+
+## Public surface (v0.1.0)
+
+### Primary export: `@mwaddip/ergots-avltree`
+
+```ts
+verifyAvlBatch(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  operations: Operation[],
+): VerifyAvlBatchResult | null
+
+verifyAvlLookup(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  key: Uint8Array,
+): { value: Uint8Array | null } | null
+```
+
+#### `verifyAvlBatch(startingDigest, proof, config, operations)`
+
+- **Precondition (throws `AvlVerifyError`):** `config.keyLength > 0`; `config.valueLengthOpt >= 0` or `null`; `config.maxNumOperations >= 0` if set; `config.maxDeletes <= config.maxNumOperations` if both set; `startingDigest.length === 33`; for every op, `op.key.length === config.keyLength`; for every op with a `value` field, `op.value.length === config.valueLengthOpt` when `valueLengthOpt` is not null.
+- **Postcondition (success):** Returns `{ newDigest: Uint8Array, results: (Uint8Array | null)[] }` where `newDigest` is exactly 33 bytes (32-byte blake2b-256 root label + 1-byte tree height), `results[i]` is the old value at `op.key` before operation `i` (or `null` when the key was absent before the operation), and `newDigest` is byte-identical to what `ergo_avltree_rust`'s `BatchAVLVerifier` would produce on the same inputs.
+- **Postcondition (failure):** Returns `null` on any verification failure: malformed proof, digest mismatch, precondition violation by an operation, or structural inconsistency.
+- **Invariant:** Stateless. No I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output.
+
+#### `verifyAvlLookup(startingDigest, proof, config, key)`
+
+- **Precondition (throws):** Same shape validation as `verifyAvlBatch` for a single `Lookup` operation.
+- **Postcondition (success):** Returns `{ value: Uint8Array }` if the key was present in the tree, `{ value: null }` if absent.
+- **Postcondition (failure):** Returns `null` when the proof itself failed verification.
+- **Note:** The outer `null` (proof failed) is distinct from `{ value: null }` (proof passed; key absent). Callers must check for both.
+
+#### Type definitions
+
+```ts
+export interface AvlTreeConfig {
+  /** Bytes per key. Must be > 0. */
+  keyLength: number
+  /** Bytes per value; null = variable length per leaf. */
+  valueLengthOpt: number | null
+  /** Optional DoS guard — max operations across this batch. */
+  maxNumOperations?: number
+  /** Max deletions across this batch. Defaults to maxNumOperations when both set. */
+  maxDeletes?: number
+}
+
+export type Operation =
+  | { tag: 'Lookup'; key: Uint8Array }
+  | { tag: 'UnknownModification'; key: Uint8Array }
+  | { tag: 'Insert'; key: Uint8Array; value: Uint8Array }
+  | { tag: 'Update'; key: Uint8Array; value: Uint8Array }
+  | { tag: 'InsertOrUpdate'; key: Uint8Array; value: Uint8Array }
+  | { tag: 'UpdateLongBy'; key: Uint8Array; delta: bigint }
+  | { tag: 'Remove'; key: Uint8Array }
+  | { tag: 'RemoveIfExists'; key: Uint8Array }
+
+export interface VerifyAvlBatchResult {
+  readonly newDigest: Uint8Array        // 33 bytes
+  readonly results: (Uint8Array | null)[]
+}
+
+// Documentation-only type aliases (all are Uint8Array at runtime).
+export type ADKey    = Uint8Array
+export type ADValue  = Uint8Array
+/** 33 bytes: 32-byte root label + 1-byte tree height. */
+export type ADDigest = Uint8Array
+
+/** Per-operation result. Returned in VerifyAvlBatchResult.results. */
+export type OperationResult = Uint8Array | null  // null = key was absent before op
+```
+
+## Failure model overview
+
+The package enforces a strict two-tier failure model:
+
+**Tier 1 — `AvlVerifyError` thrown (6 codes; programmer errors only)**
+
+Checked at the public entry point before any `BatchAvlVerifier` state is constructed. These indicate bugs in calling code, not in the proof data.
+
+```ts
+export class AvlVerifyError extends Error {
+  readonly code: AvlVerifyErrorCode
+}
+
+export type AvlVerifyErrorCode =
+  | 'invalid-config-key-length'          // config.keyLength <= 0
+  | 'invalid-config-value-length'        // config.valueLengthOpt < 0 when set
+  | 'invalid-config-max-ops'             // maxNumOperations < 0, or maxDeletes > maxNumOperations
+  | 'invalid-starting-digest-length'     // startingDigest.length !== 33
+  | 'operation-key-length-mismatch'      // op.key.length !== config.keyLength
+  | 'operation-value-length-mismatch'    // op.value.length !== config.valueLengthOpt when fixed
+```
+
+**Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.1.0)**
+
+Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.1.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (per the option-3 deferred decision in the design spec).
+
+```ts
+type AvlVerifyFailReason =               // (internal; not exported)
+  | 'proof-truncated'                    // OOB read during tree decode or direction traversal
+  | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid
+  | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
+  | 'directions-exhausted'               // verifier consumed past directionsBits.length
+  | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
+  | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
+  | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)
+  | 'tree-poisoned'                      // performOneOperation called after a prior failure
+  | 'empty-tree'                         // performOneOperation called on tree with null root
+  | 'operation-required-but-not-allowed' // reserved for ABI stability (currently unreachable)
+```
+
+**Invariants on the boundary:**
+
+1. Shape validation is sole and comprehensive at the public entry point. After construction, `BatchAvlVerifier` trusts shapes and operates on bytes.
+2. No throws from inside `BatchAvlVerifier` to the consumer. Verification failures set `root = null` (tree poisoned) and `performOneOperation` returns `{ failed: true }` on this and every subsequent call.
+3. Internal panics from `@noble/hashes` bubble as plain `Error` — those are contract violations inside a dependency, not consumer-input issues.
+
+## Cross-cutting guarantees
+
+- **Determinism.** All functions are pure: no I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output. Byte-equality with `ergo_avltree_rust` is the load-bearing invariant; every fixture in the corpus asserts it.
+- **Synchronous.** No async surface. Verification hits blake2b-256 in tight inner loops; an async boundary would only add overhead without enabling concurrency.
+- **No throws on verification failures.** `verifyAvlBatch` / `verifyAvlLookup` return `null` on verification failure. Throws indicate programmer errors only.
+- **Browser-compat.** Runtime support: Node >= 20, evergreen browsers with native ESM. Never `Buffer`. Never `globalThis.crypto`. No `process`, `fs`, `path`, `os`, or `node:*` imports in `packages/avltree/src/`. Hashing via `@noble/hashes@2.2.0` only.
+- **ESM-only.** Bundle deliberately omits CJS entry points.
+- **No top-level await** in published code.
+- **No WASM** direct or transitive. The all-TS approach is this project's identity.
+- **`bigint` for `UpdateLongBy.delta`.** Represents a signed 64-bit integer (i64 equivalent). Browsers support `bigint` natively since 2020; no polyfill ships.
+
+## Test corpus
+
+Three test layers plus cross-runtime, mirroring the proof and ergoscript packages:
+
+1. **Per-component fixture tests** (`verify-batch.test.ts`, `verify-lookup.test.ts`, `operations.test.ts`, `proof-decode.test.ts`): per-Operation-variant coverage with byte-equality on `newDigest` and per-op `results[]`.
+2. **Bulk corpus** (`corpus.test.ts`): 50 fixtures across 8 Operation variants; asserts byte-equality between TS verifier output and `ergo_avltree_rust` verifier output on every fixture. Corpus categories: per-Operation-variant fixtures (8 variants × varied pre-state: empty, single-leaf, balanced-10, balanced-100, balanced-1000, all-left-spine, all-right-spine), multi-op batches (sizes 0, 1, 2, 16, 256, stress-mixed-100), edge cases (all-deletes, boundary keys, single-leaf), config-variance (keyLength 1/8/32, fixed vs variable valueLengthOpt, maxNumOperations bounds), and adverse cases (truncated proof, swapped digest, mismatched config — all must return `null`).
+3. **Mutation testing** (`mutation.test.ts`): single-byte flips at varied offsets. Target: **≥90% kill rate per Operation variant per fixture**. Each mutation either causes a `null` return (verification failure) or returns byte-identical result (tolerated padding — explicitly enumerated).
+4. **Cross-runtime**: Vitest configured for both `node` and `jsdom`. Every test runs in both.
+
+## Coverage
+
+All 8 `Operation` variants are implemented and covered by fixtures:
+
+| Variant | Leaf-match behavior | Leaf-gap behavior |
+|---|---|---|
+| `Lookup` | return old value; no structural change | return null; no structural change |
+| `UnknownModification` | return old value; no structural change | return null; no structural change |
+| `Insert` | fail (`key-already-exists`) | split leaf; heightDelta = +1 |
+| `Update` | replace value; no height change | fail (`key-not-found`) |
+| `InsertOrUpdate` | replace value (match path) | split leaf (gap path) |
+| `UpdateLongBy` | add delta to i64; result=0 → delete | insert with delta (positive) or fail (negative) |
+| `Remove` | signal `needsDelete`; delete pass | fail (`key-not-found`) |
+| `RemoveIfExists` | signal `needsDelete`; delete pass | no-op (absent key; no change) |
+
+Verifier-only: `BatchAVLProver` is not ported to TS. The prover is used during fixture generation (Rust side of `fixture-gen/`) but has no TS surface.
+
+## Source mapping to `ergo_avltree_rust`
+
+Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, including upstream PRs #10/#11/#13.
+
+| Rust function (file:lines) | TS function(s) (file) | Note |
+|---|---|---|
+| `batch_avl_verifier.rs::BatchAVLVerifier::new` (37-55) | `BatchAvlVerifier` constructor (`batch-verifier.ts`) | 1:1 port; proof-decode delegated to `parseProofPackedTree` |
+| `batch_avl_verifier.rs::reconstruct_tree` (58-143) | `parseProofPackedTree` (`proof-decode.ts`) | 1:1 port; bounds-checks added (TS OOB returns undefined, not panic); token constants from `batch_node.rs:14-16`; max-nodes DoS formula from lines 63-87 |
+| `batch_avl_verifier.rs::perform_one_operation` (157-172) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (221-248); needsDelete two-phase dispatch; height bookkeeping |
+| `batch_avl_verifier.rs::next_direction_is_left` (192-203) | `nextDirectionIsLeft` (`tree-traversal.ts`) | 1:1 port; LSB-first bit indexing (`1 << (i & 7)`) confirmed |
+| `batch_avl_verifier.rs::key_matches_leaf` (213-227) | `keyMatchesLeaf` (`tree-traversal.ts`) | 1:1 port; returns discriminated-union result instead of throwing on out-of-order |
+| `batch_avl_verifier.rs::replay_comparison` (239-251) | `replayComparison` (`tree-traversal.ts`) | 1:1 port; three-way return (-1/0/1); advances `state.replayIndex` |
+| `authenticated_tree_ops.rs::double_left_rotate` (135-164) | `doubleLeftRotate` (`rotation.ts`) | 1:1 port; fresh `newInternal` allocations instead of Rc<RefCell> in-place update (labelCache invariant) |
+| `authenticated_tree_ops.rs::double_right_rotate` (171-200) | `doubleRightRotate` (`rotation.ts`) | 1:1 port (mirror); same allocation policy |
+| `authenticated_tree_ops.rs::modify_helper` (262-385) | `modifyHelper` + `handleLeafNode` + `handleLeafMatch` + `handleLeafGap` + `handleInternalNode` + `addNode` + `rebalanceLeftDescent` + `rebalanceRightDescent` + `rotateLeftDescent` + `rotateRightDescent` (`modify.ts`) | Decomposed into 10 helpers; `needsDelete` signal added per two-phase dispatch design; handles Lookup/UnknownModification/Insert/Update/InsertOrUpdate/UpdateLongBy (Remove/RemoveIfExists live in delete.ts) |
+| `authenticated_tree_ops.rs::add_node` (205-219) | `addNode` (`modify.ts`) | 1:1 port; splits the leaf-gap into (modifiedOriginal, newLeaf) under a new InternalNode with balance=0 |
+| `authenticated_tree_ops.rs::delete_helper` (446-637) | `deleteHelper` + `deleteInner` + `tryEasyDeleteRightLeaf` + `tryEasyDeleteLeftLeaf` + `hardDeleteLeftDescent` + `hardDeleteRightDescent` + `rebalanceShrinkLeft` + `rebalanceShrinkRight` (`delete.ts`) | Decomposed into 8 helpers; `saved_node` out-param emulated via `SavedNodeRef` wrapper (`{ node: LeafNode \| null }`); second-pass deletion using `replayComparison` |
+| `authenticated_tree_ops.rs::change_next_leaf_key_of_max_node` (400-416) | `changeNextLeafKeyOfMaxNode` (`delete.ts`) | 1:1 port; traverses rightmost path to update `nextLeafKey` of the max node |
+| `authenticated_tree_ops.rs::change_key_and_value_of_min_node` (417-432) | `changeKeyAndValueOfMinNode` (`delete.ts`) | 1:1 port; traverses leftmost path to promote in-order successor |
+| `authenticated_tree_ops.rs::digest` (112-128) | `BatchAvlVerifier.digest()` (`batch-verifier.ts`) | 1:1 port; returns 32-byte root label `||` 1-byte height; height clamped to u8 via `& 0xff` |
+| `batch_node.rs::Node::label` (83-112, across LeafNode/InternalNode/LabelOnly branches) | `label` (`node.ts`) | Dispatch on `node.kind`; CRITICAL byte layout: LeafNode = `0x00 \|\| key \|\| value \|\| nextLeafKey`; InternalNode = `0x01 \|\| balance \|\| leftLabel \|\| rightLabel` (balance precedes child labels per batch_node.rs:100-109); LabelNode returns stored label directly |
+| `batch_node.rs::LeafNode::new` (268-275) | `newLeaf` (`node.ts`) | 1:1 port; defensive copies on all byte args |
+| `batch_node.rs::InternalNode::new` (212-219) | `newInternal` (`node.ts`) | 1:1 port; no defensive copy on children (object references; GC handles lifecycle) |
+| `batch_node.rs::Node::new_label` (166) | `newLabel` (`node.ts`) | 1:1 port; defensive copy; RangeError if label !== 32 bytes |
+| `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
+| `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
+| `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue / ADDigest` type aliases (`types.ts`) | Documentation-only aliases on `Uint8Array`; ADDigest is exactly 33 bytes |
+| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (6 `AvlVerifyError` codes) and a clean null-on-failure return |
+| (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (6 codes); Rust uses `anyhow::Result` throughout with no separate error class |
+| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.1.0 |
+
+## Cross-references
+
+- `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, architecture, validation strategy, error model detail
+- `facts/ergoscript-eval.md` — upstream consumer; `SAvlTree.*` method handlers in phase 2h-b call into this package
+- `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
+- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `879545c` (verifier + prover)
+- KMZ16 paper: <https://eprint.iacr.org/2016/994> — AVL+ authenticated dictionary; KMZ17 Appendix B documents the `keyMatchesLeaf` range semantics
