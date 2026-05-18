@@ -4,12 +4,8 @@
  */
 export type ADKey = Uint8Array
 export type ADValue = Uint8Array
-export type ADDigest = Uint8Array         // 33 bytes: 32-byte root label + 1-byte tree height
-
-/** NodeId is the conceptual identifier of a node; in TS we hold direct object refs. */
-export type NodeId = Node | null
-/** Forward-decl for circular ref. Defined in node.ts. */
-export type Node = unknown
+/** 33 bytes: 32-byte root label + 1-byte tree height. Verifier throws `invalid-starting-digest-length` if input is not exactly 33 bytes. */
+export type ADDigest = Uint8Array
 
 /** Public verifier-input config. Mirrors AVLTree's structural fields in ergo_avltree_rust. */
 export interface AvlTreeConfig {
