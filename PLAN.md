@@ -1,30 +1,42 @@
-# Phase 2g.6 — Broader Method-Call Surface: Implementation Plan
-
-**Status: ✅ COMPLETE 2026-05-18** (5 method handlers + Global Expr arm + 2 SValue variants shipped; wider-corpus re-survey confirms 5 methods now `implemented: true`; full test suite green under node + jsdom (2658 tests); fixture-gen determinism preserved — `force_any_val` replaced with `TestRunner::deterministic()` in scontext_pre_header + spreheader_timestamp fixtures.)
+# `facts/ergoscript.md` Split Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Land the 5 method handlers locked by Task B's wider-mainnet corpus survey (`SGlobal.groupGenerator`, `SColl.zip`, `SColl.indices`, `SContext.preHeader`, `SPreHeader.timestamp`), extending the 2g.5 `HANDLERS` registry in `eval/method-call.ts`, plus 1 new `Expr` arm (`Global`) and 2 new `SValue` variants (`{ kind: 'Global' }` sentinel, `{ kind: 'PreHeader'; value: PreHeader }` value carrier).
+**Goal:** Split `facts/ergoscript.md` (currently 1,203 lines after phase 2g.6) into a meta file (~150 lines) plus three per-slice contract files (`facts/ergoscript-wire.md`, `facts/ergoscript-eval.md`, `facts/ergoscript-sigma.md`), aligned with the umbrella spec's `/wire` / `/eval` / `/sigma` subpath-export plan.
 
-**Architecture:** Extends 2g.5's `(typeId, methodId)` → handler registry by 5 entries. Adds `eval/global.ts` for the new `Expr::Global` evaluator arm (wire-parsed since phase 2a; 120 boxes use it per survey). Adds 2 SValue discriminated-union variants to `mir/types.ts`. No new files in `src/` beyond `eval/global.ts`; all 5 handlers live inline in `eval/method-call.ts` (handler #3-8 of the existing 3 → 8 growth). Cost values, return shapes, and obj-shape checks are all source-locked from sigma-rust HEAD per the design spec.
+**Architecture:** Three sequential phases, each producing one or more commits. Phase 1 creates the three new slice files by extracting content from `ergoscript.md` (no deletions yet — duplication is intentional and temporary). Phase 2 trims `ergoscript.md` to the meta + lookup table. Phase 3 updates cross-references in `CLAUDE.md`, the ergoscript package README/API/PLAN, and the ~14 design specs that deep-link to specific sections.
 
-**Tech Stack:** TypeScript 5.x (vitest 2 under both node + jsdom); Rust 1.x (fixture-gen using sigma-rust's `try_eval_out` oracle gated behind the `arbitrary` feature); `@noble/hashes@2.2.0` (already pinned); existing `GROUP_GENERATOR_BYTES` constant from `eval/_group-generator.ts` (no `@noble/curves` round-trip needed for groupGenerator).
+**Tech Stack:** Markdown only. No code changes, no test changes, no fixture changes. Verification via `wc -l`, `grep`, and manual content review.
 
 **Reference oracles:**
-- Design spec: `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` (the authoritative source for this plan)
-- Immediate predecessor: `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` (dispatcher pattern this slice extends)
-- Survey data: `docs/specs/2026-05-18-task-b-corpus-survey-results.md` (the data locking the 5-method scope)
-- Sigma-rust eval handlers (source of all cost values + return shapes):
-  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs:37-40` — `Expr::Global` arm
-  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sglobal.rs:32-41` — `GROUP_GENERATOR_EVAL_FN`
-  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:138-169` — `ZIP_EVAL_FN`
-  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:171-193` — `INDICES_EVAL_FN`
-  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scontext.rs:72-81` — `PRE_HEADER_EVAL_FN`
-  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/spreheader.rs:20-24` — `TIMESTAMP_EVAL_FN`
-- Existing 2g.5 reference: `packages/ergoscript/src/eval/method-call.ts` (the registry that this slice extends)
-- Existing fixture-gen pattern: `fixture-gen/src/cmds/ergoscript/eval/context.rs` (the smallest reference for an `Expr` arm fixture-gen file)
+- Design spec: `/home/mwaddip/projects/ergots/docs/specs/2026-05-18-facts-ergoscript-split-design.md` (the authoritative source for this plan)
+- Current file: `/home/mwaddip/projects/ergots/facts/ergoscript.md` (1,203 lines; the source material)
+- Sister contract: `/home/mwaddip/projects/ergots/facts/proof.md` (196 lines; structural reference for the meta file's shape)
+- Section structure (from `grep '^##\? ' facts/ergoscript.md`):
+  - Line 1: Header
+  - Line 19: `## Scope`
+  - Line 576: `## Public surface`
+  - Line 631: `#### verifySignature(...)` (the sigma surface section)
+  - Line 654: `### Internal modules (current monorepo surface)`
+  - Line 695: `### Round-trip invariant`
+  - Line 707: `## Type invariants`
+  - Line 767: `## Determinism and purity`
+  - Line 773: `## Browser-compat guarantees`
+  - Line 784: `## Error taxonomy` (wire errors: ErgoTreeParseError, ErgoTreeSerializeError)
+  - Line 822: `## Test plan summary`
+  - Line 831: `## v0.2.0 — Evaluator surface (phase 2b)` (the giant eval section)
+  - Line 900: `### EvalError taxonomy (v0.2.0)`
+  - Line 1140: `### VerifyError taxonomy (phase 2g-medium + 2g-combinators; 8 codes total)`
+  - Line 1188: `### Coverage and stability`
+  - Line 1195: `## Cross-references`
 
-**Out of scope (per design spec § Non-goals):** broader method surface beyond the 5 (Header methods, Coll utilities `.zipWith`/`.reverse`/`.getOrElse`, BinOp Bit shifts); AVL+ membership-proof verification (phase 2h); predef arms `DecodePoint`/`SubstConstants`/`CalcBlake2b256` (phase 2i); cost validation (phase 2j); enlarging the C2 corpus; npm publish of `@mwaddip/ergots-ergoscript@0.3.0` (orthogonal decision); Layer C3.a operator-driven mutation testing for these handlers (same posture as 2g.5); 2g.5 carryover cleanup list.
+**Out of scope (per design spec § Non-goals):**
+- Code or behavior change (`packages/ergoscript/src/` is untouched)
+- Splitting `facts/proof.md` (it's 196 lines, comfortably within bounds)
+- Splitting the npm package itself (one published package stays)
+- Preemptively creating `facts/ergoscript-avl.md` or `facts/ergoscript-cost.md` (each future phase creates its own slice file)
+- Rewriting / copy-editing existing content (the split is mostly extraction)
+- Updating cross-refs in every existing spec — only deep-link refs naming moved sections (vague refs stay; they land on the meta hub)
 
 ---
 
@@ -34,361 +46,151 @@
 
 ```
 ergots/
-├── packages/ergoscript/
-│   ├── src/eval/
-│   │   └── global.ts                                NEW: Global Expr arm (Task 1)
-│   └── test/
-│       ├── eval/
-│       │   ├── global.test.ts                       NEW (Task 1)
-│       │   ├── sglobal-group-generator.test.ts      NEW (Task 2)
-│       │   ├── scoll-indices.test.ts                NEW (Task 3)
-│       │   ├── scoll-zip.test.ts                    NEW (Task 4)
-│       │   ├── scontext-pre-header.test.ts          NEW (Task 6)
-│       │   └── spreheader-timestamp.test.ts         NEW (Task 7)
-│       └── fixtures/eval/
-│           ├── global.json                          NEW (Task 1)
-│           ├── sglobal-group-generator.json         NEW (Task 2)
-│           ├── scoll-indices.json                   NEW (Task 3)
-│           ├── scoll-zip.json                       NEW (Task 4)
-│           ├── scontext-pre-header.json             NEW (Task 6)
-│           └── spreheader-timestamp.json            NEW (Task 7)
-└── fixture-gen/src/cmds/ergoscript/eval/
-    ├── global.rs                                    NEW (Task 1)
-    ├── sglobal_group_generator.rs                   NEW (Task 2)
-    ├── scoll_indices.rs                             NEW (Task 3)
-    ├── scoll_zip.rs                                 NEW (Task 4)
-    ├── scontext_pre_header.rs                       NEW (Task 6)
-    └── spreheader_timestamp.rs                      NEW (Task 7)
+└── facts/
+    ├── ergoscript-wire.md            NEW (Task 1): phase 2a wire-format slice
+    ├── ergoscript-eval.md            NEW (Task 2): phases 2b-2g.6 eval surface
+    └── ergoscript-sigma.md           NEW (Task 3): phase 2g sigma-protocol verifier
 ```
 
 **Modified in this phase:**
 
 ```
 ergots/
+├── facts/
+│   └── ergoscript.md                 MODIFIED (Task 4): trim to ~150 lines (meta + lookup table)
+├── CLAUDE.md                         MODIFIED (Task 5): update reads-first list
 ├── packages/ergoscript/
-│   ├── src/
-│   │   ├── mir/types.ts                             MODIFIED (Tasks 1, 5): +2 SValue variants
-│   │   └── eval/
-│   │       ├── eval.ts                              MODIFIED (Task 1): +1 case ('Global')
-│   │       └── method-call.ts                       MODIFIED (Tasks 2,3,4,6,7): +5 HANDLERS entries + helpers
-│   ├── test/
-│   │   └── _helpers/index.ts                        MODIFIED (Tasks 1, 5): hydrateSValue cases for new variants
-│   └── scripts/
-│       └── _known-methods.ts                        MODIFIED (Task 8): mark 5 methods implemented
-├── fixture-gen/
-│   └── src/cmds/ergoscript/eval/mod.rs              MODIFIED (each Task): wire new modules
-├── facts/ergoscript.md                              MODIFIED (Task 8): coverage update
-├── docs/specs/
-│   ├── 2026-05-13-ergoscript-interpreter-design.md  MODIFIED (Task 8): 2g.6 row ✅ COMPLETE
-│   └── 2026-05-18-task-b-corpus-survey-tally.json   REGENERATED (Task 8): re-survey verification
-└── PLAN.md                                          MODIFIED (Task 8): mark phase complete
+│   ├── README.md                     MODIFIED (Task 6, if deep-refs exist): update slice pointers
+│   ├── API.md                        MODIFIED (Task 6, if deep-refs exist): update slice pointers
+│   └── PLAN.md                       NOT modified (it now holds THIS plan; will be overwritten at next phase)
+└── docs/specs/*-ergoscript-*.md      MODIFIED (Task 7, ~14 files): update deep-link refs only
 ```
 
 ---
 
-## Task 1: `{ kind: 'Global' }` SValue variant + `Expr::Global` eval arm + C1 fixture
+## Phase 1: Create the three new slice files
+
+Three independent tasks; each produces one new file plus one commit. The source material lives in `facts/ergoscript.md` and is too large to Read in one call (~43k tokens), so each task reads its source section(s) by offset/limit.
+
+### Task 1: Author `facts/ergoscript-wire.md`
 
 **Files:**
-- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs:37-40` (cost 5 Pattern A; returns `Value::Global`)
-- Source-read: `packages/ergoscript/src/eval/context.ts` (the 2g.5 sibling pattern)
-- Modify: `packages/ergoscript/src/mir/types.ts` (add SValue variant around line 829, after `{ kind: 'Context' }`)
-- Modify: `packages/ergoscript/test/_helpers/index.ts` (add `case 'Global':` in `hydrateSValue`)
-- Create: `packages/ergoscript/src/eval/global.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts` (add `case 'Global':` after `case 'GlobalVars':` at line 151)
-- Create: `packages/ergoscript/test/eval/global.test.ts`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/global.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (export new module + wire into `main.rs`)
-- Create: `packages/ergoscript/test/fixtures/eval/global.json` (generated by `cargo run`)
+- Source: `facts/ergoscript.md` (read sections by line range)
+- Create: `facts/ergoscript-wire.md`
 
-- [ ] **Step 1: Source-read sigma-rust to confirm cost still 5**
+**Content extraction map (from `facts/ergoscript.md`):**
+- Lines 1-18: header pattern (don't copy verbatim — author a slice-specific header)
+- Lines 19-575: `## Scope` and wire-format material
+- Lines 576-630: `parseTree` / `serializeTree` / address helpers from `## Public surface`
+- Lines 695-706: `### Round-trip invariant`
+- Lines 784-821: `## Error taxonomy` — extract ONLY `ErgoTreeParseError` and `ErgoTreeSerializeError` (eval/sigma error classes go to their respective slices)
+
+**Cross-cutting NOT to copy** (these stay in the meta file in Phase 2):
+- Lines 767-783: `## Determinism and purity` + `## Browser-compat guarantees` (cross-cutting; meta-file scope)
+- Lines 822-830: `## Test plan summary` (cross-cutting; meta-file scope)
+
+- [ ] **Step 1: Read the wire-format source sections**
+
+Run: `cd /home/mwaddip/projects/ergots && wc -l facts/ergoscript.md`
+Expected: `1203 facts/ergoscript.md`
+
+Read lines 1-100, 100-200, ..., chunked through 575 to absorb the Scope section.
+Then read lines 576-720 to absorb Public surface (wire parts) + Round-trip invariant.
+Then read lines 784-821 to absorb the wire-side error taxonomy.
+
+- [ ] **Step 2: Author `facts/ergoscript-wire.md`**
+
+Create the file with this structure (compose the body from the extracted material, retaining wording):
+
+```markdown
+# `@mwaddip/ergots-ergoscript` — Wire Format Contract
+
+This file documents the **wire-format slice** of the `@mwaddip/ergots-ergoscript`
+boundary contract. For cross-cutting guarantees (browser-compat, determinism, ESM-only,
+no-WASM, runtime deps) and forward pointers to other slices, see [`facts/ergoscript.md`](./ergoscript.md).
+
+## Scope
+
+[Insert the wire-format-relevant subset of the original Scope section. The original
+Scope at lines 19-575 covers a lot of ground; pull only what concerns parse/serialize/address.]
+
+## Public surface
+
+### `parseTree(bytes)`
+[From lines 603-608]
+
+### `serializeTree(tree)`
+[From lines 609-614]
+
+### `isP2PK(tree)` / `p2pkPublicKey(tree)`
+[From lines 615-621]
+
+### `addressFromErgoTree(tree, network)` / `ergoTreeFromAddress(address)`
+[From lines 622-630]
+
+## Types
+
+`ErgoTree` and `TreeHeader` are defined here (the wire layer's primary output shape).
+The discriminated-union types `SValue` / `SType` / `Expr` are shared across the
+wire and eval surfaces — their canonical definitions live in
+[`ergoscript-eval.md`](./ergoscript-eval.md). `parseTree` returns an `ErgoTree`
+containing an `Expr` body and `SValue[]` constants.
+
+### `interface ErgoTree`
+[Extract from lines 707-766 — only the ErgoTree and TreeHeader interfaces;
+SValue/SType/Expr go to the eval slice]
+
+## Round-trip invariant
+
+[From lines 695-706]
+
+## Error taxonomy
+
+### `class ErgoTreeParseError extends Error`
+[Extract from lines 784-821 — only ErgoTreeParseError]
+
+### `class ErgoTreeSerializeError extends Error`
+[Extract from lines 784-821 — only ErgoTreeSerializeError]
+
+## Coverage
+
+100% of MIR variants parse and serialize byte-identically against the PR 862 corpora
+(45 legacy + 14 ecosystem + 9 sig-15 = 68 trees) plus mainnet boxes (12,712 from
+Task B's wider corpus + 173 from the original C2 corpus).
+
+## Cross-references
+
+- [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting
+- [`facts/ergoscript-eval.md`](./ergoscript-eval.md) — evaluator surface (shared types live there)
+- [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) — sigma-protocol verifier
+- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella spec
+- `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`) — byte-format oracle
+```
+
+The `[Insert ...]` and `[Extract from ...]` markers tell you what to fill in from the source. Keep exact wording where possible; this is extraction, not rewriting.
+
+- [ ] **Step 3: Verify the file**
+
+Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript-wire.md`
+Expected: somewhere in the 300-500 line range (large enough to hold the wire surface; smaller than the full original).
+
+Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript-wire.md`
+Expected: at least 6 (Scope, Public surface, Types, Round-trip invariant, Error taxonomy, Coverage, Cross-references).
+
+- [ ] **Step 4: Commit**
 
 ```bash
-sed -n '37,40p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs
-```
-
-Expected output:
-```
-            Expr::Global => {
-                ctx.add_jit_cost(5)?; // Global = Fixed(5)
-                Ok(Value::Global)
-            }
-```
-
-If the cost has drifted upstream, STOP — escalate per OVERRIDES rule #2 (confidence drop on cost-charging order) before proceeding.
-
-- [ ] **Step 2: Add `{ kind: 'Global' }` to SValue union**
-
-Edit `packages/ergoscript/src/mir/types.ts`. Find the SValue union (~line 817-833):
-
-```ts
-export type SValue =
-  | { kind: 'Boolean'; value: boolean }
-  // ... existing variants ...
-  | { kind: 'Unit' }
-  | { kind: 'Context' }
-  | { kind: 'Coll'; elem: SType; items: SValue[] }
-  // ...
-```
-
-Insert the new variant right after `{ kind: 'Context' }`:
-
-```ts
-  | { kind: 'Context' }
-  | { kind: 'Global' }
-  | { kind: 'Coll'; elem: SType; items: SValue[] }
-```
-
-- [ ] **Step 3: Run TypeScript check to surface exhaustiveness errors**
-
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: errors in any file with exhaustive `switch (v.kind)` patterns that don't handle `'Global'`. Likely candidates: `test/_helpers/index.ts` (hydrateSValue), some eval module asserting full SValue exhaustion. Capture the file list from the error output.
-
-- [ ] **Step 4: Add `case 'Global':` arms to all exhaustive switches**
-
-For each file flagged in Step 3, add the case. The most common pattern (in `hydrateSValue`):
-
-```ts
-    case 'Global':
-      return { kind: 'Global' }
-```
-
-- [ ] **Step 5: Re-run TypeScript check, confirm clean**
-
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: zero errors.
-
-- [ ] **Step 6: Write the failing test (inline unit) for `evalGlobal`**
-
-Create `packages/ergoscript/test/eval/global.test.ts`:
-
-```ts
-/**
- * Layer C1 — `Global` Expr arm.
- *
- * Trivial arm: cost 5 (Pattern A); returns `{ kind: 'Global' }` SValue
- * sentinel. Mirrors the 2g.5 Context arm pattern (different cost, different
- * sentinel kind). Source: ergotree-interpreter/src/eval/expr.rs:37-40.
- */
-
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evalGlobal } from '../../src/eval/global'
-import { Env } from '../../src/eval/env'
-import { makeContext } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
-import type { Global as GlobalExpr } from '../../src/mir/types'
-
-describe('evalGlobal (Layer C1)', () => {
-  it('returns { kind: "Global" } and charges cost 5', () => {
-    const ctx = makeContext({})
-    const e: GlobalExpr = { tag: 'Global' }
-    const result = evalGlobal(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'Global' })
-    expect(ctx.jitCost).toBe(5)
-  })
-})
-
-interface GlobalEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: Record<string, unknown>
-  expected_value_json: unknown
-  expected_cost: number
-}
-
-interface GlobalFixture {
-  corpus: string
-  entries: GlobalEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/global.json')
-const fixture: GlobalFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('Global arm — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 7: Run test to verify RED**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/global.test.ts`
-
-Expected: RED with `Cannot find module '../../src/eval/global'` (or similar — the module doesn't exist yet). The fixture-driven block will also fail because `fixtures/eval/global.json` doesn't exist; that's expected too.
-
-- [ ] **Step 8: Create `src/eval/global.ts` (minimal implementation to GREEN the inline test)**
-
-Create `packages/ergoscript/src/eval/global.ts`:
-
-```ts
-/**
- * `Global` evaluator arm — returns the `Value::Global` sentinel.
- *
- * Trivial: cost 5 (Pattern A) per `expr.rs:38`. The sentinel is consumed
- * by `SGlobal.*` method handlers (Task 2: groupGenerator; future: xor,
- * serialize, deserialize, some, none, fromBigEndianBytes, etc.).
- *
- * Source: ergotree-interpreter/src/eval/expr.rs:37-40
- */
-
-import type { Global as GlobalExpr, SValue } from '../mir/types'
-import type { Env } from './env'
-import type { EvalContext } from './eval-context'
-
-export function evalGlobal(_e: GlobalExpr, _env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(5)
-  return { kind: 'Global' }
-}
-```
-
-- [ ] **Step 9: Wire `case 'Global':` in `eval/eval.ts`**
-
-Edit `packages/ergoscript/src/eval/eval.ts`. Add the import (alphabetical-ish, after `evalGetVar`):
-
-```ts
-import { evalGlobal } from './global'
-```
-
-Add the case after `case 'GlobalVars':` at line 151:
-
-```ts
-    case 'GlobalVars':
-      return evalGlobalVars(e, env, ctx)
-    case 'Global':
-      return evalGlobal(e, env, ctx)
-```
-
-- [ ] **Step 10: Run inline test to confirm GREEN**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/global.test.ts -t "returns"`
-
-Expected: the inline `evalGlobal (Layer C1)` test passes. The fixture-driven block still fails (no fixture on disk yet).
-
-- [ ] **Step 11: Create fixture-gen Rust file for the Global arm**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/global.rs` (mirror `context.rs`):
-
-```rust
-//! Global arm — fixtures for `Expr::Global` evaluation.
-//!
-//! Sigma-rust ref: `ergotree-interpreter/src/eval/expr.rs:37-40`
-//!   Expr::Global => {
-//!       ctx.add_jit_cost(5)?;   // Global = Fixed(5)
-//!       Ok(Value::Global)
-//!   }
-//!
-//! Trivial arm: cost 5 (Pattern A). No child expressions. Returns
-//! `Value::Global`, the opaque runtime handle consumed by `SGlobal.*`
-//! method-call handlers (Task 2: groupGenerator).
-//!
-//! Single fixture entry: tree = ErgoTree wrapping bare `Expr::Global`.
-//! Expected value: `{ "kind": "Global" }`. Expected cost: 5.
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::serialization::SigmaSerializable;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    let expr: Expr = Expr::Global;
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-    let ctx = force_any_val::<Context>();
-    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-
-    entries.push(EvalFixture {
-        name: "global_sentinel".to_string(),
-        tree_bytes_hex,
-        opts_json: json!({}),
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-    });
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_global",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 12: Wire the new module + generator call**
-
-Edit `fixture-gen/src/cmds/ergoscript/eval/mod.rs` to declare `pub mod global;` next to `pub mod context;`.
-
-Edit `fixture-gen/src/main.rs` to add the generator call. Search for the existing `context.rs` generator wiring and add a parallel call for `global` immediately below it. Pattern (look at the existing pattern in `main.rs` to confirm exact form):
-
-```rust
-generate_and_write("eval/global.json", cmds::ergoscript::eval::global::generate)?;
-```
-
-- [ ] **Step 13: Build + generate the fixture**
-
-Run: `cd fixture-gen && cargo build && cargo run`
-
-Expected: build clean; fixture file written to `packages/ergoscript/test/fixtures/eval/global.json`.
-
-- [ ] **Step 14: Confirm fixture-driven test passes**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/global.test.ts`
-
-Expected: both the inline and fixture-driven `describe` blocks pass.
-
-- [ ] **Step 15: Two-run determinism check**
-
-Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/global.json`
-
-Expected: no diff. Generator is deterministic.
-
-- [ ] **Step 16: Type-check across the workspace**
-
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: zero errors.
-
-- [ ] **Step 17: Commit**
-
-```bash
-git add packages/ergoscript/src/mir/types.ts \
-        packages/ergoscript/src/eval/global.ts \
-        packages/ergoscript/src/eval/eval.ts \
-        packages/ergoscript/test/_helpers/index.ts \
-        packages/ergoscript/test/eval/global.test.ts \
-        packages/ergoscript/test/fixtures/eval/global.json \
-        fixture-gen/src/cmds/ergoscript/eval/global.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 1 — Global Expr arm + { kind: 'Global' } SValue
-
-Adds Expr::Global eval arm (cost 5 Pattern A, returns sentinel) and the
-parallel SValue variant. Already wire-parsed since phase 2a; this task wires
-the evaluator (was hitting 'not-implemented-yet' for the 120 boxes that use it
-per Task B's survey). Mirrors 2g.5's Context arm pattern at a different cost.
-
-Sets up the receiver type for Task 2 (SGlobal.groupGenerator handler).
+git -C /home/mwaddip/projects/ergots add facts/ergoscript-wire.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs(facts): create facts/ergoscript-wire.md — phase 2a wire-format slice
+
+Per the facts/ergoscript.md split design (5da8289): extracts the
+wire-format surface (parseTree, serializeTree, address helpers, ErgoTree
+types, round-trip invariant, ErgoTreeParseError/SerializeError) into its
+own slice contract.
+
+Does NOT yet remove content from facts/ergoscript.md — duplication is
+intentional during the multi-phase split. Phase 2 trims the meta file.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -397,254 +199,152 @@ EOF
 
 ---
 
-## Task 2: `SGlobal.groupGenerator` handler (typeId 106, methodId 1) + C1 fixture
+### Task 2: Author `facts/ergoscript-eval.md`
 
 **Files:**
-- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sglobal.rs:32-41`
-- Read for reference: `packages/ergoscript/src/eval/_group-generator.ts` (existing `GROUP_GENERATOR_BYTES` constant)
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add `HANDLERS.set(handlerKey(106, 1), …)` to `registerHandlers()`)
-- Create: `packages/ergoscript/test/eval/sglobal-group-generator.test.ts`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/sglobal_group_generator.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `fixture-gen/src/main.rs` (wire new module)
-- Create: `packages/ergoscript/test/fixtures/eval/sglobal-group-generator.json` (generated)
+- Source: `facts/ergoscript.md` (read sections by line range)
+- Create: `facts/ergoscript-eval.md`
 
-- [ ] **Step 1: Source-read sigma-rust to confirm cost still 10 + obj is `Value::Global`**
+**Content extraction map:**
+- Line 631: `#### verifySignature(...)` — SKIP; this goes to ergoscript-sigma.md (Task 3)
+- Lines 654-694: `### Internal modules` — extract only the eval-related modules; defer sigma modules to Task 3
+- Lines 707-766: `## Type invariants` — extract the `SValue` / `SType` / `Expr` definitions (this slice owns them per the spec's "shared types policy"; also extract any other eval-side interfaces)
+- Lines 831-899: `## v0.2.0 — Evaluator surface (phase 2b)` — the public exports + EvalContext / EvalOpts
+- Lines 900-1139: `### EvalError taxonomy (v0.2.0)` — all 43 codes
+- The method-handler registry content (per phase 2g.5 + 2g.6) — locate via `grep -n 'method-handler' facts/ergoscript.md` or `grep -n 'HANDLERS' facts/ergoscript.md`; should be in the v0.2.0 section near line 1000-1100
+- Eval-arm coverage table — locate via `grep -n 'arm' facts/ergoscript.md` or `grep -n 'coverage' facts/ergoscript.md`
+- Lines 1188-1194: `### Coverage and stability` — extract eval-specific coverage; cross-cutting summary stays in meta
+
+- [ ] **Step 1: Read the eval source sections**
+
+Read in chunks: 707-830 (types + browser-compat boundary), then 831-1000, then 1000-1140, then 1188-1203.
+
+- [ ] **Step 2: Author `facts/ergoscript-eval.md`**
+
+Create the file with this structure:
+
+```markdown
+# `@mwaddip/ergots-ergoscript` — Evaluator Surface Contract
+
+This file documents the **evaluator slice** of the `@mwaddip/ergots-ergoscript`
+boundary contract (phases 2b through 2g.6). It also serves as the canonical home
+for the `SValue` / `SType` / `Expr` discriminated unions, which are produced by
+the wire layer (see [`ergoscript-wire.md`](./ergoscript-wire.md)) and consumed
+across the package.
+
+For cross-cutting guarantees (browser-compat, determinism, etc.) see
+[`facts/ergoscript.md`](./ergoscript.md). For the sigma-protocol verifier see
+[`facts/ergoscript-sigma.md`](./ergoscript-sigma.md).
+
+## Public surface (v0.2.0)
+
+### `evaluate(tree, opts?)`
+[From lines 868-874]
+
+### `evaluateWith(tree, ctx)`
+[From lines 875-880]
+
+### `makeContext(opts?)`
+[From lines 881-886]
+
+## Interfaces
+
+### `interface EvalOpts`
+[Extract from lines 831-867 + any later additions; should include jitCostLimit,
+constants, treeVersion, height, selfBox, inputs, outputs, preHeader, extension, dataInputs]
+
+### `interface EvalContext extends EvalOpts`
+[Methods: addCost, addPerItemCost — from lines 887-899]
+
+## Type invariants
+
+### `type SValue`
+[Extract the discriminated union from lines 707-766; should include Boolean, Byte,
+Short, Int, Long, BigInt, GroupElement, SigmaProp, Box, AvlTree, Unit, Context,
+Global, Coll, Tuple, Option, Lambda, PreHeader (the last two are the post-2g.5
+and post-2g.6 additions respectively)]
+
+### `type SType`
+[Extract from lines 707-766]
+
+### `type Expr` (~80 variants, partial coverage of 52)
+[Extract the union definition; defer per-variant detail to the coverage table below]
+
+## Error taxonomy
+
+### `class EvalError extends Error` (43 codes)
+[Extract from lines 900-1139 — all 43 codes with brief descriptions]
+
+## Eval arm coverage (52 of ~70)
+
+[Table or list, organized by phase:
+- Phase 2b (consts + chassis): Const, ConstPlaceholder, BlockValue, ValDef, ValUse, Tuple, Collection, If
+- Phase 2c (operators): BinOp, LogicalNot, BoolToSigmaProp, ...
+- Phase 2d (conditionals/blocks/lambdas): If, FuncValue, Apply, ...
+- Phase 2e (box/context model): GlobalVars, SelfBox, ExtractAmount, ExtractScriptBytes, ...
+- Phase 2f (Coll HOFs): Map, Filter, Fold, Exists, ForAll, SizeOf, ByIndex, Slice, Append
+- Phase 2g (sigma helpers): Atleast, SigmaAnd, SigmaOr, CreateProveDlog, CreateProveDhTuple
+- Phase 2g.5 (method-call dispatch): MethodCall, PropertyCall, Context, SigmaPropBytes
+- Phase 2g.6 (broader methods): Global
+Pull the exact arm list from the source; this is illustrative.]
+
+## Method-handler registry (8 entries)
+
+[Per the 2g.5 + 2g.6 facts updates. List each by (typeId, methodId) → method name +
+cost pattern + brief semantics. The 8 entries are:
+1. SBox.tokens (99, 8) — Pattern A cost 15
+2. SContext.dataInputs (101, 1) — Pattern A cost 15
+3. SColl.indexOf (12, 26) — Pattern B addPerItemCost(20, 10, 2, n)
+4. SGlobal.groupGenerator (106, 1) — Pattern A cost 10
+5. SColl.zip (12, 29) — Pattern B addPerItemCost(10, 1, 10, n)
+6. SColl.indices (12, 14) — Pattern B addPerItemCost(20, 2, 16, n)
+7. SContext.preHeader (101, 3) — Pattern A cost 15
+8. SPreHeader.timestamp (105, 3) — Pattern A cost 10
+Pull the exact wording from the corresponding section in the source file.]
+
+## Coverage and stability
+
+[From lines 1188-1194 — eval-specific portion only]
+
+## Cross-references
+
+- [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting
+- [`facts/ergoscript-wire.md`](./ergoscript-wire.md) — wire format
+- [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) — sigma-protocol verifier
+- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella spec
+- `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` — method-call dispatcher
+- `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` — most recent eval phase
+```
+
+- [ ] **Step 3: Verify the file**
+
+Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
+Expected: 600-800 lines (this is the biggest slice; contains the 43-code EvalError taxonomy and the method-handler registry).
+
+Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
+Expected: at least 8 sections (Public surface, Interfaces, Type invariants, Error taxonomy, Eval arm coverage, Method-handler registry, Coverage and stability, Cross-references).
+
+Run: `grep -c '###' /home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
+Expected: at least 5 sub-sections.
+
+- [ ] **Step 4: Commit**
 
 ```bash
-sed -n '32,41p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sglobal.rs
-```
+git -C /home/mwaddip/projects/ergots add facts/ergoscript-eval.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs(facts): create facts/ergoscript-eval.md — phases 2b-2g.6 eval surface
 
-Expected: `add_jit_cost(10)` BEFORE the obj check; obj must be `Value::Global`; returns `Value::from(generator())`. If cost drifts, escalate per OVERRIDES rule #2.
+Per the facts/ergoscript.md split design (5da8289): extracts the evaluator
+public surface (evaluate, evaluateWith, makeContext), EvalContext/EvalOpts
+interfaces, the 43 EvalError codes, SValue/SType/Expr discriminated unions
+(canonical home; wire slice cross-refs here), eval arm coverage (52/~70),
+and the 8-entry method-handler registry into its own slice contract.
 
-- [ ] **Step 2: Write the failing inline unit test**
+The growth surface for future phases (2h adds AVL+ methods, 2i adds predef
+arms) — those phase specs extend this file directly rather than the meta hub.
 
-Create `packages/ergoscript/test/eval/sglobal-group-generator.test.ts`:
-
-```ts
-/**
- * Layer C1 — SGlobal.groupGenerator handler (typeId 106, methodId 1).
- *
- * Pattern A cost 10 (charged before obj check). Returns the 33-byte SEC1
- * compressed secp256k1 generator point. Reuses GROUP_GENERATOR_BYTES from
- * eval/_group-generator.ts (no @noble/curves round-trip needed).
- *
- * Source: ergotree-interpreter/src/eval/sglobal.rs:32-41
- */
-
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evalPropertyCall } from '../../src/eval/method-call'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { GROUP_GENERATOR_BYTES } from '../../src/eval/_group-generator'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
-import type { PropertyCall as PropertyCallExpr } from '../../src/mir/types'
-
-describe('SGlobal.groupGenerator handler (Layer C1)', () => {
-  it('returns the generator point and charges cost 4 (dispatcher) + 5 (Global arm) + 10 (handler) = 19', () => {
-    const ctx = makeContext({})
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Global' },
-      typeId: 106,
-      methodId: 1,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SGroupElement' },
-    }
-    const result = evalPropertyCall(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'GroupElement', value: GROUP_GENERATOR_BYTES })
-    expect(ctx.jitCost).toBe(19)
-  })
-
-  it('rejects when obj is not Global', () => {
-    const ctx = makeContext({})
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Context' },
-      typeId: 106,
-      methodId: 1,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SGroupElement' },
-    }
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-})
-
-interface GroupGenEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: Record<string, unknown>
-  expected_value_json: unknown
-  expected_cost: number
-}
-
-interface GroupGenFixture {
-  corpus: string
-  entries: GroupGenEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/sglobal-group-generator.json')
-const fixture: GroupGenFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('SGlobal.groupGenerator — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-Note: the exact field set of `PropertyCallExpr` (whether `tpe` is required, etc.) should be confirmed by reading `mir/types.ts` for the interface. Adjust the literal accordingly if the type requires different fields.
-
-- [ ] **Step 3: Run test to verify RED**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts`
-
-Expected: RED on the first `it()` (no handler registered for `106:1` → throws `'method-not-implemented'`). The fixture-driven block also fails (file doesn't exist).
-
-- [ ] **Step 4: Register the `SGlobal.groupGenerator` handler in `method-call.ts`**
-
-Edit `packages/ergoscript/src/eval/method-call.ts`. Add an import for `GROUP_GENERATOR_BYTES` at the top:
-
-```ts
-import { GROUP_GENERATOR_BYTES } from './_group-generator'
-```
-
-Inside `registerHandlers()`, after the existing `SColl.indexOf` registration, add:
-
-```ts
-  // SGlobal.groupGenerator (PropertyCall, typeId=106, methodId=1)
-  // Source: ergotree-interpreter/src/eval/sglobal.rs:32-41 — GROUP_GENERATOR_EVAL_FN
-  // Pattern A cost 10 (charged before obj check). Returns 33-byte SEC1 of secp256k1 base point.
-  HANDLERS.set(handlerKey(106, 1), (obj, _args, ctx, _explicitTypeArgs) => {
-    ctx.addCost(10)
-    if (obj.kind !== 'Global') {
-      throw new EvalError(
-        `SGlobal.groupGenerator expects a Global obj; got '${obj.kind}'`,
-        'method-not-implemented' // reuse per error taxonomy option 1
-      )
-    }
-    return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
-  })
-```
-
-- [ ] **Step 5: Run inline tests to confirm GREEN**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts -t "returns the generator point"`
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts -t "rejects when obj is not Global"`
-
-Both expected: PASS.
-
-- [ ] **Step 6: Create fixture-gen Rust file**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/sglobal_group_generator.rs`:
-
-```rust
-//! SGlobal.groupGenerator handler — fixtures.
-//!
-//! Sigma-rust ref: `ergotree-interpreter/src/eval/sglobal.rs:32-41`
-//! Method registration: `ergotree-ir/src/types/sglobal.rs::GROUP_GENERATOR_METHOD`
-//!
-//! Pattern A cost 10. Returns the 33-byte SEC1 compressed secp256k1 base
-//! point. Tree shape: PropertyCall(Global, groupGenerator).
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::property_call::PropertyCall;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::sglobal::GROUP_GENERATOR_METHOD;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    let expr: Expr = PropertyCall::new(Expr::Global, GROUP_GENERATOR_METHOD.clone())
-        .unwrap()
-        .into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-    let ctx = force_any_val::<Context>();
-    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-
-    entries.push(EvalFixture {
-        name: "global_group_generator".to_string(),
-        tree_bytes_hex,
-        opts_json: json!({}),
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-    });
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_sglobal_group_generator",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 7: Wire the new module + generator call**
-
-Edit `fixture-gen/src/cmds/ergoscript/eval/mod.rs` to add `pub mod sglobal_group_generator;`.
-
-Edit `fixture-gen/src/main.rs` to add the generator call (parallel to Task 1's):
-
-```rust
-generate_and_write("eval/sglobal-group-generator.json", cmds::ergoscript::eval::sglobal_group_generator::generate)?;
-```
-
-- [ ] **Step 8: Build + generate the fixture**
-
-Run: `cd fixture-gen && cargo build && cargo run`
-
-Expected: clean build; fixture file written.
-
-- [ ] **Step 9: Confirm fixture-driven test passes**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts`
-
-Expected: all blocks PASS. If the fixture cost doesn't match 19, the source-read in Step 1 was stale — re-source-read and adjust the handler.
-
-- [ ] **Step 10: Two-run determinism check + type-check**
-
-Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/sglobal-group-generator.json && cd ../packages/ergoscript && npx tsc --noEmit`
-
-Expected: no fixture diff; zero TS errors.
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/method-call.ts \
-        packages/ergoscript/test/eval/sglobal-group-generator.test.ts \
-        packages/ergoscript/test/fixtures/eval/sglobal-group-generator.json \
-        fixture-gen/src/cmds/ergoscript/eval/sglobal_group_generator.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 2 — SGlobal.groupGenerator handler
-
-Registers PropertyCall(Global, groupGenerator) (typeId 106, methodId 1) in
-the eval/method-call.ts HANDLERS map. Pattern A cost 10 (chained total 19:
-4 dispatcher + 5 Global arm + 10 handler). Reuses GROUP_GENERATOR_BYTES
-constant from eval/_group-generator.ts (no @noble/curves round-trip needed).
-
-Unlocks 120 mainnet boxes per Task B's survey (top-demand 2g.6 method).
+Does NOT yet remove content from facts/ergoscript.md — duplication is
+intentional during the multi-phase split. Phase 2 trims the meta file.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -653,300 +353,114 @@ EOF
 
 ---
 
-## Task 3: `SColl.indices` handler (typeId 12, methodId 14) + C1 fixture
+### Task 3: Author `facts/ergoscript-sigma.md`
 
 **Files:**
-- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:171-193`
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler + `indicesCollOf` helper + `SINT` SType singleton)
-- Create: `packages/ergoscript/test/eval/scoll-indices.test.ts`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/scoll_indices.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `fixture-gen/src/main.rs`
-- Create: `packages/ergoscript/test/fixtures/eval/scoll-indices.json` (generated)
+- Source: `facts/ergoscript.md` (read sections by line range)
+- Create: `facts/ergoscript-sigma.md`
 
-- [ ] **Step 1: Source-read sigma-rust**
+**Content extraction map:**
+- Line 631: `#### verifySignature(...)` (the sigma verifier public surface)
+- Lines 654-694: `### Internal modules` — extract only the sigma-related entries (the GF(2^192) module, the secp256k1 adapter, fiat-shamir, prop-bytes, verifier internals)
+- Lines 1140-1187: `### VerifyError taxonomy (phase 2g-medium + 2g-combinators; 8 codes total)`
+- `SigmaBoolean` discriminated union — locate via `grep -n 'SigmaBoolean' facts/ergoscript.md`; the 6-variant union (TrivialProp, ProveDlog, ProveDhTuple, Cand, Cor, Cthreshold) is defined somewhere in the file
+- Any other sigma-specific public types
+
+- [ ] **Step 1: Read the sigma source sections**
+
+Read lines 631-700 (verifySignature + internal modules), then 1140-1200 (VerifyError).
+
+Locate `SigmaBoolean` via grep:
+```bash
+grep -n 'SigmaBoolean\|interface.*SigmaBoolean\|type.*SigmaBoolean' /home/mwaddip/projects/ergots/facts/ergoscript.md
+```
+
+Read whichever range contains the canonical definition.
+
+- [ ] **Step 2: Author `facts/ergoscript-sigma.md`**
+
+Create the file with this structure:
+
+```markdown
+# `@mwaddip/ergots-ergoscript` — Sigma-Protocol Verifier Contract
+
+This file documents the **sigma-protocol verifier slice** of the
+`@mwaddip/ergots-ergoscript` boundary contract (phases 2g-medium and
+2g-combinators). It covers the public `verifySignature` entry point, the
+`SigmaBoolean` discriminated union, the `VerifyError` taxonomy, and a
+pointer to the internal helpers.
+
+For cross-cutting guarantees see [`facts/ergoscript.md`](./ergoscript.md).
+For the evaluator surface (which produces `SigmaProp` SValues consumed by
+`verifySignature`) see [`facts/ergoscript-eval.md`](./ergoscript-eval.md).
+
+## Public surface (phase 2g)
+
+### `verifySignature(sigmaBoolean, message, signature)`
+[From line 631 onward — pull the full signature, parameters, return value,
+guarantees, and any throws documentation]
+
+## Types
+
+### `type SigmaBoolean` (6 variants)
+[Extract the discriminated union: TrivialProp, ProveDlog, ProveDhTuple, Cand,
+Cor, Cthreshold. Each variant's fields. Where this type comes from (produced
+by EvalSValue.SigmaProp; consumed by verifySignature).]
+
+## Error taxonomy
+
+### `class VerifyError extends Error` (8 codes)
+[From lines 1140-1187 — all 8 codes with brief descriptions]
+
+## Internal helpers (not part of the public contract)
+
+[From the lines 654-694 portion that's sigma-related. Brief one-line per module:
+- `eval/sigma/fiat-shamir.ts` — Fiat-Shamir challenge construction
+- `eval/sigma/prop-bytes.ts` — SigmaBoolean → bytes serialization
+- `eval/sigma/verifier.ts` — the verifySignature core
+- `crypto/gf2_192.ts` — GF(2^192) module for Cthreshold polynomial interpolation
+- `crypto/secp256k1.ts` — @noble/curves adapter for ProveDlog / ProveDhTuple
+
+These are not part of the public contract but useful for understanding the
+implementation. See `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md`
+and `docs/specs/2026-05-17-ergoscript-phase-2g-combinators-design.md` for design rationale.]
+
+## Coverage
+
+Full SigmaBoolean verifier surface: TrivialProp, ProveDlog, ProveDhTuple leaf
+verification (phase 2g-medium), plus Cand/Cor/Cthreshold conjecture-walk
+verification (phase 2g-combinators). 8 VerifyError codes total.
+
+## Cross-references
+
+- [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting
+- [`facts/ergoscript-wire.md`](./ergoscript-wire.md) — wire format
+- [`facts/ergoscript-eval.md`](./ergoscript-eval.md) — evaluator (produces `SigmaProp` SValues)
+- `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md` — leaf-verifier design
+- `docs/specs/2026-05-17-ergoscript-phase-2g-combinators-design.md` — conjecture-verifier design
+```
+
+- [ ] **Step 3: Verify the file**
+
+Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript-sigma.md`
+Expected: 100-200 lines (this is the smallest slice; sigma-protocol surface is narrow).
+
+Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript-sigma.md`
+Expected: at least 5 sections (Public surface, Types, Error taxonomy, Internal helpers, Coverage, Cross-references).
+
+- [ ] **Step 4: Commit**
 
 ```bash
-sed -n '171,193p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs
-```
+git -C /home/mwaddip/projects/ergots add facts/ergoscript-sigma.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs(facts): create facts/ergoscript-sigma.md — phase 2g sigma verifier slice
 
-Expected: `add_per_item_jit_cost(20, 2, 16, input_len)` AFTER Coll extraction; returns Coll[Int] = `0..n-1`; throws on `i32::try_from` overflow. If formula drifts, escalate.
+Per the facts/ergoscript.md split design (5da8289): extracts the sigma-protocol
+verifier surface (verifySignature, SigmaBoolean 6-variant union, 8 VerifyError
+codes, internal-helper module pointers) into its own slice contract.
 
-- [ ] **Step 2: Write the failing inline unit test**
-
-Create `packages/ergoscript/test/eval/scoll-indices.test.ts`:
-
-```ts
-/**
- * Layer C1 — SColl.indices handler (typeId 12, methodId 14).
- *
- * Pattern B cost addPerItemCost(20, 2, 16, n) (charged after Coll
- * extraction). Returns Coll[Int] = 0..n-1.
- *
- * Source: ergotree-interpreter/src/eval/scoll.rs:171-193
- */
-
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evalMethodCall } from '../../src/eval/method-call'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
-import type { MethodCall as MethodCallExpr, SValue } from '../../src/mir/types'
-
-const SLONG = { tag: 'SLong' } as const
-const SINT = { tag: 'SInt' } as const
-
-function collOf(items: SValue[], elem: { tag: 'SLong' }): SValue {
-  return { kind: 'Coll', elem, items }
-}
-
-function constExpr(value: SValue, tpe: { tag: string }): any {
-  return { tag: 'Const', tpe, value }
-}
-
-describe('SColl.indices handler (Layer C1)', () => {
-  it('empty Coll → empty Coll[Int]', () => {
-    const ctx = makeContext({})
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(collOf([], SLONG), { tag: 'SColl', elem: SLONG }),
-      args: [],
-      typeId: 12,
-      methodId: 14,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: SINT },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'Coll', elem: SINT, items: [] })
-    // Dispatcher 4 + Const arm 1 + handler base 20 + ceil(0/16)*2 = 0 = 25
-    expect(ctx.jitCost).toBe(25)
-  })
-
-  it('3-elem Coll → Coll[Int](0, 1, 2)', () => {
-    const ctx = makeContext({})
-    const items: SValue[] = [
-      { kind: 'Long', value: 10n },
-      { kind: 'Long', value: 20n },
-      { kind: 'Long', value: 30n },
-    ]
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(collOf(items, SLONG), { tag: 'SColl', elem: SLONG }),
-      args: [],
-      typeId: 12,
-      methodId: 14,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: SINT },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: SINT,
-      items: [
-        { kind: 'Int', value: 0 },
-        { kind: 'Int', value: 1 },
-        { kind: 'Int', value: 2 },
-      ],
-    })
-    // Dispatcher 4 + Const arm 1 + handler base 20 + ceil(3/16)*2 = 2 = 27
-    expect(ctx.jitCost).toBe(27)
-  })
-
-  it('rejects when obj is not Coll', () => {
-    const ctx = makeContext({})
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr({ kind: 'Long', value: 5n }, SLONG),
-      args: [],
-      typeId: 12,
-      methodId: 14,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: SINT },
-    }
-    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-})
-
-interface IndicesEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: Record<string, unknown>
-  expected_value_json: unknown
-  expected_cost: number
-}
-
-interface IndicesFixture {
-  corpus: string
-  entries: IndicesEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/scoll-indices.json')
-const fixture: IndicesFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('SColl.indices — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-NOTE: the inline-test cost arithmetic (25, 27) assumes `Const`-wrapping each input adds cost 1. If the actual `Const` arm cost differs, adjust. The truth-of-record is the fixture-driven test (cross-validated by sigma-rust's oracle).
-
-- [ ] **Step 3: Run test to verify RED**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts`
-
-Expected: RED on the first `it()` (no handler for `12:14`).
-
-- [ ] **Step 4: Register the `SColl.indices` handler in `method-call.ts`**
-
-Edit `packages/ergoscript/src/eval/method-call.ts`. Add a module-level SInt singleton near the top (after existing `SLONG`, `STUPLE_COLLBYTE_LONG`, `SBOX`):
-
-```ts
-const SINT: SType = { tag: 'SInt' }
-```
-
-Add this helper function below the existing handlers:
-
-```ts
-/** Build a Coll[Int] of 0..n-1. */
-function indicesCollOf(n: number): SValue {
-  const items: SValue[] = []
-  for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
-  return { kind: 'Coll', elem: SINT, items }
-}
-```
-
-Inside `registerHandlers()`, add:
-
-```ts
-  // SColl.indices (MethodCall, typeId=12, methodId=14)
-  // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
-  // Pattern B cost: addPerItemCost(20, 2, 16, n) AFTER Coll extraction.
-  HANDLERS.set(handlerKey(12, 14), (obj, _args, ctx, _explicitTypeArgs) => {
-    if (obj.kind !== 'Coll') {
-      throw new EvalError(
-        `SColl.indices expects a Coll obj; got '${obj.kind}'`,
-        'method-not-implemented' // reuse per error taxonomy option 1
-      )
-    }
-    const n = obj.items.length
-    if (n > 0x7fffffff) {
-      throw new EvalError(
-        `SColl.indices: length ${n} exceeds i32 range`,
-        'method-not-implemented' // symmetry with sigma-rust's TryFromIntError throw
-      )
-    }
-    ctx.addPerItemCost(20, 2, 16, n) // Pattern B; source: scoll.rs:179
-    return indicesCollOf(n)
-  })
-```
-
-- [ ] **Step 5: Run inline tests to confirm GREEN**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts -t "empty Coll"`
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts -t "3-elem Coll"`
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts -t "rejects when obj is not Coll"`
-
-All expected: PASS. If cost numbers don't match, the comment-line cost arithmetic guesses are off (see Step 2 NOTE) — fix inline-test expectations to match actual `ctx.jitCost`, document the actual breakdown in the comment.
-
-- [ ] **Step 6: Create fixture-gen Rust file**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/scoll_indices.rs`:
-
-```rust
-//! SColl.indices handler — fixtures.
-//!
-//! Sigma-rust ref: `ergotree-interpreter/src/eval/scoll.rs:171-193`
-//! Method registration: `ergotree-ir/src/types/scoll.rs::INDICES_METHOD`
-//!
-//! Pattern B cost addPerItemCost(20, 2, 16, n). Returns Coll[Int] = 0..n-1.
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::method_call::MethodCall;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::scoll::INDICES_METHOD;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-fn entry(name: &str, items: Vec<i64>) -> anyhow::Result<EvalFixture> {
-    let coll_const: Constant = items.into();
-    let expr: Expr = MethodCall::new(coll_const.into(), INDICES_METHOD.clone(), vec![])
-        .unwrap()
-        .into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-    let ctx = force_any_val::<Context>();
-    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-    Ok(EvalFixture {
-        name: name.to_string(),
-        tree_bytes_hex,
-        opts_json: json!({}),
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-    })
-}
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let entries = vec![
-        entry("empty", vec![])?,
-        entry("three_elements", vec![10, 20, 30])?,
-        entry("seventeen_elements_two_chunks", (0..17).collect())?,
-    ];
-    Ok(EvalFixtureFile {
-        corpus: "eval_scoll_indices",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 7: Wire + generate + verify**
-
-Wire `pub mod scoll_indices;` in `mod.rs` and `generate_and_write("eval/scoll-indices.json", ...)` in `main.rs`.
-
-Run: `cd fixture-gen && cargo build && cargo run`
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts`
-Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/scoll-indices.json`
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: clean build; all tests pass; no fixture diff; zero TS errors.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/method-call.ts \
-        packages/ergoscript/test/eval/scoll-indices.test.ts \
-        packages/ergoscript/test/fixtures/eval/scoll-indices.json \
-        fixture-gen/src/cmds/ergoscript/eval/scoll_indices.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 3 — SColl.indices handler
-
-Registers MethodCall(Coll, indices) (typeId 12, methodId 14) in the
-eval/method-call.ts HANDLERS map. Pattern B cost addPerItemCost(20, 2, 16, n)
-charged after Coll extraction. Returns Coll[Int] = 0..n-1. Includes overflow
-guard at n > 2^31 - 1 (symmetry with sigma-rust's TryFromIntError throw).
-
-Unlocks 8 mainnet boxes per Task B's survey.
+Does NOT yet remove content from facts/ergoscript.md — duplication is
+intentional during the multi-phase split. Phase 2 trims the meta file.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -955,785 +469,181 @@ EOF
 
 ---
 
-## Task 4: `SColl.zip` handler (typeId 12, methodId 29) + C1 fixture
+## Phase 2: Trim `facts/ergoscript.md` to the meta + lookup table
+
+### Task 4: Trim `facts/ergoscript.md`
 
 **Files:**
-- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:138-169`
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler + `zipCollsOf` helper)
-- Create: `packages/ergoscript/test/eval/scoll-zip.test.ts`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/scoll_zip.rs`
-- Wire in `mod.rs` + `main.rs`
-- Generate fixture
+- Modify: `facts/ergoscript.md`
 
-- [ ] **Step 1: Source-read sigma-rust**
+**What stays in the meta file (~150 lines target):**
+- Header / scope statement (one paragraph: what this package is)
+- Cross-cutting guarantees (browser-compat, determinism, ESM-only, no-WASM, runtime deps) — from lines 767-783 of the original
+- Package shape (one paragraph; subpath strategy "none initially")
+- Error-model overview (one paragraph: typed error classes per surface with structural `code` fields — points to slice files for the specific codes)
+- Test-corpus layout (one paragraph naming C1/C2/C3.a layers — from lines 822-830)
+- Coverage summary table (one row per slice)
+- "Where to find what" lookup table (forward pointers to slice files)
+- Cross-references to `docs/specs/` umbrella and the three slice files
+
+**What gets removed (now lives in the slice files):**
+- Lines 19-575 (Scope — much of this is wire-specific): trimmed to a one-paragraph scope statement
+- Lines 576-694 (Public surface, Internal modules): removed (slice files own these)
+- Lines 695-706 (Round-trip invariant): removed (wire slice)
+- Lines 707-766 (Type invariants): removed (eval slice)
+- Lines 784-821 (Error taxonomy — wire side): removed (wire slice)
+- Lines 831-1187 (v0.2.0 evaluator + EvalError + VerifyError + everything): removed (eval + sigma slices)
+- Lines 1188-1194 (Coverage and stability): replaced with the new summary table
+
+- [ ] **Step 1: Read the current meta-relevant sections**
+
+Read lines 1-30 (header + scope opening), 767-830 (cross-cutting + test plan), 1188-1203 (coverage + cross-refs).
+
+- [ ] **Step 2: Verify the slice files contain everything**
+
+Run:
+```bash
+wc -l /home/mwaddip/projects/ergots/facts/ergoscript-*.md
+```
+
+Expected: three files exist (wire, eval, sigma). Sum of lines + new meta target (~150) should be roughly equal to original 1,203 + some redundancy (each slice has its own header / cross-refs section, adding ~50 lines total of new boilerplate).
+
+- [ ] **Step 3: Replace `facts/ergoscript.md` with the trimmed meta version**
+
+Use the Write tool to overwrite `facts/ergoscript.md` with this content:
+
+```markdown
+# `@mwaddip/ergots-ergoscript` — Interface Contract (Meta)
+
+This is the **meta hub** for the `@mwaddip/ergots-ergoscript` boundary contract.
+Cross-cutting guarantees (browser-compat, determinism, package shape) live here.
+For surface-specific contracts (public API, types, error codes), see the slice
+files below.
+
+## Scope
+
+[One-paragraph scope statement. Pull the essential framing from the original
+lines 19-30 — "pure-TypeScript port of sigma-rust's ergotree-ir + ergotree-interpreter,
+validated byte-for-byte and value-for-value." Drop the per-section detail; it
+lives in the slice files now.]
+
+## Where to find what
+
+| Concern | File |
+|---|---|
+| Wire format (parse, serialize, address helpers, `ErgoTree` / `TreeHeader` types) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
+| Evaluator surface, `EvalError` (43 codes), `SValue` / `SType` / `Expr` discriminated unions, method-handler registry (8 entries), eval arm coverage (52/~70) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Sigma-protocol verifier (`verifySignature`), `SigmaBoolean` 6-variant union, `VerifyError` (8 codes) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
+| AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
+| Cost validation (`evaluateWithCost`) | (future, phase 2j) |
+
+## Cross-cutting guarantees
+
+### Browser-compat
+
+[From lines 773-783 — verbatim or near-verbatim]
+
+### Determinism
+
+[From lines 767-772 — verbatim or near-verbatim]
+
+### Package shape
+
+One published npm package, `@mwaddip/ergots-ergoscript`. **Subpath exports —
+none initially.** If a downstream consumer eventually needs finer tree-shaking
+(e.g., just the wire layer for a wallet PoC), introduce a `/wire`, `/eval`, or
+`/sigma` subpath at that point. The slice contract files above are pre-marked
+seams; the package itself stays unified until real consumer demand justifies a split.
+
+### Runtime dependencies
+
+- `@noble/hashes@2.2.0` (blake2b, sha-256, sha-512)
+- `@noble/curves@2.2.0` (secp256k1 point ops; introduced in phase 2g-medium)
+
+No `Buffer`, no `node:*` outside test files, no WASM.
+
+## Error model overview
+
+The package exports multiple typed error classes, one per surface, each carrying
+a structural `code: string` for programmatic dispatch:
+
+- `ErgoTreeParseError`, `ErgoTreeSerializeError` — wire layer; see [`ergoscript-wire.md`](./ergoscript-wire.md)
+- `EvalError` — evaluator layer (43 codes); see [`ergoscript-eval.md`](./ergoscript-eval.md)
+- `VerifyError` — sigma-protocol verifier (8 codes); see [`ergoscript-sigma.md`](./ergoscript-sigma.md)
+
+Common discipline: `.message` is human-readable; `.code` matches a fixed enum of
+structural reason strings for programmatic handling. No other error classes are
+exported.
+
+## Test-corpus layout
+
+The package validates implementation via three layers per the project's TDD discipline:
+
+- **Layer C1** — per-arm fixtures: each evaluator arm has a fixture (or set of sub-cases)
+  asserting both value and cost against sigma-rust's `try_eval_out` oracle.
+- **Layer C2** — corpus eval: real mainnet trees (currently 18 evaluable; hard regression
+  gate `expect(evalSuccess).toBe(18)`).
+- **Layer C3.a** — operator-driven mutation testing (Coll HOF-oriented; method handlers
+  deferred per 2g.5/2g.6 posture).
+
+Cross-runtime: vitest runs each test under both `node` and `jsdom` environments.
+
+See `docs/specs/` for per-phase test-strategy detail.
+
+## Coverage summary
+
+| Slice | Status |
+|---|---|
+| Wire format | 100% of MIR variants parse + serialize byte-identically |
+| Evaluator | 52 of ~70 `Expr` arms wired; 8 method handlers; 43 `EvalError` codes |
+| Sigma verifier | Full `SigmaBoolean` surface (leaf + conjecture walk); 8 `VerifyError` codes |
+| AVL+ | (not yet — phase 2h) |
+| Cost validation | (not yet — phase 2j) |
+
+When a slice file's coverage changes, this table is updated in the same commit.
+
+## Cross-references
+
+- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella interpreter design
+- `docs/specs/2026-05-18-facts-ergoscript-split-design.md` — this file's split design
+- `facts/proof.md` — sister contract for `@mwaddip/ergots-proof`
+- `CLAUDE.md` — project conventions (read-first files include this meta + relevant slices)
+```
+
+- [ ] **Step 4: Verify the trimmed file**
+
+Run: `wc -l /home/mwaddip/projects/ergots/facts/ergoscript.md`
+Expected: around 150 lines (target). 100-200 is acceptable.
+
+Run: `grep -c '^##\? ' /home/mwaddip/projects/ergots/facts/ergoscript.md`
+Expected: at least 6 sections (Scope, Where to find what, Cross-cutting guarantees, Error model overview, Test-corpus layout, Coverage summary, Cross-references).
+
+- [ ] **Step 5: Sanity-check that no content was lost**
+
+Pick 3-5 distinctive phrases from sections that were moved to the slice files (e.g., a specific error code, a specific function signature, a specific cost value). For each, grep across `facts/`:
 
 ```bash
-sed -n '138,169p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs
+grep -l 'specific phrase' /home/mwaddip/projects/ergots/facts/ergoscript*.md
 ```
 
-Confirm:
-- `add_per_item_jit_cost(10, 1, 10, n)` where `n = coll_1.len()` (FIRST Coll, NOT min)
-- Truncates via Rust's `Iterator::zip` (stops at shorter)
-- Returns `Coll[STuple[type_1, type_2]]` where types come from runtime obj+arg elem_tpe
-
-- [ ] **Step 2: Write the failing inline unit test**
-
-Create `packages/ergoscript/test/eval/scoll-zip.test.ts`:
-
-```ts
-/**
- * Layer C1 — SColl.zip handler (typeId 12, methodId 29).
- *
- * Pattern B cost addPerItemCost(10, 1, 10, n) where n = obj len.
- * Truncates to the shorter Coll (Rust Iterator::zip semantics).
- * Returns Coll[STuple[T1, T2]].
- *
- * Source: ergotree-interpreter/src/eval/scoll.rs:138-169
- */
-
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evalMethodCall } from '../../src/eval/method-call'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
-import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
-
-const SLONG: SType = { tag: 'SLong' }
-const SBYTE: SType = { tag: 'SByte' }
-
-function collOf(items: SValue[], elem: SType): SValue {
-  return { kind: 'Coll', elem, items }
-}
-
-function constExpr(value: SValue, tpe: SType): any {
-  return { tag: 'Const', tpe, value }
-}
-
-describe('SColl.zip handler (Layer C1)', () => {
-  it('empty zip empty → empty Coll[(Long, Long)]', () => {
-    const ctx = makeContext({})
-    const obj = collOf([], SLONG)
-    const arg = collOf([], SLONG)
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
-      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'STuple', items: [SLONG, SLONG] },
-      items: [],
-    })
-  })
-
-  it('equal-length zip → tuples of corresponding elements', () => {
-    const ctx = makeContext({})
-    const obj = collOf(
-      [
-        { kind: 'Long', value: 1n },
-        { kind: 'Long', value: 2n },
-        { kind: 'Long', value: 3n },
-      ],
-      SLONG
-    )
-    const arg = collOf(
-      [
-        { kind: 'Long', value: 10n },
-        { kind: 'Long', value: 20n },
-        { kind: 'Long', value: 30n },
-      ],
-      SLONG
-    )
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
-      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'STuple', items: [SLONG, SLONG] },
-      items: [
-        { kind: 'Tuple', items: [{ kind: 'Long', value: 1n }, { kind: 'Long', value: 10n }] },
-        { kind: 'Tuple', items: [{ kind: 'Long', value: 2n }, { kind: 'Long', value: 20n }] },
-        { kind: 'Tuple', items: [{ kind: 'Long', value: 3n }, { kind: 'Long', value: 30n }] },
-      ],
-    })
-  })
-
-  it('short obj zip long arg → truncates to obj length', () => {
-    const ctx = makeContext({})
-    const obj = collOf([{ kind: 'Long', value: 1n }], SLONG)
-    const arg = collOf(
-      [
-        { kind: 'Long', value: 10n },
-        { kind: 'Long', value: 20n },
-      ],
-      SLONG
-    )
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
-      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect((result as any).items).toHaveLength(1)
-  })
-
-  it('long obj zip short arg → truncates to arg length', () => {
-    const ctx = makeContext({})
-    const obj = collOf(
-      [
-        { kind: 'Long', value: 1n },
-        { kind: 'Long', value: 2n },
-      ],
-      SLONG
-    )
-    const arg = collOf([{ kind: 'Long', value: 10n }], SLONG)
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
-      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect((result as any).items).toHaveLength(1)
-  })
-
-  it('mixed-type zip → tuples of (Long, Byte)', () => {
-    const ctx = makeContext({})
-    const obj = collOf(
-      [{ kind: 'Long', value: 100n }, { kind: 'Long', value: 200n }],
-      SLONG
-    )
-    const arg = collOf(
-      [{ kind: 'Byte', value: 1 }, { kind: 'Byte', value: 2 }],
-      SBYTE
-    )
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
-      args: [constExpr(arg, { tag: 'SColl', elem: SBYTE })],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SBYTE] } },
-    }
-    const result = evalMethodCall(e, Env.empty(), ctx)
-    expect((result as any).elem).toEqual({ tag: 'STuple', items: [SLONG, SBYTE] })
-    expect((result as any).items).toHaveLength(2)
-  })
-
-  it('rejects when obj is not Coll', () => {
-    const ctx = makeContext({})
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr({ kind: 'Long', value: 5n }, SLONG),
-      args: [constExpr(collOf([], SLONG), { tag: 'SColl', elem: SLONG })],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
-    }
-    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-
-  it('rejects when arg is not Coll', () => {
-    const ctx = makeContext({})
-    const e: MethodCallExpr = {
-      tag: 'MethodCall',
-      obj: constExpr(collOf([], SLONG), { tag: 'SColl', elem: SLONG }),
-      args: [constExpr({ kind: 'Long', value: 5n }, SLONG)],
-      typeId: 12,
-      methodId: 29,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
-    }
-    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-})
-
-interface ZipEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: Record<string, unknown>
-  expected_value_json: unknown
-  expected_cost: number
-}
-
-interface ZipFixture {
-  corpus: string
-  entries: ZipEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/scoll-zip.json')
-const fixture: ZipFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('SColl.zip — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 3: Run test to verify RED**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-zip.test.ts`
-
-Expected: RED on first `it()` (no handler for `12:29`).
-
-- [ ] **Step 4: Register the `SColl.zip` handler in `method-call.ts`**
-
-Inside `registerHandlers()`, add:
-
-```ts
-  // SColl.zip (MethodCall, typeId=12, methodId=29)
-  // Source: ergotree-interpreter/src/eval/scoll.rs:138-169 — ZIP_EVAL_FN
-  // Pattern B cost: addPerItemCost(10, 1, 10, n) where n = obj len (NOT min).
-  // Truncates to the shorter Coll (Rust Iterator::zip semantics).
-  HANDLERS.set(handlerKey(12, 29), (obj, args, ctx, _explicitTypeArgs) => {
-    if (obj.kind !== 'Coll') {
-      throw new EvalError(
-        `SColl.zip expects a Coll obj; got '${obj.kind}'`,
-        'method-not-implemented'
-      )
-    }
-    const n = obj.items.length
-    ctx.addPerItemCost(10, 1, 10, n) // Pattern B; source: scoll.rs:147
-    if (args.length !== 1) {
-      throw new EvalError(
-        `SColl.zip expects 1 arg; got ${args.length}`,
-        'method-not-implemented'
-      )
-    }
-    const arg = args[0]!
-    if (arg.kind !== 'Coll') {
-      throw new EvalError(
-        `SColl.zip expects arg to be a Coll; got '${arg.kind}'`,
-        'method-not-implemented'
-      )
-    }
-    return zipCollsOf(obj, arg)
-  })
-```
-
-Add the helper function below the existing helpers:
-
-```ts
-/** Zip two Colls into Coll[STuple[T1, T2]], truncating to the shorter input. */
-function zipCollsOf(
-  coll1: SValue & { kind: 'Coll' },
-  coll2: SValue & { kind: 'Coll' }
-): SValue {
-  const len = Math.min(coll1.items.length, coll2.items.length)
-  const items: SValue[] = []
-  for (let i = 0; i < len; i++) {
-    items.push({ kind: 'Tuple', items: [coll1.items[i]!, coll2.items[i]!] })
-  }
-  return {
-    kind: 'Coll',
-    elem: { tag: 'STuple', items: [coll1.elem, coll2.elem] },
-    items,
-  }
-}
-```
-
-- [ ] **Step 5: Run inline tests to confirm GREEN**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-zip.test.ts -t "Layer C1"`
-
-Expected: all 7 inline-test cases pass.
-
-- [ ] **Step 6: Create fixture-gen Rust file**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/scoll_zip.rs`:
-
-```rust
-//! SColl.zip handler — fixtures.
-//!
-//! Sigma-rust ref: `ergotree-interpreter/src/eval/scoll.rs:138-169`
-//! Method registration: `ergotree-ir/src/types/scoll.rs::ZIP_METHOD`
-//!
-//! Pattern B cost addPerItemCost(10, 1, 10, n) where n = obj len.
-//! Truncates to shorter Coll.
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::constant::Constant;
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::method_call::MethodCall;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::scoll::ZIP_METHOD;
-use ergotree_ir::types::stype::SType;
-use ergotree_ir::types::stype_param::STypeVar;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-fn entry_longs(name: &str, obj: Vec<i64>, arg: Vec<i64>) -> anyhow::Result<EvalFixture> {
-    let obj_const: Constant = obj.into();
-    let arg_const: Constant = arg.into();
-    let type_args = [
-        (STypeVar::iv(), SType::SLong),
-    ].into_iter().collect();
-    let expr: Expr = MethodCall::new(
-        obj_const.into(),
-        ZIP_METHOD.clone().with_concrete_types(&type_args),
-        vec![arg_const.into()],
-    )
-    .unwrap()
-    .into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-    let ctx = force_any_val::<Context>();
-    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-    Ok(EvalFixture {
-        name: name.to_string(),
-        tree_bytes_hex,
-        opts_json: json!({}),
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-    })
-}
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let entries = vec![
-        entry_longs("empty_zip_empty", vec![], vec![])?,
-        entry_longs("equal_length", vec![1, 2, 3], vec![10, 20, 30])?,
-        entry_longs("short_obj_long_arg", vec![1], vec![10, 20, 30])?,
-        entry_longs("long_obj_short_arg", vec![1, 2, 3], vec![10])?,
-    ];
-    Ok(EvalFixtureFile {
-        corpus: "eval_scoll_zip",
-        entries,
-    })
-}
-```
-
-NOTE: the `with_concrete_types` arguments may need adjustment based on how sigma-rust's `ZIP_METHOD` is parameterized — read `types/scoll.rs:103` to confirm the type-var name and whether you need `IV` + `OV` or just one. Adjust the type-args HashMap accordingly. If sigma-rust's API has changed, the existing fixture-gen examples in `scoll_*.rs` files (e.g., `scoll_map.rs`) are reference patterns for `with_concrete_types` usage.
-
-- [ ] **Step 7: Wire + generate + verify**
-
-Wire `pub mod scoll_zip;` in `mod.rs` and `generate_and_write("eval/scoll-zip.json", ...)` in `main.rs`.
-
-Run: `cd fixture-gen && cargo build && cargo run`
-Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-zip.test.ts`
-Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/scoll-zip.json`
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: clean build; all tests pass; no fixture diff; zero TS errors.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/method-call.ts \
-        packages/ergoscript/test/eval/scoll-zip.test.ts \
-        packages/ergoscript/test/fixtures/eval/scoll-zip.json \
-        fixture-gen/src/cmds/ergoscript/eval/scoll_zip.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 4 — SColl.zip handler
-
-Registers MethodCall(Coll, zip) (typeId 12, methodId 29) in the
-eval/method-call.ts HANDLERS map. Pattern B cost addPerItemCost(10, 1, 10, n)
-where n = obj length (not min). Returns Coll[STuple[T1, T2]] truncating to
-the shorter Coll (Rust Iterator::zip semantics). Type-arg passthrough not
-needed (return-type element built from runtime elem_tpe).
-
-Unlocks 35 mainnet boxes per Task B's survey.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 5: `{ kind: 'PreHeader', value: PreHeader }` SValue variant + audit consumers
-
-**Files:**
-- Modify: `packages/ergoscript/src/mir/types.ts` (add variant to SValue union, ~line 832)
-- Modify: `packages/ergoscript/test/_helpers/index.ts` (add `case 'PreHeader':` in `hydrateSValue`)
-- Possibly modify other internal files that pattern-match exhaustively on SValue
-
-**No new tests in this task** — the variant is introduced as a type only. Task 6 and Task 7 register handlers that produce/consume it.
-
-- [ ] **Step 1: Add `{ kind: 'PreHeader', value: PreHeader }` to SValue union**
-
-Edit `packages/ergoscript/src/mir/types.ts`. Find the SValue union and insert the new variant right after `{ kind: 'Box'; value: ErgoBox }`:
-
-```ts
-  | { kind: 'Box'; value: ErgoBox }
-  | { kind: 'PreHeader'; value: PreHeader }
-  | { kind: 'AvlTree'; value: AvlTreeData }
-```
-
-The `PreHeader` interface is already defined at line 156 in the same file; no new imports needed.
-
-- [ ] **Step 2: Run TypeScript check to surface exhaustiveness errors**
-
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: errors in files with exhaustive `switch (v.kind)` patterns. Capture the file list.
-
-- [ ] **Step 3: Add `case 'PreHeader':` arms to all exhaustive switches**
-
-For `test/_helpers/index.ts` `hydrateSValue`:
-
-```ts
-    case 'PreHeader': {
-      const v = json.value
-      return {
-        kind: 'PreHeader',
-        value: {
-          version: v.version,
-          parentId: hexToBytes(v.parentId),
-          timestamp: BigInt(v.timestamp),
-          nBits: v.nBits,
-          height: v.height,
-          minerPk: hexToBytes(v.minerPk),
-          votes: hexToBytes(v.votes),
-        },
-      }
-    }
-```
-
-Adjust the PreHeader field set per the actual interface (re-read `mir/types.ts:156-…` for the canonical field list). For any other file flagged in Step 2, add a `case 'PreHeader':` arm that does the natural thing for that file's purpose (often just returning a fallback or throwing).
-
-- [ ] **Step 4: Re-run TypeScript check, confirm clean**
-
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: zero errors.
-
-- [ ] **Step 5: Run full test suite to ensure no regressions**
-
-Run: `cd packages/ergoscript && npx vitest run`
-
-Expected: all existing tests pass (the variant is unused so far; no behavior changes).
+Expected: each phrase appears in exactly one slice file (not in meta, not in two slices). If it appears in zero files, it was lost — re-extract.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/ergoscript/src/mir/types.ts \
-        packages/ergoscript/test/_helpers/index.ts
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 5 — { kind: 'PreHeader' } SValue variant
+git -C /home/mwaddip/projects/ergots add facts/ergoscript.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs(facts): trim facts/ergoscript.md to meta hub + lookup table
 
-Additive variant to SValue discriminated union; PreHeader interface already
-exists at mir/types.ts:156 (no new type definition). Audit + add cases in
-exhaustive switches across src/ and test/_helpers (hydrateSValue parses
-PreHeader value from JSON fixture format).
+Per the facts/ergoscript.md split design (5da8289): trims facts/ergoscript.md
+from 1,203 lines to ~150 lines. Removes wire/eval/sigma surface content
+(now lives in the three slice files added in Phase 1). Retains the meta hub:
+scope statement, lookup table forwarding to slice files, cross-cutting
+guarantees (browser-compat, determinism, package shape, runtime deps),
+error-model overview, test-corpus layout, and coverage summary table.
 
-No behavior change yet; Tasks 6 (SContext.preHeader producer) and 7
-(SPreHeader.timestamp consumer) use this variant.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 6: `SContext.preHeader` handler (typeId 101, methodId 3) + C1 fixture
-
-**Files:**
-- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scontext.rs:72-81`
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler entry)
-- Create: `packages/ergoscript/test/eval/scontext-pre-header.test.ts`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/scontext_pre_header.rs`
-- Wire + generate fixture
-
-- [ ] **Step 1: Source-read sigma-rust**
-
-```bash
-sed -n '72,81p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scontext.rs
-```
-
-Confirm: `add_jit_cost(15)` BEFORE obj check; obj must be `Value::Context`; returns `ctx.pre_header.clone()` wrapped.
-
-- [ ] **Step 2: Write the failing inline unit test**
-
-Create `packages/ergoscript/test/eval/scontext-pre-header.test.ts`:
-
-```ts
-/**
- * Layer C1 — SContext.preHeader handler (typeId 101, methodId 3).
- *
- * Pattern A cost 15 (charged before obj check). Returns
- * { kind: 'PreHeader', value: ctx.preHeader }.
- *
- * Source: ergotree-interpreter/src/eval/scontext.rs:72-81
- */
-
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evalPropertyCall } from '../../src/eval/method-call'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
-import type { PropertyCall as PropertyCallExpr, PreHeader } from '../../src/mir/types'
-
-function syntheticPreHeader(): PreHeader {
-  return {
-    version: 3,
-    parentId: new Uint8Array(32),
-    timestamp: 1700000000000n,
-    nBits: 0x18000000,
-    height: 1000000,
-    minerPk: new Uint8Array(33),
-    votes: new Uint8Array(3),
-  }
-}
-
-describe('SContext.preHeader handler (Layer C1)', () => {
-  it('returns wrapped PreHeader and charges 4 + 1 + 15 = 20', () => {
-    const preHeader = syntheticPreHeader()
-    const ctx = makeContext({ preHeader })
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Context' },
-      typeId: 101,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SPreHeader' },
-    }
-    const result = evalPropertyCall(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'PreHeader', value: preHeader })
-    expect(ctx.jitCost).toBe(20)
-  })
-
-  it('throws context-field-missing when ctx.preHeader is undefined', () => {
-    const ctx = makeContext({}) // no preHeader
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Context' },
-      typeId: 101,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SPreHeader' },
-    }
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-
-  it('throws context-obj-not-context when obj is not Context', () => {
-    const ctx = makeContext({ preHeader: syntheticPreHeader() })
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Global' },
-      typeId: 101,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SPreHeader' },
-    }
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-})
-
-interface PreHeaderEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: Record<string, unknown>
-  expected_value_json: unknown
-  expected_cost: number
-}
-
-interface PreHeaderFixture {
-  corpus: string
-  entries: PreHeaderEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/scontext-pre-header.json')
-const fixture: PreHeaderFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('SContext.preHeader — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-NOTE: confirm the PreHeader interface field set (`version`, `parentId`, etc.) by reading `mir/types.ts:156-…`. Adjust `syntheticPreHeader` if the field list is different.
-
-- [ ] **Step 3: Run test to verify RED**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/scontext-pre-header.test.ts`
-
-Expected: RED on first `it()` (no handler for `101:3`).
-
-- [ ] **Step 4: Register the `SContext.preHeader` handler in `method-call.ts`**
-
-Inside `registerHandlers()`, add:
-
-```ts
-  // SContext.preHeader (PropertyCall, typeId=101, methodId=3)
-  // Source: ergotree-interpreter/src/eval/scontext.rs:72-81 — PRE_HEADER_EVAL_FN
-  // Pattern A cost 15 (charged before obj check).
-  HANDLERS.set(handlerKey(101, 3), (obj, _args, ctx, _explicitTypeArgs) => {
-    ctx.addCost(15)
-    if (obj.kind !== 'Context') {
-      throw new EvalError(
-        `SContext.preHeader expects a Context obj; got '${obj.kind}'`,
-        'context-obj-not-context' // reuses existing code (used by SContext.dataInputs)
-      )
-    }
-    if (ctx.preHeader === undefined) {
-      throw new EvalError(
-        `SContext.preHeader: ctx.preHeader is undefined`,
-        'context-field-missing'
-      )
-    }
-    return { kind: 'PreHeader', value: ctx.preHeader }
-  })
-```
-
-- [ ] **Step 5: Run inline tests to confirm GREEN**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/scontext-pre-header.test.ts -t "Layer C1"`
-
-Expected: all 3 inline-test cases pass.
-
-- [ ] **Step 6: Create fixture-gen Rust file**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/scontext_pre_header.rs`:
-
-```rust
-//! SContext.preHeader handler — fixtures.
-//!
-//! Sigma-rust ref: `ergotree-interpreter/src/eval/scontext.rs:72-81`
-//! Method registration: `ergotree-ir/src/types/scontext.rs::PRE_HEADER_PROPERTY`
-//!
-//! Pattern A cost 15. Returns wrapped PreHeader from ctx.pre_header.
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::property_call::PropertyCall;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::scontext::PRE_HEADER_PROPERTY;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{preheader_to_json, value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    let expr: Expr = PropertyCall::new(Expr::Context, PRE_HEADER_PROPERTY.clone())
-        .unwrap()
-        .into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-    let ctx = force_any_val::<Context>();
-    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-
-    // The opts_json must thread ctx.pre_header through to the TS test so the
-    // TS evaluator's makeContext({preHeader}) call gets the same value sigma-rust
-    // evaluated against. Serialise the PreHeader to canonical JSON.
-    let opts_json = json!({
-        "preHeader": preheader_to_json(&ctx.pre_header),
-    });
-
-    entries.push(EvalFixture {
-        name: "context_pre_header".to_string(),
-        tree_bytes_hex,
-        opts_json,
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-    });
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_scontext_pre_header",
-        entries,
-    })
-}
-```
-
-NOTE: `preheader_to_json` helper may not exist yet in `common.rs`. If not, add it (mirroring the existing `value_to_json` pattern). It should produce a JSON object with fields `{ version, parentId (hex), timestamp (string), nBits, height, minerPk (hex), votes (hex) }` that matches what `hydrateSValue` (Task 5 Step 3) parses on the TS side.
-
-- [ ] **Step 7: Wire + generate + verify**
-
-Wire `pub mod scontext_pre_header;` in `mod.rs` and `generate_and_write("eval/scontext-pre-header.json", ...)` in `main.rs`.
-
-Run: `cd fixture-gen && cargo build && cargo run`
-Run: `cd packages/ergoscript && npx vitest run test/eval/scontext-pre-header.test.ts`
-
-Expected: clean build; all tests pass. If the PreHeader JSON serialisation doesn't match, iterate on `preheader_to_json` and `hydrateSValue` until they agree.
-
-- [ ] **Step 8: Two-run determinism + type-check**
-
-Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/scontext-pre-header.json && cd ../packages/ergoscript && npx tsc --noEmit`
-
-Expected: no fixture diff; zero TS errors.
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/method-call.ts \
-        packages/ergoscript/test/eval/scontext-pre-header.test.ts \
-        packages/ergoscript/test/fixtures/eval/scontext-pre-header.json \
-        fixture-gen/src/cmds/ergoscript/eval/scontext_pre_header.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-# If preheader_to_json was added:
-git add fixture-gen/src/cmds/ergoscript/eval/common.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 6 — SContext.preHeader handler
-
-Registers PropertyCall(Context, preHeader) (typeId 101, methodId 3) in the
-eval/method-call.ts HANDLERS map. Pattern A cost 15 (chained total 20:
-4 dispatcher + 1 Context arm + 15 handler). Returns wrapped PreHeader from
-ctx.preHeader. Reuses 'context-obj-not-context' code (second consumer,
-validating 2g.5's per-typeId code choice); reuses 'context-field-missing'
-for undefined ctx.preHeader (same shape as GlobalVars.{Outputs/...}).
-
-Unlocks 7 mainnet boxes per Task B's survey (4 must-include + 3 random).
+Vague cross-references from other docs ("see facts/ergoscript.md") still
+land here and forward correctly via the lookup table.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1742,409 +652,224 @@ EOF
 
 ---
 
-## Task 7: `SPreHeader.timestamp` handler (typeId 105, methodId 3) + C1 fixture
+## Phase 3: Update cross-references + governance
+
+Three tasks (5, 6, 7); one sanity-check task (8).
+
+### Task 5: Update `CLAUDE.md` reads-list
 
 **Files:**
-- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/spreheader.rs:20-24`
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler entry)
-- Create: `packages/ergoscript/test/eval/spreheader-timestamp.test.ts`
-- Create: `fixture-gen/src/cmds/ergoscript/eval/spreheader_timestamp.rs`
-- Wire + generate fixture
+- Modify: `/home/mwaddip/projects/ergots/CLAUDE.md`
 
-- [ ] **Step 1: Source-read sigma-rust**
+- [ ] **Step 1: Locate the read-first list**
 
-```bash
-sed -n '20,24p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/spreheader.rs
-```
+Run: `grep -n 'facts/ergoscript' /home/mwaddip/projects/ergots/CLAUDE.md`
 
-Confirm: `add_jit_cost(10)` BEFORE obj extraction; obj extracted via `try_extract_into::<PreHeader>()`; returns `(preheader.timestamp as i64).into()`.
+Note each line that references `facts/ergoscript.md`. The "Read-first files" section is currently near the top of the file.
 
-- [ ] **Step 2: Write the failing inline unit test**
+- [ ] **Step 2: Update the read-first entry**
 
-Create `packages/ergoscript/test/eval/spreheader-timestamp.test.ts`:
-
-```ts
-/**
- * Layer C1 — SPreHeader.timestamp handler (typeId 105, methodId 3).
- *
- * Pattern A cost 10 (charged before obj check). Returns
- * { kind: 'Long', value: preHeader.timestamp }.
- *
- * Source: ergotree-interpreter/src/eval/spreheader.rs:20-24
- */
-
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evalPropertyCall } from '../../src/eval/method-call'
-import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
-import type { PropertyCall as PropertyCallExpr, PreHeader } from '../../src/mir/types'
-
-function syntheticPreHeader(timestamp: bigint): PreHeader {
-  return {
-    version: 3,
-    parentId: new Uint8Array(32),
-    timestamp,
-    nBits: 0x18000000,
-    height: 1000000,
-    minerPk: new Uint8Array(33),
-    votes: new Uint8Array(3),
-  }
-}
-
-describe('SPreHeader.timestamp handler (Layer C1)', () => {
-  it('returns timestamp as Long; chain Context.preHeader.timestamp charges 34', () => {
-    const preHeader = syntheticPreHeader(1700000000000n)
-    const ctx = makeContext({ preHeader })
-    // Outer PropertyCall: SPreHeader.timestamp on the inner result
-    const innerPreHeader: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Context' },
-      typeId: 101,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SPreHeader' },
-    }
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: innerPreHeader,
-      typeId: 105,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SLong' },
-    }
-    const result = evalPropertyCall(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'Long', value: 1700000000000n })
-    // 4 (outer disp) + 4 (inner disp) + 1 (Context arm) + 15 (preHeader handler) + 10 (timestamp handler) = 34
-    expect(ctx.jitCost).toBe(34)
-  })
-
-  it('boundary: timestamp near i64::MAX passes through unchanged', () => {
-    const max = 9223372036854775807n // i64::MAX
-    const preHeader = syntheticPreHeader(max)
-    const ctx = makeContext({ preHeader })
-    const innerPreHeader: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Context' },
-      typeId: 101,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SPreHeader' },
-    }
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: innerPreHeader,
-      typeId: 105,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SLong' },
-    }
-    const result = evalPropertyCall(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'Long', value: max })
-  })
-
-  it('rejects when obj is not PreHeader', () => {
-    const ctx = makeContext({})
-    const e: PropertyCallExpr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'Context' }, // returns { kind: 'Context' }, not PreHeader
-      typeId: 105,
-      methodId: 3,
-      explicitTypeArgs: {},
-      tpe: { tag: 'SLong' },
-    }
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
-  })
-})
-
-interface TimestampEntry {
-  name: string
-  tree_bytes_hex: string
-  opts_json: Record<string, unknown>
-  expected_value_json: unknown
-  expected_cost: number
-}
-
-interface TimestampFixture {
-  corpus: string
-  entries: TimestampEntry[]
-}
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const fixturePath = join(__dirname, '../fixtures/eval/spreheader-timestamp.json')
-const fixture: TimestampFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
-
-describe('SPreHeader.timestamp — fixture-driven', () => {
-  for (const entry of fixture.entries) {
-    it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
-      const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
-      expect(ctx.jitCost).toBe(entry.expected_cost)
-    })
-  }
-})
-```
-
-- [ ] **Step 3: Run test to verify RED**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/spreheader-timestamp.test.ts`
-
-Expected: RED on first `it()` (no handler for `105:3`).
-
-- [ ] **Step 4: Register the `SPreHeader.timestamp` handler in `method-call.ts`**
-
-Inside `registerHandlers()`, add:
-
-```ts
-  // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
-  // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
-  // Pattern A cost 10 (charged before obj check). Returns Long.
-  HANDLERS.set(handlerKey(105, 3), (obj, _args, ctx, _explicitTypeArgs) => {
-    ctx.addCost(10)
-    if (obj.kind !== 'PreHeader') {
-      throw new EvalError(
-        `SPreHeader.timestamp expects a PreHeader obj; got '${obj.kind}'`,
-        'method-not-implemented'
-      )
-    }
-    return { kind: 'Long', value: obj.value.timestamp }
-  })
-```
-
-- [ ] **Step 5: Run inline tests to confirm GREEN**
-
-Run: `cd packages/ergoscript && npx vitest run test/eval/spreheader-timestamp.test.ts -t "Layer C1"`
-
-Expected: all 3 inline-test cases pass.
-
-- [ ] **Step 6: Create fixture-gen Rust file**
-
-Create `fixture-gen/src/cmds/ergoscript/eval/spreheader_timestamp.rs`:
-
-```rust
-//! SPreHeader.timestamp handler — fixtures.
-//!
-//! Sigma-rust ref: `ergotree-interpreter/src/eval/spreheader.rs:20-24`
-//! Method registration: `ergotree-ir/src/types/spreheader.rs::TIMESTAMP_PROPERTY`
-//!
-//! Pattern A cost 10. Returns Long.
-
-use ergotree_interpreter::eval::test_util::try_eval_out;
-use ergotree_ir::chain::context::Context;
-use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
-use ergotree_ir::mir::expr::Expr;
-use ergotree_ir::mir::property_call::PropertyCall;
-use ergotree_ir::serialization::SigmaSerializable;
-use ergotree_ir::types::scontext::PRE_HEADER_PROPERTY;
-use ergotree_ir::types::spreheader::TIMESTAMP_PROPERTY;
-use serde_json::json;
-use sigma_test_util::force_any_val;
-
-use super::common::{preheader_to_json, value_to_json, EvalFixture, EvalFixtureFile};
-
-pub fn generate() -> anyhow::Result<EvalFixtureFile> {
-    let mut entries = Vec::new();
-
-    // Tree: PropertyCall(PropertyCall(Context, preHeader), timestamp)
-    let pre_header_expr: Expr = PropertyCall::new(Expr::Context, PRE_HEADER_PROPERTY.clone())
-        .unwrap()
-        .into();
-    let expr: Expr = PropertyCall::new(pre_header_expr, TIMESTAMP_PROPERTY.clone())
-        .unwrap()
-        .into();
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
-    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
-
-    let ctx = force_any_val::<Context>();
-    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
-    let cost = ctx.jit_cost_value();
-
-    let opts_json = json!({
-        "preHeader": preheader_to_json(&ctx.pre_header),
-    });
-
-    entries.push(EvalFixture {
-        name: "context_pre_header_timestamp".to_string(),
-        tree_bytes_hex,
-        opts_json,
-        expected_value_json: value_to_json(&val),
-        expected_cost: cost,
-    });
-
-    Ok(EvalFixtureFile {
-        corpus: "eval_spreheader_timestamp",
-        entries,
-    })
-}
-```
-
-- [ ] **Step 7: Wire + generate + verify**
-
-Wire `pub mod spreheader_timestamp;` in `mod.rs` and `generate_and_write("eval/spreheader-timestamp.json", ...)` in `main.rs`.
-
-Run: `cd fixture-gen && cargo build && cargo run`
-Run: `cd packages/ergoscript && npx vitest run test/eval/spreheader-timestamp.test.ts`
-Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/spreheader-timestamp.json`
-Run: `cd packages/ergoscript && npx tsc --noEmit`
-
-Expected: clean build; all tests pass; no fixture diff; zero TS errors.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add packages/ergoscript/src/eval/method-call.ts \
-        packages/ergoscript/test/eval/spreheader-timestamp.test.ts \
-        packages/ergoscript/test/fixtures/eval/spreheader-timestamp.json \
-        fixture-gen/src/cmds/ergoscript/eval/spreheader_timestamp.rs \
-        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
-        fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): phase 2g.6 Task 7 — SPreHeader.timestamp handler
-
-Registers PropertyCall(PreHeader, timestamp) (typeId 105, methodId 3) in the
-eval/method-call.ts HANDLERS map. Pattern A cost 10 (chained total 34:
-4 outer disp + 4 inner disp + 1 Context arm + 15 preHeader handler + 10
-timestamp handler). Returns Long; PreHeader.timestamp already bigint so no
-i64-cast needed (boundary fixture validates i64::MAX passthrough).
-
-Unlocks 7 mainnet boxes per Task B's survey (4 must-include + 3 random).
-Completes the 5-method handler scope; Task 8 is verification + docs.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 8: `facts/ergoscript.md` update + wider-corpus re-survey + final regression sweep
-
-**Files:**
-- Modify: `facts/ergoscript.md` (coverage 51 → 52 arms; method handlers 3 → 8; 2 new SValue variants; cross-reference 2g.6 spec)
-- Modify: `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (annotate 2g.6 row ✅ COMPLETE)
-- Modify: `packages/ergoscript/scripts/_known-methods.ts` (mark 5 methods `implemented: true`)
-- Regenerate: `docs/specs/2026-05-18-task-b-corpus-survey-tally.json` (verification — re-run the analyzer)
-- Modify: `PLAN.md` (mark phase complete)
-
-No new test or fixture files. This is verification + documentation.
-
-- [ ] **Step 1: Update `facts/ergoscript.md`**
-
-Read the file and locate the coverage statement (likely a section like "Internal Expr arms: 51 of ~70"). Update to:
-- "Internal Expr arms: 52 of ~70" (was 51; +1 Global)
-- "Method-call handler registry: 8 entries" (was 3; +5)
-- "EvalError codes: 43" (unchanged from 2g.5)
-- SValue variants: add `Global` and `PreHeader` to the enumerated list
-- Add `EvalOpts.preHeader?: PreHeader` to the public surface notes (already there from 2f-medium — confirm wording)
-- Cross-reference `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` in the changelog/history section
-
-- [ ] **Step 2: Update umbrella spec**
-
-Edit `docs/specs/2026-05-13-ergoscript-interpreter-design.md`. Find the "Phase 2g.6" row in the phase plan table and update its "Done criterion" cell to start with `✅ shipped 2026-05-XX` (use today's date). Mirror the wording style of the existing 2g.5 / 2g-combinators rows.
-
-- [ ] **Step 3: Update `_known-methods.ts` — mark the 5 methods implemented**
-
-Edit `packages/ergoscript/scripts/_known-methods.ts`. Find the 5 entries:
-- `(106, 1)` SGlobal.groupGenerator
-- `(12, 29)` SColl.zip
-- `(12, 14)` SColl.indices
-- `(101, 3)` SContext.preHeader
-- `(105, 3)` SPreHeader.timestamp
-
-Change each from `implemented: false` to `implemented: true`. If there's a `phaseTag` or similar field, set it to `'2g.6'`.
-
-- [ ] **Step 4: Re-run the corpus analyzer**
-
-Run: `cd /home/mwaddip/projects/ergots && npx tsx packages/ergoscript/scripts/analyze-wider-corpus.ts`
-
-Expected: the script regenerates `docs/specs/2026-05-18-task-b-corpus-survey-results.md` and `docs/specs/2026-05-18-task-b-corpus-survey-tally.json`. In the regenerated tally JSON:
-- The 5 methods flip from `implemented: false` → `implemented: true`.
-- `unimplementedHits` for tag `Global` drops from 120 to 0 (since the Global arm is now wired).
-- All other counts unchanged from the 2026-05-18 baseline.
-
-Diff the regenerated files against committed:
-
-```bash
-git -C /home/mwaddip/projects/ergots diff docs/specs/2026-05-18-task-b-corpus-survey-tally.json | head -100
-```
-
-Expected diff: only the 5 `implemented` flags + the Global `unimplementedHits` line. If unexpected changes appear, investigate — may indicate a regression in the walker or `_known-methods` accounting.
-
-- [ ] **Step 5: Run the full test suite**
-
-Run: `cd /home/mwaddip/projects/ergots && npm test`
-
-Expected: all tests pass under both node + jsdom. Test count should be ergoscript 2627 + 5×N (where N is the number of new fixture/inline tests added per task) + proof 305. Confirm the exact count matches what was added in Tasks 1-7.
-
-- [ ] **Step 6: Run TypeScript check**
-
-Run: `cd /home/mwaddip/projects/ergots/packages/ergoscript && npx tsc --noEmit`
-
-Expected: zero errors.
-
-- [ ] **Step 7: Run Rust tests + determinism check**
-
-Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo test && cargo run`
-
-Then:
-
-```bash
-git -C /home/mwaddip/projects/ergots diff --stat packages/ergoscript/test/fixtures/
-```
-
-Expected: cargo test passes; cargo run produces zero fixture diffs (full determinism across all 6 new + all existing fixtures).
-
-- [ ] **Step 8: Update PLAN.md to mark phase complete**
-
-Edit `PLAN.md` at repo root. Add a status line at the top below the title:
+Find the current entry for `facts/ergoscript.md`. Replace it with:
 
 ```markdown
-**Status: ✅ COMPLETE 2026-05-XX** (5 method handlers + Global arm + 2 SValue variants shipped; wider-corpus re-survey confirms 5 methods now `implemented: true`; full test suite green under node + jsdom; fixture-gen determinism preserved.)
+   - `facts/ergoscript.md` — meta hub for `@mwaddip/ergots-ergoscript`; points to per-slice files
+   - `facts/ergoscript-wire.md` — wire format (parseTree, serializeTree, address helpers, ErgoTree types)
+   - `facts/ergoscript-eval.md` — evaluator surface (evaluate, EvalError 43 codes, SValue/SType/Expr, method-handler registry, eval arm coverage)
+   - `facts/ergoscript-sigma.md` — sigma-protocol verifier (verifySignature, SigmaBoolean, VerifyError 8 codes)
 ```
 
-- [ ] **Step 9: Commit the verification sweep**
+Adjust formatting to match the surrounding style (whether the original used dashes, asterisks, or numbered bullets).
+
+If `facts/ergoscript.md` is referenced anywhere else in CLAUDE.md (e.g., "Project facts" section), update the wording to clarify that it's the meta hub.
+
+- [ ] **Step 3: Verify**
+
+Run: `grep -n 'facts/ergoscript' /home/mwaddip/projects/ergots/CLAUDE.md`
+
+Expected: the read-first entry now lists 4 files (meta + 3 slices); any other references mention the meta as a hub.
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add facts/ergoscript.md \
-        docs/specs/2026-05-13-ergoscript-interpreter-design.md \
-        docs/specs/2026-05-18-task-b-corpus-survey-results.md \
-        docs/specs/2026-05-18-task-b-corpus-survey-tally.json \
-        packages/ergoscript/scripts/_known-methods.ts \
-        PLAN.md
-git commit -m "$(cat <<'EOF'
-docs(ergoscript): phase 2g.6 complete — facts + umbrella + corpus re-survey
+git -C /home/mwaddip/projects/ergots add CLAUDE.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs: update CLAUDE.md reads-list for facts/ergoscript.md split
 
-Coverage: 51 → 52 Expr arms; method handlers 3 → 8; 2 new SValue variants
-(Global sentinel, PreHeader value carrier). Zero new EvalError codes (43).
-
-Wider-corpus re-survey confirms the 5 methods (groupGenerator, zip, indices,
-preHeader, timestamp) now show implemented: true in the tally JSON, and the
-Global tag's unimplementedHits count drops from 120 to 0.
-
-Full test suite green under node + jsdom; fixture-gen determinism preserved
-across all 6 new + all existing fixtures.
+Per the split design (5da8289): updates the read-first files list to
+include the three new slice contracts (ergoscript-wire.md,
+ergoscript-eval.md, ergoscript-sigma.md) alongside the meta hub.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 10: Update SESSION_CONTEXT.md + memory**
+---
 
-Update `packages/ergoscript/SESSION_CONTEXT.md` (gitignored) to reflect "Phase 2g.6 complete; coverage 52/~70 arms; method handlers 8; next: phase 2h (AVL+) or 2i (predefs) per user".
+### Task 6: Update `packages/ergoscript/` README / API / PLAN deep-refs
 
-Update memory file at `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` to reflect the new state.
+**Files:**
+- Modify (if deep-refs exist): `packages/ergoscript/README.md`, `packages/ergoscript/API.md`
+- DO NOT modify: `packages/ergoscript/PLAN.md` (or the root `PLAN.md`) — those are working plans, not reference docs
 
-Update MEMORY.md hook line for `project_ergots_direction` to note 2g.6 shipped.
+- [ ] **Step 1: Find all references**
 
-(No commit — these are local-only artifacts.)
+Run: `grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/packages/ergoscript/ /home/mwaddip/projects/ergots/README.md 2>/dev/null`
+
+For each reference, determine:
+- Vague (`see facts/ergoscript.md`) → leave as-is; it lands on the meta hub
+- Deep-link (`facts/ergoscript.md#evalerror-taxonomy` or "the EvalError taxonomy in facts/ergoscript.md") → update to point to the right slice file
+
+- [ ] **Step 2: Update each deep-link reference**
+
+For each deep-link found in Step 1, edit the source file to point at the right slice. Example patterns:
+
+- "the EvalError taxonomy in facts/ergoscript.md" → "the EvalError taxonomy in facts/ergoscript-eval.md"
+- "the SValue discriminated union in facts/ergoscript.md" → "the SValue discriminated union in facts/ergoscript-eval.md"
+- "verifySignature documented in facts/ergoscript.md" → "verifySignature documented in facts/ergoscript-sigma.md"
+- "parseTree returns ErgoTree (see facts/ergoscript.md)" → "parseTree returns ErgoTree (see facts/ergoscript-wire.md)"
+
+- [ ] **Step 3: Verify**
+
+Run: `grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/packages/ergoscript/ /home/mwaddip/projects/ergots/README.md 2>/dev/null`
+
+Expected: every deep-link reference now points to a slice file; vague refs still point to the meta.
+
+- [ ] **Step 4: Commit (only if any files were actually changed)**
+
+```bash
+git -C /home/mwaddip/projects/ergots add packages/ergoscript/README.md packages/ergoscript/API.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs(ergoscript): update package README/API deep-refs for facts split
+
+Per the split design (5da8289): redirects deep-link references that named
+specific sections now living in slice files (ergoscript-wire.md,
+ergoscript-eval.md, ergoscript-sigma.md). Vague references to the meta
+hub stay as-is.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+If no files changed in Step 2, skip the commit (and note this in the task completion report).
+
+---
+
+### Task 7: Update design-spec deep-refs
+
+**Files:**
+- Modify (selectively): `docs/specs/*-ergoscript-*.md` and any other spec docs containing deep-links to moved sections
+
+- [ ] **Step 1: Find all references**
+
+Run: `grep -rln 'facts/ergoscript' /home/mwaddip/projects/ergots/docs/`
+
+Expected: ~14 spec files plus possibly a few more. List them.
+
+- [ ] **Step 2: Inspect each file for deep-links**
+
+For each file in the list, run:
+```bash
+grep -n 'facts/ergoscript' /home/mwaddip/projects/ergots/docs/specs/<filename>
+```
+
+Classify each match:
+- Vague (`see facts/ergoscript.md`, `facts/ergoscript.md — interface contract`) → leave as-is
+- Deep-link (mentions a specific section / type / error code / handler that's now in a slice file) → update
+
+- [ ] **Step 3: Update each deep-link reference**
+
+Edit each spec file to point deep-links at the right slice file. Common patterns to watch for:
+
+- References to `EvalError` codes (43 of them) → `facts/ergoscript-eval.md`
+- References to `SValue` / `SType` / `Expr` definitions → `facts/ergoscript-eval.md`
+- References to the method-handler registry → `facts/ergoscript-eval.md`
+- References to `verifySignature` / `SigmaBoolean` / `VerifyError` → `facts/ergoscript-sigma.md`
+- References to `parseTree` / `serializeTree` / address helpers → `facts/ergoscript-wire.md`
+- References to `ErgoTreeParseError` / `ErgoTreeSerializeError` → `facts/ergoscript-wire.md`
+
+- [ ] **Step 4: Verify**
+
+Run: `grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/docs/`
+
+Spot-check 3-4 random matches and confirm each points at the correct slice (or correctly remains pointing at the meta hub for vague references).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git -C /home/mwaddip/projects/ergots add docs/specs/
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs(specs): update design-spec deep-refs for facts/ergoscript split
+
+Per the split design (5da8289): redirects deep-link references across the
+~14 ergoscript design specs that named specific sections now living in
+slice files. Vague references continue to land on the meta hub.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+If no specs needed updating (all references were vague), skip the commit and note this.
+
+---
+
+### Task 8: Final sanity check + PLAN.md status update
+
+**Files:**
+- Modify: `PLAN.md` (mark phase complete)
+
+- [ ] **Step 1: Full grep sweep**
+
+Run:
+```bash
+grep -rn 'facts/ergoscript' /home/mwaddip/projects/ergots/CLAUDE.md /home/mwaddip/projects/ergots/docs/ /home/mwaddip/projects/ergots/packages/ /home/mwaddip/projects/ergots/README.md /home/mwaddip/projects/ergots/facts/ 2>/dev/null
+```
+
+Read every match. Confirm:
+- Every reference resolves to an existing file (no `facts/ergoscript-bogus.md` typos)
+- Vague references land on the meta hub correctly (the meta hub has the lookup table forwarding them)
+- Deep-link references point to the right slice
+
+- [ ] **Step 2: Verify file structure**
+
+Run:
+```bash
+ls -la /home/mwaddip/projects/ergots/facts/
+wc -l /home/mwaddip/projects/ergots/facts/*.md
+```
+
+Expected: 4 active `.md` files in `facts/`:
+- `ergoscript.md` — ~150 lines (meta hub)
+- `ergoscript-wire.md` — 300-500 lines
+- `ergoscript-eval.md` — 600-800 lines
+- `ergoscript-sigma.md` — 100-200 lines
+- (plus `proof.md` at 196 lines, untouched)
+
+- [ ] **Step 3: Update PLAN.md to mark phase complete**
+
+Edit `/home/mwaddip/projects/ergots/PLAN.md`. Add a status line at the top below the title:
+
+```markdown
+**Status: ✅ COMPLETE 2026-05-18** (facts/ergoscript.md split into meta hub + 3 slice files; CLAUDE.md and design-spec deep-refs updated; vague refs continue to land on the meta hub via the lookup table.)
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git -C /home/mwaddip/projects/ergots add PLAN.md
+git -C /home/mwaddip/projects/ergots commit -m "$(cat <<'EOF'
+docs: facts/ergoscript.md split complete — final sanity sweep
+
+Per the split design (5da8289): all cross-references resolve correctly; the
+4-file facts layout is in place (meta hub + wire/eval/sigma slices); no
+broken links via grep sweep. Marks the implementation plan as complete.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
 
 ---
 
@@ -2152,9 +877,21 @@ Update MEMORY.md hook line for `project_ergots_direction` to note 2g.6 shipped.
 
 After implementing all 8 tasks, re-check:
 
-1. **Spec coverage:** The design spec's 5 methods + 1 Expr arm + 2 SValue variants + 0 new error codes are all delivered (Tasks 1-7), plus verification sweep (Task 8). ✓
-2. **Type consistency:** `evalGlobal` (Task 1 / `eval/global.ts`), `evalMethodCall` / `evalPropertyCall` (Tasks 2-7 / `eval/method-call.ts`), `handlerKey` (existing), `HANDLERS` (existing), `MethodCall` / `PropertyCall` MIR interfaces (existing from phase 2a) — all consistent across tasks.
-3. **No placeholders:** Every step has actual code or actual commands. Where the implementer needs to confirm an interface field set (e.g., `PreHeader.timestamp` field names), the spec explicitly says so with a re-read instruction.
-4. **Cost-arithmetic cross-check:** Task 2 (groupGenerator) expects 19. Task 6 (preHeader) expects 20. Task 7 (timestamp) expects 34. The fixture-driven oracle confirms each — if any inline-test expectation is off, the fix is to align the inline test with the oracle, not the other way around.
-5. **Source-read discipline:** Every task starts with a `sed -n` to confirm sigma-rust HEAD hasn't drifted from this plan's recorded cost values. Drift triggers OVERRIDES rule #2 escalation.
-6. **TDD discipline:** Every task follows red (failing test) → green (minimal implementation) → commit. Per-task commits land green tests + per-task scope. No batched commits.
+1. **Spec coverage:**
+   - Three new slice files created (Tasks 1-3): wire, eval, sigma ✓
+   - Meta file trimmed to lookup table + cross-cutting (Task 4) ✓
+   - CLAUDE.md updated (Task 5) ✓
+   - Package README/API updated where deep-refs existed (Task 6) ✓
+   - Design specs updated where deep-refs existed (Task 7) ✓
+   - Final sanity sweep (Task 8) ✓
+2. **Type / content consistency:**
+   - `SValue` / `SType` / `Expr` defined canonically in `ergoscript-eval.md` (per spec's "shared types policy"); `ergoscript-wire.md` cross-refs to it
+   - `SigmaProp` SValue defined in `ergoscript-eval.md`; `ergoscript-sigma.md` cross-refs to it (since `verifySignature` takes a `SigmaBoolean`, the eval-side `SigmaProp` is the producer)
+   - All 43 `EvalError` codes appear exactly once across the slice files (in `ergoscript-eval.md`)
+   - All 8 `VerifyError` codes appear exactly once (in `ergoscript-sigma.md`)
+   - `ErgoTreeParseError` and `ErgoTreeSerializeError` appear exactly once (in `ergoscript-wire.md`)
+3. **No placeholders:**
+   - Every step has actual content. The `[Insert ...]` and `[Extract from lines ...]` markers in the Phase 1 file-templates direct the implementer to specific source ranges — they are operational instructions, not placeholders.
+4. **No content loss:**
+   - Task 4 Step 5 explicitly tests for content loss via distinctive-phrase grep
+   - Task 8 Step 1 catches any broken references
