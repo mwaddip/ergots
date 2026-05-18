@@ -27,7 +27,7 @@
  *   substitute an aggregate check: across the whole corpus, the throw rate
  *   should comfortably exceed a sanity floor.
  *
- * Mirror of `packages/proof/test/mutation.test.ts`, adapted to drop the
+ * Mirror of `packages/nipopow/test/mutation.test.ts`, adapted to drop the
  * per-offset `expected_to_fail` flags (which require Rust-side metadata
  * generation) in favor of aggregate-stat sanity checks.
  *

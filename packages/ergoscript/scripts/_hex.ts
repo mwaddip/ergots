@@ -1,6 +1,6 @@
 /**
  * Minimal hex utilities for scripts/ tooling. No Buffer, no node:* imports —
- * mirrors packages/proof/test/helpers.ts for browser-clean parity.
+ * mirrors packages/nipopow/test/helpers.ts for browser-clean parity.
  */
 
 export function hexToBytes(hex: string): Uint8Array {

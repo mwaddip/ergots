@@ -10,7 +10,7 @@
  *  6. full verifyAutolykosV2 round-trip
  *  7. mutation test (nonce flip)
  *
- * Fixtures: packages/proof/test/fixtures/autolykos_v2.json
+ * Fixtures: packages/nipopow/test/fixtures/autolykos_v2.json
  * Reference: sigma-rust ergo-chain-types/src/autolykos_pow_scheme.rs
  */
 import { describe, test, expect } from 'vitest';
