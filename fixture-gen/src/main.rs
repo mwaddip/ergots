@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 fn proof_fixtures_dir() -> PathBuf {
     let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    here.parent().unwrap().join("packages/proof/test/fixtures")
+    here.parent().unwrap().join("packages/nipopow/test/fixtures")
 }
 
 fn ergoscript_fixtures_dir() -> PathBuf {
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(proof_fixtures_dir())?;
     std::fs::create_dir_all(ergoscript_fixtures_dir())?;
 
-    // Proof package (@mwaddip/ergots-proof) fixtures.
+    // Proof package (@ergots/nipopow) fixtures.
     write_proof_json("vlq.json", &cmds::vlq::generate()?)?;
     write_proof_json("blake2b256.json", &cmds::blake2b::generate()?)?;
     write_proof_json("autolykos_solution.json", &cmds::autolykos_solution::generate()?)?;
@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
     write_proof_json("compare.json", &cmds::compare::generate()?)?;
     write_proof_json("envelope.json", &cmds::envelope::generate()?)?;
 
-    // Ergoscript package (@mwaddip/ergots-ergoscript) synthetic fixtures.
+    // Ergoscript package (@ergots/ergoscript) synthetic fixtures.
     write_ergoscript_json("synthetic_stype.json", &cmds::ergoscript::synthetic_stype::generate()?)?;
     write_ergoscript_json("synthetic_svalue.json", &cmds::ergoscript::synthetic_svalue::generate()?)?;
     write_ergoscript_json("synthetic_expr.json", &cmds::ergoscript::synthetic_expr::generate()?)?;

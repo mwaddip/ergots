@@ -1,4 +1,4 @@
-//! Fixture generators for `@mwaddip/ergots-ergoscript`.
+//! Fixture generators for `@ergots/ergoscript`.
 //!
 //! Each submodule emits a JSON file under
 //! `packages/ergoscript/test/fixtures/` documenting on-wire byte sequences

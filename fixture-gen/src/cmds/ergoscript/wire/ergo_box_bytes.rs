@@ -1,4 +1,4 @@
-//! Box canonical-bytes fixtures for `@mwaddip/ergots-ergoscript`.
+//! Box canonical-bytes fixtures for `@ergots/ergoscript`.
 //!
 //! Each entry captures the sigma-rust serialization of an `ErgoBox` in two
 //! forms:

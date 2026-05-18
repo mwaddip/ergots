@@ -1,4 +1,4 @@
-//! Wire-format round-trip fixtures for `@mwaddip/ergots-ergoscript`.
+//! Wire-format round-trip fixtures for `@ergots/ergoscript`.
 //!
 //! Each submodule emits a JSON file under
 //! `packages/ergoscript/test/fixtures/wire/` documenting on-wire byte
