@@ -90,6 +90,24 @@ export function hydrateSValue(json: any): SValue {
       }
     case 'Box':
       return { kind: 'Box', value: hydrateErgoBox(json.value) }
+    case 'PreHeader': {
+      // PreHeader value carrier. JSON shape is defined by fixture-gen's
+      // preheader_to_json helper (added in Task 6). Until that exists,
+      // this case is reachable only from hand-constructed test fixtures.
+      const v = json.value
+      return {
+        kind: 'PreHeader',
+        value: {
+          version: v.version as number,
+          parentId: hexToBytes(v.parentId as string),
+          timestamp: BigInt(v.timestamp as string),
+          nBits: v.nBits as number,
+          height: v.height as number,
+          minerPk: hexToBytes(v.minerPk as string),
+          votes: hexToBytes(v.votes as string),
+        },
+      }
+    }
     default:
       throw new Error(`hydrateSValue: unknown kind ${json.kind}`)
   }

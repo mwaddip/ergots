@@ -824,6 +824,7 @@ export type SValue =
   | { kind: 'GroupElement'; value: Uint8Array }
   | { kind: 'SigmaProp'; value: SigmaBoolean }
   | { kind: 'Box'; value: ErgoBox }
+  | { kind: 'PreHeader'; value: PreHeader }
   | { kind: 'AvlTree'; value: AvlTreeData }
   | { kind: 'Unit' }
   | { kind: 'Context' }
