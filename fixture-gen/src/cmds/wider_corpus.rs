@@ -57,6 +57,7 @@ struct RandomWindowMeta {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RangeMeta {
     from: u32,
     to: u32,
@@ -114,6 +115,10 @@ pub fn run() -> Result<()> {
     };
 
     let out_path = output_path();
+    if let Some(parent) = out_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating fixture directory {}", parent.display()))?;
+    }
     let serialized = serde_json::to_string_pretty(&fixture)?;
     fs::write(&out_path, serialized)
         .with_context(|| format!("writing fixture to {}", out_path.display()))?;
@@ -198,6 +203,7 @@ fn build_random_sample(
 
     let total = end - start + 1;
     let mut pool: Vec<BoxEntry> = Vec::new();
+    let mut tip_block: Option<Value> = None;
     for height in start..=end {
         let block = fetch_block(client, height)
             .with_context(|| format!("fetching block {}", height))?;
@@ -209,15 +215,20 @@ fn build_random_sample(
                 done, total, pool.len()
             );
         }
+        if height == end {
+            tip_block = Some(block);
+        }
     }
 
-    let tip_header_ids: Vec<String> = client
-        .get(format!("{}/blocks/at/{}", NODE_URL, tip_height))
-        .send()?
-        .json()?;
-    let tip_header_id = tip_header_ids
-        .first()
-        .ok_or_else(|| anyhow!("no tip block header id"))?;
+    // Extract tip header_id from the already-fetched block instead of re-fetching.
+    let tip_header_id_owned = tip_block
+        .as_ref()
+        .and_then(|b| b.get("header"))
+        .and_then(|h| h.get("id"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow!("no header.id in tip block"))?
+        .to_string();
+    let tip_header_id = &tip_header_id_owned;
     let seed_bytes = hex::decode(tip_header_id)?;
     let mut seed: [u8; 32] = [0u8; 32];
     seed[..seed_bytes.len().min(32)].copy_from_slice(&seed_bytes[..seed_bytes.len().min(32)]);
