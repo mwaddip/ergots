@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-17
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2g-combinators — sigma combinators eval arms + conjecture verifier walk)
+**Package:** `@ergots/ergoscript` (phase 2g-combinators — sigma combinators eval arms + conjecture verifier walk)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec; this slice closes the umbrella's "phase 2g = Sigma protocol" promise by extending phase 2g-medium's leaf-only verifier to the full 6-variant SigmaBoolean surface, and adds the 3 deferred sigma-combinator eval arms)
 **Sister specs:**
 - `docs/specs/2026-05-16-ergoscript-phase-2g-medium-design.md` (immediate predecessor — leaf-only verifier; structural `SigmaBoolean`; `@noble/curves` adapter; manual deterministic Schnorr signing in fixture-gen)
@@ -42,7 +42,7 @@ The slice is implemented as 11 sequential tasks in flat `PLAN.md` ordering. Comm
 - **Layer C3-cost real-context cost validation.** Phase 2j.
 - **Carryover cleanup from 2g-medium.** `VerifyError 'scalar-out-of-range'` (declared but never thrown), unused `assertConsumed()` method, defensive i16-range nit in `buildFiatShamirLeaf` — all stay as-is. Independent micro-cleanup slice if/when.
 - **GF(2^192) advanced optimizations** beyond sigma-rust's table approach (SIMD, batch multiplication, FFT-based interpolation). The table-optimized port matches sigma-rust's structure; further optimization is phase 2j territory if cost-equivalence testing surfaces a need.
-- **`npm publish` of `@mwaddip/ergots-ergoscript@0.3.0`.** Separate user decision; the natural milestone is end-of-2g-combinators when the full SigmaBoolean verifier surface is shipped. Bundled with this slice or sequenced separately — user's call.
+- **`npm publish` of `@ergots/ergoscript@0.3.0`.** Separate user decision; the natural milestone is end-of-2g-combinators when the full SigmaBoolean verifier surface is shipped. Bundled with this slice or sequenced separately — user's call.
 
 ## Architecture
 

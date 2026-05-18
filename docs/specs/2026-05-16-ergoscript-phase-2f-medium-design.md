@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-16
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2f medium — chain-state Context wiring + 6 new arms)
+**Package:** `@ergots/ergoscript` (phase 2f medium — chain-state Context wiring + 6 new arms)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec)
 **Sister specs:**
 - `docs/specs/2026-05-15-ergoscript-phase-2f-design.md` (phase 2f narrow — Box runtime + 7 Box-extract arms; established the chain-state-field YAGNI cut deferred to this slice)
@@ -41,7 +41,7 @@ The slice splits into three stops with explicit `STOP α / STOP β / STOP γ` ma
 - **`Header` runtime shape** beyond what `PreHeader` already covers. The full `Header` struct (with `id`, `parentId`, `adProofsRoot`, etc.) appears when `LastBlockUtxoRootHash` or Header method calls land — phase 2g or 2h.
 - **Real-context cost validation (Layer C3).** Phase 2j.
 - **Eval-level mutation testing.** Phase 2a's 6221-flip parse-mutation suite remains. Same deferral reasoning as 2c/2d/2e/2f-narrow.
-- **`npm publish` of `@mwaddip/ergots-ergoscript`.** Separate user decision; not bundled with 2f medium.
+- **`npm publish` of `@ergots/ergoscript`.** Separate user decision; not bundled with 2f medium.
 
 ## Architecture
 
@@ -447,7 +447,7 @@ All resolve via source-read or fixture-driven TDD at implementation time; none a
 - `docs/specs/2026-05-15-ergoscript-phase-2e-design.md` — `treeVersion?` plumbing precedent; OptionGetOrElse's V3-gated lazy semantics reuses that field
 - `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md` — Pattern A vs Pattern B cost-charging-order precedent; defensive-recheck posture template
 - `facts/ergoscript.md` — boundary contract; will be extended at Stop γ finalize
-- `facts/proof.md` — sister contract for the proof package
+- `facts/nipopow.md` — sister contract for the proof package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`, HEAD `ed5452cf`) — byte-format and implementation oracle. Phase 2f medium authoritative refs:
   - `ergotree-interpreter/src/eval/global_vars.rs:12-50` — GlobalVars eval (6 cases)

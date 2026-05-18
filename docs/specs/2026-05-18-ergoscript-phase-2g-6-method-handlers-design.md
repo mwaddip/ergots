@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-18
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2g.6 — 5 method handlers + 1 new `Expr` arm + 2 new `SValue` variants, extending the 2g.5 dispatcher)
+**Package:** `@ergots/ergoscript` (phase 2g.6 — 5 method handlers + 1 new `Expr` arm + 2 new `SValue` variants, extending the 2g.5 dispatcher)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella; 2g.6 row added by Task A on 2026-05-18 as mandatory)
 **Sister specs:**
 - `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` (immediate predecessor — `MethodCall`/`PropertyCall` dispatcher + 3 handlers + C2 corpus unlock; the dispatcher this slice extends)
@@ -55,7 +55,7 @@ The handoff's original 2g.6 projection (broader method-call surface: Header meth
 - **AVL+ membership-proof verification + 5 `SAvlTree.*` methods.** Phase 2h (separate spec). 5 AVL+ method-pairs surfaced by Task B's survey are queued there.
 - **Predef arms** (`DecodePoint`, `SubstConstants`, `CalcBlake2b256`, `ByteArrayToLong`, `LongToByteArray`, etc.). Phase 2i (separate spec). Higher-impact than originally anticipated per Task B's survey, but pre-v1.0.0 sequencing principle keeps 2g.6 first.
 - **Real-context cost validation (Layer C3-cost).** Phase 2j.
-- **`npm publish` of `@mwaddip/ergots-ergoscript@0.3.0`.** Separate user decision; orthogonal to this slice.
+- **`npm publish` of `@ergots/ergoscript@0.3.0`.** Separate user decision; orthogonal to this slice.
 - **Layer C3.a mutation testing for the 5 handlers.** The C3.a framework is Coll-HOF-oriented (operator-driven boundary mutations). Method handlers have simple shapes that don't fit the operator-grid cleanly — same posture as 2g.5. C1 + C2 coverage is the discipline for this slice.
 - **Enlarging the C2 corpus.** The 18-evaluable-trees regression gate stays as-is (the 5 new handlers don't unlock additional C2 entries on their own — that would require 2h or 2i co-landing). Re-evaluate C2-corpus growth after 2g.6 + 2h or 2g.6 + 2i.
 - **Carryover cleanup from 2g.5** (unreachable `'scalar-out-of-range'`, unused `assertConsumed()`, unreachable `'cor-derived-challenge-mismatch'`/`'cthreshold-derived-challenge-mismatch'`, reserved `'conjecture-not-implemented'`). Independent micro-cleanup slice if/when.
@@ -343,7 +343,7 @@ The cost values (10, addPerItemCost(10,1,10,n), addPerItemCost(20,2,16,n), 15, 1
 
 - **2g.5 carryover cleanup list** — out of scope per Non-goals; tracked in [[project-ergots-direction]] for a future micro-cleanup slice.
 - **`SColl.flatten` vs `flatMap` cosmetic discrepancy** in `_known-methods.ts` (carryover from Task B) — Tier 3, deferred.
-- **`npm publish @mwaddip/ergots-ergoscript@0.3.0`** — orthogonal release decision; ship before or after 2g.6 per user preference.
+- **`npm publish @ergots/ergoscript@0.3.0`** — orthogonal release decision; ship before or after 2g.6 per user preference.
 - **C2 corpus growth** — currently 18 trees; growing it requires co-landing 2h or 2i since 2g.6 alone doesn't unlock new entries. Revisit after 2g.6 + 2h.
 
 ## Cross-references

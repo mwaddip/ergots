@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-16
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2g-medium — sigma protocol; leaf-only verifier)
+**Package:** `@ergots/ergoscript` (phase 2g-medium — sigma protocol; leaf-only verifier)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec; rewritten at Task 13 of phase 2f Coll HOFs; this slice closes the umbrella's "phase 2g = Sigma protocol" promise at a narrower scope — leaf-only verifier; the 3 deferred sigma combinators slide to a follow-up `2g-combinators` slice)
 **Sister specs:**
 - `docs/specs/2026-05-16-ergoscript-phase-2f-coll-hofs-design.md` (most-recent prior slice — 9 Coll HOFs; established Layer C3.a operator-driven mutation testing; flat-task-list workflow with per-task commits; Mixed cost pattern documented; spec-writing conventions reused below)
@@ -13,7 +13,7 @@
 
 ## Goal
 
-Ship phase 2g-medium: the sigma-protocol primitives for the `@mwaddip/ergots-ergoscript` package, at a leaf-only verifier scope. By the end of this slice:
+Ship phase 2g-medium: the sigma-protocol primitives for the `@ergots/ergoscript` package, at a leaf-only verifier scope. By the end of this slice:
 
 - **Structural `SigmaBoolean`** — the existing opaque `{ raw: Uint8Array }` shape (phase 2a) reshapes to a 6-variant discriminated union: `TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`. All 6 variants parse + serialize via the wire codec; the eval arms that *construct* `Cand`/`Cor`/`Cthreshold` from `Coll[SigmaProp]` inputs (`SigmaAnd`/`SigmaOr`/`Atleast`) remain deferred.
 - **`@noble/curves` 2.2.0 runtime dep** (secp256k1 specifically). The version-locked pair with `@noble/hashes@2.2.0` was pre-flagged in the umbrella plan.
@@ -45,7 +45,7 @@ The slice is implemented as 8 sequential tasks in flat `PLAN.md` ordering. Commi
 - **`SubstConstants`** and `Xor` byte-array. Phase 2i.
 - **Layer C3-cost real-context cost validation.** Phase 2j.
 - **Retroactive Layer C3.a coverage** for prior arms. Future slices may opt-in per phase; 2g-medium specifically does NOT opt in (the two new arms are pure structural wraps with minimal mutation-test surface; verifier-mutation is a separate fixture-driven concern).
-- **`npm publish` of `@mwaddip/ergots-ergoscript@0.3.0`.** Separate user decision; not bundled with this slice. The slice does introduce a new runtime dep (`@noble/curves`), so the publish call may be naturally scheduled at the end of 2g-medium or after 2g-combinators.
+- **`npm publish` of `@ergots/ergoscript@0.3.0`.** Separate user decision; not bundled with this slice. The slice does introduce a new runtime dep (`@noble/curves`), so the publish call may be naturally scheduled at the end of 2g-medium or after 2g-combinators.
 
 ## Architecture
 

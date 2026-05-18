@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-17
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2g.5 — `MethodCall`/`PropertyCall` dispatcher + 3 corpus-unlocker method handlers + 3 supporting arms; the actual C2 corpus unlocker)
+**Package:** `@ergots/ergoscript` (phase 2g.5 — `MethodCall`/`PropertyCall` dispatcher + 3 corpus-unlocker method handlers + 3 supporting arms; the actual C2 corpus unlocker)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella; this slice is the out-of-order corpus-unlocker insertion noted in the post-2g-combinators phase plan)
 **Sister specs:**
 - `docs/specs/2026-05-17-ergoscript-phase-2g-combinators-design.md` (immediate predecessor — full SigmaBoolean verifier surface; conjecture walk; GF(2^192))
@@ -83,7 +83,7 @@ Context-field-missing is masking the deeper failures — the new MIR arms (Conte
 - **Hash predefs** (`CalcBlake2b256`, `CalcSha256`, `DecodePoint`). Phase 2i.
 - **`SubstConstants`**, `Xor` byte-array. Phase 2i.
 - **Real-context cost validation (Layer C3-cost).** Phase 2j.
-- **`npm publish` of `@mwaddip/ergots-ergoscript@0.3.0`.** Separate user decision; 2g-combinators is the natural minor-version milestone (full SigmaBoolean verifier surface). Sequential with this slice or before — user's call.
+- **`npm publish` of `@ergots/ergoscript@0.3.0`.** Separate user decision; 2g-combinators is the natural minor-version milestone (full SigmaBoolean verifier surface). Sequential with this slice or before — user's call.
 - **Behavioral change to `makeContext` defaults** — keeping the public API strict (callers must explicitly declare what they provide). Synthetic-empty context provisioning is corpus-test-local, not a public-API change. This avoids masking real "forgot to provide context" bugs in callers.
 - **Layer C3.a mutation testing for the 3 method handlers.** The existing C3.a framework is Coll-HOF-oriented (operator-driven boundary mutations). The 3 handlers (`SBox.tokens`, `SContext.dataInputs`, `SColl.indexOf`) have simple shapes that don't fit the C3.a operator-grid cleanly — C3.a expansion to method-call handlers is a future cleanup if/when. C1 + C2 coverage is the discipline for this slice.
 - **Carryover cleanup from 2g-medium / 2g-combinators.** Unreachable `'scalar-out-of-range'`, unused `assertConsumed()`, unreachable `'cor-derived-challenge-mismatch'`/`'cthreshold-derived-challenge-mismatch'`, reserved `'conjecture-not-implemented'` — all stay as-is. Independent micro-cleanup slice if/when.
