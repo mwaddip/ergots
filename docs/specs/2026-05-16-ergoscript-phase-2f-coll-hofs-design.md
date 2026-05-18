@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-16
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2f Coll HOFs — closes umbrella plan's "phase 2f = collection operations")
+**Package:** `@ergots/ergoscript` (phase 2f Coll HOFs — closes umbrella plan's "phase 2f = collection operations")
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec; rewritten at Task 13 of this slice to reflect realized phase structure)
 **Sister specs:**
 - `docs/specs/2026-05-16-ergoscript-phase-2f-medium-design.md` (most-recent slice — chain-state Context + GlobalVars/GetVar/Option/SelectField; established the Mixed-Pattern-A precedent for all 6 arms, the controlled-Context fixture-gen pattern, and the in-spec smoking-gun-fixture template that this slice reuses for `Slice` cost-on-requested-range and `Exists`/`ForAll` outer-cost-on-full-length)
@@ -39,7 +39,7 @@ The slice is implemented as 14 sequential tasks in flat `PLAN.md` ordering. Comm
 - **Retroactive C3.a coverage** for the 33 already-shipped arms. Future slices may opt-in per-phase.
 - **`Header` runtime shape beyond what `PreHeader` already covers.** Full `Header` struct lands with method-call dispatch (the new phase after sigma) or 2h.
 - **`Xor` (byte-array, `Coll[Byte] × Coll[Byte] → Coll[Byte]`).** Deferred from slice 2d-B with the sigma combinators; now slated for phase 2i alongside byte-ops predefs, since the sigma deferral no longer drags it forward.
-- **`npm publish` of `@mwaddip/ergots-ergoscript`.** Separate user decision; not bundled with this slice.
+- **`npm publish` of `@ergots/ergoscript`.** Separate user decision; not bundled with this slice.
 
 ## Umbrella plan rewrite (Task 13)
 

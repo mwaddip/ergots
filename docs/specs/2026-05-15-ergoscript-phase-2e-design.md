@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-15
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2e — narrow scope: lambdas + treeVersion plumbing + XorOf + deferred-revisit)
+**Package:** `@ergots/ergoscript` (phase 2e — narrow scope: lambdas + treeVersion plumbing + XorOf + deferred-revisit)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec)
 **Sister specs:** `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md` (slice B — established the deferred-variant tracking pattern); `docs/specs/2026-05-15-ergoscript-phase-2d-design.md` (slice A — where the V3 gating divergence originated)
 **Interface contract:** `facts/ergoscript.md` (extended additively per phase)
@@ -463,7 +463,7 @@ fixture-driven TDD at implementation time.
   original `EvalOpts` / `EvalContext` design that's now being extended)
 - `facts/ergoscript.md` — boundary contract, extended additively per
   phase
-- `facts/proof.md` — sister contract for the proof package
+- `facts/nipopow.md` — sister contract for the proof package
 - `CLAUDE.md` — TDD discipline, browser-first rules,
   confidence-escalation list
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`,

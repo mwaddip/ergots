@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-15
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2f — narrow scope: 7 Box-extract arms + SBox wire parse/serialize + ErgoBox runtime extensions)
+**Package:** `@ergots/ergoscript` (phase 2f — narrow scope: 7 Box-extract arms + SBox wire parse/serialize + ErgoBox runtime extensions)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec)
 **Sister specs:** `docs/specs/2026-05-15-ergoscript-phase-2e-design.md` (sister — lambdas + treeVersion + XorOf); `docs/specs/2026-05-15-ergoscript-phase-2d-slice-b-design.md` (cost-charging Pattern A vs B precedent)
 **Interface contract:** `facts/ergoscript.md` (extended additively per phase)
@@ -85,7 +85,7 @@ at any stop boundary.
 - **Real-context cost validation (Layer C3).** Phase 2j.
 - **Eval-level mutation testing.** Phase 2a's 6221-flip parse-mutation
   suite remains. Same deferral reasoning as 2c/2d-A/2d-B/2e.
-- **`npm publish` of `@mwaddip/ergots-ergoscript`.** Separate user
+- **`npm publish` of `@ergots/ergoscript`.** Separate user
   decision; not bundled with 2f narrow.
 
 ## Architecture
@@ -665,7 +665,7 @@ time; none are blockers.
   - 2 new SValueParseError codes documented
   - Coverage line updated to "27 of ~70 arms"
   - Box-extract arms removed from "Does NOT ship yet" section
-- `facts/proof.md` — sister contract for the proof package
+- `facts/nipopow.md` — sister contract for the proof package
 - `CLAUDE.md` — TDD discipline, browser-first rules,
   confidence-escalation list
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`,

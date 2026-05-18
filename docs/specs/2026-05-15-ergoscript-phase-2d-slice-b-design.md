@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-05-15
-**Package:** `@mwaddip/ergots-ergoscript` (phase 2d, slice B — Coll[Boolean] aggregators)
+**Package:** `@ergots/ergoscript` (phase 2d, slice B — Coll[Boolean] aggregators)
 **Phase plan:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (umbrella spec)
 **Sister specs:** `docs/specs/2026-05-15-ergoscript-phase-2d-design.md` (slice A — numeric-poly unary arms), `docs/specs/2026-05-14-ergoscript-phase-2c-design.md` (operators slice 1)
 **Interface contract:** `facts/ergoscript.md` (extended additively per phase)
@@ -68,7 +68,7 @@ tracking that ensures they're picked up at the right phase.
 - **Eval-level mutation testing.** Phase 2a's 6221-flip parse-mutation
   suite remains in place. Eval mutation deferred — see § Validation
   strategy.
-- **`npm publish` of `@mwaddip/ergots-ergoscript@0.2.0`.** Separate user
+- **`npm publish` of `@ergots/ergoscript@0.2.0`.** Separate user
   decision; not bundled with slice B.
 
 ## Architecture
@@ -411,7 +411,7 @@ fixture-driven TDD at implementation time.
   focused design (operators slice 1)
 - `facts/ergoscript.md` — boundary contract, extended additively per
   phase
-- `facts/proof.md` — sister contract for the proof package
+- `facts/nipopow.md` — sister contract for the proof package
 - `CLAUDE.md` — TDD discipline, browser-first rules,
   confidence-escalation list
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`,
