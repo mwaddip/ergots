@@ -1,21 +1,28 @@
-# Task B — Wider Mainnet Corpus + Method-Demand Survey: Implementation Plan
+# Phase 2g.6 — Broader Method-Call Surface: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce a wider mainnet corpus fixture (~10,200 boxes: 10k random + ~200 must-include from known sigma-rust regression blocks) and a method-demand survey deliverable (markdown report + machine-readable JSON tally) that scopes the upcoming phase 2g.6 method-call surface and surfaces gaps for phases 2h/2i.
+**Goal:** Land the 5 method handlers locked by Task B's wider-mainnet corpus survey (`SGlobal.groupGenerator`, `SColl.zip`, `SColl.indices`, `SContext.preHeader`, `SPreHeader.timestamp`), extending the 2g.5 `HANDLERS` registry in `eval/method-call.ts`, plus 1 new `Expr` arm (`Global`) and 2 new `SValue` variants (`{ kind: 'Global' }` sentinel, `{ kind: 'PreHeader'; value: PreHeader }` value carrier).
 
-**Architecture:** Rust fixture-gen produces the JSON corpus (node REST fetch for the random recent-window sample + must-include singleton blocks; filesystem import for the 700,000-700,050 sigma-rust cost-parity range). TypeScript analyzer in `packages/ergoscript/scripts/` performs an iterative AST walk, source-segmented tallies (`random` vs `must-include`), parse-failure tolerance, and emits both human-readable markdown and machine-readable JSON deliverables under `docs/specs/`. No `@mwaddip/ergots-ergoscript` source code is modified — Task B touches only `fixture-gen/`, `packages/ergoscript/scripts/`, `packages/ergoscript/test/`, `packages/ergoscript/test/fixtures/`, and `docs/specs/`.
+**Architecture:** Extends 2g.5's `(typeId, methodId)` → handler registry by 5 entries. Adds `eval/global.ts` for the new `Expr::Global` evaluator arm (wire-parsed since phase 2a; 120 boxes use it per survey). Adds 2 SValue discriminated-union variants to `mir/types.ts`. No new files in `src/` beyond `eval/global.ts`; all 5 handlers live inline in `eval/method-call.ts` (handler #3-8 of the existing 3 → 8 growth). Cost values, return shapes, and obj-shape checks are all source-locked from sigma-rust HEAD per the design spec.
 
-**Tech Stack:** Rust (fixture-gen, reqwest for node fetch, serde_json for I/O, rand for deterministic PRNG); TypeScript 5.x (analyzer); vitest 2 (walker tests under `test/scripts/`).
+**Tech Stack:** TypeScript 5.x (vitest 2 under both node + jsdom); Rust 1.x (fixture-gen using sigma-rust's `try_eval_out` oracle gated behind the `arbitrary` feature); `@noble/hashes@2.2.0` (already pinned); existing `GROUP_GENERATOR_BYTES` constant from `eval/_group-generator.ts` (no `@noble/curves` round-trip needed for groupGenerator).
 
 **Reference oracles:**
-- Design spec: `docs/specs/2026-05-18-task-b-corpus-widening-design.md` (the authoritative source for this plan)
-- Sigma-rust test vectors: `~/projects/sigma-rust/sigma-rust/ergo-lib/tests/test-vectors/transactions_700000_700050.json` (78-tx cost-parity range, imported as the canonical reference)
-- Existing fixture-gen pattern: `fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs` (the 173-box corpus generator; pattern to mirror)
-- Existing 2g.5 measurement (the cross-check baseline): `SBox.tokens` (99,8) appears 43× across 173 boxes; `SContext.dataInputs` (101,1) 15×; `SColl.indexOf` (12,26) 6× — per `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` § "Background — measured corpus demand"
-- Sigma-rust method registry: `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/` — source for the `KNOWN_METHODS` (typeId, methodId) → name lookup table
+- Design spec: `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` (the authoritative source for this plan)
+- Immediate predecessor: `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` (dispatcher pattern this slice extends)
+- Survey data: `docs/specs/2026-05-18-task-b-corpus-survey-results.md` (the data locking the 5-method scope)
+- Sigma-rust eval handlers (source of all cost values + return shapes):
+  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs:37-40` — `Expr::Global` arm
+  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sglobal.rs:32-41` — `GROUP_GENERATOR_EVAL_FN`
+  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:138-169` — `ZIP_EVAL_FN`
+  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:171-193` — `INDICES_EVAL_FN`
+  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scontext.rs:72-81` — `PRE_HEADER_EVAL_FN`
+  - `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/spreheader.rs:20-24` — `TIMESTAMP_EVAL_FN`
+- Existing 2g.5 reference: `packages/ergoscript/src/eval/method-call.ts` (the registry that this slice extends)
+- Existing fixture-gen pattern: `fixture-gen/src/cmds/ergoscript/eval/context.rs` (the smallest reference for an `Expr` arm fixture-gen file)
 
-**Out of scope (per design spec § Non-goals):** corpus evaluation against sigma-rust oracle, cost-equivalence assertions, signature verification, replacing the existing 173-box `mainnet_boxes.json` (it stays as the C2 regression signal), implementing phase 2g.6 method handlers, AVL+ corpus seeding, re-fetching the 700k vectors, modifying `corpus-eval.test.ts`.
+**Out of scope (per design spec § Non-goals):** broader method surface beyond the 5 (Header methods, Coll utilities `.zipWith`/`.reverse`/`.getOrElse`, BinOp Bit shifts); AVL+ membership-proof verification (phase 2h); predef arms `DecodePoint`/`SubstConstants`/`CalcBlake2b256` (phase 2i); cost validation (phase 2j); enlarging the C2 corpus; npm publish of `@mwaddip/ergots-ergoscript@0.3.0` (orthogonal decision); Layer C3.a operator-driven mutation testing for these handlers (same posture as 2g.5); 2g.5 carryover cleanup list.
 
 ---
 
@@ -25,1685 +32,2127 @@
 
 ```
 ergots/
-├── fixture-gen/
-│   └── src/cmds/
-│       └── wider_corpus.rs                        NEW: Rust fetch + sigma-rust file import + JSON output
 ├── packages/ergoscript/
-│   ├── scripts/                                   NEW: directory for one-off tooling
-│   │   ├── _walker.ts                             NEW: iterative Expr AST walker + tally maps
-│   │   ├── _known-methods.ts                      NEW: (typeId, methodId) → sigma-rust name lookup
-│   │   └── analyze-wider-corpus.ts                NEW: orchestration script (load fixture, walk, write deliverables)
+│   ├── src/eval/
+│   │   └── global.ts                                NEW: Global Expr arm (Task 1)
 │   └── test/
-│       ├── scripts/                               NEW: test directory for scripts/
-│       │   ├── walker.test.ts                     NEW: TDD coverage for _walker.ts
-│       │   ├── known-methods.test.ts              NEW: lookup-table sanity tests
-│       │   └── backward-compat.test.ts            NEW: pin analyzer output against 2g.5 measurement (Task 4)
-│       └── fixtures/
-│           └── mainnet_boxes_wider.json           NEW: ~20-30MB wider corpus (Task 2 output)
-└── docs/specs/
-    ├── 2026-05-18-task-b-corpus-survey-results.md NEW: markdown deliverable (Task 5/6 output)
-    └── 2026-05-18-task-b-corpus-survey-tally.json NEW: machine-readable tally (Task 5 output)
+│       ├── eval/
+│       │   ├── global.test.ts                       NEW (Task 1)
+│       │   ├── sglobal-group-generator.test.ts      NEW (Task 2)
+│       │   ├── scoll-indices.test.ts                NEW (Task 3)
+│       │   ├── scoll-zip.test.ts                    NEW (Task 4)
+│       │   ├── scontext-pre-header.test.ts          NEW (Task 6)
+│       │   └── spreheader-timestamp.test.ts         NEW (Task 7)
+│       └── fixtures/eval/
+│           ├── global.json                          NEW (Task 1)
+│           ├── sglobal-group-generator.json         NEW (Task 2)
+│           ├── scoll-indices.json                   NEW (Task 3)
+│           ├── scoll-zip.json                       NEW (Task 4)
+│           ├── scontext-pre-header.json             NEW (Task 6)
+│           └── spreheader-timestamp.json            NEW (Task 7)
+└── fixture-gen/src/cmds/ergoscript/eval/
+    ├── global.rs                                    NEW (Task 1)
+    ├── sglobal_group_generator.rs                   NEW (Task 2)
+    ├── scoll_indices.rs                             NEW (Task 3)
+    ├── scoll_zip.rs                                 NEW (Task 4)
+    ├── scontext_pre_header.rs                       NEW (Task 6)
+    └── spreheader_timestamp.rs                      NEW (Task 7)
 ```
 
 **Modified in this phase:**
 
 ```
 ergots/
+├── packages/ergoscript/
+│   ├── src/
+│   │   ├── mir/types.ts                             MODIFIED (Tasks 1, 5): +2 SValue variants
+│   │   └── eval/
+│   │       ├── eval.ts                              MODIFIED (Task 1): +1 case ('Global')
+│   │       └── method-call.ts                       MODIFIED (Tasks 2,3,4,6,7): +5 HANDLERS entries + helpers
+│   ├── test/
+│   │   └── _helpers/index.ts                        MODIFIED (Tasks 1, 5): hydrateSValue cases for new variants
+│   └── scripts/
+│       └── _known-methods.ts                        MODIFIED (Task 8): mark 5 methods implemented
 ├── fixture-gen/
-│   └── src/main.rs                                MODIFIED: wire `wider_corpus` subcommand
-├── SESSION_CONTEXT.md                             MODIFIED (Task 7): Task B complete + 2g.6 scope locked (gitignored)
-└── ~/.claude/projects/-home-mwaddip-projects-ergots/memory/
-    ├── MEMORY.md                                  MODIFIED (Task 7): direction memory hook updated
-    └── project_ergots_direction.md                MODIFIED (Task 7): 2g.6 scope locked
+│   └── src/cmds/ergoscript/eval/mod.rs              MODIFIED (each Task): wire new modules
+├── facts/ergoscript.md                              MODIFIED (Task 8): coverage update
+├── docs/specs/
+│   ├── 2026-05-13-ergoscript-interpreter-design.md  MODIFIED (Task 8): 2g.6 row ✅ COMPLETE
+│   └── 2026-05-18-task-b-corpus-survey-tally.json   REGENERATED (Task 8): re-survey verification
+└── PLAN.md                                          MODIFIED (Task 8): mark phase complete
 ```
 
 ---
 
-## Task 1: Rust fixture-gen `wider_corpus` command
+## Task 1: `{ kind: 'Global' }` SValue variant + `Expr::Global` eval arm + C1 fixture
 
 **Files:**
-- Read for pattern: `fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs`
-- Read for pattern: `fixture-gen/src/main.rs` (command dispatch)
-- Create: `fixture-gen/src/cmds/wider_corpus.rs`
-- Modify: `fixture-gen/src/main.rs` (add subcommand)
-- Modify (possibly): `fixture-gen/Cargo.toml` (add `chrono` if not present)
+- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs:37-40` (cost 5 Pattern A; returns `Value::Global`)
+- Source-read: `packages/ergoscript/src/eval/context.ts` (the 2g.5 sibling pattern)
+- Modify: `packages/ergoscript/src/mir/types.ts` (add SValue variant around line 829, after `{ kind: 'Context' }`)
+- Modify: `packages/ergoscript/test/_helpers/index.ts` (add `case 'Global':` in `hydrateSValue`)
+- Create: `packages/ergoscript/src/eval/global.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts` (add `case 'Global':` after `case 'GlobalVars':` at line 151)
+- Create: `packages/ergoscript/test/eval/global.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/global.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (export new module + wire into `main.rs`)
+- Create: `packages/ergoscript/test/fixtures/eval/global.json` (generated by `cargo run`)
 
-**No TDD for this task.** Fixture-gen is Rust-side reference code; the project memory states "Rust side calls into `ergo-nipopow` and is reference code — it doesn't itself need TDD." Determinism is verified by the two-run cross-check at the end.
-
-- [ ] **Step 1: Read the existing fixture-gen pattern**
+- [ ] **Step 1: Source-read sigma-rust to confirm cost still 5**
 
 ```bash
-cat fixture-gen/src/cmds/ergoscript/mainnet_boxes.rs
-cat fixture-gen/src/main.rs
+sed -n '37,40p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/expr.rs
 ```
 
-Note: how it constructs the Box pool, how it handles node REST calls (if any), how it serializes to JSON, how it wires into the command dispatch in `main.rs`. Adapt the structure for `wider_corpus.rs`.
-
-- [ ] **Step 2: Create `fixture-gen/src/cmds/wider_corpus.rs` with module scaffold**
-
-```rust
-//! Generates `mainnet_boxes_wider.json` — the Task B survey corpus.
-//!
-//! Two layers:
-//! 1. Random recent-window sample (~10,000 boxes from the last 100,000 blocks)
-//! 2. Must-include set (5 singleton regression blocks + 700,000-700,050 cost
-//!    parity range imported from sigma-rust test vectors).
-//!
-//! Source: design spec at `docs/specs/2026-05-18-task-b-corpus-widening-design.md`.
-
-use std::collections::HashSet;
-use std::fs;
-use std::path::Path;
-
-use anyhow::{anyhow, Context, Result};
-use rand::{rngs::StdRng, SeedableRng};
-use serde::Serialize;
-use serde_json::Value;
-
-const NODE_URL: &str = "http://127.0.0.1:9052";
-const RANDOM_WINDOW_BLOCKS: u32 = 100_000;
-const RANDOM_SAMPLE_SIZE: usize = 10_000;
-const MUST_INCLUDE_SINGLETONS: &[u32] = &[342_964, 670_557, 680_692, 942_664, 1_711_120];
-const COST_PARITY_RANGE_START: u32 = 700_000;
-const COST_PARITY_RANGE_END: u32 = 700_050;
-const SIGMA_RUST_TX_VECTORS: &str =
-    "/home/mwaddip/projects/sigma-rust/sigma-rust/ergo-lib/tests/test-vectors/transactions_700000_700050.json";
-const OUTPUT_PATH: &str = "packages/ergoscript/test/fixtures/mainnet_boxes_wider.json";
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Fixture {
-    meta: Meta,
-    boxes: Vec<BoxEntry>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Meta {
-    generated_at: String,
-    node_version: String,
-    random_window: RandomWindowMeta,
-    must_include_singleton_blocks: Vec<u32>,
-    must_include_range: RangeMeta,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RandomWindowMeta {
-    start_height: u32,
-    end_height: u32,
-    seed: String,
-}
-
-#[derive(Debug, Serialize)]
-struct RangeMeta {
-    from: u32,
-    to: u32,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct BoxEntry {
-    box_id: String,
-    ergo_tree_bytes: String,
-    block_height: u32,
-    tx_id: String,
-    output_index: u32,
-    source: String,
-}
-
-pub fn run() -> Result<()> {
-    todo!("Task 1, Steps 3-9 below");
-}
+Expected output:
 ```
-
-- [ ] **Step 3: Implement chain-tip query**
-
-```rust
-fn fetch_chain_info() -> Result<(u32, String)> {
-    let resp: Value = reqwest::blocking::get(format!("{}/info", NODE_URL))?
-        .json()?;
-    let height = resp
-        .get("fullHeight")
-        .and_then(|v| v.as_u64())
-        .ok_or_else(|| anyhow!("missing fullHeight"))? as u32;
-    let version = resp
-        .get("appVersion")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-    Ok((height, version))
-}
-```
-
-- [ ] **Step 4: Implement single-block fetch + output-box extraction**
-
-```rust
-fn fetch_block(height: u32) -> Result<Value> {
-    let header_ids: Vec<String> =
-        reqwest::blocking::get(format!("{}/blocks/at/{}", NODE_URL, height))?
-            .json()?;
-    let header_id = header_ids
-        .first()
-        .ok_or_else(|| anyhow!("no block at height {}", height))?;
-    let block: Value =
-        reqwest::blocking::get(format!("{}/blocks/{}", NODE_URL, header_id))?.json()?;
-    Ok(block)
-}
-
-fn extract_output_boxes(
-    block: &Value,
-    height: u32,
-    source_for_tx: impl Fn(&str) -> String,
-) -> Vec<BoxEntry> {
-    let mut out = Vec::new();
-    if let Some(Value::Array(txs)) = block.pointer("/blockTransactions/transactions") {
-        for tx in txs {
-            let tx_id = tx
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let source = source_for_tx(&tx_id);
-            if let Some(Value::Array(outputs)) = tx.get("outputs") {
-                for (idx, output) in outputs.iter().enumerate() {
-                    out.push(BoxEntry {
-                        box_id: output
-                            .get("boxId")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string(),
-                        ergo_tree_bytes: output
-                            .get("ergoTree")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string(),
-                        block_height: height,
-                        tx_id: tx_id.clone(),
-                        output_index: idx as u32,
-                        source: source.clone(),
-                    });
-                }
+            Expr::Global => {
+                ctx.add_jit_cost(5)?; // Global = Fixed(5)
+                Ok(Value::Global)
             }
-        }
-    }
-    out
-}
 ```
 
-- [ ] **Step 5: Implement random-sample layer**
+If the cost has drifted upstream, STOP — escalate per OVERRIDES rule #2 (confidence drop on cost-charging order) before proceeding.
 
-```rust
-fn build_random_sample(tip_height: u32) -> Result<(Vec<BoxEntry>, RandomWindowMeta)> {
-    let start = tip_height.saturating_sub(RANDOM_WINDOW_BLOCKS);
-    let end = tip_height;
+- [ ] **Step 2: Add `{ kind: 'Global' }` to SValue union**
 
-    let mut pool: Vec<BoxEntry> = Vec::new();
-    for height in start..=end {
-        let block = fetch_block(height)
-            .with_context(|| format!("fetching block {}", height))?;
-        pool.extend(extract_output_boxes(&block, height, |_| "random".to_string()));
-    }
+Edit `packages/ergoscript/src/mir/types.ts`. Find the SValue union (~line 817-833):
 
-    let tip_header_ids: Vec<String> =
-        reqwest::blocking::get(format!("{}/blocks/at/{}", NODE_URL, tip_height))?.json()?;
-    let tip_header_id = tip_header_ids
-        .first()
-        .ok_or_else(|| anyhow!("no tip block header id"))?;
-    let seed_bytes = hex::decode(tip_header_id)?;
-    let mut seed: [u8; 32] = [0u8; 32];
-    seed[..seed_bytes.len().min(32)].copy_from_slice(&seed_bytes[..seed_bytes.len().min(32)]);
-    let mut rng = StdRng::from_seed(seed);
-
-    let n = pool.len().min(RANDOM_SAMPLE_SIZE);
-    let indices = rand::seq::index::sample(&mut rng, pool.len(), n);
-    let sample: Vec<BoxEntry> = indices.into_iter().map(|i| pool[i].clone()).collect();
-
-    let meta = RandomWindowMeta {
-        start_height: start,
-        end_height: end,
-        seed: format!("0x{}", tip_header_id),
-    };
-    Ok((sample, meta))
-}
+```ts
+export type SValue =
+  | { kind: 'Boolean'; value: boolean }
+  // ... existing variants ...
+  | { kind: 'Unit' }
+  | { kind: 'Context' }
+  | { kind: 'Coll'; elem: SType; items: SValue[] }
+  // ...
 ```
 
-- [ ] **Step 6: Implement must-include singleton-block fetch**
+Insert the new variant right after `{ kind: 'Context' }`:
 
-```rust
-fn build_must_include_singletons() -> Result<Vec<BoxEntry>> {
-    let mut out = Vec::new();
-    for &height in MUST_INCLUDE_SINGLETONS {
-        let block = fetch_block(height)
-            .with_context(|| format!("fetching must-include block {}", height))?;
-        let source = match height {
-            342_964 => "must-include:pr859-selfboxindex-block-342964",
-            670_557 => "must-include:pr857-bigint-modulo-block-670557",
-            680_692 => "must-include:pr859-booltosigmaprop-block-680692",
-            942_664 => "must-include:pr859-selfboxindex-gating-block-942664",
-            1_711_120 => "must-include:pr860-soption-leniency-block-1711120",
-            _ => "must-include:unknown",
-        }
-        .to_string();
-        out.extend(extract_output_boxes(&block, height, |_| source.clone()));
-    }
-    Ok(out)
-}
+```ts
+  | { kind: 'Context' }
+  | { kind: 'Global' }
+  | { kind: 'Coll'; elem: SType; items: SValue[] }
 ```
 
-- [ ] **Step 7: Implement 700k-range filesystem import**
+- [ ] **Step 3: Run TypeScript check to surface exhaustiveness errors**
 
-```rust
-fn build_must_include_cost_parity_range() -> Result<Vec<BoxEntry>> {
-    let txs_json = fs::read_to_string(SIGMA_RUST_TX_VECTORS)
-        .with_context(|| format!("reading sigma-rust tx vectors at {}", SIGMA_RUST_TX_VECTORS))?;
-    let txs: Vec<Value> = serde_json::from_str(&txs_json)?;
+Run: `cd packages/ergoscript && npx tsc --noEmit`
 
-    let mut out = Vec::new();
-    for tx in txs {
-        let tx_id = tx
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let height = tx
-            .get("height")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
-        let source = if tx_id.starts_with("518acec") {
-            "must-include:pr854-tx-cost-parity:700032:518acec".to_string()
-        } else {
-            format!("must-include:pr854-tx-cost-parity:{}", height)
-        };
-        if let Some(Value::Array(outputs)) = tx.get("outputs") {
-            for (idx, output) in outputs.iter().enumerate() {
-                out.push(BoxEntry {
-                    box_id: output
-                        .get("boxId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    ergo_tree_bytes: output
-                        .get("ergoTree")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    block_height: height,
-                    tx_id: tx_id.clone(),
-                    output_index: idx as u32,
-                    source: source.clone(),
-                });
-            }
-        }
-    }
-    Ok(out)
-}
+Expected: errors in any file with exhaustive `switch (v.kind)` patterns that don't handle `'Global'`. Likely candidates: `test/_helpers/index.ts` (hydrateSValue), some eval module asserting full SValue exhaustion. Capture the file list from the error output.
+
+- [ ] **Step 4: Add `case 'Global':` arms to all exhaustive switches**
+
+For each file flagged in Step 3, add the case. The most common pattern (in `hydrateSValue`):
+
+```ts
+    case 'Global':
+      return { kind: 'Global' }
 ```
 
-- [ ] **Step 8: Wire it all together in `run()`**
+- [ ] **Step 5: Re-run TypeScript check, confirm clean**
 
-Replace the `todo!()` body of `run()`:
-
-```rust
-pub fn run() -> Result<()> {
-    let (tip_height, node_version) = fetch_chain_info()?;
-    let (random_sample, random_window_meta) = build_random_sample(tip_height)?;
-    let must_include_singletons = build_must_include_singletons()?;
-    let must_include_range = build_must_include_cost_parity_range()?;
-
-    // Concatenate (must-include first so dedupe keeps must-include winners).
-    let mut boxes: Vec<BoxEntry> = Vec::new();
-    boxes.extend(must_include_singletons);
-    boxes.extend(must_include_range);
-    boxes.extend(random_sample);
-
-    // Dedupe by box_id (preserves earliest occurrence = must-include).
-    let mut seen: HashSet<String> = HashSet::new();
-    boxes.retain(|b| seen.insert(b.box_id.clone()));
-
-    let fixture = Fixture {
-        meta: Meta {
-            generated_at: chrono::Utc::now().to_rfc3339(),
-            node_version,
-            random_window: random_window_meta,
-            must_include_singleton_blocks: MUST_INCLUDE_SINGLETONS.to_vec(),
-            must_include_range: RangeMeta {
-                from: COST_PARITY_RANGE_START,
-                to: COST_PARITY_RANGE_END,
-            },
-        },
-        boxes,
-    };
-
-    let serialized = serde_json::to_string_pretty(&fixture)?;
-    fs::write(Path::new(OUTPUT_PATH), serialized)
-        .with_context(|| format!("writing fixture to {}", OUTPUT_PATH))?;
-    println!(
-        "wrote {} ({} boxes total)",
-        OUTPUT_PATH,
-        fixture.boxes.len()
-    );
-    Ok(())
-}
-```
-
-Note: if `chrono` is not in `fixture-gen/Cargo.toml`, either add it or substitute `std::time::SystemTime::now()` formatted to a Unix-epoch integer string (the exact format isn't load-bearing; only determinism stability matters).
-
-- [ ] **Step 9: Wire `wider_corpus` into `fixture-gen/src/main.rs`**
-
-Locate the subcommand dispatch. If it's a `match arg.as_str()` style:
-
-```rust
-// in fixture-gen/src/main.rs, inside the dispatch match:
-"wider_corpus" => cmds::wider_corpus::run()?,
-```
-
-Add `pub mod wider_corpus;` to the appropriate module file (likely `fixture-gen/src/cmds/mod.rs`).
-
-- [ ] **Step 10: Build and run**
-
-```bash
-cd fixture-gen
-cargo build
-cargo run -p fixture-gen -- wider_corpus
-```
-
-Expected output: `wrote packages/ergoscript/test/fixtures/mainnet_boxes_wider.json (NNNNN boxes total)` where NNNNN is approximately 10,200.
-
-Verify the fixture's structure:
-
-```bash
-python3 -c "
-import json
-d = json.load(open('packages/ergoscript/test/fixtures/mainnet_boxes_wider.json'))
-print('meta keys:', list(d['meta'].keys()))
-print('total boxes:', len(d['boxes']))
-sources = set(b['source'].split(':')[0] for b in d['boxes'][:200])
-print('source prefixes (first 200):', sources)
-"
-```
-
-Expected: meta carries `random_window`, `must_include_singleton_blocks`, `must_include_range`; total ~10,200; source prefixes include `'random'` and `'must-include'`.
-
-- [ ] **Step 11: Two-run determinism check**
-
-```bash
-cp packages/ergoscript/test/fixtures/mainnet_boxes_wider.json /tmp/wider_v1.json
-cargo run -p fixture-gen -- wider_corpus
-diff /tmp/wider_v1.json packages/ergoscript/test/fixtures/mainnet_boxes_wider.json
-```
-
-Expected: zero byte differences EXCEPT possibly the `generated_at` timestamp line. If anything else diffs, investigate — the seed-driven random sample and must-include set must be deterministic.
-
-- [ ] **Step 12: Commit Task 1 (tooling only — fixture not yet committed)**
-
-```bash
-git add fixture-gen/src/cmds/wider_corpus.rs fixture-gen/src/main.rs fixture-gen/src/cmds/mod.rs fixture-gen/Cargo.toml fixture-gen/Cargo.lock
-git commit -m "$(cat <<'EOF'
-feat(fixture-gen): wider_corpus command for Task B (no fixture yet)
-
-Implements fixture-gen subcommand 'wider_corpus' that:
-
-- Queries local Ergo node at 127.0.0.1:9052 for chain tip
-- Fetches every output box across [tip-100000, tip] via /blocks/{height}
-- Deterministically random-samples 10,000 boxes seeded by the tip block's
-  header_id (recorded in fixture meta for reproducibility)
-- Fetches output boxes from 5 must-include singleton regression blocks
-  (342964, 670557, 680692, 942664, 1711120) with PR-tagged source tags
-- Imports the 700,000-700,050 cost-parity range directly from
-  sigma-rust's transactions_700000_700050.json (no re-fetch — sigma-rust's
-  file IS the canonical Scala-computed reference)
-- Dedupes by box_id (must-include wins ties with random)
-- Writes packages/ergoscript/test/fixtures/mainnet_boxes_wider.json
-
-Task 2 generates the actual fixture; this commit lands the tooling only.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 2: Generate and commit the wider corpus fixture
-
-**Files:**
-- Create: `packages/ergoscript/test/fixtures/mainnet_boxes_wider.json` (~20-30 MB)
-
-- [ ] **Step 1: Confirm node is running and synced**
-
-```bash
-curl -s http://127.0.0.1:9052/info | python3 -c "import sys, json; d = json.load(sys.stdin); print('height:', d['fullHeight'], 'version:', d['appVersion'])"
-```
-
-Expected: a recent post-1.7M height + node version. If the node isn't running or isn't synced, the command fails — stop and resolve before proceeding.
-
-- [ ] **Step 2: Generate the fixture**
-
-```bash
-cargo run -p fixture-gen -- wider_corpus 2>&1 | tee /tmp/wider-gen.log
-```
-
-Generation time: estimate ~10-20 minutes (fetching 100,000 blocks via REST one-at-a-time). If significantly slower, consider batching as a follow-up enhancement (not required for Task B).
-
-- [ ] **Step 3: Verify fixture size and structure**
-
-```bash
-ls -lh packages/ergoscript/test/fixtures/mainnet_boxes_wider.json
-python3 -c "
-import json
-d = json.load(open('packages/ergoscript/test/fixtures/mainnet_boxes_wider.json'))
-print('total boxes:', len(d['boxes']))
-print('random:', sum(1 for b in d['boxes'] if b['source'] == 'random'))
-print('must-include:', sum(1 for b in d['boxes'] if b['source'].startswith('must-include')))
-print('meta.random_window:', d['meta']['random_window'])
-"
-```
-
-Expected: ~10,200 total, ~10,000 random, ~150-400 must-include, meta carries absolute heights + seed.
-
-- [ ] **Step 4: Commit the fixture**
-
-```bash
-git add packages/ergoscript/test/fixtures/mainnet_boxes_wider.json
-git commit -m "$(cat <<'EOF'
-test(ergoscript): wider mainnet corpus fixture (Task B)
-
-~10,200 boxes total:
-- 10,000 random recent-window sample (heights [N, M], seed 0x...)
-- ~200 must-include from 5 singleton regression blocks + 50-block
-  700,000-700,050 cost-parity range
-
-Source field per box tags provenance: 'random' or 'must-include:<descriptor>'.
-Each box carries box_id, ergo_tree_bytes, block_height, tx_id, output_index.
-
-Generated by `cargo run -p fixture-gen -- wider_corpus`.
-Deterministic given stable node state + recorded seed.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 3: TypeScript analyzer — walker, lookup table, orchestration script, tests
-
-**Files:**
-- Create: `packages/ergoscript/scripts/_walker.ts` (iterative Expr AST walker + tally types)
-- Create: `packages/ergoscript/scripts/_known-methods.ts` ((typeId, methodId) → name lookup)
-- Create: `packages/ergoscript/scripts/analyze-wider-corpus.ts` (orchestration)
-- Create: `packages/ergoscript/test/scripts/walker.test.ts` (TDD coverage for walker)
-- Create: `packages/ergoscript/test/scripts/known-methods.test.ts` (lookup sanity)
-
-**TDD discipline applies here** (per project CLAUDE.md and the `superpowers:test-driven-development` skill). The walker and lookup table get red-green-refactor cycles; the orchestration script is glue and doesn't need its own test (Task 4's backward-compat check is the end-to-end signal).
-
-- [ ] **Step 1: Read the existing Expr type definitions**
-
-```bash
-grep -n "^export interface\|^export type" packages/ergoscript/src/mir/types.ts | head -80
-```
-
-Note: every `Expr` variant's tag and the fields it carries. The walker needs to know per-tag which fields contain nested `Expr` values.
-
-- [ ] **Step 2: Write the failing test for a trivial walker**
-
-Create `packages/ergoscript/test/scripts/walker.test.ts`:
-
-```typescript
-import { describe, it, expect } from 'vitest'
-import { walk, type Expr } from '../../scripts/_walker'
-
-describe('walk', () => {
-  it('visits a single Const node exactly once', () => {
-    const visited: string[] = []
-    const root: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
-    walk(root, (e) => visited.push(e.tag))
-    expect(visited).toEqual(['Const'])
-  })
-})
-```
-
-- [ ] **Step 3: Run the test, watch it fail**
-
-```bash
-cd packages/ergoscript && npx vitest run test/scripts/walker.test.ts
-```
-
-Expected: FAIL with module not found (`_walker.ts` doesn't exist yet).
-
-- [ ] **Step 4: Create `scripts/_walker.ts` with an iterative walker**
-
-```typescript
-import type { Expr } from '../src/mir/types'
-
-export type { Expr }
-
-export function walk(root: Expr, visit: (e: Expr) => void): void {
-  const stack: Expr[] = [root]
-  while (stack.length > 0) {
-    const node = stack.pop()!
-    visit(node)
-    for (const child of childrenOf(node)) {
-      stack.push(child)
-    }
-  }
-}
-
-function childrenOf(node: Expr): Expr[] {
-  switch (node.tag) {
-    case 'Const':
-    case 'ConstPlaceholder':
-    case 'ValUse':
-    case 'GlobalVars':
-    case 'Context':
-      return []
-    case 'If':
-      return [
-        (node as { condition: Expr }).condition,
-        (node as { trueBranch: Expr }).trueBranch,
-        (node as { falseBranch: Expr }).falseBranch,
-      ]
-    case 'BlockValue':
-      return [
-        ...((node as { items: Expr[] }).items ?? []),
-        (node as { result: Expr }).result,
-      ]
-    case 'ValDef':
-      return [(node as { rhs: Expr }).rhs]
-    case 'FuncValue':
-      return [(node as { body: Expr }).body]
-    case 'Apply':
-      return [
-        (node as { func: Expr }).func,
-        ...((node as { args: Expr[] }).args ?? []),
-      ]
-    case 'BinOp':
-      return [
-        (node as { left: Expr }).left,
-        (node as { right: Expr }).right,
-      ]
-    case 'MethodCall':
-      return [
-        (node as { obj: Expr }).obj,
-        ...((node as { args: Expr[] }).args ?? []),
-      ]
-    case 'PropertyCall':
-      return [(node as { obj: Expr }).obj]
-    default:
-      return collectExprChildren(node as unknown as Record<string, unknown>)
-  }
-}
-
-function collectExprChildren(node: Record<string, unknown>): Expr[] {
-  const out: Expr[] = []
-  for (const value of Object.values(node)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (isExpr(item)) out.push(item)
-      }
-    } else if (isExpr(value)) {
-      out.push(value)
-    }
-  }
-  return out
-}
-
-function isExpr(v: unknown): v is Expr {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    'tag' in (v as object) &&
-    typeof (v as { tag: unknown }).tag === 'string'
-  )
-}
-```
-
-The default arm uses reflection (`collectExprChildren` via `Object.values`) as a fail-safe for `Expr` variants this scaffold doesn't enumerate by name. Any nested `Expr` reachable by reflection still gets visited. The per-tag arms cover the most-common variants (Const family, control flow, lambdas/Apply, BinOp, MethodCall/PropertyCall); everything else falls through to the safety net.
-
-- [ ] **Step 5: Run the test, watch it pass**
-
-```bash
-npx vitest run test/scripts/walker.test.ts
-```
-
-Expected: 1 test PASS.
-
-- [ ] **Step 6: Write failing tests for nested-tree cases**
-
-Append to `test/scripts/walker.test.ts`:
-
-```typescript
-it('visits all nodes in an If tree (depth 2)', () => {
-  const visited: string[] = []
-  const trueLeaf: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } }
-  const falseLeaf: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 2 } }
-  const cond: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
-  const root: Expr = { tag: 'If', condition: cond, trueBranch: trueLeaf, falseBranch: falseLeaf } as Expr
-  walk(root, (e) => visited.push(e.tag))
-  expect(visited.sort()).toEqual(['Const', 'Const', 'Const', 'If'])
-})
-
-it('descends into BlockValue items and result', () => {
-  const visited: string[] = []
-  const valDef: Expr = {
-    tag: 'ValDef',
-    id: 1,
-    rhs: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
-  } as Expr
-  const useNode: Expr = { tag: 'ValUse', id: 1, tpe: { tag: 'SInt' } } as Expr
-  const root: Expr = { tag: 'BlockValue', items: [valDef], result: useNode } as Expr
-  walk(root, (e) => visited.push(e.tag))
-  expect(visited.sort()).toEqual(['BlockValue', 'Const', 'ValDef', 'ValUse'])
-})
-
-it('descends into MethodCall obj + args', () => {
-  const visited: string[] = []
-  const obj: Expr = { tag: 'GlobalVars', varType: 'Inputs' } as Expr
-  const arg: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } }
-  const root: Expr = {
-    tag: 'MethodCall',
-    obj,
-    args: [arg],
-    typeId: 99,
-    methodId: 8,
-    explicitTypeArgs: {},
-  } as Expr
-  walk(root, (e) => visited.push(e.tag))
-  expect(visited.sort()).toEqual(['Const', 'GlobalVars', 'MethodCall'])
-})
-```
-
-- [ ] **Step 7: Run, expect all 4 tests pass**
-
-```bash
-npx vitest run test/scripts/walker.test.ts
-```
-
-Expected: 4 PASS.
-
-- [ ] **Step 8: Add the tally maps + analyzeBox to `_walker.ts`**
-
-Append to `scripts/_walker.ts`:
-
-```typescript
-export interface TagTally {
-  totalAppearances: number
-  distinctBoxes: number
-  random: number
-  mustInclude: number
-}
-
-export interface MethodPairTally extends TagTally {
-  typeId: number
-  methodId: number
-  methodName?: string
-  implemented?: boolean
-  implementedIn?: string
-}
-
-export interface CorpusBox {
-  boxId: string
-  ergoTreeBytes: string
-  blockHeight: number
-  txId: string
-  outputIndex: number
-  source: string
-}
-
-export interface AnalysisResult {
-  tagFrequencies: Map<string, TagTally>
-  methodPairs: Map<string, MethodPairTally>
-  unimplementedHits: Map<string, { distinctBoxes: number; exampleBoxIds: string[] }>
-  parseFailures: { boxId: string; errorCode: string; source: string }[]
-}
-
-export function emptyResult(): AnalysisResult {
-  return {
-    tagFrequencies: new Map(),
-    methodPairs: new Map(),
-    unimplementedHits: new Map(),
-    parseFailures: [],
-  }
-}
-
-function incTally(tally: TagTally | MethodPairTally, source: string): void {
-  tally.totalAppearances++
-  if (source === 'random') tally.random++
-  else if (source.startsWith('must-include')) tally.mustInclude++
-}
-
-export function analyzeBox(
-  parsedBody: Expr,
-  box: CorpusBox,
-  result: AnalysisResult,
-  knownMethods: Map<string, { name: string; implemented: boolean; implementedIn?: string }>,
-  unimplementedTags: ReadonlySet<string>,
-): void {
-  const tagsSeenInThisBox = new Set<string>()
-  const methodPairsSeenInThisBox = new Set<string>()
-  const unimplementedSeenInThisBox = new Set<string>()
-
-  walk(parsedBody, (node) => {
-    let tally = result.tagFrequencies.get(node.tag)
-    if (!tally) {
-      tally = { totalAppearances: 0, distinctBoxes: 0, random: 0, mustInclude: 0 }
-      result.tagFrequencies.set(node.tag, tally)
-    }
-    incTally(tally, box.source)
-    if (!tagsSeenInThisBox.has(node.tag)) {
-      tally.distinctBoxes++
-      tagsSeenInThisBox.add(node.tag)
-    }
-
-    if (node.tag === 'MethodCall' || node.tag === 'PropertyCall') {
-      const typeId = (node as { typeId: number }).typeId
-      const methodId = (node as { methodId: number }).methodId
-      const key = `${typeId}:${methodId}`
-      let pair = result.methodPairs.get(key)
-      if (!pair) {
-        const lookup = knownMethods.get(key)
-        pair = {
-          totalAppearances: 0,
-          distinctBoxes: 0,
-          random: 0,
-          mustInclude: 0,
-          typeId,
-          methodId,
-          methodName: lookup?.name,
-          implemented: lookup?.implemented,
-          implementedIn: lookup?.implementedIn,
-        }
-        result.methodPairs.set(key, pair)
-      }
-      incTally(pair, box.source)
-      if (!methodPairsSeenInThisBox.has(key)) {
-        pair.distinctBoxes++
-        methodPairsSeenInThisBox.add(key)
-      }
-    }
-
-    if (unimplementedTags.has(node.tag) && !unimplementedSeenInThisBox.has(node.tag)) {
-      let entry = result.unimplementedHits.get(node.tag)
-      if (!entry) {
-        entry = { distinctBoxes: 0, exampleBoxIds: [] }
-        result.unimplementedHits.set(node.tag, entry)
-      }
-      entry.distinctBoxes++
-      if (entry.exampleBoxIds.length < 5) entry.exampleBoxIds.push(box.boxId)
-      unimplementedSeenInThisBox.add(node.tag)
-    }
-  })
-}
-```
-
-- [ ] **Step 9: Write failing tests for analyzeBox**
-
-Append to `test/scripts/walker.test.ts`:
-
-```typescript
-import { analyzeBox, emptyResult, type CorpusBox } from '../../scripts/_walker'
-
-describe('analyzeBox', () => {
-  it('tallies tag frequency and distinct-box counts correctly', () => {
-    const box1: CorpusBox = {
-      boxId: 'box1', ergoTreeBytes: '', blockHeight: 0,
-      txId: '', outputIndex: 0, source: 'random',
-    }
-    const box2: CorpusBox = { ...box1, boxId: 'box2', source: 'must-include:test' }
-
-    const result = emptyResult()
-    const knownMethods = new Map()
-    const unimplementedTags = new Set<string>()
-
-    // box1: If with 3 Const nodes (Const appears 3× in 1 box)
-    const tree1: Expr = {
-      tag: 'If',
-      condition: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } },
-      trueBranch: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } },
-      falseBranch: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 2 } },
-    } as Expr
-    // box2: just one Const
-    const tree2: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: false } }
-
-    analyzeBox(tree1, box1, result, knownMethods, unimplementedTags)
-    analyzeBox(tree2, box2, result, knownMethods, unimplementedTags)
-
-    const constTally = result.tagFrequencies.get('Const')!
-    expect(constTally.totalAppearances).toBe(4)
-    expect(constTally.distinctBoxes).toBe(2)
-    expect(constTally.random).toBe(3)
-    expect(constTally.mustInclude).toBe(1)
-
-    const ifTally = result.tagFrequencies.get('If')!
-    expect(ifTally.totalAppearances).toBe(1)
-    expect(ifTally.distinctBoxes).toBe(1)
-  })
-
-  it('tallies method-call pairs from MethodCall and PropertyCall', () => {
-    const box: CorpusBox = {
-      boxId: 'box1', ergoTreeBytes: '', blockHeight: 0,
-      txId: '', outputIndex: 0, source: 'random',
-    }
-    const result = emptyResult()
-    const knownMethods = new Map([
-      ['99:8', { name: 'SBox.tokens', implemented: true, implementedIn: '2g.5' }],
-    ])
-    const unimplementedTags = new Set<string>()
-
-    const tree: Expr = {
-      tag: 'PropertyCall',
-      obj: { tag: 'GlobalVars', varType: 'SelfBox' } as Expr,
-      typeId: 99,
-      methodId: 8,
-    } as Expr
-
-    analyzeBox(tree, box, result, knownMethods, unimplementedTags)
-
-    const pair = result.methodPairs.get('99:8')!
-    expect(pair.typeId).toBe(99)
-    expect(pair.methodId).toBe(8)
-    expect(pair.methodName).toBe('SBox.tokens')
-    expect(pair.totalAppearances).toBe(1)
-    expect(pair.distinctBoxes).toBe(1)
-    expect(pair.implemented).toBe(true)
-  })
-
-  it('records unimplemented-tag hits per box (one per box)', () => {
-    const box: CorpusBox = {
-      boxId: 'box-with-unimplemented', ergoTreeBytes: '', blockHeight: 0,
-      txId: '', outputIndex: 0, source: 'random',
-    }
-    const result = emptyResult()
-    const knownMethods = new Map()
-    const unimplementedTags = new Set(['LastBlockUtxoRootHash'])
-
-    const tree: Expr = { tag: 'LastBlockUtxoRootHash' } as Expr
-    analyzeBox(tree, box, result, knownMethods, unimplementedTags)
-
-    const hit = result.unimplementedHits.get('LastBlockUtxoRootHash')!
-    expect(hit.distinctBoxes).toBe(1)
-    expect(hit.exampleBoxIds).toContain('box-with-unimplemented')
-  })
-})
-```
-
-- [ ] **Step 10: Run, expect 7 tests pass total (4 walker + 3 analyzeBox)**
-
-```bash
-npx vitest run test/scripts/walker.test.ts
-```
-
-Expected: 7 PASS.
-
-- [ ] **Step 11: Create the known-methods lookup table**
-
-Create `packages/ergoscript/scripts/_known-methods.ts`:
-
-```typescript
-/**
- * (typeId, methodId) → sigma-rust method name + implementation status.
- *
- * Sourced from `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/`.
- * Coverage is intentionally partial at Task B start — only 2g.5's three
- * implemented methods + six plausible 2g.6 candidates from the handoff
- * projection. Widened iteratively during Task 5 as the analyzer surfaces
- * real (typeId, methodId) pairs from mainnet boxes.
- */
-
-export interface KnownMethod {
-  name: string
-  implemented: boolean
-  implementedIn?: string
-}
-
-export const KNOWN_METHODS: Map<string, KnownMethod> = new Map([
-  // ---- Implemented in phase 2g.5 ----
-  ['99:8', { name: 'SBox.tokens', implemented: true, implementedIn: '2g.5' }],
-  ['101:1', { name: 'SContext.dataInputs', implemented: true, implementedIn: '2g.5' }],
-  ['12:26', { name: 'SColl.indexOf', implemented: true, implementedIn: '2g.5' }],
-
-  // ---- Plausible 2g.6 candidates (per handoff projection; not yet implemented) ----
-  // SColl utilities — typeId 12. Method IDs from sigma-rust's
-  // ergotree-ir/src/types/scoll.rs; widen iteratively during Task 5.
-  ['12:14', { name: 'SColl.indices', implemented: false }],
-  ['12:29', { name: 'SColl.zip', implemented: false }],
-  ['12:30', { name: 'SColl.zipWith', implemented: false }],
-  ['12:21', { name: 'SColl.reverse', implemented: false }],
-  ['12:15', { name: 'SColl.flatten', implemented: false }],
-  ['12:25', { name: 'SColl.getOrElse', implemented: false }],
-
-  // SHeader methods, SNumericTypeMethods Bit shifts, additional SBox/
-  // SContext/SGlobal methods — consult
-  // ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/{sheader,
-  // snumeric, sbox, scontext, sglobal}.rs at Task 5 implementation time
-  // and widen this table as needed.
-])
-```
-
-- [ ] **Step 12: Write the lookup-table tests**
-
-Create `packages/ergoscript/test/scripts/known-methods.test.ts`:
-
-```typescript
-import { describe, it, expect } from 'vitest'
-import { KNOWN_METHODS } from '../../scripts/_known-methods'
-
-describe('KNOWN_METHODS', () => {
-  it('has entries for all 2g.5-implemented method pairs', () => {
-    expect(KNOWN_METHODS.get('99:8')?.name).toBe('SBox.tokens')
-    expect(KNOWN_METHODS.get('99:8')?.implemented).toBe(true)
-    expect(KNOWN_METHODS.get('99:8')?.implementedIn).toBe('2g.5')
-
-    expect(KNOWN_METHODS.get('101:1')?.name).toBe('SContext.dataInputs')
-    expect(KNOWN_METHODS.get('101:1')?.implemented).toBe(true)
-
-    expect(KNOWN_METHODS.get('12:26')?.name).toBe('SColl.indexOf')
-    expect(KNOWN_METHODS.get('12:26')?.implemented).toBe(true)
-  })
-
-  it('marks 2g.6 candidate methods as not implemented', () => {
-    const candidates = ['12:14', '12:29', '12:30', '12:21', '12:15', '12:25']
-    for (const key of candidates) {
-      const entry = KNOWN_METHODS.get(key)
-      expect(entry?.implemented).toBe(false)
-    }
-  })
-})
-```
-
-- [ ] **Step 13: Run all script tests, expect 9 pass**
-
-```bash
-npx vitest run test/scripts/
-```
-
-Expected: 9 PASS.
-
-- [ ] **Step 14: Create the orchestration script**
-
-Create `packages/ergoscript/scripts/analyze-wider-corpus.ts`:
-
-```typescript
-#!/usr/bin/env tsx
-/**
- * Task B analyzer — loads mainnet_boxes_wider.json, walks every box's
- * parsed ErgoTree, tallies tag/method-pair frequencies (source-segmented),
- * emits markdown report + JSON tally under docs/specs/.
- *
- * Invocation: `npx tsx packages/ergoscript/scripts/analyze-wider-corpus.ts`
- *
- * Design spec: docs/specs/2026-05-18-task-b-corpus-widening-design.md
- */
-
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-
-import { parseTree } from '../src/index'
-import { hexToBytes } from '../src/wire/hex'
-import { analyzeBox, emptyResult, type CorpusBox, type AnalysisResult } from './_walker'
-import { KNOWN_METHODS } from './_known-methods'
-
-// Set of Expr.tag values NOT yet wired in eval/eval.ts as of phase 2g.5.
-// Derived from facts/ergoscript.md § Coverage at time of analysis.
-// Refer to facts/ergoscript.md when Task 5 runs to make sure this list is
-// current; the analyzer's "unimplementedHits" tally is only as accurate as
-// this set.
-const UNIMPLEMENTED_TAGS = new Set([
-  'LastBlockUtxoRootHash',
-  'CalcBlake2b256',
-  'CalcSha256',
-  'DecodePoint',
-  'ByteArrayToLong',
-  'ByteArrayToBigInt',
-  'LongToByteArray',
-  'Xor',
-  'SubstConstants',
-  // Add any 'not-implemented-yet' tags surfaced by facts/ergoscript.md at
-  // Task 5 implementation time.
-])
-
-const FIXTURE_PATH =
-  process.argv[2] ??
-  path.join(__dirname, '..', 'test', 'fixtures', 'mainnet_boxes_wider.json')
-const RESULTS_MD_PATH = path.join(
-  __dirname, '..', '..', '..', 'docs', 'specs',
-  '2026-05-18-task-b-corpus-survey-results.md',
-)
-const TALLY_JSON_PATH = path.join(
-  __dirname, '..', '..', '..', 'docs', 'specs',
-  '2026-05-18-task-b-corpus-survey-tally.json',
-)
-
-interface Fixture {
-  meta: Record<string, unknown>
-  boxes: CorpusBox[]
-}
-
-function main(): void {
-  const fixture: Fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf-8'))
-  const result = emptyResult()
-
-  for (const box of fixture.boxes) {
-    try {
-      const tree = parseTree(hexToBytes(box.ergoTreeBytes))
-      analyzeBox(tree.body, box, result, KNOWN_METHODS, UNIMPLEMENTED_TAGS)
-    } catch (err) {
-      const errorCode =
-        err && typeof err === 'object' && 'code' in err
-          ? (err as { code: string }).code
-          : String(err)
-      result.parseFailures.push({ boxId: box.boxId, errorCode, source: box.source })
-    }
-  }
-
-  // Phase 2g.6 prioritization: unimplemented method pairs, sorted by
-  // distinctBoxes desc with mustInclude as tiebreaker.
-  const phase2g6Priority = Array.from(result.methodPairs.values())
-    .filter((p) => p.implemented !== true)
-    .sort((a, b) =>
-      b.distinctBoxes - a.distinctBoxes || b.mustInclude - a.mustInclude,
-    )
-
-  writeMarkdown(fixture.meta, result, phase2g6Priority)
-  writeTallyJson(fixture.meta, result, phase2g6Priority)
-
-  console.log(`wrote ${RESULTS_MD_PATH}`)
-  console.log(`wrote ${TALLY_JSON_PATH}`)
-  console.log(`total boxes: ${fixture.boxes.length}`)
-  console.log(`parse failures: ${result.parseFailures.length}`)
-  console.log(`distinct tags: ${result.tagFrequencies.size}`)
-  console.log(`distinct method pairs: ${result.methodPairs.size}`)
-  console.log(`phase 2g.6 priority methods: ${phase2g6Priority.length}`)
-}
-
-function writeMarkdown(
-  meta: Record<string, unknown>,
-  result: AnalysisResult,
-  priority: ReturnType<typeof Array.from<typeof result.methodPairs.values>>,
-): void {
-  const lines: string[] = []
-  lines.push('# Task B — Wider Mainnet Corpus Survey Results')
-  lines.push('')
-  lines.push(`**Generated:** ${new Date().toISOString()}`)
-  lines.push(`**Source fixture:** \`packages/ergoscript/test/fixtures/mainnet_boxes_wider.json\``)
-  lines.push(`**Parse failures:** ${result.parseFailures.length}`)
-  lines.push('')
-
-  lines.push('## Top-level Expr tag frequencies')
-  lines.push('')
-  lines.push('| Tag | Total nodes | Distinct boxes | Random | Must-include |')
-  lines.push('|---|---|---|---|---|')
-  const tagsSorted = Array.from(result.tagFrequencies.entries())
-    .sort((a, b) => b[1].distinctBoxes - a[1].distinctBoxes)
-  for (const [tag, t] of tagsSorted) {
-    lines.push(`| ${tag} | ${t.totalAppearances} | ${t.distinctBoxes} | ${t.random} | ${t.mustInclude} |`)
-  }
-  lines.push('')
-
-  lines.push('## Method-call (typeId, methodId) pair frequencies')
-  lines.push('')
-  lines.push('| typeId | methodId | Sigma-rust name | Total | Distinct boxes | Random | Must-include | Implemented? |')
-  lines.push('|---|---|---|---|---|---|---|---|')
-  const methodsSorted = Array.from(result.methodPairs.values())
-    .sort((a, b) => b.distinctBoxes - a.distinctBoxes)
-  for (const p of methodsSorted) {
-    const impl = p.implemented === true ? `✅ ${p.implementedIn ?? ''}` : (p.implemented === false ? '❌' : '(unknown)')
-    lines.push(`| ${p.typeId} | ${p.methodId} | ${p.methodName ?? '(unknown)'} | ${p.totalAppearances} | ${p.distinctBoxes} | ${p.random} | ${p.mustInclude} | ${impl} |`)
-  }
-  lines.push('')
-
-  lines.push('## Currently-unimplemented arms hit')
-  lines.push('')
-  lines.push('| Tag | Distinct boxes | Example boxIds |')
-  lines.push('|---|---|---|')
-  const unimplSorted = Array.from(result.unimplementedHits.entries())
-    .sort((a, b) => b[1].distinctBoxes - a[1].distinctBoxes)
-  for (const [tag, h] of unimplSorted) {
-    lines.push(`| ${tag} | ${h.distinctBoxes} | ${h.exampleBoxIds.slice(0, 3).join(', ')} |`)
-  }
-  lines.push('')
-
-  lines.push('## Parse failures')
-  lines.push('')
-  const failGrouped = new Map<string, number>()
-  for (const f of result.parseFailures) {
-    failGrouped.set(f.errorCode, (failGrouped.get(f.errorCode) ?? 0) + 1)
-  }
-  lines.push('| Error code | Count |')
-  lines.push('|---|---|')
-  for (const [code, count] of Array.from(failGrouped.entries()).sort((a, b) => b[1] - a[1])) {
-    lines.push(`| ${code} | ${count} |`)
-  }
-  lines.push('')
-
-  lines.push('## Phase 2g.6 prioritization (raw — Task 6 authors the clustered version below)')
-  lines.push('')
-  lines.push('| Rank | typeId | methodId | Method | distinctBoxes | Random | Must-include |')
-  lines.push('|---|---|---|---|---|---|---|')
-  priority.forEach((p, i) => {
-    lines.push(`| ${i + 1} | ${p.typeId} | ${p.methodId} | ${p.methodName ?? '(unknown)'} | ${p.distinctBoxes} | ${p.random} | ${p.mustInclude} |`)
-  })
-  lines.push('')
-
-  fs.writeFileSync(RESULTS_MD_PATH, lines.join('\n'))
-}
-
-function writeTallyJson(
-  meta: Record<string, unknown>,
-  result: AnalysisResult,
-  priority: ReturnType<typeof Array.from<typeof result.methodPairs.values>>,
-): void {
-  const out = {
-    meta: {
-      generatedAt: new Date().toISOString(),
-      fixtureSource: 'packages/ergoscript/test/fixtures/mainnet_boxes_wider.json',
-      fixtureMeta: meta,
-    },
-    tagFrequencies: Array.from(result.tagFrequencies.entries())
-      .map(([tag, t]) => ({ tag, ...t }))
-      .sort((a, b) => b.distinctBoxes - a.distinctBoxes),
-    methodPairs: Array.from(result.methodPairs.values())
-      .sort((a, b) => b.distinctBoxes - a.distinctBoxes),
-    unimplementedHits: Array.from(result.unimplementedHits.entries())
-      .map(([tag, h]) => ({ tag, ...h }))
-      .sort((a, b) => b.distinctBoxes - a.distinctBoxes),
-    parseFailures: result.parseFailures,
-    phase2g6Priority: priority,
-  }
-  fs.writeFileSync(TALLY_JSON_PATH, JSON.stringify(out, null, 2))
-}
-
-main()
-```
-
-- [ ] **Step 15: Verify TypeScript compiles**
-
-```bash
-cd packages/ergoscript && npx tsc --noEmit
-```
-
-Expected: clean compile, zero errors.
-
-- [ ] **Step 16: Commit Task 3**
-
-```bash
-git add packages/ergoscript/scripts/ packages/ergoscript/test/scripts/walker.test.ts packages/ergoscript/test/scripts/known-methods.test.ts
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): Task B analyzer — iterative walker + tally + script
-
-packages/ergoscript/scripts/_walker.ts: iterative Expr AST walker (explicit
-worklist stack; no recursion to avoid stack-overflow on deep lambda
-nesting) + analyzeBox tallying function. Maintains four tallies per box:
-tag frequencies, (typeId, methodId) method-pair frequencies (with
-sigma-rust name lookup + implementation status), unimplemented-tag hits,
-and parse failures. All tallies are source-segmented (random vs
-must-include) and use both totalAppearances and distinctBoxes metrics.
-
-packages/ergoscript/scripts/_known-methods.ts: KNOWN_METHODS lookup
-table mapping (typeId, methodId) → sigma-rust name + implementation
-status. Seeded with 2g.5's 3 implemented methods + 6 plausible 2g.6
-candidates per handoff projection. Widened iteratively as Task 5's
-analyzer run surfaces real pairs.
-
-packages/ergoscript/scripts/analyze-wider-corpus.ts: orchestration script
-invoked via `npx tsx`. Loads the wider corpus fixture, walks each box,
-emits markdown report + JSON tally under docs/specs/.
-
-packages/ergoscript/test/scripts/walker.test.ts: TDD coverage — 7 tests
-across walker traversal + analyzeBox tallying.
-
-packages/ergoscript/test/scripts/known-methods.test.ts: 2 lookup-table
-sanity tests.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 4: Backward-compatibility cross-check on existing 173-box corpus
-
-**Files:**
-- Read: `packages/ergoscript/test/fixtures/mainnet_boxes.json` (existing C2 corpus)
-- Read: `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` § "Background — measured corpus demand"
-- Create: `packages/ergoscript/test/scripts/backward-compat.test.ts`
-
-- [ ] **Step 1: Inspect the 173-box corpus shape**
-
-```bash
-python3 -c "
-import json
-d = json.load(open('packages/ergoscript/test/fixtures/mainnet_boxes.json'))
-print('type:', type(d).__name__)
-if isinstance(d, dict):
-    print('keys:', list(d.keys()))
-    if 'boxes' in d: print('first box keys:', list(d['boxes'][0].keys()))
-elif isinstance(d, list):
-    print('first entry keys:', list(d[0].keys()))
-"
-```
-
-Note the actual shape (top-level `boxes` array vs. raw array; per-entry `boxId` vs `box_id`; etc.). Adapt the test below to that shape.
-
-- [ ] **Step 2: Write the failing backward-compat test**
-
-Create `packages/ergoscript/test/scripts/backward-compat.test.ts`:
-
-```typescript
-import { describe, it, expect } from 'vitest'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-
-import { parseTree } from '../../src/index'
-import { hexToBytes } from '../../src/wire/hex'
-import { analyzeBox, emptyResult, type CorpusBox } from '../../scripts/_walker'
-import { KNOWN_METHODS } from '../../scripts/_known-methods'
-
-describe('analyzer backward-compat: 173-box corpus reproduces 2g.5 measurement', () => {
-  it('produces SBox.tokens=43, SContext.dataInputs=15, SColl.indexOf=6', () => {
-    const fixturePath = path.join(__dirname, '..', 'fixtures', 'mainnet_boxes.json')
-    const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'))
-    const entries: Array<Record<string, string>> = Array.isArray(raw)
-      ? raw
-      : (raw as { boxes: Array<Record<string, string>> }).boxes
-
-    const result = emptyResult()
-    const unimplementedTags = new Set<string>()
-
-    for (const entry of entries) {
-      const corpusBox: CorpusBox = {
-        boxId: entry.boxId ?? entry.box_id ?? '',
-        ergoTreeBytes: entry.ergoTreeBytes ?? entry.ergoTree ?? entry.ergo_tree_bytes ?? '',
-        blockHeight: 0,
-        txId: '',
-        outputIndex: 0,
-        source: 'random',
-      }
-      try {
-        const tree = parseTree(hexToBytes(corpusBox.ergoTreeBytes))
-        analyzeBox(tree.body, corpusBox, result, KNOWN_METHODS, unimplementedTags)
-      } catch {
-        // tolerate; analyzer behavior
-      }
-    }
-
-    expect(result.methodPairs.get('99:8')?.totalAppearances).toBe(43)
-    expect(result.methodPairs.get('101:1')?.totalAppearances).toBe(15)
-    expect(result.methodPairs.get('12:26')?.totalAppearances).toBe(6)
-  })
-})
-```
-
-Adjust the field names (`boxId` vs `box_id` vs `ergoTreeBytes` vs `ergoTree`) to match the actual 173-box corpus shape.
-
-- [ ] **Step 3: Run the backward-compat test**
-
-```bash
-npx vitest run test/scripts/backward-compat.test.ts
-```
-
-Expected outcomes:
-- **PASS**: walker is correct on a known input → proceed to Task 5.
-- **FAIL with wrong counts**: walker bug — debug. Add a `console.log` of every `(tag, boxId)` visit, isolate to a single box, hand-walk that box's AST, find the mismatch in `childrenOf` and fix. Re-run until PASS.
-- **FAIL with parse error**: corpus shape mismatch — fix the field-name accessors in the test.
-
-- [ ] **Step 4: Commit Task 4**
-
-```bash
-git add packages/ergoscript/test/scripts/backward-compat.test.ts
-git commit -m "$(cat <<'EOF'
-test(ergoscript): backward-compat — analyzer reproduces 2g.5 measurement on 173-box corpus (Task B)
-
-Pins the analyzer's output against the known 2g.5 measurement on
-mainnet_boxes.json (the existing C2 corpus). Confirms the wider-corpus
-analyzer is correct on a known input before drawing conclusions from
-the wider survey.
-
-Expected output: SBox.tokens (99,8) = 43, SContext.dataInputs (101,1) = 15,
-SColl.indexOf (12,26) = 6.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 5: Run analyzer on wider corpus, produce deliverable artifacts
-
-**Files:**
-- Create: `docs/specs/2026-05-18-task-b-corpus-survey-results.md`
-- Create: `docs/specs/2026-05-18-task-b-corpus-survey-tally.json`
-- Modify (iteratively): `packages/ergoscript/scripts/_known-methods.ts` (widen as unresolved pairs surface)
-
-- [ ] **Step 1: Run the analyzer on the wider corpus**
-
-```bash
-npx tsx packages/ergoscript/scripts/analyze-wider-corpus.ts
-```
-
-Expected console output:
-- `wrote docs/specs/2026-05-18-task-b-corpus-survey-results.md`
-- `wrote docs/specs/2026-05-18-task-b-corpus-survey-tally.json`
-- `total boxes: 10XXX`
-- `parse failures: N`
-- `distinct tags: N`
-- `distinct method pairs: N`
-- `phase 2g.6 priority methods: N`
-
-If parse failure rate exceeds ~1% (e.g., >100 failures), pause and investigate. That's a signal the parser is missing real-world wire-format cases. Document the gap in the markdown's parse-failures section and consider whether to escalate.
-
-- [ ] **Step 2: Iteratively widen `KNOWN_METHODS` for unresolved pairs**
-
-```bash
-jq '.methodPairs[] | select(.methodName == null) | {key: "\(.typeId):\(.methodId)", distinctBoxes}' docs/specs/2026-05-18-task-b-corpus-survey-tally.json
-```
-
-For each unresolved `(typeId, methodId)` pair with ≥10 distinct-box occurrences:
-1. Consult sigma-rust source at `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/` (one file per type — `sbox.rs`, `scontext.rs`, `scoll.rs`, `sheader.rs`, `snumeric.rs`, etc.).
-2. Find the method name for that `(typeId, methodId)` pair.
-3. Add the entry to `_known-methods.ts`.
-4. Re-run `npx tsx packages/ergoscript/scripts/analyze-wider-corpus.ts`.
-
-Iterate until all method pairs with ≥10 distinct-box occurrences are resolved. Pairs with <10 distinct boxes can remain `(unknown)` — they're Tier 3 long-tail and not load-bearing for 2g.6 prioritization.
-
-- [ ] **Step 3: Verify markdown output renders properly**
-
-```bash
-head -80 docs/specs/2026-05-18-task-b-corpus-survey-results.md
-```
-
-Spot-check: section headers, tables, alignment. If any table is malformed, fix the analyzer's `writeMarkdown` function and re-run.
-
-- [ ] **Step 4: Commit Task 5 deliverables**
-
-```bash
-git add docs/specs/2026-05-18-task-b-corpus-survey-results.md \
-        docs/specs/2026-05-18-task-b-corpus-survey-tally.json \
-        packages/ergoscript/scripts/_known-methods.ts
-git commit -m "$(cat <<'EOF'
-docs(ergoscript): Task B survey results + tally on wider corpus
-
-Generated from packages/ergoscript/test/fixtures/mainnet_boxes_wider.json
-(~10,200 boxes) via `npx tsx packages/ergoscript/scripts/analyze-wider-corpus.ts`.
-
-Two artifacts:
-- docs/specs/2026-05-18-task-b-corpus-survey-results.md (human-readable
-  markdown with 5 tables: tag frequencies, method-pair frequencies,
-  unimplemented-arm hits, parse failures, raw 2g.6 priority list)
-- docs/specs/2026-05-18-task-b-corpus-survey-tally.json (machine-readable
-  tally with the same data plus the full unimplementedHits and
-  parseFailures arrays)
-
-Also widens packages/ergoscript/scripts/_known-methods.ts with all
-(typeId, methodId) pairs encountered in the survey that resolve to
-sigma-rust methods at ≥10 distinct-box occurrence. Long-tail unresolved
-pairs (<10 distinct boxes) remain as "(unknown)" in the output.
-
-Phase 2g.6 clustered prioritization (Task 6) authored next.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 6: Author phase 2g.6 prioritization section in deliverable
-
-**Files:**
-- Modify: `docs/specs/2026-05-18-task-b-corpus-survey-results.md` (replace the raw priority section with a clustered/tiered version)
-
-- [ ] **Step 1: Read the analyzer's raw `phase2g6Priority` array**
-
-```bash
-jq '.phase2g6Priority[] | {rank, typeId, methodId, methodName, distinctBoxes, random, mustInclude}' docs/specs/2026-05-18-task-b-corpus-survey-tally.json
-```
-
-This is the raw demand-ranked list of unimplemented method pairs. Task 6's job is to cluster + tier it for human consumption.
-
-- [ ] **Step 2: Cluster methods by sigma-rust type**
-
-Group the priority list by `typeId` (e.g., all `SColl.*` together as `typeId=12`, all `SHeader.*` together, all `SNumericTypeMethods.*` together, etc.). Sigma-rust's type IDs:
-- 12 = SColl
-- 14 = SHeader (verify by reading `sigma-rust/ergotree-ir/src/types/sheader.rs`)
-- 99 = SBox
-- 101 = SContext
-- 102 = SGlobal
-- (consult sigma-rust source for exact IDs — these are best-guess)
-
-- [ ] **Step 3: Define tier thresholds**
-
-Suggested:
-- **Tier 1 — must land in 2g.6:** `distinctBoxes ≥ X` (set X based on the actual data; e.g., X=100 if the long tail starts there)
-- **Tier 2 — should land in 2g.6:** `distinctBoxes ∈ [10, X)` OR `mustInclude > 0`
-- **Tier 3 — deferred:** `distinctBoxes < 10` and `mustInclude == 0`
-
-- [ ] **Step 4: Author the clustered prioritization section**
-
-Replace the existing "Phase 2g.6 prioritization (raw)" section in `docs/specs/2026-05-18-task-b-corpus-survey-results.md` with the clustered version:
-
-```markdown
-## Phase 2g.6 prioritization (clustered + tiered)
-
-Based on the source-segmented tally above, phase 2g.6 should land the
-following method handlers, grouped by sigma-rust type and tiered by
-demand. Long-tail methods (<10 distinct boxes, 0 must-include) are
-deferred to a future slice.
-
-### Tier 1 — High demand (must land in 2g.6)
-
-Methods with ≥X distinct-box occurrence in the corpus.
-
-| Rank | (typeId, methodId) | Method | distinctBoxes | random | mustInclude | sigma-rust source |
-|---|---|---|---|---|---|---|
-| 1 | (12, 14) | SColl.indices | N | N | N | `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/scoll.rs:LINE` |
-| ... | | | | | | |
-
-### Tier 2 — Moderate demand or must-include-specific
-
-Methods with distinctBoxes ∈ [10, X) OR mustInclude > 0.
-
-| Rank | (typeId, methodId) | Method | distinctBoxes | random | mustInclude | sigma-rust source |
-|---|---|---|---|---|---|---|
-| ... | | | | | | |
-
-### Tier 3 — Long-tail (deferred)
-
-Methods with distinctBoxes < 10 and mustInclude == 0 are deferred to a
-future slice. Phase 2g.6 implementation effort is roughly proportional
-to method count; cutting at the Tier 2 boundary keeps 2g.6 scope
-manageable.
-
-Tier 3 method count: N (full list in the machine-readable tally JSON).
-
-### Implementation guidance for phase 2g.6 design spec
-
-For each Tier 1 + Tier 2 method:
-1. Read sigma-rust source (linked in the table) to confirm cost pattern
-   (Pattern A vs B per `reference_cost_charging_order_patterns` memory),
-   return-value shape, and any defensive-error cases.
-2. Author a fixture-gen case (one per method) producing
-   `(tree, context) → (value, cost)` test vectors.
-3. Implement the TS handler in `eval/method-call.ts` (extend the
-   existing handler registry).
-4. Wire the C1 fixture + per-method tests.
-
-Estimated 2g.6 scope: T1 (~N methods) + T2 (~M methods) = N+M methods
-total. At ~2-4 hours per method (TDD discipline, fixture-driven), total
-estimate is ~(N+M) × 2.5 hours.
-```
-
-Fill in actual numbers/methods/sources from the tally JSON.
-
-- [ ] **Step 5: Commit Task 6**
-
-```bash
-git add docs/specs/2026-05-18-task-b-corpus-survey-results.md
-git commit -m "$(cat <<'EOF'
-docs(ergoscript): Task B prioritization — phase 2g.6 method list (Task B)
-
-Authors the "Phase 2g.6 prioritization (clustered + tiered)" section in
-the Task B results markdown. Methods are clustered by sigma-rust type
-and tiered by demand:
-- Tier 1: high demand (≥X distinct boxes) — must land in 2g.6
-- Tier 2: moderate demand or must-include-specific — should land in 2g.6
-- Tier 3: long-tail (deferred to a future slice)
-
-Phase 2g.6 design spec (the next slice after Task B) consumes this list
-directly as its scope. Per-method implementation guidance included in
-the deliverable.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 7: Update SESSION_CONTEXT.md + memory direction file
-
-**Files:**
-- Modify: `packages/ergoscript/SESSION_CONTEXT.md` (gitignored; local-only)
-- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md`
-- Modify: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`
-
-- [ ] **Step 1: Read current state**
-
-```bash
-head -50 packages/ergoscript/SESSION_CONTEXT.md
-cat ~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md
-```
-
-- [ ] **Step 2: Rewrite SESSION_CONTEXT.md**
-
-Update the "Last updated" date, "Phase completed" line, and add a "Task B complete" section summarizing:
-- Wider corpus fixture path + box count + source breakdown
-- Deliverable paths (markdown + JSON under docs/specs/)
-- Phase 2g.6 prioritization output: Tier 1 N methods, Tier 2 M methods, total N+M
-- Next-phase action: write phase 2g.6 design spec consuming the prioritization
-
-(SESSION_CONTEXT.md is gitignored, so this is a local-only update.)
-
-- [ ] **Step 3: Update the memory direction file**
-
-Edit `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`:
-- Replace "2g.5 shipped; goal expansion ... pending tasks (umbrella edits + corpus widening) BEFORE 2g.6 / 2h" hook line with "Task A + B complete; 2g.6 scope locked at N+M methods; next: phase 2g.6 design spec"
-- Update body with new state
-
-Edit `~/.claude/projects/-home-mwaddip-projects-ergots/memory/MEMORY.md`:
-- Update the one-line description for `project_ergots_direction` to reflect the new hook line
-
-- [ ] **Step 4: No in-repo commit needed**
-
-SESSION_CONTEXT.md is gitignored; the memory directory is outside the repo. Task 7 produces no commits.
-
----
-
-## Task 8: Final regression sweep
-
-**Files:** none modified — verification only.
-
-- [ ] **Step 1: Confirm working tree is clean**
-
-```bash
-git status
-```
-
-Expected: clean tree, branch ahead of origin/master by 6 commits (Task 1 fixture-gen + Task 2 fixture + Task 3 analyzer + Task 4 backward-compat + Task 5 deliverables + Task 6 prioritization).
-
-- [ ] **Step 2: Full TS test suite under node + jsdom**
-
-```bash
-cd packages/ergoscript && npx vitest run --environment=node 2>&1 | tail -20
-npx vitest run --environment=jsdom 2>&1 | tail -20
-```
-
-Expected: all tests PASS. Test count: 2615 existing + 9 new walker/known-methods + 1 backward-compat = 2625 per environment.
-
-- [ ] **Step 3: TypeScript compile across all packages**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/ergoscript/tsconfig.json
-npx tsc --noEmit -p packages/proof/tsconfig.json 2>/dev/null || true
-```
+Run: `cd packages/ergoscript && npx tsc --noEmit`
 
 Expected: zero errors.
 
-- [ ] **Step 4: Confirm C2 corpus regression gate still passes**
+- [ ] **Step 6: Write the failing test (inline unit) for `evalGlobal`**
 
-```bash
-cd packages/ergoscript && npx vitest run test/corpus-eval.test.ts
+Create `packages/ergoscript/test/eval/global.test.ts`:
+
+```ts
+/**
+ * Layer C1 — `Global` Expr arm.
+ *
+ * Trivial arm: cost 5 (Pattern A); returns `{ kind: 'Global' }` SValue
+ * sentinel. Mirrors the 2g.5 Context arm pattern (different cost, different
+ * sentinel kind). Source: ergotree-interpreter/src/eval/expr.rs:37-40.
+ */
+
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { evalGlobal } from '../../src/eval/global'
+import { Env } from '../../src/eval/env'
+import { makeContext } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { Global as GlobalExpr } from '../../src/mir/types'
+
+describe('evalGlobal (Layer C1)', () => {
+  it('returns { kind: "Global" } and charges cost 5', () => {
+    const ctx = makeContext({})
+    const e: GlobalExpr = { tag: 'Global' }
+    const result = evalGlobal(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Global' })
+    expect(ctx.jitCost).toBe(5)
+  })
+})
+
+interface GlobalEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface GlobalFixture {
+  corpus: string
+  entries: GlobalEntry[]
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixturePath = join(__dirname, '../fixtures/eval/global.json')
+const fixture: GlobalFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
+
+describe('Global arm — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+})
 ```
 
-Expected: 18/18 success on `mainnet_boxes.json`. Task B touched no production code; this is a paranoia check.
+- [ ] **Step 7: Run test to verify RED**
 
-- [ ] **Step 5: Fixture-gen determinism for existing fixtures**
+Run: `cd packages/ergoscript && npx vitest run test/eval/global.test.ts`
 
-```bash
-cd fixture-gen && cargo test 2>&1 | tail -20
+Expected: RED with `Cannot find module '../../src/eval/global'` (or similar — the module doesn't exist yet). The fixture-driven block will also fail because `fixtures/eval/global.json` doesn't exist; that's expected too.
+
+- [ ] **Step 8: Create `src/eval/global.ts` (minimal implementation to GREEN the inline test)**
+
+Create `packages/ergoscript/src/eval/global.ts`:
+
+```ts
+/**
+ * `Global` evaluator arm — returns the `Value::Global` sentinel.
+ *
+ * Trivial: cost 5 (Pattern A) per `expr.rs:38`. The sentinel is consumed
+ * by `SGlobal.*` method handlers (Task 2: groupGenerator; future: xor,
+ * serialize, deserialize, some, none, fromBigEndianBytes, etc.).
+ *
+ * Source: ergotree-interpreter/src/eval/expr.rs:37-40
+ */
+
+import type { Global as GlobalExpr, SValue } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+
+export function evalGlobal(_e: GlobalExpr, _env: Env, ctx: EvalContext): SValue {
+  ctx.addCost(5)
+  return { kind: 'Global' }
+}
 ```
 
-Expected: all existing fixture-gen tests PASS.
+- [ ] **Step 9: Wire `case 'Global':` in `eval/eval.ts`**
 
-Optionally regenerate ALL fixtures and check diff:
+Edit `packages/ergoscript/src/eval/eval.ts`. Add the import (alphabetical-ish, after `evalGetVar`):
 
-```bash
-cargo run -p fixture-gen
-git status packages/proof/test/fixtures/ packages/ergoscript/test/fixtures/
+```ts
+import { evalGlobal } from './global'
 ```
 
-Expected: only `mainnet_boxes_wider.json` may diff (if `generated_at` timestamp updated); all other fixtures byte-identical.
+Add the case after `case 'GlobalVars':` at line 151:
 
-- [ ] **Step 6: Task B done**
+```ts
+    case 'GlobalVars':
+      return evalGlobalVars(e, env, ctx)
+    case 'Global':
+      return evalGlobal(e, env, ctx)
+```
 
-If all checks pass, Task B is complete. Final state:
-- Branch ahead of origin/master by 6 commits
-- ~10,200-box wider corpus committed
-- Markdown + JSON deliverables under `docs/specs/`
-- Phase 2g.6 prioritization locked
-- SESSION_CONTEXT.md + memory updated (local-only)
+- [ ] **Step 10: Run inline test to confirm GREEN**
 
-The natural next action is writing the phase 2g.6 design spec, consuming the prioritization deliverable.
+Run: `cd packages/ergoscript && npx vitest run test/eval/global.test.ts -t "returns"`
+
+Expected: the inline `evalGlobal (Layer C1)` test passes. The fixture-driven block still fails (no fixture on disk yet).
+
+- [ ] **Step 11: Create fixture-gen Rust file for the Global arm**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/global.rs` (mirror `context.rs`):
+
+```rust
+//! Global arm — fixtures for `Expr::Global` evaluation.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/expr.rs:37-40`
+//!   Expr::Global => {
+//!       ctx.add_jit_cost(5)?;   // Global = Fixed(5)
+//!       Ok(Value::Global)
+//!   }
+//!
+//! Trivial arm: cost 5 (Pattern A). No child expressions. Returns
+//! `Value::Global`, the opaque runtime handle consumed by `SGlobal.*`
+//! method-call handlers (Task 2: groupGenerator).
+//!
+//! Single fixture entry: tree = ErgoTree wrapping bare `Expr::Global`.
+//! Expected value: `{ "kind": "Global" }`. Expected cost: 5.
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::serialization::SigmaSerializable;
+use serde_json::json;
+use sigma_test_util::force_any_val;
+
+use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
+
+pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    let mut entries = Vec::new();
+
+    let expr: Expr = Expr::Global;
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+    let ctx = force_any_val::<Context>();
+    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+
+    entries.push(EvalFixture {
+        name: "global_sentinel".to_string(),
+        tree_bytes_hex,
+        opts_json: json!({}),
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    });
+
+    Ok(EvalFixtureFile {
+        corpus: "eval_global",
+        entries,
+    })
+}
+```
+
+- [ ] **Step 12: Wire the new module + generator call**
+
+Edit `fixture-gen/src/cmds/ergoscript/eval/mod.rs` to declare `pub mod global;` next to `pub mod context;`.
+
+Edit `fixture-gen/src/main.rs` to add the generator call. Search for the existing `context.rs` generator wiring and add a parallel call for `global` immediately below it. Pattern (look at the existing pattern in `main.rs` to confirm exact form):
+
+```rust
+generate_and_write("eval/global.json", cmds::ergoscript::eval::global::generate)?;
+```
+
+- [ ] **Step 13: Build + generate the fixture**
+
+Run: `cd fixture-gen && cargo build && cargo run`
+
+Expected: build clean; fixture file written to `packages/ergoscript/test/fixtures/eval/global.json`.
+
+- [ ] **Step 14: Confirm fixture-driven test passes**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/global.test.ts`
+
+Expected: both the inline and fixture-driven `describe` blocks pass.
+
+- [ ] **Step 15: Two-run determinism check**
+
+Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/global.json`
+
+Expected: no diff. Generator is deterministic.
+
+- [ ] **Step 16: Type-check across the workspace**
+
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+
+Expected: zero errors.
+
+- [ ] **Step 17: Commit**
+
+```bash
+git add packages/ergoscript/src/mir/types.ts \
+        packages/ergoscript/src/eval/global.ts \
+        packages/ergoscript/src/eval/eval.ts \
+        packages/ergoscript/test/_helpers/index.ts \
+        packages/ergoscript/test/eval/global.test.ts \
+        packages/ergoscript/test/fixtures/eval/global.json \
+        fixture-gen/src/cmds/ergoscript/eval/global.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 1 — Global Expr arm + { kind: 'Global' } SValue
+
+Adds Expr::Global eval arm (cost 5 Pattern A, returns sentinel) and the
+parallel SValue variant. Already wire-parsed since phase 2a; this task wires
+the evaluator (was hitting 'not-implemented-yet' for the 120 boxes that use it
+per Task B's survey). Mirrors 2g.5's Context arm pattern at a different cost.
+
+Sets up the receiver type for Task 2 (SGlobal.groupGenerator handler).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
 
 ---
 
-## Estimated total: 1-3 days
+## Task 2: `SGlobal.groupGenerator` handler (typeId 106, methodId 1) + C1 fixture
 
-- Task 1 (Rust fixture-gen wider_corpus): ~3-6 hours. The bulk is REST-fetch + JSON I/O; reqwest patterns are well-established.
-- Task 2 (generate fixture): ~10-30 minutes of wall-clock (node fetch is the slow part) plus a commit.
-- Task 3 (TS analyzer + tests): ~4-6 hours. The walker is the heart; TDD makes it bounded.
-- Task 4 (backward-compat): ~30 minutes if walker is correct; longer if it isn't.
-- Task 5 (run on wider corpus): ~1-2 hours including the iterative `KNOWN_METHODS` widening.
-- Task 6 (prioritization authoring): ~1 hour of human-judgment writing.
-- Task 7 (SESSION_CONTEXT + memory): ~15 minutes.
-- Task 8 (regression sweep): ~15 minutes.
+**Files:**
+- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sglobal.rs:32-41`
+- Read for reference: `packages/ergoscript/src/eval/_group-generator.ts` (existing `GROUP_GENERATOR_BYTES` constant)
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add `HANDLERS.set(handlerKey(106, 1), …)` to `registerHandlers()`)
+- Create: `packages/ergoscript/test/eval/sglobal-group-generator.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/sglobal_group_generator.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `fixture-gen/src/main.rs` (wire new module)
+- Create: `packages/ergoscript/test/fixtures/eval/sglobal-group-generator.json` (generated)
 
-Mostly Sonnet-suitable; Tasks 1 and 3 may benefit from Opus.
+- [ ] **Step 1: Source-read sigma-rust to confirm cost still 10 + obj is `Value::Global`**
+
+```bash
+sed -n '32,41p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/sglobal.rs
+```
+
+Expected: `add_jit_cost(10)` BEFORE the obj check; obj must be `Value::Global`; returns `Value::from(generator())`. If cost drifts, escalate per OVERRIDES rule #2.
+
+- [ ] **Step 2: Write the failing inline unit test**
+
+Create `packages/ergoscript/test/eval/sglobal-group-generator.test.ts`:
+
+```ts
+/**
+ * Layer C1 — SGlobal.groupGenerator handler (typeId 106, methodId 1).
+ *
+ * Pattern A cost 10 (charged before obj check). Returns the 33-byte SEC1
+ * compressed secp256k1 generator point. Reuses GROUP_GENERATOR_BYTES from
+ * eval/_group-generator.ts (no @noble/curves round-trip needed).
+ *
+ * Source: ergotree-interpreter/src/eval/sglobal.rs:32-41
+ */
+
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { evalPropertyCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { GROUP_GENERATOR_BYTES } from '../../src/eval/_group-generator'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { PropertyCall as PropertyCallExpr } from '../../src/mir/types'
+
+describe('SGlobal.groupGenerator handler (Layer C1)', () => {
+  it('returns the generator point and charges cost 4 (dispatcher) + 5 (Global arm) + 10 (handler) = 19', () => {
+    const ctx = makeContext({})
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Global' },
+      typeId: 106,
+      methodId: 1,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SGroupElement' },
+    }
+    const result = evalPropertyCall(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'GroupElement', value: GROUP_GENERATOR_BYTES })
+    expect(ctx.jitCost).toBe(19)
+  })
+
+  it('rejects when obj is not Global', () => {
+    const ctx = makeContext({})
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Context' },
+      typeId: 106,
+      methodId: 1,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SGroupElement' },
+    }
+    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+})
+
+interface GroupGenEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface GroupGenFixture {
+  corpus: string
+  entries: GroupGenEntry[]
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixturePath = join(__dirname, '../fixtures/eval/sglobal-group-generator.json')
+const fixture: GroupGenFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
+
+describe('SGlobal.groupGenerator — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+})
+```
+
+Note: the exact field set of `PropertyCallExpr` (whether `tpe` is required, etc.) should be confirmed by reading `mir/types.ts` for the interface. Adjust the literal accordingly if the type requires different fields.
+
+- [ ] **Step 3: Run test to verify RED**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts`
+
+Expected: RED on the first `it()` (no handler registered for `106:1` → throws `'method-not-implemented'`). The fixture-driven block also fails (file doesn't exist).
+
+- [ ] **Step 4: Register the `SGlobal.groupGenerator` handler in `method-call.ts`**
+
+Edit `packages/ergoscript/src/eval/method-call.ts`. Add an import for `GROUP_GENERATOR_BYTES` at the top:
+
+```ts
+import { GROUP_GENERATOR_BYTES } from './_group-generator'
+```
+
+Inside `registerHandlers()`, after the existing `SColl.indexOf` registration, add:
+
+```ts
+  // SGlobal.groupGenerator (PropertyCall, typeId=106, methodId=1)
+  // Source: ergotree-interpreter/src/eval/sglobal.rs:32-41 — GROUP_GENERATOR_EVAL_FN
+  // Pattern A cost 10 (charged before obj check). Returns 33-byte SEC1 of secp256k1 base point.
+  HANDLERS.set(handlerKey(106, 1), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'Global') {
+      throw new EvalError(
+        `SGlobal.groupGenerator expects a Global obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
+  })
+```
+
+- [ ] **Step 5: Run inline tests to confirm GREEN**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts -t "returns the generator point"`
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts -t "rejects when obj is not Global"`
+
+Both expected: PASS.
+
+- [ ] **Step 6: Create fixture-gen Rust file**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/sglobal_group_generator.rs`:
+
+```rust
+//! SGlobal.groupGenerator handler — fixtures.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/sglobal.rs:32-41`
+//! Method registration: `ergotree-ir/src/types/sglobal.rs::GROUP_GENERATOR_METHOD`
+//!
+//! Pattern A cost 10. Returns the 33-byte SEC1 compressed secp256k1 base
+//! point. Tree shape: PropertyCall(Global, groupGenerator).
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::property_call::PropertyCall;
+use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::sglobal::GROUP_GENERATOR_METHOD;
+use serde_json::json;
+use sigma_test_util::force_any_val;
+
+use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
+
+pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    let mut entries = Vec::new();
+
+    let expr: Expr = PropertyCall::new(Expr::Global, GROUP_GENERATOR_METHOD.clone())
+        .unwrap()
+        .into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+    let ctx = force_any_val::<Context>();
+    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+
+    entries.push(EvalFixture {
+        name: "global_group_generator".to_string(),
+        tree_bytes_hex,
+        opts_json: json!({}),
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    });
+
+    Ok(EvalFixtureFile {
+        corpus: "eval_sglobal_group_generator",
+        entries,
+    })
+}
+```
+
+- [ ] **Step 7: Wire the new module + generator call**
+
+Edit `fixture-gen/src/cmds/ergoscript/eval/mod.rs` to add `pub mod sglobal_group_generator;`.
+
+Edit `fixture-gen/src/main.rs` to add the generator call (parallel to Task 1's):
+
+```rust
+generate_and_write("eval/sglobal-group-generator.json", cmds::ergoscript::eval::sglobal_group_generator::generate)?;
+```
+
+- [ ] **Step 8: Build + generate the fixture**
+
+Run: `cd fixture-gen && cargo build && cargo run`
+
+Expected: clean build; fixture file written.
+
+- [ ] **Step 9: Confirm fixture-driven test passes**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/sglobal-group-generator.test.ts`
+
+Expected: all blocks PASS. If the fixture cost doesn't match 19, the source-read in Step 1 was stale — re-source-read and adjust the handler.
+
+- [ ] **Step 10: Two-run determinism check + type-check**
+
+Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/sglobal-group-generator.json && cd ../packages/ergoscript && npx tsc --noEmit`
+
+Expected: no fixture diff; zero TS errors.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/method-call.ts \
+        packages/ergoscript/test/eval/sglobal-group-generator.test.ts \
+        packages/ergoscript/test/fixtures/eval/sglobal-group-generator.json \
+        fixture-gen/src/cmds/ergoscript/eval/sglobal_group_generator.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 2 — SGlobal.groupGenerator handler
+
+Registers PropertyCall(Global, groupGenerator) (typeId 106, methodId 1) in
+the eval/method-call.ts HANDLERS map. Pattern A cost 10 (chained total 19:
+4 dispatcher + 5 Global arm + 10 handler). Reuses GROUP_GENERATOR_BYTES
+constant from eval/_group-generator.ts (no @noble/curves round-trip needed).
+
+Unlocks 120 mainnet boxes per Task B's survey (top-demand 2g.6 method).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
 
 ---
 
-## Notes for the implementing engineer
+## Task 3: `SColl.indices` handler (typeId 12, methodId 14) + C1 fixture
 
-1. **TDD discipline applies to TS code in Task 3.** The walker and tally functions are core logic; per the project's CLAUDE.md, no production code without a failing test first. The orchestration script (`analyze-wider-corpus.ts`) is glue and doesn't strictly need TDD — Task 4's backward-compat check is the end-to-end signal.
+**Files:**
+- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:171-193`
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler + `indicesCollOf` helper + `SINT` SType singleton)
+- Create: `packages/ergoscript/test/eval/scoll-indices.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/scoll_indices.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `fixture-gen/src/main.rs`
+- Create: `packages/ergoscript/test/fixtures/eval/scoll-indices.json` (generated)
 
-2. **Fixture-gen is reference code in Rust** — no TDD. Determinism is the proof.
+- [ ] **Step 1: Source-read sigma-rust**
 
-3. **Two-run determinism check** at end of Task 1 (Step 11) is load-bearing. If the random sample isn't deterministic given the seed + node state, the corpus isn't reproducible and the survey's credibility weakens. Investigate any diff beyond `generated_at`.
+```bash
+sed -n '171,193p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs
+```
 
-4. **`KNOWN_METHODS` is widened iteratively during Task 5.** Expect 2-3 re-runs as the analyzer surfaces real `(typeId, methodId)` pairs that you map to sigma-rust source.
+Expected: `add_per_item_jit_cost(20, 2, 16, input_len)` AFTER Coll extraction; returns Coll[Int] = `0..n-1`; throws on `i32::try_from` overflow. If formula drifts, escalate.
 
-5. **Per-task commits** are the discipline (project memory `feedback_no_artificial_stops`). Each task ends with a commit; the final task counts on a clean working tree.
+- [ ] **Step 2: Write the failing inline unit test**
 
-6. **No production source code in `packages/ergoscript/src/` is modified.** This is critical — Task B is a measurement exercise, not a feature implementation. The C2 corpus regression gate (`expect(evalSuccess).toBe(18)`) is paranoia-verified at Task 8 to confirm.
+Create `packages/ergoscript/test/eval/scoll-indices.test.ts`:
 
-7. **The 700,000-700,050 cost-parity vectors are imported, not re-fetched.** sigma-rust's `transactions_700000_700050.json` is the canonical Scala-computed reference. Re-fetching from the Rust node would risk drift; the import preserves the consensus oracle for future phase 2j use.
+```ts
+/**
+ * Layer C1 — SColl.indices handler (typeId 12, methodId 14).
+ *
+ * Pattern B cost addPerItemCost(20, 2, 16, n) (charged after Coll
+ * extraction). Returns Coll[Int] = 0..n-1.
+ *
+ * Source: ergotree-interpreter/src/eval/scoll.rs:171-193
+ */
 
-8. **Plan for follow-up work after Task B:**
-   - Write phase 2g.6 design spec consuming `phase2g6Priority` from the tally JSON.
-   - Consider publishing `@mwaddip/ergots-ergoscript@0.3.0` (natural milestone post-C2-unlock from 2g.5).
-   - Future phase 2j validation corpus will extend the must-include set with full eval contexts + sigma-rust cost oracle per tree.
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { evalMethodCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { MethodCall as MethodCallExpr, SValue } from '../../src/mir/types'
 
-9. **`writeMarkdown` and `writeTallyJson` placeholder reference:** the orchestration script in Task 3 step 14 includes a complete implementation of both functions inline. There are no "fill in details" placeholders — the engineer should be able to paste the script verbatim and have it work. The only iterative widening is `KNOWN_METHODS` in Task 5.
+const SLONG = { tag: 'SLong' } as const
+const SINT = { tag: 'SInt' } as const
+
+function collOf(items: SValue[], elem: { tag: 'SLong' }): SValue {
+  return { kind: 'Coll', elem, items }
+}
+
+function constExpr(value: SValue, tpe: { tag: string }): any {
+  return { tag: 'Const', tpe, value }
+}
+
+describe('SColl.indices handler (Layer C1)', () => {
+  it('empty Coll → empty Coll[Int]', () => {
+    const ctx = makeContext({})
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(collOf([], SLONG), { tag: 'SColl', elem: SLONG }),
+      args: [],
+      typeId: 12,
+      methodId: 14,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: SINT },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Coll', elem: SINT, items: [] })
+    // Dispatcher 4 + Const arm 1 + handler base 20 + ceil(0/16)*2 = 0 = 25
+    expect(ctx.jitCost).toBe(25)
+  })
+
+  it('3-elem Coll → Coll[Int](0, 1, 2)', () => {
+    const ctx = makeContext({})
+    const items: SValue[] = [
+      { kind: 'Long', value: 10n },
+      { kind: 'Long', value: 20n },
+      { kind: 'Long', value: 30n },
+    ]
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(collOf(items, SLONG), { tag: 'SColl', elem: SLONG }),
+      args: [],
+      typeId: 12,
+      methodId: 14,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: SINT },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect(result).toEqual({
+      kind: 'Coll',
+      elem: SINT,
+      items: [
+        { kind: 'Int', value: 0 },
+        { kind: 'Int', value: 1 },
+        { kind: 'Int', value: 2 },
+      ],
+    })
+    // Dispatcher 4 + Const arm 1 + handler base 20 + ceil(3/16)*2 = 2 = 27
+    expect(ctx.jitCost).toBe(27)
+  })
+
+  it('rejects when obj is not Coll', () => {
+    const ctx = makeContext({})
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr({ kind: 'Long', value: 5n }, SLONG),
+      args: [],
+      typeId: 12,
+      methodId: 14,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: SINT },
+    }
+    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+})
+
+interface IndicesEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface IndicesFixture {
+  corpus: string
+  entries: IndicesEntry[]
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixturePath = join(__dirname, '../fixtures/eval/scoll-indices.json')
+const fixture: IndicesFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
+
+describe('SColl.indices — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+})
+```
+
+NOTE: the inline-test cost arithmetic (25, 27) assumes `Const`-wrapping each input adds cost 1. If the actual `Const` arm cost differs, adjust. The truth-of-record is the fixture-driven test (cross-validated by sigma-rust's oracle).
+
+- [ ] **Step 3: Run test to verify RED**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts`
+
+Expected: RED on the first `it()` (no handler for `12:14`).
+
+- [ ] **Step 4: Register the `SColl.indices` handler in `method-call.ts`**
+
+Edit `packages/ergoscript/src/eval/method-call.ts`. Add a module-level SInt singleton near the top (after existing `SLONG`, `STUPLE_COLLBYTE_LONG`, `SBOX`):
+
+```ts
+const SINT: SType = { tag: 'SInt' }
+```
+
+Add this helper function below the existing handlers:
+
+```ts
+/** Build a Coll[Int] of 0..n-1. */
+function indicesCollOf(n: number): SValue {
+  const items: SValue[] = []
+  for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
+  return { kind: 'Coll', elem: SINT, items }
+}
+```
+
+Inside `registerHandlers()`, add:
+
+```ts
+  // SColl.indices (MethodCall, typeId=12, methodId=14)
+  // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
+  // Pattern B cost: addPerItemCost(20, 2, 16, n) AFTER Coll extraction.
+  HANDLERS.set(handlerKey(12, 14), (obj, _args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.indices expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    const n = obj.items.length
+    if (n > 0x7fffffff) {
+      throw new EvalError(
+        `SColl.indices: length ${n} exceeds i32 range`,
+        'method-not-implemented' // symmetry with sigma-rust's TryFromIntError throw
+      )
+    }
+    ctx.addPerItemCost(20, 2, 16, n) // Pattern B; source: scoll.rs:179
+    return indicesCollOf(n)
+  })
+```
+
+- [ ] **Step 5: Run inline tests to confirm GREEN**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts -t "empty Coll"`
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts -t "3-elem Coll"`
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts -t "rejects when obj is not Coll"`
+
+All expected: PASS. If cost numbers don't match, the comment-line cost arithmetic guesses are off (see Step 2 NOTE) — fix inline-test expectations to match actual `ctx.jitCost`, document the actual breakdown in the comment.
+
+- [ ] **Step 6: Create fixture-gen Rust file**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/scoll_indices.rs`:
+
+```rust
+//! SColl.indices handler — fixtures.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/scoll.rs:171-193`
+//! Method registration: `ergotree-ir/src/types/scoll.rs::INDICES_METHOD`
+//!
+//! Pattern B cost addPerItemCost(20, 2, 16, n). Returns Coll[Int] = 0..n-1.
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::constant::Constant;
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::method_call::MethodCall;
+use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::scoll::INDICES_METHOD;
+use serde_json::json;
+use sigma_test_util::force_any_val;
+
+use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
+
+fn entry(name: &str, items: Vec<i64>) -> anyhow::Result<EvalFixture> {
+    let coll_const: Constant = items.into();
+    let expr: Expr = MethodCall::new(coll_const.into(), INDICES_METHOD.clone(), vec![])
+        .unwrap()
+        .into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+    let ctx = force_any_val::<Context>();
+    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+    Ok(EvalFixture {
+        name: name.to_string(),
+        tree_bytes_hex,
+        opts_json: json!({}),
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    })
+}
+
+pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    let entries = vec![
+        entry("empty", vec![])?,
+        entry("three_elements", vec![10, 20, 30])?,
+        entry("seventeen_elements_two_chunks", (0..17).collect())?,
+    ];
+    Ok(EvalFixtureFile {
+        corpus: "eval_scoll_indices",
+        entries,
+    })
+}
+```
+
+- [ ] **Step 7: Wire + generate + verify**
+
+Wire `pub mod scoll_indices;` in `mod.rs` and `generate_and_write("eval/scoll-indices.json", ...)` in `main.rs`.
+
+Run: `cd fixture-gen && cargo build && cargo run`
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-indices.test.ts`
+Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/scoll-indices.json`
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+
+Expected: clean build; all tests pass; no fixture diff; zero TS errors.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/method-call.ts \
+        packages/ergoscript/test/eval/scoll-indices.test.ts \
+        packages/ergoscript/test/fixtures/eval/scoll-indices.json \
+        fixture-gen/src/cmds/ergoscript/eval/scoll_indices.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 3 — SColl.indices handler
+
+Registers MethodCall(Coll, indices) (typeId 12, methodId 14) in the
+eval/method-call.ts HANDLERS map. Pattern B cost addPerItemCost(20, 2, 16, n)
+charged after Coll extraction. Returns Coll[Int] = 0..n-1. Includes overflow
+guard at n > 2^31 - 1 (symmetry with sigma-rust's TryFromIntError throw).
+
+Unlocks 8 mainnet boxes per Task B's survey.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 4: `SColl.zip` handler (typeId 12, methodId 29) + C1 fixture
+
+**Files:**
+- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs:138-169`
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler + `zipCollsOf` helper)
+- Create: `packages/ergoscript/test/eval/scoll-zip.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/scoll_zip.rs`
+- Wire in `mod.rs` + `main.rs`
+- Generate fixture
+
+- [ ] **Step 1: Source-read sigma-rust**
+
+```bash
+sed -n '138,169p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scoll.rs
+```
+
+Confirm:
+- `add_per_item_jit_cost(10, 1, 10, n)` where `n = coll_1.len()` (FIRST Coll, NOT min)
+- Truncates via Rust's `Iterator::zip` (stops at shorter)
+- Returns `Coll[STuple[type_1, type_2]]` where types come from runtime obj+arg elem_tpe
+
+- [ ] **Step 2: Write the failing inline unit test**
+
+Create `packages/ergoscript/test/eval/scoll-zip.test.ts`:
+
+```ts
+/**
+ * Layer C1 — SColl.zip handler (typeId 12, methodId 29).
+ *
+ * Pattern B cost addPerItemCost(10, 1, 10, n) where n = obj len.
+ * Truncates to the shorter Coll (Rust Iterator::zip semantics).
+ * Returns Coll[STuple[T1, T2]].
+ *
+ * Source: ergotree-interpreter/src/eval/scoll.rs:138-169
+ */
+
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { evalMethodCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
+
+const SLONG: SType = { tag: 'SLong' }
+const SBYTE: SType = { tag: 'SByte' }
+
+function collOf(items: SValue[], elem: SType): SValue {
+  return { kind: 'Coll', elem, items }
+}
+
+function constExpr(value: SValue, tpe: SType): any {
+  return { tag: 'Const', tpe, value }
+}
+
+describe('SColl.zip handler (Layer C1)', () => {
+  it('empty zip empty → empty Coll[(Long, Long)]', () => {
+    const ctx = makeContext({})
+    const obj = collOf([], SLONG)
+    const arg = collOf([], SLONG)
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
+      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect(result).toEqual({
+      kind: 'Coll',
+      elem: { tag: 'STuple', items: [SLONG, SLONG] },
+      items: [],
+    })
+  })
+
+  it('equal-length zip → tuples of corresponding elements', () => {
+    const ctx = makeContext({})
+    const obj = collOf(
+      [
+        { kind: 'Long', value: 1n },
+        { kind: 'Long', value: 2n },
+        { kind: 'Long', value: 3n },
+      ],
+      SLONG
+    )
+    const arg = collOf(
+      [
+        { kind: 'Long', value: 10n },
+        { kind: 'Long', value: 20n },
+        { kind: 'Long', value: 30n },
+      ],
+      SLONG
+    )
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
+      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect(result).toEqual({
+      kind: 'Coll',
+      elem: { tag: 'STuple', items: [SLONG, SLONG] },
+      items: [
+        { kind: 'Tuple', items: [{ kind: 'Long', value: 1n }, { kind: 'Long', value: 10n }] },
+        { kind: 'Tuple', items: [{ kind: 'Long', value: 2n }, { kind: 'Long', value: 20n }] },
+        { kind: 'Tuple', items: [{ kind: 'Long', value: 3n }, { kind: 'Long', value: 30n }] },
+      ],
+    })
+  })
+
+  it('short obj zip long arg → truncates to obj length', () => {
+    const ctx = makeContext({})
+    const obj = collOf([{ kind: 'Long', value: 1n }], SLONG)
+    const arg = collOf(
+      [
+        { kind: 'Long', value: 10n },
+        { kind: 'Long', value: 20n },
+      ],
+      SLONG
+    )
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
+      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect((result as any).items).toHaveLength(1)
+  })
+
+  it('long obj zip short arg → truncates to arg length', () => {
+    const ctx = makeContext({})
+    const obj = collOf(
+      [
+        { kind: 'Long', value: 1n },
+        { kind: 'Long', value: 2n },
+      ],
+      SLONG
+    )
+    const arg = collOf([{ kind: 'Long', value: 10n }], SLONG)
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
+      args: [constExpr(arg, { tag: 'SColl', elem: SLONG })],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect((result as any).items).toHaveLength(1)
+  })
+
+  it('mixed-type zip → tuples of (Long, Byte)', () => {
+    const ctx = makeContext({})
+    const obj = collOf(
+      [{ kind: 'Long', value: 100n }, { kind: 'Long', value: 200n }],
+      SLONG
+    )
+    const arg = collOf(
+      [{ kind: 'Byte', value: 1 }, { kind: 'Byte', value: 2 }],
+      SBYTE
+    )
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(obj, { tag: 'SColl', elem: SLONG }),
+      args: [constExpr(arg, { tag: 'SColl', elem: SBYTE })],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SBYTE] } },
+    }
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect((result as any).elem).toEqual({ tag: 'STuple', items: [SLONG, SBYTE] })
+    expect((result as any).items).toHaveLength(2)
+  })
+
+  it('rejects when obj is not Coll', () => {
+    const ctx = makeContext({})
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr({ kind: 'Long', value: 5n }, SLONG),
+      args: [constExpr(collOf([], SLONG), { tag: 'SColl', elem: SLONG })],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
+    }
+    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+
+  it('rejects when arg is not Coll', () => {
+    const ctx = makeContext({})
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: constExpr(collOf([], SLONG), { tag: 'SColl', elem: SLONG }),
+      args: [constExpr({ kind: 'Long', value: 5n }, SLONG)],
+      typeId: 12,
+      methodId: 29,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SColl', elem: { tag: 'STuple', items: [SLONG, SLONG] } },
+    }
+    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+})
+
+interface ZipEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface ZipFixture {
+  corpus: string
+  entries: ZipEntry[]
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixturePath = join(__dirname, '../fixtures/eval/scoll-zip.json')
+const fixture: ZipFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
+
+describe('SColl.zip — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+})
+```
+
+- [ ] **Step 3: Run test to verify RED**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-zip.test.ts`
+
+Expected: RED on first `it()` (no handler for `12:29`).
+
+- [ ] **Step 4: Register the `SColl.zip` handler in `method-call.ts`**
+
+Inside `registerHandlers()`, add:
+
+```ts
+  // SColl.zip (MethodCall, typeId=12, methodId=29)
+  // Source: ergotree-interpreter/src/eval/scoll.rs:138-169 — ZIP_EVAL_FN
+  // Pattern B cost: addPerItemCost(10, 1, 10, n) where n = obj len (NOT min).
+  // Truncates to the shorter Coll (Rust Iterator::zip semantics).
+  HANDLERS.set(handlerKey(12, 29), (obj, args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.zip expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    const n = obj.items.length
+    ctx.addPerItemCost(10, 1, 10, n) // Pattern B; source: scoll.rs:147
+    if (args.length !== 1) {
+      throw new EvalError(
+        `SColl.zip expects 1 arg; got ${args.length}`,
+        'method-not-implemented'
+      )
+    }
+    const arg = args[0]!
+    if (arg.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.zip expects arg to be a Coll; got '${arg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    return zipCollsOf(obj, arg)
+  })
+```
+
+Add the helper function below the existing helpers:
+
+```ts
+/** Zip two Colls into Coll[STuple[T1, T2]], truncating to the shorter input. */
+function zipCollsOf(
+  coll1: SValue & { kind: 'Coll' },
+  coll2: SValue & { kind: 'Coll' }
+): SValue {
+  const len = Math.min(coll1.items.length, coll2.items.length)
+  const items: SValue[] = []
+  for (let i = 0; i < len; i++) {
+    items.push({ kind: 'Tuple', items: [coll1.items[i]!, coll2.items[i]!] })
+  }
+  return {
+    kind: 'Coll',
+    elem: { tag: 'STuple', items: [coll1.elem, coll2.elem] },
+    items,
+  }
+}
+```
+
+- [ ] **Step 5: Run inline tests to confirm GREEN**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-zip.test.ts -t "Layer C1"`
+
+Expected: all 7 inline-test cases pass.
+
+- [ ] **Step 6: Create fixture-gen Rust file**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/scoll_zip.rs`:
+
+```rust
+//! SColl.zip handler — fixtures.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/scoll.rs:138-169`
+//! Method registration: `ergotree-ir/src/types/scoll.rs::ZIP_METHOD`
+//!
+//! Pattern B cost addPerItemCost(10, 1, 10, n) where n = obj len.
+//! Truncates to shorter Coll.
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::constant::Constant;
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::method_call::MethodCall;
+use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::scoll::ZIP_METHOD;
+use ergotree_ir::types::stype::SType;
+use ergotree_ir::types::stype_param::STypeVar;
+use serde_json::json;
+use sigma_test_util::force_any_val;
+
+use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
+
+fn entry_longs(name: &str, obj: Vec<i64>, arg: Vec<i64>) -> anyhow::Result<EvalFixture> {
+    let obj_const: Constant = obj.into();
+    let arg_const: Constant = arg.into();
+    let type_args = [
+        (STypeVar::iv(), SType::SLong),
+    ].into_iter().collect();
+    let expr: Expr = MethodCall::new(
+        obj_const.into(),
+        ZIP_METHOD.clone().with_concrete_types(&type_args),
+        vec![arg_const.into()],
+    )
+    .unwrap()
+    .into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+    let ctx = force_any_val::<Context>();
+    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+    Ok(EvalFixture {
+        name: name.to_string(),
+        tree_bytes_hex,
+        opts_json: json!({}),
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    })
+}
+
+pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    let entries = vec![
+        entry_longs("empty_zip_empty", vec![], vec![])?,
+        entry_longs("equal_length", vec![1, 2, 3], vec![10, 20, 30])?,
+        entry_longs("short_obj_long_arg", vec![1], vec![10, 20, 30])?,
+        entry_longs("long_obj_short_arg", vec![1, 2, 3], vec![10])?,
+    ];
+    Ok(EvalFixtureFile {
+        corpus: "eval_scoll_zip",
+        entries,
+    })
+}
+```
+
+NOTE: the `with_concrete_types` arguments may need adjustment based on how sigma-rust's `ZIP_METHOD` is parameterized — read `types/scoll.rs:103` to confirm the type-var name and whether you need `IV` + `OV` or just one. Adjust the type-args HashMap accordingly. If sigma-rust's API has changed, the existing fixture-gen examples in `scoll_*.rs` files (e.g., `scoll_map.rs`) are reference patterns for `with_concrete_types` usage.
+
+- [ ] **Step 7: Wire + generate + verify**
+
+Wire `pub mod scoll_zip;` in `mod.rs` and `generate_and_write("eval/scoll-zip.json", ...)` in `main.rs`.
+
+Run: `cd fixture-gen && cargo build && cargo run`
+Run: `cd packages/ergoscript && npx vitest run test/eval/scoll-zip.test.ts`
+Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/scoll-zip.json`
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+
+Expected: clean build; all tests pass; no fixture diff; zero TS errors.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/method-call.ts \
+        packages/ergoscript/test/eval/scoll-zip.test.ts \
+        packages/ergoscript/test/fixtures/eval/scoll-zip.json \
+        fixture-gen/src/cmds/ergoscript/eval/scoll_zip.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 4 — SColl.zip handler
+
+Registers MethodCall(Coll, zip) (typeId 12, methodId 29) in the
+eval/method-call.ts HANDLERS map. Pattern B cost addPerItemCost(10, 1, 10, n)
+where n = obj length (not min). Returns Coll[STuple[T1, T2]] truncating to
+the shorter Coll (Rust Iterator::zip semantics). Type-arg passthrough not
+needed (return-type element built from runtime elem_tpe).
+
+Unlocks 35 mainnet boxes per Task B's survey.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 5: `{ kind: 'PreHeader', value: PreHeader }` SValue variant + audit consumers
+
+**Files:**
+- Modify: `packages/ergoscript/src/mir/types.ts` (add variant to SValue union, ~line 832)
+- Modify: `packages/ergoscript/test/_helpers/index.ts` (add `case 'PreHeader':` in `hydrateSValue`)
+- Possibly modify other internal files that pattern-match exhaustively on SValue
+
+**No new tests in this task** — the variant is introduced as a type only. Task 6 and Task 7 register handlers that produce/consume it.
+
+- [ ] **Step 1: Add `{ kind: 'PreHeader', value: PreHeader }` to SValue union**
+
+Edit `packages/ergoscript/src/mir/types.ts`. Find the SValue union and insert the new variant right after `{ kind: 'Box'; value: ErgoBox }`:
+
+```ts
+  | { kind: 'Box'; value: ErgoBox }
+  | { kind: 'PreHeader'; value: PreHeader }
+  | { kind: 'AvlTree'; value: AvlTreeData }
+```
+
+The `PreHeader` interface is already defined at line 156 in the same file; no new imports needed.
+
+- [ ] **Step 2: Run TypeScript check to surface exhaustiveness errors**
+
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+
+Expected: errors in files with exhaustive `switch (v.kind)` patterns. Capture the file list.
+
+- [ ] **Step 3: Add `case 'PreHeader':` arms to all exhaustive switches**
+
+For `test/_helpers/index.ts` `hydrateSValue`:
+
+```ts
+    case 'PreHeader': {
+      const v = json.value
+      return {
+        kind: 'PreHeader',
+        value: {
+          version: v.version,
+          parentId: hexToBytes(v.parentId),
+          timestamp: BigInt(v.timestamp),
+          nBits: v.nBits,
+          height: v.height,
+          minerPk: hexToBytes(v.minerPk),
+          votes: hexToBytes(v.votes),
+        },
+      }
+    }
+```
+
+Adjust the PreHeader field set per the actual interface (re-read `mir/types.ts:156-…` for the canonical field list). For any other file flagged in Step 2, add a `case 'PreHeader':` arm that does the natural thing for that file's purpose (often just returning a fallback or throwing).
+
+- [ ] **Step 4: Re-run TypeScript check, confirm clean**
+
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+
+Expected: zero errors.
+
+- [ ] **Step 5: Run full test suite to ensure no regressions**
+
+Run: `cd packages/ergoscript && npx vitest run`
+
+Expected: all existing tests pass (the variant is unused so far; no behavior changes).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/ergoscript/src/mir/types.ts \
+        packages/ergoscript/test/_helpers/index.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 5 — { kind: 'PreHeader' } SValue variant
+
+Additive variant to SValue discriminated union; PreHeader interface already
+exists at mir/types.ts:156 (no new type definition). Audit + add cases in
+exhaustive switches across src/ and test/_helpers (hydrateSValue parses
+PreHeader value from JSON fixture format).
+
+No behavior change yet; Tasks 6 (SContext.preHeader producer) and 7
+(SPreHeader.timestamp consumer) use this variant.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 6: `SContext.preHeader` handler (typeId 101, methodId 3) + C1 fixture
+
+**Files:**
+- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scontext.rs:72-81`
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler entry)
+- Create: `packages/ergoscript/test/eval/scontext-pre-header.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/scontext_pre_header.rs`
+- Wire + generate fixture
+
+- [ ] **Step 1: Source-read sigma-rust**
+
+```bash
+sed -n '72,81p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/scontext.rs
+```
+
+Confirm: `add_jit_cost(15)` BEFORE obj check; obj must be `Value::Context`; returns `ctx.pre_header.clone()` wrapped.
+
+- [ ] **Step 2: Write the failing inline unit test**
+
+Create `packages/ergoscript/test/eval/scontext-pre-header.test.ts`:
+
+```ts
+/**
+ * Layer C1 — SContext.preHeader handler (typeId 101, methodId 3).
+ *
+ * Pattern A cost 15 (charged before obj check). Returns
+ * { kind: 'PreHeader', value: ctx.preHeader }.
+ *
+ * Source: ergotree-interpreter/src/eval/scontext.rs:72-81
+ */
+
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { evalPropertyCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { PropertyCall as PropertyCallExpr, PreHeader } from '../../src/mir/types'
+
+function syntheticPreHeader(): PreHeader {
+  return {
+    version: 3,
+    parentId: new Uint8Array(32),
+    timestamp: 1700000000000n,
+    nBits: 0x18000000,
+    height: 1000000,
+    minerPk: new Uint8Array(33),
+    votes: new Uint8Array(3),
+  }
+}
+
+describe('SContext.preHeader handler (Layer C1)', () => {
+  it('returns wrapped PreHeader and charges 4 + 1 + 15 = 20', () => {
+    const preHeader = syntheticPreHeader()
+    const ctx = makeContext({ preHeader })
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Context' },
+      typeId: 101,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SPreHeader' },
+    }
+    const result = evalPropertyCall(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'PreHeader', value: preHeader })
+    expect(ctx.jitCost).toBe(20)
+  })
+
+  it('throws context-field-missing when ctx.preHeader is undefined', () => {
+    const ctx = makeContext({}) // no preHeader
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Context' },
+      typeId: 101,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SPreHeader' },
+    }
+    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+
+  it('throws context-obj-not-context when obj is not Context', () => {
+    const ctx = makeContext({ preHeader: syntheticPreHeader() })
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Global' },
+      typeId: 101,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SPreHeader' },
+    }
+    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+})
+
+interface PreHeaderEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface PreHeaderFixture {
+  corpus: string
+  entries: PreHeaderEntry[]
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixturePath = join(__dirname, '../fixtures/eval/scontext-pre-header.json')
+const fixture: PreHeaderFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
+
+describe('SContext.preHeader — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+})
+```
+
+NOTE: confirm the PreHeader interface field set (`version`, `parentId`, etc.) by reading `mir/types.ts:156-…`. Adjust `syntheticPreHeader` if the field list is different.
+
+- [ ] **Step 3: Run test to verify RED**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/scontext-pre-header.test.ts`
+
+Expected: RED on first `it()` (no handler for `101:3`).
+
+- [ ] **Step 4: Register the `SContext.preHeader` handler in `method-call.ts`**
+
+Inside `registerHandlers()`, add:
+
+```ts
+  // SContext.preHeader (PropertyCall, typeId=101, methodId=3)
+  // Source: ergotree-interpreter/src/eval/scontext.rs:72-81 — PRE_HEADER_EVAL_FN
+  // Pattern A cost 15 (charged before obj check).
+  HANDLERS.set(handlerKey(101, 3), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.preHeader expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context' // reuses existing code (used by SContext.dataInputs)
+      )
+    }
+    if (ctx.preHeader === undefined) {
+      throw new EvalError(
+        `SContext.preHeader: ctx.preHeader is undefined`,
+        'context-field-missing'
+      )
+    }
+    return { kind: 'PreHeader', value: ctx.preHeader }
+  })
+```
+
+- [ ] **Step 5: Run inline tests to confirm GREEN**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/scontext-pre-header.test.ts -t "Layer C1"`
+
+Expected: all 3 inline-test cases pass.
+
+- [ ] **Step 6: Create fixture-gen Rust file**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/scontext_pre_header.rs`:
+
+```rust
+//! SContext.preHeader handler — fixtures.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/scontext.rs:72-81`
+//! Method registration: `ergotree-ir/src/types/scontext.rs::PRE_HEADER_PROPERTY`
+//!
+//! Pattern A cost 15. Returns wrapped PreHeader from ctx.pre_header.
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::property_call::PropertyCall;
+use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::scontext::PRE_HEADER_PROPERTY;
+use serde_json::json;
+use sigma_test_util::force_any_val;
+
+use super::common::{preheader_to_json, value_to_json, EvalFixture, EvalFixtureFile};
+
+pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    let mut entries = Vec::new();
+
+    let expr: Expr = PropertyCall::new(Expr::Context, PRE_HEADER_PROPERTY.clone())
+        .unwrap()
+        .into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+    let ctx = force_any_val::<Context>();
+    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+
+    // The opts_json must thread ctx.pre_header through to the TS test so the
+    // TS evaluator's makeContext({preHeader}) call gets the same value sigma-rust
+    // evaluated against. Serialise the PreHeader to canonical JSON.
+    let opts_json = json!({
+        "preHeader": preheader_to_json(&ctx.pre_header),
+    });
+
+    entries.push(EvalFixture {
+        name: "context_pre_header".to_string(),
+        tree_bytes_hex,
+        opts_json,
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    });
+
+    Ok(EvalFixtureFile {
+        corpus: "eval_scontext_pre_header",
+        entries,
+    })
+}
+```
+
+NOTE: `preheader_to_json` helper may not exist yet in `common.rs`. If not, add it (mirroring the existing `value_to_json` pattern). It should produce a JSON object with fields `{ version, parentId (hex), timestamp (string), nBits, height, minerPk (hex), votes (hex) }` that matches what `hydrateSValue` (Task 5 Step 3) parses on the TS side.
+
+- [ ] **Step 7: Wire + generate + verify**
+
+Wire `pub mod scontext_pre_header;` in `mod.rs` and `generate_and_write("eval/scontext-pre-header.json", ...)` in `main.rs`.
+
+Run: `cd fixture-gen && cargo build && cargo run`
+Run: `cd packages/ergoscript && npx vitest run test/eval/scontext-pre-header.test.ts`
+
+Expected: clean build; all tests pass. If the PreHeader JSON serialisation doesn't match, iterate on `preheader_to_json` and `hydrateSValue` until they agree.
+
+- [ ] **Step 8: Two-run determinism + type-check**
+
+Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/scontext-pre-header.json && cd ../packages/ergoscript && npx tsc --noEmit`
+
+Expected: no fixture diff; zero TS errors.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/method-call.ts \
+        packages/ergoscript/test/eval/scontext-pre-header.test.ts \
+        packages/ergoscript/test/fixtures/eval/scontext-pre-header.json \
+        fixture-gen/src/cmds/ergoscript/eval/scontext_pre_header.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+# If preheader_to_json was added:
+git add fixture-gen/src/cmds/ergoscript/eval/common.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 6 — SContext.preHeader handler
+
+Registers PropertyCall(Context, preHeader) (typeId 101, methodId 3) in the
+eval/method-call.ts HANDLERS map. Pattern A cost 15 (chained total 20:
+4 dispatcher + 1 Context arm + 15 handler). Returns wrapped PreHeader from
+ctx.preHeader. Reuses 'context-obj-not-context' code (second consumer,
+validating 2g.5's per-typeId code choice); reuses 'context-field-missing'
+for undefined ctx.preHeader (same shape as GlobalVars.{Outputs/...}).
+
+Unlocks 7 mainnet boxes per Task B's survey (4 must-include + 3 random).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 7: `SPreHeader.timestamp` handler (typeId 105, methodId 3) + C1 fixture
+
+**Files:**
+- Source-read: `~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/spreheader.rs:20-24`
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler entry)
+- Create: `packages/ergoscript/test/eval/spreheader-timestamp.test.ts`
+- Create: `fixture-gen/src/cmds/ergoscript/eval/spreheader_timestamp.rs`
+- Wire + generate fixture
+
+- [ ] **Step 1: Source-read sigma-rust**
+
+```bash
+sed -n '20,24p' ~/projects/sigma-rust/sigma-rust/ergotree-interpreter/src/eval/spreheader.rs
+```
+
+Confirm: `add_jit_cost(10)` BEFORE obj extraction; obj extracted via `try_extract_into::<PreHeader>()`; returns `(preheader.timestamp as i64).into()`.
+
+- [ ] **Step 2: Write the failing inline unit test**
+
+Create `packages/ergoscript/test/eval/spreheader-timestamp.test.ts`:
+
+```ts
+/**
+ * Layer C1 — SPreHeader.timestamp handler (typeId 105, methodId 3).
+ *
+ * Pattern A cost 10 (charged before obj check). Returns
+ * { kind: 'Long', value: preHeader.timestamp }.
+ *
+ * Source: ergotree-interpreter/src/eval/spreheader.rs:20-24
+ */
+
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { evalPropertyCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { PropertyCall as PropertyCallExpr, PreHeader } from '../../src/mir/types'
+
+function syntheticPreHeader(timestamp: bigint): PreHeader {
+  return {
+    version: 3,
+    parentId: new Uint8Array(32),
+    timestamp,
+    nBits: 0x18000000,
+    height: 1000000,
+    minerPk: new Uint8Array(33),
+    votes: new Uint8Array(3),
+  }
+}
+
+describe('SPreHeader.timestamp handler (Layer C1)', () => {
+  it('returns timestamp as Long; chain Context.preHeader.timestamp charges 34', () => {
+    const preHeader = syntheticPreHeader(1700000000000n)
+    const ctx = makeContext({ preHeader })
+    // Outer PropertyCall: SPreHeader.timestamp on the inner result
+    const innerPreHeader: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Context' },
+      typeId: 101,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SPreHeader' },
+    }
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: innerPreHeader,
+      typeId: 105,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SLong' },
+    }
+    const result = evalPropertyCall(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Long', value: 1700000000000n })
+    // 4 (outer disp) + 4 (inner disp) + 1 (Context arm) + 15 (preHeader handler) + 10 (timestamp handler) = 34
+    expect(ctx.jitCost).toBe(34)
+  })
+
+  it('boundary: timestamp near i64::MAX passes through unchanged', () => {
+    const max = 9223372036854775807n // i64::MAX
+    const preHeader = syntheticPreHeader(max)
+    const ctx = makeContext({ preHeader })
+    const innerPreHeader: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Context' },
+      typeId: 101,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SPreHeader' },
+    }
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: innerPreHeader,
+      typeId: 105,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SLong' },
+    }
+    const result = evalPropertyCall(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Long', value: max })
+  })
+
+  it('rejects when obj is not PreHeader', () => {
+    const ctx = makeContext({})
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Context' }, // returns { kind: 'Context' }, not PreHeader
+      typeId: 105,
+      methodId: 3,
+      explicitTypeArgs: {},
+      tpe: { tag: 'SLong' },
+    }
+    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+  })
+})
+
+interface TimestampEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+}
+
+interface TimestampFixture {
+  corpus: string
+  entries: TimestampEntry[]
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixturePath = join(__dirname, '../fixtures/eval/spreheader-timestamp.json')
+const fixture: TimestampFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
+
+describe('SPreHeader.timestamp — fixture-driven', () => {
+  for (const entry of fixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      const value = evaluateWith(tree, ctx)
+      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(ctx.jitCost).toBe(entry.expected_cost)
+    })
+  }
+})
+```
+
+- [ ] **Step 3: Run test to verify RED**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/spreheader-timestamp.test.ts`
+
+Expected: RED on first `it()` (no handler for `105:3`).
+
+- [ ] **Step 4: Register the `SPreHeader.timestamp` handler in `method-call.ts`**
+
+Inside `registerHandlers()`, add:
+
+```ts
+  // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
+  // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
+  // Pattern A cost 10 (charged before obj check). Returns Long.
+  HANDLERS.set(handlerKey(105, 3), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.timestamp expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    return { kind: 'Long', value: obj.value.timestamp }
+  })
+```
+
+- [ ] **Step 5: Run inline tests to confirm GREEN**
+
+Run: `cd packages/ergoscript && npx vitest run test/eval/spreheader-timestamp.test.ts -t "Layer C1"`
+
+Expected: all 3 inline-test cases pass.
+
+- [ ] **Step 6: Create fixture-gen Rust file**
+
+Create `fixture-gen/src/cmds/ergoscript/eval/spreheader_timestamp.rs`:
+
+```rust
+//! SPreHeader.timestamp handler — fixtures.
+//!
+//! Sigma-rust ref: `ergotree-interpreter/src/eval/spreheader.rs:20-24`
+//! Method registration: `ergotree-ir/src/types/spreheader.rs::TIMESTAMP_PROPERTY`
+//!
+//! Pattern A cost 10. Returns Long.
+
+use ergotree_interpreter::eval::test_util::try_eval_out;
+use ergotree_ir::chain::context::Context;
+use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+use ergotree_ir::mir::expr::Expr;
+use ergotree_ir::mir::property_call::PropertyCall;
+use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::types::scontext::PRE_HEADER_PROPERTY;
+use ergotree_ir::types::spreheader::TIMESTAMP_PROPERTY;
+use serde_json::json;
+use sigma_test_util::force_any_val;
+
+use super::common::{preheader_to_json, value_to_json, EvalFixture, EvalFixtureFile};
+
+pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    let mut entries = Vec::new();
+
+    // Tree: PropertyCall(PropertyCall(Context, preHeader), timestamp)
+    let pre_header_expr: Expr = PropertyCall::new(Expr::Context, PRE_HEADER_PROPERTY.clone())
+        .unwrap()
+        .into();
+    let expr: Expr = PropertyCall::new(pre_header_expr, TIMESTAMP_PROPERTY.clone())
+        .unwrap()
+        .into();
+    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+    let ctx = force_any_val::<Context>();
+    let val: ergotree_ir::mir::value::Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+    let cost = ctx.jit_cost_value();
+
+    let opts_json = json!({
+        "preHeader": preheader_to_json(&ctx.pre_header),
+    });
+
+    entries.push(EvalFixture {
+        name: "context_pre_header_timestamp".to_string(),
+        tree_bytes_hex,
+        opts_json,
+        expected_value_json: value_to_json(&val),
+        expected_cost: cost,
+    });
+
+    Ok(EvalFixtureFile {
+        corpus: "eval_spreheader_timestamp",
+        entries,
+    })
+}
+```
+
+- [ ] **Step 7: Wire + generate + verify**
+
+Wire `pub mod spreheader_timestamp;` in `mod.rs` and `generate_and_write("eval/spreheader-timestamp.json", ...)` in `main.rs`.
+
+Run: `cd fixture-gen && cargo build && cargo run`
+Run: `cd packages/ergoscript && npx vitest run test/eval/spreheader-timestamp.test.ts`
+Run: `cd fixture-gen && cargo run && git -C .. diff --stat packages/ergoscript/test/fixtures/eval/spreheader-timestamp.json`
+Run: `cd packages/ergoscript && npx tsc --noEmit`
+
+Expected: clean build; all tests pass; no fixture diff; zero TS errors.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/method-call.ts \
+        packages/ergoscript/test/eval/spreheader-timestamp.test.ts \
+        packages/ergoscript/test/fixtures/eval/spreheader-timestamp.json \
+        fixture-gen/src/cmds/ergoscript/eval/spreheader_timestamp.rs \
+        fixture-gen/src/cmds/ergoscript/eval/mod.rs \
+        fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): phase 2g.6 Task 7 — SPreHeader.timestamp handler
+
+Registers PropertyCall(PreHeader, timestamp) (typeId 105, methodId 3) in the
+eval/method-call.ts HANDLERS map. Pattern A cost 10 (chained total 34:
+4 outer disp + 4 inner disp + 1 Context arm + 15 preHeader handler + 10
+timestamp handler). Returns Long; PreHeader.timestamp already bigint so no
+i64-cast needed (boundary fixture validates i64::MAX passthrough).
+
+Unlocks 7 mainnet boxes per Task B's survey (4 must-include + 3 random).
+Completes the 5-method handler scope; Task 8 is verification + docs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 8: `facts/ergoscript.md` update + wider-corpus re-survey + final regression sweep
+
+**Files:**
+- Modify: `facts/ergoscript.md` (coverage 51 → 52 arms; method handlers 3 → 8; 2 new SValue variants; cross-reference 2g.6 spec)
+- Modify: `docs/specs/2026-05-13-ergoscript-interpreter-design.md` (annotate 2g.6 row ✅ COMPLETE)
+- Modify: `packages/ergoscript/scripts/_known-methods.ts` (mark 5 methods `implemented: true`)
+- Regenerate: `docs/specs/2026-05-18-task-b-corpus-survey-tally.json` (verification — re-run the analyzer)
+- Modify: `PLAN.md` (mark phase complete)
+
+No new test or fixture files. This is verification + documentation.
+
+- [ ] **Step 1: Update `facts/ergoscript.md`**
+
+Read the file and locate the coverage statement (likely a section like "Internal Expr arms: 51 of ~70"). Update to:
+- "Internal Expr arms: 52 of ~70" (was 51; +1 Global)
+- "Method-call handler registry: 8 entries" (was 3; +5)
+- "EvalError codes: 43" (unchanged from 2g.5)
+- SValue variants: add `Global` and `PreHeader` to the enumerated list
+- Add `EvalOpts.preHeader?: PreHeader` to the public surface notes (already there from 2f-medium — confirm wording)
+- Cross-reference `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` in the changelog/history section
+
+- [ ] **Step 2: Update umbrella spec**
+
+Edit `docs/specs/2026-05-13-ergoscript-interpreter-design.md`. Find the "Phase 2g.6" row in the phase plan table and update its "Done criterion" cell to start with `✅ shipped 2026-05-XX` (use today's date). Mirror the wording style of the existing 2g.5 / 2g-combinators rows.
+
+- [ ] **Step 3: Update `_known-methods.ts` — mark the 5 methods implemented**
+
+Edit `packages/ergoscript/scripts/_known-methods.ts`. Find the 5 entries:
+- `(106, 1)` SGlobal.groupGenerator
+- `(12, 29)` SColl.zip
+- `(12, 14)` SColl.indices
+- `(101, 3)` SContext.preHeader
+- `(105, 3)` SPreHeader.timestamp
+
+Change each from `implemented: false` to `implemented: true`. If there's a `phaseTag` or similar field, set it to `'2g.6'`.
+
+- [ ] **Step 4: Re-run the corpus analyzer**
+
+Run: `cd /home/mwaddip/projects/ergots && npx tsx packages/ergoscript/scripts/analyze-wider-corpus.ts`
+
+Expected: the script regenerates `docs/specs/2026-05-18-task-b-corpus-survey-results.md` and `docs/specs/2026-05-18-task-b-corpus-survey-tally.json`. In the regenerated tally JSON:
+- The 5 methods flip from `implemented: false` → `implemented: true`.
+- `unimplementedHits` for tag `Global` drops from 120 to 0 (since the Global arm is now wired).
+- All other counts unchanged from the 2026-05-18 baseline.
+
+Diff the regenerated files against committed:
+
+```bash
+git -C /home/mwaddip/projects/ergots diff docs/specs/2026-05-18-task-b-corpus-survey-tally.json | head -100
+```
+
+Expected diff: only the 5 `implemented` flags + the Global `unimplementedHits` line. If unexpected changes appear, investigate — may indicate a regression in the walker or `_known-methods` accounting.
+
+- [ ] **Step 5: Run the full test suite**
+
+Run: `cd /home/mwaddip/projects/ergots && npm test`
+
+Expected: all tests pass under both node + jsdom. Test count should be ergoscript 2627 + 5×N (where N is the number of new fixture/inline tests added per task) + proof 305. Confirm the exact count matches what was added in Tasks 1-7.
+
+- [ ] **Step 6: Run TypeScript check**
+
+Run: `cd /home/mwaddip/projects/ergots/packages/ergoscript && npx tsc --noEmit`
+
+Expected: zero errors.
+
+- [ ] **Step 7: Run Rust tests + determinism check**
+
+Run: `cd /home/mwaddip/projects/ergots/fixture-gen && cargo test && cargo run`
+
+Then:
+
+```bash
+git -C /home/mwaddip/projects/ergots diff --stat packages/ergoscript/test/fixtures/
+```
+
+Expected: cargo test passes; cargo run produces zero fixture diffs (full determinism across all 6 new + all existing fixtures).
+
+- [ ] **Step 8: Update PLAN.md to mark phase complete**
+
+Edit `PLAN.md` at repo root. Add a status line at the top below the title:
+
+```markdown
+**Status: ✅ COMPLETE 2026-05-XX** (5 method handlers + Global arm + 2 SValue variants shipped; wider-corpus re-survey confirms 5 methods now `implemented: true`; full test suite green under node + jsdom; fixture-gen determinism preserved.)
+```
+
+- [ ] **Step 9: Commit the verification sweep**
+
+```bash
+git add facts/ergoscript.md \
+        docs/specs/2026-05-13-ergoscript-interpreter-design.md \
+        docs/specs/2026-05-18-task-b-corpus-survey-results.md \
+        docs/specs/2026-05-18-task-b-corpus-survey-tally.json \
+        packages/ergoscript/scripts/_known-methods.ts \
+        PLAN.md
+git commit -m "$(cat <<'EOF'
+docs(ergoscript): phase 2g.6 complete — facts + umbrella + corpus re-survey
+
+Coverage: 51 → 52 Expr arms; method handlers 3 → 8; 2 new SValue variants
+(Global sentinel, PreHeader value carrier). Zero new EvalError codes (43).
+
+Wider-corpus re-survey confirms the 5 methods (groupGenerator, zip, indices,
+preHeader, timestamp) now show implemented: true in the tally JSON, and the
+Global tag's unimplementedHits count drops from 120 to 0.
+
+Full test suite green under node + jsdom; fixture-gen determinism preserved
+across all 6 new + all existing fixtures.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 10: Update SESSION_CONTEXT.md + memory**
+
+Update `packages/ergoscript/SESSION_CONTEXT.md` (gitignored) to reflect "Phase 2g.6 complete; coverage 52/~70 arms; method handlers 8; next: phase 2h (AVL+) or 2i (predefs) per user".
+
+Update memory file at `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` to reflect the new state.
+
+Update MEMORY.md hook line for `project_ergots_direction` to note 2g.6 shipped.
+
+(No commit — these are local-only artifacts.)
+
+---
+
+## Self-review (run before declaring the plan ready)
+
+After implementing all 8 tasks, re-check:
+
+1. **Spec coverage:** The design spec's 5 methods + 1 Expr arm + 2 SValue variants + 0 new error codes are all delivered (Tasks 1-7), plus verification sweep (Task 8). ✓
+2. **Type consistency:** `evalGlobal` (Task 1 / `eval/global.ts`), `evalMethodCall` / `evalPropertyCall` (Tasks 2-7 / `eval/method-call.ts`), `handlerKey` (existing), `HANDLERS` (existing), `MethodCall` / `PropertyCall` MIR interfaces (existing from phase 2a) — all consistent across tasks.
+3. **No placeholders:** Every step has actual code or actual commands. Where the implementer needs to confirm an interface field set (e.g., `PreHeader.timestamp` field names), the spec explicitly says so with a re-read instruction.
+4. **Cost-arithmetic cross-check:** Task 2 (groupGenerator) expects 19. Task 6 (preHeader) expects 20. Task 7 (timestamp) expects 34. The fixture-driven oracle confirms each — if any inline-test expectation is off, the fix is to align the inline test with the oracle, not the other way around.
+5. **Source-read discipline:** Every task starts with a `sed -n` to confirm sigma-rust HEAD hasn't drifted from this plan's recorded cost values. Drift triggers OVERRIDES rule #2 escalation.
+6. **TDD discipline:** Every task follows red (failing test) → green (minimal implementation) → commit. Per-task commits land green tests + per-task scope. No batched commits.
