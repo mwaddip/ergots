@@ -1,5 +1,9 @@
 # `@mwaddip/ergots-avltree` Implementation Plan (Phase 2h-a)
 
+**Status: COMPLETE 2026-05-18** — @mwaddip/ergots-avltree v0.1.0 ready for npm publish.
+
+29 tasks complete. Package surface: 12 source files (~2500 LOC), 9 test files (~140 tests), 50 fixtures, >=90% mutation kill rate. Browser-clean (no Buffer / node:* / WASM). Cross-runtime PASS (node + jsdom). facts/avltree.md interface contract with 24-row Source Mapping table to ergo_avltree_rust. Source-first discipline preserved throughout per [[feedback-rust-port-style]]. Implementation work surfaced THREE PLAN.md skeleton bugs (T7 internal-node byte order, T17 directionsIndex byte-vs-bit, T17 op dispatch) — all caught by source-first reading during implementation and fixed in both code and PLAN. The OVERRIDES preamble in subagent dispatches (post-T10) produced clean first-Approval rates per [[feedback-subagent-explicit-rules]].
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build and ship a new pure-TypeScript, browser-runnable npm package `@mwaddip/ergots-avltree` — a byte-faithful verifier-only port of the standalone Rust crate `ergo_avltree_rust` (the fork at `~/projects/ergo_avltree_rust/` HEAD `879545c` with 3 upstream PRs applied), implementing the batch AVL+ authenticated tree algorithm (KMZ16 / 2016/994).
