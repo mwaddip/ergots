@@ -1,7 +1,7 @@
 /**
  * Byte writer with VLQ + ZigZag-VLQ encoding for ErgoTree wire format.
  *
- * Mirrors the conventions of `@mwaddip/ergots-proof`'s `ByteWriter`
+ * Mirrors the conventions of `@ergots/nipopow`'s `ByteWriter`
  * (defensive byte-range check on `writeU8`, defensive copy on `writeBytes`,
  * `Uint8Array[]` chunk accumulator with O(1) appends and an `length`
  * getter, single concatenation in `toBytes`). Reimplemented here rather

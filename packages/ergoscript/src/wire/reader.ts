@@ -1,7 +1,7 @@
 /**
  * Byte reader with VLQ + ZigZag-VLQ decoding for ErgoTree wire format.
  *
- * Mirrors the conventions of `@mwaddip/ergots-proof`'s `ByteReader`
+ * Mirrors the conventions of `@ergots/nipopow`'s `ByteReader`
  * (constructor signature, getters for position/remaining/isExhausted,
  * `ReaderError(message, code)` shape with string code, throw semantics on
  * truncated reads). Reimplemented here rather than imported because

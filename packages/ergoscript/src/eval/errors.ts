@@ -1,5 +1,5 @@
 /**
- * EvalError code taxonomy for `@mwaddip/ergots-ergoscript`.
+ * EvalError code taxonomy for `@ergots/ergoscript`.
  *
  * `EvalErrorCode` is a string-literal union covering all legal second-argument
  * values for `new EvalError(message, code)`. Collecting them here:

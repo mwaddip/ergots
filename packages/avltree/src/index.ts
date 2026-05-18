@@ -1,4 +1,4 @@
-// Public surface of @mwaddip/ergots-avltree.
+// Public surface of @ergots/avltree.
 
 export { verifyAvlBatch, verifyAvlLookup, type VerifyAvlBatchResult } from './verify.js'
 export type { AvlTreeConfig, OperationResult } from './types.js'
