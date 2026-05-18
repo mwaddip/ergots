@@ -12,10 +12,10 @@ describe('nextDirectionIsLeft', () => {
   })
   it('reads bit 0 of byte 0 as left=false (right step)', () => {
     const proof = new Uint8Array([0b00000000])
-    const state: TraversalState = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0 }
+    const state: TraversalState = { directionsIndex: 0, lastRightStep: -1, replayIndex: 0 }
     expect(nextDirectionIsLeft(proof, state)).toBe(false)
     expect(state.directionsIndex).toBe(1)
-    expect(state.lastRightStep).toBe(0)  // captures the index where right step happened
+    expect(state.lastRightStep).toBe(0)  // captures the pre-advance index (was -1)
   })
   it('advances bit position across byte boundary', () => {
     // Bits: 0,0,0,0,0,0,0,0, 1,1,1,1,...

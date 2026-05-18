@@ -26,8 +26,8 @@ export function nextDirectionIsLeft(
   state: TraversalState,
 ): boolean {
   const i = state.directionsIndex
-  // Read bit i of proof byte (i >> 3).
-  const left = (proof[i >> 3] & (1 << (i & 7))) !== 0
+  const byte = proof[i >> 3] ?? 0  // OOB read returns 0 (per JSDoc)
+  const left = (byte & (1 << (i & 7))) !== 0
   if (!left) state.lastRightStep = i
   state.directionsIndex = i + 1
   return left
