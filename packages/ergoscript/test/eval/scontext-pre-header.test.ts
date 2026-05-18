@@ -18,7 +18,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
 import type { PropertyCall as PropertyCallExpr, PreHeader } from '../../src/mir/types'
 
 function syntheticPreHeader(): PreHeader {
@@ -56,7 +56,9 @@ describe('SContext.preHeader handler (Layer C1)', () => {
       typeId: 101,
       methodId: 3,
     }
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+    const err = captureEvalError(() => evalPropertyCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('context-field-missing')
   })
 
   it('throws context-obj-not-context when obj is not Context', () => {
@@ -67,7 +69,9 @@ describe('SContext.preHeader handler (Layer C1)', () => {
       typeId: 101,
       methodId: 3,
     }
-    expect(() => evalPropertyCall(e, Env.empty(), ctx)).toThrowError(EvalError)
+    const err = captureEvalError(() => evalPropertyCall(e, Env.empty(), ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('context-obj-not-context')
   })
 })
 

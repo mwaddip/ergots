@@ -7,9 +7,8 @@
  *
  * The registry is module-internal. Handlers are registered inline below the
  * dispatcher definition (in this same file) — keeping co-location simple
- * while the registry size is moderate (6 entries after 2g.6 Tasks 1-4;
- * up to 8 after Tasks 6-7 complete). Promote to a subdirectory if/when
- * count grows beyond ~12.
+ * while the registry size is moderate (7 entries currently; up to 8 after
+ * Task 7 completes). Promote to a subdirectory if/when count grows beyond ~12.
  *
  * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
@@ -20,6 +19,8 @@
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
+ *   'context-field-missing'     — thrown by the SContext.preHeader handler when ctx.preHeader === undefined;
+ *                                  code originated in global-vars.ts / get-var.ts.
  */
 
 import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'
