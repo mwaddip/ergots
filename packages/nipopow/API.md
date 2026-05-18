@@ -155,7 +155,7 @@ Strip the code-91 (`NipopowProof`) envelope and return the inner proof bytes, su
 - **Returns:** Inner proof bytes (`Uint8Array` of length `1 .. 2_000_000 - 1`).
 - **Throws:** `EnvelopeParseError` with `.code` in `'oversized' | 'invalid-length' | 'truncated'`.
 
-> **Round-trip note:** future-padding bytes are intentionally stripped on parse. Code-91 is a framing codec — its output is always passed to `parseProof`, never re-emitted verbatim. `serializeNipopowProofEnvelope` produces a normalized envelope with `pad_length = 0`. (Code-90 preserves padding; code-91 doesn't. See `facts/proof.md` §Round-trip invariant.)
+> **Round-trip note:** future-padding bytes are intentionally stripped on parse. Code-91 is a framing codec — its output is always passed to `parseProof`, never re-emitted verbatim. `serializeNipopowProofEnvelope` produces a normalized envelope with `pad_length = 0`. (Code-90 preserves padding; code-91 doesn't. See `facts/nipopow.md` §Round-trip invariant.)
 
 ### `serializeNipopowProofEnvelope(innerProof)`
 
@@ -321,7 +321,7 @@ Thrown by `parseGetNipopowProof` and `parseNipopowProofEnvelope`.
 
 ## See also
 
-- `facts/proof.md` (repo root) — load-bearing interface contract referenced by downstream packages
+- `facts/nipopow.md` (repo root) — load-bearing interface contract referenced by downstream packages
 - `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — design rationale, validation strategy, risks
 - [KMZ17 paper](https://eprint.iacr.org/2017/963) — original NiPoPoW spec
 - [sigma-rust `ergo-nipopow`](https://github.com/ergoplatform/sigma-rust/tree/develop/ergo-nipopow) — reference Rust implementation
