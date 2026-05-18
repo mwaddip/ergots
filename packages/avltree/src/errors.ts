@@ -13,11 +13,12 @@ export type AvlVerifyErrorCode =
   | 'operation-value-length-mismatch'
 
 export class AvlVerifyError extends Error {
-  readonly code: AvlVerifyErrorCode
-  constructor(code: AvlVerifyErrorCode, message: string) {
+  constructor(
+    message: string,
+    public readonly code: AvlVerifyErrorCode
+  ) {
     super(message)
     this.name = 'AvlVerifyError'
-    this.code = code
   }
 }
 
