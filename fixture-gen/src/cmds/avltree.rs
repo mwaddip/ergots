@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::panic;
 use anyhow::Result;
 use bytes::Bytes;
 use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
@@ -1230,6 +1231,391 @@ fn update_long_by_negative_result_fail() -> Result<AvlFixture> {
 // would duplicate that coverage without adding new information.
 
 // ---------------------------------------------------------------------------
+// Config-variance fixtures (T23)
+// ---------------------------------------------------------------------------
+
+/// Fixed valueLengthOpt = 8 bytes: insert on a 3-leaf tree.
+/// Confirms the verifier handles fixed-length values (as opposed to the
+/// variable-length path most other fixtures exercise).
+fn config_variance_value_length_fixed_8() -> Result<AvlFixture> {
+    let initial = three_leaves(Some(8));
+    let op = Operation::Insert(KeyValue {
+        key: key(0x10),
+        value: val(0x10, 8),
+    });
+    generate_fixture(
+        "config-variance-value-length-fixed-8",
+        32,
+        Some(8),
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Build a 3-leaf initial tree with 1-byte keys.
+/// 0x00 = negative-infinity sentinel, 0xFF = positive-infinity sentinel.
+/// Safe keys: 0x01, 0x02, 0x03.  Insert 0x04.
+fn key1(byte: u8) -> Bytes {
+    Bytes::from(vec![byte; 1])
+}
+
+fn config_variance_keylength_1_insert() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = vec![
+        (key1(0x01), val(0x01, 8)),
+        (key1(0x02), val(0x02, 8)),
+        (key1(0x03), val(0x03, 8)),
+    ];
+    let op = Operation::Insert(KeyValue {
+        key: key1(0x04),
+        value: val(0x04, 8),
+    });
+    generate_fixture(
+        "config-variance-keylength-1-insert",
+        1,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// Build a 3-leaf initial tree with 8-byte keys.
+/// Use well-separated keys to avoid the positive-infinity sentinel (all-0xFF).
+fn key8(byte: u8) -> Bytes {
+    Bytes::from(vec![byte; 8])
+}
+
+fn config_variance_keylength_8_lookup() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = vec![
+        (key8(0x01), val(0x01, 8)),
+        (key8(0x02), val(0x02, 8)),
+        (key8(0x03), val(0x03, 8)),
+    ];
+    let op = Operation::Lookup(key8(0x02));
+    generate_fixture(
+        "config-variance-keylength-8-lookup",
+        8,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+fn config_variance_keylength_8_insert() -> Result<AvlFixture> {
+    let initial: Vec<(Bytes, Bytes)> = vec![
+        (key8(0x01), val(0x01, 8)),
+        (key8(0x02), val(0x02, 8)),
+        (key8(0x03), val(0x03, 8)),
+    ];
+    let op = Operation::Insert(KeyValue {
+        key: key8(0x10),
+        value: val(0x10, 8),
+    });
+    generate_fixture(
+        "config-variance-keylength-8-insert",
+        8,
+        None,
+        &initial,
+        vec![op.clone()],
+        vec![op],
+        false,
+    )
+}
+
+/// maxNumOperations = 1 with exactly 1 op — success: DoS guard passes.
+fn config_variance_max_ops_exact() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let op = Operation::Lookup(key(0x02));
+    let (mut prover, starting_digest) =
+        make_initial_tree(32, None, &initial)?;
+    prover.perform_one_operation(&op)?;
+    let proof = prover.generate_proof();
+    let prover_new_digest = prover.digest().expect("post-op digest");
+
+    // Verifier with tight maxNumOperations=1 — should succeed.
+    let mut verifier = BatchAVLVerifier::new(
+        &starting_digest,
+        &proof,
+        AVLTree::new(make_resolver(), 32, None),
+        Some(1),
+        Some(0),
+    )?;
+    let r = verifier.perform_one_operation(&op)?;
+    let verifier_new_digest = verifier.digest().expect("verifier post-op digest");
+    assert_eq!(prover_new_digest, verifier_new_digest, "digest mismatch");
+
+    Ok(AvlFixture {
+        name: "config-variance-max-ops-exact".to_string(),
+        starting_digest_hex: hex::encode(&starting_digest),
+        proof_hex: hex::encode(&proof),
+        config: AvlConfig {
+            key_length: 32,
+            value_length_opt: None,
+            max_num_operations: Some(1),
+            max_deletes: Some(0),
+        },
+        operations: vec![op_to_json(&op)],
+        expected_new_digest_hex: Some(hex::encode(&prover_new_digest)),
+        expected_results_hex: vec![r.as_ref().map(|v| hex::encode(v))],
+    })
+}
+
+/// maxNumOperations=2, maxDeletes=1 with 1 insert + 1 remove — success.
+/// Exercises both bounds simultaneously.
+fn config_variance_max_ops_mixed_bounds() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let ops = vec![
+        Operation::Insert(KeyValue { key: key(0x10), value: val(0x10, 8) }),
+        Operation::Remove(key(0x01)),
+    ];
+    generate_fixture(
+        "config-variance-max-ops-mixed-bounds",
+        32,
+        None,
+        &initial,
+        ops.clone(),
+        ops,
+        false,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Adverse (intentional rejection) fixtures (T23)
+// ---------------------------------------------------------------------------
+
+/// "Truncated" proof: a single END_OF_TREE byte (0x04) with no tree content
+/// before it.  The Rust reconstruct_tree completes the post-order loop
+/// immediately (empty stack), then `ensure!(stack.len() == 1)` fails → Err.
+///
+/// The TS verifier's parseProofPackedTree will reach the `stack.length !== 1`
+/// check at the end and return `{ ok: false, reason: 'proof-malformed' }`;
+/// verifyAvlBatch therefore returns null.
+///
+/// We obtain the starting_digest from a real 3-leaf tree so it's the right
+/// length (33 bytes); the proof itself is just [0x04].
+fn adverse_truncated_proof() -> Result<AvlFixture> {
+    // Obtain a valid 33-byte starting digest from a real 3-leaf tree.
+    let initial = three_leaves(None);
+    // make_initial_tree returns the digest AFTER all initial inserts, which is
+    // the stable "starting point" for any operation on this tree.
+    let (_, starting_digest) = make_initial_tree(32, None, &initial)?;
+
+    // The adversarial proof is just [END_OF_TREE = 0x04].
+    let minimal_proof = Bytes::from(vec![0x04u8]);
+
+    // Rust verifier must reject: empty stack → ensure!(stack.len() == 1) fails.
+    let result = BatchAVLVerifier::new(
+        &starting_digest,
+        &minimal_proof,
+        AVLTree::new(make_resolver(), 32, None),
+        Some(1),
+        Some(0),
+    );
+    assert!(
+        result.is_err(),
+        "adverse-truncated-proof: expected Rust verifier to reject minimal proof but it accepted"
+    );
+
+    // The fixture op is a Lookup — simple and harmless; the verifier never
+    // reaches the operation because tree reconstruction fails first.
+    let op = Operation::Lookup(key(0x02));
+
+    Ok(AvlFixture {
+        name: "adverse-truncated-proof".to_string(),
+        starting_digest_hex: hex::encode(&starting_digest),
+        proof_hex: hex::encode(&minimal_proof),
+        config: AvlConfig {
+            key_length: 32,
+            value_length_opt: None,
+            max_num_operations: Some(1),
+            max_deletes: Some(0),
+        },
+        operations: vec![op_to_json(&op)],
+        expected_new_digest_hex: None,
+        expected_results_hex: vec![None],
+    })
+}
+
+/// Correct proof but wrong starting digest.
+///
+/// Strategy: take the real 33-byte starting digest, flip every byte in the
+/// 32-byte root-label portion (bytes 0..32), and keep the height byte
+/// (byte 32) unchanged.  The height byte must be preserved so that the Rust
+/// verifier can parse the proof without OOB panics; only the root-label
+/// comparison at the end of reconstruct_tree will fail → Err.
+///
+/// Rust-side verification: `BatchAVLVerifier::new` returns Err because the
+/// reconstructed root's label does not match the flipped root-label bytes.
+fn adverse_swapped_starting_digest() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let op = Operation::Lookup(key(0x02));
+    let (mut prover, real_starting_digest) =
+        make_initial_tree(32, None, &initial)?;
+    prover.perform_one_operation(&op)?;
+    let proof = prover.generate_proof();
+
+    // Build the wrong digest: flip all 32 root-label bytes, keep height byte.
+    let mut wrong_digest_vec: Vec<u8> = real_starting_digest.to_vec();
+    for b in &mut wrong_digest_vec[..32] {
+        *b = !*b;
+    }
+    let wrong_digest = Bytes::from(wrong_digest_vec);
+
+    // Rust verifier must reject: reconstructed root doesn't match the flipped label.
+    let result = BatchAVLVerifier::new(
+        &wrong_digest,
+        &proof,
+        AVLTree::new(make_resolver(), 32, None),
+        Some(1),
+        Some(0),
+    );
+    assert!(
+        result.is_err(),
+        "adverse-swapped-starting-digest: expected Rust verifier to reject digest mismatch but it accepted"
+    );
+
+    Ok(AvlFixture {
+        name: "adverse-swapped-starting-digest".to_string(),
+        starting_digest_hex: hex::encode(&wrong_digest),
+        proof_hex: hex::encode(&proof),
+        config: AvlConfig {
+            key_length: 32,
+            value_length_opt: None,
+            max_num_operations: Some(1),
+            max_deletes: Some(0),
+        },
+        operations: vec![op_to_json(&op)],
+        expected_new_digest_hex: None,
+        expected_results_hex: vec![None],
+    })
+}
+
+/// Proof generated with keyLength=32, but the fixture records keyLength=16.
+///
+/// The verifier will misread leaf keys (reading 16 bytes instead of 32 for each
+/// key and nextLeafKey field in the packed tree), producing a garbled tree whose
+/// root label cannot match the starting digest.
+///
+/// Rust-side verification: the Rust verifier either returns Err (via ensure!
+/// macros) or panics (via OOB slice index) when given mismatched keyLength. We
+/// use catch_unwind to treat panics as "rejected" — either outcome confirms the
+/// verifier does not silently accept the mismatched input.
+///
+/// The TS verifier's bounds-checked reader returns proof-truncated or
+/// digest-mismatch cleanly (no panic).
+fn adverse_mismatched_config_keylength() -> Result<AvlFixture> {
+    // Build valid proof with keyLength=32.
+    let initial = three_leaves(None);
+    let op = Operation::Lookup(key(0x02));
+    let (mut prover, starting_digest) =
+        make_initial_tree(32, None, &initial)?;
+    prover.perform_one_operation(&op)?;
+    let proof = prover.generate_proof();
+
+    // Rust verifier with keyLength=16 must reject (Err or panic — both are
+    // non-acceptance).  We capture owned copies for the closure.
+    let sd_clone = starting_digest.clone();
+    let proof_clone = proof.clone();
+    let rejected = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        BatchAVLVerifier::new(
+            &sd_clone,
+            &proof_clone,
+            AVLTree::new(make_resolver(), 16, None), // wrong keyLength
+            Some(1),
+            Some(0),
+        ).is_err()
+    }));
+    // rejected = Ok(true)  → verifier returned Err
+    // rejected = Ok(false) → verifier accepted — this must not happen
+    // rejected = Err(_)    → verifier panicked — also means it rejected
+    assert!(
+        rejected.unwrap_or(true), // panic counts as rejection
+        "adverse-mismatched-config-keylength: Rust verifier accepted mismatched keyLength — unexpected"
+    );
+
+    // The fixture operation must use a 16-byte key to match the advertised
+    // config.keyLength=16 (otherwise the TS pre-flight throws AvlVerifyError
+    // as a programmer-error, not a verification failure).  Use a 16-byte
+    // all-0x02 key — arbitrary, since the proof reconstruction fails first.
+    let op16 = OpJson::Lookup { key_hex: hex::encode(vec![0x02u8; 16]) };
+
+    Ok(AvlFixture {
+        name: "adverse-mismatched-config-keylength".to_string(),
+        starting_digest_hex: hex::encode(&starting_digest),
+        proof_hex: hex::encode(&proof),
+        config: AvlConfig {
+            key_length: 16,        // mismatched: proof uses 32-byte keys
+            value_length_opt: None,
+            max_num_operations: Some(1),
+            max_deletes: Some(0),
+        },
+        operations: vec![op16],
+        expected_new_digest_hex: None,
+        expected_results_hex: vec![None],
+    })
+}
+
+/// A legitimate 3-leaf tree proof presented with `maxNumOperations=0` and
+/// `maxDeletes=0`.
+///
+/// With maxNumOps=0, the KMZ17 Appendix B bound becomes:
+///   realNumOps = 0, logNumOps = 0
+///   temp = 1 + max(height, 0)
+///   hnew = temp + temp/2
+///   realMaxDeletes = 0
+///   max_nodes = (0 + 0) * (2*height+1) + 0*hnew + 1 = 1
+///
+/// Any real proof contains at least 2 nodes (leaf for the target key + one
+/// sentinel), so the guard fires on the second node → `ensure!` returns Err.
+///
+/// The fixture itself uses a Lookup on the 3-leaf tree; the proof is valid but
+/// the stated `maxNumOperations=0` means the verifier must reject it as
+/// exceeding the node budget.
+fn adverse_malicious_extra_nodes() -> Result<AvlFixture> {
+    let initial = three_leaves(None);
+    let op = Operation::Lookup(key(0x02));
+    let (mut prover, starting_digest) =
+        make_initial_tree(32, None, &initial)?;
+    prover.perform_one_operation(&op)?;
+    let proof = prover.generate_proof();
+
+    // Rust verifier: maxNumOperations=0, maxDeletes=0 → max_nodes=1.
+    // The proof contains more than 1 node → ensure!(num_nodes <= max_nodes) fails.
+    let result = BatchAVLVerifier::new(
+        &starting_digest,
+        &proof,
+        AVLTree::new(make_resolver(), 32, None),
+        Some(0),  // 0 operations allowed → max_nodes = 1
+        Some(0),
+    );
+    assert!(
+        result.is_err(),
+        "adverse-malicious-extra-nodes: expected Rust verifier to reject excess nodes \
+         with maxNumOperations=0, but it accepted"
+    );
+
+    Ok(AvlFixture {
+        name: "adverse-malicious-extra-nodes".to_string(),
+        starting_digest_hex: hex::encode(&starting_digest),
+        proof_hex: hex::encode(&proof),
+        config: AvlConfig {
+            key_length: 32,
+            value_length_opt: None,
+            max_num_operations: Some(0),  // 0 operations → max_nodes=1, proof is rejected
+            max_deletes: Some(0),
+        },
+        operations: vec![op_to_json(&op)],
+        expected_new_digest_hex: None,
+        expected_results_hex: vec![None],
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -1325,6 +1711,20 @@ pub fn run() -> Result<()> {
     // UpdateLongBy i64 boundary cases
     write_fixture("update-long-by-i64-max-boundary", &update_long_by_i64_max_boundary()?)?;
     write_fixture("update-long-by-negative-result-fail", &update_long_by_negative_result_fail()?)?;
+
+    // --- Config-variance fixtures (T23) ---
+    write_fixture("config-variance-value-length-fixed-8", &config_variance_value_length_fixed_8()?)?;
+    write_fixture("config-variance-keylength-1-insert", &config_variance_keylength_1_insert()?)?;
+    write_fixture("config-variance-keylength-8-lookup", &config_variance_keylength_8_lookup()?)?;
+    write_fixture("config-variance-keylength-8-insert", &config_variance_keylength_8_insert()?)?;
+    write_fixture("config-variance-max-ops-exact", &config_variance_max_ops_exact()?)?;
+    write_fixture("config-variance-max-ops-mixed-bounds", &config_variance_max_ops_mixed_bounds()?)?;
+
+    // --- Adverse (intentional rejection) fixtures (T23) ---
+    write_fixture("adverse-truncated-proof", &adverse_truncated_proof()?)?;
+    write_fixture("adverse-swapped-starting-digest", &adverse_swapped_starting_digest()?)?;
+    write_fixture("adverse-mismatched-config-keylength", &adverse_mismatched_config_keylength()?)?;
+    write_fixture("adverse-malicious-extra-nodes", &adverse_malicious_extra_nodes()?)?;
 
     Ok(())
 }
