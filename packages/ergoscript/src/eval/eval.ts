@@ -45,6 +45,7 @@ import { evalExtractBytesWithNoRef } from './extract-bytes-with-no-ref'
 import { evalExtractCreationInfo } from './extract-creation-info'
 import { evalExtractId } from './extract-id'
 import { evalGetVar } from './get-var'
+import { evalGlobal } from './global'
 import { evalGlobalVars } from './global-vars'
 import { evalOptionGet } from './option-get'
 import { evalOptionGetOrElse } from './option-get-or-else'
@@ -149,6 +150,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalGetVar(e, env, ctx)
     case 'GlobalVars':
       return evalGlobalVars(e, env, ctx)
+    case 'Global':
+      return evalGlobal(e, env, ctx)
     case 'Map':
       return evalMap(e, env, ctx)
     case 'MethodCall':

@@ -319,6 +319,13 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return true
     }
 
+    // Global: unit variant (mirrors Context arm above). Value::Global == Value::Global
+    // is always true via PartialEq (sigma-rust catch-all arm in data_value_comparer.rs).
+    case 'Global': {
+      ctx.addCost(EQ_PRIM_COST)
+      return true
+    }
+
     // Box, AvlTree: not equality-comparable via BinOp in v0 ErgoScript.
     case 'Box':
     case 'AvlTree':
@@ -406,6 +413,8 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Lambda': return false
     // Context: unit variant, always equal (mirrors catch-all in data_value_comparer.rs:130-135).
     case 'Context': return true
+    // Global: unit variant, always equal (same catch-all arm as Context in sigma-rust).
+    case 'Global': return true
     case 'Box':
     case 'AvlTree':
       throw new EvalError(

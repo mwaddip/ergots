@@ -205,6 +205,10 @@ fn main() -> anyhow::Result<()> {
     let context_fixture = cmds::ergoscript::eval::context::generate()?;
     write_ergoscript_json("eval/context.json", &context_fixture)?;
 
+    // Phase 2g.6 Task 1: Global Expr arm — trivial sentinel arm (cost 5).
+    let global_fixture = cmds::ergoscript::eval::global::generate()?;
+    write_ergoscript_json("eval/global.json", &global_fixture)?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

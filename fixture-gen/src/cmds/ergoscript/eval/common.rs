@@ -119,6 +119,8 @@ pub fn value_to_json(v: &Value) -> JsonValue {
         Value::Unit => json!({ "kind": "Unit" }),
         // Context: sentinel value returned by Expr::Context. No payload.
         Value::Context => json!({ "kind": "Context" }),
+        // Global: sentinel value returned by Expr::Global. No payload.
+        Value::Global => json!({ "kind": "Global" }),
         // CBox: emit as structured ErgoBox JSON (phase 2f medium).
         // Mirrors the TS `SValue` Box variant: `{ kind: 'Box', value: ErgoBox }`.
         Value::CBox(b) => json!({ "kind": "Box", "value": ergo_box_to_json(b) }),

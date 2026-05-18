@@ -1,0 +1,14 @@
+{
+  "corpus": "eval_global",
+  "entries": [
+    {
+      "name": "global_sentinel",
+      "tree_bytes_hex": "00dd",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Global"
+      },
+      "expected_cost": 5
+    }
+  ]
+}
