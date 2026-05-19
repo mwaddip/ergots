@@ -1,6 +1,6 @@
 // @ergots/scorex v0.1.0 -- Scorex wire-codec layer + block-Header types.
 // Phase 2h-c.0 extraction: Phases 1-2 complete; Header types added in Phase 3.
-export { ByteReader } from './reader.ts';
+export { ByteReader, MAX_ARRAY_LENGTH } from './reader.ts';
 export { ByteWriter } from './writer.ts';
 export { ReaderError } from './errors.ts';
 export {

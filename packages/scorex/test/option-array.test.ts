@@ -94,19 +94,19 @@ describe('readArray / writeArray', () => {
     expect(() => r.readArray<number>((r) => r.readU8())).toThrow();
   });
 
-  test('readArray rejects length > 2^24 with slice-out-of-bounds', () => {
+  test('readArray rejects length > 2^24', () => {
     // Encode (1 << 24) + 1 = 16777217 as VLQ using encodeVlqU, then feed it
-    // to readArray. The bounds check must throw ReaderError('slice-out-of-bounds')
+    // to readArray. The bounds check must throw ReaderError with 'array-too-large'
     // BEFORE attempting allocation or reading any elements.
     const overlongLengthBytes = encodeVlqU(BigInt((1 << 24) + 1));
     const r = new ByteReader(overlongLengthBytes);
-    let threw: unknown;
+    let caught: unknown;
     try {
       r.readArray<number>((r) => r.readU8());
     } catch (e) {
-      threw = e;
+      caught = e;
     }
-    expect(threw).toBeInstanceOf(ReaderError);
-    expect((threw as ReaderError).code).toBe('slice-out-of-bounds');
+    expect(caught).toBeInstanceOf(ReaderError);
+    expect((caught as ReaderError).code).toBe('array-too-large');
   });
 });

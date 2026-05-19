@@ -13,6 +13,14 @@ import { ReaderError } from './errors.ts';
 
 const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
 
+/**
+ * Hard upper bound on lengths returned by `readArray()`. Prevents adversarial
+ * VLQ-encoded lengths from triggering huge pre-allocations. 16,777,216 is
+ * comfortably above any plausible wire-format array size in the Ergo protocol
+ * while bounding memory commitment per read.
+ */
+export const MAX_ARRAY_LENGTH = 1 << 24;
+
 export { ReaderError } from './errors.ts';
 
 export class ByteReader {
@@ -140,10 +148,10 @@ export class ByteReader {
 
   readArray<T>(reader: (r: ByteReader) => T): T[] {
     const length = this.readVlqU();
-    if (length > 1 << 24) {
+    if (length > MAX_ARRAY_LENGTH) {
       throw new ReaderError(
-        `readArray: length ${length} exceeds maximum ${1 << 24}`,
-        'slice-out-of-bounds',
+        `readArray: length ${length} exceeds maximum ${MAX_ARRAY_LENGTH}`,
+        'array-too-large',
       );
     }
     const out: T[] = new Array(length);

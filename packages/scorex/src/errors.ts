@@ -6,7 +6,7 @@
  * programmatic dispatch (instanceof + .code).
  */
 export class ReaderError extends Error {
-  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds') {
+  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large') {
     super(message);
     this.name = 'ReaderError';
   }
