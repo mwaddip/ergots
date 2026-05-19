@@ -120,7 +120,7 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
   switch (t.tag) {
     case 'SBoolean':
       assertKind(t, v, 'Boolean')
-      w.writeU8(v.value ? 1 : 0)
+      w.writeBool(v.value)
       return
 
     case 'SByte': {
@@ -302,12 +302,7 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
 
     case 'SOption': {
       assertKind(t, v, 'Option')
-      if (v.value === null) {
-        w.writeU8(0)
-        return
-      }
-      w.writeU8(1)
-      serializeSValue(t.elem, v.value, w)
+      w.writeOption(v.value, (w, inner) => serializeSValue(t.elem, inner, w))
       return
     }
 
