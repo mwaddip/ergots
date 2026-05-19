@@ -89,12 +89,28 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Coverage after 2g.6 complete: 52 of ~70 `Expr` variants have implemented arms.** Method-call handler registry: 8 entries. SValue variants: include `Global` + `PreHeader` post-2g.6. **Phase 2g.6 COMPLETE.** See `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md`.
 
+**Phase 2h-b — `@ergots/avltree` integration** (additive):
+
+- 13 new method handlers wired (8 → 21 registry entries):
+  - **Tier 1 — 7 accessors** (Pattern A cost 15 each): `digest` (100:1), `enabledOperations` (100:2), `keyLength` (100:3), `valueLengthOpt` (100:4), `isInsertAllowed` (100:5), `isUpdateAllowed` (100:6), `isRemoveAllowed` (100:7). Pure projection over `AvlTreeData` runtime fields; no `@ergots/avltree` call.
+  - **Tier 2 — 6 verification ops** (zero per-handler cost): `contains` (100:9), `get` (100:10), `getMany` (100:11), `insert` (100:12), `update` (100:13), `remove` (100:14). Call into `@ergots/avltree` v0.2.0's `verifyAvlBatch` / `verifyAvlBatchPartial`.
+- `AvlTreeData` runtime shape promoted from phase-2a forward-declaration to stable: `{ digest: Uint8Array(33), treeFlags: u8, keyLength: u32, valueLengthOpt: u32 | null }`.
+- `_avltree-adapter.ts` added: 10 pure helpers bridging `AvlTreeData` → `@ergots/avltree`'s API (`avlTreeDataToConfig`, `buildLookupOps`, `buildInsertOps`, `buildUpdateOps`, `buildRemoveOps`, `withUpdatedDigest`, `extractBytes`, `extractByteArrayList`, `extractEntries`, `buildSingleLookupOp`).
+- 2 new `EvalError` codes: `'avl-tree-obj-not-avl-tree'` (defensive), `'avl-tree-proof-failed'` (verifier failure). 43 → 45 total.
+- Source-read corrections during implementation:
+  - `contains` DOES throw on verifier construct failure (only per-op fail returns `false`).
+  - `update` has NO V<3/V3+ split — always graceful break (returns Option None on per-op fail).
+  - V3+ partial-success on `insert`/`update` returns `Option None`, NOT `Some(AvlTree with partial digest)` — sigma-rust poisons `root = null` on failure, post-loop digest is None.
+  - `remove` confirmed: no V3+ break path; per-op fail always throws.
+- 47 fixture-driven tests (28 accessor + 19 verification op) + 7 throw-path tests + 21 mutation tests.
+
+**Phase 2h-b COMPLETE.** Method handler registry: 21 entries. EvalError codes: 45. Test count: 2787 + 21 = 2808.
+
 **Does NOT ship yet (deferred):**
 
 - **`Xor`** (byte-array XOR) — phase 2i alongside other predefs.
-- Header chain-state model (`Header` runtime + header-accessor methods) — phase 2h or later.
-- Broader method-call surface beyond the 8 registered handlers: Header methods, `Coll.zipWith` / `.reverse` / `.flatten` / `.getOrElse`, `SNumericTypeMethods` Bit shifts, additional `SBox`/`SHeader`/`SPreHeader` methods. Wait until phase 2i or corpus demand resurfaces.
-- AVL+ membership-proof verification — phase 2h.
+- Header chain-state model (`Header` runtime + header-accessor methods) — phase 2h-c or later.
+- Broader method-call surface beyond the 21 registered handlers: Header methods, `Coll.zipWith` / `.reverse` / `.flatten` / `.getOrElse`, `SNumericTypeMethods` Bit shifts, additional `SBox`/`SHeader`/`SPreHeader` methods, the 3 remaining `SAvlTree.*` methods (`updateOperations`/`updateDigest`/`insertOrUpdate`). Wait until phase 2i or corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
@@ -210,7 +226,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (43 codes)
+## `EvalError` taxonomy (45 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -297,9 +313,22 @@ type SValue =
 
 Phase 2g.6 added ZERO new codes — all 5 handlers reuse the codes above.
 
+### Phase 2h-b codes (SAvlTree.* method handlers)
+
+- **`'avl-tree-obj-not-avl-tree'`** — defensive receiver check on all 13 SAvlTree.* handlers when `obj.kind !== 'AvlTree'`. Wire-format invariants make this unreachable for parser-produced trees.
+- **`'avl-tree-proof-failed'`** — thrown when `@ergots/avltree`'s `verifyAvlBatch` / `verifyAvlBatchPartial` returns `null` (verifier construct failure: proof decode or digest mismatch). Sigma-rust-parity throw points:
+  - `get` (100:10) — verifier construct fail; per-op fail surfaces as `results[0] === null` → Option None (no throw)
+  - `getMany` (100:11) — verifier construct fail; per-key absence surfaces as per-key None in result Coll
+  - `insert` (100:12) — verifier construct fail (always); V<3 per-op fail also throws via `verifyAvlBatch` returning null when `opsCompleted < ops.length`
+  - `update` (100:13) — verifier construct fail; per-op fail surfaces as Option None (sigma-rust has unconditional graceful break — confirmed in Phase F source-read; no V<3 throw path)
+  - `remove` (100:14) — verifier construct fail OR per-op fail (no V3+ break for remove)
+  - `contains` (100:9) — verifier construct fail throws; per-op fail returns `false` (asymmetry confirmed in Phase F source-read at `eval/savltree.rs:372` vs `:379`)
+
+Single code per the compact-taxonomy decision from 2g.5; granular per-cause codes are noise without caller value (these are all "the script's assumption about chain state was wrong" and not branched-on by callers).
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
-## Method-handler registry (8 entries)
+## Method-handler registry (21 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -313,8 +342,23 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 6 | `SColl.indices` | 12:14 | `addPerItemCost(20, 2, 16, n)` | B | `Coll[Int]` = `[0, …, n-1]`; throws on `n > 2^31-1` | `eval/scoll.rs:171-193` |
 | 7 | `SContext.preHeader` | 101:3 | 15 | A | `{kind:'PreHeader', value: ctx.preHeader}`; throws `'context-field-missing'` on undefined | `eval/scontext.rs:72-81` |
 | 8 | `SPreHeader.timestamp` | 105:3 | 10 | A | `{kind:'Long', value: obj.value.timestamp}` (bigint passthrough) | `eval/spreheader.rs:20-24` |
+| 9 | `SAvlTree.digest` | 100:1 | 15 | A | `Coll[Byte]` | `eval/savltree.rs:28-34` |
+| 10 | `SAvlTree.enabledOperations` | 100:2 | 15 | A | `Byte` | `eval/savltree.rs:36-40` |
+| 11 | `SAvlTree.keyLength` | 100:3 | 15 | A | `Int` | `eval/savltree.rs:42-46` |
+| 12 | `SAvlTree.valueLengthOpt` | 100:4 | 15 | A | `Option[Int]` | `eval/savltree.rs:48-57` |
+| 13 | `SAvlTree.isInsertAllowed` | 100:5 | 15 | A | `Boolean` | `eval/savltree.rs:59-63` |
+| 14 | `SAvlTree.isUpdateAllowed` | 100:6 | 15 | A | `Boolean` | `eval/savltree.rs:65-69` |
+| 15 | `SAvlTree.isRemoveAllowed` | 100:7 | 15 | A | `Boolean` | `eval/savltree.rs:71-75` |
+| 16 | `SAvlTree.contains` | 100:9 | 0 | — | `Boolean` | `eval/savltree.rs:339-381` |
+| 17 | `SAvlTree.get` | 100:10 | 0 | — | `Option[Coll[Byte]]` | `eval/savltree.rs:104-150` |
+| 18 | `SAvlTree.getMany` | 100:11 | 0 | — | `Coll[Option[Coll[Byte]]]` | `eval/savltree.rs:152-212` |
+| 19 | `SAvlTree.insert` | 100:12 | 0 | — | `Option[AvlTree]` | `eval/savltree.rs:214-277` |
+| 20 | `SAvlTree.update` | 100:13 | 0 | — | `Option[AvlTree]` | `eval/savltree.rs:383-439` |
+| 21 | `SAvlTree.remove` | 100:14 | 0 | — | `Option[AvlTree]` | `eval/savltree.rs:279-337` |
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
+
+(The 13 `SAvlTree.*` handlers come from phase 2h-b. Tier-1 accessors 9-15 charge cost 15 BEFORE projecting over runtime `AvlTreeData` fields, no `@ergots/avltree` call. Tier-2 verification ops 16-21 charge zero per-handler cost — cost is owned by the lower-level verifier — and call into `@ergots/avltree` v0.2.0's `verifyAvlBatch` / `verifyAvlBatchPartial`.)
 
 ## Coverage and stability
 
@@ -334,11 +378,13 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 - 4 from phase 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`
 - 1 from phase 2g.6: `Global`
 
-Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`).
+Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run.
+
+**Method-handler registry: 21 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14).
 
 **Public function signatures are stable** from v0.2.0 onward. Future arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 
-**`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added 6 chain-state fields. Phase 2g.5 added `dataInputs?: ErgoBox[]`. Phase 2g.6 added no new fields (the existing `preHeader?: PreHeader` from 2f medium is consumed by the new `SContext.preHeader` handler). Phase 2h may add `headers` when Header arms land.
+**`EvalOpts` is open for additive growth.** Phase 2e added `treeVersion?: number`. Phase 2f medium added 6 chain-state fields. Phase 2g.5 added `dataInputs?: ErgoBox[]`. Phase 2g.6 added no new fields (the existing `preHeader?: PreHeader` from 2f medium is consumed by the new `SContext.preHeader` handler). Phase 2h-b added no new fields (the `SAvlTree.*` handlers receive the receiver `AvlTreeData` through the method-call arg surface, not via context). Phase 2h-c may add `headers` when Header arms land.
 
 **`@noble/curves@2.2.0` added in phase 2g-medium.** Version-locked with `@noble/hashes@2.2.0`. Used by the secp256k1 adapter (`crypto/secp256k1.ts`) and the sigma verifier (see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md)).
 
