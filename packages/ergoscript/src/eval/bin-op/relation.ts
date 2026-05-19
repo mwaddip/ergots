@@ -326,10 +326,11 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return true
     }
 
-    // Box, AvlTree, PreHeader: not equality-comparable via BinOp in v0 ErgoScript.
+    // Box, AvlTree, PreHeader, Header: not equality-comparable via BinOp in v0 ErgoScript.
     case 'Box':
     case 'AvlTree':
     case 'PreHeader':
+    case 'Header':
       throw new EvalError(
         `BinOp.Relation.Eq: ${a.kind} equality not yet implemented in this slice`,
         'not-implemented-yet'
@@ -419,6 +420,7 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Box':
     case 'AvlTree':
     case 'PreHeader':
+    case 'Header':
       throw new EvalError(
         `sValueEquals inner Coll: ${a.kind} equality not yet implemented`,
         'not-implemented-yet'

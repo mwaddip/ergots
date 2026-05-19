@@ -13,6 +13,8 @@
  * discriminated-union rationale.
  */
 
+import type { Header } from '@ergots/scorex'
+
 /** Type variable for generic signatures (e.g. `"T"`, `"IV"`, `"OV"`). */
 export interface STypeVar {
   name: string
@@ -831,6 +833,7 @@ export type SValue =
   | { kind: 'SigmaProp'; value: SigmaBoolean }
   | { kind: 'Box'; value: ErgoBox }
   | { kind: 'PreHeader'; value: PreHeader }
+  | { kind: 'Header'; value: Header }              // phase 2h-c.1
   | { kind: 'AvlTree'; value: AvlTreeData }
   | { kind: 'Unit' }
   | { kind: 'Context' }

@@ -9,6 +9,7 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/context.rs:77-99
  */
 
+import type { Header } from '@ergots/scorex'
 import type { ErgoBox, PreHeader, ContextExtension, SValue } from '../mir/types'
 
 export class EvalError extends Error {
@@ -58,6 +59,8 @@ export interface EvalOpts {
    * `undefined` treated as empty (matches sigma-rust `map_or(Arc::new([]), ...)`).
    */
   dataInputs?: ErgoBox[]
+  /** Block headers; sigma-rust uses fixed-size [Header; 10] — TS relaxes to variable length. */
+  headers?: Header[]
 }
 
 export interface EvalContext extends EvalOpts {
@@ -91,6 +94,7 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     preHeader: opts.preHeader,
     extension: opts.extension,
     dataInputs: opts.dataInputs,
+    headers: opts.headers,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {
