@@ -8,7 +8,7 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 
 **Ships in this contract:**
 
-1. Parse + serialize for `NipopowProof`, `PoPowHeader`, interlinks merkle proof, and `n_bits` target unpacking. `Header`, `AutolykosSolution`, `ByteReader`, `ByteWriter`, `ReaderError`, and VLQ functions are re-exported from `@ergots/scorex` — see [`facts/scorex.md`](./scorex.md) for their canonical shapes and wire formats.
+1. Parse + serialize for `NipopowProof`, `PoPowHeader`, interlinks merkle proof, and `n_bits` target unpacking. `Header`, `AutolykosSolution`, `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions, `verifyAutolykosV2`, and `decodeCompactBits` are re-exported from `@ergots/scorex` — see [`facts/scorex.md`](./scorex.md) for their canonical shapes and wire formats.
 2. Stateless verification: structural checks (heights, connections) + optional Autolykos v2 PoW.
 3. Pairwise comparison (KMZ17 §4.3 "is A better than B").
 4. P2P envelope codec for message codes 90 (`GetNipopowProof`) and 91 (`NipopowProof`), exposed via the `/envelope` subpath.
