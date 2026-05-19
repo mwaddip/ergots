@@ -144,7 +144,7 @@ interface ErgoTree {
 
 - `rawHeader` is the on-wire byte. The `version`, `hasSize`, `constantSegregation` fields are derived projections kept on the struct so callers don't need to re-decode bits. `serializeTree` writes `rawHeader` directly but validates that it matches the derived fields — a hand-constructed `ErgoTree` with inconsistent fields is rejected at serialize time with `'header-inconsistent'`.
 - `constantTypes` is parallel to `constants[]` and carries the per-constant `SType` recovered from the wire. It's necessary because a parsed `SValue` does not unambiguously encode its `SType` for some edge cases (empty `Coll`, `None` for `SOption`); sigma-rust avoids this because its `Constant { tpe, v }` couples them at the struct level.
-- `ErgoBox`, `AvlTreeData`, and `Closure` are forward-declared in phase 2a. Their shapes are stable for the wire-format surface but evaluator-only fields may be added in later phases (see [`facts/ergoscript-eval.md`](./ergoscript-eval.md)).
+- `ErgoBox` and `AvlTreeData` shapes are stable: `ErgoBox` was promoted in phase 2f Stop α and `AvlTreeData` in phase 2h-b. `Closure` remains forward-declared until the FuncValue/Apply evaluator arms land. Evaluator-only fields may still be added in later phases (see [`facts/ergoscript-eval.md`](./ergoscript-eval.md)).
 
 ## Error taxonomy (wire-layer error classes)
 
@@ -173,8 +173,8 @@ Per-class code enumeration (every code below is emitted by current source):
 - **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch).
 - **`STypeParseError`**: `'invalid-type-code'`, `'unsupported-type'`, `'invalid-tuple-length'`, `'invalid-stypevar-length'`, `'invalid-stypevar-utf8'`, `'invalid-sfunc-tpe-params'`.
 - **`STypeSerializeError`**: `'tuple-too-short'`, `'tuple-too-long'`, `'stypevar-name-length'`, `'sfunc-tdom-too-long'`, `'sfunc-tpe-params-too-long'`, `'unreachable'`.
-- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SAvlTree`/`SHeader`/`SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed from this set in phase 2f Stop α), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-ergo-tree-no-size'`.
-- **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-tokens-out-of-range'`.
+- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SHeader`/`SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-ergo-tree-no-size'`.
+- **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-tokens-out-of-range'`, `'savltree-digest-length'`, `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`.
 - **`SigmaBooleanParseError`**: `'arity-out-of-range'`, `'unknown-opcode'`, `'cthreshold-k-out-of-range'` (Cthreshold's `k` outside `[1, items.length]`; added phase 2g-medium), `'sigma-conjecture-empty-items'` (Cand/Cor/Cthreshold parsed with `items.length === 0`; added phase 2g-medium).
 - **`ExprTpeError`** (raised by `exprTpe`, the SType-of-Expr projection): `'apply-func-not-sfunc'`, `'bin-op-kind-unhandled'`, `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'select-field-input-not-stuple'`, `'select-field-out-of-range'`, `'tpe-not-implemented'`.
 - **`ReaderError`** (raised by `ByteReader`): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`.
@@ -190,6 +190,33 @@ The SBox wire-format surface closes in phase 2f Stop α. Stop β added two regis
 - **`ErgoBox.registers` shape (phase 2f Stop α):** extends from `Record<number, SValue | undefined>` to `Record<number, { tpe: SType; value: SValue } | undefined>`. Per-register `SType` carriage matches sigma-rust's `NonMandatoryRegisters` storing `Constant<'static>` and is required by the downstream `ExtractRegisterAs` evaluator arm's type-assertion (see eval slice).
 - **`wire/ergo-box-bytes.ts` (phase 2f Stop γ):** exports `serializeBoxBytes` and `serializeBoxBytesWithoutRef` (reusable for the wallet phase). Internal refactor: the `SBox` arm in `serialize-svalue.ts` delegates to a shared `writeBoxBodyWithoutRef` helper (no public-surface change).
 - **First eval-time `blake2b` call in the package (phase 2f Stop γ):** uses the existing `@noble/hashes/blake2.js` dep from phase 2a. No new runtime dependency.
+
+## Phase 2h-b wire updates (SAvlTree)
+
+`parseSValue(SAvlTree, …)` and `serializeSValue(SAvlTree, …)` ship in phase 2h-b, replacing the phase-2a `'not-implemented-phase-2a'` throw. Round-trip invariant byte-equal on every fixture entry under `test/fixtures/eval/savltree-*.json` (47 entries across 13 files — 7 Tier-1 accessor fixtures + 6 Tier-2 verification-op fixtures). Other deferred SValue kinds (`SHeader`, `SPreHeader`, `SContext`, `SGlobal`, `SAny`, `SString`, `SFunc`, `STypeVar`) still throw `'not-implemented-phase-2a'`.
+
+`AvlTreeData` is promoted from forward-declaration to stable runtime shape (`mir/types.ts`):
+
+```ts
+interface AvlTreeData {
+  digest: Uint8Array              // exactly 33 bytes (32-byte root hash + 1-byte tree height)
+  treeFlags: number               // u8: bit 0 insertAllowed, bit 1 updateAllowed, bit 2 removeAllowed, bits 3-7 reserved
+  keyLength: number               // u32 (VLQ-encoded on the wire)
+  valueLengthOpt: number | null   // null = variable; non-null = fixed value length
+}
+```
+
+The wire format mirrors sigma-rust `ergotree-ir/src/mir/avl_tree_data.rs:71-90`:
+
+1. `digest` — ADDigest `scorex_serialize` is `write_all(self.0)` for `Digest<33>` (ergo-chain-types/src/digest32.rs:149-153). On-wire: 33 RAW bytes, NO length prefix. The 33rd byte is the tree-height byte.
+2. `treeFlags` — single `u8` via `put_u8`. Bits 3-7 round-trip identically (no masking).
+3. `keyLength` — VLQ `u32` via `put_u32` (which is `put_u64(v as u64)` in sigma-ser/src/vlq_encode.rs:78). NOT fixed 4-byte big-endian.
+4. `valueLengthOpt` — `Option<Box<u32>>` SigmaSerializable (serialization/serializable.rs:212-231):
+   - `Some(v)`: `0x01` tag + VLQ-u32 inner value.
+   - `None`: `0x00` tag.
+   - Parser is permissive: any non-zero tag byte is treated as `Some`. Serializer canonicalizes to `0x01` for `Some`.
+
+New `SValueSerializeError` codes added by this slice: `'savltree-digest-length'`, `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`. No new `SValueParseError` codes (the parser delegates length / VLQ-overflow checks to `ByteReader`).
 
 ## Coverage
 

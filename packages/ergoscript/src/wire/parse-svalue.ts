@@ -42,12 +42,13 @@
  *   - STuple[T1, T2, ...]: items in order, NO length prefix on the wire.
  *     The arity is recoverable from the SType.
  *
- * Deferred kinds (SBox, SAvlTree, SSigmaProp, SHeader, SPreHeader, SContext,
- * SGlobal, SAny, SString, SFunc, STypeVar) throw `SValueParseError` with
- * code `not-implemented-phase-2a`. Phase 2a corpora don't contain inline
- * `Const(_)` values of these types — they appear only as `Expr.tpe` slots
- * (e.g. for `MethodCall` return types) or as `SColl.elem` slots, and their
- * runtime values are produced by accessors and predefs at evaluation time.
+ * Deferred kinds (SHeader, SPreHeader, SContext, SGlobal, SAny, SString,
+ * SFunc, STypeVar) throw `SValueParseError` with code `not-implemented-phase-2a`.
+ * SBox shipped in phase 2f Stop α; SAvlTree shipped in phase 2h-b.
+ * Phase 2a corpora don't contain inline `Const(_)` values of the still-deferred
+ * types — they appear only as `Expr.tpe` slots (e.g. for `MethodCall` return
+ * types) or as `SColl.elem` slots, and their runtime values are produced by
+ * accessors and predefs at evaluation time.
  *
  * Cross-reference:
  *   - `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/data.rs`
@@ -329,13 +330,47 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       }
     }
 
+    case 'SAvlTree': {
+      // SAvlTree wire encoding (sigma-rust `mir/avl_tree_data.rs:79-90`).
+      //
+      // Read sequence:
+      //   digest          — ADDigest scorex_parse: 33 RAW bytes (Digest<N>
+      //                     is `read_exact(&mut [0u8; N])` —
+      //                     ergo-chain-types/src/digest32.rs:154-158).
+      //                     The 33rd byte is the tree-height byte; the
+      //                     first 32 bytes are the root hash. Stored
+      //                     verbatim (no parse/validation here — the
+      //                     evaluator decides what to do with the contents).
+      //   treeFlags       — raw u8 (`r.get_u8()?`). Bits 3-7 are reserved
+      //                     and round-trip identically; we do NOT mask
+      //                     them off because that would silently drop
+      //                     bytes the wire fixed.
+      //   keyLength       — VLQ u32 (`r.get_u32()?` → readVlqU). Stored
+      //                     as JS number; valid range is `[0, 2^32 - 1]`.
+      //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
+      //                     (`serialization/serializable.rs:223-230`).
+      //                     Read 1-byte tag: any non-zero tag means Some,
+      //                     `0` means None. Parser is permissive (`tag != 0`)
+      //                     where serializer writes only `0` or `1`; the
+      //                     serializer round-trip will canonicalize to
+      //                     `0x01` for Some.
+      const digest = r.readBytes(33).slice()
+      const treeFlags = r.readU8()
+      const keyLength = r.readVlqU()
+      const optTag = r.readU8()
+      const valueLengthOpt = optTag !== 0 ? r.readVlqU() : null
+      return {
+        kind: 'AvlTree',
+        value: { digest, treeFlags, keyLength, valueLengthOpt },
+      }
+    }
+
     // ---------------------------------------------------------------------
     // Deferred kinds. These appear in `Expr.tpe` slots but not as inline
     // `Const(_)` values in phase 2a corpora. If a phase 2a fixture trips
     // one of these, the fixture itself must be deferred to the appropriate
     // later phase.
     // ---------------------------------------------------------------------
-    case 'SAvlTree':
     case 'SHeader':
     case 'SPreHeader':
     case 'SContext':

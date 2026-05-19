@@ -338,11 +338,75 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       return
     }
 
+    case 'SAvlTree': {
+      // SAvlTree wire encoding (sigma-rust `mir/avl_tree_data.rs:72-78`).
+      //
+      // Write sequence:
+      //   digest          — 33 RAW bytes (ADDigest scorex_serialize is
+      //                     `write_all(self.0)` — no length prefix). The
+      //                     33-byte length check is load-bearing because
+      //                     anything else would silently desynchronize
+      //                     the wire cursor on read-back.
+      //   treeFlags       — single u8 (`put_u8`). Caller-supplied byte
+      //                     written verbatim, including any high reserved
+      //                     bits that the parser tolerated.
+      //   keyLength       — VLQ u32 (`put_u32` → `put_u64(v as u64)`).
+      //                     Bounds-checked to `[0, 2^32 - 1]`.
+      //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
+      //                     (`serialization/serializable.rs:213-221`):
+      //                       Some(v) → 0x01 + sigma_serialize(v as u32)
+      //                       None    → 0x00
+      //                     The serializer always writes the canonical
+      //                     `0x01` tag for Some (the parser is permissive
+      //                     and accepts any non-zero tag, but we emit the
+      //                     canonical form so round-trips are stable).
+      assertKind(t, v, 'AvlTree')
+      const a = v.value
+      if (a.digest.length !== 33) {
+        throw new SValueSerializeError(
+          `SAvlTree digest length ${a.digest.length} must be 33 ` +
+            '(32-byte root hash + 1-byte tree height)',
+          'savltree-digest-length'
+        )
+      }
+      if (!Number.isInteger(a.treeFlags) || a.treeFlags < 0 || a.treeFlags > 0xff) {
+        throw new SValueSerializeError(
+          `SAvlTree treeFlags ${a.treeFlags} out of u8 range`,
+          'savltree-tree-flags-out-of-range'
+        )
+      }
+      if (!Number.isInteger(a.keyLength) || a.keyLength < 0 || a.keyLength > 0xffffffff) {
+        throw new SValueSerializeError(
+          `SAvlTree keyLength ${a.keyLength} out of u32 range`,
+          'savltree-key-length-out-of-range'
+        )
+      }
+      w.writeBytes(a.digest)
+      w.writeU8(a.treeFlags)
+      w.writeVlqU(a.keyLength)
+      if (a.valueLengthOpt === null) {
+        w.writeU8(0)
+      } else {
+        if (
+          !Number.isInteger(a.valueLengthOpt) ||
+          a.valueLengthOpt < 0 ||
+          a.valueLengthOpt > 0xffffffff
+        ) {
+          throw new SValueSerializeError(
+            `SAvlTree valueLengthOpt ${a.valueLengthOpt} out of u32 range`,
+            'savltree-value-length-out-of-range'
+          )
+        }
+        w.writeU8(1)
+        w.writeVlqU(a.valueLengthOpt)
+      }
+      return
+    }
+
     // ---------------------------------------------------------------------
     // Deferred kinds: same set as parseSValue's deferred arms. No inline
     // `Const(_)` of these types appears in phase 2a corpora.
     // ---------------------------------------------------------------------
-    case 'SAvlTree':
     case 'SHeader':
     case 'SPreHeader':
     case 'SContext':

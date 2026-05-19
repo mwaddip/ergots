@@ -340,7 +340,7 @@ describe('SValue deferred-kind errors', () => {
   // is covered by `describe('SValue SSigmaProp …')` below.
   const deferred: SType[] = [
     // SBox is implemented in phase 2f (see test/wire/sbox-roundtrip.test.ts)
-    { tag: 'SAvlTree' },
+    // SAvlTree is implemented in phase 2h-b (see test/wire/svalue-savltree.test.ts)
     { tag: 'SHeader' },
     { tag: 'SPreHeader' },
     { tag: 'SContext' },

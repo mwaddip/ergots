@@ -89,23 +89,29 @@ export interface ErgoBox {
 }
 
 /**
- * Stub: AVL+ tree authenticator. Mirrors sigma-rust
- * `ergotree-ir/src/mir/avl_tree_data.rs` `AvlTreeData`.
+ * Runtime shape of an AVL+ tree value. Mirrors sigma-rust
+ * `ergotree-ir/src/mir/avl_tree_data.rs:60-69` `AvlTreeData`.
  *
  * `digest` is the JVM/Rust `ADDigest` = `Digest<33>` — 32 bytes of root hash
  * concatenated with 1 byte of tree height (33 bytes total).
  *
- * `treeFlags` is the serialized `AvlTreeFlags` byte: bit 0 = insert allowed,
- * bit 1 = update allowed, bit 2 = remove allowed.
+ * `treeFlags` is the serialized `AvlTreeFlags` byte (`avl_tree_data.rs:16-25`):
+ *   bit 0 (0x01): insertAllowed
+ *   bit 1 (0x02): updateAllowed
+ *   bit 2 (0x04): removeAllowed
+ *   bits 3-7: reserved (must round-trip identically).
+ *
+ * Stable since phase 2h-b — promoted from forward-declaration when
+ * `parseSValue(SAvlTree, …)` / `serializeSValue(SAvlTree, …)` shipped.
  */
 export interface AvlTreeData {
-  /** Root hash (32 bytes) + tree-height byte = 33 bytes total. */
+  /** Root hash (32 bytes) + tree-height byte = exactly 33 bytes. */
   digest: Uint8Array
   /** Enabled-operations bitfield (u8). */
   treeFlags: number
-  /** Common key length (Rust `u32`). */
+  /** Common key length (Rust `u32`; `>= 0`, VLQ-encoded on the wire). */
   keyLength: number
-  /** If non-null, all values share this length (Rust `Option<u32>`). */
+  /** If non-null, all values share this length (Rust `Option<Box<u32>>`). */
   valueLengthOpt: number | null
 }
 
