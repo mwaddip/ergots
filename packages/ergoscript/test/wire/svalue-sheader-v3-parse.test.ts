@@ -7,10 +7,10 @@
  *   - parseSValue(SHeader, treeVersion=2, r) throws SValueParseError with code
  *     'sheader-tree-version-too-low' (mirrors sigma-rust data.rs:196 V3 gate).
  *
- * Fixture: header-v2-mainnet.bin — the `synthetic-h1` V2 mainnet header from the
- * nipopow fixture corpus, converted to binary. Its `bytes_hex` is the canonical
- * scorex serialization of a V2 Ergo block header; parseHeader can parse it regardless
- * of treeVersion (the treeVersion gate is on the SValue wrapper, not parseHeader itself).
+ * Fixture: header-v2-mainnet.bin — the `synthetic-h1` entry in
+ * `packages/nipopow/test/fixtures/header.json` (`bytes_hex` field), converted
+ * to binary (215 bytes). parseHeader can parse it regardless of treeVersion
+ * (the treeVersion gate is on the SValue wrapper, not parseHeader itself).
  */
 import { describe, expect, test } from 'vitest'
 import { readFileSync } from 'node:fs'

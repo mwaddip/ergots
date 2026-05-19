@@ -447,12 +447,7 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
           'sheader-tree-version-too-low'
         )
       }
-      if (v.kind !== 'Header') {
-        throw new SValueSerializeError(
-          `serializeSValue(SHeader, ...): value kind '${v.kind}' does not match SHeader`,
-          'type-value-mismatch'
-        )
-      }
+      assertKind(t, v, 'Header')
       const bytes = serializeHeader(v.value)
       w.writeBytes(bytes)
       return

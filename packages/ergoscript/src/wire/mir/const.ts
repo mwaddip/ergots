@@ -37,6 +37,9 @@ import { serializeSValue } from '../serialize-svalue'
  * `treeVersion` gates SHeader: see `parseSValue` for details. For inline body
  * constants, `treeVersion` should be the ErgoTree header version of the
  * enclosing tree (0 = safe default for pre-V3 trees).
+ * Required (not defaulted) so call sites inherited from the Expr dispatcher
+ * always thread an explicit value — the default lives at the public
+ * parseExpr / parseExprWithFirstByte boundary.
  */
 export function parseConstFromByte(firstByte: number, treeVersion: number, r: ByteReader): Const {
   const tpe = parseSTypeWithFirstByte(firstByte, r)
@@ -50,6 +53,8 @@ export function parseConstFromByte(firstByte: number, treeVersion: number, r: By
  * not (and must not) emit an opcode prefix for Const.
  *
  * `treeVersion` gates SHeader: see `serializeSValue` for details.
+ * Required (not defaulted) for the same reason as parseConstFromByte — the
+ * default lives at the serializeExpr boundary.
  */
 export function serializeConst(c: Const, treeVersion: number, w: ByteWriter): void {
   serializeSType(c.tpe, w)
