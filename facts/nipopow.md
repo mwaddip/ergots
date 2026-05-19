@@ -63,7 +63,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 #### `compareProofs(a, b)`
 
 - **Precondition:** Both `a` and `b` are valid proof byte sequences. (Parse failures throw; do NOT silently return `false`.)
-- **Postcondition:** Returns `true` iff `a` is strictly better than `b` per KMZ17 §4.3 (`is_better_than` in the Rust).
+- **Postcondition:** Returns `true` iff `a` is strictly better than `b` per KMZ17 §4.3 (`is_better_than` in the Rust). Internally validates each proof via `isValid` (connections + heights + interlinks Merkle proof per PoPowHeader — but NOT PoW; that's caller responsibility, same as sigma-rust). If both are invalid, returns `false`; if only `b` is invalid, returns `a.isValid()`; both valid → best-arg comparison per KMZ17.
 - **Invariant:** `compareProofs(a, b)` and `compareProofs(b, a)` are not both `true`. Equivalent proofs return `false` in both directions.
 
 ### Subpath export: `@ergots/nipopow/envelope`

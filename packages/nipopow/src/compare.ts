@@ -42,6 +42,7 @@
 import { parseProof, type NipopowProof } from './proof.ts';
 import type { Header } from './header.ts';
 import { hasValidConnections } from './connections.ts';
+import { checkInterlinksProof } from './verifier.ts';
 import { decodeCompactBits } from './nbits.ts';
 import {
   autolykosMessage,
@@ -110,26 +111,24 @@ function isBetterThan(a: NipopowProof, b: NipopowProof): boolean {
  * Mirrors sigma-rust NipopowProof::is_valid:
  *   has_valid_connections() && has_valid_heights() && has_valid_proofs()
  *
- * Note: has_valid_proofs() checks interlink Merkle proofs. We mirror this by
- * calling hasValidConnections (which we already implement) and the two height
- * and structural checks below.
+ * has_valid_proofs() runs checkInterlinksProof on every PoPowHeader. Closes
+ * Codex audit Finding #2: compareProofs previously skipped the interlink-
+ * Merkle-proof check, so it scored proofs with invalid interlinks proofs as
+ * if they were valid. Now mirrors sigma-rust's is_better_than: invalid proofs
+ * are NOT comparable; if one is invalid, the valid one "wins"; both invalid
+ * returns false.
  *
- * has_valid_proofs(): checks PoPowHeader::check_interlinks_proof for each
- * popow header. We skip this here because our parsed proofs always carry
- * a valid interlinks_proof from parse (we trust the parse) and sigma-rust's
- * has_valid_proofs check is a structural sanity that always passes for any
- * proof successfully serialized by sigma-rust's prove(). This matches what
- * sigma-rust does in practice for proofs returned from the node.
- *
- * The decision not to re-verify interlink proofs here is intentional and
- * consistent with how sigma-rust behaves in practice: is_better_than is only
- * called on proofs that were already well-formed enough to deserialize.
- * If we need strict interlink-proof checking, callers should run verifyProof
- * first. The isValid guard here is to handle the case where a proof is
- * structurally malformed (non-increasing heights, broken connections).
+ * NOT checked (also matches sigma-rust): PoW. Callers that need PoW
+ * enforcement should run verifyProof on each raw-bytes proof BEFORE calling
+ * compareProofs.
  */
 function isValid(proof: NipopowProof): boolean {
-  return hasValidConnections(proof) && hasValidHeights(proof);
+  if (!hasValidConnections(proof)) return false;
+  if (!hasValidHeights(proof)) return false;
+  for (const ph of [proof.suffixHead, ...proof.prefix]) {
+    if (!checkInterlinksProof(ph)) return false;
+  }
+  return true;
 }
 
 function hasValidHeights(proof: NipopowProof): boolean {

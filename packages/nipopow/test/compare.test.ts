@@ -58,4 +58,42 @@ describe('compareProofs', () => {
     const malformed = new Uint8Array([0xff, 0xff, 0xff]);
     expect(() => compareProofs(valid, malformed)).toThrow(ProofParseError);
   });
+
+  // Codex audit Finding #2: compareProofs must NOT score proofs with invalid
+  // interlinks proofs as if they were valid. Mirrors sigma-rust is_better_than:
+  // if b is invalid and a is valid → a wins; if both invalid → false.
+  test('compareProofs returns true when b has mutated interlinks (a wins)', async () => {
+    const { parseProof, serializeProof } = await import('../src/proof.ts');
+    const aBytes = hexToBytes(fixtures[0]!.a_hex);
+    const bBytes = hexToBytes(fixtures[0]!.b_hex);
+    const parsedB = parseProof(bBytes);
+    if (parsedB.suffixHead.interlinks.length < 2) {
+      // Fixture has no non-genesis interlink to mutate; skip.
+      return;
+    }
+    const mutated = new Uint8Array(parsedB.suffixHead.interlinks[1]!);
+    mutated[0] = (mutated[0]! ^ 0xFF) & 0xFF;
+    parsedB.suffixHead.interlinks[1] = mutated;
+    const mutatedBBytes = serializeProof(parsedB);
+    // a is valid; b has mutated interlinks → b is invalid. sigma-rust
+    // is_better_than: a > b returns a.is_valid() = true.
+    expect(compareProofs(aBytes, mutatedBBytes)).toBe(true);
+  });
+
+  test('compareProofs returns false when both proofs have mutated interlinks', async () => {
+    const { parseProof, serializeProof } = await import('../src/proof.ts');
+    const aBytes = hexToBytes(fixtures[0]!.a_hex);
+    const bBytes = hexToBytes(fixtures[0]!.b_hex);
+    const mutate = (b: Uint8Array): Uint8Array => {
+      const p = parseProof(b);
+      if (p.suffixHead.interlinks.length < 2) return b;
+      const m = new Uint8Array(p.suffixHead.interlinks[1]!);
+      m[0] = (m[0]! ^ 0xFF) & 0xFF;
+      p.suffixHead.interlinks[1] = m;
+      return serializeProof(p);
+    };
+    const mutatedA = mutate(aBytes);
+    const mutatedB = mutate(bBytes);
+    expect(compareProofs(mutatedA, mutatedB)).toBe(false);
+  });
 });
