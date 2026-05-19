@@ -16,6 +16,7 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 
 **Does NOT ship:**
 
+- **Consensus header validation.** `verifyProof` validates each header's Autolykos v2 solution against that header's **self-declared** `nBits`, but does NOT validate `nBits` against consensus chain parameters (difficulty-adjustment rule, hard-fork schedule for header.version, trusted anchor / checkpoint policy). An attacker who controls proof construction can choose the work target. Consumers MUST combine `verifyProof` with an external consensus verifier for any security-critical use. Full consensus header validation is a planned future phase. See "Limitations" below.
 - Proof construction (`build_nipopow_proof` in the Rust). Requires header-chain + extension cache; out of scope.
 - Multi-peer best-arg orchestration (collecting/voting on multiple proofs from multiple peers). The pairwise `compareProofs` is in; the orchestration is not.
 - Continuous-mode proofs. `VerificationResult.continuous` is always `false`, mirroring `chain/src/nipopow_proof.rs:43-44`.
@@ -54,7 +55,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
   - `headers` heights are strictly increasing
   - `headers[headers.length - 1].height === suffixTipHeight`
   - `continuous === false`
-  - If `checkPoW === true`, every version >= 2 `header` has a valid Autolykos v2 solution under its `nBits` target; version 1 headers are structurally accepted (Autolykos v1 PoW is not verified, mirroring sigma-rust's `Unsupported` behavior)
+  - If `checkPoW === true`, every version >= 2 `header` has a valid Autolykos v2 solution under that header's **self-declared** `nBits` target (NOT validated against the network's difficulty-adjustment rule — see "Limitations" below); version 1 headers are structurally accepted (Autolykos v1 PoW is not verified, mirroring sigma-rust's `Unsupported` behavior, and V1 acceptance is unconditional on height — a separate scope limitation)
   - Parent-linkage connections (`has_valid_connections` in the Rust) hold across the proof
   - Interlink Merkle proof per PoPowHeader (`check_interlinks_proof` in the Rust) holds: the proof's stored leaf hashes walk up to the Merkle root computed from `packInterlinks(interlinks)` (interlinks-only extension tree). See "Known limitations" below.
 - **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`), `invalid-interlinks-proof`.
@@ -178,8 +179,9 @@ Each error's `.message` is human-readable; each carries a `code: string` matchin
 
 No other error classes are exported from this package. Internal panics (e.g. blake2b implementation bugs) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
 
-## Known limitations
+## Limitations
 
+- **`verifyProof` is a structural + Autolykos-v2 verifier, NOT a consensus verifier.** It validates parse-shape, linkage, strictly-increasing heights, and each version ≥ 2 header's Autolykos v2 solution under that header's self-declared `nBits`. It does NOT validate `nBits` against the network's difficulty-adjustment rule, does NOT validate `header.version` against the network's hard-fork schedule, and does NOT anchor the proof to a trusted checkpoint or known chain tip. Version 1 headers are accepted structurally with no PoW check at any height. An attacker who controls proof construction can freely choose `nBits` and `version` to bypass cryptographic difficulty. **Combine `verifyProof` with an external consensus verifier for any security-critical use.** Full consensus header validation is a planned future phase.
 - **Interlink Merkle proof anchors to interlinks-only-root, NOT `header.extensionRoot`.** The NiPoPoW proof commits to an interlinks-only ExtensionCandidate's Merkle root, mirroring sigma-rust's `PoPowHeader::check_interlinks_proof`. For mainnet blocks whose actual on-chain extension contains only interlinks (no votes/params at this height), `header.extensionRoot` coincidentally equals the interlinks-only-root; for blocks with richer extensions, the two diverge, and verification anchors to interlinks-only-root, not the on-chain commitment. Future work: add an explicit `header.extensionRoot` anchoring mode for callers that need full-extension-root assurance.
 
 - **`packInterlinks` uses JVM Ergo's position-based key encoding** (`[0x01, position_of_first_occurrence_in_interlinks_array]`). Sigma-rust's `NipopowAlgos::pack_interlinks` (ergo-nipopow/src/nipopow_algos.rs:326-357) previously used sequential `distinct_ix` which round-tripped internally but didn't match JVM-generated mainnet proofs; **fixed upstream as [ergoplatform/sigma-rust#866](https://github.com/ergoplatform/sigma-rust/pull/866) (landed 2026-05-19, cherry-picked to `integration/ergots`).** This TS port and fixture-gen now agree with patched sigma-rust byte-for-byte.

@@ -15,6 +15,12 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md) for the full rationale.
 
+## Scope and consensus caveat
+
+`@ergots/nipopow`'s `verifyProof` is a **structural + Autolykos-v2 verifier**. It validates proof framing, parent linkage, strictly-increasing heights, and each version ≥ 2 header's Autolykos v2 solution under that header's **self-declared** `nBits` target. It does NOT validate `nBits` against the network's difficulty-adjustment rule, does NOT validate `header.version` against the network's hard-fork schedule, and does NOT anchor the proof to a trusted checkpoint. **Combine `verifyProof` with an external consensus verifier for any security-critical use.** Full consensus header validation is a planned future phase.
+
+See `packages/nipopow/API.md` and `facts/nipopow.md` for the load-bearing scope details before relying on the result.
+
 ## Layout
 
 ```

@@ -13,6 +13,29 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 
 ---
 
+## Scope and consensus caveat
+
+`verifyProof` is a **structural + Autolykos-v2 verifier**, not a standalone consensus verifier.
+
+What it validates:
+
+- Proof framing (parse, size bounds, shape invariants).
+- Parent linkage and interlink consistency across the prefix and prefix→suffix-head boundary.
+- Strictly-increasing heights across the proof.
+- For each version ≥ 2 header, the Autolykos v2 solution under that header's **self-declared** `nBits` target.
+
+What it does NOT validate:
+
+- That `nBits` is the consensus difficulty for the header's height under the network's difficulty-adjustment rule.
+- That the header's version is valid for its height under the network's hard-fork schedule.
+- Anchoring to a trusted checkpoint or known chain tip.
+- Anchoring of the interlinks proof to `header.extensionRoot` (see Limitations in `facts/nipopow.md`).
+- Autolykos v1 PoW for version 1 headers (those headers are accepted structurally).
+
+An attacker who controls proof construction can present a proof whose work target is chosen freely; `verifyProof` will accept it as long as the framing, linkage, and self-declared PoW are internally consistent. **For any security-critical use, combine `verifyProof` with an external consensus verifier that knows the network's difficulty schedule, hard-fork heights, and a trusted anchor.** Full consensus header validation is a planned future phase of this project.
+
+---
+
 ## Primary export
 
 ```ts
@@ -60,7 +83,7 @@ Inverse of `parseProof`. For any well-formed proof bytes `b`, `serializeProof(pa
 function verifyProof(bytes: Uint8Array, opts?: VerifyOptions): VerificationResult;
 ```
 
-Full verification pipeline: parse → connections → strictly-increasing heights → optional per-header PoW.
+Structural + Autolykos-v2 verification pipeline: parse → connections → strictly-increasing heights → optional per-header PoW against each header's self-declared `nBits`. **Not a consensus verifier** — see [Scope and consensus caveat](#scope-and-consensus-caveat) above before relying on the result.
 
 - **Default `opts.checkPoW`:** `true`.
 - **Returns:** `VerificationResult` (see types below).
@@ -293,7 +316,7 @@ Thrown by `verifyProof` and `verifyParsedProof`.
 | `'parse-failed'` | Parsing failed (wraps the underlying `ProofParseError` via `.cause`); thrown by `verifyProof` only |
 | `'invalid-connections'` | A header pair in the prefix or at the prefix/suffix-head boundary fails parent-linkage check (interlink or parent-id match within the 11-entry lookback window) |
 | `'non-increasing-heights'` | Two adjacent headers in the proof have non-strictly-increasing heights |
-| `'pow-failed'` | A version ≥ 2 header's Autolykos v2 solution doesn't satisfy its declared difficulty target |
+| `'pow-failed'` | A version ≥ 2 header's Autolykos v2 solution doesn't satisfy that header's **self-declared** `nBits` target. (The target itself is not validated against consensus chain parameters — see [Scope and consensus caveat](#scope-and-consensus-caveat).) |
 | `'empty-proof'` | Defensive; unreachable for any well-formed proof |
 
 ### `EnvelopeParseError` codes
