@@ -64,7 +64,12 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      return { kind: 'Int', value: ctx.height }
+      // Audit ERG-08: sigma-rust does `ctx.height as i32` (eval/global_vars.rs:8).
+      // For heights >= 2^31, the i32 cast wraps to a negative value. We mirror
+      // that wrapping so SValue.Int evaluation matches sigma-rust byte-for-byte
+      // for the SInt kind constraint.
+      const i32Height = (ctx.height | 0)
+      return { kind: 'Int', value: i32Height }
     }
     case 'SelfBox': {
       ctx.addCost(SELF_BOX_COST)

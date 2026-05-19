@@ -51,10 +51,14 @@ export function creationInfoTupleSValue(box: ErgoBox): SValue {
   combined.set(box.txId, 0)
   combined[32] = (box.index >> 8) & 0xff
   combined[33] = box.index & 0xff
+  // Audit ERG-08: sigma-rust does `self.creation_height as i32`
+  // (eval/extract_creation_info.rs:18). Mirror the i32 wrap so JS Numbers
+  // outside i32 range produce the same SValue.Int the sigma-rust evaluator
+  // would.
   return {
     kind: 'Tuple',
     items: [
-      { kind: 'Int', value: box.creationHeight },
+      { kind: 'Int', value: box.creationHeight | 0 },
       bytesToCollByteSValue(combined),
     ],
   }

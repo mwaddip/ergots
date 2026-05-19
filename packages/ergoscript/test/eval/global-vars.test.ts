@@ -186,4 +186,21 @@ describe('GlobalVars arm — context-field-missing guard', () => {
     const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
     expect(err.code).toBe('context-field-missing')
   })
+
+  // ERG-08 regression — GlobalVars.Height must wrap to signed i32 (matches
+  // sigma-rust's `ctx.height as i32`). Pre-fix returned the raw JS number, so
+  // values >= 2^31 produced SInt values outside the type's range.
+  it('ERG-08: Height with ctx.height >= 2^31 wraps to signed i32', () => {
+    const expr: GlobalVars = { tag: 'GlobalVars', kind: 'Height' }
+    const ctx = makeContext({ height: 0x80000000 }) // 2_147_483_648 → wraps to -2^31
+    const result = evalExpr(expr, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Int', value: -0x80000000 })
+  })
+
+  it('ERG-08: Height with ctx.height = 2^32-1 wraps to -1', () => {
+    const expr: GlobalVars = { tag: 'GlobalVars', kind: 'Height' }
+    const ctx = makeContext({ height: 0xffffffff })
+    const result = evalExpr(expr, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Int', value: -1 })
+  })
 })
