@@ -12,7 +12,7 @@ Where this file is silent on implementation detail, those are canonical.
 
 ## Scope
 
-**Ships in this contract (v0.1.0):**
+**Ships in this contract (v0.2.0):**
 
 1. `ByteReader` class — cursor-based reader with VLQ + ZigZag-VLQ decoding, bool/option/array helpers, and a `slice()` view.
 2. `ByteWriter` class — chunk-accumulating writer with VLQ + ZigZag-VLQ encoding, bool/option/array helpers, and a `toBytes()` finalizer.
@@ -23,16 +23,18 @@ Where this file is silent on implementation detail, those are canonical.
 7. `Header` interface + `parseHeader`, `serializeHeader`, `serializeHeaderWithoutPow`, `deriveHeaderId`.
 8. `AutolykosSolution` interface + `parseAutolykosSolution`, `serializeAutolykosSolution`.
 9. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+10. Autolykos v2 PoW verifier: `verifyAutolykosV2(header): boolean` + helpers (`calcBigN`, `autolykosMessage`, `buildAutolykosSeed`, `genIndexes`, `hashElement`).
+11. `decodeCompactBits(nBits): bigint` — Bitcoin-compact-bits target unpacking, used by the Autolykos v2 verifier.
+12. `AutolykosV1NotSupportedError` typed error class — thrown by `verifyAutolykosV2` on v1 headers (matches sigma-rust `AutolykosPowSchemeError::Unsupported`).
 
 **Does NOT ship:**
 
-- **Autolykos v2 PoW verifier.** Stays in `@ergots/nipopow/src/autolykos-v2.ts` for v0.1.0. Phase 2h-c.2 may promote it into `@ergots/scorex` when `@ergots/ergoscript` also needs it (checkPow eval arm).
 - **`SValue` / `SType` / `Expr` types.** Package-specific to `@ergots/ergoscript`; live in `packages/ergoscript/src/mir/`.
 - **`ErgoBox` / `NipopowProof` / `AvlTreeData`.** Package-specific to their respective packages; not shared.
 - **base58 / base58check helpers.** Single-consumer in `@ergots/ergoscript` address codec; not promoted to shared layer.
-- **`blake2b256` wrapper.** Internal-only utility at `packages/scorex/src/crypto/blake2b256.ts`. Used by `deriveHeaderId`; not re-exported from `index.ts` on v0.1.0 because it is a thin wrapper with no added surface; any package that needs blake2b should import from `@noble/hashes/blake2.js` directly.
+- **`blake2b256` wrapper.** Internal-only utility at `packages/scorex/src/crypto/blake2b256.ts`. Used by `deriveHeaderId`; not re-exported from `index.ts` on v0.2.0 because it is a thin wrapper with no added surface; any package that needs blake2b should import from `@noble/hashes/blake2.js` directly.
 
-## Public surface (v0.1.0)
+## Public surface (v0.2.0)
 
 ### Primary export: `@ergots/scorex`
 
@@ -95,10 +97,14 @@ export class ByteWriter {
   toBytes(): Uint8Array           // concatenate all accumulated chunks into a single buffer
 }
 
-// ─── ReaderError ─────────────────────────────────────────────────────────────
+// ─── Error classes ───────────────────────────────────────────────────────────
 
 export class ReaderError extends Error {
   readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large'
+}
+
+export class AutolykosV1NotSupportedError extends Error {
+  readonly code: 'autolykos-v1-not-supported'
 }
 
 // ─── VLQ free functions ───────────────────────────────────────────────────────
@@ -171,6 +177,20 @@ export function deriveHeaderId(header: Header): Uint8Array  // 32 bytes
 // Parse / serialize AutolykosSolution (version determines v1 vs v2 wire layout).
 export function parseAutolykosSolution(reader: ByteReader, version: number): AutolykosSolution
 export function serializeAutolykosSolution(s: AutolykosSolution, version: number): Uint8Array
+
+// ─── Autolykos v2 PoW verifier ───────────────────────────────────────────────
+
+export function calcBigN(version: number, height: number): number
+export function autolykosMessage(header: Header): Uint8Array  // 32 bytes
+export function buildAutolykosSeed(msg: Uint8Array, nonce: Uint8Array, height: number, bigN: number): Uint8Array  // 32 bytes
+export function genIndexes(seed: Uint8Array, bigN: number): number[]  // 32 indices
+export function hashElement(index: number, height: number): Uint8Array  // 31 bytes
+export function verifyAutolykosV2(header: Header): boolean
+  // throws AutolykosV1NotSupportedError on header.version === 1
+
+// ─── nBits decode ────────────────────────────────────────────────────────────
+
+export function decodeCompactBits(nBits: number): bigint
 ```
 
 ## Type invariants
@@ -235,6 +255,12 @@ These indicate bugs in calling code (out-of-range byte, negative VLQ value, wron
 
 **Note on `readBool` / `readOption` error codes:** Currently both throw `ReaderError('truncated')` for a tag byte that is present but has an invalid value (not 0 or 1). A future minor revision may introduce `'malformed-value'` for this case; see Known Limitations.
 
+**`AutolykosV1NotSupportedError` — thrown by `verifyAutolykosV2` on V1 headers**
+
+A typed error class wrapping the case where `verifyAutolykosV2` is called with `header.version === 1`. Mirrors sigma-rust's `AutolykosPowSchemeError::Unsupported` (`autolykos_pow_scheme.rs:322-324`). The `code` is the string literal `'autolykos-v1-not-supported'`.
+
+Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this throw exists for callers that mistakenly hand a v1 header to `verifyAutolykosV2` directly. `@ergots/ergoscript`'s `SHeader.checkPow` eval arm catches this class and re-throws as `EvalError('autolykos-v1-not-supported')`.
+
 ## Test corpus
 
 Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdom` via two vitest configs (`vitest.config.ts` and `vitest.browser.config.ts`). Moved from `@ergots/nipopow` and `@ergots/ergoscript` during the phase 2h-c.0 extraction:
@@ -247,6 +273,8 @@ Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdo
 - `option-array.test.ts` — `readOption`/`writeOption`, `readArray`/`writeArray`, `readBool`/`writeBool`; null and present branches; multi-element arrays; `array-too-large` error path.
 - `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; `timestamp` overflow guard.
 - `autolykos-solution.test.ts` — `parseAutolykosSolution`/`serializeAutolykosSolution` byte-equality; v1 and v2 layouts; `powDistance` minimal-encoding round-trip.
+- `autolykos-v2.test.ts` — `verifyAutolykosV2` against mainnet V2 headers; V1 throw path; helpers' unit tests.
+- `nbits.test.ts` — `decodeCompactBits` round-trip + boundary values.
 
 ## Source mapping to sigma-rust
 
@@ -268,6 +296,9 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | (TS-only) | `MAX_ARRAY_LENGTH` (`reader.ts`) | DoS cap for `readArray`; 1 << 24 = 16,777,216 |
 | (TS-only) | `readVlqU32` (`vlq.ts`) | Convenience wrapper: `decodeVlqU` + assert <= 0xffffffff |
 | `@noble/hashes/blake2.js` (third-party) | `blake2b256` (`src/crypto/blake2b256.ts`) | Internal-only; not exported from index.ts |
+| `ergo-chain-types/src/autolykos_pow_scheme.rs::pow_hit` (lines 176-197) | `verifyAutolykosV2` + helpers (`autolykos-v2.ts`) | V2 path only; V1 sigma-rust returns pow_distance but our port throws AutolykosV1NotSupportedError |
+| `ergo-chain-types/src/autolykos_pow_scheme.rs::decode_compact_bits` | `decodeCompactBits` (`nbits.ts`) | Bitcoin-compact-bits target unpacking; bit-exact mirror |
+| `ergo-chain-types/src/autolykos_pow_scheme.rs::AutolykosPowSchemeError::Unsupported` (line 322) | `AutolykosV1NotSupportedError` (`errors.ts`) | V1 verification not implemented; sigma-rust returns Err on the same condition |
 
 ## Known limitations / follow-ups
 
