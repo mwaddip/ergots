@@ -8,9 +8,9 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 | Package | Status | What |
 |---|---|---|
-| `@ergots/nipopow` | **local v0.1.0** (was published as `@mwaddip/ergots-proof@0.1.0` pre-rename) | NiPoPoW proof parse / serialize / verify / compare, P2P envelope codec |
-| `@ergots/avltree` | **local v0.1.0**, ready to publish | Batch AVL+ authenticated-tree verifier (`verifyAvlBatch`, `verifyAvlLookup`). 140 tests, 50 corpus fixtures, ≥90% mutation kill rate per Operation variant. |
-| `@ergots/ergoscript` | **in development** (local v0.2.x, pre-publish) | ErgoTree parser + serializer + partial evaluator (52 of ~70 Expr arms; 8-entry method-handler registry). Wire format complete; sigma-protocol verifier shipped (full SigmaBoolean surface incl. Cand/Cor/Cthreshold conjecture walks). AVL+ integration + cost validation planned for later phases. |
+| `@ergots/nipopow` | **local v0.2.0** (was published as `@mwaddip/ergots-proof@0.1.0` pre-rename) | NiPoPoW proof parse / serialize / verify / compare, P2P envelope codec |
+| `@ergots/avltree` | **local v0.2.0**, ready to publish | Batch AVL+ authenticated-tree verifier (`verifyAvlBatch`, `verifyAvlBatchPartial`, `verifyAvlLookup`). 156 tests, 50 corpus fixtures, ≥90% mutation kill rate per Operation variant. |
+| `@ergots/ergoscript` | **in development** (local v0.2.x, pre-publish) | ErgoTree parser + serializer + partial evaluator (52 of ~70 Expr arms; 21-entry method-handler registry). Wire format complete; sigma-protocol verifier shipped (full SigmaBoolean surface incl. Cand/Cor/Cthreshold conjecture walks); AVL+ integration shipped via `@ergots/avltree`. Cost validation planned for later phases. |
 | Wallet / transaction-broadcaster (naming TBD) | **planned** | Phase 3. Browser bootstraps state from a verified proof, locally verifies a transaction using `@ergots/ergoscript`, broadcasts via a conformant Ergo node. |
 
 A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md) for the full rationale.
@@ -19,7 +19,9 @@ A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — brow
 
 `@ergots/nipopow`'s `verifyProof` is a **structural + Autolykos-v2 verifier**. It validates proof framing, parent linkage, strictly-increasing heights, and each version ≥ 2 header's Autolykos v2 solution under that header's **self-declared** `nBits` target. It does NOT validate `nBits` against the network's difficulty-adjustment rule, does NOT validate `header.version` against the network's hard-fork schedule, and does NOT anchor the proof to a trusted checkpoint. **Combine `verifyProof` with an external consensus verifier for any security-critical use.** Full consensus header validation is a planned future phase.
 
-See `packages/nipopow/API.md` and `facts/nipopow.md` for the load-bearing scope details before relying on the result.
+`@ergots/ergoscript`'s `evaluate` is a **partial interpreter** (52 of ~70 `Expr` arms wired today) and `verifySignature` is the corresponding sigma-protocol verifier. It is NOT a consensus-complete script verifier — broader method-call surface (Header methods, additional `SCollection` HOFs), real-context cost validation, and remaining `Expr` arms are planned for later phases. Treat each evaluator/verifier success as "the inputs are structurally valid and the implemented arms passed" — combine with sigma-rust or a JVM node for any binding consensus decision.
+
+See each package's `API.md` and `facts/*.md` files for load-bearing scope details before relying on the result.
 
 ## Layout
 
