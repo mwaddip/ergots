@@ -54,6 +54,75 @@ describe('ErgoTree envelope', () => {
       }
     })
 
+    // ERG-04 regression — serializeTree must reject trees whose serialized
+    // bytes exceed MAX_TREE_SIZE. Pre-fix, serializeTree emitted oversized
+    // bytes that parseTree then refused — breaking self-round-trip.
+    // ERG-05 regression — serializeTree must reject constants.length > MAX_CONSTANTS_COUNT.
+    it('ERG-04: throws oversized when serialized tree exceeds MAX_TREE_SIZE', () => {
+      // Build a tree with many large SColl[Byte] constants to push past 1 MB.
+      // Each ~2KB Coll[Byte] × 600 constants ≈ 1.2 MB total.
+      const constants: any[] = []
+      const constantTypes: any[] = []
+      for (let i = 0; i < 600; i++) {
+        constantTypes.push({ tag: 'SColl', elem: { tag: 'SByte' } })
+        constants.push({
+          kind: 'Coll',
+          elem: { tag: 'SByte' },
+          items: Array.from({ length: 2000 }, () => ({ kind: 'Byte', value: 0 })),
+        })
+      }
+      const tree: ErgoTree = {
+        header: {
+          version: 0,
+          hasSize: false,
+          constantSegregation: true,
+          rawHeader: 0x10, // segregation flag
+        },
+        constantTypes,
+        constants,
+        body: { tag: 'ConstPlaceholder', id: 0, tpe: { tag: 'SColl', elem: { tag: 'SByte' } } },
+      }
+      try {
+        serializeTree(tree)
+        throw new Error('expected throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(ErgoTreeSerializeError)
+        expect((e as ErgoTreeSerializeError).code).toBe('oversized')
+      }
+    })
+
+    it('ERG-05: throws too-many-constants when constants.length > MAX_CONSTANTS_COUNT', () => {
+      const count = 4097 // one above MAX_CONSTANTS_COUNT
+      const constants: any[] = []
+      const constantTypes: any[] = []
+      for (let i = 0; i < count; i++) {
+        constantTypes.push({ tag: 'SBoolean' })
+        constants.push({ kind: 'Boolean', value: true })
+      }
+      const tree: ErgoTree = {
+        header: {
+          version: 0,
+          hasSize: false,
+          constantSegregation: true,
+          rawHeader: 0x10,
+        },
+        constantTypes,
+        constants,
+        body: { tag: 'ConstPlaceholder', id: 0, tpe: { tag: 'SBoolean' } },
+      }
+      try {
+        serializeTree(tree)
+        throw new Error('expected throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(ErgoTreeSerializeError)
+        // 4097 constants will also push the serialized tree past MAX_TREE_SIZE
+        // (very small SBoolean constants but still ≥ MAX_CONSTANTS_COUNT * 2 bytes);
+        // depending on order, either 'oversized' or 'too-many-constants' fires.
+        const code = (e as ErgoTreeSerializeError).code
+        expect(['oversized', 'too-many-constants']).toContain(code)
+      }
+    })
+
     // ERG-02 regression — parseTree must reject trailing bytes after the
     // declared body. Pre-fix sigma-rust silently tolerated trailing outer
     // bytes; we tighten to require full exhaustion so the documented

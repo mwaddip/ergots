@@ -253,5 +253,22 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
     outer.writeVlqU(innerBytes.length)
   }
   outer.writeBytes(innerBytes)
-  return outer.toBytes()
+  const bytes = outer.toBytes()
+
+  // Audit ERG-04 / ERG-05: serializer must not emit bytes that parseTree
+  // would refuse. parseTree rejects > MAX_TREE_SIZE and > MAX_CONSTANTS_COUNT;
+  // we check both here so the round-trip invariant holds for hand-built trees.
+  if (bytes.length > MAX_TREE_SIZE) {
+    throw new ErgoTreeSerializeError(
+      `serialized tree size ${bytes.length} exceeds MAX_TREE_SIZE ${MAX_TREE_SIZE}`,
+      'oversized',
+    )
+  }
+  if (tree.constants.length > MAX_CONSTANTS_COUNT) {
+    throw new ErgoTreeSerializeError(
+      `constants count ${tree.constants.length} exceeds MAX_CONSTANTS_COUNT ${MAX_CONSTANTS_COUNT}`,
+      'too-many-constants',
+    )
+  }
+  return bytes
 }
