@@ -109,6 +109,10 @@ It is consumed by `verifySignature` (this slice) and by the eval-side `SigmaProp
 
 - **`'cthreshold-derived-challenge-mismatch'`** — **reserved; not thrown in this slice.** Declared for a future pass that explicitly validates polynomial-derived child challenges against the Fiat-Shamir hash at each leaf.
 
+### Audit ERG-01 code
+
+- **`'invalid-sigma-tree'`** — thrown when `verifySignature` is invoked on a hand-constructed `SigmaBoolean` whose structure violates wire-format invariants the parser enforces. Specifically: `Cand` / `Cor` / `Cthreshold` with empty `items`, or `Cthreshold` with `k < 1`. The wire parser produces `SigmaBooleanParseError` ('sigma-conjecture-empty-items' or 'cthreshold-k-out-of-range') for these shapes; this code is the parallel surface for callers who construct `SigmaBoolean` programmatically and skip parse. Previously the `Cor` zero-children branch threw `'truncated-signature'` (a misnomer); this commit unifies the three structural checks under one code.
+
 ## Internal helpers (not part of the public contract)
 
 The verifier composes from several internal modules. These are not part of the published API but useful for understanding the implementation:

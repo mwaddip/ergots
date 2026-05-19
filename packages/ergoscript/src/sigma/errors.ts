@@ -62,3 +62,10 @@ export type VerifyErrorCode =
   // declared so future strict-check passes have a typed surface.
   | 'cor-derived-challenge-mismatch'
   | 'cthreshold-derived-challenge-mismatch'
+  // 'invalid-sigma-tree' fires when verifySignature is invoked on a
+  // hand-constructed SigmaBoolean whose structure violates wire-format
+  // invariants — Cand / Cor / Cthreshold with zero children, or Cthreshold
+  // with k < 1. The wire parser enforces these invariants (see facts/
+  // ergoscript-wire.md `SigmaBooleanParseError` codes); the verifier check
+  // covers hand-built values that bypass parse. Audit ERG-01.
+  | 'invalid-sigma-tree'

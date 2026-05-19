@@ -194,3 +194,71 @@ mutationSuite('Cor', 'verifier-cor-mutation.json')
 positiveSuite('Cthreshold', 'verifier-cthreshold.json')
 rejectSuite('Cthreshold', 'verifier-cthreshold-reject.json')
 mutationSuite('Cthreshold', 'verifier-cthreshold-mutation.json')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ERG-01 regression — verifySignature rejects structurally-invalid hand-built
+// SigmaBoolean values. The wire parser enforces these invariants (see
+// SigmaBooleanParseError codes 'sigma-conjecture-empty-items' and
+// 'cthreshold-k-out-of-range'), but verifySignature is callable directly on
+// the structural type from application code that builds SigmaBoolean values
+// programmatically. Pre-fix the verifier accepted empty Cand and Cthreshold
+// with k=0 + items=[]; post-fix it throws VerifyError 'invalid-sigma-tree'.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('verifySignature — ERG-01 structural validation', () => {
+  // Any non-empty signature; the verifier will fail at the structural check
+  // before consuming bytes.
+  const dummyMsg = new Uint8Array(32)
+  const dummySig = new Uint8Array(64)
+
+  it('rejects Cand with empty items', () => {
+    const sb: SigmaBoolean = { tag: 'Cand', items: [] }
+    let captured: unknown = null
+    try {
+      verifySignature(sb, dummyMsg, dummySig)
+    } catch (e) {
+      captured = e
+    }
+    expect(captured).toBeInstanceOf(VerifyError)
+    expect((captured as VerifyError).code).toBe('invalid-sigma-tree')
+  })
+
+  it('rejects Cor with empty items', () => {
+    const sb: SigmaBoolean = { tag: 'Cor', items: [] }
+    let captured: unknown = null
+    try {
+      verifySignature(sb, dummyMsg, dummySig)
+    } catch (e) {
+      captured = e
+    }
+    expect(captured).toBeInstanceOf(VerifyError)
+    expect((captured as VerifyError).code).toBe('invalid-sigma-tree')
+  })
+
+  it('rejects Cthreshold with k=0 and items=[]', () => {
+    const sb: SigmaBoolean = { tag: 'Cthreshold', k: 0, items: [] }
+    let captured: unknown = null
+    try {
+      verifySignature(sb, dummyMsg, dummySig)
+    } catch (e) {
+      captured = e
+    }
+    expect(captured).toBeInstanceOf(VerifyError)
+    expect((captured as VerifyError).code).toBe('invalid-sigma-tree')
+  })
+
+  it('rejects Cthreshold with k=0 and non-empty items', () => {
+    const sb: SigmaBoolean = {
+      tag: 'Cthreshold',
+      k: 0,
+      items: [{ tag: 'TrivialProp', value: true }],
+    }
+    let captured: unknown = null
+    try {
+      verifySignature(sb, dummyMsg, dummySig)
+    } catch (e) {
+      captured = e
+    }
+    expect(captured).toBeInstanceOf(VerifyError)
+    expect((captured as VerifyError).code).toBe('invalid-sigma-tree')
+  })
+})

@@ -242,6 +242,15 @@ function parseCheckedTree(
       // goes straight into each child's z (or that child's own conjecture-
       // bytes, recursively).
       // sigma-rust: sig_serializer.rs:178-186.
+      // Audit ERG-01: reject empty Cand (the wire parser already enforces
+      // items.length >= 1 per SigmaBooleanParseError 'sigma-conjecture-empty-items';
+      // this check covers hand-constructed SigmaBoolean values bypassing parse).
+      if (sb.items.length < 1) {
+        throw new VerifyError(
+          `verifySignature: Cand with zero children — invalid SigmaBoolean tree`,
+          'invalid-sigma-tree',
+        )
+      }
       const children: CheckedTree[] = []
       for (const child of sb.items) {
         children.push(parseCheckedTree(child, challenge, reader))
@@ -253,11 +262,13 @@ function parseCheckedTree(
       // with that explicit challenge. The last child's challenge is derived
       // as XOR(parent, all-read-children-challenges).
       // sigma-rust: sig_serializer.rs:188-214.
+      // Audit ERG-01: reject empty Cor (parser enforces; check covers
+      // hand-constructed values bypassing parse).
       const n = sb.items.length
       if (n < 1) {
         throw new VerifyError(
           `verifySignature: Cor with zero children — invalid SigmaBoolean tree`,
-          'truncated-signature',
+          'invalid-sigma-tree',
         )
       }
       const children: CheckedTree[] = []
@@ -279,6 +290,21 @@ function parseCheckedTree(
       // sigma-rust: sig_serializer.rs:217-237.
       const n = sb.items.length
       const k = sb.k
+      // Audit ERG-01: reject Cthreshold with k < 1 or empty items. parser
+      // enforces 1 <= k <= n with n >= 1; this check covers hand-constructed
+      // values bypassing parse.
+      if (n < 1) {
+        throw new VerifyError(
+          `verifySignature: Cthreshold with zero children — invalid SigmaBoolean tree`,
+          'invalid-sigma-tree',
+        )
+      }
+      if (k < 1) {
+        throw new VerifyError(
+          `verifySignature: Cthreshold k=${k} < 1 — invalid SigmaBoolean tree`,
+          'invalid-sigma-tree',
+        )
+      }
       if (k > n) {
         throw new VerifyError(
           `verifySignature: Cthreshold k=${k} > n=${n} — invalid tree shape`,
