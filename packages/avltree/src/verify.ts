@@ -31,6 +31,99 @@ export interface VerifyAvlBatchResult {
 }
 
 /**
+ * Partial-success result from `verifyAvlBatchPartial`.
+ *
+ * `newDigest`    — the 33-byte AVL+ digest reflecting the verifier state AFTER
+ *                  the last successful operation. Equals the final digest when
+ *                  every op succeeded; equals the snapshot taken before the
+ *                  failing op when partial.
+ * `results`      — per-operation old values for SUCCESSFUL operations only;
+ *                  length === opsCompleted.
+ * `opsCompleted` — count of operations applied before any failure. Equals
+ *                  `operations.length` on full success.
+ */
+export interface VerifyAvlBatchPartialResult {
+  readonly newDigest: Uint8Array
+  readonly results: (Uint8Array | null)[]
+  readonly opsCompleted: number
+}
+
+/**
+ * Verify an authenticated batch of AVL+ operations against the given proof,
+ * returning a partial-success result that reflects the state up to (and not
+ * including) the first failing operation.
+ *
+ * Semantics:
+ *  - Returns `null` only when the verifier itself fails to anchor: proof
+ *    decode failure or digest mismatch in the constructor. There is no
+ *    partial state to report in that case.
+ *  - On per-operation failure, iteration stops immediately and the returned
+ *    `newDigest` is the digest taken BEFORE the failing op (i.e., after the
+ *    last successful op). `opsCompleted` equals the count of successful ops
+ *    (zero-indexed position of the failed op).
+ *  - On full success, `opsCompleted === operations.length` and `newDigest`
+ *    equals the verifier's final digest.
+ *
+ * Why a pre-op digest snapshot is necessary: sigma-rust's `BatchAVLVerifier`
+ * (and the TS port) poisons `root = null` on op failure, after which `digest()`
+ * returns `null`. To surface the state AFTER the last successful op, we
+ * snapshot `v.digest()` before each op and return the most recent snapshot
+ * when an op fails.
+ *
+ * Throws `AvlVerifyError` for programmer errors (invalid config, wrong digest
+ * length, key/value length mismatches). Same shape validation as
+ * `verifyAvlBatch`; that function is a thin wrapper over this one.
+ *
+ * @see `verifyAvlBatch` for the v0.1.0 all-or-nothing semantics built on top.
+ */
+export function verifyAvlBatchPartial(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  operations: Operation[],
+): VerifyAvlBatchPartialResult | null {
+  // 1. Validate shapes — throw AvlVerifyError on programmer-error inputs.
+  validateConfig(config)
+  validateStartingDigest(startingDigest)
+  for (const op of operations) validateOperationShape(op, config)
+
+  // 2. Construct verifier — proof decoding inside the constructor.
+  const v = new BatchAvlVerifier(startingDigest, proof, config)
+  if (!v.isValid) return null
+
+  // Initial digest snapshot — the state before any op. Used when op 0 fails
+  // (opsCompleted === 0, newDigest === startingDigest).
+  let lastGoodDigest = v.digest()
+  // Constructor success implies root !== null, so digest() returns non-null.
+  // Guard for the type-checker; promote to a verification failure if ever
+  // hit (would indicate a logic bug in BatchAvlVerifier).
+  if (lastGoodDigest === null) return null
+
+  // 3. Apply operations one at a time, snapshotting digest BEFORE each op so
+  // we can return the post-last-successful-op state on failure (the verifier
+  // poisons root = null on per-op failure, which would otherwise lose this).
+  const results: (Uint8Array | null)[] = []
+  let opsCompleted = 0
+  for (const op of operations) {
+    const r = v.performOneOperation(op)
+    if (typeof r === 'object' && r !== null && 'failed' in r) {
+      // Failure: lastGoodDigest already reflects the state from before this op.
+      return { newDigest: lastGoodDigest, results, opsCompleted }
+    }
+    results.push(r as Uint8Array | null)
+    opsCompleted++
+    // Refresh the snapshot — current state is now "after this op".
+    const next = v.digest()
+    // Same guard as above: success path implies non-null digest. Defensive.
+    if (next === null) return null
+    lastGoodDigest = next
+  }
+
+  // 4. All operations succeeded — lastGoodDigest is the final post-batch digest.
+  return { newDigest: lastGoodDigest, results, opsCompleted }
+}
+
+/**
  * Verify an authenticated batch of AVL+ operations against the given proof.
  *
  * Applies each operation in order against the reconstructed AVL+ tree and
@@ -41,6 +134,12 @@ export interface VerifyAvlBatchResult {
  * mismatch, precondition violation by an operation, or structural
  * inconsistency). Verification failures are untrusted-input rejections and
  * are intentionally NOT thrown — callers can treat `null` as "proof invalid".
+ *
+ * All-or-nothing semantics: any per-op failure collapses the entire batch
+ * to `null`, even if earlier ops succeeded. For partial-success semantics
+ * (state-after-last-successful-op + opsCompleted), use
+ * `verifyAvlBatchPartial` directly — this function is a thin wrapper that
+ * discards the partial state.
  *
  * Throws `AvlVerifyError` for programmer errors (invalid config, wrong
  * digest length, key/value length mismatches between the config and the
@@ -62,27 +161,10 @@ export function verifyAvlBatch(
   config: AvlTreeConfig,
   operations: Operation[],
 ): VerifyAvlBatchResult | null {
-  // 1. Validate shapes — throw AvlVerifyError on programmer-error inputs.
-  validateConfig(config)
-  validateStartingDigest(startingDigest)
-  for (const op of operations) validateOperationShape(op, config)
-
-  // 2. Construct verifier — proof decoding inside the constructor.
-  const v = new BatchAvlVerifier(startingDigest, proof, config)
-  if (!v.isValid) return null
-
-  // 3. Apply operations one at a time.
-  const results: (Uint8Array | null)[] = []
-  for (const op of operations) {
-    const r = v.performOneOperation(op)
-    if (typeof r === 'object' && r !== null && 'failed' in r) return null
-    results.push(r as Uint8Array | null)
-  }
-
-  // 4. Compute final digest.
-  const newDigest = v.digest()
-  if (newDigest === null) return null
-  return { newDigest, results }
+  const partial = verifyAvlBatchPartial(startingDigest, proof, config, operations)
+  if (partial === null) return null
+  if (partial.opsCompleted < operations.length) return null
+  return { newDigest: partial.newDigest, results: partial.results }
 }
 
 /**

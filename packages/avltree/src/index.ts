@@ -1,6 +1,12 @@
 // Public surface of @ergots/avltree.
 
-export { verifyAvlBatch, verifyAvlLookup, type VerifyAvlBatchResult } from './verify.js'
+export {
+  verifyAvlBatch,
+  verifyAvlBatchPartial,
+  verifyAvlLookup,
+  type VerifyAvlBatchResult,
+  type VerifyAvlBatchPartialResult,
+} from './verify.js'
 export type { AvlTreeConfig, OperationResult } from './types.js'
 export type { Operation } from './operation.js'
 export { AvlVerifyError, type AvlVerifyErrorCode } from './errors.js'
