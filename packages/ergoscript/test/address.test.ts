@@ -141,6 +141,19 @@ describe('address — testnet P2PK round-trip', () => {
     const wrongNetwork = addressFromErgoTree(tree, 'mainnet')
     expect(wrongNetwork).not.toBe(TESTNET_P2PK)
   })
+
+  // ERG-07: unknown network strings (typos, untyped input) must throw, not
+  // silently fall through to testnet.
+  it('ERG-07: throws on unknown network string (typo "mainnnet")', () => {
+    const tree = ergoTreeFromAddress(TESTNET_P2PK)
+    try {
+      addressFromErgoTree(tree, 'mainnnet' as 'mainnet')
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(AddressDecodeError)
+      expect((e as AddressDecodeError).code).toBe('unknown-network')
+    }
+  })
 })
 
 describe('address — P2S detection', () => {

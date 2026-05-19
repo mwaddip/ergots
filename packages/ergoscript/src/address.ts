@@ -141,6 +141,17 @@ export function p2pkPublicKey(tree: ErgoTree): Uint8Array | null {
  * through an `ErgoTree`.
  */
 export function addressFromErgoTree(tree: ErgoTree, network: Network): string {
+  // Audit ERG-07: validate runtime network input. Pre-fix the function used
+  // `network === 'mainnet' ? mainnetPrefix : testnetPrefix`, silently mapping
+  // typos (e.g. 'mainnnet') to the testnet branch. The Network type alone is
+  // not enough at runtime — TS callers can pass `'mainnet' as any` or untyped
+  // input from external sources.
+  if (network !== 'mainnet' && network !== 'testnet') {
+    throw new AddressDecodeError(
+      `unknown network ${String(network)}; expected 'mainnet' or 'testnet'`,
+      'unknown-network',
+    )
+  }
   const pk = p2pkPublicKey(tree)
   if (pk !== null) {
     const prefix = network === 'mainnet' ? MAINNET_P2PK_PREFIX : TESTNET_P2PK_PREFIX
