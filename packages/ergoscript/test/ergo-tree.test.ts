@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   parseTree,
   serializeTree,
@@ -8,6 +11,10 @@ import {
 } from '../src/wire/ergo-tree'
 import { ExprParseError } from '../src/wire/parse'
 import type { ErgoTree } from '../src/mir/types'
+import { hexToBytes } from './_helpers'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * Task 8 covers the ErgoTree envelope only — header byte + optional size +
@@ -44,6 +51,27 @@ describe('ErgoTree envelope', () => {
         parseTree(big)
       } catch (e) {
         expect((e as ErgoTreeParseError).code).toBe('oversized')
+      }
+    })
+
+    // ERG-02 regression — parseTree must reject trailing bytes after the
+    // declared body. Pre-fix sigma-rust silently tolerated trailing outer
+    // bytes; we tighten to require full exhaustion so the documented
+    // byte-identical round-trip invariant holds.
+    it('ERG-02: throws trailing-bytes on appended garbage after valid tree', () => {
+      const corpus: { entries: { name: string; tree_bytes_hex: string }[] } = JSON.parse(
+        fs.readFileSync(path.join(__dirname, 'fixtures/corpus_legacy_45.json'), 'utf-8'),
+      )
+      const valid = hexToBytes(corpus.entries[0]!.tree_bytes_hex)
+      const withGarbage = new Uint8Array(valid.length + 1)
+      withGarbage.set(valid, 0)
+      withGarbage[valid.length] = 0x42 // trailing garbage
+      try {
+        parseTree(withGarbage)
+        throw new Error('expected throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(ErgoTreeParseError)
+        expect((e as ErgoTreeParseError).code).toBe('trailing-bytes')
       }
     })
   })

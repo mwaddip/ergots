@@ -166,6 +166,24 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
 
   const body = parseExpr(inner, constantTypes, constants)
 
+  // Audit ERG-02: facts/ergoscript-wire.md declares byte-identical round-trip
+  // as a postcondition. Pre-fix parseTree silently consumed trailing bytes
+  // (sigma-rust's behavior); the round-trip then dropped them. Tighten to
+  // require full exhaustion of both inner (body region) and outer (envelope)
+  // readers.
+  if (!inner.isExhausted) {
+    throw new ErgoTreeParseError(
+      `${inner.remaining} trailing bytes after body in declared tree-body region`,
+      'trailing-bytes',
+    )
+  }
+  if (!outer.isExhausted) {
+    throw new ErgoTreeParseError(
+      `${outer.remaining} trailing bytes after ErgoTree envelope`,
+      'trailing-bytes',
+    )
+  }
+
   return {
     header,
     constantTypes,
