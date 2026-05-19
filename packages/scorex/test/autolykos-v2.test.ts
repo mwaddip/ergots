@@ -51,7 +51,7 @@ interface AutolykosCase {
 }
 
 const fixtures: AutolykosCase[] = JSON.parse(
-  readFileSync(resolve(__dirname, 'fixtures/autolykos_v2.json'), 'utf8')
+  readFileSync(resolve(__dirname, '../../nipopow/test/fixtures/autolykos_v2.json'), 'utf8')
 );
 
 // Only real headers (synthetic case has no header_bytes_hex)

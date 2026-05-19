@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 interface NBitsCase { n_bits: number; target_decimal: string; }
 const fixtures: NBitsCase[] = JSON.parse(
-  readFileSync(resolve(__dirname, 'fixtures/nbits.json'), 'utf8')
+  readFileSync(resolve(__dirname, '../../nipopow/test/fixtures/nbits.json'), 'utf8')
 );
 
 describe('decodeCompactBits', () => {
