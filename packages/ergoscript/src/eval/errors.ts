@@ -20,7 +20,8 @@
  *    + 4 codes added in phase 2g-combinators (Atleast + sigma helpers)
  *    + 3 codes added in phase 2g.5 (method-call dispatch + SigmaPropBytes + SContext.dataInputs)
  *    + 1 code added in phase 2h-b Tier 1 (SAvlTree pure accessors)
- *   = 44 codes total after phase 2h-b Tier 1.
+ *    + 1 code added in phase 2h-b Tier 2 (SAvlTree verification ops)
+ *   = 45 codes total after phase 2h-b Tier 2.
  */
 
 /**
@@ -263,3 +264,31 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/savltree.rs:29-75
    */
   | 'avl-tree-obj-not-avl-tree'
+
+  // -------------------------------------------------------------------------
+  // Phase 2h-b Tier 2 — SAvlTree verification ops (1 new code; 44 → 45)
+  // -------------------------------------------------------------------------
+  /**
+   * Any of the 6 SAvlTree Tier-2 verification op handlers (`get` / `getMany` /
+   * `insert` / `update` / `remove`) when proof verification fails. Two failure
+   * modes both surface as this code:
+   *   - verifier construct failure (proof bytes malformed, digest mismatch,
+   *     length-validation failure) — thrown by all 5 of those handlers; also
+   *     thrown by `contains` despite its overall return-`false`-on-per-op
+   *     failure semantics (per sigma-rust line 372: `.map_err(map_eval_err)?`
+   *     unwraps construct failure before reaching the match on the per-op
+   *     result).
+   *   - per-op failure surfacing in `get` / `getMany` / `remove` /
+   *     (V<3-only) `insert` — per-key Lookup/Remove failure forces the
+   *     `EvalError::AvlTree("Tree proof is incorrect ...")` path in
+   *     sigma-rust. `contains` swallows per-op failure (returns `false`);
+   *     `update` always breaks (no throw); V3+ `insert` also breaks.
+   *
+   * Source:
+   *   - savltree.rs:148-149  (GET_EVAL_FN per-op fail)
+   *   - savltree.rs:200-203  (GET_MANY_EVAL_FN per-op fail)
+   *   - savltree.rs:262-266  (INSERT_EVAL_FN V<3 per-op fail)
+   *   - savltree.rs:322-325  (REMOVE_EVAL_FN per-op fail)
+   *   - savltree.rs:372      (CONTAINS_EVAL_FN construct fail via `?`)
+   */
+  | 'avl-tree-proof-failed'

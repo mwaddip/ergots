@@ -1,26 +1,56 @@
 /**
- * `SAvlTree.*` method-call handlers — phase 2h-b Tier 1 (pure accessors).
+ * `SAvlTree.*` method-call handlers — phase 2h-b Tier 1 (pure accessors) +
+ * Tier 2 (verification ops).
  *
- * Each handler projects a single field of `AvlTreeData` and never reaches
- * into `@ergots/avltree` (those are Tier 2 verification ops, phase F). All
- * handlers follow Pattern A: `ctx.addCost(15)` BEFORE shape check, mirroring
- * sigma-rust's `add_jit_cost` call at the top of every `EvalFn`.
+ * Tier 1 (digest / enabledOperations / keyLength / valueLengthOpt /
+ * isInsertAllowed / isUpdateAllowed / isRemoveAllowed) projects a single
+ * field of `AvlTreeData` and never reaches into `@ergots/avltree`. All
+ * Tier-1 handlers follow Pattern A: `ctx.addCost(15)` BEFORE shape check,
+ * mirroring sigma-rust's `add_jit_cost` call at the top of every Tier-1
+ * `EvalFn`.
  *
- * Source: ergotree-interpreter/src/eval/savltree.rs:29-75 (one `EvalFn`
- * static per handler).
+ * Tier 2 (contains / get / getMany / insert / update / remove) delegates
+ * proof verification to `@ergots/avltree` v0.2.0's `verifyAvlBatch` and
+ * `verifyAvlBatchPartial`. These handlers DO NOT charge a per-handler cost
+ * — the dispatcher's Pattern-A cost 4 + inline Const arm costs cover them
+ * (mirrors sigma-rust: Tier-2 `EvalFn` statics have no `add_jit_cost` call;
+ * see savltree.rs:104, 152, 214, 279, 339, 383).
+ *
+ * Six failure models — `contains` is unique in that PER-OP failure returns
+ * `false` (does not throw), but CONSTRUCT failure still throws. The
+ * remaining five throw on construct failure; `get` / `getMany` / `remove`
+ * throw on per-op failure too. `insert` throws on V<3 per-op failure but
+ * breaks (returns final-or-empty Option) on V3+. `update` always breaks
+ * (no V<3/V3+ split — confirmed via source-read of savltree.rs:421-431).
+ *
+ * Source: ergotree-interpreter/src/eval/savltree.rs:29-75 (Tier 1),
+ *         ergotree-interpreter/src/eval/savltree.rs:104-381,383-439
+ *         (Tier 2; see per-handler comments for line ranges).
  *
  * Defensive-throw `'avl-tree-obj-not-avl-tree'` on non-AvlTree receiver.
  * Wire-format invariants (PropertyCall construction; SAvlTree-typed Const)
  * make this unreachable for parser-produced trees — guard against
  * hand-crafted MIR or future `ConstantPlaceholder` injection.
  *
- * facts/ergoscript-eval.md: Method-handler registry rows 9-15.
+ * facts/ergoscript-eval.md: Method-handler registry rows 9-21.
  */
 
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import type { AvlTreeData, SType, SValue } from '../mir/types'
 import { bytesToCollByteSValue } from './_byte-coll'
+import { verifyAvlBatch, verifyAvlBatchPartial } from '@ergots/avltree'
+import {
+  avlTreeDataToConfig,
+  buildInsertOps,
+  buildLookupOps,
+  buildRemoveOps,
+  buildSingleLookupOp,
+  buildUpdateOps,
+  extractByteArrayList,
+  extractBytes,
+  withUpdatedDigest,
+} from './_avltree-adapter'
 
 /** Cost charged Pattern A by every SAvlTree accessor; source: savltree.rs:29..75. */
 const ACCESSOR_COST = 15
@@ -165,4 +195,364 @@ export function evalSAvlTreeIsRemoveAllowed(
   ctx.addCost(ACCESSOR_COST)
   expectAvlTree('SAvlTree.isRemoveAllowed', obj)
   return { kind: 'Boolean', value: (obj.value.treeFlags & 0x04) !== 0 }
+}
+
+// ===========================================================================
+// Tier 2 — verification ops. Each handler delegates to @ergots/avltree.
+// ===========================================================================
+
+/** AvlTreeFlags bit positions per `avl_tree_data.rs:16-25`. */
+const INSERT_ALLOWED_BIT = 0x01
+const UPDATE_ALLOWED_BIT = 0x02
+const REMOVE_ALLOWED_BIT = 0x04
+
+/** `Coll[Byte]` SType — element type of returned bytes Coll. */
+const SCOLL_BYTE: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
+/** `Option[Coll[Byte]]` SType — `get` return shape + `getMany` element shape. */
+const SOPTION_COLL_BYTE: SType = { tag: 'SOption', elem: SCOLL_BYTE }
+/** `SAvlTree` SType — `insert` / `update` / `remove` Option element shape. */
+const SAVL_TREE: SType = { tag: 'SAvlTree' }
+
+/** Wrap a `Uint8Array` returned-value into `Some(Coll[Byte])`. */
+function someCollByte(bytes: Uint8Array): SValue {
+  return {
+    kind: 'Option',
+    elem: SCOLL_BYTE,
+    value: bytesToCollByteSValue(bytes),
+  }
+}
+
+/** `None` of type `Option[Coll[Byte]]`. */
+function noneCollByte(): SValue {
+  return { kind: 'Option', elem: SCOLL_BYTE, value: null }
+}
+
+/** Wrap a successor `AvlTreeData` into `Some(AvlTree)`. */
+function someAvlTree(data: AvlTreeData): SValue {
+  return {
+    kind: 'Option',
+    elem: SAVL_TREE,
+    value: { kind: 'AvlTree', value: data },
+  }
+}
+
+/** `None` of type `Option[AvlTree]`. */
+function noneAvlTree(): SValue {
+  return { kind: 'Option', elem: SAVL_TREE, value: null }
+}
+
+/**
+ * Defensive 2-arg arity check; all 6 Tier-2 handlers take exactly
+ * `(key/keys/entries, proof)`. Reuses `'method-not-implemented'` per the
+ * compact-taxonomy decision (option 1 in the 2g.5 spec).
+ */
+function expectTwoArgs(handlerName: string, args: SValue[]): void {
+  if (args.length !== 2) {
+    throw new EvalError(
+      `${handlerName} expects 2 args; got ${args.length}`,
+      'method-not-implemented'
+    )
+  }
+}
+
+/**
+ * `SAvlTree.contains` (100:9) — single-key membership test.
+ * Source: savltree.rs:339-381 — CONTAINS_EVAL_FN.
+ *
+ * Failure model (DIVERGES from get/getMany/get/remove):
+ *   - verifier construct fail (`map_err(map_eval_err)?` on line 372) → throw
+ *     `'avl-tree-proof-failed'`
+ *   - per-op Lookup fail (Err arm on line 379) → return `Boolean(false)`
+ *   - per-op Lookup ok None → `Boolean(false)`
+ *   - per-op Lookup ok Some(_) → `Boolean(true)`
+ *
+ * No `ctx.addCost(…)` — the Tier-2 EvalFns in sigma-rust do not call
+ * `add_jit_cost`; the dispatcher's Pattern-A cost 4 + inline Const arm
+ * cover the cost surface.
+ *
+ * Defensive: `expectAvlTree` for non-AvlTree receiver (unreachable for
+ * parser-produced trees; ConstantPlaceholder hardening).
+ */
+export function evalSAvlTreeContains(
+  _ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.contains', obj)
+  expectTwoArgs('SAvlTree.contains', args)
+  const key = extractBytes(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+  const ops = buildSingleLookupOp(key)
+  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
+  // Per sigma-rust contains:
+  //   - r === null FROM CONSTRUCT FAIL only: throw (parity with line 372 `?`).
+  //   - r === null FROM PER-OP FAIL: returns false (line 379).
+  // verifyAvlBatch collapses both into null. To distinguish, call
+  // verifyAvlBatchPartial: it returns null ONLY on construct failure
+  // (per-op failure yields a partial-success with opsCompleted < ops.length).
+  if (r !== null) {
+    // Verifier succeeded end-to-end. Per-key Lookup result lives at [0]:
+    // non-null → key present (true); null → key absent (false).
+    return { kind: 'Boolean', value: r.results[0] !== null }
+  }
+  // r === null. Disambiguate construct vs per-op failure via partial:
+  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  if (partial === null) {
+    // Construct fail — matches sigma-rust's `?` on line 372.
+    throw new EvalError(
+      'SAvlTree.contains: verifier construct failed',
+      'avl-tree-proof-failed'
+    )
+  }
+  // Per-op fail (partial !== null with opsCompleted === 0): return false.
+  return { kind: 'Boolean', value: false }
+}
+
+/**
+ * `SAvlTree.get` (100:10) — single-key Option lookup returning the value
+ * bytes on hit.
+ * Source: savltree.rs:104-150 — GET_EVAL_FN.
+ *
+ * Failure model:
+ *   - verifier construct fail (`map_err(map_eval_err)?` on line 136) → throw
+ *     `'avl-tree-proof-failed'`
+ *   - per-op Lookup Err arm (line 145-148) → throw same code
+ *   - Ok None → `Option[Coll[Byte]] None`
+ *   - Ok Some(bytes) → `Some(Coll[Byte])`
+ *
+ * No per-handler cost charge (Tier-2 convention).
+ */
+export function evalSAvlTreeGet(
+  _ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.get', obj)
+  expectTwoArgs('SAvlTree.get', args)
+  const key = extractBytes(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+  const ops = buildSingleLookupOp(key)
+  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
+  if (r === null) {
+    throw new EvalError(
+      'SAvlTree.get: tree proof is incorrect',
+      'avl-tree-proof-failed'
+    )
+  }
+  const found = r.results[0]
+  if (found === null || found === undefined) {
+    return { kind: 'Option', elem: SCOLL_BYTE, value: null }
+  }
+  return someCollByte(found)
+}
+
+/**
+ * `SAvlTree.getMany` (100:11) — multi-key Option lookup.
+ * Source: savltree.rs:152-212 — GET_MANY_EVAL_FN.
+ *
+ * Failure model: same throw discipline as `get`. Sigma-rust runs each
+ * Lookup individually in a `try_fold`-style loop (line 186-206); if ANY
+ * Lookup returns `Err`, the whole call throws (line 200-203). The successful
+ * results map per-key to `Some(bytes)` (line 191-195) or `None`
+ * (line 196-198).
+ *
+ * Returns a Coll of `Option[Coll[Byte]]` with one entry per input key.
+ *
+ * Implementation: `verifyAvlBatch` collapses both construct-fail and any
+ * per-key-op-fail into null. Per sigma-rust both lead to the same throw, so
+ * we don't need to disambiguate.
+ */
+export function evalSAvlTreeGetMany(
+  _ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.getMany', obj)
+  expectTwoArgs('SAvlTree.getMany', args)
+  const keys = extractByteArrayList(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+  const ops = buildLookupOps(keys)
+  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
+  if (r === null) {
+    throw new EvalError(
+      'SAvlTree.getMany: tree proof is incorrect',
+      'avl-tree-proof-failed'
+    )
+  }
+  const items: SValue[] = r.results.map((found) =>
+    found === null ? noneCollByte() : someCollByte(found)
+  )
+  return { kind: 'Coll', elem: SOPTION_COLL_BYTE, items }
+}
+
+/**
+ * `SAvlTree.insert` (100:12) — batch-Insert returning successor AvlTree.
+ * Source: savltree.rs:214-277 — INSERT_EVAL_FN.
+ *
+ * Pre-check (BEFORE proof parse): if `!insert_allowed`, return `None`
+ * straight away (line 218-220). No `@ergots/avltree` call.
+ *
+ * Failure model:
+ *   - verifier construct fail (line 251 `?`) → throw `'avl-tree-proof-failed'`
+ *   - V<3 per-op fail (line 263-267 `return Err`) → throw same code
+ *   - V3+ per-op fail (line 260-261 `break`) → continue to result block
+ *
+ * Result block (line 270-276):
+ *   - `bv.digest()` returns Some(new_digest) → `Some(AvlTree(new_digest))`
+ *   - `bv.digest()` returns None → `Option None`
+ *
+ * `bv.digest()` returns None iff `root === null`, which happens AFTER any
+ * per-op failure (root is poisoned). So in V3+ break case, this is the
+ * `Option None` branch. On full-success path, `bv.digest()` is the
+ * post-batch digest.
+ *
+ * V3+ implementation: we use `verifyAvlBatch` (all-or-nothing) — non-null
+ * means full success, null means EITHER construct fail OR per-op fail.
+ * Differentiate via `verifyAvlBatchPartial`: null → construct fail (throw);
+ * partial.opsCompleted < ops.length → per-op fail (break path → None).
+ *
+ * V<3 implementation: same, but per-op fail throws instead of returning None.
+ */
+export function evalSAvlTreeInsert(
+  ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.insert', obj)
+  expectTwoArgs('SAvlTree.insert', args)
+  // Pre-check: insert_allowed flag (line 218-220) — return None WITHOUT
+  // touching @ergots/avltree.
+  if ((obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0) {
+    return noneAvlTree()
+  }
+  const ops = buildInsertOps(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+  const treeVersion = ctx.treeVersion ?? 0
+
+  // Construct via verifyAvlBatchPartial to distinguish construct vs per-op
+  // failure (verifyAvlBatch collapses both to null).
+  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  if (partial === null) {
+    // Construct fail — line 251 in sigma-rust.
+    throw new EvalError(
+      'SAvlTree.insert: verifier construct failed',
+      'avl-tree-proof-failed'
+    )
+  }
+  if (partial.opsCompleted < ops.length) {
+    // Per-op fail.
+    if (treeVersion < 3) {
+      // V<3 throws (line 263-267).
+      throw new EvalError(
+        'SAvlTree.insert: incorrect insert',
+        'avl-tree-proof-failed'
+      )
+    }
+    // V3+ break path: bv.digest() returns None → Option None
+    // (line 270-275 `if let Some(new_digest) = bv.digest() { … } else { None }`).
+    // Sigma-rust's `bv.digest()` is poisoned to None after a per-op
+    // failure (batch_avl_verifier.rs:168 `tree.root = None`), so the
+    // result is Option None — NOT a partial-state Some.
+    return noneAvlTree()
+  }
+  // Full success — apply the new digest immutably.
+  return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
+}
+
+/**
+ * `SAvlTree.update` (100:13) — batch-Update returning successor AvlTree.
+ * Source: savltree.rs:383-439 — UPDATE_EVAL_FN.
+ *
+ * Pre-check: `!update_allowed` (line 387-389) → None.
+ *
+ * Failure model:
+ *   - verifier construct fail (line 420 `?`) → throw `'avl-tree-proof-failed'`
+ *   - per-op fail (line 422-431 `break` — UNCONDITIONAL, no V<3/V3+ split)
+ *     → continue to result block
+ *
+ * Confirmed via source-read: unlike `insert`, the `update` `break` is NOT
+ * gated by `ctx.tree_version() >= ErgoTreeVersion::V3`. This is a survey
+ * divergence — survey said V<3 throws like insert; sigma-rust shows update
+ * always breaks.
+ *
+ * Result block (line 432-438): identical to insert.
+ *   - bv.digest() Some → Some(AvlTree(new_digest))
+ *   - bv.digest() None (post-poison) → Option None
+ */
+export function evalSAvlTreeUpdate(
+  _ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.update', obj)
+  expectTwoArgs('SAvlTree.update', args)
+  if ((obj.value.treeFlags & UPDATE_ALLOWED_BIT) === 0) {
+    return noneAvlTree()
+  }
+  const ops = buildUpdateOps(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+
+  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  if (partial === null) {
+    throw new EvalError(
+      'SAvlTree.update: verifier construct failed',
+      'avl-tree-proof-failed'
+    )
+  }
+  if (partial.opsCompleted < ops.length) {
+    // Per-op fail: ALWAYS breaks → None (no V<3/V3+ split).
+    return noneAvlTree()
+  }
+  return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
+}
+
+/**
+ * `SAvlTree.remove` (100:14) — batch-Remove returning successor AvlTree.
+ * Source: savltree.rs:279-337 — REMOVE_EVAL_FN.
+ *
+ * Pre-check: `!remove_allowed` (line 283-285) → None.
+ *
+ * Failure model (NO V3+ break):
+ *   - verifier construct fail (line 316 `?`) → throw `'avl-tree-proof-failed'`
+ *   - per-op Remove fail (line 318-326 — always-throw `return Err`) → throw
+ *     same code
+ *
+ * Confirmed: `remove` is the only modify-style handler with no V3+ partial-
+ * success path. Per the design spec / source-read this is intentional.
+ *
+ * Result block (line 328-336): same as insert/update — Some(AvlTree) on
+ * full success, Option None if `bv.digest()` returns None (only reachable
+ * with an empty-keys batch yielding no digest update; sigma-rust returns
+ * None then too).
+ */
+export function evalSAvlTreeRemove(
+  _ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.remove', obj)
+  expectTwoArgs('SAvlTree.remove', args)
+  if ((obj.value.treeFlags & REMOVE_ALLOWED_BIT) === 0) {
+    return noneAvlTree()
+  }
+  const keys = extractByteArrayList(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+  const ops = buildRemoveOps(keys)
+
+  // Remove uses verifyAvlBatch (all-or-nothing) per source — any failure
+  // collapses to throw.
+  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
+  if (r === null) {
+    throw new EvalError(
+      'SAvlTree.remove: incorrect remove',
+      'avl-tree-proof-failed'
+    )
+  }
+  return someAvlTree(withUpdatedDigest(obj.value, r.newDigest))
 }

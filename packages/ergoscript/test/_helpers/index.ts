@@ -90,6 +90,24 @@ export function hydrateSValue(json: any): SValue {
       }
     case 'Box':
       return { kind: 'Box', value: hydrateErgoBox(json.value) }
+    case 'AvlTree': {
+      // AvlTreeData carrier. JSON shape (from fixture-gen's
+      // avl_tree_data_to_json helper, phase 2h-b):
+      //   { digest_hex, treeFlags (u8), keyLength (u32), valueLengthOpt (u32 | null) }
+      const v = json.value
+      return {
+        kind: 'AvlTree',
+        value: {
+          digest: hexToBytes(v.digest_hex as string),
+          treeFlags: v.treeFlags as number,
+          keyLength: v.keyLength as number,
+          valueLengthOpt:
+            v.valueLengthOpt === null || v.valueLengthOpt === undefined
+              ? null
+              : (v.valueLengthOpt as number),
+        },
+      }
+    }
     case 'PreHeader': {
       // PreHeader value carrier. JSON shape is defined by fixture-gen's
       // preheader_to_json helper (added in Task 6). Until that exists,

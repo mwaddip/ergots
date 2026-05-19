@@ -8,10 +8,9 @@
  * The registry is module-internal. Handlers are registered inline below the
  * dispatcher definition (in this same file) — keeping co-location simple
  * while the registry size is moderate (8 entries as of Task 7; 15 after
- * phase 2h-b Tier 1). Tier-1 SAvlTree handlers (typeId=100, methodIds 1..7)
- * are split into their own file (`./savltree.ts`) per the file-based pattern
- * — registry count is now 15, slightly past the "~12" threshold called out
- * below, and Tier-2 verification handlers will land in phase F next.
+ * phase 2h-b Tier 1; 21 after phase 2h-b Tier 2). Tier-1 AND Tier-2 SAvlTree
+ * handlers (typeId=100, methodIds 1..7 and 9..14) live in `./savltree.ts`
+ * — the wrappers here only forward to those exports.
  *
  * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
@@ -19,9 +18,15 @@
  *                                  (per the design spec's option-1 error taxonomy).
  *   'context-obj-not-context'   — thrown by SContext.dataInputs handler when obj is not Context;
  *                                  also reused by SContext.preHeader (Task 6) for the same shape.
- *   'avl-tree-obj-not-avl-tree' — thrown by the 7 SAvlTree Tier-1 accessor handlers when obj is not
- *                                  AvlTree (defensive; unreachable for parser-produced trees).
+ *   'avl-tree-obj-not-avl-tree' — thrown by the 7 SAvlTree Tier-1 accessor handlers AND the 6
+ *                                  Tier-2 verification op handlers when obj is not AvlTree
+ *                                  (defensive; unreachable for parser-produced trees).
  *                                  Code originated in `./savltree.ts` (phase 2h-b Tier 1).
+ *   'avl-tree-proof-failed'     — thrown by `get` / `getMany` / `insert` (V<3 per-op + construct) /
+ *                                  `update` (construct only) / `remove` (any) / `contains` (construct
+ *                                  only). See per-handler doc-comments in savltree.ts for the
+ *                                  per-handler failure model. Code originated in `./savltree.ts`
+ *                                  (phase 2h-b Tier 2 / Phase F).
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
@@ -39,12 +44,18 @@ import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
 import { primitiveValueEqual } from './bin-op/relation'
 import {
+  evalSAvlTreeContains,
   evalSAvlTreeDigest,
   evalSAvlTreeEnabledOperations,
+  evalSAvlTreeGet,
+  evalSAvlTreeGetMany,
+  evalSAvlTreeInsert,
   evalSAvlTreeIsInsertAllowed,
   evalSAvlTreeIsRemoveAllowed,
   evalSAvlTreeIsUpdateAllowed,
   evalSAvlTreeKeyLength,
+  evalSAvlTreeRemove,
+  evalSAvlTreeUpdate,
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 
@@ -277,6 +288,25 @@ function registerHandlers(): void {
   HANDLERS.set(handlerKey(100, 5), (obj, args, ctx) => evalSAvlTreeIsInsertAllowed(obj, args, ctx))
   HANDLERS.set(handlerKey(100, 6), (obj, args, ctx) => evalSAvlTreeIsUpdateAllowed(obj, args, ctx))
   HANDLERS.set(handlerKey(100, 7), (obj, args, ctx) => evalSAvlTreeIsRemoveAllowed(obj, args, ctx))
+
+  // ---------- SAvlTree Tier-2 (verification ops) — phase 2h-b Phase F ----------
+  // No per-handler cost (Tier-2 sigma-rust EvalFns do not add_jit_cost; the
+  // dispatcher's Pattern-A cost 4 + inline Const arms cover the cost surface).
+  // Source: ergotree-interpreter/src/eval/savltree.rs:104-150 (get),
+  //                                              152-212 (getMany),
+  //                                              214-277 (insert),
+  //                                              279-337 (remove),
+  //                                              339-381 (contains),
+  //                                              383-439 (update).
+  // Handler bodies live in ./savltree.ts; they expect `(ctx, obj, args)` —
+  // the wrapper here flips argument order to match `MethodHandler` shape
+  // and drops explicitTypeArgs (Tier-2 has none).
+  HANDLERS.set(handlerKey(100, 9), (obj, args, ctx) => evalSAvlTreeContains(ctx, obj, args))
+  HANDLERS.set(handlerKey(100, 10), (obj, args, ctx) => evalSAvlTreeGet(ctx, obj, args))
+  HANDLERS.set(handlerKey(100, 11), (obj, args, ctx) => evalSAvlTreeGetMany(ctx, obj, args))
+  HANDLERS.set(handlerKey(100, 12), (obj, args, ctx) => evalSAvlTreeInsert(ctx, obj, args))
+  HANDLERS.set(handlerKey(100, 13), (obj, args, ctx) => evalSAvlTreeUpdate(ctx, obj, args))
+  HANDLERS.set(handlerKey(100, 14), (obj, args, ctx) => evalSAvlTreeRemove(ctx, obj, args))
 }
 
 registerHandlers()
