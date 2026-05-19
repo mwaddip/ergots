@@ -11,8 +11,10 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 ```ts
 import {
   verifyAvlBatch,
+  verifyAvlBatchPartial,
   verifyAvlLookup,
   type VerifyAvlBatchResult,
+  type VerifyAvlBatchPartialResult,
   type AvlTreeConfig,
   type Operation,
   type OperationResult,
@@ -67,6 +69,27 @@ if (result === null) {
   console.log('old at Lookup key:', result.results[1]); // Uint8Array or null
 }
 ```
+
+---
+
+### `verifyAvlBatchPartial(startingDigest, proof, config, operations)`
+
+```ts
+function verifyAvlBatchPartial(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  operations: Operation[],
+): VerifyAvlBatchPartialResult | null
+```
+
+Same as `verifyAvlBatch` but returns a partial-success result on per-op failure: `newDigest` is the digest AFTER the last successful operation (or `startingDigest` when op 0 fails), `results.length === opsCompleted`, and `opsCompleted` is the count of successful operations before the failing one.
+
+Returns `null` only when the verifier itself fails to anchor (proof decode failure or digest mismatch in the constructor) — there is no partial state to report in that case.
+
+Throws `AvlVerifyError` for programmer-error inputs (same shape validation as `verifyAvlBatch`).
+
+**Why partial?** Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` semantics, which honor sigma-rust's "break gracefully on per-op failure with state-after-last-success" behaviour. For all-or-nothing use, `verifyAvlBatch` is the thin wrapper that collapses any partial result to `null`.
 
 ---
 
@@ -182,6 +205,20 @@ export interface VerifyAvlBatchResult {
 
 ---
 
+### `VerifyAvlBatchPartialResult`
+
+```ts
+export interface VerifyAvlBatchPartialResult {
+  readonly newDigest: Uint8Array;          // 33 bytes — state AFTER last successful op
+  readonly results: (Uint8Array | null)[]; // length === opsCompleted
+  readonly opsCompleted: number;           // count of successful ops; === operations.length on full success
+}
+```
+
+Returned by `verifyAvlBatchPartial`. On full success, `opsCompleted === operations.length` and `newDigest` matches what `verifyAvlBatch` returns. On per-op failure, `newDigest` is the snapshot taken BEFORE the failing op (i.e., state after the last successful op).
+
+---
+
 ### `OperationResult`
 
 ```ts
@@ -212,6 +249,7 @@ export type AvlVerifyErrorCode =
   | 'invalid-starting-digest-length'
   | 'operation-key-length-mismatch'
   | 'operation-value-length-mismatch'
+  | 'operation-delta-out-of-range'
 ```
 
 ### `AvlVerifyErrorCode` meanings
@@ -224,6 +262,7 @@ export type AvlVerifyErrorCode =
 | `'invalid-starting-digest-length'` | `startingDigest.length !== 33` |
 | `'operation-key-length-mismatch'` | `op.key.length !== config.keyLength` for some operation `op` |
 | `'operation-value-length-mismatch'` | `op.value.length !== config.valueLengthOpt` for some operation `op` with a `value` field, when `valueLengthOpt` is not `null` |
+| `'operation-delta-out-of-range'` | `UpdateLongBy.delta` outside signed i64 range (audit AVL-03) |
 
 ### Tier 2 — `null` return (verification failures)
 
