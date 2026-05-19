@@ -18,6 +18,7 @@ import type { EvalContext } from './eval-context'
 import { bytesToCollByteSValue } from './_byte-coll'
 import type { SValue } from '../mir/types'
 import type { Header } from '@ergots/scorex'
+import { verifyAutolykosV2, AutolykosV1NotSupportedError } from '@ergots/scorex'
 
 /** Pattern A cost charged by every SHeader accessor. Source: sheader.rs:16-113. */
 const ACCESSOR_COST = 10
@@ -213,4 +214,47 @@ export function evalSHeaderVotes(obj: SValue, _args: SValue[], ctx: EvalContext)
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'votes')
   return bytesToCollByteSValue(obj.value.votes)
+}
+
+/**
+ * SHeader.checkPow (typeId 104, methodId 16).
+ *
+ * Pattern A Fixed(700) — `ctx.addCost(700)` BEFORE the obj-kind check and
+ * verifier invocation. Sigma-rust source: ergotree-interpreter/src/eval/sheader.rs:115-124.
+ *
+ * V3-gated at the dispatcher level (registration in method-call.ts with
+ * minVersion: 3). The dispatcher's minVersion check fires BEFORE this
+ * handler is invoked, so V<3 reject incurs zero handler cost (sigma-rust
+ * parity — sigma-rust gates this at MethodDesc.min_version).
+ *
+ * Returns SValue.Boolean from verifyAutolykosV2.
+ *
+ * Error codes:
+ *   'header-obj-not-header'        — defensive receiver check (reused from 2h-c.1)
+ *   'autolykos-v1-not-supported'   — verifyAutolykosV2 threw AutolykosV1NotSupportedError on a V1 header
+ */
+export function evalSHeaderCheckPow(
+  obj: SValue,
+  _args: SValue[],
+  ctx: EvalContext,
+): SValue {
+  // 1. Pattern A cost charge (mirrors sigma-rust eval/sheader.rs:116)
+  ctx.addCost(700)
+
+  // 2. Defensive receiver kind check (reuses 'header-obj-not-header' from 2h-c.1)
+  assertHeaderObj(obj, 'checkPow')
+
+  // 3. Run verifier; catch typed v1 error and re-throw as EvalError
+  try {
+    const result = verifyAutolykosV2(obj.value)
+    return { kind: 'Boolean', value: result }
+  } catch (e) {
+    if (e instanceof AutolykosV1NotSupportedError) {
+      throw new EvalError(
+        'SHeader.checkPow: Autolykos v1 PoW verification is not implemented (mirrors sigma-rust)',
+        'autolykos-v1-not-supported',
+      )
+    }
+    throw e  // re-throw unexpected errors unwrapped
+  }
 }

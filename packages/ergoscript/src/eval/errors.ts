@@ -22,7 +22,8 @@
  *    + 1 code added in phase 2h-b Tier 1 (SAvlTree pure accessors)
  *    + 1 code added in phase 2h-b Tier 2 (SAvlTree verification ops)
  *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
- *   = 46 codes total after phase 2h-c.1.
+ *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
+ *   = 47 codes total after phase 2h-c.2.
  */
 
 /**
@@ -307,3 +308,18 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/sheader.rs:16-113
    */
   | 'header-obj-not-header'
+
+  // -------------------------------------------------------------------------
+  // Phase 2h-c.2 — SHeader.checkPow (1 new code; 46 → 47)
+  // -------------------------------------------------------------------------
+  /**
+   * `SHeader.checkPow` (typeId 104, methodId 16): `verifyAutolykosV2` threw
+   * `AutolykosV1NotSupportedError` because the header carries Autolykos v1 PoW.
+   * Mirrors sigma-rust's `AutolykosPowSchemeError::Unsupported`.
+   * Wire-format invariants make this unreachable in practice (script-touched
+   * headers are typically V2+ for ~5 years post-mainnet-417792); defensive
+   * against unusual `ctx.headers` constructions.
+   *
+   * Source: ergotree-interpreter/src/eval/sheader.rs:115-124
+   */
+  | 'autolykos-v1-not-supported'

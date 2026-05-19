@@ -78,6 +78,7 @@ import {
   evalSHeaderPowNonce,
   evalSHeaderPowDistance,
   evalSHeaderVotes,
+  evalSHeaderCheckPow,  // NEW phase 2h-c.2
 } from './sheader'
 
 // Module-level SType singletons used in handler helpers.
@@ -405,6 +406,14 @@ function registerHandlers(): void {
   HANDLERS.set(handlerKey(104, 13), { handler: (obj, args, ctx) => evalSHeaderPowNonce(obj, args, ctx) })
   HANDLERS.set(handlerKey(104, 14), { handler: (obj, args, ctx) => evalSHeaderPowDistance(obj, args, ctx) })
   HANDLERS.set(handlerKey(104, 15), { handler: (obj, args, ctx) => evalSHeaderVotes(obj, args, ctx) })
+
+  // SHeader.checkPow (MethodCall, typeId=104, methodId=16) — phase 2h-c.2
+  // Pattern A Fixed(700). V3-gated (sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3).
+  // Source: ergotree-interpreter/src/eval/sheader.rs:115-124.
+  HANDLERS.set(handlerKey(104, 16), {
+    handler: (obj, args, ctx) => evalSHeaderCheckPow(obj, args, ctx),
+    minVersion: 3,  // V3 gate — sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3
+  })
 }
 
 registerHandlers()
