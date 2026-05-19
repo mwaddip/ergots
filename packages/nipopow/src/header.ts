@@ -21,7 +21,7 @@
 
 import { ByteReader } from './scorex/reader.ts';
 import { ByteWriter } from './scorex/writer.ts';
-import { decodeVlqU, encodeVlqU } from './scorex/vlq.ts';
+import { decodeVlqU, encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
 import { blake2b256 } from './crypto/blake2b256.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from './digests.ts';
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
@@ -67,8 +67,11 @@ export function parseHeader(reader: ByteReader): Header {
   const nBitsBytes = readFixed(reader, NBITS_LEN, 'nBits');
   const nBits = ((nBitsBytes[0]! << 24) | (nBitsBytes[1]! << 16) | (nBitsBytes[2]! << 8) | nBitsBytes[3]!) >>> 0;
 
-  // height: VLQ u32
-  const height = Number(decodeVlqU(reader));
+  // height: VLQ u32 (audit NIP-07: enforce u32 bound; autolykos-v2.ts then
+  // serializes height via `>>>` byte extraction which truncates to 32 bits,
+  // so an unbounded parse would silently let a >u32 height round-trip via
+  // a different identity).
+  const height = readVlqU32(reader, 'height');
 
   const votes = readFixed(reader, VOTES_LEN, 'votes');
 

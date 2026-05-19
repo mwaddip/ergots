@@ -91,6 +91,46 @@ describe('parseProof error cases', () => {
   });
 
   // ───────────────────────────────────────────────────────────────────────────
+  // NIP-07 regression — Header.height parser enforces u32 bound (autolykos
+  // v2 serialization truncates to 32 bits, so allowing wider parsed values
+  // creates a round-trip identity drift).
+  //
+  // We test the boundary at the Header parser, which is reached via every
+  // PoPowHeader and suffix_tail entry. Constructing a synthetic proof with
+  // a height > 0xffffffff and serializing produces wire bytes that parseProof
+  // must reject with 'vlq-overflow'.
+  // ───────────────────────────────────────────────────────────────────────────
+  test('NIP-07: parseProof rejects header.height > u32 max', () => {
+    // Build a valid synthetic proof with non-empty interlinks (NIP-05 would
+    // otherwise reject the synthetic PoPowHeaders before reaching height
+    // parsing), then bump suffix_tail[0].height past u32.
+    const proof = buildSyntheticProof({
+      m: 1,
+      k: 2,
+      prefixHeights: [10],
+      suffixHeadHeight: 100,
+      suffixTailHeights: [1000],
+    });
+    const sentinel = new Uint8Array(32);
+    proof.prefix[0]!.interlinks = [sentinel];
+    proof.suffixHead.interlinks = [sentinel];
+    proof.suffixTail[0]!.height = 0xffffffff + 1; // 4_294_967_296 — one above u32 max
+    let bytes: Uint8Array;
+    try {
+      bytes = serializeProof(proof);
+    } catch {
+      return; // serializer may reject as well; that's also acceptable
+    }
+    try {
+      parseProof(bytes);
+      throw new Error('expected throw on parse');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('vlq-overflow');
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
   // NIP-05 regression — parseProof rejects PoPowHeaders with empty interlinks
   // ───────────────────────────────────────────────────────────────────────────
   test('NIP-05: parseProof rejects PoPowHeader with empty interlinks', () => {
