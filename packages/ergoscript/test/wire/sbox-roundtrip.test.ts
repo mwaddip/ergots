@@ -81,7 +81,7 @@ describe('SBox wire round-trip', () => {
 
       // Parse
       const reader = new ByteReader(original)
-      const v = parseSValue({ tag: 'SBox' }, reader)
+      const v = parseSValue({ tag: 'SBox' }, 0, reader)
 
       // Verify fully consumed (no trailing bytes)
       expect(reader.isExhausted).toBe(true)
@@ -89,7 +89,7 @@ describe('SBox wire round-trip', () => {
 
       // Re-serialize
       const writer = new ByteWriter()
-      serializeSValue({ tag: 'SBox' }, v, writer)
+      serializeSValue({ tag: 'SBox' }, v, 0, writer)
       const roundtripped = writer.toBytes()
 
       // Byte-for-byte equality
@@ -108,9 +108,9 @@ describe('SBox serialize error guards', () => {
     })
     const v = { kind: 'Box' as const, value: box }
     const w = new ByteWriter()
-    expect(() => serializeSValue({ tag: 'SBox' }, v, w)).toThrow(SValueSerializeError)
+    expect(() => serializeSValue({ tag: 'SBox' }, v, 0, w)).toThrow(SValueSerializeError)
     try {
-      serializeSValue({ tag: 'SBox' }, v, w)
+      serializeSValue({ tag: 'SBox' }, v, 0, w)
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
       expect((e as SValueSerializeError).code).toBe('sbox-registers-not-dense')
@@ -121,9 +121,9 @@ describe('SBox serialize error guards', () => {
     const box = makeMinimalBox({ index: 70000 })
     const v = { kind: 'Box' as const, value: box }
     const w = new ByteWriter()
-    expect(() => serializeSValue({ tag: 'SBox' }, v, w)).toThrow(SValueSerializeError)
+    expect(() => serializeSValue({ tag: 'SBox' }, v, 0, w)).toThrow(SValueSerializeError)
     try {
-      serializeSValue({ tag: 'SBox' }, v, w)
+      serializeSValue({ tag: 'SBox' }, v, 0, w)
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
       expect((e as SValueSerializeError).code).toBe('sbox-index-out-of-range')
@@ -134,9 +134,9 @@ describe('SBox serialize error guards', () => {
     const box = makeMinimalBox({ index: -1 })
     const v = { kind: 'Box' as const, value: box }
     const w = new ByteWriter()
-    expect(() => serializeSValue({ tag: 'SBox' }, v, w)).toThrow(SValueSerializeError)
+    expect(() => serializeSValue({ tag: 'SBox' }, v, 0, w)).toThrow(SValueSerializeError)
     try {
-      serializeSValue({ tag: 'SBox' }, v, w)
+      serializeSValue({ tag: 'SBox' }, v, 0, w)
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
       expect((e as SValueSerializeError).code).toBe('sbox-index-out-of-range')

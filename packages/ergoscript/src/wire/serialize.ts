@@ -87,7 +87,7 @@ import { serializeOptionIsDefined } from './mir/option-is-defined'
 
 export { ExprSerializeError } from './errors'
 
-export function serializeExpr(e: Expr, w: ByteWriter): void {
+export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
   switch (e.tag) {
     case 'Append':
       w.writeU8(OP.OP_APPEND)
@@ -96,7 +96,7 @@ export function serializeExpr(e: Expr, w: ByteWriter): void {
     case 'Const':
       // serializeConst emits the SType (whose first byte is the inline-
       // constant "opcode") followed by the SValue. No separate opcode prefix.
-      serializeConst(e, w)
+      serializeConst(e, treeVersion, w)
       return
     case 'ConstPlaceholder':
       w.writeU8(OP.OP_CONSTANT_PLACEHOLDER)

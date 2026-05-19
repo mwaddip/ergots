@@ -159,11 +159,11 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
     for (let i = 0; i < count; i++) {
       const tpe = parseSType(inner)
       constantTypes.push(tpe)
-      constants.push(parseSValue(tpe, inner))
+      constants.push(parseSValue(tpe, header.version, inner))
     }
   }
 
-  const body = parseExpr(inner, constantTypes, constants)
+  const body = parseExpr(inner, constantTypes, constants, new Map(), header.version)
 
   // Audit ERG-02: facts/ergoscript-wire.md declares byte-identical round-trip
   // as a postcondition. Pre-fix parseTree silently consumed trailing bytes
@@ -240,10 +240,10 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
     inner.writeVlqU(tree.constants.length)
     for (let i = 0; i < tree.constants.length; i++) {
       serializeSType(tree.constantTypes[i]!, inner)
-      serializeSValue(tree.constantTypes[i]!, tree.constants[i]!, inner)
+      serializeSValue(tree.constantTypes[i]!, tree.constants[i]!, tree.header.version, inner)
     }
   }
-  serializeExpr(tree.body, inner)
+  serializeExpr(tree.body, inner, tree.header.version)
   const innerBytes = inner.toBytes()
 
   const outer = new ByteWriter()

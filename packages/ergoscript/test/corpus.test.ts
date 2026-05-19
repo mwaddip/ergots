@@ -145,13 +145,13 @@ describe('Corpus round-trip — synthetic SValue', () => {
 
       // Parse: bytes → SValue (type-driven)
       const reader = new ByteReader(bytes)
-      const parsed = parseSValue(entry.tpe, reader)
+      const parsed = parseSValue(entry.tpe, 0, reader)
       expect(reader.remaining, `${entry.name}: parser left ${reader.remaining} byte(s) unread`).toBe(0)
       expect(parsed).toEqual(expected)
 
       // Serialize: SValue → bytes (round-trip)
       const writer = new ByteWriter()
-      serializeSValue(entry.tpe, parsed, writer)
+      serializeSValue(entry.tpe, parsed, 0, writer)
       const serialized = writer.toBytes()
       expect(
         bytesEqual(serialized, bytes),

@@ -100,7 +100,7 @@ function reconstructErgoBox(bj: BoxJsonFields): ErgoBox {
     const constBytes = hexToBytes(reg.constant_hex)
     const reader = new ByteReader(constBytes)
     const tpe = parseSType(reader)
-    const regValue = parseSValue(tpe, reader)
+    const regValue = parseSValue(tpe, 0, reader)
     registers[reg.id] = { tpe, value: regValue }
   }
 

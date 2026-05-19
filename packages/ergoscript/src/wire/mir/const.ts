@@ -33,10 +33,14 @@ import { serializeSValue } from '../serialize-svalue'
  * Parse an inline `Const` when `firstByte` has already been consumed by the
  * Expr dispatcher (and is the first byte of the SType). Mirrors
  * sigma-rust's `Constant::parse_with_tag`.
+ *
+ * `treeVersion` gates SHeader: see `parseSValue` for details. For inline body
+ * constants, `treeVersion` should be the ErgoTree header version of the
+ * enclosing tree (0 = safe default for pre-V3 trees).
  */
-export function parseConstFromByte(firstByte: number, r: ByteReader): Const {
+export function parseConstFromByte(firstByte: number, treeVersion: number, r: ByteReader): Const {
   const tpe = parseSTypeWithFirstByte(firstByte, r)
-  const value = parseSValue(tpe, r)
+  const value = parseSValue(tpe, treeVersion, r)
   return { tag: 'Const', tpe, value }
 }
 
@@ -44,8 +48,10 @@ export function parseConstFromByte(firstByte: number, r: ByteReader): Const {
  * Serialize a `Const`. The first byte of the SType doubles as the opcode
  * byte in the surrounding Expr stream; the caller {@link serializeExpr} does
  * not (and must not) emit an opcode prefix for Const.
+ *
+ * `treeVersion` gates SHeader: see `serializeSValue` for details.
  */
-export function serializeConst(c: Const, w: ByteWriter): void {
+export function serializeConst(c: Const, treeVersion: number, w: ByteWriter): void {
   serializeSType(c.tpe, w)
-  serializeSValue(c.tpe, c.value, w)
+  serializeSValue(c.tpe, c.value, treeVersion, w)
 }

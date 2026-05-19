@@ -318,13 +318,13 @@ describe('SValue wire round-trip', () => {
   for (const { name, t, v, bytes } of cases) {
     it(`parses ${name}`, () => {
       const r = new ByteReader(new Uint8Array(bytes))
-      expect(parseSValue(t, r)).toEqual(v)
+      expect(parseSValue(t, 0, r)).toEqual(v)
       // After parsing the value, the reader must be exhausted (no trailing bytes).
       expect(r.isExhausted).toBe(true)
     })
     it(`serializes ${name}`, () => {
       const w = new ByteWriter()
-      serializeSValue(t, v, w)
+      serializeSValue(t, v, 0, w)
       expect(Array.from(w.toBytes())).toEqual(bytes)
     })
   }
@@ -348,7 +348,7 @@ describe('SValue ERG-03 zero-length SBigInt', () => {
     const bytes = new Uint8Array([0x00])
     const r = new ByteReader(bytes)
     try {
-      parseSValue({ tag: 'SBigInt' }, r)
+      parseSValue({ tag: 'SBigInt' }, 0, r)
       throw new Error('expected throw')
     } catch (e) {
       expect(e).toBeInstanceOf(SValueParseError)
@@ -365,7 +365,7 @@ describe('SValue ERG-06 numeric range checks', () => {
   ])('serializeSValue(SByte, %s) → numeric-out-of-range', (value, _name) => {
     const w = new ByteWriter()
     try {
-      serializeSValue({ tag: 'SByte' }, { kind: 'Byte', value: value as number }, w)
+      serializeSValue({ tag: 'SByte' }, { kind: 'Byte', value: value as number }, 0, w)
       throw new Error('expected throw')
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
@@ -380,7 +380,7 @@ describe('SValue ERG-06 numeric range checks', () => {
   ])('serializeSValue(SShort, %s) → numeric-out-of-range', (value, _name) => {
     const w = new ByteWriter()
     try {
-      serializeSValue({ tag: 'SShort' }, { kind: 'Short', value: value as number }, w)
+      serializeSValue({ tag: 'SShort' }, { kind: 'Short', value: value as number }, 0, w)
       throw new Error('expected throw')
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
@@ -391,7 +391,7 @@ describe('SValue ERG-06 numeric range checks', () => {
   it('serializeSValue(SInt, 4294967296) → numeric-out-of-range', () => {
     const w = new ByteWriter()
     try {
-      serializeSValue({ tag: 'SInt' }, { kind: 'Int', value: 4294967296 }, w)
+      serializeSValue({ tag: 'SInt' }, { kind: 'Int', value: 4294967296 }, 0, w)
       throw new Error('expected throw')
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
@@ -402,7 +402,7 @@ describe('SValue ERG-06 numeric range checks', () => {
   it('serializeSValue(SLong, 2^63) → numeric-out-of-range', () => {
     const w = new ByteWriter()
     try {
-      serializeSValue({ tag: 'SLong' }, { kind: 'Long', value: 9223372036854775808n }, w)
+      serializeSValue({ tag: 'SLong' }, { kind: 'Long', value: 9223372036854775808n }, 0, w)
       throw new Error('expected throw')
     } catch (e) {
       expect(e).toBeInstanceOf(SValueSerializeError)
@@ -421,7 +421,7 @@ describe('SValue deferred-kind errors', () => {
   const deferred: SType[] = [
     // SBox is implemented in phase 2f (see test/wire/sbox-roundtrip.test.ts)
     // SAvlTree is implemented in phase 2h-b (see test/wire/svalue-savltree.test.ts)
-    { tag: 'SHeader' },
+    // SHeader is implemented in phase 2h-c.1 (V3-gated; see test/wire/svalue-sheader-v3-parse.test.ts)
     { tag: 'SPreHeader' },
     { tag: 'SContext' },
     { tag: 'SGlobal' },
@@ -434,7 +434,7 @@ describe('SValue deferred-kind errors', () => {
     it(`parseSValue ${t.tag} throws not-implemented-phase-2a`, () => {
       const r = new ByteReader(new Uint8Array([0x00]))
       try {
-        parseSValue(t, r)
+        parseSValue(t, 0, r)
         expect.fail(`expected throw for ${t.tag}`)
       } catch (e) {
         expect(e).toBeInstanceOf(SValueParseError)
@@ -442,6 +442,19 @@ describe('SValue deferred-kind errors', () => {
       }
     })
   }
+
+  // SHeader at tree-version < 3 throws 'sheader-tree-version-too-low' (not
+  // 'not-implemented-phase-2a'). This is distinct from the other deferred kinds.
+  it('parseSValue SHeader treeVersion=0 throws sheader-tree-version-too-low', () => {
+    const r = new ByteReader(new Uint8Array([0x00]))
+    try {
+      parseSValue({ tag: 'SHeader' }, 0, r)
+      expect.fail('expected throw for SHeader at treeVersion=0')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueParseError)
+      expect((e as SValueParseError).code).toBe('sheader-tree-version-too-low')
+    }
+  })
 })
 
 describe('SValue SSigmaProp parse + serialize', () => {
@@ -459,7 +472,7 @@ describe('SValue SSigmaProp parse + serialize', () => {
 
   it('parses an SSigmaProp value containing a ProveDlog', () => {
     const r = new ByteReader(rawProveDlog)
-    const v = parseSValue({ tag: 'SSigmaProp' }, r)
+    const v = parseSValue({ tag: 'SSigmaProp' }, 0, r)
     expect(v.kind).toBe('SigmaProp')
     if (v.kind === 'SigmaProp') {
       // Phase 2g-medium: structural shape — check tag and public key bytes.
@@ -473,16 +486,16 @@ describe('SValue SSigmaProp parse + serialize', () => {
 
   it('round-trips an SSigmaProp value byte-exactly', () => {
     const r = new ByteReader(rawProveDlog)
-    const v = parseSValue({ tag: 'SSigmaProp' }, r)
+    const v = parseSValue({ tag: 'SSigmaProp' }, 0, r)
     const w = new ByteWriter()
-    serializeSValue({ tag: 'SSigmaProp' }, v, w)
+    serializeSValue({ tag: 'SSigmaProp' }, v, 0, w)
     expect(Array.from(w.toBytes())).toEqual(Array.from(rawProveDlog))
   })
 
   it('rejects unknown SigmaBoolean opcode', () => {
     const garbage = new Uint8Array([0xff, 0x00])
     const r = new ByteReader(garbage)
-    expect(() => parseSValue({ tag: 'SSigmaProp' }, r)).toThrow()
+    expect(() => parseSValue({ tag: 'SSigmaProp' }, 0, r)).toThrow()
   })
 })
 
@@ -490,7 +503,7 @@ describe('SValue serialize: type-mismatch detection', () => {
   it('throws SValueSerializeError when SValue.kind does not match SType.tag', () => {
     const w = new ByteWriter()
     expect(() =>
-      serializeSValue({ tag: 'SBoolean' }, { kind: 'Int', value: 1 }, w)
+      serializeSValue({ tag: 'SBoolean' }, { kind: 'Int', value: 1 }, 0, w)
     ).toThrow(SValueSerializeError)
   })
 
@@ -500,6 +513,7 @@ describe('SValue serialize: type-mismatch detection', () => {
       serializeSValue(
         { tag: 'SGroupElement' },
         { kind: 'GroupElement', value: new Uint8Array(32) /* wrong length */ },
+        0,
         w
       )
     ).toThrow(SValueSerializeError)
@@ -511,6 +525,7 @@ describe('SValue serialize: type-mismatch detection', () => {
       serializeSValue(
         { tag: 'STuple', items: [{ tag: 'SInt' }, { tag: 'SInt' }] },
         { kind: 'Tuple', items: [{ kind: 'Int', value: 1 }] /* wrong arity */ },
+        0,
         w
       )
     ).toThrow(SValueSerializeError)
@@ -524,7 +539,7 @@ describe('SValue SOption tag semantics', () => {
     // anything other than `1`; the cursor must stop at +1, leaving the 0x42
     // for the next read.
     const r = new ByteReader(new Uint8Array([0x02, 0x42]))
-    const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, r)
+    const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, 0, r)
     expect(result).toEqual({ kind: 'Option', elem: { tag: 'SInt' }, value: null })
     // The 0x42 byte should NOT have been consumed — cursor stops after tag.
     expect(r.remaining).toBe(1)

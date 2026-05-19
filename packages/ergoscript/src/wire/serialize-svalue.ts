@@ -17,7 +17,7 @@
  */
 
 import type { ErgoBox, SType, SValue } from '../mir/types'
-import { ByteWriter } from '@ergots/scorex'
+import { ByteWriter, serializeHeader } from '@ergots/scorex'
 import { serializeSType } from './serialize-stype'
 import { serializeSigmaBoolean } from './sigma-boolean'
 
@@ -49,7 +49,7 @@ export class SValueSerializeError extends Error {
  * the body. The SBox arm below also calls this helper — a single
  * implementation, two consumers.
  */
-export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter): void {
+export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion = 0): void {
   // value (unsigned VLQ u64 — NOT ZigZag)
   w.writeVlqBigInt(box.value)
 
@@ -100,7 +100,7 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter): void {
   for (const k of regKeys) {
     const entry = box.registers[k]!
     serializeSType(entry.tpe, w)
-    serializeSValue(entry.tpe, entry.value, w)
+    serializeSValue(entry.tpe, entry.value, treeVersion, w)
   }
 }
 
@@ -116,7 +116,7 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter): void {
  * than emitting corrupt bytes that would fail downstream parsing or
  * (worse) silently round-trip incorrectly.
  */
-export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
+export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: ByteWriter): void {
   switch (t.tag) {
     case 'SBoolean':
       assertKind(t, v, 'Boolean')
@@ -295,14 +295,14 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
 
       // General case: each item is serialized by `t.elem`.
       for (const item of v.items) {
-        serializeSValue(t.elem, item, w)
+        serializeSValue(t.elem, item, treeVersion, w)
       }
       return
     }
 
     case 'SOption': {
       assertKind(t, v, 'Option')
-      w.writeOption(v.value, (w, inner) => serializeSValue(t.elem, inner, w))
+      w.writeOption(v.value, (w, inner) => serializeSValue(t.elem, inner, treeVersion, w))
       return
     }
 
@@ -317,7 +317,7 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
         )
       }
       for (let i = 0; i < t.items.length; i++) {
-        serializeSValue(t.items[i]!, v.items[i]!, w)
+        serializeSValue(t.items[i]!, v.items[i]!, treeVersion, w)
       }
       return
     }
@@ -348,7 +348,7 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       const box = v.value
 
       // Body fields (value + ergoTree + creation_height + tokens + registers)
-      writeBoxBodyWithoutRef(box, w)
+      writeBoxBodyWithoutRef(box, w, treeVersion)
 
       // transaction_id (32 raw bytes)
       if (box.txId.length !== 32) {
@@ -435,11 +435,33 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       return
     }
 
+    case 'SHeader': {
+      // V3-gated: SHeader SValue literals require ErgoTree version >= 3.
+      // Mirrors sigma-rust `ergotree-ir/src/serialization/data.rs:98`:
+      //   `Literal::Header(h) if w.tree_version() >= ErgoTreeVersion::V3 =>
+      //     h.scorex_serialize(w)?`
+      // Falls through at V<3 to the NotSupported error.
+      if (treeVersion < 3) {
+        throw new SValueSerializeError(
+          `SHeader SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+          'sheader-tree-version-too-low'
+        )
+      }
+      if (v.kind !== 'Header') {
+        throw new SValueSerializeError(
+          `serializeSValue(SHeader, ...): value kind '${v.kind}' does not match SHeader`,
+          'type-value-mismatch'
+        )
+      }
+      const bytes = serializeHeader(v.value)
+      w.writeBytes(bytes)
+      return
+    }
+
     // ---------------------------------------------------------------------
     // Deferred kinds: same set as parseSValue's deferred arms. No inline
     // `Const(_)` of these types appears in phase 2a corpora.
     // ---------------------------------------------------------------------
-    case 'SHeader':
     case 'SPreHeader':
     case 'SContext':
     case 'SGlobal':

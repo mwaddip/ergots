@@ -62,7 +62,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { ByteReader } from '@ergots/scorex'
+import { ByteReader, parseHeader } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSType } from './parse-stype'
 
@@ -84,8 +84,13 @@ export class SValueParseError extends Error {
  * consumes; the caller can chain further reads. Trailing-byte checks
  * (e.g. `r.isExhausted` after a top-level call) are the caller's
  * responsibility.
+ *
+ * `treeVersion` is the ErgoTree header version (0–7) of the enclosing tree.
+ * It gates SHeader: tree-version < 3 throws `sheader-tree-version-too-low`.
+ * Mirrors sigma-rust `ergotree-ir/src/serialization/data.rs:196` where the
+ * same version check is `r.tree_version() >= ErgoTreeVersion::V3`.
  */
-export function parseSValue(t: SType, r: ByteReader): SValue {
+export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValue {
   switch (t.tag) {
     case 'SBoolean':
       // sigma-rust: `Literal::Boolean(r.get_u8()? != 0)`. Any nonzero byte
@@ -203,7 +208,7 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       // General case: parse each item by `t.elem`.
       const items: SValue[] = new Array(len)
       for (let i = 0; i < len; i++) {
-        items[i] = parseSValue(t.elem, r)
+        items[i] = parseSValue(t.elem, treeVersion, r)
       }
       return { kind: 'Coll', elem: t.elem, items }
     }
@@ -217,7 +222,7 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       // cursor at +1, NOT as Some-with-recurse into inner parsing.
       const tag = r.readU8()
       if (tag === 1) {
-        const inner = parseSValue(t.elem, r)
+        const inner = parseSValue(t.elem, treeVersion, r)
         return { kind: 'Option', elem: t.elem, value: inner }
       }
       return { kind: 'Option', elem: t.elem, value: null }
@@ -227,7 +232,7 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
       // No length prefix; arity comes from the SType.
       const items: SValue[] = new Array(t.items.length)
       for (let i = 0; i < t.items.length; i++) {
-        items[i] = parseSValue(t.items[i]!, r)
+        items[i] = parseSValue(t.items[i]!, treeVersion, r)
       }
       return { kind: 'Tuple', items }
     }
@@ -317,7 +322,7 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
         //   [SType byte(s)] [SValue bytes]
         // This is exactly what parseSType + parseSValue reads.
         const tpe = parseSType(r)
-        const regValue = parseSValue(tpe, r)
+        const regValue = parseSValue(tpe, treeVersion, r)
         registers[4 + i] = { tpe, value: regValue }
       }
 
@@ -377,12 +382,29 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
     }
 
     // ---------------------------------------------------------------------
+    case 'SHeader': {
+      // V3-gated: SHeader SValue literals in segregated-constants sections
+      // require ErgoTree version >= 3. Mirrors sigma-rust
+      // `ergotree-ir/src/serialization/data.rs:196`:
+      //   `SHeader if r.tree_version() >= ErgoTreeVersion::V3 =>
+      //     Literal::Header(Box::new(Header::scorex_parse(r)?))`
+      // Falls through at V<3 to the NotSupported error.
+      if (treeVersion < 3) {
+        throw new SValueParseError(
+          `SHeader SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+          'sheader-tree-version-too-low'
+        )
+      }
+      const header = parseHeader(r)
+      return { kind: 'Header', value: header }
+    }
+
+    // ---------------------------------------------------------------------
     // Deferred kinds. These appear in `Expr.tpe` slots but not as inline
     // `Const(_)` values in phase 2a corpora. If a phase 2a fixture trips
     // one of these, the fixture itself must be deferred to the appropriate
     // later phase.
     // ---------------------------------------------------------------------
-    case 'SHeader':
     case 'SPreHeader':
     case 'SContext':
     case 'SGlobal':

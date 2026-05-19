@@ -133,7 +133,8 @@ export function parseExpr(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType> = new Map()
+  valDefTypes: Map<number, SType> = new Map(),
+  treeVersion = 0
 ): Expr {
   const opcode = r.readU8()
   return parseExprWithFirstByte(
@@ -141,7 +142,8 @@ export function parseExpr(
     r,
     constantTypes,
     constantValues,
-    valDefTypes
+    valDefTypes,
+    treeVersion
   )
 }
 
@@ -162,7 +164,8 @@ export function parseExprWithFirstByte(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion = 0
 ): Expr {
   // Inline-constant range: bytes in [0..LAST_CONSTANT_CODE] are SType codes
   // for embedded `Constant` values, not opcodes. Sigma-rust handles these in
@@ -170,7 +173,7 @@ export function parseExprWithFirstByte(
   // opcode byte to `parseConstFromByte`, which re-uses it as the first byte
   // of the SType encoding before parsing the SValue payload.
   if (opcode <= OP.LAST_CONSTANT_CODE) {
-    return parseConstFromByte(opcode, r)
+    return parseConstFromByte(opcode, treeVersion, r)
   }
 
   // Opcode-based dispatch. Each `case` throws until its per-variant task
