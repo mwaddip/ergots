@@ -129,6 +129,32 @@ describe('updateFn — UpdateLongBy', () => {
       reason: 'result-negative',
     })
   })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // AVL-02 regression — UpdateLongBy must not throw raw RangeError when the
+  // existing leaf value is shorter than 8 bytes (variable-length-value tree).
+  //
+  // Pre-fix beBytesToI64 constructed `new DataView(buf, off, 8)` without
+  // checking bytes.length, throwing RangeError "Invalid DataView length 8"
+  // and bypassing the verifier's null-on-failure return path.
+  // ───────────────────────────────────────────────────────────────────────────
+  it('AVL-02: fails (does not throw) when present value is shorter than 8 bytes', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 1n }
+    const existing = new Uint8Array([0x42]) // 1-byte value in a variable-length tree
+    expect(updateFn(op, existing)).toEqual({
+      ok: false,
+      reason: 'invalid-long-value-length',
+    })
+  })
+
+  it('AVL-02: fails (does not throw) when present value is longer than 8 bytes', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 1n }
+    const existing = new Uint8Array(9) // 9-byte value in a variable-length tree
+    expect(updateFn(op, existing)).toEqual({
+      ok: false,
+      reason: 'invalid-long-value-length',
+    })
+  })
 })
 
 describe('updateFn — UnknownModification', () => {

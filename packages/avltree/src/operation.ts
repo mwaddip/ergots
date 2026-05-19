@@ -29,6 +29,7 @@ export type UpdateFnFailReason =
   | 'key-not-found'                // Update or Remove on absent key
   | 'decrement-on-absent-key'      // UpdateLongBy delta < 0 on absent key
   | 'result-negative'              // UpdateLongBy result < 0
+  | 'invalid-long-value-length'    // UpdateLongBy existing value is not exactly 8 bytes (audit AVL-02)
 
 /**
  * Encode a signed i64 value as 8-byte big-endian.
@@ -48,10 +49,11 @@ function i64ToBeBytes(value: bigint): Uint8Array {
  * Ports BigEndian::read_i64 (operation.rs:94).
  * Interprets byte[0] bit 7 as the sign bit (two's complement).
  *
- * Precondition: bytes.length >= 8. Caller must ensure this — malformed proof
- * inputs are rejected upstream by the AvlTreeConfig length check (the
- * verifier rejects values shorter than valueLengthOpt before this function
- * is reached). Calling with bytes.length < 8 throws RangeError from DataView.
+ * Precondition: bytes.length === 8. Caller (updateFn UpdateLongBy branch) MUST
+ * pre-check; this function asserts as a defensive guard. Audit AVL-02: the
+ * pre-fix code threw RangeError on bytes.length < 8 (DataView constructor),
+ * bypassing the verifier's null-on-failure path; the explicit check converts
+ * that to a typed failure surfaced through updateFn's UpdateFnResult.
  */
 function beBytesToI64(bytes: Uint8Array): bigint {
   const view = new DataView(bytes.buffer, bytes.byteOffset, 8)
@@ -126,6 +128,15 @@ export function updateFn(op: Operation, oldValue: Uint8Array | null): UpdateFnRe
         }
         // operation.rs:92 — delta < 0 on absent key.
         return { ok: false, reason: 'decrement-on-absent-key' }
+      }
+      // Audit AVL-02: pre-fix beBytesToI64 threw RangeError when oldValue
+      // was not exactly 8 bytes (variable-length-value trees can legitimately
+      // store any-length values; an UpdateLongBy that lands on a non-8-byte
+      // leaf cannot be applied). Surface as a typed failure reason rather
+      // than letting the DataView constructor panic past the verifier's
+      // null-on-failure path.
+      if (oldValue.length !== 8) {
+        return { ok: false, reason: 'invalid-long-value-length' }
       }
       // operation.rs:93-103 — key present: add delta to existing value.
       const current = beBytesToI64(oldValue)
