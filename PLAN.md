@@ -1,14 +1,14 @@
-# Plan: Phase 2h-b — `@ergots/ergoscript` ↔ `@ergots/avltree` integration
+# Plan: Phase 2h-c.0 — `@ergots/scorex` extraction
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire 13 `SAvlTree.*` method handlers in `@ergots/ergoscript` (registry 8 → 21), add `verifyAvlBatchPartial` to `@ergots/avltree` (v0.1.0 → v0.2.0) for V3+ partial-success semantics, and stabilize the SAvlTree wire-format slice + `AvlTreeData` runtime shape.
+**Goal:** Extract the Scorex wire-codec layer (`ByteReader`, `ByteWriter`, `ReaderError`, VLQ + ZigZag VLQ encoders/decoders) and block-Header data types (`Header`, `AutolykosSolution`, digest helpers) from `@ergots/nipopow` and `@ergots/ergoscript` into a new shared workspace package `@ergots/scorex` v0.1.0. Add three Fleet-inspired ergonomic helpers (`readOption`/`writeOption`, `readArray`/`writeArray`, `readBool`/`writeBool`). Net regression target: zero — all 3318 existing tests must remain green.
 
-**Architecture:** Two packages bumped together. `@ergots/avltree` adds one targeted function. `@ergots/ergoscript` extends method-call dispatcher with 13 handlers (7 pure accessors + 6 verification ops calling into avltree). Fixture-gen extended with a per-handler corpus. TDD throughout — every handler is its own RED-GREEN cycle.
+**Architecture:** A refactor, not a greenfield package. ~702 LOC of audited code moves; the greenfield delta is the package skeleton + the three additive helper pairs (~150 LOC). Uses ergoscript's existing `ByteReader`/`ByteWriter` shape as the unified base (nipopow's is a subset). Transitional shim files in nipopow + ergoscript re-export from `@ergots/scorex` during migration so internal call sites compile unchanged until the final cleanup pass.
 
-**Tech Stack:** TypeScript + vitest (TS side) + Rust + Cargo (fixture-gen side). `@noble/hashes@2.2.0` (no new deps). `@ergots/avltree` workspace alias.
+**Tech Stack:** TypeScript + vitest (cross-runtime: node + jsdom). `@noble/hashes@2.2.0` (no new deps). Workspace alias `@ergots/scorex`.
 
-**Design spec:** `docs/specs/2026-05-19-ergoscript-phase-2h-b-avltree-integration-design.md` (committed `b5932e0`).
+**Design spec:** `docs/specs/2026-05-19-ergots-scorex-package-design.md` (committed in this session).
 
 ---
 
@@ -18,1707 +18,1476 @@ Every subagent implementing tasks below MUST receive this preamble (per `[[feedb
 
 > **OVERRIDES rules (project-wide; override conflicting defaults):**
 >
-> - **Rule #2 — Confidence escalation:** if confidence on a cryptographic invariant, byte-format detail, or V3+/V<3 failure-path semantic drops below 95%, halt and declare. Read sigma-rust source first.
+> - **Rule #2 — Confidence escalation:** if confidence on a byte-format detail or VLQ edge case drops below 95%, halt and declare. Read sigma-rust source first.
 > - **Rule #5 — Root-cause mandate:** no `try/catch` swallows, no retry loops, no flag-vars to skip broken logic. Fix the origin.
 > - **Rule #6 — Forced verification:** run `npx tsc --noEmit` AND the affected workspace's `npm test` after every implementation step; FIX all errors before claiming done.
 > - **Rule #7 — Context decay:** after 10+ messages, re-read files before editing them.
 > - **Rule #8 — Edit integrity:** read-edit-read around every edit. Max 3 edits to the same file without a verification read between batches.
 >
-> **TDD Iron Law:** no production code without a failing test first.
-> **Source-first discipline:** read `~/projects/ergots/external/sigma-rust/...` before writing TS.
+> **TDD Iron Law:** no production code without a failing test first. (For pure-movement steps in this plan — Phase 1 skeleton, Phase 2 file moves, Phase 3 file moves — TDD is satisfied by the pre-existing test suite running green after the move. New helper code in Phase 2 follows strict TDD red→green.)
+> **Source-first discipline:** read `~/projects/sigma-rust/sigma-rust/...` before writing TS that touches wire-format semantics.
+> **Browser-first hard rules** (CLAUDE.md): no `Buffer`, no `node:*`, no `process`, no WASM, no top-level await. ESM only.
 
 ---
 
 ## Phase ordering
 
-**B → A → C → D → E → F → G → H.** Tight dependency chain:
+Strict sequential — each phase depends on the previous landing cleanly:
 
-- **B** runs first — generates ALL fixtures (no dependencies on TS code; uses sigma-rust + ergo_avltree_rust on Rust side). Unblocks every downstream test.
-- **A** consumes B's `partial/insert-fail-at-3-of-5.json` fixture for the partial-success test. v0.2.0 ships verifyAvlBatchPartial.
-- **C** consumes B's accessor fixtures for the wire-format round-trip test (`savltree/digest/basic.json` has the SAvlTree const we need).
-- **D** depends on C (AvlTreeData runtime + wire format) and B (per-accessor fixtures).
-- **E** depends only on C (pure adapter helpers; no fixtures needed).
-- **F** depends on A + C + E + B (verifyAvlBatchPartial + adapter + tier-2 fixtures).
-- **G** depends on F (mutation tests across verification op success-path fixtures).
-- **H** is finalization.
+1. **Phase 1** — Create `packages/scorex/` skeleton (empty package; workspace alias resolves).
+2. **Phase 2** — Move `ByteReader` / `ByteWriter` / `ReaderError` / VLQ to scorex; add transitional shims in nipopow + ergoscript; add the three Fleet-inspired helpers TDD red→green.
+3. **Phase 3** — Move `digests.ts` / `autolykos-solution.ts` / `header.ts` to scorex; add transitional shims in nipopow.
+4. **Phase 4** — (Optional cleanup) Refactor inline `0x00`/`0x01` option tags and inline length-prefixed array reads across nipopow + ergoscript to use `readOption`/`writeOption`/`readArray`/`writeArray`.
+5. **Phase 5** — Delete transitional shim files. All internal callers now import directly from `@ergots/scorex`.
+6. **Phase 6** — Write `facts/scorex.md`; update `facts/nipopow.md` cross-refs; final verification.
 
-Per `[[feedback-no-artificial-stops]]`: drive through B→A→C→D→E→F→G→H with per-task commits; only stop on verification failure or surprise.
-
-Note: phase labels (A through H) follow the design-spec narrative ordering; execution ordering is B → A → C → D → E → F → G → H. The label letter does NOT determine execution priority.
+Per `[[feedback-no-artificial-stops]]`: drive through Phase 1 → Phase 6 with per-task commits; only stop on verification failure or surprise.
 
 ---
 
-## Phase A: `@ergots/avltree` v0.2.0 — `verifyAvlBatchPartial`
+## Phase 1: `packages/scorex/` skeleton
 
-### Task A1 — Add `verifyAvlBatchPartial` (TDD red→green)
-
-**Files:**
-- Create: `packages/avltree/test/verify-batch-partial.test.ts`
-- Modify: `packages/avltree/src/verify.ts`
-- Modify: `packages/avltree/src/batch-verifier.ts` (expose post-failure digest if not already accessible)
-- Modify: `packages/avltree/src/index.ts` (re-export `verifyAvlBatchPartial`)
-
-- [ ] **Step A1.1: Read sigma-rust source for the partial-success digest read.**
-
-```bash
-sed -n '220,280p' /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-interpreter/src/eval/savltree.rs
-```
-
-Look for how sigma-rust reads `bv.digest()` after a `perform_one_operation` failure to confirm: the digest reflects only successful ops, never the failed op's partial state.
-
-- [ ] **Step A1.2: Write failing test for the all-pass path (sanity check on wrapper isomorphism).**
-
-Edit `packages/avltree/test/verify-batch-partial.test.ts`:
-
-```ts
-import { describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { verifyAvlBatchPartial, verifyAvlBatch } from '../src/verify.ts'
-import type { Operation } from '../src/operation.ts'
-
-const fixturesDir = join(__dirname, 'fixtures')
-
-// Pick an existing all-pass fixture from the v0.1.0 corpus.
-// (Path may need adjusting based on actual fixture layout.)
-const allPassFixture = JSON.parse(
-  readFileSync(join(fixturesDir, 'corpus/insert-balanced-10.json'), 'utf8')
-)
-
-describe('verifyAvlBatchPartial: all-pass equivalence with verifyAvlBatch', () => {
-  test('returns opsCompleted === operations.length on success', () => {
-    const startingDigest = Uint8Array.from(Buffer.from(allPassFixture.starting_digest_hex, 'hex'))
-    const proof = Uint8Array.from(Buffer.from(allPassFixture.proof_hex, 'hex'))
-    const config = allPassFixture.config
-    const operations: Operation[] = allPassFixture.operations.map(decodeOp)
-
-    const partial = verifyAvlBatchPartial(startingDigest, proof, config, operations)
-    expect(partial).not.toBeNull()
-    expect(partial!.opsCompleted).toBe(operations.length)
-
-    const batch = verifyAvlBatch(startingDigest, proof, config, operations)
-    expect(batch).not.toBeNull()
-    expect(partial!.newDigest).toEqual(batch!.newDigest)
-    expect(partial!.results).toEqual(batch!.results)
-  })
-})
-
-function decodeOp(o: any): Operation { /* tag dispatch; mirrors fixture-gen encoding */ return o }
-```
-
-Run: `cd packages/avltree && npx vitest run verify-batch-partial.test.ts`
-Expected: FAIL with `verifyAvlBatchPartial is not a function`.
-
-- [ ] **Step A1.3: Implement `verifyAvlBatchPartial`.**
-
-Edit `packages/avltree/src/verify.ts`:
-
-```ts
-export function verifyAvlBatchPartial(
-  startingDigest: Uint8Array,
-  proof: Uint8Array,
-  config: AvlTreeConfig,
-  operations: Operation[],
-): { newDigest: Uint8Array; results: (Uint8Array | null)[]; opsCompleted: number } | null {
-  // Reuse the existing shape validation
-  validateConfig(config)
-  validateStartingDigest(startingDigest)
-  for (const op of operations) validateOpAgainstConfig(op, config)
-
-  const verifier = new BatchAvlVerifier(startingDigest, proof, config)
-  if (verifier.failed) return null  // verifier construct fail (proof decode, digest mismatch)
-
-  const results: (Uint8Array | null)[] = []
-  let opsCompleted = 0
-  for (const op of operations) {
-    const r = verifier.performOneOperation(op)
-    if (r.failed) {
-      // Take the digest as of the LAST successful op
-      const partialDigest = verifier.digestAtLastSuccess()
-      return { newDigest: partialDigest, results, opsCompleted }
-    }
-    results.push(r.oldValue)
-    opsCompleted++
-  }
-  return { newDigest: verifier.digest(), results, opsCompleted }
-}
-```
-
-Note: `BatchAvlVerifier.digestAtLastSuccess()` may need to be added — verify whether the verifier already exposes a digest that reflects last-success state, or whether a snapshot is needed. If sigma-rust's `bv.digest()` returns the post-failure (== last-success) digest naturally, then no new method needed — call `verifier.digest()`.
-
-- [ ] **Step A1.4: Refactor `verifyAvlBatch` as wrapper.**
-
-Edit `packages/avltree/src/verify.ts`:
-
-```ts
-export function verifyAvlBatch(
-  startingDigest: Uint8Array,
-  proof: Uint8Array,
-  config: AvlTreeConfig,
-  operations: Operation[],
-): VerifyAvlBatchResult | null {
-  const partial = verifyAvlBatchPartial(startingDigest, proof, config, operations)
-  if (partial === null) return null
-  if (partial.opsCompleted < operations.length) return null
-  return { newDigest: partial.newDigest, results: partial.results }
-}
-```
-
-- [ ] **Step A1.5: Run all `@ergots/avltree` tests.**
-
-Run: `cd packages/avltree && npm test 2>&1 | tail -20`
-Expected: 140+ tests pass (140 existing + new partial test). Existing tests pass because `verifyAvlBatch` is now a thin wrapper byte-equivalent on the all-pass path.
-
-- [ ] **Step A1.6: Write failing test for partial-success path.**
-
-Add to `packages/avltree/test/verify-batch-partial.test.ts`:
-
-```ts
-test('returns partial result when op 3 of 5 fails (Insert on existing key)', () => {
-  // Setup: starting tree has key K. Operations: Insert K1, Insert K2, Insert K (will fail), Insert K3, Insert K4.
-  // Generate this fixture via fixture-gen (task B1 produces the fixture).
-  const fixture = JSON.parse(
-    readFileSync(join(fixturesDir, 'partial/insert-fail-at-3-of-5.json'), 'utf8')
-  )
-  const partial = verifyAvlBatchPartial(
-    Uint8Array.from(Buffer.from(fixture.starting_digest_hex, 'hex')),
-    Uint8Array.from(Buffer.from(fixture.proof_hex, 'hex')),
-    fixture.config,
-    fixture.operations.map(decodeOp),
-  )
-  expect(partial).not.toBeNull()
-  expect(partial!.opsCompleted).toBe(2)  // first 2 ops succeeded
-  expect(partial!.newDigest).toEqual(
-    Uint8Array.from(Buffer.from(fixture.expected_digest_after_2_ops_hex, 'hex'))
-  )
-})
-```
-
-The fixture `partial/insert-fail-at-3-of-5.json` will be produced in Phase B. For now, write the test, see it fail, and proceed; Phase B fills the fixture.
-
-Run: `cd packages/avltree && npx vitest run verify-batch-partial.test.ts`
-Expected: 1 pass + 1 fail (fixture not found).
-
-- [ ] **Step A1.7: Commit (test + implementation; fixture follows in Phase B).**
-
-```bash
-cd /home/mwaddip/projects/ergots
-git add packages/avltree/src/verify.ts packages/avltree/src/batch-verifier.ts packages/avltree/src/index.ts packages/avltree/test/verify-batch-partial.test.ts
-git commit -m "$(cat <<'EOF'
-feat(avltree): add verifyAvlBatchPartial for V3+ partial-success semantics
-
-verifyAvlBatch becomes a thin wrapper over verifyAvlBatchPartial:
-  verifyAvlBatch(...) === verifyAvlBatchPartial(...) but returns null on
-  partial-success (opsCompleted < operations.length).
-
-verifyAvlBatchPartial returns { newDigest, results, opsCompleted } reflecting
-the verifier state after the LAST successful operation (or the final state on
-all-pass). On verifier construct failure (proof decode / digest mismatch)
-returns null (no partial state to report).
-
-Enables @ergots/ergoscript's V3+ SAvlTree.insert/update handlers to honor
-sigma-rust's break-on-failure semantics.
-
-Partial-path fixture follows in Phase B.
-EOF
-)"
-```
-
-### Task A2 — Update `facts/avltree.md` + bump version + commit
+### Task 1.1 — Create directory structure
 
 **Files:**
-- Modify: `facts/avltree.md`
-- Modify: `packages/avltree/package.json`
+- Create: `packages/scorex/src/index.ts` (empty barrel)
+- Create: `packages/scorex/test/.gitkeep`
 
-- [ ] **Step A2.1: Add `verifyAvlBatchPartial` row to `facts/avltree.md` public surface.**
+- [ ] **Step 1.1.1: Create the directory and placeholder files.**
 
-Locate the "Primary export: `@ergots/avltree`" section. After `verifyAvlLookup`'s entry, insert:
+```bash
+mkdir -p /home/mwaddip/projects/ergots/packages/scorex/src
+mkdir -p /home/mwaddip/projects/ergots/packages/scorex/test
+touch /home/mwaddip/projects/ergots/packages/scorex/test/.gitkeep
+```
+
+- [ ] **Step 1.1.2: Write minimal `src/index.ts`.**
+
+Edit `packages/scorex/src/index.ts`:
 
 ```ts
-verifyAvlBatchPartial(
-  startingDigest: Uint8Array,
-  proof: Uint8Array,
-  config: AvlTreeConfig,
-  operations: Operation[],
-): {
-  newDigest: Uint8Array
-  results: (Uint8Array | null)[]
-  opsCompleted: number
-} | null
+// @ergots/scorex v0.1.0 — Scorex wire-codec layer + block-Header types.
+// Phase 2h-c.0 extraction (in progress); exports added as files are moved.
+export {}
 ```
 
-Then add a per-function section mirroring the `verifyAvlBatch` entry's structure:
+### Task 1.2 — Write package config files
 
-```markdown
-#### `verifyAvlBatchPartial(startingDigest, proof, config, operations)`
+**Files:**
+- Create: `packages/scorex/package.json`
+- Create: `packages/scorex/tsconfig.json`
+- Create: `packages/scorex/vitest.config.ts`
+- Create: `packages/scorex/vitest.browser.config.ts`
+- Create: `packages/scorex/tsup.config.ts`
+- Create: `packages/scorex/LICENSE`
 
-- **Precondition:** Same shape validation as `verifyAvlBatch`.
-- **Postcondition (success):** Returns `{ newDigest, results, opsCompleted }`. `opsCompleted` is the count of successful operations; `newDigest` reflects the verifier state after the last successful operation. On all-pass, `opsCompleted === operations.length`.
-- **Postcondition (partial-success on op failure):** Stops iterating at the first failed operation. Returns the same shape with `opsCompleted < operations.length`. `newDigest` reflects verifier state as of the last successful op.
-- **Postcondition (verifier construct failure):** Returns `null`. No partial state to report when the proof itself doesn't anchor.
-- **Invariant:** Stateless. Same inputs always produce the same output.
-- **Use case:** sigma-rust's V3+ `SAvlTree.insert` / `update` handlers (in `@ergots/ergoscript`'s phase 2h-b) gracefully break on per-entry failure and return a tree with the partial-success digest. `verifyAvlBatchPartial` is the API that supports this without exposing internal verifier state.
-```
+- [ ] **Step 1.2.1: Write `packages/scorex/package.json`.**
 
-Also add to Source Mapping table (after the existing rows):
-
-```markdown
-| (TS-only; new v0.2.0) | `verifyAvlBatchPartial` (`verify.ts`) | Wrapper around per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + digest snapshot. No direct Rust counterpart; sigma-rust handles the partial-success semantic inline in its eval handlers. |
-```
-
-- [ ] **Step A2.2: Bump version.**
-
-Edit `packages/avltree/package.json`:
+Use `packages/avltree/package.json` as template, substituting name/description/keywords:
 
 ```json
-"version": "0.2.0"
+{
+  "name": "@ergots/scorex",
+  "version": "0.1.0",
+  "publishConfig": { "access": "public" },
+  "description": "Pure-TypeScript Scorex wire codec (VLQ, ZigZag VLQ, ByteReader/Writer) plus Ergo block-Header / AutolykosSolution data types shared across @ergots/* packages.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwaddip/ergots.git",
+    "directory": "packages/scorex"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "jsdom": "^29.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": { "node": ">=20" },
+  "keywords": ["ergo", "scorex", "vlq", "serialization", "blockchain", "browser"]
+}
 ```
 
-- [ ] **Step A2.3: Verify avltree still green.**
+- [ ] **Step 1.2.2: Write `packages/scorex/tsconfig.json`.**
 
-Run: `cd packages/avltree && npm test 2>&1 | tail -5`
-Expected: same pass count as A1.6 (partial-success test still fails until B1 fixture lands, but every other test passes).
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}
+```
 
-- [ ] **Step A2.4: Commit.**
+- [ ] **Step 1.2.3: Write `packages/scorex/vitest.config.ts`.**
+
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['test/**/*.test.ts'],
+    environment: 'node',
+    pool: 'forks',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+  },
+});
+```
+
+- [ ] **Step 1.2.4: Write `packages/scorex/vitest.browser.config.ts`.**
+
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['test/**/*.test.ts'],
+    environment: 'jsdom',
+    pool: 'forks',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+  },
+});
+```
+
+- [ ] **Step 1.2.5: Write `packages/scorex/tsup.config.ts`.**
+
+```ts
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['src/index.ts'],
+  format: ['esm'],
+  dts: true,
+  clean: true,
+  splitting: false,
+  // OPS-04: see packages/nipopow/tsup.config.ts for rationale.
+  sourcemap: false,
+  target: 'es2022',
+  platform: 'neutral',
+});
+```
+
+- [ ] **Step 1.2.6: Copy LICENSE.**
 
 ```bash
-git add facts/avltree.md packages/avltree/package.json
-git commit -m "chore(avltree): bump to 0.2.0 + document verifyAvlBatchPartial in facts"
+cp /home/mwaddip/projects/ergots/packages/avltree/LICENSE /home/mwaddip/projects/ergots/packages/scorex/LICENSE
 ```
 
----
-
-## Phase B: fixture-gen extension — Rust side
-
-### Task B1 — Add `fixture-gen/src/cmds/ergoscript_savltree.rs`
+### Task 1.3 — Declare workspace alias in consumer packages
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript_savltree.rs`
-- Modify: `fixture-gen/src/cmds.rs` (register the new command module)
-- Modify: `fixture-gen/src/main.rs` (wire the command into the dispatch table)
+- Modify: `packages/nipopow/package.json` (add `@ergots/scorex` to dependencies)
+- Modify: `packages/ergoscript/package.json` (add `@ergots/scorex` to dependencies)
 
-- [ ] **Step B1.1: Read fixture-gen patterns for prior phases.**
-
-```bash
-ls /home/mwaddip/projects/ergots/fixture-gen/src/cmds/
-cat /home/mwaddip/projects/ergots/fixture-gen/src/cmds.rs
-```
-
-Identify the existing command structure. Pattern: each cmd module exposes a `pub fn run(out_dir: &Path) -> Result<()>` and is dispatched by name from `main.rs`.
-
-- [ ] **Step B1.2: Read sigma-rust `try_eval_out` signature and the existing `ergoscript_method_handlers.rs` (or equivalent prior eval fixture-gen module).**
+- [ ] **Step 1.3.1: Read current consumer package.json dependencies.**
 
 ```bash
-grep -rn "try_eval_out" /home/mwaddip/projects/ergots/fixture-gen/src/ | head -5
+grep -A 5 '"dependencies"' /home/mwaddip/projects/ergots/packages/nipopow/package.json
+grep -A 5 '"dependencies"' /home/mwaddip/projects/ergots/packages/ergoscript/package.json
 ```
 
-Lift the established pattern for generating eval fixtures: construct ErgoTree → eval via try_eval_out → emit JSON with `tree_hex`, `expected_value_kind`, `expected_value_data`, `expected_jit_cost`.
+- [ ] **Step 1.3.2: Add `"@ergots/scorex": "0.1.0"` to `packages/nipopow/package.json` dependencies.**
 
-- [ ] **Step B1.3: Implement the cmd module.**
+Use Edit tool to insert into the dependencies object. Resulting block should be (preserve existing `@noble/hashes` entry):
 
-`fixture-gen/src/cmds/ergoscript_savltree.rs`:
-
-```rust
-//! Generate fixtures for @ergots/ergoscript phase 2h-b SAvlTree.* method handlers.
-//!
-//! Per design spec docs/specs/2026-05-19-ergoscript-phase-2h-b-avltree-integration-design.md.
-//! Produces ~55-65 fixtures across 13 handlers + the avltree-partial test fixture.
-
-use anyhow::Result;
-use std::path::Path;
-
-pub fn run(out_dir: &Path) -> Result<()> {
-    let ergoscript_savltree_dir = out_dir
-        .join("packages/ergoscript/test/fixtures/savltree");
-    let avltree_partial_dir = out_dir
-        .join("packages/avltree/test/fixtures/partial");
-
-    std::fs::create_dir_all(&ergoscript_savltree_dir)?;
-    std::fs::create_dir_all(&avltree_partial_dir)?;
-
-    // === Tier 1 accessors ===
-    digest_fixtures(&ergoscript_savltree_dir.join("digest"))?;
-    enabled_operations_fixtures(&ergoscript_savltree_dir.join("enabledOperations"))?;
-    key_length_fixtures(&ergoscript_savltree_dir.join("keyLength"))?;
-    value_length_opt_fixtures(&ergoscript_savltree_dir.join("valueLengthOpt"))?;
-    is_insert_allowed_fixtures(&ergoscript_savltree_dir.join("isInsertAllowed"))?;
-    is_update_allowed_fixtures(&ergoscript_savltree_dir.join("isUpdateAllowed"))?;
-    is_remove_allowed_fixtures(&ergoscript_savltree_dir.join("isRemoveAllowed"))?;
-
-    // === Tier 2 verification ops ===
-    contains_fixtures(&ergoscript_savltree_dir.join("contains"))?;
-    get_fixtures(&ergoscript_savltree_dir.join("get"))?;
-    get_many_fixtures(&ergoscript_savltree_dir.join("getMany"))?;
-    insert_fixtures(&ergoscript_savltree_dir.join("insert"))?;
-    update_fixtures(&ergoscript_savltree_dir.join("update"))?;
-    remove_fixtures(&ergoscript_savltree_dir.join("remove"))?;
-
-    // === avltree partial-success path ===
-    avltree_partial_fixtures(&avltree_partial_dir)?;
-
-    Ok(())
-}
-
-// Implementer note: each function below follows the same template:
-//   1. construct AvlTreeData with parameterized treeFlags, keyLength, valueLengthOpt
-//   2. (for verification ops) use BatchAVLProver to build a real AD proof
-//   3. construct ErgoTree { Const(SAvlTree, AvlTreeData) + MethodCall(this, methodId, args) }
-//   4. try_eval_out(tree, ctx) → expected value + jit_cost
-//   5. emit JSON: { description, tree_hex, expected_value_kind, expected_value_data,
-//                   expected_jit_cost, ergo_tree_version }
-// Read the prior phase 2g.5 / 2g.6 fixture-gen modules for the established pattern.
-
-fn digest_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn enabled_operations_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn key_length_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn value_length_opt_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn is_insert_allowed_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn is_update_allowed_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn is_remove_allowed_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn contains_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn get_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn get_many_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn insert_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn update_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-fn remove_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
-
-/// Generates the partial/insert-fail-at-3-of-5.json fixture that Task A1.6 consumes.
-fn avltree_partial_fixtures(out: &Path) -> Result<()> { /* ... */ Ok(()) }
+```json
+  "dependencies": {
+    "@ergots/scorex": "0.1.0",
+    "@noble/hashes": "2.2.0"
+  },
 ```
 
-(Implementer: each helper function lifts the AvlTreeData + ErgoTree + try_eval_out pattern from the closest prior fixture-gen module — see e.g. `cmds/ergoscript_method_handlers.rs` or whichever fixture-gen module the prior 2g.6 commits added. Source-read first.)
+- [ ] **Step 1.3.3: Add `"@ergots/scorex": "0.1.0"` to `packages/ergoscript/package.json` dependencies.**
 
-- [ ] **Step B1.4: Register cmd in `fixture-gen/src/cmds.rs`.**
+Same insertion pattern. Preserve all existing deps (`@ergots/avltree`, `@noble/curves`, `@noble/hashes`):
 
-```rust
-pub mod ergoscript_savltree;
+```json
+  "dependencies": {
+    "@ergots/avltree": "0.2.0",
+    "@ergots/scorex": "0.1.0",
+    "@noble/curves": "2.2.0",
+    "@noble/hashes": "2.2.0"
+  },
 ```
 
-- [ ] **Step B1.5: Wire cmd in `fixture-gen/src/main.rs`.**
+### Task 1.4 — Resolve workspace and verify clean baseline
 
-Follow the existing dispatch pattern — add a match arm for `"ergoscript_savltree"`.
-
-- [ ] **Step B1.6: Build + run fixture-gen.**
+- [ ] **Step 1.4.1: Run `npm install` from repo root.**
 
 ```bash
-cd /home/mwaddip/projects/ergots/fixture-gen
-cargo build --release
-cargo run --release -- ergoscript_savltree
+cd /home/mwaddip/projects/ergots && npm install 2>&1 | tail -10
 ```
 
-Expected: clean build; new fixtures emitted under `packages/ergoscript/test/fixtures/savltree/` and `packages/avltree/test/fixtures/partial/`.
-
-- [ ] **Step B1.7: Re-run all fixture-gen commands to confirm determinism.**
+Expected: completes without errors. Verify workspace alias by running:
 
 ```bash
-cargo run --release
+ls -la /home/mwaddip/projects/ergots/node_modules/@ergots/scorex
 ```
 
-Expected: no diff against committed fixtures from prior phases.
+Expected: symlink to `packages/scorex`.
 
-- [ ] **Step B1.8: Verify avltree partial test now passes.**
+- [ ] **Step 1.4.2: Typecheck the new empty package.**
 
 ```bash
-cd /home/mwaddip/projects/ergots/packages/avltree && npm test 2>&1 | tail -10
+cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
 ```
 
-Expected: All tests pass (the A1.6 partial test now has its fixture).
+Expected: zero errors.
 
-- [ ] **Step B1.9: Commit.**
+- [ ] **Step 1.4.3: Typecheck unchanged consumer packages.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
+cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
+```
+
+Expected: zero errors in both.
+
+- [ ] **Step 1.4.4: Run all consumer tests to confirm baseline is unchanged.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/nipopow/ packages/ergoscript/ 2>&1 | tail -10
+```
+
+Expected: 335 (nipopow) + 2827 (ergoscript) = 3162 tests pass.
+
+### Task 1.5 — Commit the skeleton
+
+- [ ] **Step 1.5.1: Stage and commit.**
 
 ```bash
 cd /home/mwaddip/projects/ergots
-git add fixture-gen/src/ packages/ergoscript/test/fixtures/savltree/ packages/avltree/test/fixtures/partial/
+git add packages/scorex/ packages/nipopow/package.json packages/ergoscript/package.json package-lock.json
 git commit -m "$(cat <<'EOF'
-feat(fixture-gen): add ergoscript_savltree cmd for phase 2h-b fixtures
+build(scorex): create @ergots/scorex v0.1.0 package skeleton
 
-Emits ~55-65 fixtures across 13 SAvlTree.* method handlers (7 accessors
-+ 6 verification ops). Generates AvlTreeData scenarios with varied treeFlags,
-keyLength, valueLengthOpt. Verification-op fixtures use BatchAVLProver to
-produce real AD proofs.
+Phase 2h-c.0 step 1/6 — empty package with package.json, tsconfig,
+vitest configs (node + jsdom), tsup config, LICENSE. Declared as
+workspace dependency in @ergots/nipopow and @ergots/ergoscript.
 
-Also emits packages/avltree/test/fixtures/partial/ for the verifyAvlBatchPartial
-test cases (V3+ partial-success path validation).
+No functional changes. All 3162 consumer tests remain green.
 
-Per design spec docs/specs/2026-05-19-ergoscript-phase-2h-b-avltree-integration-design.md.
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+Expected: commit succeeds with no pre-commit hook failures.
+
+---
+
+## Phase 2: Move codec layer + add Fleet-inspired helpers
+
+### Task 2.1 — Move ByteReader to `@ergots/scorex/src/reader.ts`
+
+**Files:**
+- Create: `packages/scorex/src/errors.ts`
+- Create: `packages/scorex/src/reader.ts`
+- Modify: `packages/scorex/src/index.ts` (export new symbols)
+
+- [ ] **Step 2.1.1: Read ergoscript's existing reader and writer to know what's being moved.**
+
+```bash
+cat /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/reader.ts | head -50
+cat /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/writer.ts | head -50
+```
+
+- [ ] **Step 2.1.2: Create `packages/scorex/src/errors.ts` with single-source ReaderError.**
+
+```ts
+/**
+ * @ergots/scorex — wire-codec error class.
+ *
+ * Thrown by ByteReader on malformed bytes (truncation, VLQ overflow, etc.).
+ * Carries a structural `code: string` matching a fixed enum of reasons for
+ * programmatic dispatch (instanceof + .code).
+ */
+export class ReaderError extends Error {
+  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds') {
+    super(message);
+    this.name = 'ReaderError';
+  }
+}
+```
+
+- [ ] **Step 2.1.3: Move ergoscript's reader.ts content into `packages/scorex/src/reader.ts`.**
+
+```bash
+cp /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/reader.ts /home/mwaddip/projects/ergots/packages/scorex/src/reader.ts
+```
+
+Then edit the copy:
+- Remove the duplicate `ReaderError` declaration; replace with `import { ReaderError } from './errors.ts';`.
+- Verify no other imports reference `./wire/...` paths (this is a fresh package; all imports must be relative-internal or `@noble/hashes` style).
+
+- [ ] **Step 2.1.4: Update `packages/scorex/src/index.ts` to re-export.**
+
+```ts
+export { ByteReader } from './reader.ts';
+export { ReaderError } from './errors.ts';
+```
+
+- [ ] **Step 2.1.5: Typecheck the new file.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
+```
+
+Expected: zero errors.
+
+### Task 2.2 — Move ByteWriter to `@ergots/scorex/src/writer.ts`
+
+**Files:**
+- Create: `packages/scorex/src/writer.ts`
+- Modify: `packages/scorex/src/index.ts`
+
+- [ ] **Step 2.2.1: Move ergoscript's writer.ts.**
+
+```bash
+cp /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/writer.ts /home/mwaddip/projects/ergots/packages/scorex/src/writer.ts
+```
+
+Edit the copy:
+- Verify no imports reference `./wire/...` paths.
+- If the writer imports `ReaderError` for any reason (it shouldn't), redirect to `./errors.ts`.
+
+- [ ] **Step 2.2.2: Update `packages/scorex/src/index.ts`.**
+
+```ts
+export { ByteReader } from './reader.ts';
+export { ByteWriter } from './writer.ts';
+export { ReaderError } from './errors.ts';
+```
+
+- [ ] **Step 2.2.3: Typecheck.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
+```
+
+Expected: zero errors.
+
+### Task 2.3 — Move VLQ free functions and add as scorex exports
+
+**Files:**
+- Create: `packages/scorex/src/vlq.ts`
+- Modify: `packages/scorex/src/index.ts`
+
+- [ ] **Step 2.3.1: Read nipopow's VLQ implementation.**
+
+```bash
+cat /home/mwaddip/projects/ergots/packages/nipopow/src/scorex/vlq.ts
+```
+
+- [ ] **Step 2.3.2: Create `packages/scorex/src/vlq.ts` with the free-function API.**
+
+Copy the content from `packages/nipopow/src/scorex/vlq.ts`, updating import paths:
+- `import { ByteReader } from './reader.ts';` (was `./reader.ts` — same relative path; just verify after copy).
+- `import { ReaderError } from './errors.ts';` if any error-throwing path uses it.
+
+Exported symbols (same as nipopow's vlq.ts):
+- `encodeVlqU(value: bigint): Uint8Array`
+- `decodeVlqU(reader: ByteReader): bigint`
+- `encodeVlqZigZag(value: bigint): Uint8Array`
+- `decodeVlqZigZag(reader: ByteReader): bigint`
+- `readVlqU32(reader: ByteReader, fieldName: string): number`
+
+**DRY follow-up (per spec):** After both `reader.ts` (which already contains ergoscript's instance-method VLQ logic) and `vlq.ts` (nipopow's free-function logic) coexist in `packages/scorex/src/`, audit for duplicated VLQ-decode loops. Spec calls for "backed by the same code paths as the reader/writer instance methods (DRY via shared internal `_decodeVlqU`/`_encodeVlqU` helpers)". If both implementations are byte-equivalent (verified via the moved test suites), refactor one path to delegate to the other — typically the free functions delegate to ByteReader/ByteWriter via a thin wrapper. Defer if both paths' tests pass and the duplication is small; capture as a follow-up commit.
+
+- [ ] **Step 2.3.3: Update `packages/scorex/src/index.ts`.**
+
+```ts
+export { ByteReader } from './reader.ts';
+export { ByteWriter } from './writer.ts';
+export { ReaderError } from './errors.ts';
+export {
+  encodeVlqU,
+  decodeVlqU,
+  encodeVlqZigZag,
+  decodeVlqZigZag,
+  readVlqU32,
+} from './vlq.ts';
+```
+
+- [ ] **Step 2.3.4: Typecheck.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
+```
+
+Expected: zero errors.
+
+### Task 2.4 — Add transitional shims in nipopow + ergoscript
+
+**Files:**
+- Modify: `packages/nipopow/src/scorex/reader.ts` (replace with re-export shim)
+- Modify: `packages/nipopow/src/scorex/writer.ts` (replace with re-export shim)
+- Modify: `packages/nipopow/src/scorex/vlq.ts` (replace with re-export shim)
+- Modify: `packages/ergoscript/src/wire/reader.ts` (replace with re-export shim)
+- Modify: `packages/ergoscript/src/wire/writer.ts` (replace with re-export shim)
+
+- [ ] **Step 2.4.1: Replace `packages/nipopow/src/scorex/reader.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after all nipopow internal
+// callers import directly from '@ergots/scorex' (Phase 5 of PLAN.md).
+export { ByteReader, ReaderError } from '@ergots/scorex';
+```
+
+- [ ] **Step 2.4.2: Replace `packages/nipopow/src/scorex/writer.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export { ByteWriter } from '@ergots/scorex';
+```
+
+- [ ] **Step 2.4.3: Replace `packages/nipopow/src/scorex/vlq.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export {
+  encodeVlqU,
+  decodeVlqU,
+  encodeVlqZigZag,
+  decodeVlqZigZag,
+  readVlqU32,
+} from '@ergots/scorex';
+```
+
+- [ ] **Step 2.4.4: Replace `packages/ergoscript/src/wire/reader.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export { ByteReader, ReaderError } from '@ergots/scorex';
+```
+
+- [ ] **Step 2.4.5: Replace `packages/ergoscript/src/wire/writer.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export { ByteWriter } from '@ergots/scorex';
+```
+
+- [ ] **Step 2.4.6: Typecheck all packages.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
+npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
+```
+
+Expected: zero errors in all three.
+
+- [ ] **Step 2.4.7: Run all tests to confirm zero regression.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ packages/nipopow/ packages/ergoscript/ packages/avltree/ 2>&1 | tail -15
+```
+
+Expected: 3318 tests pass (avltree unaffected: 156; nipopow: 335; ergoscript: 2827; scorex: 0 since no test files yet).
+
+### Task 2.5 — Move existing codec tests to scorex
+
+**Files:**
+- Create: `packages/scorex/test/reader.test.ts` (moved from ergoscript)
+- Create: `packages/scorex/test/writer.test.ts` (moved from ergoscript)
+- Create: `packages/scorex/test/vlq.test.ts` (moved from nipopow)
+- Delete: `packages/ergoscript/test/wire/reader.test.ts`
+- Delete: `packages/ergoscript/test/wire/writer.test.ts`
+- Delete: `packages/nipopow/test/scorex/vlq.test.ts`
+- Delete: `packages/nipopow/test/scorex/reader.test.ts` if it exists
+- Delete: `packages/nipopow/test/scorex/writer.test.ts` if it exists
+
+- [ ] **Step 2.5.1: Locate existing codec tests.**
+
+```bash
+find /home/mwaddip/projects/ergots/packages/ergoscript/test -name 'reader.test.ts' -o -name 'writer.test.ts' | head -5
+find /home/mwaddip/projects/ergots/packages/nipopow/test -name 'vlq.test.ts' -o -name 'reader.test.ts' -o -name 'writer.test.ts' | head -5
+```
+
+- [ ] **Step 2.5.2: Move ergoscript's reader.test.ts and writer.test.ts to scorex.**
+
+```bash
+git mv /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/reader.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/reader.test.ts
+git mv /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/writer.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/writer.test.ts
+```
+
+Edit the moved files to update imports:
+- Find: `from '../../src/wire/reader.ts'` or `from '../src/wire/reader.ts'`
+- Replace with: `from '@ergots/scorex'` (preferred) or `from '../src/reader.ts'`
+
+- [ ] **Step 2.5.3: Move nipopow's vlq.test.ts to scorex.**
+
+```bash
+git mv /home/mwaddip/projects/ergots/packages/nipopow/test/scorex/vlq.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/vlq.test.ts
+```
+
+Edit imports same way. If nipopow has reader.test.ts / writer.test.ts under `test/scorex/`, also move them.
+
+- [ ] **Step 2.5.4: Run scorex tests to verify they pass.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ 2>&1 | tail -15
+```
+
+Expected: all moved tests pass.
+
+- [ ] **Step 2.5.5: Run all packages' tests to verify no regression elsewhere.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -15
+```
+
+Expected: total test count unchanged (3318) — tests just live in a different package now.
+
+### Task 2.6 — TDD: add `readBool` / `writeBool` (helper pair 1 of 3)
+
+**Files:**
+- Create: `packages/scorex/test/option-array.test.ts`
+- Modify: `packages/scorex/src/reader.ts`
+- Modify: `packages/scorex/src/writer.ts`
+
+- [ ] **Step 2.6.1: Write failing test.**
+
+Create `packages/scorex/test/option-array.test.ts`:
+
+```ts
+import { describe, expect, test } from 'vitest';
+import { ByteReader, ByteWriter } from '../src/index.ts';
+
+describe('readBool / writeBool', () => {
+  test('writeBool(true) emits 0x01', () => {
+    const w = new ByteWriter();
+    w.writeBool(true);
+    expect(w.toBytes()).toEqual(new Uint8Array([0x01]));
+  });
+
+  test('writeBool(false) emits 0x00', () => {
+    const w = new ByteWriter();
+    w.writeBool(false);
+    expect(w.toBytes()).toEqual(new Uint8Array([0x00]));
+  });
+
+  test('readBool round-trips both values', () => {
+    for (const v of [true, false]) {
+      const w = new ByteWriter();
+      w.writeBool(v);
+      const r = new ByteReader(w.toBytes());
+      expect(r.readBool()).toBe(v);
+      expect(r.isExhausted).toBe(true);
+    }
+  });
+
+  test('readBool rejects non-{0,1} byte', () => {
+    const r = new ByteReader(new Uint8Array([0x02]));
+    expect(() => r.readBool()).toThrow();
+  });
+});
+```
+
+Run: `cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10`
+Expected: 4 fails with "readBool is not a function" / "writeBool is not a function".
+
+- [ ] **Step 2.6.2: Implement `writeBool` in `packages/scorex/src/writer.ts`.**
+
+Add to the `ByteWriter` class body:
+
+```ts
+  writeBool(value: boolean): void {
+    this.writeU8(value ? 1 : 0);
+  }
+```
+
+- [ ] **Step 2.6.3: Implement `readBool` in `packages/scorex/src/reader.ts`.**
+
+Add to the `ByteReader` class body. Use the existing `ReaderError` import:
+
+```ts
+  readBool(): boolean {
+    const b = this.readU8();
+    if (b === 0) return false;
+    if (b === 1) return true;
+    throw new ReaderError(`readBool: expected 0 or 1, got ${b}`, 'truncated');
+  }
+```
+
+Note: the `'truncated'` code is a reuse for "wire-shape violation"; this matches the spec's commitment to "no new error codes introduced by this extraction".
+
+- [ ] **Step 2.6.4: Run tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10
+```
+
+Expected: all 4 tests pass.
+
+### Task 2.7 — TDD: add `readOption` / `writeOption` (helper pair 2 of 3)
+
+**Files:**
+- Modify: `packages/scorex/test/option-array.test.ts` (append)
+- Modify: `packages/scorex/src/reader.ts`
+- Modify: `packages/scorex/src/writer.ts`
+
+- [ ] **Step 2.7.1: Append failing tests to `packages/scorex/test/option-array.test.ts`.**
+
+```ts
+describe('readOption / writeOption', () => {
+  test('writeOption(null) emits 0x00', () => {
+    const w = new ByteWriter();
+    w.writeOption<number>(null, (w, v) => w.writeU8(v));
+    expect(w.toBytes()).toEqual(new Uint8Array([0x00]));
+  });
+
+  test('writeOption(value, ser) emits 0x01 + ser bytes', () => {
+    const w = new ByteWriter();
+    w.writeOption<number>(42, (w, v) => w.writeU8(v));
+    expect(w.toBytes()).toEqual(new Uint8Array([0x01, 42]));
+  });
+
+  test('readOption round-trips null and value', () => {
+    for (const v of [null, 7] as Array<number | null>) {
+      const w = new ByteWriter();
+      w.writeOption<number>(v, (w, v) => w.writeU8(v));
+      const r = new ByteReader(w.toBytes());
+      const decoded = r.readOption<number>((r) => r.readU8());
+      expect(decoded).toEqual(v);
+      expect(r.isExhausted).toBe(true);
+    }
+  });
+
+  test('readOption rejects malformed tag byte', () => {
+    const r = new ByteReader(new Uint8Array([0x02, 0x00]));
+    expect(() => r.readOption<number>((r) => r.readU8())).toThrow();
+  });
+});
+```
+
+Run: `cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10`
+Expected: 4 new failures.
+
+- [ ] **Step 2.7.2: Implement `writeOption`.**
+
+Add to `ByteWriter` class body:
+
+```ts
+  writeOption<T>(value: T | null, serializer: (w: ByteWriter, v: T) => void): void {
+    if (value === null) {
+      this.writeU8(0);
+      return;
+    }
+    this.writeU8(1);
+    serializer(this, value);
+  }
+```
+
+- [ ] **Step 2.7.3: Implement `readOption`.**
+
+Add to `ByteReader` class body:
+
+```ts
+  readOption<T>(reader: (r: ByteReader) => T): T | null {
+    const tag = this.readU8();
+    if (tag === 0) return null;
+    if (tag === 1) return reader(this);
+    throw new ReaderError(`readOption: expected tag 0 or 1, got ${tag}`, 'truncated');
+  }
+```
+
+- [ ] **Step 2.7.4: Run tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10
+```
+
+Expected: all 8 tests pass (4 from Task 2.6 + 4 new).
+
+### Task 2.8 — TDD: add `readArray` / `writeArray` (helper pair 3 of 3)
+
+**Files:**
+- Modify: `packages/scorex/test/option-array.test.ts` (append)
+- Modify: `packages/scorex/src/reader.ts`
+- Modify: `packages/scorex/src/writer.ts`
+
+- [ ] **Step 2.8.1: Append failing tests.**
+
+```ts
+describe('readArray / writeArray', () => {
+  test('writeArray([]) emits single 0x00 VLQ length', () => {
+    const w = new ByteWriter();
+    w.writeArray<number>([], (w, v) => w.writeU8(v));
+    expect(w.toBytes()).toEqual(new Uint8Array([0x00]));
+  });
+
+  test('writeArray([1,2,3]) emits VLQ length + items', () => {
+    const w = new ByteWriter();
+    w.writeArray<number>([1, 2, 3], (w, v) => w.writeU8(v));
+    expect(w.toBytes()).toEqual(new Uint8Array([0x03, 1, 2, 3]));
+  });
+
+  test('readArray round-trips empty, small, and multi-byte-length arrays', () => {
+    for (const arr of [
+      [] as number[],
+      [9] as number[],
+      Array.from({ length: 256 }, (_, i) => i % 200), // multi-byte VLQ length
+    ]) {
+      const w = new ByteWriter();
+      w.writeArray<number>(arr, (w, v) => w.writeU8(v));
+      const r = new ByteReader(w.toBytes());
+      const decoded = r.readArray<number>((r) => r.readU8());
+      expect(decoded).toEqual(arr);
+      expect(r.isExhausted).toBe(true);
+    }
+  });
+
+  test('readArray throws on truncated element stream', () => {
+    // length = 3, but only 2 bytes follow.
+    const r = new ByteReader(new Uint8Array([0x03, 1, 2]));
+    expect(() => r.readArray<number>((r) => r.readU8())).toThrow();
+  });
+});
+```
+
+Run: `cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10`
+Expected: 4 new failures.
+
+- [ ] **Step 2.8.2: Implement `writeArray`.**
+
+Add to `ByteWriter` class body:
+
+```ts
+  writeArray<T>(items: T[], serializer: (w: ByteWriter, item: T) => void): void {
+    this.writeVlqU(items.length);
+    for (const item of items) serializer(this, item);
+  }
+```
+
+- [ ] **Step 2.8.3: Implement `readArray`.**
+
+Add to `ByteReader` class body:
+
+```ts
+  readArray<T>(reader: (r: ByteReader) => T): T[] {
+    const length = this.readVlqU();
+    const out: T[] = new Array(length);
+    for (let i = 0; i < length; i++) out[i] = reader(this);
+    return out;
+  }
+```
+
+- [ ] **Step 2.8.4: Run all scorex tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ 2>&1 | tail -10
+```
+
+Expected: all 12 helper tests pass plus the moved reader/writer/vlq tests.
+
+- [ ] **Step 2.8.5: Run cross-runtime (jsdom) variant.**
+
+```bash
+cd /home/mwaddip/projects/ergots/packages/scorex && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -10
+```
+
+Expected: same pass count under jsdom.
+
+- [ ] **Step 2.8.6: Run all consumer tests to confirm zero regression.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -15
+```
+
+Expected: 3318 total tests pass (avltree 156 + nipopow 335 + ergoscript 2827 + scorex moved tests).
+
+- [ ] **Step 2.8.7: Commit Phase 2.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+git add packages/scorex/ packages/nipopow/src/scorex/ packages/ergoscript/src/wire/reader.ts packages/ergoscript/src/wire/writer.ts packages/ergoscript/test/wire/ packages/nipopow/test/scorex/ 2>/dev/null || true
+# git add commands above may produce no-ops for deletions; use status to verify:
+git status
+git add -A packages/scorex/ packages/nipopow/ packages/ergoscript/
+git commit -m "$(cat <<'EOF'
+refactor(scorex): move ByteReader/ByteWriter/VLQ + add Option/Array/Bool helpers
+
+Phase 2h-c.0 step 2/6. Moves the wire-codec layer from
+packages/ergoscript/src/wire/{reader,writer}.ts and packages/nipopow/src/scorex/*.ts
+into @ergots/scorex/src/. Transitional shims (re-exports from @ergots/scorex) keep
+internal callers compiling unchanged; shims are removed in Phase 5.
+
+Adds three Fleet-inspired helpers TDD red-green:
+  - readBool / writeBool
+  - readOption / writeOption (callback-based)
+  - readArray / writeArray (VLQ-length-prefixed, callback-based)
+
+Test suite: 3318 tests pass (unchanged count; tests moved into @ergots/scorex
+keep their names + fixtures). Cross-runtime green (node + jsdom).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
 ---
 
-## Phase C: `AvlTreeData` runtime + SAvlTree wire-format slice
+## Phase 3: Move digests + Header + AutolykosSolution
 
-### Task C1 — Promote `AvlTreeData` runtime shape (RED→GREEN)
+### Task 3.1 — Move `digests.ts` to scorex
 
 **Files:**
-- Modify: `packages/ergoscript/src/mir/types.ts`
+- Create: `packages/scorex/src/digests.ts`
+- Modify: `packages/nipopow/src/digests.ts` (replace with re-export shim)
+- Modify: `packages/scorex/src/index.ts` (export digest helpers)
 
-- [ ] **Step C1.1: Read current `AvlTreeData` forward-declaration.**
-
-```bash
-grep -n "AvlTreeData" /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
-```
-
-Expected: a placeholder type with minimal fields (likely `{ raw: Uint8Array }` or similar).
-
-- [ ] **Step C1.2: Read sigma-rust `AvlTreeData` source to confirm field shape.**
+- [ ] **Step 3.1.1: Move file content.**
 
 ```bash
-sed -n '56,69p' /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-ir/src/mir/avl_tree_data.rs
+cp /home/mwaddip/projects/ergots/packages/nipopow/src/digests.ts /home/mwaddip/projects/ergots/packages/scorex/src/digests.ts
 ```
 
-Confirm: `digest: ADDigest` (33 bytes), `tree_flags: AvlTreeFlags(u8)`, `key_length: u32`, `value_length_opt: Option<Box<u32>>`.
+Edit `packages/scorex/src/digests.ts` to fix relative imports:
+- Find: `from './scorex/reader.ts'` → replace with `from './reader.ts'`
+- Find: `from './scorex/writer.ts'` → replace with `from './writer.ts'`
 
-- [ ] **Step C1.3: Promote the type in `mir/types.ts`.**
+- [ ] **Step 3.1.2: Update `packages/scorex/src/index.ts`.**
 
-Replace the existing placeholder with:
+Append:
 
 ```ts
-/**
- * Runtime shape of an AVL+ tree value (mirrors sigma-rust ergotree-ir/src/mir/avl_tree_data.rs:60-69).
- *
- * `digest` is the 33-byte canonical form: 32-byte root hash + 1-byte tree height.
- *
- * `treeFlags` bit layout (per AvlTreeFlags::new in avl_tree_data.rs:16-25):
- *   bit 0 (0x01): insertAllowed
- *   bit 1 (0x02): updateAllowed
- *   bit 2 (0x04): removeAllowed
- *   bits 3-7: reserved
- */
-export interface AvlTreeData {
-  digest: Uint8Array              // exactly 33 bytes
-  treeFlags: number               // u8
-  keyLength: number               // u32; >= 0
-  valueLengthOpt: number | null   // null when variable; non-null = fixed value length
-}
+export {
+  BLOCK_ID_LEN,
+  DIGEST32_LEN,
+  EC_POINT_LEN,
+  readFixed,
+  writeFixed,
+} from './digests.ts';
 ```
 
-- [ ] **Step C1.4: Run tsc to catch any consumers that broke.**
+(Adjust the export list to match actual exports of `digests.ts`; verify with the existing nipopow file's exports.)
 
-```bash
-cd /home/mwaddip/projects/ergots/packages/ergoscript && npx tsc --noEmit
+- [ ] **Step 3.1.3: Replace `packages/nipopow/src/digests.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export {
+  BLOCK_ID_LEN,
+  DIGEST32_LEN,
+  EC_POINT_LEN,
+  readFixed,
+  writeFixed,
+} from '@ergots/scorex';
 ```
 
-Expected: clean OR a small handful of consumer-side errors (likely none since the prior placeholder was unused). If errors surface, fix them inline before commit.
-
-- [ ] **Step C1.5: Commit.**
+- [ ] **Step 3.1.4: Typecheck.**
 
 ```bash
 cd /home/mwaddip/projects/ergots
-git add packages/ergoscript/src/mir/types.ts
-git commit -m "feat(ergoscript): stabilize AvlTreeData runtime shape
-
-Promote AvlTreeData from phase-2a forward-declaration to stable struct:
-{ digest: Uint8Array(33), treeFlags: u8, keyLength: u32, valueLengthOpt: u32 | null }.
-
-Mirrors sigma-rust ergotree-ir/src/mir/avl_tree_data.rs:60-69.
-Bit layout for treeFlags: bit 0 insert, bit 1 update, bit 2 remove.
-
-Prereq for phase 2h-b SAvlTree.* method handlers."
+npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
+npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
 ```
 
-### Task C2 — SAvlTree wire-format parse (RED→GREEN)
+Expected: zero errors.
+
+### Task 3.2 — Move `autolykos-solution.ts` to scorex
 
 **Files:**
+- Create: `packages/scorex/src/autolykos-solution.ts`
+- Modify: `packages/nipopow/src/autolykos-solution.ts` (re-export shim)
+- Modify: `packages/scorex/src/index.ts`
+- Move: `packages/nipopow/test/autolykos-solution.test.ts` → `packages/scorex/test/autolykos-solution.test.ts`
+
+- [ ] **Step 3.2.1: Move file content.**
+
+```bash
+cp /home/mwaddip/projects/ergots/packages/nipopow/src/autolykos-solution.ts /home/mwaddip/projects/ergots/packages/scorex/src/autolykos-solution.ts
+```
+
+Edit to fix imports:
+- `from './scorex/reader.ts'` → `from './reader.ts'`
+- `from './scorex/writer.ts'` → `from './writer.ts'`
+- `from './digests.ts'` (no change — same relative path)
+
+- [ ] **Step 3.2.2: Update `packages/scorex/src/index.ts`.**
+
+Append:
+
+```ts
+export type { AutolykosSolution } from './autolykos-solution.ts';
+export {
+  parseAutolykosSolution,
+  serializeAutolykosSolution,
+} from './autolykos-solution.ts';
+```
+
+(Adjust to match actual exports; the nipopow file may not have all four — verify before writing.)
+
+- [ ] **Step 3.2.3: Replace `packages/nipopow/src/autolykos-solution.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export type { AutolykosSolution } from '@ergots/scorex';
+export { parseAutolykosSolution, serializeAutolykosSolution } from '@ergots/scorex';
+```
+
+- [ ] **Step 3.2.4: Move the test file.**
+
+```bash
+git mv /home/mwaddip/projects/ergots/packages/nipopow/test/autolykos-solution.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/autolykos-solution.test.ts
+```
+
+Edit imports:
+- Find: `from '../src/autolykos-solution.ts'` → replace with `from '@ergots/scorex'` or `from '../src/autolykos-solution.ts'`.
+- Also update any reader/writer imports.
+
+- [ ] **Step 3.2.5: Run scorex + nipopow tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ packages/nipopow/ 2>&1 | tail -10
+```
+
+Expected: total count unchanged (335 + scorex including new autolykos-solution.test.ts).
+
+### Task 3.3 — Move `header.ts` to scorex
+
+**Files:**
+- Create: `packages/scorex/src/header.ts`
+- Modify: `packages/nipopow/src/header.ts` (re-export shim)
+- Modify: `packages/scorex/src/index.ts`
+- Move: `packages/nipopow/test/header.test.ts` → `packages/scorex/test/header.test.ts`
+
+- [ ] **Step 3.3.1: Move file content.**
+
+```bash
+cp /home/mwaddip/projects/ergots/packages/nipopow/src/header.ts /home/mwaddip/projects/ergots/packages/scorex/src/header.ts
+```
+
+Edit to fix imports:
+- `from './scorex/reader.ts'` → `from './reader.ts'`
+- `from './scorex/writer.ts'` → `from './writer.ts'`
+- `from './digests.ts'` (no change)
+- `from './autolykos-solution.ts'` (no change)
+- `from '@noble/hashes/blake2.js'` (no change — third-party dep)
+
+- [ ] **Step 3.3.2: Update `packages/scorex/src/index.ts`.**
+
+Append:
+
+```ts
+export type { Header } from './header.ts';
+export {
+  parseHeader,
+  serializeHeader,
+} from './header.ts';
+```
+
+- [ ] **Step 3.3.3: Replace `packages/nipopow/src/header.ts` with a re-export shim.**
+
+```ts
+// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
+export type { Header } from '@ergots/scorex';
+export { parseHeader, serializeHeader } from '@ergots/scorex';
+```
+
+- [ ] **Step 3.3.4: Move the test file.**
+
+```bash
+git mv /home/mwaddip/projects/ergots/packages/nipopow/test/header.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/header.test.ts
+```
+
+Edit imports to point at `@ergots/scorex` (or `../src/header.ts`).
+
+- [ ] **Step 3.3.5: Run all tests across all packages.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -15
+```
+
+Expected: 3318 total tests pass.
+
+- [ ] **Step 3.3.6: Verify cross-runtime green.**
+
+```bash
+cd /home/mwaddip/projects/ergots/packages/scorex && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -10
+```
+
+Expected: same pass count under jsdom.
+
+### Task 3.4 — Commit Phase 3
+
+- [ ] **Step 3.4.1: Stage and commit.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+git add -A packages/scorex/ packages/nipopow/
+git commit -m "$(cat <<'EOF'
+refactor(scorex): move digests + Header + AutolykosSolution to @ergots/scorex
+
+Phase 2h-c.0 step 3/6. Moves nipopow's shared block-header data layer:
+  - packages/nipopow/src/digests.ts → @ergots/scorex/src/digests.ts
+  - packages/nipopow/src/autolykos-solution.ts → @ergots/scorex/src/autolykos-solution.ts
+  - packages/nipopow/src/header.ts → @ergots/scorex/src/header.ts
+
+Plus the corresponding test files (header.test.ts, autolykos-solution.test.ts)
+which now live in packages/scorex/test/. Transitional shims in nipopow keep
+internal callers compiling unchanged; removed in Phase 5.
+
+Note: @ergots/nipopow's autolykos-v2.ts (the PoW verifier) stays in nipopow.
+Phase 2h-c.2 will likely promote it to @ergots/scorex when @ergots/ergoscript
+needs SHeader.checkPow, but that's a separate spec.
+
+Test suite: 3318 tests pass. Cross-runtime green.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Phase 4: Optional cleanup pass — refactor inline call sites to use helpers
+
+This phase is **optional** in the sense that all tests already pass without it. Its purpose is to dedupe the ~30+ inline `0x00`/`0x01` option tags and inline VLQ-length-prefixed-array reads that exist across both packages. Per `[[feedback-no-artificial-stops]]` — drive through.
+
+### Task 4.1 — Audit and refactor `Option` tag sites
+
+**Files (search-and-refactor):**
 - Modify: `packages/ergoscript/src/wire/parse-svalue.ts`
-- Create: `packages/ergoscript/test/wire/svalue-savltree.test.ts`
-
-- [ ] **Step C2.1: Read sigma-rust `AvlTreeData::sigma_parse` source.**
-
-```bash
-sed -n '71,91p' /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-ir/src/mir/avl_tree_data.rs
-```
-
-Order: ADDigest scorex_parse → u8 tree_flags → u32 key_length → Option<Box<u32>> value_length_opt.
-
-Confirm `r.get_u32()` is fixed 4-byte little-endian (not VLQ) by reading the underlying `SigmaByteRead::get_u32` definition:
-
-```bash
-grep -rn "fn get_u32" /home/mwaddip/projects/ergots/external/sigma-rust/sigma-ser/src/ | head -5
-```
-
-- [ ] **Step C2.2: Write failing round-trip test using a fixture (any avltree fixture that includes an SAvlTree constant works).**
-
-Edit `packages/ergoscript/test/wire/svalue-savltree.test.ts`:
-
-```ts
-import { describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { parseSValue } from '../../src/wire/parse-svalue.ts'
-import { serializeSValue } from '../../src/wire/serialize-svalue.ts'
-import { ByteReader } from '../../src/wire/reader.ts'
-import { ByteWriter } from '../../src/wire/writer.ts'
-import type { SType } from '../../src/mir/types.ts'
-
-const fixturesDir = join(__dirname, '..', 'fixtures')
-
-describe('SAvlTree wire format round-trip', () => {
-  test('parses + serializes AvlTreeData byte-identically', () => {
-    // Use the first digest fixture (Tier 1 accessor); its tree_hex contains
-    // a Const(SAvlTree, AvlTreeData) we can extract.
-    const fxt = JSON.parse(
-      readFileSync(join(fixturesDir, 'savltree/digest/basic.json'), 'utf8')
-    )
-    // The fixture's tree_hex is the full ErgoTree; for this test we want just
-    // the SValue bytes. The fixture-gen also emits `savltree_const_hex` for
-    // this purpose. (If it doesn't, add a getter and re-generate.)
-    const bytes = Uint8Array.from(Buffer.from(fxt.savltree_const_hex, 'hex'))
-    const tpe: SType = { tag: 'SAvlTree' }
-
-    const r = new ByteReader(bytes)
-    const parsed = parseSValue(tpe, r)
-    expect(parsed.kind).toBe('AvlTree')
-    expect(r.isExhausted).toBe(true)
-
-    const w = new ByteWriter()
-    serializeSValue(tpe, parsed, w)
-    expect(w.toBytes()).toEqual(bytes)
-  })
-})
-```
-
-Run: `cd packages/ergoscript && npx vitest run wire/svalue-savltree.test.ts`
-Expected: FAIL with `'not-implemented-phase-2a'` (the existing throw).
-
-- [ ] **Step C2.3: Implement parse case for SAvlTree.**
-
-Edit `packages/ergoscript/src/wire/parse-svalue.ts`. Locate the switch on `tpe.tag` and replace the `case 'SAvlTree':` throw with:
-
-```ts
-case 'SAvlTree': {
-  // Port of sigma-rust AvlTreeData::sigma_parse (avl_tree_data.rs:79-90)
-  const digest = readAdDigest(r)                  // scorex-encoded: u16 length + bytes
-  const treeFlags = r.readU8()
-  const keyLength = r.readU32()                   // fixed 4-byte LE
-  const valueLengthOpt = readOptionU32(r)         // 0x00 None | 0x01 + u32 Some
-  return {
-    kind: 'AvlTree',
-    value: { digest, treeFlags, keyLength, valueLengthOpt },
-  }
-}
-```
-
-Add helpers if not already present:
-
-```ts
-function readAdDigest(r: ByteReader): Uint8Array {
-  // sigma-rust ergo_chain_types::ADDigest::scorex_parse: u16 length prefix + bytes
-  const len = r.readU16()  // confirm method name; could be readUShort
-  if (len !== 33) {
-    throw new SValueParseError(`AvlTreeData.digest: expected 33 bytes, got ${len}`, 'avl-tree-digest-length')
-  }
-  return r.readBytes(33)
-}
-
-function readOptionU32(r: ByteReader): number | null {
-  const tag = r.readU8()
-  if (tag === 0) return null
-  if (tag === 1) return r.readU32()
-  throw new SValueParseError(`Option<u32>: invalid tag ${tag}`, 'invalid-option-tag')
-}
-```
-
-Also: if `'avl-tree-digest-length'` is a new code, add it to the `SValueParseError` taxonomy in `errors.ts`. (Optional: reuse `'unreachable'` or similar — but a dedicated code helps debugging.)
-
-Run: `cd packages/ergoscript && npx vitest run wire/svalue-savltree.test.ts`
-Expected: parse passes; serialize fails (still throws not-impl).
-
-- [ ] **Step C2.4: Commit progress so far (parse-only).**
-
-```bash
-cd /home/mwaddip/projects/ergots
-git add packages/ergoscript/src/wire/parse-svalue.ts packages/ergoscript/src/errors.ts packages/ergoscript/test/wire/svalue-savltree.test.ts
-git commit -m "feat(ergoscript): SAvlTree wire-format parse (phase 2h-b)
-
-Replaces phase-2a 'not-implemented' throw with the AvlTreeData parser:
-  digest: scorex-encoded (u16 length + 33 bytes)
-  treeFlags: u8
-  keyLength: u32 (fixed 4-byte LE)
-  valueLengthOpt: Option<u32>
-
-Mirrors sigma-rust avl_tree_data.rs:79-90."
-```
-
-### Task C3 — SAvlTree wire-format serialize (RED→GREEN)
-
-**Files:**
 - Modify: `packages/ergoscript/src/wire/serialize-svalue.ts`
-- Modify: `facts/ergoscript-wire.md` (narrow `'not-implemented-phase-2a'` set to remove `SAvlTree`)
+- Modify: `packages/ergoscript/src/wire/parse.ts` (per-arm option handling — verify with grep)
+- Modify: `packages/nipopow/src/proof.ts` (interlinks option handling — verify)
+- Modify: any other inline `0x00`/`0x01` tag sites surfaced by grep
 
-- [ ] **Step C3.1: Implement serialize case symmetric to parse.**
-
-```ts
-case 'SAvlTree': {
-  // Port of sigma-rust AvlTreeData::sigma_serialize (avl_tree_data.rs:72-78)
-  if (v.kind !== 'AvlTree') {
-    throw new SValueSerializeError(
-      `expected AvlTree SValue, got ${v.kind}`,
-      'type-value-mismatch',
-    )
-  }
-  const d = v.value
-  writeAdDigest(w, d.digest)
-  w.writeU8(d.treeFlags)
-  w.writeU32(d.keyLength)
-  writeOptionU32(w, d.valueLengthOpt)
-  return
-}
-```
-
-With symmetric helpers:
-
-```ts
-function writeAdDigest(w: ByteWriter, digest: Uint8Array): void {
-  if (digest.length !== 33) {
-    throw new SValueSerializeError(
-      `AvlTreeData.digest: expected 33 bytes, got ${digest.length}`,
-      'avl-tree-digest-length',
-    )
-  }
-  w.writeU16(33)
-  w.writeBytes(digest)
-}
-
-function writeOptionU32(w: ByteWriter, value: number | null): void {
-  if (value === null) {
-    w.writeU8(0)
-  } else {
-    w.writeU8(1)
-    w.writeU32(value)
-  }
-}
-```
-
-Add `'avl-tree-digest-length'` to `SValueSerializeError` codes in `errors.ts` if not already there (or reuse from parse).
-
-- [ ] **Step C3.2: Run round-trip test.**
-
-Run: `cd packages/ergoscript && npx vitest run wire/svalue-savltree.test.ts`
-Expected: PASS.
-
-- [ ] **Step C3.3: Run full ergoscript tests.**
-
-Run: `cd packages/ergoscript && npm test 2>&1 | tail -10`
-Expected: 2658+ tests pass (existing + the new round-trip test).
-
-- [ ] **Step C3.4: Update `facts/ergoscript-wire.md`.**
-
-Locate the `SValueParseError` taxonomy in `facts/ergoscript-wire.md`. Edit the `'not-implemented-phase-2a'` enumeration: remove `SAvlTree` from the listed set (was `SAvlTree/SHeader/SPreHeader/SContext/SGlobal/SAny/SString/SFunc/STypeVar`, becomes `SHeader/SPreHeader/SContext/SGlobal/SAny/SString/SFunc/STypeVar`).
-
-Same edit on `SValueSerializeError`'s `'not-implemented-phase-2a'` enumeration.
-
-Add a brief Stop α-style note at the end of the file:
-
-```markdown
-## Phase 2h-b wire updates (SAvlTree)
-
-`parseSValue(SAvlTree, …)` and `serializeSValue(SAvlTree, …)` ship in phase 2h-b, replacing the phase-2a `'not-implemented-phase-2a'` throw. Round-trip invariant byte-equal on all fixture entries. Other deferred SValue kinds (`SHeader`, `SPreHeader`, `SContext`, `SGlobal`, `SAny`, `SString`, `SFunc`, `STypeVar`) still throw `'not-implemented-phase-2a'`.
-```
-
-- [ ] **Step C3.5: Commit.**
-
-```bash
-git add packages/ergoscript/src/wire/serialize-svalue.ts packages/ergoscript/src/errors.ts facts/ergoscript-wire.md
-git commit -m "feat(ergoscript): SAvlTree wire-format serialize + narrow not-impl set
-
-Symmetric port of sigma-rust AvlTreeData::sigma_serialize (avl_tree_data.rs:72-78).
-Removes SAvlTree from SValueParseError / SValueSerializeError's
-'not-implemented-phase-2a' set in facts/ergoscript-wire.md."
-```
-
----
-
-## Phase D: Tier 1 accessor handlers (7 handlers, 7 tasks)
-
-Each handler is its own RED-GREEN cycle. The first handler establishes the file (`eval/savltree.ts`); subsequent handlers extend it.
-
-### Task D1 — `SAvlTree.digest` (methodId 1)
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/savltree.ts`
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (register handler)
-- Modify: `packages/ergoscript/src/errors.ts` (add `'avl-tree-obj-not-avl-tree'` to EvalErrorCode)
-- Create: `packages/ergoscript/test/eval/savltree-accessors.test.ts`
-
-- [ ] **Step D1.1: Read sigma-rust DIGEST_EVAL_FN.**
-
-```bash
-grep -n "DIGEST_EVAL_FN\|fn digest" /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-interpreter/src/eval/savltree.rs | head -10
-```
-
-Capture line range. Look for: (1) cost charge value (likely `ctx.add_cost(...)`); (2) Pattern A vs B; (3) return shape (Value::Coll of bytes).
-
-- [ ] **Step D1.2: Write failing test.**
-
-Edit `packages/ergoscript/test/eval/savltree-accessors.test.ts`:
-
-```ts
-import { describe, expect, test } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
-import { parseTree } from '../../src/wire/parse.ts'
-import { evaluate } from '../../src/eval/eval.ts'
-
-const fixturesDir = join(__dirname, '..', 'fixtures', 'savltree')
-
-function runFixture(handlerName: string, scenario: string) {
-  const fxt = JSON.parse(
-    readFileSync(join(fixturesDir, handlerName, `${scenario}.json`), 'utf8')
-  )
-  const tree = parseTree(Uint8Array.from(Buffer.from(fxt.tree_hex, 'hex')))
-  const ctx = { jitCostLimit: undefined, ...fxt.opts }
-  const result = evaluate(tree, ctx)
-  return { result, expectedValue: fxt.expected_value, expectedCost: fxt.expected_jit_cost, ctx }
-}
-
-describe('SAvlTree.digest', () => {
-  const scenarios = readdirSync(join(fixturesDir, 'digest'))
-    .filter(f => f.endsWith('.json'))
-    .map(f => f.replace('.json', ''))
-
-  for (const scenario of scenarios) {
-    test(scenario, () => {
-      const { result, expectedValue, expectedCost, ctx } = runFixture('digest', scenario)
-      expect(result.kind).toBe('Coll')
-      // Detailed comparison delegated to a shared SValue comparator helper
-      expectSValueEquals(result, expectedValue)
-      expect(ctx.jitCost).toBe(expectedCost)
-    })
-  }
-})
-
-// Helper: structural SValue compare (lift from existing test infrastructure if available;
-// otherwise implement inline). Compares { kind, value, items, elem, etc. } recursively.
-function expectSValueEquals(actual: any, expected: any): void { /* ... */ }
-```
-
-Run: `cd packages/ergoscript && npx vitest run eval/savltree-accessors.test.ts`
-Expected: FAIL with `'method-not-implemented'` (registry has no entry for `(100, 1)`).
-
-- [ ] **Step D1.3: Create `eval/savltree.ts` with the digest handler.**
-
-```ts
-/**
- * SAvlTree.* method-call handlers (phase 2h-b).
- *
- * Ports sigma-rust ergotree-interpreter/src/eval/savltree.rs handlers.
- * See facts/ergoscript-eval.md Method-handler registry for the full table.
- */
-
-import type { EvalContext } from './context.ts'
-import type { SValue } from '../mir/types.ts'
-import { EvalError } from '../errors.ts'
-
-function expectAvlTree(obj: SValue): asserts obj is { kind: 'AvlTree'; value: AvlTreeData } {
-  if (obj.kind !== 'AvlTree') {
-    throw new EvalError(`expected AvlTree receiver, got ${obj.kind}`, 'avl-tree-obj-not-avl-tree')
-  }
-}
-
-/** Ports SAvlTree.digest handler (eval/savltree.rs:<line range from Step D1.1>). */
-export function evalSAvlTreeDigest(
-  ctx: EvalContext,
-  obj: SValue,
-  _args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  ctx.addCost(/* TODO: cost from Step D1.1 */)
-  return {
-    kind: 'Coll',
-    elem: { tag: 'SByte' },
-    items: Array.from(obj.value.digest, b => ({ kind: 'Byte', value: b })),
-  }
-}
-```
-
-(Replace `/* TODO: cost ... */` with the actual cost value read in Step D1.1.)
-
-- [ ] **Step D1.4: Register in `method-call.ts`.**
-
-Locate the `HANDLERS` registry. Add:
-
-```ts
-import { evalSAvlTreeDigest } from './savltree.ts'
-
-// ... inside HANDLERS map ...
-HANDLERS.set(handlerKey(100, 1), evalSAvlTreeDigest)
-```
-
-(`handlerKey(typeId, methodId)` is the existing keying function.)
-
-- [ ] **Step D1.5: Add `'avl-tree-obj-not-avl-tree'` to EvalErrorCode.**
-
-Edit `packages/ergoscript/src/errors.ts`. Locate the `EvalErrorCode` type. Insert `| 'avl-tree-obj-not-avl-tree'` in the union.
-
-- [ ] **Step D1.6: Run tests.**
-
-Run: `cd packages/ergoscript && npx vitest run eval/savltree-accessors.test.ts`
-Expected: PASS for digest scenarios.
-
-- [ ] **Step D1.7: Run full ergoscript test suite + tsc.**
-
-```bash
-cd packages/ergoscript && npx tsc --noEmit && npm test 2>&1 | tail -10
-```
-
-Expected: both clean.
-
-- [ ] **Step D1.8: Commit.**
+- [ ] **Step 4.1.1: Find candidate sites.**
 
 ```bash
 cd /home/mwaddip/projects/ergots
-git add packages/ergoscript/src/eval/savltree.ts packages/ergoscript/src/eval/method-call.ts packages/ergoscript/src/errors.ts packages/ergoscript/test/eval/savltree-accessors.test.ts
-git commit -m "feat(ergoscript): SAvlTree.digest method handler (phase 2h-b)
-
-First of 13 method handlers in 2h-b. Registry grows 8 → 9.
-New EvalError code: 'avl-tree-obj-not-avl-tree' (43 → 44).
-
-Per design spec docs/specs/2026-05-19-ergoscript-phase-2h-b-avltree-integration-design.md."
+grep -rn '0x01.*tag\|tag.*0x01\|readU8.*===.*1\|readU8.*===.*0' packages/nipopow/src/ packages/ergoscript/src/ | head -30
 ```
 
-### Task D2 — `SAvlTree.enabledOperations` (methodId 2)
+For each match, judge: is this a 0x00/0x01-tagged option pattern? If yes, refactor to use `readOption` / `writeOption`. If it's a special opcode dispatch or non-option boolean check, skip.
 
-**Files:**
-- Modify: `packages/ergoscript/src/eval/savltree.ts`
-- Modify: `packages/ergoscript/src/eval/method-call.ts`
-- (no new test file — extends `savltree-accessors.test.ts`)
+- [ ] **Step 4.1.2: Refactor `parse-svalue.ts` Option branch.**
 
-- [ ] **Step D2.1: Read sigma-rust ENABLED_OPERATIONS_EVAL_FN for cost + body.**
+Locate the SOption parser (search for `case 'SOption'` or `case SType.SOption`). The current shape will look like:
+
+```ts
+const tag = reader.readU8();
+let value: SValue | null;
+if (tag === 0) value = null;
+else if (tag === 1) value = parseSValue(elemTpe, reader);
+else throw new SValueParseError(...);
+```
+
+Replace with:
+
+```ts
+const value = reader.readOption<SValue>((r) => parseSValue(elemTpe, r));
+```
+
+(Verify the error class match — if existing code throws `SValueParseError` for malformed tag, the `readOption` throw of `ReaderError` is a behavior change. Decision: keep `SValueParseError` for the SOption case by wrapping or by leaving this site alone. Use grep + the existing test suite to confirm: if tests assert `SValueParseError instanceof`, do NOT refactor this site; leave it inline.)
+
+- [ ] **Step 4.1.3: Refactor `valueLengthOpt` site in ergoscript SAvlTree wire.**
+
+Located in `parse-svalue.ts` / `serialize-svalue.ts` for `case 'SAvlTree'`. Same refactor as Step 4.1.2 — replace inline tag-byte handling with `readOption<number>((r) => r.readVlqU())` / `writeOption<number>(v, (w, x) => w.writeVlqU(x))`.
+
+- [ ] **Step 4.1.4: Run all tests after each refactor batch.**
 
 ```bash
-grep -n "ENABLED_OPERATIONS_EVAL_FN" /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-interpreter/src/eval/savltree.rs
+cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -10
 ```
 
-- [ ] **Step D2.2: Extend the accessor test file with the new scenario set.**
+Expected: 3318 pass. If any test fails, halt and investigate (likely an error-class divergence per Step 4.1.2 note).
 
-Add to `test/eval/savltree-accessors.test.ts`:
+### Task 4.2 — Audit and refactor length-prefixed-array sites
 
-```ts
-describe('SAvlTree.enabledOperations', () => {
-  const scenarios = readdirSync(join(fixturesDir, 'enabledOperations'))
-    .filter(f => f.endsWith('.json'))
-    .map(f => f.replace('.json', ''))
-
-  for (const scenario of scenarios) {
-    test(scenario, () => {
-      const { result, expectedValue, expectedCost, ctx } = runFixture('enabledOperations', scenario)
-      expect(result.kind).toBe('Byte')
-      expectSValueEquals(result, expectedValue)
-      expect(ctx.jitCost).toBe(expectedCost)
-    })
-  }
-})
-```
-
-Run: FAIL with `'method-not-implemented'`.
-
-- [ ] **Step D2.3: Add handler to `savltree.ts`.**
-
-```ts
-/** Ports SAvlTree.enabledOperations handler (eval/savltree.rs:<line>). */
-export function evalSAvlTreeEnabledOperations(
-  ctx: EvalContext,
-  obj: SValue,
-  _args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  ctx.addCost(/* cost from D2.1 */)
-  return { kind: 'Byte', value: obj.value.treeFlags }
-}
-```
-
-- [ ] **Step D2.4: Register in `method-call.ts`.**
-
-```ts
-HANDLERS.set(handlerKey(100, 2), evalSAvlTreeEnabledOperations)
-```
-
-- [ ] **Step D2.5: Verify + commit.**
-
-```bash
-cd packages/ergoscript && npx tsc --noEmit && npx vitest run eval/savltree-accessors.test.ts
-```
-
-Expected: PASS.
+- [ ] **Step 4.2.1: Find candidate sites.**
 
 ```bash
 cd /home/mwaddip/projects/ergots
-git commit -am "feat(ergoscript): SAvlTree.enabledOperations method handler"
+grep -rn 'readVlqU()\|writeVlqU(.*length)' packages/nipopow/src/ packages/ergoscript/src/ | head -30
 ```
 
-### Tasks D3-D7 — Repeat pattern for remaining 5 accessors
+For each match: is the VLQ length immediately followed by a loop reading/writing N items of a uniform type? If yes, candidate for `readArray` / `writeArray`. If the length is used for other purposes (e.g., bounds-checking a single byte sequence read via `readBytes(n)`), skip.
 
-Each follows the D2 template. Per-handler distinctions:
+- [ ] **Step 4.2.2: Refactor obvious sites.**
 
-- **D3 — `SAvlTree.keyLength`** (methodId 3): returns `{kind:'Int', value: obj.value.keyLength}`.
-- **D4 — `SAvlTree.valueLengthOpt`** (methodId 4): returns `{kind:'Option', elem:{tag:'SInt'}, value: obj.value.valueLengthOpt===null ? null : {kind:'Int', value:obj.value.valueLengthOpt}}`.
-- **D5 — `SAvlTree.isInsertAllowed`** (methodId 5): returns `{kind:'Boolean', value: (obj.value.treeFlags & 0x01) !== 0}`.
-- **D6 — `SAvlTree.isUpdateAllowed`** (methodId 6): returns `{kind:'Boolean', value: (obj.value.treeFlags & 0x02) !== 0}`.
-- **D7 — `SAvlTree.isRemoveAllowed`** (methodId 7): returns `{kind:'Boolean', value: (obj.value.treeFlags & 0x04) !== 0}`.
+Common candidates (verify with grep):
+- `NipopowProof.prefix` parser (length-prefixed `PoPowHeader[]`)
+- `NipopowProof.suffixTail` parser
+- `PoPowHeader.interlinks` parser
+- `ErgoBox.tokens` parser
+- `ErgoBox.additionalRegisters` parser (be careful — registers are keyed, not a flat array; may not fit `readArray`)
+- `SValue` `Coll` arm
 
-For each: source-read cost, add handler, register, extend test, verify, commit.
-
-After D7, registry = 8 + 7 = 15. EvalError codes = 44.
-
----
-
-## Phase E: Adapter helpers
-
-### Task E1 — `_avltree-adapter.ts` with TDD-tested helpers
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/_avltree-adapter.ts`
-- Create: `packages/ergoscript/test/eval/avltree-adapter.test.ts`
-
-- [ ] **Step E1.1: Write failing test for each helper.**
+Pattern, before:
 
 ```ts
-import { describe, expect, test } from 'vitest'
-import {
-  avlTreeDataToConfig,
-  buildSingleLookupOp,
-  buildLookupOps,
-  buildInsertOps,
-  buildUpdateOps,
-  buildRemoveOps,
-  withUpdatedDigest,
-  extractBytes,
-  extractEntries,
-} from '../../src/eval/_avltree-adapter.ts'
-
-describe('avlTreeDataToConfig', () => {
-  test('projects fields directly', () => {
-    const tree = {
-      digest: new Uint8Array(33),
-      treeFlags: 0x07,
-      keyLength: 32,
-      valueLengthOpt: 64,
-    }
-    expect(avlTreeDataToConfig(tree)).toEqual({
-      keyLength: 32,
-      valueLengthOpt: 64,
-    })
-  })
-})
-
-describe('buildSingleLookupOp', () => {
-  test('produces a 1-element Lookup array', () => {
-    const key = new Uint8Array([0xAA, 0xBB])
-    expect(buildSingleLookupOp(key)).toEqual([{ tag: 'Lookup', key }])
-  })
-})
-
-describe('buildLookupOps', () => {
-  test('maps each key to a Lookup', () => {
-    const keys = [new Uint8Array([1]), new Uint8Array([2])]
-    expect(buildLookupOps(keys)).toEqual([
-      { tag: 'Lookup', key: keys[0] },
-      { tag: 'Lookup', key: keys[1] },
-    ])
-  })
-})
-
-describe('buildInsertOps', () => {
-  test('extracts key+value tuples from a Coll[Tuple] SValue', () => {
-    const entries = {
-      kind: 'Coll',
-      elem: { tag: 'STuple', items: [{ tag: 'SColl', elem: { tag: 'SByte' } }, { tag: 'SColl', elem: { tag: 'SByte' } }] },
-      items: [
-        { kind: 'Tuple', items: [collOfBytes([1, 2]), collOfBytes([10, 20])] },
-        { kind: 'Tuple', items: [collOfBytes([3, 4]), collOfBytes([30, 40])] },
-      ],
-    } as any
-    expect(buildInsertOps(entries)).toEqual([
-      { tag: 'Insert', key: new Uint8Array([1, 2]), value: new Uint8Array([10, 20]) },
-      { tag: 'Insert', key: new Uint8Array([3, 4]), value: new Uint8Array([30, 40]) },
-    ])
-  })
-})
-
-// ... similar tests for buildUpdateOps, buildRemoveOps, withUpdatedDigest,
-//     extractBytes, extractEntries
-
-function collOfBytes(bytes: number[]): any {
-  return {
-    kind: 'Coll',
-    elem: { tag: 'SByte' },
-    items: bytes.map(b => ({ kind: 'Byte', value: b })),
-  }
-}
+const length = reader.readVlqU();
+const items: T[] = [];
+for (let i = 0; i < length; i++) items.push(parseT(reader));
 ```
 
-Run: FAIL (module doesn't exist).
-
-- [ ] **Step E1.2: Implement adapter.**
+After:
 
 ```ts
-import { EvalError } from '../errors.ts'
-import type { SValue, AvlTreeData } from '../mir/types.ts'
-import type { Operation, AvlTreeConfig } from '@ergots/avltree'
-
-/** Pure projection: AvlTreeData → AvlTreeConfig. */
-export function avlTreeDataToConfig(d: AvlTreeData): AvlTreeConfig {
-  return {
-    keyLength: d.keyLength,
-    valueLengthOpt: d.valueLengthOpt,
-  }
-}
-
-/** Single-key Lookup; for contains/get. */
-export function buildSingleLookupOp(key: Uint8Array): Operation[] {
-  return [{ tag: 'Lookup', key }]
-}
-
-/** Multi-key Lookup; for getMany. */
-export function buildLookupOps(keys: Uint8Array[]): Operation[] {
-  return keys.map(key => ({ tag: 'Lookup', key }))
-}
-
-/** Insert operations from a Coll[Tuple[Coll[Byte], Coll[Byte]]]. */
-export function buildInsertOps(entries: SValue): Operation[] {
-  const list = extractEntries(entries)
-  return list.map(({ key, value }) => ({ tag: 'Insert', key, value }))
-}
-
-export function buildUpdateOps(entries: SValue): Operation[] {
-  const list = extractEntries(entries)
-  return list.map(({ key, value }) => ({ tag: 'Update', key, value }))
-}
-
-export function buildRemoveOps(keys: Uint8Array[]): Operation[] {
-  return keys.map(key => ({ tag: 'Remove', key }))
-}
-
-/** Immutable: carry-forward all fields except digest. */
-export function withUpdatedDigest(tree: AvlTreeData, newDigest: Uint8Array): AvlTreeData {
-  return {
-    digest: newDigest,
-    treeFlags: tree.treeFlags,
-    keyLength: tree.keyLength,
-    valueLengthOpt: tree.valueLengthOpt,
-  }
-}
-
-/** Coll[Byte] SValue → Uint8Array. Defensive shape check. */
-export function extractBytes(v: SValue): Uint8Array {
-  if (v.kind !== 'Coll') {
-    throw new EvalError(`expected Coll[Byte], got ${v.kind}`, 'method-not-implemented')
-  }
-  const result = new Uint8Array(v.items.length)
-  for (let i = 0; i < v.items.length; i++) {
-    const item = v.items[i]!
-    if (item.kind !== 'Byte') {
-      throw new EvalError(`expected Byte item in Coll, got ${item.kind}`, 'method-not-implemented')
-    }
-    result[i] = item.value
-  }
-  return result
-}
-
-/** Coll[Coll[Byte]] SValue → Uint8Array[]. */
-export function extractByteArrayList(v: SValue): Uint8Array[] {
-  if (v.kind !== 'Coll') {
-    throw new EvalError(`expected Coll[Coll[Byte]], got ${v.kind}`, 'method-not-implemented')
-  }
-  return v.items.map(extractBytes)
-}
-
-/** Coll[Tuple[Coll[Byte], Coll[Byte]]] SValue → { key, value }[]. */
-export function extractEntries(v: SValue): { key: Uint8Array; value: Uint8Array }[] {
-  if (v.kind !== 'Coll') {
-    throw new EvalError(`expected Coll[Tuple], got ${v.kind}`, 'method-not-implemented')
-  }
-  return v.items.map(item => {
-    if (item.kind !== 'Tuple' || item.items.length !== 2) {
-      throw new EvalError(`expected Tuple[2], got ${item.kind}`, 'method-not-implemented')
-    }
-    return {
-      key: extractBytes(item.items[0]!),
-      value: extractBytes(item.items[1]!),
-    }
-  })
-}
+const items = reader.readArray<T>((r) => parseT(r));
 ```
 
-- [ ] **Step E1.3: Run + commit.**
+- [ ] **Step 4.2.3: Run all tests after each refactor batch.**
 
 ```bash
-cd packages/ergoscript && npx vitest run eval/avltree-adapter.test.ts && npx tsc --noEmit
-git commit -am "feat(ergoscript): @ergots/avltree adapter helpers (phase 2h-b)"
+cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -10
 ```
 
----
+Expected: 3318 pass.
 
-## Phase F: Tier 2 verification op handlers (6 handlers, 6 tasks)
+### Task 4.3 — Audit and refactor `Bool` sites
 
-Each handler is its own RED-GREEN cycle. All extend `eval/savltree.ts` and register in `method-call.ts`.
-
-### Task F1 — `SAvlTree.contains` (methodId 9)
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/savltree.ts`
-- Modify: `packages/ergoscript/src/eval/method-call.ts`
-- Create: `packages/ergoscript/test/eval/savltree-contains.test.ts`
-
-- [ ] **Step F1.1: Read sigma-rust CONTAINS_EVAL_FN.**
-
-```bash
-grep -n "CONTAINS_EVAL_FN" /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-interpreter/src/eval/savltree.rs
-```
-
-Confirm: zero `ctx.add_cost` (no per-handler cost); failure → `false` (never throw); single-key Lookup.
-
-- [ ] **Step F1.2: Write failing tests covering 3 scenarios.**
-
-`test/eval/savltree-contains.test.ts`:
-
-```ts
-import { describe, expect, test } from 'vitest'
-// ... imports ...
-
-const fixturesDir = join(__dirname, '..', 'fixtures', 'savltree', 'contains')
-
-describe('SAvlTree.contains', () => {
-  for (const scenario of readdirSync(fixturesDir).filter(f => f.endsWith('.json'))) {
-    test(scenario.replace('.json', ''), () => {
-      const fxt = JSON.parse(readFileSync(join(fixturesDir, scenario), 'utf8'))
-      const tree = parseTree(Uint8Array.from(Buffer.from(fxt.tree_hex, 'hex')))
-      const ctx = { jitCostLimit: undefined, ...fxt.opts }
-      const result = evaluate(tree, ctx)
-      expect(result.kind).toBe('Boolean')
-      expectSValueEquals(result, fxt.expected_value)
-      expect(ctx.jitCost).toBe(fxt.expected_jit_cost)
-    })
-  }
-})
-```
-
-Expected fixtures: `key-present.json`, `key-absent.json`, `proof-mutated.json`. All produce `false` for the mutated proof case (this is contains's signature behavior).
-
-Run: FAIL.
-
-- [ ] **Step F1.3: Implement handler.**
-
-Add to `eval/savltree.ts`:
-
-```ts
-import { verifyAvlBatch } from '@ergots/avltree'
-import { avlTreeDataToConfig, buildSingleLookupOp, extractBytes } from './_avltree-adapter.ts'
-
-/** Ports SAvlTree.contains handler (eval/savltree.rs:<lines>). */
-export function evalSAvlTreeContains(
-  _ctx: EvalContext,
-  obj: SValue,
-  args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  if (args.length !== 2) {
-    throw new EvalError(`contains: expected 2 args, got ${args.length}`, 'method-not-implemented')
-  }
-  const key = extractBytes(args[0]!)
-  const proof = extractBytes(args[1]!)
-  const config = avlTreeDataToConfig(obj.value)
-  const ops = buildSingleLookupOp(key)
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  // Per sigma-rust: any failure (proof OR op) → false. Lookup is read-only;
-  // op failure means key not found OR proof structurally invalid → both false.
-  if (r === null) return { kind: 'Boolean', value: false }
-  const found = r.results[0] !== null
-  return { kind: 'Boolean', value: found }
-}
-```
-
-- [ ] **Step F1.4: Register.**
-
-```ts
-HANDLERS.set(handlerKey(100, 9), evalSAvlTreeContains)
-```
-
-- [ ] **Step F1.5: Verify + commit.**
-
-```bash
-cd packages/ergoscript && npx tsc --noEmit && npx vitest run eval/savltree-contains.test.ts
-```
-
-Expected: PASS.
-
-```bash
-git commit -am "feat(ergoscript): SAvlTree.contains method handler (phase 2h-b)"
-```
-
-### Task F2 — `SAvlTree.get` (methodId 10)
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/savltree.ts`
-- Modify: `packages/ergoscript/src/eval/method-call.ts`
-- Modify: `packages/ergoscript/src/errors.ts` (add `'avl-tree-proof-failed'`)
-- Create: `packages/ergoscript/test/eval/savltree-get.test.ts`
-
-- [ ] **Step F2.1: Read sigma-rust GET_EVAL_FN.**
-
-Confirm: proof failure throws (not None). Key absent returns None. Key present returns Some.
-
-- [ ] **Step F2.2: Add `'avl-tree-proof-failed'` to EvalErrorCode union (43 + 'avl-tree-obj-not-avl-tree' = 44, +1 = 45).**
-
-- [ ] **Step F2.3: Write failing test.**
-
-3 scenarios: `key-present.json`, `key-absent.json`, `proof-mutated.json`. The mutated case must throw `EvalError 'avl-tree-proof-failed'`.
-
-- [ ] **Step F2.4: Implement.**
-
-```ts
-/** Ports SAvlTree.get handler (eval/savltree.rs:<lines>). */
-export function evalSAvlTreeGet(
-  _ctx: EvalContext,
-  obj: SValue,
-  args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  if (args.length !== 2) {
-    throw new EvalError(`get: expected 2 args, got ${args.length}`, 'method-not-implemented')
-  }
-  const key = extractBytes(args[0]!)
-  const proof = extractBytes(args[1]!)
-  const config = avlTreeDataToConfig(obj.value)
-  const ops = buildSingleLookupOp(key)
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
-    throw new EvalError('get: AVL+ proof verification failed', 'avl-tree-proof-failed')
-  }
-  const found = r.results[0]
-  if (found === null) {
-    return { kind: 'Option', elem: { tag: 'SColl', elem: { tag: 'SByte' } }, value: null }
-  }
-  return {
-    kind: 'Option',
-    elem: { tag: 'SColl', elem: { tag: 'SByte' } },
-    value: {
-      kind: 'Coll',
-      elem: { tag: 'SByte' },
-      items: Array.from(found, b => ({ kind: 'Byte', value: b })),
-    },
-  }
-}
-```
-
-- [ ] **Step F2.5: Register + verify + commit.**
-
-```ts
-HANDLERS.set(handlerKey(100, 10), evalSAvlTreeGet)
-```
-
-```bash
-cd packages/ergoscript && npx tsc --noEmit && npx vitest run eval/savltree-get.test.ts
-git commit -am "feat(ergoscript): SAvlTree.get method handler (phase 2h-b)
-
-New EvalError code: 'avl-tree-proof-failed' (44 → 45)."
-```
-
-### Task F3 — `SAvlTree.getMany` (methodId 11)
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/savltree.ts`
-- Modify: `packages/ergoscript/src/eval/method-call.ts`
-- Create: `packages/ergoscript/test/eval/savltree-getmany.test.ts`
-
-- [ ] **Step F3.1: Read sigma-rust GET_MANY_EVAL_FN.**
-
-Confirm: any proof failure throws. Per-key absent returns per-key None inside the result Coll. Result type is `Coll[Option[Coll[Byte]]]`.
-
-- [ ] **Step F3.2: Write failing test (4 scenarios: all-present, mixed, all-absent, proof-mutated).**
-
-- [ ] **Step F3.3: Implement.**
-
-```ts
-import { extractByteArrayList, buildLookupOps } from './_avltree-adapter.ts'
-
-/** Ports SAvlTree.getMany handler (eval/savltree.rs:<lines>). */
-export function evalSAvlTreeGetMany(
-  _ctx: EvalContext,
-  obj: SValue,
-  args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  if (args.length !== 2) {
-    throw new EvalError(`getMany: expected 2 args, got ${args.length}`, 'method-not-implemented')
-  }
-  const keys = extractByteArrayList(args[0]!)
-  const proof = extractBytes(args[1]!)
-  const config = avlTreeDataToConfig(obj.value)
-  const ops = buildLookupOps(keys)
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
-    throw new EvalError('getMany: AVL+ proof verification failed', 'avl-tree-proof-failed')
-  }
-  const items: SValue[] = r.results.map(found =>
-    found === null
-      ? { kind: 'Option', elem: { tag: 'SColl', elem: { tag: 'SByte' } }, value: null }
-      : {
-          kind: 'Option',
-          elem: { tag: 'SColl', elem: { tag: 'SByte' } },
-          value: {
-            kind: 'Coll',
-            elem: { tag: 'SByte' },
-            items: Array.from(found, b => ({ kind: 'Byte', value: b })),
-          },
-        },
-  )
-  return {
-    kind: 'Coll',
-    elem: { tag: 'SOption', elem: { tag: 'SColl', elem: { tag: 'SByte' } } },
-    items,
-  }
-}
-```
-
-- [ ] **Step F3.4: Register + verify + commit.**
-
-```ts
-HANDLERS.set(handlerKey(100, 11), evalSAvlTreeGetMany)
-```
-
-```bash
-git commit -am "feat(ergoscript): SAvlTree.getMany method handler (phase 2h-b)"
-```
-
-### Task F4 — `SAvlTree.insert` (methodId 12)
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/savltree.ts`
-- Modify: `packages/ergoscript/src/eval/method-call.ts`
-- Create: `packages/ergoscript/test/eval/savltree-insert.test.ts`
-
-- [ ] **Step F4.1: Read sigma-rust INSERT_EVAL_FN carefully — V<3 vs V3+ failure semantics.**
-
-```bash
-sed -n '210,280p' /home/mwaddip/projects/ergots/external/sigma-rust/ergotree-interpreter/src/eval/savltree.rs
-```
-
-Confirm:
-- `tree_flags.insert_allowed()` false → return `None` (no avltree call)
-- Verifier construct fail → throw
-- V<3 + per-op fail → throw
-- V3+ + per-op fail → call `verifyAvlBatchPartial`; use `partial.newDigest`; return `Some(AvlTree with updated digest)`
-- All-pass → return `Some(AvlTree with new digest)`
-
-⚠️ **OVERRIDES #2 confidence escalation candidate**: if any detail above is <95% certain after source-read, halt and surface.
-
-- [ ] **Step F4.2: Write failing tests covering 6 scenarios.**
-
-Scenarios:
-- `success-1-entry.json` — single Insert, all-pass
-- `success-N-entries.json` — multi-entry, all-pass
-- `disallowed.json` — `!insertAllowed` → Option None
-- `v-pre-3-fail.json` — V<3, per-op fail → throw `'avl-tree-proof-failed'`
-- `v3-partial-success.json` — V3+, per-op fail mid-batch → Some(tree with partial digest)
-- `proof-mutated.json` — verifier construct fail → throw
-
-- [ ] **Step F4.3: Implement.**
-
-```ts
-import { verifyAvlBatch, verifyAvlBatchPartial } from '@ergots/avltree'
-import { buildInsertOps, withUpdatedDigest } from './_avltree-adapter.ts'
-
-const INSERT_ALLOWED_BIT = 0x01
-
-/** Ports SAvlTree.insert handler (eval/savltree.rs:<lines>). */
-export function evalSAvlTreeInsert(
-  ctx: EvalContext,
-  obj: SValue,
-  args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  if (args.length !== 2) {
-    throw new EvalError(`insert: expected 2 args, got ${args.length}`, 'method-not-implemented')
-  }
-  if ((obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0) {
-    return { kind: 'Option', elem: { tag: 'SAvlTree' }, value: null }
-  }
-  const proof = extractBytes(args[1]!)
-  const config = avlTreeDataToConfig(obj.value)
-  const ops = buildInsertOps(args[0]!)
-
-  const treeVersion = ctx.treeVersion ?? 0
-  if (treeVersion >= 3) {
-    const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
-    if (partial === null) {
-      throw new EvalError('insert: AVL+ proof construct failed', 'avl-tree-proof-failed')
-    }
-    const newTree = withUpdatedDigest(obj.value, partial.newDigest)
-    return {
-      kind: 'Option',
-      elem: { tag: 'SAvlTree' },
-      value: { kind: 'AvlTree', value: newTree },
-    }
-  } else {
-    const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-    if (r === null) {
-      throw new EvalError('insert: AVL+ verification failed', 'avl-tree-proof-failed')
-    }
-    const newTree = withUpdatedDigest(obj.value, r.newDigest)
-    return {
-      kind: 'Option',
-      elem: { tag: 'SAvlTree' },
-      value: { kind: 'AvlTree', value: newTree },
-    }
-  }
-}
-```
-
-- [ ] **Step F4.4: Register + verify + commit.**
-
-```ts
-HANDLERS.set(handlerKey(100, 12), evalSAvlTreeInsert)
-```
-
-```bash
-cd packages/ergoscript && npx tsc --noEmit && npx vitest run eval/savltree-insert.test.ts
-git commit -am "feat(ergoscript): SAvlTree.insert method handler with V3+ partial-success (phase 2h-b)"
-```
-
-### Task F5 — `SAvlTree.update` (methodId 13)
-
-Same pattern as F4 — replace `INSERT_ALLOWED_BIT` with `UPDATE_ALLOWED_BIT = 0x02`, `buildInsertOps` with `buildUpdateOps`, methodId 13. Same V3+ partial path.
-
-```bash
-git commit -am "feat(ergoscript): SAvlTree.update method handler with V3+ partial-success (phase 2h-b)"
-```
-
-### Task F6 — `SAvlTree.remove` (methodId 14)
-
-⚠️ **DIVERGENCE from F4/F5**: `remove` does NOT have V3+ break-on-failure. Per-op failure ALWAYS throws.
-
-```ts
-import { extractByteArrayList, buildRemoveOps } from './_avltree-adapter.ts'
-
-const REMOVE_ALLOWED_BIT = 0x04
-
-/** Ports SAvlTree.remove handler (eval/savltree.rs:<lines>). */
-export function evalSAvlTreeRemove(
-  _ctx: EvalContext,
-  obj: SValue,
-  args: SValue[],
-): SValue {
-  expectAvlTree(obj)
-  if (args.length !== 2) {
-    throw new EvalError(`remove: expected 2 args, got ${args.length}`, 'method-not-implemented')
-  }
-  if ((obj.value.treeFlags & REMOVE_ALLOWED_BIT) === 0) {
-    return { kind: 'Option', elem: { tag: 'SAvlTree' }, value: null }
-  }
-  const keys = extractByteArrayList(args[0]!)
-  const proof = extractBytes(args[1]!)
-  const config = avlTreeDataToConfig(obj.value)
-  const ops = buildRemoveOps(keys)
-  // NO V3+ partial path — sigma-rust always throws on per-op fail in remove.
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
-    throw new EvalError('remove: AVL+ verification failed', 'avl-tree-proof-failed')
-  }
-  const newTree = withUpdatedDigest(obj.value, r.newDigest)
-  return {
-    kind: 'Option',
-    elem: { tag: 'SAvlTree' },
-    value: { kind: 'AvlTree', value: newTree },
-  }
-}
-```
-
-```ts
-HANDLERS.set(handlerKey(100, 14), evalSAvlTreeRemove)
-```
-
-```bash
-git commit -am "feat(ergoscript): SAvlTree.remove method handler (phase 2h-b)"
-```
-
-After F6, registry = 15 + 6 = 21. EvalError codes = 45.
-
----
-
-## Phase G: Mutation testing (Layer C3.a)
-
-### Task G1 — `savltree-mutation.test.ts`
-
-**Files:**
-- Create: `packages/ergoscript/test/eval/savltree-mutation.test.ts`
-
-- [ ] **Step G1.1: Read prior Layer C3.a pattern from phase 2f Coll HOFs.**
-
-```bash
-find /home/mwaddip/projects/ergots/packages/ergoscript/test -name "*mutation*" | head -3
-```
-
-Lift the established mutation-test scaffold: for each fixture, iterate byte positions across the proof region, flip the byte, evaluate, assert the result either (a) matches expected failure behavior for that handler or (b) byte-equal to the unmutated result (tolerated-padding case — should be rare).
-
-- [ ] **Step G1.2: Write the mutation test.**
-
-```ts
-import { describe, expect, test } from 'vitest'
-// ... imports ...
-
-const verificationHandlers = [
-  { name: 'contains', expectedFailureKind: 'value-false' },
-  { name: 'get',      expectedFailureKind: 'throw' },
-  { name: 'getMany',  expectedFailureKind: 'throw' },
-  { name: 'insert',   expectedFailureKind: 'throw-or-partial' },
-  { name: 'update',   expectedFailureKind: 'throw-or-partial' },
-  { name: 'remove',   expectedFailureKind: 'throw' },
-]
-
-for (const { name, expectedFailureKind } of verificationHandlers) {
-  describe(`SAvlTree.${name} mutation testing`, () => {
-    // For each fixture in the success path, mutate the proof region
-    // byte-by-byte and assert the per-handler failure semantics.
-    const dir = join(fixturesDir, name)
-    const successFixtures = readdirSync(dir)
-      .filter(f => f.startsWith('success') && f.endsWith('.json'))
-      .map(f => f.replace('.json', ''))
-
-    for (const scenario of successFixtures) {
-      test(`${scenario}: ≥90% kill rate`, () => {
-        const fxt = JSON.parse(readFileSync(join(dir, `${scenario}.json`), 'utf8'))
-        // Mutate each byte in the proof region. Implementation detail: the fixture
-        // includes `proof_region_start` and `proof_region_end` byte offsets into tree_hex.
-        const stats = runMutations(fxt, expectedFailureKind)
-        expect(stats.killRate).toBeGreaterThanOrEqual(0.9)
-      })
-    }
-  })
-}
-```
-
-(Implementer: `runMutations` lifts from prior Layer C3.a tests — flips one byte at a time across the proof region, calls evaluate, records throw vs return-equal-to-expected, computes kill rate.)
-
-- [ ] **Step G1.3: Run + commit.**
-
-```bash
-cd packages/ergoscript && npx vitest run eval/savltree-mutation.test.ts
-git commit -am "test(ergoscript): SAvlTree mutation testing (Layer C3.a, ≥90% kill rate)"
-```
-
----
-
-## Phase H: Final integration
-
-### Task H1 — Update `facts/ergoscript-eval.md` registry + final verification
-
-**Files:**
-- Modify: `facts/ergoscript-eval.md`
-
-- [ ] **Step H1.1: Extend Method-handler registry table.**
-
-Add 13 rows after the existing 8:
-
-```markdown
-| 9  | `SAvlTree.digest`            | 100:1  | <source-read> | A | `Coll[Byte]`           | `eval/savltree.rs:<lines>` |
-| 10 | `SAvlTree.enabledOperations` | 100:2  | <source-read> | A | `Byte`                 | `eval/savltree.rs:<lines>` |
-| 11 | `SAvlTree.keyLength`         | 100:3  | <source-read> | A | `Int`                  | `eval/savltree.rs:<lines>` |
-| 12 | `SAvlTree.valueLengthOpt`    | 100:4  | <source-read> | A | `Option[Int]`          | `eval/savltree.rs:<lines>` |
-| 13 | `SAvlTree.isInsertAllowed`   | 100:5  | <source-read> | A | `Boolean`              | `eval/savltree.rs:<lines>` |
-| 14 | `SAvlTree.isUpdateAllowed`   | 100:6  | <source-read> | A | `Boolean`              | `eval/savltree.rs:<lines>` |
-| 15 | `SAvlTree.isRemoveAllowed`   | 100:7  | <source-read> | A | `Boolean`              | `eval/savltree.rs:<lines>` |
-| 16 | `SAvlTree.contains`          | 100:9  | 0             | — | `Boolean`              | `eval/savltree.rs:<lines>` |
-| 17 | `SAvlTree.get`               | 100:10 | 0             | — | `Option[Coll[Byte]]`   | `eval/savltree.rs:<lines>` |
-| 18 | `SAvlTree.getMany`           | 100:11 | 0             | — | `Coll[Option[Coll[Byte]]]` | `eval/savltree.rs:<lines>` |
-| 19 | `SAvlTree.insert`            | 100:12 | 0             | — | `Option[AvlTree]`      | `eval/savltree.rs:<lines>` |
-| 20 | `SAvlTree.update`            | 100:13 | 0             | — | `Option[AvlTree]`      | `eval/savltree.rs:<lines>` |
-| 21 | `SAvlTree.remove`            | 100:14 | 0             | — | `Option[AvlTree]`      | `eval/savltree.rs:<lines>` |
-```
-
-Fill in real cost values + line ranges from source-read.
-
-- [ ] **Step H1.2: Add 2h-b changelog block.**
-
-Insert after the existing 2g.6 block in the per-phase changelog section.
-
-- [ ] **Step H1.3: Update EvalError taxonomy section (43 → 45 codes).**
-
-Add a "Phase 2h-b codes" subsection:
-
-```markdown
-### Phase 2h-b codes (SAvlTree.* method handlers)
-
-- **`'avl-tree-obj-not-avl-tree'`** — defensive receiver check on all 13 SAvlTree.* handlers when `obj.kind !== 'AvlTree'`. Wire-format invariants make this unreachable for parser-produced trees.
-- **`'avl-tree-proof-failed'`** — thrown when `verifyAvlBatch` / `verifyAvlBatchPartial` returns `null` (proof construct OR per-op failure under sigma-rust's throw-path semantics: `get` / `getMany` / `remove` always throw; `insert` / `update` throw on V<3 per-op fail and on verifier construct fail regardless of version). Single code covers all proof-failure throw points per the compact-taxonomy decision from 2g.5.
-```
-
-- [ ] **Step H1.4: Update Coverage and stability section.**
-
-```markdown
-**Method-handler registry: 21 entries** (was 8; +13 from 2h-b).
-```
-
-- [ ] **Step H1.5: Update top-level Coverage summary in `facts/ergoscript.md`** (the meta hub).
-
-Edit "Coverage summary" table:
-
-```markdown
-| Evaluator | 52 of ~70 `Expr` arms wired; 21 method-handler registry entries; 45 `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (TBD post-2h-b uplift) |
-```
-
-- [ ] **Step H1.6: Run full verification suite.**
+- [ ] **Step 4.3.1: Find candidate sites.**
 
 ```bash
 cd /home/mwaddip/projects/ergots
-cd packages/avltree && npm test 2>&1 | tail -5
-cd ../ergoscript && npm test 2>&1 | tail -5
-cd ../nipopow && npm test 2>&1 | tail -5
-cd ../.. && npx tsc --noEmit --build packages/*/tsconfig.json 2>&1 | tail -10
-cd fixture-gen && cargo build --release 2>&1 | tail -3 && cargo run --release 2>&1 | tail -3
-cd .. && git status
+grep -rn 'readU8()' packages/nipopow/src/ packages/ergoscript/src/ | grep -iE 'bool|boolean' | head -10
 ```
 
-All must be clean. Working tree should be clean after the last commit.
+Most "bool" reads in this codebase are inside the `parseSValue(SBoolean, r)` flow, which already calls `readU8()`. Whether to refactor that to `readBool()` is debatable — `readBool` adds error-on-non-{0,1} that `readU8()` doesn't. Decision: only refactor where the strict 0/1 check is wanted (e.g., the SBoolean SValue parser); leave other `readU8()` calls alone.
 
-- [ ] **Step H1.7: Commit.**
+- [ ] **Step 4.3.2: Refactor `SBoolean` SValue parser if applicable.**
+
+Locate in `parse-svalue.ts`:
+
+```ts
+// before
+const v = reader.readU8();
+return { kind: 'Boolean', value: v !== 0 };
+
+// after
+return { kind: 'Boolean', value: reader.readBool() };
+```
+
+This is a behavior tightening — previously any non-zero byte became `true`; now only `0x01` does. Verify against sigma-rust: does sigma-rust reject non-{0,1} bytes? **If sigma-rust accepts any non-zero byte as true, do NOT refactor this site** (would create a spurious parse rejection).
+
+- [ ] **Step 4.3.3: Source-read sigma-rust for SBoolean.**
 
 ```bash
-git add facts/ergoscript-eval.md facts/ergoscript.md
+grep -rn 'SBoolean\|Value::Boolean' /home/mwaddip/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/data.rs | head -10
+```
+
+Read the SBoolean parse branch. If it strict-checks 0/1, the refactor is safe. If it accepts any non-zero as true, leave the site alone and document in the task log.
+
+- [ ] **Step 4.3.4: Run all tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -10
+```
+
+Expected: 3318 pass.
+
+### Task 4.4 — Commit Phase 4
+
+- [ ] **Step 4.4.1: Stage and commit.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+git add -A packages/nipopow/src/ packages/ergoscript/src/
 git commit -m "$(cat <<'EOF'
-docs(ergoscript): facts updates for phase 2h-b (13 SAvlTree.* handlers)
+refactor: replace inline option/array codecs with @ergots/scorex helpers
 
-facts/ergoscript-eval.md:
-  - Method-handler registry: 8 → 21 entries
-  - EvalError codes: 43 → 45 (+'avl-tree-obj-not-avl-tree', +'avl-tree-proof-failed')
-  - New "Phase 2h-b" changelog block
-  - Coverage summary updated
+Phase 2h-c.0 step 4/6 (optional cleanup). Replaces inline 0x00/0x01 option
+tag handling and inline VLQ-length-prefixed array reads/writes with the
+new readOption/writeOption + readArray/writeArray helpers from @ergots/scorex.
 
-facts/ergoscript.md:
-  - Top-level Coverage summary updated to reflect new registry size
+Sites refactored:
+  [list the actual sites touched, e.g.:]
+  - ergoscript: SAvlTree.valueLengthOpt encoding
+  - nipopow: PoPowHeader.interlinks length-prefix
+  - ergoscript: SColl wire codec length-prefix
+  ...
 
-Closes phase 2h-b. Next: Header-model slice (carries LastBlockUtxoRootHash)
-or phase 2i predefs — decision pending.
+Sites deliberately NOT refactored (with reason):
+  - ergoscript SOption SValue parser — keeps SValueParseError throw on
+    malformed tag (readOption would throw ReaderError, a behavior change)
+  - ErgoBox.additionalRegisters — keyed, not a flat array
+
+Test suite: 3318 tests pass. No behavior change beyond strict 0/1 boolean
+tightening on SBoolean SValue parser (only if Step 4.3.3 source-read
+confirmed sigma-rust does the same).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
 ---
 
-## Self-review notes
+## Phase 5: Delete transitional shims
 
-Per writing-plans skill self-review checklist:
+### Task 5.1 — Audit shim usage and delete
 
-- **Spec coverage:** Every section of the design spec has a corresponding phase. Phase A covers `verifyAvlBatchPartial`. Phase B covers fixture-gen. Phase C covers `AvlTreeData` runtime + wire-format slice. Phase D covers Tier 1 accessors. Phase E covers adapter helpers. Phase F covers Tier 2 verification ops. Phase G covers mutation testing. Phase H finalizes facts.
+**Files to delete (after confirming no callers remain):**
+- Delete: `packages/nipopow/src/scorex/reader.ts`
+- Delete: `packages/nipopow/src/scorex/writer.ts`
+- Delete: `packages/nipopow/src/scorex/vlq.ts`
+- Delete: `packages/nipopow/src/scorex/` (empty directory)
+- Delete: `packages/nipopow/src/digests.ts`
+- Delete: `packages/nipopow/src/header.ts` (or keep as type-only re-export, per spec "Open questions")
+- Delete: `packages/nipopow/src/autolykos-solution.ts` (same caveat)
+- Delete: `packages/ergoscript/src/wire/reader.ts`
+- Delete: `packages/ergoscript/src/wire/writer.ts`
 
-- **Placeholder scan:** Cost values in handlers are `<source-read>` placeholders that the implementer fills from sigma-rust at the relevant TDD step. This is per design — the spec deliberately says "source-read at implementation, not design." All other code is concrete.
+- [ ] **Step 5.1.1: Find remaining internal callers of each shim file.**
 
-- **Type consistency:** `AvlTreeData` field names (`digest`, `treeFlags`, `keyLength`, `valueLengthOpt`) are consistent across all tasks. `Operation` variant tags (`Lookup`, `Insert`, `Update`, `Remove`) match `@ergots/avltree`'s exported type. `EvalError` codes used in code samples match what's added to the type union. `handlerKey(typeId, methodId)` helper name is consistent.
+```bash
+cd /home/mwaddip/projects/ergots
+echo "=== nipopow scorex shims ==="
+grep -rn "from.*['\"]\\.\\.*scorex/reader" packages/nipopow/src/ 2>/dev/null
+grep -rn "from.*['\"]\\.\\.*scorex/writer" packages/nipopow/src/ 2>/dev/null
+grep -rn "from.*['\"]\\.\\.*scorex/vlq" packages/nipopow/src/ 2>/dev/null
+echo "=== nipopow Header/AutolykosSolution shims ==="
+grep -rn "from.*['\"]\\.\\.*header\\b" packages/nipopow/src/ 2>/dev/null
+grep -rn "from.*['\"]\\.\\.*autolykos-solution" packages/nipopow/src/ 2>/dev/null
+grep -rn "from.*['\"]\\.\\.*digests" packages/nipopow/src/ 2>/dev/null
+echo "=== ergoscript wire shims ==="
+grep -rn "from.*['\"]\\.\\.*wire/reader" packages/ergoscript/src/ 2>/dev/null
+grep -rn "from.*['\"]\\.\\.*wire/writer" packages/ergoscript/src/ 2>/dev/null
+```
 
-- **Open follow-ups deferred to a separate session** (per spec's open items):
-  - Sigma-rust per-accessor cost values (source-read at task time, not pre-decided)
-  - ADDigest scorex_serialize byte layout details (source-read at C2.1)
+For each callable found, edit the import to point at `@ergots/scorex` instead. Example:
+
+```ts
+// before
+import { ByteReader } from './scorex/reader.ts';
+// after
+import { ByteReader } from '@ergots/scorex';
+```
+
+- [ ] **Step 5.1.2: After all internal callers updated, run typecheck + tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
+npx vitest run packages/ 2>&1 | tail -10
+```
+
+Expected: zero TS errors; 3318 tests pass.
+
+- [ ] **Step 5.1.3: Decide on `Header` / `AutolykosSolution` re-export from `@ergots/nipopow`.**
+
+Per spec "Open questions": yes, re-export. Edit `packages/nipopow/src/index.ts` to add:
+
+```ts
+// Re-exports of scorex types for backward compatibility with external
+// callers using `import { Header } from '@ergots/nipopow'`.
+export type { Header, AutolykosSolution } from '@ergots/scorex';
+```
+
+Then delete the source files (the shims) — the re-export from `index.ts` covers any external consumer.
+
+- [ ] **Step 5.1.4: Delete shim files.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+rm packages/nipopow/src/scorex/reader.ts
+rm packages/nipopow/src/scorex/writer.ts
+rm packages/nipopow/src/scorex/vlq.ts
+rmdir packages/nipopow/src/scorex/ 2>/dev/null || true
+rm packages/nipopow/src/header.ts
+rm packages/nipopow/src/autolykos-solution.ts
+rm packages/nipopow/src/digests.ts
+rm packages/ergoscript/src/wire/reader.ts
+rm packages/ergoscript/src/wire/writer.ts
+```
+
+- [ ] **Step 5.1.5: Re-run typecheck + tests.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
+npx vitest run packages/ 2>&1 | tail -15
+```
+
+Expected: zero errors; 3318 pass.
+
+- [ ] **Step 5.1.6: Commit Phase 5.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+git add -A packages/nipopow/ packages/ergoscript/
+git commit -m "$(cat <<'EOF'
+refactor: delete transitional shims; nipopow + ergoscript import from @ergots/scorex
+
+Phase 2h-c.0 step 5/6. After Phase 4's cleanup pass, all internal callers
+in @ergots/nipopow and @ergots/ergoscript import the codec layer (ByteReader,
+ByteWriter, VLQ, ReaderError) and block-header types (Header,
+AutolykosSolution, digest helpers) directly from @ergots/scorex.
+
+Deleted shim files:
+  packages/nipopow/src/scorex/{reader,writer,vlq}.ts
+  packages/nipopow/src/{header,autolykos-solution,digests}.ts
+  packages/ergoscript/src/wire/{reader,writer}.ts
+
+@ergots/nipopow's public surface re-exports Header and AutolykosSolution types
+from @ergots/scorex via index.ts so external consumers using
+'import { Header } from \"@ergots/nipopow\"' continue to work.
+
+Test suite: 3318 tests pass. Cross-runtime green.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
 
 ---
 
-## Pre-existing task list cross-reference
+## Phase 6: `facts/scorex.md` + final verification
 
-| Brainstorm task | Status |
-|---|---|
-| #1 Brainstorm 2h-b: clarifying questions | completed |
-| #2 Brainstorm 2h-b: present design in sections | completed |
-| #3 Write 2h-b design spec to docs/specs/ | completed (committed `b5932e0`) |
-| #4 Address open publish-posture questions | pending — surface after this plan executes |
-| #5 Transition to writing-plans skill for PLAN.md | (this file) |
+### Task 6.1 — Write `facts/scorex.md`
+
+**Files:**
+- Create: `facts/scorex.md`
+- Modify: `facts/nipopow.md` (update Header/AutolykosSolution refs to point at scorex.md)
+- Modify: `CLAUDE.md` (add `facts/scorex.md` to the read-first list)
+
+- [ ] **Step 6.1.1: Write `facts/scorex.md` following the boundary-contract convention.**
+
+Use `facts/avltree.md` as the structural template. Required sections:
+
+1. Title + scope statement (one-paragraph)
+2. Authoritative source-of-truth pointer (sigma-rust ergotree-ir + sigma-ser)
+3. **Ships in this contract (v0.1.0)** — bullet list
+4. **Does NOT ship** — bullet list (no Autolykos v2 verifier; no SValue/SType/Expr; no ErgoBox; no base58)
+5. Public surface listing — code block with full ts signatures (ByteReader class API, ByteWriter class API, VLQ free functions, digest helpers, Header / AutolykosSolution types + codecs)
+6. Type invariants — Header fields (33-byte ADDigest stateRoot, etc.), AutolykosSolution V1-vs-V2 differences
+7. Cross-cutting guarantees — purity, sync, browser-compat, ESM-only, no-WASM
+8. Test corpus — moved tests with counts (reader.test, writer.test, vlq.test, header.test, autolykos-solution.test, option-array.test)
+9. Source mapping table — maps each scorex symbol to its sigma-rust/scorex-ser source location
+10. Cross-references
+
+Length target: ~250-300 lines (similar to `facts/avltree.md` v0.2.0).
+
+- [ ] **Step 6.1.2: Update `facts/nipopow.md` to cross-reference scorex.md.**
+
+Find the existing references to `Header`, `AutolykosSolution`, `ByteReader`, etc. in `facts/nipopow.md`. Replace inline definitions with one-line references like:
+
+```
+- `Header` — defined in [`facts/scorex.md`](./scorex.md); see that contract for the canonical shape and wire format.
+```
+
+- [ ] **Step 6.1.3: Update `CLAUDE.md` read-first list.**
+
+Locate the "Read-first files" section in `CLAUDE.md`. Add `facts/scorex.md` as the first entry under `facts/`, since it's now the foundational contract that other facts files reference:
+
+```
+- `facts/scorex.md` — `@ergots/scorex` interface (codec layer + block-Header types; shared by other packages)
+- `facts/nipopow.md` — `@ergots/nipopow` interface
+- ... (existing list)
+```
+
+### Task 6.2 — Final verification + commit
+
+- [ ] **Step 6.2.1: Run the project-wide verification command suite from CLAUDE.md.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+echo "=== typecheck all packages ==="
+npx tsc --noEmit -p packages/scorex/tsconfig.json
+npx tsc --noEmit -p packages/nipopow/tsconfig.json
+npx tsc --noEmit -p packages/avltree/tsconfig.json
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json
+echo "=== test all packages (node) ==="
+npx vitest run packages/
+echo "=== test scorex under jsdom ==="
+cd packages/scorex && npx vitest run --config vitest.browser.config.ts
+cd /home/mwaddip/projects/ergots
+echo "=== fixture-gen smoke check ==="
+cd fixture-gen && cargo build --release 2>&1 | tail -5
+```
+
+Expected: zero TS errors; 3318 vitest pass under node; same pass under jsdom for scorex; cargo build clean (fixture-gen unaffected by this TS-side refactor).
+
+- [ ] **Step 6.2.2: Commit Phase 6.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+git add facts/scorex.md facts/nipopow.md CLAUDE.md
+git commit -m "$(cat <<'EOF'
+docs(scorex): add facts/scorex.md interface contract; update cross-refs
+
+Phase 2h-c.0 step 6/6 — finalization. Adds the boundary-contract document
+for @ergots/scorex v0.1.0 to facts/scorex.md, structured per the project's
+existing facts/*.md convention (avltree.md as template).
+
+facts/nipopow.md updated to cross-reference scorex.md for the now-shared
+Header / AutolykosSolution / ByteReader / ByteWriter / VLQ surface.
+CLAUDE.md read-first list updated to include facts/scorex.md.
+
+Phase 2h-c.0 (extraction) complete. Successor phase 2h-c.1 (SHeader runtime
++ 17 method handlers in @ergots/ergoscript) lands separately.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 6.2.3: Verify final repo state.**
+
+```bash
+cd /home/mwaddip/projects/ergots
+git log --oneline -7
+git status
+```
+
+Expected: 7 new commits since the audit-completion baseline (b9cabb8). Working tree clean modulo gitignored `audit20260519/`.
+
+---
+
+## Post-completion checklist
+
+After all six phases land:
+
+- [ ] All 3318 tests pass under both `node` and `jsdom`.
+- [ ] `npx tsc --noEmit` clean for all four packages (scorex + nipopow + avltree + ergoscript).
+- [ ] `cargo build --release` clean for fixture-gen (no fixture regeneration needed — TS-side refactor only).
+- [ ] `packages/scorex/dist/` does NOT exist yet (no `npm run build` invoked; published-bundle smoke check is a separate publish-prep concern, not part of 2h-c.0).
+- [ ] `facts/scorex.md` exists; `facts/nipopow.md` references it; `CLAUDE.md` lists it.
+- [ ] Git working tree clean. ~6-7 commits ahead of `origin/master`. No push (per project workflow expectations — commits stay local until user requests push).
+
+---
+
+## Cross-references
+
+- Spec: `docs/specs/2026-05-19-ergots-scorex-package-design.md`
+- Sibling contract: `facts/avltree.md` (v0.2.0 — template for facts/scorex.md style + depth)
+- Sibling contract: `facts/nipopow.md` (will be updated in Task 6.1.2)
+- sigma-rust wire-format oracle: `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/` and `sigma-ser/src/vlq_encode.rs`
+- Fleet SDK comparator: <https://github.com/fleet-sdk/fleet/tree/master/packages/serializer/src/coders>
+- Audit-cleared baseline (this plan's starting point): commit `b9cabb8`
+- Successor plan target: `docs/specs/2026-05-19-ergoscript-phase-2h-c-1-sheader-design.md` (TBD — written after 2h-c.0 lands)
