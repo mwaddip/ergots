@@ -85,6 +85,14 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   if (interlinksCount > MAX_INTERLINKS) {
     throw new ProofParseError(`interlinks_count ${interlinksCount} exceeds sanity limit`, 'oversized');
   }
+  // NIP-05: empty interlinks weaken proof anchoring — every PoPowHeader must
+  // commit to at least interlinks[0] (the genesis id). sigma-rust's parser
+  // permissively accepts empty interlinks, and `check_interlinks_proof` returns
+  // true vacuously for empty + empty proof; we surface this as a typed parse
+  // failure rather than relying on downstream connection checks to catch it.
+  if (interlinksCount === 0) {
+    throw new ProofParseError('interlinks must be non-empty', 'invalid-interlinks-empty');
+  }
   const interlinks: Uint8Array[] = [];
   for (let i = 0; i < interlinksCount; i++) {
     try {

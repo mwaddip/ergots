@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { parseProof } from '../src/proof.ts';
+import { parseProof, serializeProof } from '../src/proof.ts';
 import { ProofParseError } from '../src/errors.ts';
-import { hexToBytes } from './helpers.ts';
+import { hexToBytes, buildSyntheticProof } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -87,6 +87,29 @@ describe('parseProof error cases', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(ProofParseError);
       expect((e as ProofParseError).code).toBe('invalid-k');
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // NIP-05 regression — parseProof rejects PoPowHeaders with empty interlinks
+  // ───────────────────────────────────────────────────────────────────────────
+  test('NIP-05: parseProof rejects PoPowHeader with empty interlinks', () => {
+    // buildSyntheticProof helper produces PoPowHeaders with interlinks=[] by
+    // default. Serializing + parsing such a proof exercises the parser's
+    // 'invalid-interlinks-empty' rejection path.
+    const proof = buildSyntheticProof({
+      m: 1,
+      k: 1,
+      prefixHeights: [10],
+      suffixHeadHeight: 100,
+    });
+    const bytes = serializeProof(proof);
+    try {
+      parseProof(bytes);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('invalid-interlinks-empty');
     }
   });
 
