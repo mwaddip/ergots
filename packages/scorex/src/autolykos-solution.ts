@@ -54,7 +54,12 @@ export function serializeAutolykosSolution(s: AutolykosSolution, version: number
     if (s.powDistance === null) throw new Error('AutolykosSolution v1: powDistance is required');
     writeFixed(w, s.powOnetimePk, EC_POINT_LEN, 'powOnetimePk');
     writeFixed(w, s.nonce, NONCE_LEN, 'nonce');
+    // Encode powDistance as big-endian bytes, minimal length.
+    // sigma-rust mirrors num-bigint's BigUint::to_bytes_be() which returns
+    // [0] for 0 (NOT empty). So d=0n must emit d_len=1, d_bytes=[0x00].
+    // Reference: ergo-chain-types/src/header.rs AutolykosSolution::serialize_bytes(v1)
     if (s.powDistance === 0n) {
+      w.writeU8(1);
       w.writeU8(0);
     } else {
       // Encode BigInt as big-endian bytes, minimal length

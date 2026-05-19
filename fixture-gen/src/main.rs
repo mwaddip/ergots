@@ -82,6 +82,13 @@ fn main() -> anyhow::Result<()> {
         &cmds::ergoscript::wire::sigma_boolean_variants::generate()?,
     )?;
 
+    // Phase 2h-c.1 Step 5: V3 SHeader-constant ErgoTree wire-roundtrip fixtures.
+    // Written as raw binary files (not JSON wrappers) so parseTree/serializeTree
+    // can be tested byte-for-byte directly.
+    cmds::ergoscript::wire::sheader_constants::generate(
+        &ergoscript_fixtures_dir().join("wire"),
+    )?;
+
     // Phase 2b per-arm eval fixtures land in their own `eval/` subdir to
     // keep the top-level `fixtures/` listing tidy as more arm tasks land.
     std::fs::create_dir_all(ergoscript_fixtures_dir().join("eval"))?;
