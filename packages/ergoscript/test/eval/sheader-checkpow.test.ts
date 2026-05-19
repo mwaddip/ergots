@@ -101,3 +101,30 @@ describe('SHeader.checkPow V<3 reject (parallel-pair cost correctness)', () => {
     expect(v3Run.cost).toBe(fixture.expectedJitCost)
   })
 })
+
+describe('SHeader.checkPow V1 header rejection', () => {
+  it("V3 tree with V1 header receiver throws 'autolykos-v1-not-supported'", () => {
+    // V1 mainnet header — fixture-gen emits its hex bytes as v1HeaderHexBytes
+    // alongside the V2 oracle data (see fixture-gen/src/ergoscript/sheader_checkpow.rs).
+    const v1HeaderBytes = hexToBytes(fixture.v1HeaderHexBytes)
+    const v1Header = parseHeader(new ByteReader(v1HeaderBytes))
+    expect(v1Header.version).toBe(1)
+
+    // fixture.exprBytes is the sigma-serialized full ErgoTree, reused from the oracle test.
+    const tree = parseTree(hexToBytes(fixture.exprBytes))
+
+    // Supply the V1 header via context; treeVersion: 3 gates the dispatcher to allow CHECK_POW_METHOD.
+    const ctx = makeContext({
+      treeVersion: 3,
+      headers: [v1Header],
+    })
+
+    try {
+      evaluateWith(tree, ctx)
+      throw new Error('expected EvalError throw but evaluate succeeded')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('autolykos-v1-not-supported')
+    }
+  })
+})
