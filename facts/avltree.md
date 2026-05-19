@@ -6,24 +6,25 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 
 ## Scope
 
-**Ships in this contract (v0.1.0):**
+**Ships in this contract (v0.2.0):**
 
-1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values.
-2. `verifyAvlLookup` — thin convenience wrapper over `verifyAvlBatch` for single-key reads.
-3. All 8 `Operation` variants: `Lookup`, `UnknownModification`, `Insert`, `Update`, `InsertOrUpdate`, `UpdateLongBy`, `Remove`, `RemoveIfExists`.
-4. `AvlTreeConfig` — verifier-input shape (key length, optional fixed value length, optional DoS bounds).
-5. `AvlVerifyError` — programmer-error rejection class with 6 typed codes.
-6. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values. All-or-nothing: any per-op failure collapses to `null`. Thin wrapper over `verifyAvlBatchPartial`.
+2. `verifyAvlBatchPartial` — partial-success variant. On per-op failure, returns `{ newDigest, results, opsCompleted }` reflecting state AFTER the last successful op. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` semantics (break-on-failure with state-after-last-success).
+3. `verifyAvlLookup` — thin convenience wrapper over `verifyAvlBatch` for single-key reads.
+4. All 8 `Operation` variants: `Lookup`, `UnknownModification`, `Insert`, `Update`, `InsertOrUpdate`, `UpdateLongBy`, `Remove`, `RemoveIfExists`.
+5. `AvlTreeConfig` — verifier-input shape (key length, optional fixed value length, optional DoS bounds).
+6. `AvlVerifyError` — programmer-error rejection class with 6 typed codes.
+7. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
 **Does NOT ship:**
 
 - `BatchAVLProver` (prover side of `ergo_avltree_rust`). Verifier-only port; the project identity is a verifier kernel.
 - `persistent_batch_avl_prover` and `versioned_avl_storage`. Storage abstractions with no consumer in the verifier path.
-- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.1.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
+- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.2.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers in phase 2h-b.
 
-## Public surface (v0.1.0)
+## Public surface (v0.2.0)
 
 ### Primary export: `@ergots/avltree`
 
@@ -34,6 +35,13 @@ verifyAvlBatch(
   config: AvlTreeConfig,
   operations: Operation[],
 ): VerifyAvlBatchResult | null
+
+verifyAvlBatchPartial(
+  startingDigest: Uint8Array,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  operations: Operation[],
+): VerifyAvlBatchPartialResult | null
 
 verifyAvlLookup(
   startingDigest: Uint8Array,
@@ -47,8 +55,17 @@ verifyAvlLookup(
 
 - **Precondition (throws `AvlVerifyError`):** `config.keyLength > 0`; `config.valueLengthOpt >= 0` or `null`; `config.maxNumOperations >= 0` if set; `config.maxDeletes <= config.maxNumOperations` if both set; `startingDigest.length === 33`; for every op, `op.key.length === config.keyLength`; for every op with a `value` field, `op.value.length === config.valueLengthOpt` when `valueLengthOpt` is not null.
 - **Postcondition (success):** Returns `{ newDigest: Uint8Array, results: (Uint8Array | null)[] }` where `newDigest` is exactly 33 bytes (32-byte blake2b-256 root label + 1-byte tree height), `results[i]` is the old value at `op.key` before operation `i` (or `null` when the key was absent before the operation), and `newDigest` is byte-identical to what `ergo_avltree_rust`'s `BatchAVLVerifier` would produce on the same inputs.
-- **Postcondition (failure):** Returns `null` on any verification failure: malformed proof, digest mismatch, precondition violation by an operation, or structural inconsistency.
-- **Invariant:** Stateless. No I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output.
+- **Postcondition (failure):** Returns `null` on any verification failure: malformed proof, digest mismatch, precondition violation by an operation, or structural inconsistency. All-or-nothing — any per-op failure collapses the whole batch to `null` even if earlier ops succeeded.
+- **Invariant:** Stateless. No I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output. Implemented as a thin wrapper over `verifyAvlBatchPartial`: returns the partial result on full success, `null` on construct failure OR when `opsCompleted < operations.length`.
+
+#### `verifyAvlBatchPartial(startingDigest, proof, config, operations)`
+
+- **Precondition (throws `AvlVerifyError`):** Same shape validation as `verifyAvlBatch`.
+- **Postcondition (success):** Returns `{ newDigest: Uint8Array, results: (Uint8Array | null)[], opsCompleted: number }` where `newDigest` reflects the AVL+ state after the **last successful operation** (`opsCompleted === operations.length` on full success; less on partial), `results.length === opsCompleted`, and each `results[i]` is the old value at `op[i].key` before that op (or `null` when absent). On full success, `newDigest` is byte-identical to what `verifyAvlBatch` returns.
+- **Postcondition (partial success):** When op `i` (0-indexed) fails, iteration stops immediately. Returns `{ newDigest, results, opsCompleted: i }` where `newDigest` is the digest snapshot taken BEFORE op `i` (i.e., state after op `i-1`, or `startingDigest` when `i === 0`).
+- **Postcondition (failure):** Returns `null` only when the verifier itself fails to anchor (proof decode failure or digest mismatch during construction). In that case there is no partial state to report.
+- **Why a pre-op snapshot:** sigma-rust's `BatchAVLVerifier` (and the TS port) poisons `root = null` on op failure; `digest()` then returns `null`. Snapshotting `digest()` before each op is the only way to recover the pre-failure state.
+- **Invariant:** Stateless, deterministic; same inputs → same output.
 
 #### `verifyAvlLookup(startingDigest, proof, config, key)`
 
@@ -86,6 +103,12 @@ export interface VerifyAvlBatchResult {
   readonly results: (Uint8Array | null)[]
 }
 
+export interface VerifyAvlBatchPartialResult {
+  readonly newDigest: Uint8Array        // 33 bytes (state after last successful op)
+  readonly results: (Uint8Array | null)[]  // length === opsCompleted
+  readonly opsCompleted: number         // count of successful ops; === operations.length on full success
+}
+
 // Documentation-only type aliases (all are Uint8Array at runtime).
 export type ADKey    = Uint8Array
 export type ADValue  = Uint8Array
@@ -118,9 +141,9 @@ export type AvlVerifyErrorCode =
   | 'operation-value-length-mismatch'    // op.value.length !== config.valueLengthOpt when fixed
 ```
 
-**Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.1.0)**
+**Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.2.0)**
 
-Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.1.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (per the option-3 deferred decision in the design spec).
+Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.2.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (per the option-3 deferred decision in the design spec).
 
 ```ts
 type AvlVerifyFailReason =               // (internal; not exported)
@@ -206,9 +229,10 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, includi
 | `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
 | `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue / ADDigest` type aliases (`types.ts`) | Documentation-only aliases on `Uint8Array`; ADDigest is exactly 33 bytes |
-| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (6 `AvlVerifyError` codes) and a clean null-on-failure return |
+| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (6 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
+| (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers (phase 2h-b), which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (6 codes); Rust uses `anyhow::Result` throughout with no separate error class |
-| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.1.0 |
+| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.2.0 |
 
 ## Cross-references
 
