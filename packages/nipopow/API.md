@@ -212,9 +212,18 @@ interface NipopowProof {
 interface PoPowHeader {
   header: Header;
   interlinks: Uint8Array[];    // each 32 bytes (BlockId); interlinks[0] is genesis_id
-  interlinksProof: BatchMerkleProof; // internal: proves interlinks belong to header.extensionRoot
+  interlinksProof: BatchMerkleProof; // see note below: anchors to interlinks-only-root, NOT header.extensionRoot
 }
 ```
+
+> **Anchoring note (audit NIP-06).** `interlinksProof` proves the
+> PoPowHeader's interlinks vector against the **interlinks-only Merkle root**
+> (computed from `packInterlinks(interlinks)`), NOT against
+> `header.extensionRoot`. For mainnet blocks whose extension contains only
+> interlinks (no votes/params), the two roots coincide; for blocks with
+> richer extensions they diverge, and verification anchors to the
+> interlinks-only-root only. Full `header.extensionRoot` anchoring is a
+> planned future phase. See `facts/nipopow.md` "Limitations".
 
 `BatchMerkleProof` is structurally accessible but not currently re-exported as a named type. Most callers don't need to inspect it directly — `verifyProof` handles validation.
 
