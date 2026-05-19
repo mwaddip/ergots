@@ -11,6 +11,7 @@ export type AvlVerifyErrorCode =
   | 'invalid-starting-digest-length'
   | 'operation-key-length-mismatch'
   | 'operation-value-length-mismatch'
+  | 'operation-delta-out-of-range' // AVL-03: UpdateLongBy.delta outside i64
 
 /**
  * Programmer-error rejection class. Thrown (never returned) by verifyAvlBatch /

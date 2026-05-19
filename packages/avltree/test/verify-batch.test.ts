@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { verifyAvlBatch } from '../src/verify.js'
 import { parseProofPackedTree } from '../src/proof-decode.js'
+import { AvlVerifyError } from '../src/errors.js'
 import type { Operation } from '../src/operation.js'
 import type { AvlTreeConfig } from '../src/types.js'
 
@@ -73,6 +74,66 @@ describe('AVL-01: truncated direction bits are rejected', () => {
       expect(result).toBeNull()
     })
   }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AVL-03 / AVL-04 / AVL-05 regressions — verifyAvlBatch programmer-error
+// gates. Each invalid input throws AvlVerifyError (not return null).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('AVL-03/04/05: config + operation shape validation', () => {
+  const startingDigest = new Uint8Array(33)
+  const proof = new Uint8Array(0)
+  const validConfig: AvlTreeConfig = { keyLength: 1, valueLengthOpt: null }
+
+  // AVL-03: UpdateLongBy.delta outside signed i64
+  it('AVL-03: rejects UpdateLongBy with delta > i64::MAX', () => {
+    const ops: Operation[] = [{ tag: 'UpdateLongBy', key: new Uint8Array(1), delta: 1n << 63n }]
+    try {
+      verifyAvlBatch(startingDigest, proof, validConfig, ops)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(AvlVerifyError)
+      expect((e as AvlVerifyError).code).toBe('operation-delta-out-of-range')
+    }
+  })
+
+  it('AVL-03: rejects UpdateLongBy with delta < i64::MIN', () => {
+    const ops: Operation[] = [{ tag: 'UpdateLongBy', key: new Uint8Array(1), delta: -(1n << 63n) - 1n }]
+    try {
+      verifyAvlBatch(startingDigest, proof, validConfig, ops)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(AvlVerifyError)
+      expect((e as AvlVerifyError).code).toBe('operation-delta-out-of-range')
+    }
+  })
+
+  // AVL-04: maxNumOperations / maxDeletes safe-integer requirement
+  it.each([NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'AVL-04: rejects config.maxNumOperations = %s',
+    (badValue) => {
+      const cfg: AvlTreeConfig = { keyLength: 1, valueLengthOpt: null, maxNumOperations: badValue }
+      try {
+        verifyAvlBatch(startingDigest, proof, cfg, [])
+        throw new Error('expected throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(AvlVerifyError)
+        expect((e as AvlVerifyError).code).toBe('invalid-config-max-ops')
+      }
+    },
+  )
+
+  // AVL-05: valueLengthOpt is required (must be number or null, NOT undefined)
+  it('AVL-05: rejects config with valueLengthOpt = undefined', () => {
+    const cfg = { keyLength: 1 } as unknown as AvlTreeConfig
+    try {
+      verifyAvlBatch(startingDigest, proof, cfg, [])
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(AvlVerifyError)
+      expect((e as AvlVerifyError).code).toBe('invalid-config-value-length')
+    }
+  })
 })
 
 describe('verifyAvlBatch — per-fixture corpus', () => {

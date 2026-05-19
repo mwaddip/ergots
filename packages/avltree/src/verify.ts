@@ -202,17 +202,40 @@ function validateConfig(config: AvlTreeConfig): void {
       'invalid-config-key-length',
     )
   }
-  if (config.valueLengthOpt !== null && config.valueLengthOpt !== undefined && config.valueLengthOpt < 0) {
+  // Audit AVL-05: `valueLengthOpt` is documented as required (`number | null`).
+  // Pre-fix `undefined` slipped through and was treated as the fixed-length
+  // branch in proof-decode, conflating caller misconfiguration with proof
+  // failure. Reject explicitly here.
+  if (config.valueLengthOpt === undefined) {
+    throw new AvlVerifyError(
+      `valueLengthOpt is required (must be number or null); got undefined`,
+      'invalid-config-value-length',
+    )
+  }
+  if (config.valueLengthOpt !== null && config.valueLengthOpt < 0) {
     throw new AvlVerifyError(
       `valueLengthOpt must be >= 0 or null; got ${config.valueLengthOpt}`,
       'invalid-config-value-length',
     )
   }
-  if (config.maxNumOperations !== undefined && config.maxNumOperations < 0) {
-    throw new AvlVerifyError(
-      `maxNumOperations must be >= 0; got ${config.maxNumOperations}`,
-      'invalid-config-max-ops',
-    )
+  // Audit AVL-04: maxNumOperations and maxDeletes must be safe integers.
+  // Pre-fix NaN, Infinity, and fractions passed the `< 0` check, neutralising
+  // the DoS guard.
+  if (config.maxNumOperations !== undefined) {
+    if (!Number.isSafeInteger(config.maxNumOperations) || config.maxNumOperations < 0) {
+      throw new AvlVerifyError(
+        `maxNumOperations must be a non-negative safe integer; got ${config.maxNumOperations}`,
+        'invalid-config-max-ops',
+      )
+    }
+  }
+  if (config.maxDeletes !== undefined) {
+    if (!Number.isSafeInteger(config.maxDeletes) || config.maxDeletes < 0) {
+      throw new AvlVerifyError(
+        `maxDeletes must be a non-negative safe integer; got ${config.maxDeletes}`,
+        'invalid-config-max-ops',
+      )
+    }
   }
   if (
     config.maxDeletes !== undefined &&
@@ -262,5 +285,18 @@ function validateOperationShape(op: Operation, config: AvlTreeConfig): void {
       `op ${op.tag}: value.length=${op.value.length} != config.valueLengthOpt=${config.valueLengthOpt}`,
       'operation-value-length-mismatch',
     )
+  }
+  // Audit AVL-03: UpdateLongBy.delta must fit in signed i64. Pre-fix
+  // `i64ToBeBytes(delta)` used `DataView.setBigInt64` which silently wrapped
+  // out-of-range values, producing a digest for the wrapped result.
+  if (op.tag === 'UpdateLongBy') {
+    const I64_MIN = -(1n << 63n)
+    const I64_MAX = (1n << 63n) - 1n
+    if (op.delta < I64_MIN || op.delta > I64_MAX) {
+      throw new AvlVerifyError(
+        `op UpdateLongBy: delta=${op.delta} out of signed i64 range`,
+        'operation-delta-out-of-range',
+      )
+    }
   }
 }
