@@ -233,6 +233,11 @@ fn main() -> anyhow::Result<()> {
     let spreheader_timestamp_fixture = cmds::ergoscript::eval::spreheader_timestamp::generate()?;
     write_ergoscript_json("eval/spreheader-timestamp.json", &spreheader_timestamp_fixture)?;
 
+    // Phase 2h-c.1: 15 SHeader property accessor handlers (PropertyCall typeId=104, methodIds 1-15).
+    // All Pattern A Fixed(10). Source: ergotree-interpreter/src/eval/sheader.rs:16-113.
+    let sheader_handlers_fixture = cmds::ergoscript::eval::sheader_handlers::generate()?;
+    write_ergoscript_json("eval/sheader-handlers.json", &sheader_handlers_fixture)?;
+
     // Phase 2h-b Phase B wave 1: 7 Tier-1 SAvlTree.* accessor handlers
     // (PropertyCall typeId=100, methodIds 1..=7). Each returns a pure projection
     // of AvlTreeData with no proof verification — cost 15 (Pattern A).

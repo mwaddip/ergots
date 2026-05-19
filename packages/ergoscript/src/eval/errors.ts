@@ -21,7 +21,8 @@
  *    + 3 codes added in phase 2g.5 (method-call dispatch + SigmaPropBytes + SContext.dataInputs)
  *    + 1 code added in phase 2h-b Tier 1 (SAvlTree pure accessors)
  *    + 1 code added in phase 2h-b Tier 2 (SAvlTree verification ops)
- *   = 45 codes total after phase 2h-b Tier 2.
+ *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
+ *   = 46 codes total after phase 2h-c.1.
  */
 
 /**
@@ -292,3 +293,17 @@ export type EvalErrorCode =
    *   - savltree.rs:372      (CONTAINS_EVAL_FN construct fail via `?`)
    */
   | 'avl-tree-proof-failed'
+
+  // -------------------------------------------------------------------------
+  // Phase 2h-c.1 — SHeader property accessors (1 new code; 45 → 46)
+  // -------------------------------------------------------------------------
+  /**
+   * Any of the 15 SHeader property accessor handlers (typeId 104, methodIds 1-15)
+   * when `obj` evaluated to a non-Header SValue. Wire-format invariants
+   * (PropertyCall construction with an SHeader-typed obj via `ByIndex` on
+   * `Context.headers`) make this unreachable for parser-produced trees;
+   * defensive against `ConstantPlaceholder` injection or hand-crafted MIR trees.
+   *
+   * Source: ergotree-interpreter/src/eval/sheader.rs:16-113
+   */
+  | 'header-obj-not-header'

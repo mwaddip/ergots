@@ -5,7 +5,7 @@
 //! `expected_cost` come from running `expr.eval(env, ctx)` against a
 //! synthetic Context built from `opts_json`.
 
-use ergo_chain_types::PreHeader;
+use ergo_chain_types::{Header, PreHeader};
 use ergotree_ir::chain::ergo_box::ErgoBox;
 use ergotree_ir::mir::value::CollKind;
 use ergotree_ir::mir::value::NativeColl;
@@ -129,6 +129,10 @@ pub fn value_to_json(v: &Value) -> JsonValue {
         // Mirrors the TS `SValue` PreHeader variant: `{ kind: 'PreHeader', value: PreHeader }`.
         // Delegates to `preheader_to_json` for the inner PreHeader shape.
         Value::PreHeader(ph) => json!({ "kind": "PreHeader", "value": preheader_to_json(ph) }),
+        // Header: emit as structured JSON (phase 2h-c.1).
+        // Mirrors the TS `SValue` Header variant: `{ kind: 'Header', value: Header }`.
+        // Delegates to `header_to_json` for the inner Header shape.
+        Value::Header(h) => json!({ "kind": "Header", "value": header_to_json(h) }),
         // Other variants extended as later arm tasks need them.
         // Fallback: capture variants we haven't formally encoded yet
         // (AvlTree, Lambda, etc.).
@@ -199,6 +203,69 @@ pub fn preheader_to_json(ph: &PreHeader) -> JsonValue {
     })
 }
 
+/// Encode a single `Header` as inner JSON matching the TS `Header` interface schema.
+///
+/// Coordination contract with `rehydrateEvalOpts` (test/_helpers/index.ts):
+///   - `timestamp` MUST be a JSON string (`u64.to_string()`), not a number.
+///     The TS side does `BigInt(v.timestamp as string)` then `Number(...)`.
+///   - `id`, `parentId`, `adProofsRoot`, `stateRoot`, `transactionRoot`,
+///     `extensionRoot`, `votes`, `unparsedBytes` are hex-encoded byte arrays.
+///   - `version`, `nBits`, `height` are plain JSON numbers.
+///   - `autolykosSolution.minerPk` is hex-encoded 33 bytes.
+///   - `autolykosSolution.powOnetimePk` is hex-encoded 33 bytes or null (V2).
+///   - `autolykosSolution.nonce` is hex-encoded 8 bytes.
+///   - `autolykosSolution.powDistance` is decimal string or null (V2).
+///
+/// Schema mirrors `packages/scorex/src/header.ts::Header`.
+pub fn header_to_json(h: &Header) -> JsonValue {
+    let miner_pk_bytes = h
+        .autolykos_solution
+        .miner_pk
+        .sigma_serialize_bytes()
+        .expect("EcPoint sigma_serialize_bytes");
+    let pow_onetime_pk_json: JsonValue = match &h.autolykos_solution.pow_onetime_pk {
+        Some(pk) => {
+            let bytes = pk
+                .sigma_serialize_bytes()
+                .expect("EcPoint sigma_serialize_bytes");
+            json!(hex::encode(&bytes))
+        }
+        None => JsonValue::Null,
+    };
+    let pow_distance_json: JsonValue = match &h.autolykos_solution.pow_distance {
+        Some(d) => json!(d.to_string()),
+        None => JsonValue::Null,
+    };
+    json!({
+        "version": h.version,
+        "id": hex::encode(h.id.0.0.as_ref()),
+        "parentId": hex::encode(h.parent_id.0.0.as_ref()),
+        "adProofsRoot": hex::encode(h.ad_proofs_root.0.as_ref()),
+        "stateRoot": hex::encode(h.state_root.0.as_ref()),
+        "transactionRoot": hex::encode(h.transaction_root.0.as_ref()),
+        "timestamp": h.timestamp.to_string(),
+        "nBits": h.n_bits,
+        "height": h.height,
+        "extensionRoot": hex::encode(h.extension_root.0.as_ref()),
+        "autolykosSolution": {
+            "minerPk": hex::encode(&miner_pk_bytes),
+            "powOnetimePk": pow_onetime_pk_json,
+            "nonce": hex::encode(&h.autolykos_solution.nonce),
+            "powDistance": pow_distance_json,
+        },
+        "votes": hex::encode(h.votes.0.as_ref()),
+        "unparsedBytes": hex::encode(h.unparsed_bytes.as_ref()),
+    })
+}
+
+/// Encode the `[Header; 10]` array as a JSON array of header JSON objects.
+///
+/// Used by SHeader handler fixtures to populate `opts_json.headers` for the TS
+/// side's `makeContext({ headers: ... })`.
+pub fn headers_to_json(headers: &[Header; 10]) -> JsonValue {
+    JsonValue::Array(headers.iter().map(header_to_json).collect())
+}
+
 /// Encode an SType as JSON matching the TS `SType` discriminated union
 /// (`packages/ergoscript/src/mir/types.ts`):
 ///   `{ "tag": "<Variant>" }` for primitives, with a recursive `elem`
@@ -223,6 +290,8 @@ pub fn stype_to_json(t: &SType) -> JsonValue {
         SType::SGroupElement => json!({ "tag": "SGroupElement" }),
         SType::SSigmaProp => json!({ "tag": "SSigmaProp" }),
         SType::SBox => json!({ "tag": "SBox" }),
+        SType::SHeader => json!({ "tag": "SHeader" }),
+        SType::SPreHeader => json!({ "tag": "SPreHeader" }),
         // Other variants extended as later arm tasks need them.
         _ => panic!("stype_to_json: unsupported variant for phase 2b: {:?}", t),
     }

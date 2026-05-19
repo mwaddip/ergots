@@ -12,6 +12,7 @@ import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { ByteReader } from '@ergots/scorex'
+import type { Header } from '@ergots/scorex'
 
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length === 0) return new Uint8Array(0)
@@ -126,6 +127,11 @@ export function hydrateSValue(json: any): SValue {
         },
       }
     }
+    case 'Header': {
+      // Header value carrier. JSON shape is defined by fixture-gen's
+      // header_to_json helper (added in phase 2h-c.1).
+      return { kind: 'Header', value: hydrateHeader(json.value) }
+    }
     default:
       throw new Error(`hydrateSValue: unknown kind ${json.kind}`)
   }
@@ -154,6 +160,48 @@ export function hydrateErgoBox(json: any): ErgoBox {
     creationHeight: json.creation_height as number,
     txId: hexToBytes(json.tx_id_hex as string),
     index: json.index as number,
+  }
+}
+
+/**
+ * Rehydrate a Header JSON object (from fixture-gen `header_to_json`) into
+ * a runtime `Header` value. Schema:
+ *   version: number
+ *   id: hex → Uint8Array (32 bytes)
+ *   parentId: hex → Uint8Array (32 bytes)
+ *   adProofsRoot: hex → Uint8Array (32 bytes)
+ *   stateRoot: hex → Uint8Array (33 bytes)
+ *   transactionRoot: hex → Uint8Array (32 bytes)
+ *   timestamp: decimal string → number (via BigInt then Number)
+ *   nBits: number
+ *   height: number
+ *   extensionRoot: hex → Uint8Array (32 bytes)
+ *   autolykosSolution: { minerPk, powOnetimePk (hex | null), nonce (hex), powDistance (string | null) }
+ *   votes: hex → Uint8Array (3 bytes)
+ *   unparsedBytes: hex → Uint8Array
+ */
+export function hydrateHeader(json: any): Header {
+  const sol = json.autolykosSolution as Record<string, unknown>
+  return {
+    version: json.version as number,
+    id: hexToBytes(json.id as string),
+    parentId: hexToBytes(json.parentId as string),
+    adProofsRoot: hexToBytes(json.adProofsRoot as string),
+    stateRoot: hexToBytes(json.stateRoot as string),
+    transactionRoot: hexToBytes(json.transactionRoot as string),
+    // timestamp is a decimal string (u64 from Rust) — convert via BigInt then Number
+    timestamp: Number(BigInt(json.timestamp as string)),
+    nBits: json.nBits as number,
+    height: json.height as number,
+    extensionRoot: hexToBytes(json.extensionRoot as string),
+    autolykosSolution: {
+      minerPk: hexToBytes(sol.minerPk as string),
+      powOnetimePk: sol.powOnetimePk === null ? null : hexToBytes(sol.powOnetimePk as string),
+      nonce: hexToBytes(sol.nonce as string),
+      powDistance: sol.powDistance === null ? null : BigInt(sol.powDistance as string),
+    },
+    votes: hexToBytes(json.votes as string),
+    unparsedBytes: hexToBytes((json.unparsedBytes ?? '') as string),
   }
 }
 
@@ -200,6 +248,10 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
       minerPk: hexToBytes(v.minerPk as string),
       votes: hexToBytes(v.votes as string),
     }
+  }
+
+  if (Array.isArray(optsObj.headers)) {
+    result.headers = (optsObj.headers as unknown[]).map(hydrateHeader)
   }
 
   const extRaw = optsObj.extension as

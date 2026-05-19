@@ -27,6 +27,9 @@
  *                                  only). See per-handler doc-comments in savltree.ts for the
  *                                  per-handler failure model. Code originated in `./savltree.ts`
  *                                  (phase 2h-b Tier 2 / Phase F).
+ *   'header-obj-not-header'     — thrown by the 15 SHeader property accessor handlers (typeId 104,
+ *                                  methodIds 1-15) when obj is not a Header SValue.
+ *                                  Code originated in `./sheader.ts` (phase 2h-c.1).
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
@@ -35,6 +38,7 @@
  */
 
 import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'
+import type { Header } from '@ergots/scorex'
 import { GROUP_GENERATOR_BYTES } from './_group-generator'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
@@ -58,15 +62,34 @@ import {
   evalSAvlTreeUpdate,
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
+import {
+  evalSHeaderId,
+  evalSHeaderVersion,
+  evalSHeaderParentId,
+  evalSHeaderAdProofsRoot,
+  evalSHeaderStateRoot,
+  evalSHeaderTransactionsRoot,
+  evalSHeaderTimestamp,
+  evalSHeaderNBits,
+  evalSHeaderHeight,
+  evalSHeaderExtensionRoot,
+  evalSHeaderMinerPk,
+  evalSHeaderPowOnetimePk,
+  evalSHeaderPowNonce,
+  evalSHeaderPowDistance,
+  evalSHeaderVotes,
+} from './sheader'
 
 // Module-level SType singletons used in handler helpers.
 // Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
 // SBox — element type for dataInputsCollOf.
 // SInt — element type for indicesCollOf.
+// SHeader — element type for headersCollOf.
 const SLONG: SType = { tag: 'SLong' }
 const STUPLE_COLLBYTE_LONG: SType = { tag: 'STuple', items: [SCOLL_BYTE, SLONG] }
 const SBOX: SType = { tag: 'SBox' }
 const SINT: SType = { tag: 'SInt' }
+const SHEADER: SType = { tag: 'SHeader' }
 
 type MethodHandler = (
   obj: SValue,
@@ -307,6 +330,39 @@ function registerHandlers(): void {
   HANDLERS.set(handlerKey(100, 12), (obj, args, ctx) => evalSAvlTreeInsert(ctx, obj, args))
   HANDLERS.set(handlerKey(100, 13), (obj, args, ctx) => evalSAvlTreeUpdate(ctx, obj, args))
   HANDLERS.set(handlerKey(100, 14), (obj, args, ctx) => evalSAvlTreeRemove(ctx, obj, args))
+
+  // ---------- SContext.headers (typeId=101, methodId=2) — phase 2h-c.1 ----------
+  // Pattern A cost 15 (charged before obj check). Returns Coll[Header] from ctx.headers ?? [].
+  // Source: ergotree-interpreter/src/eval/scontext.rs:57-68 — HEADERS_EVAL_FN.
+  HANDLERS.set(handlerKey(101, 2), (obj, _args, ctx) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.headers expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context'
+      )
+    }
+    return headersCollOf(ctx.headers ?? [])
+  })
+
+  // ---------- SHeader (15 property accessors) — phase 2h-c.1 ----------
+  // All Pattern A Fixed(10). Source: ergotree-interpreter/src/eval/sheader.rs:16-113.
+  // Handler bodies live in ./sheader.ts.
+  HANDLERS.set(handlerKey(104, 1), (obj, args, ctx) => evalSHeaderId(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 2), (obj, args, ctx) => evalSHeaderVersion(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 3), (obj, args, ctx) => evalSHeaderParentId(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 4), (obj, args, ctx) => evalSHeaderAdProofsRoot(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 5), (obj, args, ctx) => evalSHeaderStateRoot(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 6), (obj, args, ctx) => evalSHeaderTransactionsRoot(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 7), (obj, args, ctx) => evalSHeaderTimestamp(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 8), (obj, args, ctx) => evalSHeaderNBits(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 9), (obj, args, ctx) => evalSHeaderHeight(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 10), (obj, args, ctx) => evalSHeaderExtensionRoot(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 11), (obj, args, ctx) => evalSHeaderMinerPk(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 12), (obj, args, ctx) => evalSHeaderPowOnetimePk(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 13), (obj, args, ctx) => evalSHeaderPowNonce(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 14), (obj, args, ctx) => evalSHeaderPowDistance(obj, args, ctx))
+  HANDLERS.set(handlerKey(104, 15), (obj, args, ctx) => evalSHeaderVotes(obj, args, ctx))
 }
 
 registerHandlers()
@@ -343,6 +399,17 @@ function indicesCollOf(n: number): SValue {
   const items: SValue[] = []
   for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
   return { kind: 'Coll', elem: SINT, items }
+}
+
+// ---------- SContext.headers helper ----------
+
+/** Convert a Header[] to a Coll[Header] SValue. */
+function headersCollOf(headers: Header[]): SValue {
+  return {
+    kind: 'Coll',
+    elem: SHEADER,
+    items: headers.map((h) => ({ kind: 'Header', value: h })),
+  }
 }
 
 // ---------- SColl.zip helper ----------
