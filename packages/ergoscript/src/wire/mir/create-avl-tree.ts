@@ -81,10 +81,5 @@ export function serializeCreateAvlTree(e: CreateAvlTree, w: ByteWriter): void {
   serializeExpr(e.flags, w)
   serializeExpr(e.digest, w)
   serializeExpr(e.keyLength, w)
-  if (e.valueLength === null) {
-    w.writeU8(0)
-  } else {
-    w.writeU8(1)
-    serializeExpr(e.valueLength, w)
-  }
+  w.writeOption(e.valueLength, (w, inner) => serializeExpr(inner, w))
 }

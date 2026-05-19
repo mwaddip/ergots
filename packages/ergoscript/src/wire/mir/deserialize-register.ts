@@ -100,10 +100,5 @@ export function serializeDeserializeRegister(
   }
   w.writeU8(e.reg)
   serializeSType(e.tpe, w)
-  if (e.default === null) {
-    w.writeU8(0)
-  } else {
-    w.writeU8(1)
-    serializeExpr(e.default, w)
-  }
+  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w))
 }

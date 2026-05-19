@@ -74,10 +74,5 @@ export function parseCollByIndex(
 export function serializeCollByIndex(e: ByIndex, w: ByteWriter): void {
   serializeExpr(e.input, w)
   serializeExpr(e.index, w)
-  if (e.default === null) {
-    w.writeU8(0)
-  } else {
-    w.writeU8(1)
-    serializeExpr(e.default, w)
-  }
+  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w))
 }
