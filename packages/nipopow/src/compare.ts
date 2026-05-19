@@ -41,16 +41,16 @@
 
 import { parseProof, type NipopowProof } from './proof.ts';
 import type { Header } from '@ergots/scorex';
-import { hasValidConnections } from './connections.ts';
-import { checkInterlinksProof } from './verifier.ts';
-import { decodeCompactBits } from './nbits.ts';
 import {
+  decodeCompactBits,
   autolykosMessage,
   calcBigN,
   buildAutolykosSeed,
   genIndexes,
   hashElement,
-} from './autolykos-v2.ts';
+} from '@ergots/scorex';
+import { hasValidConnections } from './connections.ts';
+import { checkInterlinksProof } from './verifier.ts';
 import { blake2b256 } from './crypto/blake2b256.ts';
 
 // secp256k1 curve order (constant — matches sigma-rust order_bigint())
