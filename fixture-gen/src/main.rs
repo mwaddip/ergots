@@ -238,6 +238,15 @@ fn main() -> anyhow::Result<()> {
     let sheader_handlers_fixture = cmds::ergoscript::eval::sheader_handlers::generate()?;
     write_ergoscript_json("eval/sheader-handlers.json", &sheader_handlers_fixture)?;
 
+    // Phase 2h-c.1 Step 4: SContext.lastBlockUtxoRootHash handler (PropertyCall typeId=101, methodId=9).
+    // Pattern A cost 15. Returns AvlTree synthesized from ctx.headers[0].state_root.
+    let scontext_last_block_utxo_root_hash_fixture =
+        cmds::ergoscript::eval::scontext_last_block_utxo_root_hash::generate()?;
+    write_ergoscript_json(
+        "eval/scontext-last-block-utxo-root-hash.json",
+        &scontext_last_block_utxo_root_hash_fixture,
+    )?;
+
     // Phase 2h-b Phase B wave 1: 7 Tier-1 SAvlTree.* accessor handlers
     // (PropertyCall typeId=100, methodIds 1..=7). Each returns a pure projection
     // of AvlTreeData with no proof verification — cost 15 (Pattern A).

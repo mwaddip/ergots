@@ -1,0 +1,223 @@
+{
+  "corpus": "eval_scontext_last_block_utxo_root_hash",
+  "entries": [
+    {
+      "name": "context_last_block_utxo_root_hash",
+      "tree_bytes_hex": "00db6509fe",
+      "opts_json": {
+        "headers": [
+          {
+            "adProofsRoot": "8486aef3f16251cbc18623f83226c936d850221c26ef8aa114c19b66eb709f7b",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "c70b7c4deb1a0b1d",
+              "powDistance": "1873373136645400176",
+              "powOnetimePk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+            },
+            "extensionRoot": "176657314a611fde4d7e494bf15cd0cd1c4846dd84ac51ee2ae71a77ff6f5860",
+            "height": 9168576,
+            "id": "ca56b7f3308da1750658dfef09cb79fa978b5411f91d40e1d9cc593667369ff5",
+            "nBits": 149552669,
+            "parentId": "e80bfcf7703792df6b8c52f7dd85dd64dfc0f6e84ae9a2e9bef807b4ddb12649",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "2086029261571",
+            "transactionRoot": "f95d6f655254f247142938df73f6c856f1b52c1abf97dc2bd0157092eb2c6592",
+            "unparsedBytes": "",
+            "version": 1,
+            "votes": "692703"
+          },
+          {
+            "adProofsRoot": "314d8fccc27ce641fb2f96cf09a4090a71b83029afcfe405d51fb0f3a9a168a0",
+            "autolykosSolution": {
+              "minerPk": "000000000000000000000000000000000000000000000000000000000000000000",
+              "nonce": "cbfe37e9bfb822a1",
+              "powDistance": "67641890085291860",
+              "powOnetimePk": "000000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "extensionRoot": "3a024d188e3aade3ac374bb7e1fbe22c42ce7a27c95ea4b8fea0e8d1a8eef5cf",
+            "height": 8153306,
+            "id": "0a6e6fbde11dd5f3e5ed4e8a9b9756c1b192daa5a16ee3f311048c83fc658464",
+            "nBits": 1927860685,
+            "parentId": "634bfbd443a21d1081cb828d79f9380fd15ae1e4d668e98be607f55b824b4ad5",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "2153862745964",
+            "transactionRoot": "3c8613957e4c10d66af598a36b2bac9abf56995e9b80f98fdc9963c526365c9a",
+            "unparsedBytes": "",
+            "version": 1,
+            "votes": "90bd8c"
+          },
+          {
+            "adProofsRoot": "12ee3c0bdbf2a7c78e04aa76dcc19e4a665aa48559573eb281eaee6834d5519c",
+            "autolykosSolution": {
+              "minerPk": "000000000000000000000000000000000000000000000000000000000000000000",
+              "nonce": "4c60fe87b0cea78e",
+              "powDistance": "2927786927739139454",
+              "powOnetimePk": "000000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "extensionRoot": "90d0142934d5bf63b9ec30fa6bb5027d45337253e6797174a83840820b1280b6",
+            "height": 7795157,
+            "id": "d94c991da4e61e75ef7c24c9950a8bb34638670e011bbd6788ab5d5e0b39417e",
+            "nBits": 1607010050,
+            "parentId": "abeb11a42c7fa0365f3f11ee3474dd2e769f552de46dc0ee0103b82d126b2f14",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "974246363634",
+            "transactionRoot": "05c0af99cfd830cf0f33c9b145be3f4b766487d3118c269b04316e131ec4d721",
+            "unparsedBytes": "",
+            "version": 1,
+            "votes": "a8c9c3"
+          },
+          {
+            "adProofsRoot": "6ab2f2b0539cc1931b6c04d691fc272043e22baef2e2d4a0a18caa8a0dfa83ac",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "38b805dffafecf24",
+              "powDistance": null,
+              "powOnetimePk": null
+            },
+            "extensionRoot": "3f4f25edd087106b0e530c6623566848b76f0b05ed4dede744c6bd258e5fe7cb",
+            "height": 4541090,
+            "id": "262894abb0b09d50def1f4a09452929ab5e18b3240370e86a2eece03886a8d98",
+            "nBits": 2424743865,
+            "parentId": "fed1862be025329523eeb94588c7c9dffe1f071196c33b71d584e8ad263789bb",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "1585622144052",
+            "transactionRoot": "c831b57eec020cc3b2f258cdb6127257f9655a04b30571bc428d39e158db0769",
+            "unparsedBytes": "0c56c57b61d15317447688b493b2cb14eeb8029be123b294dd19ceefc059e9c00a9df8b143e6176e0c1b79b5838fc3c863abfe343024049ceb9108acb6",
+            "version": 2,
+            "votes": "439b36"
+          },
+          {
+            "adProofsRoot": "e23eb0fa1d74a1d9c8823035b20f5e614db841bcf038891b8a4f01cb5c36ce8f",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "8c5450fab4913b2a",
+              "powDistance": null,
+              "powOnetimePk": null
+            },
+            "extensionRoot": "f669c4dddb6347e45be404abf7d9f514eab036389e269d9020cecb3e2b2f8145",
+            "height": 1646503,
+            "id": "645da4e8b2df8d56bbc206043ea5a25a8e0fd9cc315d21d24511d9c810bf3495",
+            "nBits": 327382808,
+            "parentId": "8dfa387f7a3d12d887bd23a833c0e365947ee3b92cc443916687c36085b61bb4",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "1288091222416",
+            "transactionRoot": "b5d5a0070784bb74187b8b6c3528949db137ddd7d5e9f385daa08f3b7d6fed15",
+            "unparsedBytes": "abfe0349f368f56421678c2169ec153159dc9150cb25cbe8447f356053d3ce299e4db2739b05390f3e1c0655ac84d53530c06f7670df93fe52581343f9d92394c23b3937b760d15b0983abe6d681cefb54736f58b4f5f109191849af0f45ad159806219e55ee2dd528e6170bb50c1c70a35c0bb45cdab2ae844403f12ec1",
+            "version": 2,
+            "votes": "9d6e1e"
+          },
+          {
+            "adProofsRoot": "2e3041e8b9b31f301d646afa9aaa2e8c895c428b550d5486241c9be80b1f44f1",
+            "autolykosSolution": {
+              "minerPk": "000000000000000000000000000000000000000000000000000000000000000000",
+              "nonce": "9c5d9fc96c2552ad",
+              "powDistance": "2944397366333797061",
+              "powOnetimePk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+            },
+            "extensionRoot": "f7ad44b48c39f7ff4599e43801ffaf8ad3e1dda1bf3fcb9099703536edee0cac",
+            "height": 6874096,
+            "id": "5270b1dd76d335f5f09e16f19d74e61b3875b3d30eee82c84b2e8659c3c53b2d",
+            "nBits": 2972099179,
+            "parentId": "436c46df58b25437c91b966e3e408065e19be9e0a4abf243d7e7c98154965648",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "1923455493263",
+            "transactionRoot": "127d69657b02421c3e753fb3d1b7c4e35526ec3cb80cc410de4ea19d05a4f32e",
+            "unparsedBytes": "",
+            "version": 1,
+            "votes": "b1cf88"
+          },
+          {
+            "adProofsRoot": "968fc1d6ed27c852b08135b23aac672fe68f7c0e764f5412a4706a80525e6243",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "38697d8ab6c70cb2",
+              "powDistance": null,
+              "powOnetimePk": null
+            },
+            "extensionRoot": "a841969e45d7f60895f1bb8a603e1578e8dc3b2a961f2d50643730e082a1a555",
+            "height": 3122377,
+            "id": "86f1fe7b6e07ef21486fc1d5be65de6a367a6822e895c1d5f5f3cbfbee722891",
+            "nBits": 1787091259,
+            "parentId": "502a7f68f74099b25611ea022be8a01863016d3c6c7c2ebc04c2865aa6d76fe7",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "1073271339862",
+            "transactionRoot": "2cb52d42784eb9aa41c3c7c26df6b8626e7d8c88d8dd2704a147c845630be25f",
+            "unparsedBytes": "3695a1b99f70fbbd7cf8409f",
+            "version": 2,
+            "votes": "5767d7"
+          },
+          {
+            "adProofsRoot": "372c8852bc5d91f386cdc8f4d6778d29230303628228f8b96f9159e784d85717",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "f1f1025b7070c3e4",
+              "powDistance": null,
+              "powOnetimePk": null
+            },
+            "extensionRoot": "3e9bff450675ae78640bd9011d374d18d78a1ac04ae0bb07638371079ccbb527",
+            "height": 9317671,
+            "id": "22ab45f54dc4e8992d0ea25ea1f3b83b222cbb168fd4dbdb5c7f974f3c6ed4dd",
+            "nBits": 199225408,
+            "parentId": "bcb978d38b03428a502285455304b5a74c29fbd9dda3c1b11219966b11f4c505",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "2142232223053",
+            "transactionRoot": "5a9aedb69e59cc2fa5ab117d5ed75c59bd1913c26f0b5dc839e57ccbfa6caf31",
+            "unparsedBytes": "a8ec1c25a64e2d7ebd9fec4b21916f131ac5983151dab25a7e14c382",
+            "version": 2,
+            "votes": "4746fb"
+          },
+          {
+            "adProofsRoot": "a724309b5729a0a2353398249db74f72de6665f26e71b98cb9c03733579ffb68",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "f7d053306def55cd",
+              "powDistance": null,
+              "powOnetimePk": null
+            },
+            "extensionRoot": "36706db4c13ce78fa8ca699d71e862e315ad8cfc4d4abd016c70bf01111dbc52",
+            "height": 8068870,
+            "id": "557aa184b46e3e02bae676ade0b9a9f5968fe8f435d271bb553466474b5b7733",
+            "nBits": 1174596148,
+            "parentId": "4bb85985294cf5af986c4822407946c070cacadad37755bb289d91e9c72ee5ac",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "1751574632670",
+            "transactionRoot": "45ccce2004260855c9376fa7634ad484b28c968740e2a5ab56ba6574a4a6f0b8",
+            "unparsedBytes": "7ad0adeb3fad006d5433de2340b29336",
+            "version": 2,
+            "votes": "e5620c"
+          },
+          {
+            "adProofsRoot": "625a5d23b9957cdec6298bdf9ac3372769499c12aa6c7b124a2acd5a59ce7b26",
+            "autolykosSolution": {
+              "minerPk": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "nonce": "9248a8ccb28cd42f",
+              "powDistance": null,
+              "powOnetimePk": null
+            },
+            "extensionRoot": "e817d35b8597906c57a4fbf53e6bbc350930cc54a8e0035085557a56a3eca88c",
+            "height": 1405841,
+            "id": "163698eca1a2f4d3cfece24e97138f9459b3f5359cffc64506766fe2c8a5991a",
+            "nBits": 123095690,
+            "parentId": "049a8058783cc4207daf7f9d6013bc7b2b1937206e428418976d86b41457269c",
+            "stateRoot": "000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "1401151625486",
+            "transactionRoot": "f1925be89121d75f5ef3b738cf687540496dcb2f265e1fdf239d15c1776395b8",
+            "unparsedBytes": "a8e2b5b36e0f95712650b7721c4475d2f3cf2cbdfaaaa557d0c937bc49182fbcd5cc65adfc98cbce8ba70d113e9954d341f1c484d49ef783a376d4d17aae43af877dd0a0ef64edf301e34379a1c1b551e60dddc1499e932ed34cafdb759add16250b219c4d803f5dcf50d8ba5f3602eb6bbe7c487df825eceb07e9a5bde6d5cae8d1d1a24d30ac0a8398bcea3c3f867f2aa7f17350be0241c0367b68ff5f6f1649a973d4cbecde0cef88d5a9acbd30a53a5e9835c3b5a720a03891f0b21cbc947962635c88e79737ca6d9a23836f134e50bad26233378d75692ee9fefe7a9f77058da16c81e6c16307d59c506402ea361fb4307c39d20a",
+            "version": 2,
+            "votes": "9534f9"
+          }
+        ]
+      },
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "000000000000000000000000000000000000000000000000000000000000000000",
+          "keyLength": 32,
+          "treeFlags": 7,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 20
+    }
+  ]
+}

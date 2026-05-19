@@ -35,6 +35,7 @@ pub mod savltree_update;
 pub mod savltree_value_length_opt;
 pub mod scoll_indices;
 pub mod scoll_zip;
+pub mod scontext_last_block_utxo_root_hash;
 pub mod scontext_pre_header;
 pub mod spreheader_timestamp;
 pub mod common;

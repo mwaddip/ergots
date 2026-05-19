@@ -345,6 +345,37 @@ function registerHandlers(): void {
     return headersCollOf(ctx.headers ?? [])
   })
 
+  // SContext.lastBlockUtxoRootHash (PropertyCall, typeId=101, methodId=9)
+  // Source: ergotree-interpreter/src/eval/scontext.rs:83-99 — LAST_BLOCK_UTXO_ROOT_HASH_EVAL_FN
+  // Pattern A cost 15 (charged before obj check). Synthesizes AvlTreeData from
+  // ctx.headers[0].stateRoot. treeFlags=0b00000111 means insert/update/remove
+  // all allowed (sigma-rust AvlTreeFlags::new(true, true, true)). keyLength=32,
+  // valueLengthOpt=null.
+  HANDLERS.set(handlerKey(101, 9), (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.lastBlockUtxoRootHash expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context'
+      )
+    }
+    if (ctx.headers === undefined || ctx.headers.length === 0) {
+      throw new EvalError(
+        `SContext.lastBlockUtxoRootHash: ctx.headers is ${ctx.headers === undefined ? 'undefined' : 'empty'}`,
+        'context-field-missing'
+      )
+    }
+    return {
+      kind: 'AvlTree',
+      value: {
+        digest: ctx.headers[0]!.stateRoot,
+        treeFlags: 0b00000111,
+        keyLength: 32,
+        valueLengthOpt: null,
+      },
+    }
+  })
+
   // ---------- SHeader (15 property accessors) — phase 2h-c.1 ----------
   // All Pattern A Fixed(10). Source: ergotree-interpreter/src/eval/sheader.rs:16-113.
   // Handler bodies live in ./sheader.ts.
