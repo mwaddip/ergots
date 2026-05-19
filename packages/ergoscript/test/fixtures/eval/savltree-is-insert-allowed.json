@@ -1,0 +1,45 @@
+{
+  "corpus": "eval_savltree_is_insert_allowed",
+  "entries": [
+    {
+      "name": "is_insert_allowed_no_ops",
+      "tree_bytes_hex": "00db640564000000000000000000000000000000000000000000000000000000000000000000002000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "is_insert_allowed_insert_only",
+      "tree_bytes_hex": "00db64056411111111111111111111111111111111111111111111111111111111111111111101200120",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "is_insert_allowed_update_remove_only",
+      "tree_bytes_hex": "00db640564ababababababababababababababababababababababababababababababababab060800",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "is_insert_allowed_all_allowed",
+      "tree_bytes_hex": "00db640564ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff07200140",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 24
+    }
+  ]
+}

@@ -233,6 +233,45 @@ fn main() -> anyhow::Result<()> {
     let spreheader_timestamp_fixture = cmds::ergoscript::eval::spreheader_timestamp::generate()?;
     write_ergoscript_json("eval/spreheader-timestamp.json", &spreheader_timestamp_fixture)?;
 
+    // Phase 2h-b Phase B wave 1: 7 Tier-1 SAvlTree.* accessor handlers
+    // (PropertyCall typeId=100, methodIds 1..=7). Each returns a pure projection
+    // of AvlTreeData with no proof verification — cost 15 (Pattern A).
+    let savltree_digest_fixture = cmds::ergoscript::eval::savltree_digest::generate()?;
+    write_ergoscript_json("eval/savltree-digest.json", &savltree_digest_fixture)?;
+    let savltree_enabled_operations_fixture =
+        cmds::ergoscript::eval::savltree_enabled_operations::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-enabled-operations.json",
+        &savltree_enabled_operations_fixture,
+    )?;
+    let savltree_key_length_fixture =
+        cmds::ergoscript::eval::savltree_key_length::generate()?;
+    write_ergoscript_json("eval/savltree-key-length.json", &savltree_key_length_fixture)?;
+    let savltree_value_length_opt_fixture =
+        cmds::ergoscript::eval::savltree_value_length_opt::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-value-length-opt.json",
+        &savltree_value_length_opt_fixture,
+    )?;
+    let savltree_is_insert_allowed_fixture =
+        cmds::ergoscript::eval::savltree_is_insert_allowed::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-is-insert-allowed.json",
+        &savltree_is_insert_allowed_fixture,
+    )?;
+    let savltree_is_update_allowed_fixture =
+        cmds::ergoscript::eval::savltree_is_update_allowed::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-is-update-allowed.json",
+        &savltree_is_update_allowed_fixture,
+    )?;
+    let savltree_is_remove_allowed_fixture =
+        cmds::ergoscript::eval::savltree_is_remove_allowed::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-is-remove-allowed.json",
+        &savltree_is_remove_allowed_fixture,
+    )?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

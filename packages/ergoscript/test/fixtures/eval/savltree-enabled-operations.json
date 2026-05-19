@@ -1,0 +1,45 @@
+{
+  "corpus": "eval_savltree_enabled_operations",
+  "entries": [
+    {
+      "name": "enabled_operations_none",
+      "tree_bytes_hex": "00db640264000000000000000000000000000000000000000000000000000000000000000000002000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 0
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "enabled_operations_insert_only",
+      "tree_bytes_hex": "00db64026411111111111111111111111111111111111111111111111111111111111111111101200120",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 1
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "enabled_operations_insert_and_remove",
+      "tree_bytes_hex": "00db640264ababababababababababababababababababababababababababababababababab050800",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 5
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "enabled_operations_all_allowed",
+      "tree_bytes_hex": "00db640264ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff07200140",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": 7
+      },
+      "expected_cost": 24
+    }
+  ]
+}

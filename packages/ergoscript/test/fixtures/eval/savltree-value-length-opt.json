@@ -1,0 +1,66 @@
+{
+  "corpus": "eval_savltree_value_length_opt",
+  "entries": [
+    {
+      "name": "value_length_opt_none",
+      "tree_bytes_hex": "00db640464000000000000000000000000000000000000000000000000000000000000000000002000",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "value_length_opt_some_8",
+      "tree_bytes_hex": "00db64046411111111111111111111111111111111111111111111111111111111111111111101200108",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Int",
+          "value": 8
+        }
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "value_length_opt_some_32",
+      "tree_bytes_hex": "00db640464ababababababababababababababababababababababababababababababababab07080120",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Int",
+          "value": 32
+        }
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "value_length_opt_some_64",
+      "tree_bytes_hex": "00db640464ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff07200140",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Int",
+          "value": 64
+        }
+      },
+      "expected_cost": 24
+    }
+  ]
+}

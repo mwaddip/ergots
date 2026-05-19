@@ -1,0 +1,45 @@
+{
+  "corpus": "eval_savltree_key_length",
+  "entries": [
+    {
+      "name": "key_length_1",
+      "tree_bytes_hex": "00db640364000000000000000000000000000000000000000000000000000000000000000000000100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "key_length_8",
+      "tree_bytes_hex": "00db64036411111111111111111111111111111111111111111111111111111111111111111101080120",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 8
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "key_length_32",
+      "tree_bytes_hex": "00db640364ababababababababababababababababababababababababababababababababab072000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 32
+      },
+      "expected_cost": 24
+    },
+    {
+      "name": "key_length_64",
+      "tree_bytes_hex": "00db640364ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff07400108",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 64
+      },
+      "expected_cost": 24
+    }
+  ]
+}
