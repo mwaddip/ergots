@@ -29,7 +29,9 @@ export function decodeVlqU(reader: ByteReader): bigint {
     }
   } catch (e) {
     if (e instanceof ReaderError) {
-      throw new ProofParseError(`decodeVlqU: truncated input (${e.message})`, 'vlq-truncated');
+      // Audit NIP-12: emit the documented 'truncated' code rather than the
+      // undocumented 'vlq-truncated' variant.
+      throw new ProofParseError(`decodeVlqU: truncated input (${e.message})`, 'truncated');
     }
     throw e;
   }

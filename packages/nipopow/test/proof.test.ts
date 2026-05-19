@@ -100,6 +100,19 @@ describe('parseProof error cases', () => {
   // a height > 0xffffffff and serializing produces wire bytes that parseProof
   // must reject with 'vlq-overflow'.
   // ───────────────────────────────────────────────────────────────────────────
+  // NIP-12: parseProof on a truncated VLQ must surface as the documented
+  // 'truncated' code (pre-fix the code was undocumented 'vlq-truncated').
+  test('NIP-12: parseProof rejects truncated VLQ with documented truncated code', () => {
+    // Single byte 0x80 starts a multi-byte VLQ but cuts off mid-read.
+    try {
+      parseProof(new Uint8Array([0x80]));
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('truncated');
+    }
+  });
+
   test('NIP-08: parseProof rejects header.timestamp > Number.MAX_SAFE_INTEGER', () => {
     const proof = buildSyntheticProof({
       m: 1,
