@@ -145,6 +145,17 @@ export function parseSValue(t: SType, r: ByteReader): SValue {
           'bigint-too-large'
         )
       }
+      // Audit ERG-03: sigma-rust's `BigInt256::from_be_slice` returns None
+      // for empty input (bigint256.rs:38), matching the Scala behavior of
+      // throwing on empty bytes. Pre-fix we accepted zero-length and
+      // decoded as `0n`, then the serializer rewrote as length 1 — breaking
+      // byte-identical round-trip.
+      if (len === 0) {
+        throw new SValueParseError(
+          'SBigInt requires at least 1 byte of content',
+          'bigint-empty',
+        )
+      }
       const bytes = r.readBytes(len)
       return { kind: 'BigInt', value: decodeBigIntBE(bytes) }
     }

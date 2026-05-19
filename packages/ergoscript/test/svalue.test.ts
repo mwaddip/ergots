@@ -337,6 +337,27 @@ describe('SValue wire round-trip', () => {
 // throws SValueSerializeError('numeric-out-of-range') so callers can't build
 // constants that round-trip to a DIFFERENT value.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ERG-03 regression — parseSValue must reject zero-length SBigInt. sigma-rust's
+// BigInt256::from_be_slice returns None for empty input (bigint256.rs:38).
+// Pre-fix we accepted length 0 and decoded as `0n`, then the serializer rewrote
+// as length 1 — breaking byte-identical round-trip.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('SValue ERG-03 zero-length SBigInt', () => {
+  it('parseSValue(SBigInt, [length=0]) throws bigint-empty', () => {
+    // VLQ encoding of length 0 is single byte 0x00.
+    const bytes = new Uint8Array([0x00])
+    const r = new ByteReader(bytes)
+    try {
+      parseSValue({ tag: 'SBigInt' }, r)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueParseError)
+      expect((e as SValueParseError).code).toBe('bigint-empty')
+    }
+  })
+})
+
 describe('SValue ERG-06 numeric range checks', () => {
   it.each([
     [256, 'SByte'],
