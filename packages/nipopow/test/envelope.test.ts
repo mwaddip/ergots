@@ -118,6 +118,27 @@ describe('GetNipopowProof envelope (code 90)', () => {
     expect(parsed.m).toBe(500);
     expect(parsed.k).toBe(500);
   });
+
+  // NIP-10: envelope parsers must reject trailing bytes after declared payload + pad.
+  test('NIP-10: parseGetNipopowProof rejects appended trailing bytes', () => {
+    // Build a valid request body, then append a stray byte.
+    const w = new ByteWriter();
+    w.writeBytes(encodeVlqZigZag(BigInt(2)));
+    w.writeBytes(encodeVlqZigZag(BigInt(2)));
+    w.writeU8(0); // no header_id
+    w.writeU8(0); // pad = 0
+    const valid = w.toBytes();
+    const withGarbage = new Uint8Array(valid.length + 1);
+    withGarbage.set(valid, 0);
+    withGarbage[valid.length] = 0x42;
+    try {
+      parseGetNipopowProof(withGarbage);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(EnvelopeParseError);
+      expect((e as EnvelopeParseError).code).toBe('trailing-bytes');
+    }
+  });
 });
 
 describe('NipopowProof envelope (code 91)', () => {
@@ -146,6 +167,23 @@ describe('NipopowProof envelope (code 91)', () => {
     // VLQ of 0 is 0x00; then pad=0x00
     const body = new Uint8Array([0x00, 0x00]);
     expect(() => parseNipopowProofEnvelope(body)).toThrow(EnvelopeParseError);
+  });
+
+  // NIP-10: envelope parsers must reject trailing bytes after declared payload + pad.
+  test('NIP-10: parseNipopowProofEnvelope rejects appended trailing bytes', () => {
+    // Build a valid envelope and append a stray byte.
+    const inner = new Uint8Array([0xaa, 0xbb]);
+    const valid = serializeNipopowProofEnvelope(inner);
+    const withGarbage = new Uint8Array(valid.length + 1);
+    withGarbage.set(valid, 0);
+    withGarbage[valid.length] = 0x42; // trailing garbage
+    try {
+      parseNipopowProofEnvelope(withGarbage);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(EnvelopeParseError);
+      expect((e as EnvelopeParseError).code).toBe('trailing-bytes');
+    }
   });
 
   test('truncated proof (declared length > remaining) throws EnvelopeParseError', () => {

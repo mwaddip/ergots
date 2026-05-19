@@ -168,6 +168,14 @@ export function parseGetNipopowProof(body: Uint8Array): GetNipopowProofRequest {
     futurePad = r.readBytes(padLen).slice();
   }
 
+  // Audit NIP-10: reject undeclared trailing bytes after declared payload + pad.
+  if (!r.isExhausted) {
+    throw new EnvelopeParseError(
+      `GetNipopowProof: ${r.remaining} trailing bytes after declared payload`,
+      'trailing-bytes',
+    );
+  }
+
   return { m, k, headerId, futurePad };
 }
 
@@ -271,6 +279,14 @@ export function parseNipopowProofEnvelope(body: Uint8Array): Uint8Array {
     );
   }
   if (padLen > 0) r.readBytes(padLen);
+
+  // Audit NIP-10: reject undeclared trailing bytes after declared payload + pad.
+  if (!r.isExhausted) {
+    throw new EnvelopeParseError(
+      `NipopowProof: ${r.remaining} trailing bytes after declared payload`,
+      'trailing-bytes',
+    );
+  }
 
   return inner;
 }
