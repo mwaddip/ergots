@@ -104,8 +104,8 @@ export function buildSyntheticProof(opts: SyntheticProofOptions): NipopowProof {
   }
 
   return {
-    m: opts.m ?? 0,
-    k: opts.k ?? 0,
+    m: opts.m ?? 1,
+    k: opts.k ?? 1,
     prefix,
     suffixHead,
     suffixTail,

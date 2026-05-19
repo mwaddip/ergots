@@ -91,6 +91,24 @@ export interface VerificationResult {
  * @throws       ProofVerificationError on any validation failure.
  */
 export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {}): VerificationResult {
+  // Audit NIP-09: enforce the same scalar shape invariants that parseProof
+  // does (NIP-03 m > 0, NIP-04 k > 0) for hand-built proofs that bypass the
+  // wire parser. Throws ProofVerificationError so the existing verify-error
+  // class surface stays self-consistent (parse-tier errors stay
+  // ProofParseError; verify-tier shape errors stay ProofVerificationError).
+  //
+  // Note: parseProof also rejects empty per-PoPowHeader interlinks at the
+  // wire layer (NIP-05), but verifyParsedProof relies on the existing
+  // checkInterlinksProof path for that — adding a parallel check here
+  // would break the existing sigma-rust-compat "empty+empty vacuously true"
+  // semantics for hand-built proofs.
+  if (proof.m <= 0) {
+    throw new ProofVerificationError(`m must be > 0; got ${proof.m}`, 'invalid-m');
+  }
+  if (proof.k <= 0) {
+    throw new ProofVerificationError(`k must be > 0; got ${proof.k}`, 'invalid-k');
+  }
+
   const checkPoW = opts.checkPoW ?? true;
   const v2ActivationHeight = opts.v2ActivationHeight ?? V2_ACTIVATION_HEIGHT_MAINNET;
 

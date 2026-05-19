@@ -124,8 +124,9 @@ describe('verifyProof: connection mutations throw invalid-connections', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Synthetic helpers for verifyParsedProof tests
 //
-// Thin adapter over `buildSyntheticProofRaw` (in helpers.ts) preserving the
-// legacy positional-arg signature this file's tests use.
+// Thin adapter over `buildSyntheticProofRaw` (in helpers.ts). The raw helper
+// defaults m and k to 1 (NIP-09-valid); this wrapper preserves the legacy
+// positional-arg signature local tests use.
 // ─────────────────────────────────────────────────────────────────────────────
 function buildSyntheticProof(prefixHeights: number[], suffixHeadHeight: number): NipopowProof {
   return buildSyntheticProofRaw({ prefixHeights, suffixHeadHeight });
@@ -230,6 +231,40 @@ describe('verifyProof: parse-failed preserves cause chain', () => {
       // The original parse error code (truncated / oversized / empty-proof etc.) is preserved.
       expect(typeof (cause as ProofParseError).code).toBe('string');
       expect((cause as ProofParseError).code.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// verifyParsedProof: NIP-09 — shape invariants enforced for hand-built proofs
+//
+// Audit found that verifyParsedProof accepted hand-constructed proofs with
+// m=0, k=0, etc. — bypassing the wire parser's invariant checks (NIP-03/04).
+// The fix asserts m>0 and k>0 at verifyParsedProof entry so any
+// programmatically-built object goes through the same shape gate.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('verifyParsedProof: NIP-09 shape invariants', () => {
+  test('throws invalid-m when proof.m === 0', () => {
+    const proof = buildSyntheticProof([10], 20);
+    proof.m = 0;
+    try {
+      verifyParsedProof(proof, { checkPoW: false });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofVerificationError);
+      expect((e as ProofVerificationError).code).toBe('invalid-m');
+    }
+  });
+
+  test('throws invalid-k when proof.k === 0', () => {
+    const proof = buildSyntheticProof([10], 20);
+    proof.k = 0;
+    try {
+      verifyParsedProof(proof, { checkPoW: false });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofVerificationError);
+      expect((e as ProofVerificationError).code).toBe('invalid-k');
     }
   });
 });
