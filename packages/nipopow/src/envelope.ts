@@ -184,6 +184,17 @@ export function parseGetNipopowProof(body: Uint8Array): GetNipopowProofRequest {
  * Inverse of {@link parseGetNipopowProof}; preserves any futurePad bytes.
  */
 export function serializeGetNipopowProof(req: GetNipopowProofRequest): Uint8Array {
+  // Audit NIP-11: validate `m` and `k` against the same bounds parseGetNipopowProof
+  // enforces. Pre-fix the serializer would silently emit `{m:0,k:1}` etc., and the
+  // parser would then reject the bytes — letting callers build wire messages
+  // their own parser refuses.
+  if (req.m <= 0 || req.k <= 0 || req.m + req.k > 1000) {
+    throw new EnvelopeParseError(
+      `GetNipopowProofRequest: m=${req.m}, k=${req.k}; require m>0, k>0, m+k<=1000`,
+      'invalid-mk',
+    );
+  }
+
   const w = new ByteWriter();
 
   // m: i32 (ZigZag VLQ)

@@ -119,6 +119,24 @@ describe('GetNipopowProof envelope (code 90)', () => {
     expect(parsed.k).toBe(500);
   });
 
+  // NIP-11: serializeGetNipopowProof must reject inputs the parser rejects.
+  test.each([
+    [0, 1],   // m=0
+    [1, 0],   // k=0
+    [-1, 1],  // m<0
+    [1, -1],  // k<0
+    [1000, 1], // m+k>1000
+    [500, 501],
+  ])('NIP-11: serializeGetNipopowProof rejects { m: %s, k: %s }', (m, k) => {
+    try {
+      serializeGetNipopowProof({ m, k, headerId: null });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(EnvelopeParseError);
+      expect((e as EnvelopeParseError).code).toBe('invalid-mk');
+    }
+  });
+
   // NIP-10: envelope parsers must reject trailing bytes after declared payload + pad.
   test('NIP-10: parseGetNipopowProof rejects appended trailing bytes', () => {
     // Build a valid request body, then append a stray byte.
