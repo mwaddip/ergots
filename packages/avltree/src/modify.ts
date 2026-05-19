@@ -377,6 +377,10 @@ function handleInternalNode(
   // Consumes one direction bit unconditionally (off-by-one in direction
   // consumption is one of the primary failure modes byte-equality tests catch).
   const goLeft = nextDirectionIsLeft(proof, state)
+  // Audit AVL-01: bit-read may have run past proof bounds. Surface as failure.
+  if (state.failedReason !== null) {
+    return { ok: false, reason: state.failedReason }
+  }
 
   if (goLeft) {
     const childResult = modifyHelper(node.left, op, proof, state)

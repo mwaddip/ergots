@@ -4,11 +4,19 @@ import type { AvlVerifyFailReason } from './errors.js'
 /**
  * Mutable verifier traversal state. Mirrors the directions/replay indices
  * on BatchAVLVerifier (batch_avl_verifier.rs lines 26-33).
+ *
+ * `failedReason` is a TS-only out-channel for surfacing OOB reads from
+ * `nextDirectionIsLeft` / `replayComparison`. The Rust verifier indexes a
+ * slice and panics on OOB; we set this field instead and let the caller
+ * propagate it as a verifier failure (audit AVL-01). Always null on entry
+ * to a fresh op; set to 'directions-exhausted' when a bit read runs past
+ * `proof.length`.
  */
 export interface TraversalState {
   directionsIndex: number
   lastRightStep: number
   replayIndex: number
+  failedReason: AvlVerifyFailReason | null
 }
 
 /**
@@ -21,15 +29,24 @@ export interface TraversalState {
  * This is LSB-first ordering within each byte — matches Rust exactly.
  * Do NOT use 1 << (7 - (i & 7)) (MSB-first); that would diverge from the reference.
  *
- * Bounds: callers are responsible for ensuring directionsIndex is within range.
- * Over-reading yields undefined behaviour (proof[undefined] is undefined → 0 & mask = 0).
+ * Bounds (audit AVL-01): out-of-bounds reads set `state.failedReason =
+ * 'directions-exhausted'` instead of silently returning 0. The function still
+ * returns `false` (a default "go right") so the caller can finish its expression
+ * cleanly; callers MUST check `state.failedReason` after this call and
+ * propagate as a verifier failure.
  */
 export function nextDirectionIsLeft(
   proof: Uint8Array,
   state: TraversalState,
 ): boolean {
   const i = state.directionsIndex
-  const byte = proof[i >> 3] ?? 0  // OOB read returns 0 (per JSDoc)
+  const byteOffset = i >> 3
+  if (byteOffset >= proof.length) {
+    state.failedReason = 'directions-exhausted'
+    state.directionsIndex = i + 1
+    return false
+  }
+  const byte = proof[byteOffset]!
   const left = (byte & (1 << (i & 7))) !== 0
   if (!left) state.lastRightStep = i
   state.directionsIndex = i + 1
@@ -60,7 +77,14 @@ export function replayComparison(
   if (i === state.lastRightStep) {
     ret = 0
   } else {
-    const byte = proof[i >> 3] ?? 0  // OOB returns 0; propagates failure as -1
+    const byteOffset = i >> 3
+    if (byteOffset >= proof.length) {
+      // Audit AVL-01: OOB read sets state.failedReason; caller must check and propagate.
+      state.failedReason = 'directions-exhausted'
+      state.replayIndex = i + 1
+      return -1
+    }
+    const byte = proof[byteOffset]!
     const bit = (byte & (1 << (i & 7))) !== 0
     if (!bit && i < state.lastRightStep) ret = 1
     else ret = -1

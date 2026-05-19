@@ -123,7 +123,7 @@ export class BatchAvlVerifier {
     // Rust struct init (lines 44-52): directions_index=0, last_right_step=0,
     // replay_index=0. We replicate the same triple-zero init; directionsIndex
     // is set to the post-tree byte position after parseProofPackedTree below.
-    this.state = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0 }
+    this.state = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0, failedReason: null }
     this.root = null
     this.height = 0
 

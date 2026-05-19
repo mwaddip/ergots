@@ -159,6 +159,10 @@ function deleteInner(
   // deleteMax=true forces direction=1 (we are not searching for a specific key
   // anymore; we are descending the rightmost path of a subtree to find its max).
   const direction = deleteMax ? 1 : replayComparison(proof, state)
+  // Audit AVL-01: replay-bit read may have run past proof bounds; surface as failure.
+  if (!deleteMax && state.failedReason !== null) {
+    return { ok: false, reason: state.failedReason }
+  }
 
   // Rust line 460: `if let Node::Internal(r) = self.tree().copy(r_node) { ... }`
   // Both branches of the `delete_helper` body assume the current node is

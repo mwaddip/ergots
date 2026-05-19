@@ -147,10 +147,10 @@ Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v
 
 ```ts
 type AvlVerifyFailReason =               // (internal; not exported)
-  | 'proof-truncated'                    // OOB read during tree decode or direction traversal
+  | 'proof-truncated'                    // OOB read during tree decode
   | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid
   | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
-  | 'directions-exhausted'               // verifier consumed past directionsBits.length
+  | 'directions-exhausted'               // direction/replay bit read ran past proof.length (audit AVL-01)
   | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
   | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
   | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)

@@ -7,8 +7,6 @@ import { verifyProof, verifyParsedProof } from '../src/verifier.ts';
 import { ProofVerificationError } from '../src/errors.ts';
 import { ProofParseError } from '../src/errors.ts';
 import type { NipopowProof } from '../src/proof.ts';
-import type { PoPowHeader } from '../src/popow-header.ts';
-import type { Header } from '../src/header.ts';
 import { hexToBytes, buildSyntheticProof as buildSyntheticProofRaw } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

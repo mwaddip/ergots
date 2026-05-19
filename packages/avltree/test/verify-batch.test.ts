@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { verifyAvlBatch } from '../src/verify.js'
+import { parseProofPackedTree } from '../src/proof-decode.js'
 import type { Operation } from '../src/operation.js'
 import type { AvlTreeConfig } from '../src/types.js'
 
@@ -32,6 +33,47 @@ function jsonToOp(o: any): Operation {
       throw new Error(`Unknown op tag: ${o.tag}`)
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AVL-01 regression — truncated direction bits must fail, not silently verify
+//
+// Audit found that `nextDirectionIsLeft` and `replayComparison` defaulted
+// out-of-bounds proof reads to 0 (the byte being read returns `undefined` →
+// `undefined & mask` is 0). With direction bytes removed, operations descend
+// as if every step is "right" (bit unset), producing a digest that the
+// verifier accepts. Post-fix the verifier emits `directions-exhausted` (in
+// `lastFailReason`) and the public `verifyAvlBatch` returns null.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('AVL-01: truncated direction bits are rejected', () => {
+  const AUDIT_REPRO_FIXTURES = [
+    'balanced-1000leaves.json',
+    'batch-256ops-inserts.json',
+    'batch-2ops-insert-then-lookup.json',
+  ]
+
+  for (const fname of AUDIT_REPRO_FIXTURES) {
+    it(`rejects ${fname} when truncated at directionsStart`, () => {
+      const f = JSON.parse(readFileSync(resolve(FIXTURES, fname), 'utf-8'))
+      // Original fixture must verify on the un-truncated proof.
+      if (f.expectedNewDigestHex === null) {
+        throw new Error(`AVL-01 fixture must be a success fixture (got rejection): ${fname}`)
+      }
+      const startingDigest = hexToBytes(f.startingDigestHex)
+      const fullProof = hexToBytes(f.proofHex)
+      const config: AvlTreeConfig = f.config
+      const operations = f.operations.map(jsonToOp)
+
+      // Locate where direction bytes begin and truncate to that offset (0 direction bytes available).
+      const tree = parseProofPackedTree(fullProof, config, startingDigest)
+      expect(tree.ok).toBe(true)
+      const dirStart = tree.ok ? tree.directionsStart : 0
+      const truncated = fullProof.slice(0, dirStart)
+
+      const result = verifyAvlBatch(startingDigest, truncated, config, operations)
+      expect(result).toBeNull()
+    })
+  }
+})
 
 describe('verifyAvlBatch — per-fixture corpus', () => {
   const fixtures = readdirSync(FIXTURES).filter((f) => f.endsWith('.json'))
