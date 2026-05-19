@@ -10,7 +10,20 @@ Public surface for the ErgoTree wire-format package. The wire format and seriali
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, or other Node built-ins. No WASM.
 
-Phase 2a ships the wire-format surface only — parse, serialize, and address helpers. Constant evaluation, the evaluator, the sigma-protocol prover/verifier, AVL+ membership proofs, and cost accounting are scheduled for later phases (2b–2j). See `facts/ergoscript.md` § Scope for the line.
+## Scope and partial-evaluator caveat
+
+This package ships (as of v0.2.x, pre-publish):
+
+- **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
+- **Evaluator (phases 2b–2g.6, 2h-b).** `evaluate` / `evaluateWith` cover **52 of ~70 `Expr` arms** plus a 21-entry method-call handler registry. AVL+ membership-proof verification ships via `@ergots/avltree` (phase 2h-b).
+- **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
+
+What this package is NOT:
+
+- **NOT a consensus-complete script verifier.** ~18 `Expr` arms remain wired to `'not-implemented-yet'`. Real-context cost validation is phase 2j (consensus-critical, not yet shipped). Header chain-state model (phase 2h-c) is deferred. Method-call surface is finite (21 handlers), not exhaustive.
+- **NOT a substitute for sigma-rust or a JVM node** on any binding decision. Use this package for tooling (parse / address derivation / simulators / dev frontends) and for unsigned-side prep / preview of script evaluation. For consensus-grade acceptance, combine with sigma-rust.
+
+A `evaluate(tree)` success means: the tree parses, the implemented arms hit by execution all returned the documented SValue, and `jitCost` stayed within `jitCostLimit` (if set). It does NOT mean "the script would be accepted by an Ergo full node."
 
 ---
 
@@ -106,7 +119,7 @@ Base58 (Bitcoin alphabet) codec. Exposed primarily for testing and tooling; addr
 | Name | Value | Meaning |
 |---|---|---|
 | `MAX_TREE_SIZE` | `1_048_576` | Max input bytes for `parseTree` (1 MB; defensive cap against adversarial input) |
-| `VERSION` | `'0.0.1'` | Package version string |
+| `VERSION` | `'0.2.0'` | Package version string |
 
 ---
 
@@ -178,7 +191,7 @@ type SValue =
   | { kind: 'Long';         value: bigint }    // i64 range
   | { kind: 'BigInt';       value: bigint }    // arbitrary signed bigint
   | { kind: 'GroupElement'; value: Uint8Array }    // 33-byte compressed secp256k1
-  | { kind: 'SigmaProp';    value: SigmaBoolean }  // opaque raw bytes in phase 2a
+  | { kind: 'SigmaProp';    value: SigmaBoolean }  // structural 6-variant union
   | { kind: 'Box';          value: ErgoBox }
   | { kind: 'AvlTree';      value: AvlTreeData }
   | { kind: 'Unit' }
@@ -190,7 +203,7 @@ type SValue =
 
 Runtime-value discriminated union. Composite kinds (`Coll`, `Option`) carry their element type explicitly because the wire format does not always encode it unambiguously (empty `Coll`, `None` for `SOption`).
 
-`SigmaProp.value.raw` is the opaque on-wire bytes of the sigma-protocol proposition tree in phase 2a. Structural decode happens only to determine length; structural access (for sigma-protocol evaluation) is deferred to phase 2g.
+`SigmaProp.value` is a structural `SigmaBoolean` (6-variant discriminated union — see `facts/ergoscript-sigma.md`). Wire parse + serialize is byte-identical against sigma-rust; structural access is consumed by `verifySignature` and by the `SigmaPropBytes` evaluator arm.
 
 ### `Expr`
 
