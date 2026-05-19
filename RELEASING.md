@@ -41,3 +41,18 @@ Inspect the dry-run tarball listing:
 ## CI gate (future)
 
 A `docs-sync` CI job that automates the API.md ↔ package.json version check is a follow-up. Today the gate is this checklist. If a release lands with drift, treat it as a regression of the OPS-06 audit finding and re-run the cleanup commits in `audit20260519/findings-supply-chain-and-docs.md`.
+
+## Dev-dep advisory tracking (OPS-02)
+
+`npm audit --omit=optional` reports 5 moderate-severity advisories rooted at `esbuild <= 0.24.2` (GHSA-67mh-4wv8-2f99 — "dev server can be queried by any origin"), reaching us via `vite → @vitest/mocker → vitest 2.x`.
+
+- **Impact assessment:** the vulnerability affects esbuild's *dev server*. Our test runs use vitest in `run` (non-watch) mode for both local commands (`npm test`) and CI; neither exposes the dev server. The advisory is real but our exposure is effectively zero — the dev server is never started.
+- **Upgrade plan (deferred):** the npm-suggested fix is `vitest@4.1.6`, a two-major-version jump from our 2.x pin. Plan:
+  1. Branch off `master`. Bump vitest to `^4.0.0` in each package.json + the workspace root.
+  2. `npm install` then `npm test` per workspace. Expect failures from vitest 4's API changes (mock API, snapshot format, test-context type signatures). Resolve per-failure.
+  3. Re-run mutation tests (avltree, ergoscript-parse-mutation, ergoscript-eval-mutation) to confirm kill rates hold.
+  4. Re-run cross-runtime (vitest.browser.config.ts) under jsdom; vitest 4 may have rebooted the browser-env config shape.
+  5. CI: update `.github/workflows/ci.yml` if needed.
+  6. Land in a single dedicated commit so revert is one-step if regressions surface.
+
+Until the upgrade lands, the CI workflow's `audit` job runs `continue-on-error: true` so the advisory remains visible without blocking PRs (see `.github/workflows/ci.yml`).
