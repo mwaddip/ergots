@@ -245,6 +245,12 @@ fn main() -> anyhow::Result<()> {
     let sheader_handlers_fixture = cmds::ergoscript::eval::sheader_handlers::generate()?;
     write_ergoscript_json("eval/sheader-handlers.json", &sheader_handlers_fixture)?;
 
+    // Phase 2h-c.2 — SHeader.checkPow oracle fixture (MethodCall typeId=104, methodId=16).
+    // Uses a real mainnet V3 header with valid Autolykos V2 PoW; expectedValue=true.
+    // Also carries V1 synthetic header bytes for the AutolykosV1NotSupportedError test (T12).
+    let sheader_checkpow_fixture = cmds::ergoscript::eval::sheader_checkpow::generate()?;
+    write_ergoscript_json("eval/sheader-checkpow.json", &sheader_checkpow_fixture)?;
+
     // Phase 2h-c.1 Step 4: SContext.lastBlockUtxoRootHash handler (PropertyCall typeId=101, methodId=9).
     // Pattern A cost 15. Returns AvlTree synthesized from ctx.headers[0].state_root.
     let scontext_last_block_utxo_root_hash_fixture =

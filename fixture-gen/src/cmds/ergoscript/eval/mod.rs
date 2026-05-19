@@ -75,3 +75,4 @@ pub mod val_use;
 pub mod xor_of;
 pub mod method_call;
 pub mod sheader_handlers;
+pub mod sheader_checkpow;
