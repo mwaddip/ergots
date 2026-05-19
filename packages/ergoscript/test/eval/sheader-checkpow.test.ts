@@ -128,3 +128,76 @@ describe('SHeader.checkPow V1 header rejection', () => {
     }
   })
 })
+
+describe('SHeader.checkPow edge cases', () => {
+  const headerBytes = hexToBytes(fixture.headerHexBytes)
+  const header = parseHeader(new ByteReader(headerBytes))
+
+  it("non-Header receiver throws 'header-obj-not-header'", () => {
+    // Direct AST construction bypasses the wire parser (which would catch
+    // this earlier). The receiver is a LongConst(42); the MethodCall targets
+    // SHeader.checkPow (104:16). The dispatcher's V3 gate passes (treeVersion=3);
+    // the cost-700 charge runs; then assertHeaderObj throws because
+    // obj.kind === 'Long' !== 'Header'.
+    //
+    // MethodCall shape from packages/ergoscript/src/mir/types.ts:391-401:
+    //   { tag, obj, typeId, methodId, args, explicitTypeArgs }
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'MethodCall',
+        typeId: 104,
+        methodId: 16,
+        obj: {
+          tag: 'Const',
+          tpe: { tag: 'SLong' },
+          value: { kind: 'Long', value: 42n },
+        },
+        args: [],
+        explicitTypeArgs: {},
+      },
+    }
+    const ctx = makeContext({ treeVersion: 3, headers: [header] })
+
+    try {
+      evaluateWith(tree as any, ctx)
+      throw new Error('expected EvalError throw but evaluate succeeded')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('header-obj-not-header')
+    }
+  })
+
+  it('V2 header with mutated nonce returns Boolean(false), no throw', () => {
+    // Mutate the nonce to a value that overwhelmingly fails the PoW target.
+    const mutatedHeader = {
+      ...header,
+      autolykosSolution: {
+        ...header.autolykosSolution,
+        nonce: new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]),
+      },
+    }
+
+    // Use parseTree (not parseExpr — parseExpr is not exported from ergo-tree.ts).
+    const tree = parseTree(hexToBytes(fixture.exprBytes))
+    const ctx = makeContext({ treeVersion: 3, headers: [mutatedHeader] })
+
+    const result = evaluateWith(tree as any, ctx)
+    expect(result).toEqual({ kind: 'Boolean', value: false })
+    // Cost should match the valid-header case — handler runs to completion.
+    expect(ctx.jitCost).toBe(fixture.expectedJitCost)
+  })
+
+  it('valid V2 header at chain tip returns Boolean(true) — fixture redundancy check', () => {
+    // Mirror of the oracle test, here for organizational coherence with the
+    // throw-path siblings.
+    const tree = parseTree(hexToBytes(fixture.exprBytes))
+    const ctx = makeContext({ treeVersion: 3, headers: [header] })
+
+    const result = evaluateWith(tree as any, ctx)
+    expect(result).toEqual({ kind: 'Boolean', value: true })
+    expect(ctx.jitCost).toBe(fixture.expectedJitCost)
+  })
+})
