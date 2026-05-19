@@ -120,6 +120,15 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2h-c.1 COMPLETE.** Method handler registry: 38 entries. EvalError codes: 46. Test count: 2857 (ergoscript).
 
+**Phase 2h-c.2 — `SHeader.checkPow` + dispatcher minVersion upgrade** (additive):
+
+- 1 new method handler wired (38 → 39 registry entries): **`SHeader.checkPow` (104:16)** — Pattern A Fixed(700) — V3-gated at the dispatcher (registered with `minVersion: 3`). Source: `eval/sheader.rs:115-124`.
+- Dispatcher upgrade: `HANDLERS` registry value type expanded from `HandlerFn` to `{ handler: HandlerFn, minVersion?: number }`. The dispatcher consults `entry.minVersion` and throws `EvalError('tree-version-too-low')` BEFORE invoking the handler — V<N reject incurs 0 handler-cost (sigma-rust-parity with `MethodDesc.min_version` gating).
+- 1 new `EvalError` code: `'autolykos-v1-not-supported'` (46 → 47 codes). Raised when `verifyAutolykosV2` (now in `@ergots/scorex`) throws `AutolykosV1NotSupportedError` on a V1 header.
+- `verifyAutolykosV2` runtime import moves from `@ergots/nipopow` to `@ergots/scorex` (phase 2h-c.2's other half — see `facts/scorex.md`).
+
+**Phase 2h-c.2 COMPLETE.** Method handler registry: 39 entries. EvalError codes: 47. Test count: 2867 (ergoscript).
+
 **Does NOT ship yet (deferred):**
 
 - **`Xor`** (byte-array XOR) — phase 2i alongside other predefs.
@@ -241,7 +250,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (46 codes)
+## `EvalError` taxonomy (47 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -345,9 +354,19 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 
 - **`'header-obj-not-header'`** — defensive receiver check on all 15 SHeader handlers when `obj.kind !== 'Header'`. Wire-format invariants make this unreachable for parser-produced trees.
 
+### Phase 2h-c.2 codes (SHeader.checkPow)
+
+- **`'autolykos-v1-not-supported'`** — `SHeader.checkPow` handler caught an `AutolykosV1NotSupportedError` from `verifyAutolykosV2`. Mirrors sigma-rust's `AutolykosPowSchemeError::Unsupported` (`autolykos_pow_scheme.rs:322-324`). Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this code is the surface for the unusual case where `ctx.headers` includes a V1 header AND the script invokes `checkPow` on it.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
-## Method-handler registry (38 entries)
+## Dispatcher minVersion gating (phase 2h-c.2)
+
+The method-call dispatcher consults an optional `minVersion?: number` field on each registry entry. When set, the dispatcher throws `EvalError('tree-version-too-low')` if `(ctx.treeVersion ?? 0) < entry.minVersion`, BEFORE invoking the handler. This is sigma-rust-parity with `MethodDesc.min_version`-level gating: V<N reject incurs receiver-eval cost + envelope cost (4) but NOT the handler's own cost (e.g., 700 for `checkPow`).
+
+Currently only `SHeader.checkPow` (104:16) uses `minVersion: 3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
+
+## Method-handler registry (39 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -391,16 +410,17 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 36 | `SHeader.votes` | 104:15 | 10 | A | `Coll[Byte]` (3) | `:109-113` |
 | 37 | `SContext.headers` | 101:2 | 15 | A | `Coll[Header]` from `ctx.headers`; throws `'context-field-missing'` if undefined | `eval/scontext.rs:58-70` |
 | 38 | `SContext.lastBlockUtxoRootHash` | 101:9 | 15 | A | `AvlTree` synthesized from `ctx.headers[0].stateRoot`; throws `'context-field-missing'` if undefined/empty | `:83-99` |
+| 39 | `SHeader.checkPow` | 104:16 | 700 | A | `Boolean` — V3-gated via `minVersion: 3` on registry; v1 header throws `'autolykos-v1-not-supported'` | `eval/sheader.rs:115-124` |
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 
 (The 13 `SAvlTree.*` handlers come from phase 2h-b. Tier-1 accessors 9-15 charge cost 15 BEFORE projecting over runtime `AvlTreeData` fields, no `@ergots/avltree` call. Tier-2 verification ops 16-21 charge zero per-handler cost — cost is owned by the lower-level verifier — and call into `@ergots/avltree` v0.2.0's `verifyAvlBatch` / `verifyAvlBatchPartial`.)
 
-(The 17 handlers from phase 2h-c.1 — entries 22-38 — are 15 `SHeader.*` accessors (typeId 104, methodIds 1-15) at Fixed(10) Pattern A each, plus `SContext.headers` (101:2) and `SContext.lastBlockUtxoRootHash` (101:9) at Fixed(15) Pattern A. The SContext handlers join the existing `SContext.dataInputs` (101:1) and `SContext.preHeader` (101:3) in the registry.)
+(The 17 handlers from phase 2h-c.1 — entries 22-38 — are 15 `SHeader.*` accessors (typeId 104, methodIds 1-15) at Fixed(10) Pattern A each, plus `SContext.headers` (101:2) and `SContext.lastBlockUtxoRootHash` (101:9) at Fixed(15) Pattern A. The SContext handlers join the existing `SContext.dataInputs` (101:1) and `SContext.preHeader` (101:3) in the registry. Entry 39 from phase 2h-c.2 is `SHeader.checkPow` (104:16) at Fixed(700) Pattern A with `minVersion: 3` dispatcher gating.)
 
 ## Coverage and stability
 
-**52 / ~70 `Expr` variants** have arms in v0.2.0:
+**52 / ~70 `Expr` variants** have arms in v0.2.0 (phase 2h-c.2):
 - 8 from phase 2b
 - 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp`
 - 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast`
@@ -416,9 +436,9 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 - 4 from phase 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`
 - 1 from phase 2g.6: `Global`
 
-Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run.
+Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70.
 
-**Method-handler registry: 38 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9).
+**Method-handler registry: 39 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16).
 
 **Public function signatures are stable** from v0.2.0 onward. Future arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 
