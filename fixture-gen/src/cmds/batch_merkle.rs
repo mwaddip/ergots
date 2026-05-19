@@ -24,7 +24,7 @@ fn make_case(
     interlinks: Vec<BlockId>,
 ) -> anyhow::Result<MerkleCase> {
     // pack_interlinks panics if interlinks is empty (accesses [0])
-    let fields = NipopowAlgos::pack_interlinks(interlinks);
+    let fields = crate::cmds::interlinks_jvm::pack_interlinks_jvm(interlinks);
     let candidate = ExtensionCandidate::new(fields.clone())
         .map_err(|e| anyhow::anyhow!("ExtensionCandidate::new: {e}"))?;
 

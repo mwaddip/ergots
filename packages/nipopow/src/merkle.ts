@@ -353,3 +353,142 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   }
   return true;
 }
+
+/**
+ * Verify a BatchMerkleProof against an expected Merkle root WITHOUT requiring
+ * the leaves' decoded data. Walks up using the proof's stored `indices[i].hash`
+ * + `proofs[]` and compares the reconstructed root to `expectedRoot`.
+ *
+ * Unlike `verifyBatchMerkleProof`, this does NOT recompute leaf hashes from
+ * separately-supplied leaf data — the caller is responsible for any
+ * orthogonal integrity check on the proof's stored hashes (e.g. set-membership
+ * against an expected leaf-hash set).
+ *
+ * Used by `checkInterlinksProof` to anchor against `header.extensionRoot`
+ * (the on-chain commitment), independent of the extension's full leaf layout.
+ */
+export function verifyBatchMerkleProofWalkOnly(
+  proof: BatchMerkleProof,
+  expectedRoot: Uint8Array,
+): boolean {
+  if (proof.indices.length === 0 && proof.proofs.length === 0) {
+    // Empty proof matches the all-zeros root (sigma-rust convention).
+    return bytesEqual(expectedRoot, new Uint8Array(32));
+  }
+  const sorted = [...proof.indices].sort((a, b) => a.index - b.index);
+  const result = validateMultiproof(
+    sorted.map(e => e.index),
+    sorted.map(e => e.hash),
+    [...proof.proofs],
+  );
+  if (result === null || result.length !== 1) return false;
+  return bytesEqual(result[0]!, expectedRoot);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Interlink packing + root computation (sigma-rust parity helpers for
+// PoPowHeader::check_interlinks_proof in ergo-nipopow).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Prefix byte identifying interlink-vector extension keys (sigma-rust INTERLINK_VECTOR_PREFIX). */
+const INTERLINK_VECTOR_PREFIX = 0x01;
+
+/**
+ * Pack a list of interlink BlockIds into the ExtensionKV format used in block
+ * extensions. Matches the JVM Ergo (ergoplatform/ergo) packing semantics,
+ * EMPIRICALLY VERIFIED against a real mainnet proof (block height 1784124).
+ *
+ * Consecutive duplicate BlockIds are grouped into a single entry:
+ *   key   = [0x01, position_of_first_occurrence_in_interlinks_array]
+ *   value = [count, ...blockId_32bytes]   (33 bytes total)
+ *
+ * Returns `[]` for an empty input (so callers can short-circuit on empty
+ * interlinks — see `PoPowHeader::check_interlinks_proof`).
+ *
+ * KNOWN DIVERGENCE FROM sigma-rust: sigma-rust's `NipopowAlgos::pack_interlinks`
+ * (ergo-nipopow/src/nipopow_algos.rs:326-357) uses sequential `distinct_ix`
+ * (0, 1, 2, ...) as the second key byte. The JVM Ergo source uses the
+ * position-of-first-occurrence in the interlinks array. Sigma-rust round-trips
+ * its own buggy output internally (`unpack_interlinks` ignores key[1] entirely)
+ * but the bug is observable when interfacing with JVM-generated proofs —
+ * the leaf hashes differ for any block with >= 1 duplicate-run, which is every
+ * real mainnet block. See @ergots/nipopow CLAUDE.md "Known sigma-rust gaps"
+ * (queued: upstream PR to sigma-rust).
+ *
+ * @throws Error if any interlink is not exactly 32 bytes.
+ */
+export function packInterlinks(interlinks: Uint8Array[]): ExtensionKV[] {
+  if (interlinks.length === 0) return [];
+  for (const link of interlinks) {
+    if (link.length !== 32) {
+      throw new Error(`packInterlinks: expected 32 bytes per interlink, got ${link.length}`);
+    }
+  }
+  const res: ExtensionKV[] = [];
+  let currCount = 1;
+  let currId = interlinks[0]!;
+  let currFirstPos = 0;
+  const emit = (count: number, id: Uint8Array, firstPos: number) => {
+    if (firstPos > 0xff) {
+      throw new Error(`packInterlinks: first-position byte index ${firstPos} > 255`);
+    }
+    const value = new Uint8Array(1 + id.length);
+    value[0] = count;
+    value.set(id, 1);
+    res.push({ key: new Uint8Array([INTERLINK_VECTOR_PREFIX, firstPos]), value });
+  };
+  for (let i = 1; i < interlinks.length; i++) {
+    const id = interlinks[i]!;
+    if (bytesEqual(id, currId)) {
+      currCount++;
+    } else {
+      emit(currCount, currId, currFirstPos);
+      currId = id;
+      currCount = 1;
+      currFirstPos = i;
+    }
+  }
+  emit(currCount, currId, currFirstPos);
+  return res;
+}
+
+/**
+ * Compute the Merkle root of a list of leaf hashes (each already hashed by
+ * `hashExtensionLeaf`). Port of sigma-rust `MerkleTree::new(...).root_hash()`
+ * (ergo-merkle-tree/src/merkletree.rs:161-220).
+ *
+ * Empty input → 32-byte zero digest (sigma-rust's `Digest32::zero()`).
+ * Single leaf  → `prefixed_hash(INTERNAL_PREFIX, leaf)` (sigma-rust pads to 2).
+ * N≥2 leaves   → pad to next power-of-two with null sentinels; bottom-up pair
+ *                via `prefixed_hash2(INTERNAL_PREFIX, left, right)` (both
+ *                present) or `prefixed_hash(INTERNAL_PREFIX, single)` (one
+ *                present, other empty); empty pairs collapse to empty.
+ */
+export function merkleRootFromLeaves(leafHashes: Uint8Array[]): Uint8Array {
+  if (leafHashes.length === 0) return new Uint8Array(32);
+
+  let level: (Uint8Array | null)[] = leafHashes.slice();
+  // Pad to next power of two with null sentinels, minimum 2 (single leaf still
+  // pairs with an empty sibling per sigma-rust's leaf padding).
+  let target = 1;
+  while (target < level.length) target *= 2;
+  if (target < 2) target = 2;
+  while (level.length < target) level.push(null);
+
+  while (level.length > 1) {
+    const next: (Uint8Array | null)[] = [];
+    for (let i = 0; i < level.length; i += 2) {
+      const l = level[i] ?? null;
+      const r = level[i + 1] ?? null;
+      if (l === null && r === null) {
+        next.push(null);
+      } else if (l !== null && r !== null) {
+        next.push(prefixedHash2(INTERNAL_PREFIX, l, r));
+      } else {
+        next.push(prefixedHash(INTERNAL_PREFIX, (l ?? r)!));
+      }
+    }
+    level = next;
+  }
+  return level[0]!;
+}

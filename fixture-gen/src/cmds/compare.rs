@@ -141,7 +141,7 @@ impl SynthChain {
 
         let mut store: HashMap<u32, Vec<u8>> = HashMap::new();
         for (idx, h) in headers.iter().enumerate() {
-            let fields = NipopowAlgos::pack_interlinks(interlinks_per[idx].clone());
+            let fields = crate::cmds::interlinks_jvm::pack_interlinks_jvm(interlinks_per[idx].clone());
             let ext_bytes = pack_ext_bytes(&h.id, &fields);
             store.insert(h.height, ext_bytes);
         }
@@ -181,7 +181,7 @@ impl SynthChainReader {
         if height == 1 {
             let genesis_id = header.id;
             let ext = ExtensionCandidate::new(
-                NipopowAlgos::pack_interlinks(vec![genesis_id])
+                crate::cmds::interlinks_jvm::pack_interlinks_jvm(vec![genesis_id])
             ).ok()?;
             let proof = NipopowAlgos::proof_for_interlink_vector(&ext)?;
             Some(ergo_nipopow::PoPowHeader { header, interlinks: vec![genesis_id], interlinks_proof: proof })
@@ -243,10 +243,10 @@ fn compare_pair(label: &str, a: &NipopowProof, b: &NipopowProof) -> anyhow::Resu
     let b_bytes = b.scorex_serialize_bytes()
         .map_err(|e| anyhow::anyhow!("serialize b: {e:?}"))?;
 
-    let a_better_than_b = a.is_better_than(b)
-        .map_err(|e| anyhow::anyhow!("is_better_than a>b: {e:?}"))?;
-    let b_better_than_a = b.is_better_than(a)
-        .map_err(|e| anyhow::anyhow!("is_better_than b>a: {e:?}"))?;
+    let a_better_than_b = crate::cmds::interlinks_jvm::is_better_than_jvm(a, b)
+        .map_err(|e| anyhow::anyhow!("is_better_than_jvm a>b: {e:?}"))?;
+    let b_better_than_a = crate::cmds::interlinks_jvm::is_better_than_jvm(b, a)
+        .map_err(|e| anyhow::anyhow!("is_better_than_jvm b>a: {e:?}"))?;
 
     // Antisymmetry check: both true is a bug in the reference implementation.
     if a_better_than_b && b_better_than_a {

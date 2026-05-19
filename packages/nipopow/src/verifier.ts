@@ -27,6 +27,13 @@ import type { NipopowProof } from './proof.ts';
 import { hasValidConnections } from './connections.ts';
 import { verifyAutolykosV2 } from './autolykos-v2.ts';
 import type { Header } from './header.ts';
+import type { PoPowHeader } from './popow-header.ts';
+import {
+  hashExtensionLeaf,
+  merkleRootFromLeaves,
+  packInterlinks,
+  verifyBatchMerkleProof,
+} from './merkle.ts';
 import { ProofVerificationError, ProofParseError } from './errors.ts';
 
 export interface VerifyOptions {
@@ -59,6 +66,21 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
   // ── Step 1: Connections ────────────────────────────────────────────────────
   if (!hasValidConnections(proof)) {
     throw new ProofVerificationError('invalid connections', 'invalid-connections');
+  }
+
+  // ── Step 1.5: Interlinks Merkle proof per PoPowHeader ──────────────────────
+  // Mirrors sigma-rust NipopowProof::is_valid → has_valid_proofs path
+  // (ergo-nipopow/src/nipopow_proof.rs:187-191). KNOWN LIMITATION: the check
+  // validates against a root computed from interlinks-only, NOT from
+  // header.extensionRoot. Enforces internal proof consistency but not
+  // anchoring to the on-chain extension commitment. See facts/nipopow.md.
+  for (const ph of [proof.suffixHead, ...proof.prefix]) {
+    if (!checkInterlinksProof(ph)) {
+      throw new ProofVerificationError(
+        `interlinks proof failed at height ${ph.header.height}`,
+        'invalid-interlinks-proof',
+      );
+    }
   }
 
   // ── Step 2: Build header list ──────────────────────────────────────────────
@@ -131,4 +153,44 @@ export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): Verifi
   }
 
   return verifyParsedProof(proof, opts);
+}
+
+/**
+ * Verify a PoPowHeader's interlinks Merkle proof.
+ *
+ * The NiPoPoW proof carries a BatchMerkleProof committing to the interlinks
+ * vector. The proof is anchored to an interlinks-only ExtensionCandidate's
+ * Merkle root (NOT to header.extensionRoot in general — the on-chain extension
+ * may contain other fields, but the NiPoPoW protocol synthesizes an
+ * interlinks-only extension for proof generation, matching what the verifier
+ * reconstructs here). For blocks whose actual mainnet extension contains only
+ * interlinks (no votes/params), header.extensionRoot happens to equal the
+ * interlinks-only-root; for blocks with richer extensions the two diverge,
+ * and verification anchors to interlinks-only-root not header.extensionRoot.
+ *
+ * Mirrors sigma-rust `PoPowHeader::check_interlinks_proof`
+ * (ergo-nipopow/src/nipopow_proof.rs:302-323):
+ *   1. Short-circuit: if interlinks empty AND proof empty → vacuously true.
+ *   2. Pack interlinks to ExtensionKV pairs (JVM-compat key encoding —
+ *      key=[0x01, first_position_in_interlinks_array]; see merkle.ts
+ *      packInterlinks for details on the sigma-rust divergence).
+ *   3. Compute the Merkle root from the packed leaves (interlinks-only).
+ *   4. Verify the BatchMerkleProof's walk-up reaches the same root AND that
+ *      the proof's stored leaf hashes match the packed-interlinks leaf hashes
+ *      (the walk-up uses the stored hashes, so if they don't match what we
+ *      computed from interlinks, either the interlinks or the proof was
+ *      mutated and the walk-up won't reach the computed root).
+ */
+export function checkInterlinksProof(p: PoPowHeader): boolean {
+  if (
+    p.interlinks.length === 0 &&
+    p.interlinksProof.indices.length === 0 &&
+    p.interlinksProof.proofs.length === 0
+  ) {
+    return true;
+  }
+  const leaves = packInterlinks(p.interlinks);
+  const leafHashes = leaves.map(hashExtensionLeaf);
+  const expectedRoot = merkleRootFromLeaves(leafHashes);
+  return verifyBatchMerkleProof(p.interlinksProof, leaves, expectedRoot);
 }
