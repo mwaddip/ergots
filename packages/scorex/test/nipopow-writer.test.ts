@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { ByteWriter } from '../src/scorex/writer';
+import { ByteWriter } from '../src/index.ts';
 
 describe('ByteWriter', () => {
   test('empty writer produces empty Uint8Array', () => {

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { ByteReader, ReaderError } from '../src/scorex/reader';
+import { ByteReader, ReaderError } from '../src/index.ts';
 
 describe('ByteReader', () => {
   test('readU8 returns first byte and advances', () => {

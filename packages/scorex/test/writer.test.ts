@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ByteWriter } from '../src/wire/writer';
-import { ByteReader } from '../src/wire/reader';
+import { ByteWriter, ByteReader } from '../src/index.ts';
 
 describe('ByteWriter', () => {
   it('writes u8 + bytes', () => {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag, ByteReader, ReaderError } from '@ergots/scorex';
+import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag, ByteReader, ReaderError } from '../src/index.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

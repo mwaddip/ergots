@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { ByteReader, ByteWriter } from '@ergots/scorex';
+import { ByteReader, ByteWriter } from '../src/index.ts';
 
 describe('readBool / writeBool', () => {
   test('writeBool(true) emits 0x01', () => {

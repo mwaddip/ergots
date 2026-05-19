@@ -1,4 +1,4 @@
-import { ByteReader, ReaderError } from './reader.ts';
+import { ByteReader, ReaderError } from '@ergots/scorex';
 import { ProofParseError } from '../errors.ts';
 
 const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
@@ -51,7 +51,7 @@ export function decodeVlqZigZag(reader: ByteReader): bigint {
   // BigInt XOR with `-(zz & 1n)` performs sign extension natively when
   // the LSB of zz is set: -(1n) = -1n in arbitrary precision, and XOR
   // with -1n flips every bit yielding the negative value directly. No
-  // u64 → i64 conversion is needed.
+  // u64 -> i64 conversion is needed.
   return (zz >> 1n) ^ -(zz & 1n);
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ByteReader, ReaderError } from '../src/wire/reader';
+import { ByteReader, ReaderError } from '../src/index.ts';
 
 describe('ByteReader', () => {
   it('reads u8', () => {
