@@ -30,3 +30,13 @@ export {
   serializeHeaderWithoutPow,
   deriveHeaderId,
 } from './header.ts';
+export {
+  calcBigN,
+  autolykosMessage,
+  buildAutolykosSeed,
+  genIndexes,
+  hashElement,
+  verifyAutolykosV2,
+} from './autolykos-v2.ts';
+export { decodeCompactBits } from './nbits.ts';
+export { AutolykosV1NotSupportedError } from './errors.ts';
