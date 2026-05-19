@@ -22,6 +22,9 @@ import type { Header } from '@ergots/scorex'
 /** Pattern A cost charged by every SHeader accessor. Source: sheader.rs:16-113. */
 const ACCESSOR_COST = 10
 
+/** 33 zero bytes — sigma-rust EcPoint::default() (identity point) encoding. Source: ec_point.rs:127-137. */
+const IDENTITY_POINT_BYTES = new Uint8Array(33)
+
 /** Defensive receiver check shared by all 15 SHeader handlers. */
 function assertHeaderObj(
   obj: SValue,
@@ -174,7 +177,7 @@ export function evalSHeaderMinerPk(obj: SValue, _args: SValue[], ctx: EvalContex
 export function evalSHeaderPowOnetimePk(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'powOnetimePk')
-  const pk = obj.value.autolykosSolution.powOnetimePk ?? new Uint8Array(33)
+  const pk = obj.value.autolykosSolution.powOnetimePk ?? IDENTITY_POINT_BYTES
   return { kind: 'GroupElement', value: pk }
 }
 
