@@ -87,7 +87,7 @@ Structural + Autolykos-v2 verification pipeline: parse → connections → stric
 
 - **Default `opts.checkPoW`:** `true`.
 - **Returns:** `VerificationResult` (see types below).
-- **Throws:** `ProofVerificationError` with `.code` in `'parse-failed' | 'invalid-connections' | 'non-increasing-heights' | 'pow-failed' | 'empty-proof'`. Parse failures wrap the underlying `ProofParseError` via `.cause`.
+- **Throws:** `ProofVerificationError` with `.code` in `'parse-failed' | 'invalid-connections' | 'non-increasing-heights' | 'pow-failed' | 'v1-header-after-v2-activation' | 'invalid-interlinks-proof' | 'empty-proof'`. Parse failures wrap the underlying `ProofParseError` via `.cause`.
 
 ```ts
 try {
@@ -253,7 +253,8 @@ interface AutolykosSolution {
 
 ```ts
 interface VerifyOptions {
-  checkPoW?: boolean; // default: true
+  checkPoW?: boolean;            // default: true
+  v2ActivationHeight?: number;   // default: V2_ACTIVATION_HEIGHT_MAINNET (417792)
 }
 
 interface VerificationResult {
@@ -263,6 +264,10 @@ interface VerificationResult {
   headers: Header[];        // every header in the proof, in strictly-increasing height order
 }
 ```
+
+When `checkPoW: true`, version-1 headers at heights at or above `v2ActivationHeight` are rejected with `'v1-header-after-v2-activation'`. Version-1 headers below the threshold are accepted structurally (Autolykos v1 PoW is not implemented in this package). When `checkPoW: false`, the threshold is not consulted (caller is responsible for PoW externally).
+
+The default `V2_ACTIVATION_HEIGHT_MAINNET = 417792` is exported from the primary entry point; callers verifying proofs from a non-mainnet network should override `v2ActivationHeight` with that network's activation height.
 
 ### `GetNipopowProofRequest`
 
@@ -317,6 +322,8 @@ Thrown by `verifyProof` and `verifyParsedProof`.
 | `'invalid-connections'` | A header pair in the prefix or at the prefix/suffix-head boundary fails parent-linkage check (interlink or parent-id match within the 11-entry lookback window) |
 | `'non-increasing-heights'` | Two adjacent headers in the proof have non-strictly-increasing heights |
 | `'pow-failed'` | A version ≥ 2 header's Autolykos v2 solution doesn't satisfy that header's **self-declared** `nBits` target. (The target itself is not validated against consensus chain parameters — see [Scope and consensus caveat](#scope-and-consensus-caveat).) |
+| `'v1-header-after-v2-activation'` | A version 1 header appears at a height at or above `opts.v2ActivationHeight` (default mainnet 417792). Audit finding NIP-02: prevents an attacker from bypassing PoW by marking forged high-height headers as V1. Only thrown when `checkPoW: true`. |
+| `'invalid-interlinks-proof'` | A PoPowHeader's interlinks Merkle proof does not verify against the interlinks-only Merkle root (see [`facts/nipopow.md`](../../facts/nipopow.md) "Limitations" — anchoring is interlinks-only-root, not `header.extensionRoot`). |
 | `'empty-proof'` | Defensive; unreachable for any well-formed proof |
 
 ### `EnvelopeParseError` codes

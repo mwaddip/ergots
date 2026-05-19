@@ -55,10 +55,10 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
   - `headers` heights are strictly increasing
   - `headers[headers.length - 1].height === suffixTipHeight`
   - `continuous === false`
-  - If `checkPoW === true`, every version >= 2 `header` has a valid Autolykos v2 solution under that header's **self-declared** `nBits` target (NOT validated against the network's difficulty-adjustment rule — see "Limitations" below); version 1 headers are structurally accepted (Autolykos v1 PoW is not verified, mirroring sigma-rust's `Unsupported` behavior, and V1 acceptance is unconditional on height — a separate scope limitation)
+  - If `checkPoW === true`, every version >= 2 `header` has a valid Autolykos v2 solution under that header's **self-declared** `nBits` target (NOT validated against the network's difficulty-adjustment rule — see "Limitations" below); version 1 headers at height < `opts.v2ActivationHeight` (default mainnet `V2_ACTIVATION_HEIGHT_MAINNET = 417792`) are accepted structurally without PoW verification (Autolykos v1 is not implemented in this package); version 1 headers at height >= the threshold are rejected with `'v1-header-after-v2-activation'` per audit finding NIP-02
   - Parent-linkage connections (`has_valid_connections` in the Rust) hold across the proof
   - Interlink Merkle proof per PoPowHeader (`check_interlinks_proof` in the Rust) holds: the proof's stored leaf hashes walk up to the Merkle root computed from `packInterlinks(interlinks)` (interlinks-only extension tree). See "Known limitations" below.
-- **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`), `invalid-interlinks-proof`.
+- **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `v1-header-after-v2-activation` (NIP-02), `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`), `invalid-interlinks-proof`.
 - **Invariant:** Stateless. No filesystem, network, or `globalThis` access. Same inputs → same result, every call.
 
 #### `compareProofs(a, b)`

@@ -3,6 +3,7 @@ export { parseProof, serializeProof, type NipopowProof } from './proof.ts';
 export {
   verifyProof,
   verifyParsedProof,
+  V2_ACTIVATION_HEIGHT_MAINNET,
   type VerifyOptions,
   type VerificationResult,
 } from './verifier.ts';

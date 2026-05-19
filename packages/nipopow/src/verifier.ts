@@ -1,25 +1,32 @@
 /**
  * verifyProof: public entry point composing parseProof + hasValidConnections +
- * monotonic-heights + per-header Autolykos PoW (v2 only; v1 skipped as Unsupported per sigma-rust).
+ * monotonic-heights + per-header Autolykos PoW (v2 only; v1 below activation
+ * accepted structurally per sigma-rust's "Unsupported" semantics; v1 at or
+ * above activation rejected per audit NIP-02).
  *
  * facts/nipopow.md postconditions:
  *   - headers.length === totalHeaders
  *   - headers heights are strictly increasing
  *   - headers[last].height === suffixTipHeight
  *   - continuous === false
- *   - If checkPoW === true, every version >= 2 header has a valid Autolykos v2 solution;
- *     version 1 headers are structurally accepted (Autolykos v1 PoW is not verified,
- *     mirroring sigma-rust's Unsupported behavior)
+ *   - If checkPoW === true, every version >= 2 header has a valid Autolykos v2
+ *     solution under its self-declared nBits target; version 1 headers below
+ *     opts.v2ActivationHeight (default V2_ACTIVATION_HEIGHT_MAINNET = 417792)
+ *     are accepted structurally without PoW verification; version 1 headers
+ *     at or above that height are rejected with 'v1-header-after-v2-activation'.
  *   - has_valid_connections holds across the proof
  *
  * Failure modes (all throw ProofVerificationError):
- *   'parse-failed'           bytes do not parse (wraps ProofParseError)
- *   'invalid-connections'    hasValidConnections returns false
- *   'non-increasing-heights' any consecutive pair violates strict monotonicity
- *   'empty-proof'            defensive dead-code guard — NipopowProof always has
- *                            at least suffixHead, so this branch is unreachable for
- *                            any proof that passes parseProof successfully
- *   'pow-failed'             Autolykos v2 rejects a version >= 2 header (when checkPoW: true)
+ *   'parse-failed'                    bytes do not parse (wraps ProofParseError)
+ *   'invalid-connections'             hasValidConnections returns false
+ *   'non-increasing-heights'          any consecutive pair violates strict monotonicity
+ *   'empty-proof'                     defensive dead-code guard — NipopowProof always has
+ *                                     at least suffixHead, so this branch is unreachable for
+ *                                     any proof that passes parseProof successfully
+ *   'pow-failed'                      Autolykos v2 rejects a version >= 2 header (when checkPoW: true)
+ *   'v1-header-after-v2-activation'   version 1 header at height >= opts.v2ActivationHeight
+ *                                     (when checkPoW: true); audit finding NIP-02
+ *   'invalid-interlinks-proof'        per-PoPowHeader interlinks Merkle proof rejected
  */
 
 import { parseProof } from './proof.ts';
@@ -36,8 +43,31 @@ import {
 } from './merkle.ts';
 import { ProofVerificationError, ProofParseError } from './errors.ts';
 
+/**
+ * Mainnet Autolykos v2 activation height. Below this height, V1 headers are
+ * accepted structurally without PoW verification (Autolykos v1 is not
+ * implemented in this package). At or above this height, V1 headers are
+ * rejected. Source: ergo-node-rust chain config (`version2_activation_height`).
+ *
+ * Callers verifying proofs from a non-mainnet network should override via
+ * `VerifyOptions.v2ActivationHeight`.
+ */
+export const V2_ACTIVATION_HEIGHT_MAINNET = 417792;
+
 export interface VerifyOptions {
   checkPoW?: boolean;
+  /**
+   * Height at or above which a `version === 1` header is rejected as a forgery
+   * (the Autolykos v1 PoW algorithm is not implemented in this package, so
+   * accepting V1 at high heights would let an attacker bypass cryptographic
+   * difficulty by marking forged headers as V1 — see audit NIP-02).
+   *
+   * Default: {@link V2_ACTIVATION_HEIGHT_MAINNET} (417792).
+   *
+   * Only consulted when `checkPoW` is `true`. When `checkPoW` is `false`,
+   * V1 acceptance is unconditional (caller is responsible for PoW externally).
+   */
+  v2ActivationHeight?: number;
 }
 
 export interface VerificationResult {
@@ -62,6 +92,7 @@ export interface VerificationResult {
  */
 export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {}): VerificationResult {
   const checkPoW = opts.checkPoW ?? true;
+  const v2ActivationHeight = opts.v2ActivationHeight ?? V2_ACTIVATION_HEIGHT_MAINNET;
 
   // ── Step 1: Connections ────────────────────────────────────────────────────
   if (!hasValidConnections(proof)) {
@@ -110,11 +141,25 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
     lastHeight = h.height;
 
     // Autolykos PoW check (skipped when checkPoW: false).
-    // v1 headers use Autolykos v1 (different algorithm, not implemented here);
-    // mirroring sigma-rust's check_pow which returns Err(Unsupported) for v1,
-    // we skip PoW verification for version-1 headers.
-    if (checkPoW && h.version !== 1 && !verifyAutolykosV2(h)) {
-      throw new ProofVerificationError(`PoW failed at height ${h.height}`, 'pow-failed');
+    // Version 1 headers use Autolykos v1, which is NOT implemented in this
+    // package. Pre-NIP-02 the verifier silently skipped V1 PoW at any height,
+    // allowing an attacker to forge V1 headers at arbitrary heights and bypass
+    // all difficulty checks. Post-NIP-02 we gate V1 acceptance on a configurable
+    // V2-activation-height threshold: below the threshold V1 is accepted
+    // structurally (matching sigma-rust's "Unsupported" semantics for legacy
+    // prefix headers); at or above the threshold V1 is rejected as a forgery.
+    if (checkPoW) {
+      if (h.version === 1) {
+        if (h.height >= v2ActivationHeight) {
+          throw new ProofVerificationError(
+            `version 1 header at height ${h.height} >= v2 activation height ${v2ActivationHeight}`,
+            'v1-header-after-v2-activation',
+          );
+        }
+        // V1 below activation: structurally accepted, PoW not verified.
+      } else if (!verifyAutolykosV2(h)) {
+        throw new ProofVerificationError(`PoW failed at height ${h.height}`, 'pow-failed');
+      }
     }
   }
 

@@ -296,6 +296,65 @@ describe('verifyProof: parse-failed preserves cause chain', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// verifyParsedProof: NIP-02 — V1 headers after V2 activation are rejected
+//
+// Regression for audit finding NIP-02 (High). The pre-fix verifier skipped PoW
+// for every version===1 header regardless of height, allowing an attacker to
+// forge V1 headers at arbitrary post-activation heights and bypass all PoW
+// checks. The fix gates V1 acceptance on a configurable activation-height
+// threshold (default mainnet 417792). Below the threshold: structurally
+// accepted, PoW not verified (matching sigma-rust's "Unsupported" semantics).
+// At or above the threshold: rejected with 'v1-header-after-v2-activation'.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('verifyParsedProof: NIP-02 V1-after-V2-activation rejection', () => {
+  test('throws v1-header-after-v2-activation when V1 header is at high mainnet height', () => {
+    // Synthetic V1 header at height 1_000_000 — well above mainnet's 417792 activation.
+    const proof = buildSyntheticProof([], 1_000_000);
+    proof.suffixHead.header.version = 1;
+    try {
+      verifyParsedProof(proof, { checkPoW: true });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofVerificationError);
+      expect((e as ProofVerificationError).code).toBe('v1-header-after-v2-activation');
+    }
+  });
+
+  test('accepts V1 header below V2 activation (structural, no PoW)', () => {
+    // V1 header at height 100, far below mainnet 417792; the verifier accepts
+    // structurally and skips PoW (Autolykos v1 not implemented in this package).
+    const proof = buildSyntheticProof([], 100);
+    proof.suffixHead.header.version = 1;
+    const result = verifyParsedProof(proof, { checkPoW: true });
+    expect(result.suffixTipHeight).toBe(100);
+    expect(result.headers[0]!.version).toBe(1);
+  });
+
+  test('respects custom v2ActivationHeight option', () => {
+    // Override threshold to 50; a V1 header at height 100 is now post-activation
+    // and must be rejected.
+    const proof = buildSyntheticProof([], 100);
+    proof.suffixHead.header.version = 1;
+    try {
+      verifyParsedProof(proof, { checkPoW: true, v2ActivationHeight: 50 });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofVerificationError);
+      expect((e as ProofVerificationError).code).toBe('v1-header-after-v2-activation');
+    }
+  });
+
+  test('does NOT reject when checkPoW: false (gate is part of PoW path)', () => {
+    // checkPoW: false means caller takes responsibility for PoW externally;
+    // the V1-activation gate is part of that PoW path and is also skipped.
+    const proof = buildSyntheticProof([], 1_000_000);
+    proof.suffixHead.header.version = 1;
+    const result = verifyParsedProof(proof, { checkPoW: false });
+    expect(result.suffixTipHeight).toBe(1_000_000);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Real mainnet proof: checkPoW: true end-to-end
 //
 // Captured 2026-05-13 from ergo-node-rust at port 9052:
