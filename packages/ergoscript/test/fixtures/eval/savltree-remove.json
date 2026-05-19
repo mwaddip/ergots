@@ -1,0 +1,60 @@
+{
+  "corpus": "eval_savltree_remove",
+  "entries": [
+    {
+      "name": "remove_success_1_key",
+      "tree_bytes_hex": "00dc640e64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02040100021a0101020e640385ab460a6564d1e5ded17716cd5866650d7fbb9cada7fecabd5fe21e2f80e43a02010200000008010101010101010100020300000008020202020202020203f8303bddebd7a262a1e85dffdd76cf6c51c134f477485b8b307e88e67a9e14c100000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "AvlTree",
+          "value": {
+            "digest_hex": "5c651abaacda4637c9fbf8231ae70c14dd91f0903a8881d9dec204d39061918f02",
+            "keyLength": 1,
+            "treeFlags": 4,
+            "valueLengthOpt": null
+          }
+        }
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "remove_success_3_keys",
+      "tree_bytes_hex": "00dc640e64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02040100021a030101010201030e3602000100000000020200000008010101010101010100020300000008020202020202020202ff00000008030303030303030300000409",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "AvlTree",
+          "value": {
+            "digest_hex": "931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900",
+            "keyLength": 1,
+            "treeFlags": 4,
+            "valueLengthOpt": null
+          }
+        }
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "remove_disallowed_flags",
+      "tree_bytes_hex": "00dc640e64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100021a0101020e640385ab460a6564d1e5ded17716cd5866650d7fbb9cada7fecabd5fe21e2f80e43a02010200000008010101010101010100020300000008020202020202020203f8303bddebd7a262a1e85dffdd76cf6c51c134f477485b8b307e88e67a9e14c100000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 19
+    }
+  ]
+}

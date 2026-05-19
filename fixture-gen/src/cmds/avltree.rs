@@ -77,6 +77,17 @@ fn fixtures_dir() -> PathBuf {
         .join("packages/avltree/test/fixtures/avltree")
 }
 
+/// Directory for partial-success fixtures (Phase 2h-b Task A1.6). Distinct
+/// from the main `avltree/` corpus because the schema differs (no
+/// `expected_new_digest_hex`; adds `expected_ops_completed` +
+/// `expected_digest_after_N_ops_hex`).
+fn partial_fixtures_dir() -> PathBuf {
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    here.parent()
+        .expect("fixture-gen has a parent directory")
+        .join("packages/avltree/test/fixtures/partial")
+}
+
 fn write_fixture(name: &str, fixture: &AvlFixture) -> Result<()> {
     let dir = fixtures_dir();
     std::fs::create_dir_all(&dir)?;
@@ -85,6 +96,46 @@ fn write_fixture(name: &str, fixture: &AvlFixture) -> Result<()> {
     std::fs::write(&path, json + "\n")?;
     println!("wrote {}", path.display());
     Ok(())
+}
+
+fn write_partial_fixture(name: &str, fixture: &PartialFixture) -> Result<()> {
+    let dir = partial_fixtures_dir();
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{}.json", name));
+    let json = serde_json::to_string_pretty(fixture)?;
+    std::fs::write(&path, json + "\n")?;
+    println!("wrote {}", path.display());
+    Ok(())
+}
+
+/// Schema for the `insert-fail-at-3-of-5` partial-success fixture
+/// (Phase 2h-b Task A1.6).
+///
+/// Consumed by `@ergots/avltree`'s `verifyAvlBatchPartial` test in Phase A.
+/// Differs from `AvlFixture` because partial-success returns
+/// `(opsCompleted, newDigest)` instead of "all-or-nothing accept/reject":
+///   - `expected_ops_completed`: how many operations succeeded before the
+///     first failure (per `verifyAvlBatchPartial` contract).
+///   - `expected_digest_after_2_ops_hex`: the digest the verifier should
+///     report after exactly 2 ops (matching `expected_ops_completed`).
+///     Computed by replaying the same `(starting_digest, proof)` through a
+///     fresh `BatchAVLVerifier` and capturing the digest after 2 ops
+///     (before attempting the failing op 3).
+///
+/// Field-key shape matches the task brief verbatim
+/// (`expected_digest_after_2_ops_hex` has a literal "2" baked in because
+/// this fixture is hand-crafted for exactly the 5-op / fail-at-3 scenario).
+/// Nested `config` keeps the existing `AvlConfig` camelCase rename so
+/// `keyLength`/`valueLengthOpt` match the main corpus fixtures' shape.
+#[derive(Serialize)]
+struct PartialFixture {
+    description: String,
+    starting_digest_hex: String,
+    proof_hex: String,
+    config: AvlConfig,
+    operations: Vec<OpJson>,
+    expected_ops_completed: usize,
+    expected_digest_after_2_ops_hex: String,
 }
 
 /// Resolver used by both prover construction and verifier cross-check.
@@ -1616,6 +1667,148 @@ fn adverse_malicious_extra_nodes() -> Result<AvlFixture> {
 }
 
 // ---------------------------------------------------------------------------
+// Partial-success fixture (Phase 2h-b Task A1.6)
+// ---------------------------------------------------------------------------
+
+/// 5-op Insert batch where op 3 fails (key-already-exists), exercising
+/// `verifyAvlBatchPartial`'s "stop at first failure, return digest after
+/// completed ops" path.
+///
+/// Scenario:
+///   - Starting tree contains `K_existing` (a single 32-byte key).
+///   - Operations: [Insert(K1), Insert(K2), Insert(K_existing), Insert(K3),
+///     Insert(K4)] (5 ops; op 3 fails because the key is already in the
+///     tree).
+///   - Expected: `opsCompleted == 2` (ops 1 and 2 succeeded; op 3 attempts
+///     to insert a duplicate and the verifier rejects);
+///     `expected_digest_after_2_ops_hex` = the digest after only ops 1 + 2.
+///
+/// Proof construction: the prover can't actually run Insert(K_existing)
+/// (it would error in the prover too). Instead we use `Lookup(K_existing)`
+/// on the prover for op 3's proof segment — this captures the path to
+/// K_existing so the verifier can traverse to the leaf and fail the
+/// duplicate-insert check there. Ops 4 and 5 are recorded in the operations
+/// list but the verifier never reaches them (it stops at op 3 failure).
+fn partial_insert_fail_at_3_of_5() -> Result<PartialFixture> {
+    let key_length = 32;
+    let value_length_opt: Option<usize> = None;
+
+    let k_existing = key(0xAA);
+    let k1 = key(0x10);
+    let k2 = key(0x20);
+    let k3 = key(0x30);
+    let k4 = key(0x40);
+    let v_existing = val(0xAA, 8);
+    let v1 = val(0x11, 8);
+    let v2 = val(0x22, 8);
+    let v3 = val(0x33, 8);
+    let v4 = val(0x44, 8);
+
+    let initial_kvs = vec![(k_existing.clone(), v_existing.clone())];
+
+    // Build prover, pre-populate with K_existing, capture starting digest.
+    let (mut prover, starting_digest) =
+        make_initial_tree(key_length, value_length_opt, &initial_kvs)?;
+
+    // Prover ops: Insert(K1), Insert(K2) succeed; Lookup(K_existing) captures
+    // the path for op 3's verifier-side replay. Ops 4 and 5 are NOT applied
+    // to the prover — the verifier stops at op 3 failure under the
+    // partial-success contract and never replays them.
+    prover.perform_one_operation(&Operation::Insert(KeyValue {
+        key: k1.clone(),
+        value: v1.clone(),
+    }))?;
+    prover.perform_one_operation(&Operation::Insert(KeyValue {
+        key: k2.clone(),
+        value: v2.clone(),
+    }))?;
+    prover.perform_one_operation(&Operation::Lookup(k_existing.clone()))?;
+
+    let proof = prover.generate_proof();
+
+    // Recorded operations list (what the verifier sees). Op 3 is the
+    // duplicate-key insert that must fail.
+    let fixture_ops: Vec<OpJson> = vec![
+        op_to_json(&Operation::Insert(KeyValue {
+            key: k1.clone(),
+            value: v1.clone(),
+        })),
+        op_to_json(&Operation::Insert(KeyValue {
+            key: k2.clone(),
+            value: v2.clone(),
+        })),
+        op_to_json(&Operation::Insert(KeyValue {
+            key: k_existing.clone(),
+            value: v_existing.clone(),
+        })),
+        op_to_json(&Operation::Insert(KeyValue {
+            key: k3.clone(),
+            value: v3.clone(),
+        })),
+        op_to_json(&Operation::Insert(KeyValue {
+            key: k4.clone(),
+            value: v4.clone(),
+        })),
+    ];
+
+    // Compute the expected digest after the first 2 ops by replaying through
+    // a fresh BatchAVLVerifier and capturing digest() mid-loop (after ops 1+2,
+    // before attempting op 3). The verifier is the canonical source of truth
+    // for what `verifyAvlBatchPartial` should produce.
+    //
+    // Verifier needs max_num_operations large enough to cover all 5 recorded
+    // ops (the verifier doesn't know the partial contract; it's just doing
+    // node-budget computation for the proof shape). Use 5 to match the proof
+    // we generated; 0 deletes since all ops are Inserts.
+    let mut verifier = BatchAVLVerifier::new(
+        &starting_digest,
+        &proof,
+        AVLTree::new(make_resolver(), key_length, value_length_opt),
+        Some(5),
+        Some(0),
+    )?;
+    verifier
+        .perform_one_operation(&Operation::Insert(KeyValue {
+            key: k1.clone(),
+            value: v1.clone(),
+        }))?;
+    verifier
+        .perform_one_operation(&Operation::Insert(KeyValue {
+            key: k2.clone(),
+            value: v2.clone(),
+        }))?;
+    let digest_after_2_ops = verifier
+        .digest()
+        .expect("verifier digest after 2 successful inserts");
+
+    // Sanity-check: the third op (Insert duplicate) must fail on the verifier.
+    let op3_result = verifier.perform_one_operation(&Operation::Insert(KeyValue {
+        key: k_existing.clone(),
+        value: v_existing.clone(),
+    }));
+    anyhow::ensure!(
+        op3_result.is_err(),
+        "partial_insert_fail_at_3_of_5: op 3 (Insert of existing key) was \
+         expected to fail on the verifier but succeeded"
+    );
+
+    Ok(PartialFixture {
+        description: "insert 5 entries, op 3 fails (key-already-exists)".to_string(),
+        starting_digest_hex: hex::encode(&starting_digest),
+        proof_hex: hex::encode(&proof),
+        config: AvlConfig {
+            key_length,
+            value_length_opt,
+            max_num_operations: Some(5),
+            max_deletes: Some(0),
+        },
+        operations: fixture_ops,
+        expected_ops_completed: 2,
+        expected_digest_after_2_ops_hex: hex::encode(&digest_after_2_ops),
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -1725,6 +1918,14 @@ pub fn run() -> Result<()> {
     write_fixture("adverse-swapped-starting-digest", &adverse_swapped_starting_digest()?)?;
     write_fixture("adverse-mismatched-config-keylength", &adverse_mismatched_config_keylength()?)?;
     write_fixture("adverse-malicious-extra-nodes", &adverse_malicious_extra_nodes()?)?;
+
+    // --- Partial-success fixtures (Phase 2h-b Task A1.6) ---
+    // Lives under packages/avltree/test/fixtures/partial/ (separate corpus
+    // dir; distinct schema from the main avltree/ all-or-nothing fixtures).
+    write_partial_fixture(
+        "insert-fail-at-3-of-5",
+        &partial_insert_fail_at_3_of_5()?,
+    )?;
 
     Ok(())
 }

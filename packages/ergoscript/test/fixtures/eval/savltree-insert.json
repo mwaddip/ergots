@@ -1,0 +1,60 @@
+{
+  "corpus": "eval_savltree_insert",
+  "entries": [
+    {
+      "name": "insert_success_1_entry",
+      "tree_bytes_hex": "00dc640c64931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900010100020c3c0e0e0101010801010101010101010e080200ff0000000004",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "AvlTree",
+          "value": {
+            "digest_hex": "ce51da056c890b6e10f5110e575ae3c877c9d04384406f193e7b28d317ac78c201",
+            "keyLength": 1,
+            "treeFlags": 1,
+            "valueLengthOpt": null
+          }
+        }
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "insert_success_3_entries",
+      "tree_bytes_hex": "00dc640c64931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900010100020c3c0e0e030101080101010101010101010208020202020202020201030803030303030303030e090200ff000000000400",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "AvlTree",
+          "value": {
+            "digest_hex": "ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02",
+            "keyLength": 1,
+            "treeFlags": 1,
+            "valueLengthOpt": null
+          }
+        }
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "insert_disallowed_flags",
+      "tree_bytes_hex": "00dc640c64931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900000100020c3c0e0e0101010801010101010101010e080200ff0000000004",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 19
+    }
+  ]
+}

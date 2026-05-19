@@ -272,6 +272,22 @@ fn main() -> anyhow::Result<()> {
         &savltree_is_remove_allowed_fixture,
     )?;
 
+    // Phase 2h-b Phase B wave 2: 6 Tier-2 SAvlTree.* verification op handlers
+    // (MethodCall typeId=100, methodIds 9..=14). Each constructs a real AD
+    // proof via BatchAVLProver and captures eval result via try_eval_out.
+    let savltree_contains_fixture = cmds::ergoscript::eval::savltree_contains::generate()?;
+    write_ergoscript_json("eval/savltree-contains.json", &savltree_contains_fixture)?;
+    let savltree_get_fixture = cmds::ergoscript::eval::savltree_get::generate()?;
+    write_ergoscript_json("eval/savltree-get.json", &savltree_get_fixture)?;
+    let savltree_get_many_fixture = cmds::ergoscript::eval::savltree_get_many::generate()?;
+    write_ergoscript_json("eval/savltree-get-many.json", &savltree_get_many_fixture)?;
+    let savltree_insert_fixture = cmds::ergoscript::eval::savltree_insert::generate()?;
+    write_ergoscript_json("eval/savltree-insert.json", &savltree_insert_fixture)?;
+    let savltree_update_fixture = cmds::ergoscript::eval::savltree_update::generate()?;
+    write_ergoscript_json("eval/savltree-update.json", &savltree_update_fixture)?;
+    let savltree_remove_fixture = cmds::ergoscript::eval::savltree_remove::generate()?;
+    write_ergoscript_json("eval/savltree-remove.json", &savltree_remove_fixture)?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

@@ -1,0 +1,60 @@
+{
+  "corpus": "eval_savltree_update",
+  "entries": [
+    {
+      "name": "update_success_1_entry",
+      "tree_bytes_hex": "00dc640d64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02020100020c3c0e0e01010208bbbbbbbbbbbbbbbb0e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff02020300000008020202020202020203f8303bddebd7a262a1e85dffdd76cf6c51c134f477485b8b307e88e67a9e14c100000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "AvlTree",
+          "value": {
+            "digest_hex": "902a0f52177a30b033fe2697e937faf9eb0939690e8f1fadb3030081074e9a6f02",
+            "keyLength": 1,
+            "treeFlags": 2,
+            "valueLengthOpt": null
+          }
+        }
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "update_success_3_entries",
+      "tree_bytes_hex": "00dc640d64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02020100020c3c0e0e03010108aaaaaaaaaaaaaaaa010208bbbbbbbbbbbbbbbb010308cccccccccccccccc0e510385ab460a6564d1e5ded17716cd5866650d7fbb9cada7fecabd5fe21e2f80e43a02010200000008010101010101010100020300000008020202020202020202ff00000008030303030303030300000409",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "AvlTree",
+          "value": {
+            "digest_hex": "852c8703ac68d36a7c0a3aa43603c970c405d8b026c4fe97b24abb66df5efd4f02",
+            "keyLength": 1,
+            "treeFlags": 2,
+            "valueLengthOpt": null
+          }
+        }
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "update_disallowed_flags",
+      "tree_bytes_hex": "00dc640d64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100020c3c0e0e01010208bbbbbbbbbbbbbbbb0e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff02020300000008020202020202020203f8303bddebd7a262a1e85dffdd76cf6c51c134f477485b8b307e88e67a9e14c100000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 19
+    }
+  ]
+}

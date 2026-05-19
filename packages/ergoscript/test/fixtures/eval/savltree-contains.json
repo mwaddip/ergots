@@ -1,0 +1,45 @@
+{
+  "corpus": "eval_savltree_contains",
+  "entries": [
+    {
+      "name": "contains_key_present",
+      "tree_bytes_hex": "00dc640964ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100020e01020e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff02020300000008020202020202020203f8303bddebd7a262a1e85dffdd76cf6c51c134f477485b8b307e88e67a9e14c100000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "contains_key_absent",
+      "tree_bytes_hex": "00dc640964ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100020e01aa0e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff03bbec60f62d91ab07e19999a1eda913d10cc474b3006ae96a7912adb51d93c13f0203ff00000008030303030303030300000400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "contains_proof_mutated",
+      "tree_bytes_hex": "00dc640964ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100020e01020e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff02020300000008020202020202020203f8303bddebd7a262a1e85dffdd76cf6c51c134f477485b8b307e88e67a9e14c1000004fd",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": false
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "contains_bytes_key_32",
+      "tree_bytes_hex": "00dc640964215197cff0244d874639dab08e97913fa0b1979192b264a64f4f24f9ac132e7a02002000020e2002020202020202020202020202020202020202020202020202020202020202020e930103fbf12f7c13a9bd41c97bcb4073995069741012a975a254df1d2fc3519d9b7503020202020202020202020202020202020202020202020202020202020202020202030303030303030303030303030303030303030303030303030303030303030300000008020202020202020203752a2fcab8542e5360a9df7074ed5ff3f0f89938218370923775e6cbc35add0a00000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 19
+    }
+  ]
+}

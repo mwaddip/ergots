@@ -1,0 +1,350 @@
+{
+  "corpus": "eval_savltree_get_many",
+  "entries": [
+    {
+      "name": "get_many_all_present",
+      "tree_bytes_hex": "00dc640b64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100021a030101010201030e510385ab460a6564d1e5ded17716cd5866650d7fbb9cada7fecabd5fe21e2f80e43a02010200000008010101010101010100020300000008020202020202020202ff00000008030303030303030300000409",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "elem": {
+            "elem": {
+              "tag": "SByte"
+            },
+            "tag": "SColl"
+          },
+          "tag": "SOption"
+        },
+        "items": [
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "items": [
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                }
+              ],
+              "kind": "Coll"
+            }
+          },
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "items": [
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                },
+                {
+                  "kind": "Byte",
+                  "value": 2
+                }
+              ],
+              "kind": "Coll"
+            }
+          },
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "items": [
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                }
+              ],
+              "kind": "Coll"
+            }
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "get_many_mixed_2_of_3",
+      "tree_bytes_hex": "00dc640b64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100021a03010101aa01030e650385ab460a6564d1e5ded17716cd5866650d7fbb9cada7fecabd5fe21e2f80e43a0201020000000801010101010101010003bbec60f62d91ab07e19999a1eda913d10cc474b3006ae96a7912adb51d93c13f0203ff00000008030303030303030300000401",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "elem": {
+            "elem": {
+              "tag": "SByte"
+            },
+            "tag": "SColl"
+          },
+          "tag": "SOption"
+        },
+        "items": [
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "items": [
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                },
+                {
+                  "kind": "Byte",
+                  "value": 1
+                }
+              ],
+              "kind": "Coll"
+            }
+          },
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": null
+          },
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "items": [
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                },
+                {
+                  "kind": "Byte",
+                  "value": 3
+                }
+              ],
+              "kind": "Coll"
+            }
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 19
+    },
+    {
+      "name": "get_many_all_absent",
+      "tree_bytes_hex": "00dc640b64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02000100021a0301aa01bb01cc0e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff03bbec60f62d91ab07e19999a1eda913d10cc474b3006ae96a7912adb51d93c13f0203ff00000008030303030303030300000400",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "elem": {
+            "elem": {
+              "tag": "SByte"
+            },
+            "tag": "SColl"
+          },
+          "tag": "SOption"
+        },
+        "items": [
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": null
+          },
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": null
+          },
+          {
+            "elem": {
+              "elem": {
+                "tag": "SByte"
+              },
+              "tag": "SColl"
+            },
+            "kind": "Option",
+            "value": null
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 19
+    }
+  ]
+}
