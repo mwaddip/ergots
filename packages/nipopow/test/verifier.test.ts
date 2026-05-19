@@ -9,7 +9,7 @@ import { ProofParseError } from '../src/errors.ts';
 import type { NipopowProof } from '../src/proof.ts';
 import type { PoPowHeader } from '../src/popow-header.ts';
 import type { Header } from '../src/header.ts';
-import { hexToBytes } from './helpers.ts';
+import { hexToBytes, buildSyntheticProof as buildSyntheticProofRaw } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -125,71 +125,12 @@ describe('verifyProof: connection mutations throw invalid-connections', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Synthetic helpers for verifyParsedProof tests
-// (mirror of the pattern in connections.test.ts)
+//
+// Thin adapter over `buildSyntheticProofRaw` (in helpers.ts) preserving the
+// legacy positional-arg signature this file's tests use.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Deterministic id: byte 0 = i & 0xff, byte 1 = (i >>> 8) & 0xff, rest zeros. */
-function makeId(i: number): Uint8Array {
-  const out = new Uint8Array(32);
-  out[0] = i & 0xff;
-  out[1] = (i >>> 8) & 0xff;
-  return out;
-}
-
-/** Minimal Header with only id, parentId, and height set (others are inert here). */
-function makeSyntheticHeader(id: Uint8Array, parentId: Uint8Array, height: number): Header {
-  return {
-    version: 2,
-    id,
-    parentId,
-    adProofsRoot: new Uint8Array(32),
-    transactionRoot: new Uint8Array(32),
-    stateRoot: new Uint8Array(33),
-    timestamp: 0,
-    nBits: 0,
-    height,
-    extensionRoot: new Uint8Array(32),
-    autolykosSolution: {
-      minerPk: new Uint8Array(33),
-      powOnetimePk: null,
-      nonce: new Uint8Array(8),
-      powDistance: null,
-    },
-    votes: new Uint8Array(3),
-    unparsedBytes: new Uint8Array(0),
-  };
-}
-
-/** Minimal PoPowHeader with only header set (interlinks + proof are empty/vacuous). */
-function makePoPowHeader(id: Uint8Array, parentId: Uint8Array, height: number): PoPowHeader {
-  return {
-    header: makeSyntheticHeader(id, parentId, height),
-    interlinks: [],
-    interlinksProof: { indices: [], proofs: [] },
-  };
-}
-
-/**
- * Build a minimal NipopowProof from a list of prefix heights + a suffix-head height.
- * Each consecutive header has its parentId set to the previous header's id so that
- * hasValidConnections passes. Heights come from the caller (may be non-monotonic).
- */
 function buildSyntheticProof(prefixHeights: number[], suffixHeadHeight: number): NipopowProof {
-  // Assign sequential numeric ids starting from 1 so they are non-zero and distinct.
-  let nextId = 1;
-
-  const prefix: PoPowHeader[] = [];
-  let prevId = makeId(0); // genesis parent
-  for (const h of prefixHeights) {
-    const id = makeId(nextId++);
-    prefix.push(makePoPowHeader(id, prevId, h));
-    prevId = id;
-  }
-
-  const suffixHeadId = makeId(nextId++);
-  const suffixHead = makePoPowHeader(suffixHeadId, prevId, suffixHeadHeight);
-
-  return { m: 0, k: 0, prefix, suffixHead, suffixTail: [] };
+  return buildSyntheticProofRaw({ prefixHeights, suffixHeadHeight });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

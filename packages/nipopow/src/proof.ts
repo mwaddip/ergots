@@ -102,12 +102,21 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
 
   // k: VLQ u32 (plain unsigned)
   const k = readVlqU32(r, 'k');
+  // NIP-04: k=0 is invalid (k is the suffix-length parameter; facts/nipopow.md
+  // declares it as `> 0` type invariant).
+  if (k === 0) {
+    throw new ProofParseError('k must be > 0', 'invalid-k');
+  }
 
   // prefix_length: VLQ u32
   const prefixLen = readVlqU32(r, 'prefix_length');
   if (prefixLen > MAX_ELEMENTS) {
     throw new ProofParseError(`prefix_length ${prefixLen} exceeds sanity limit`, 'oversized');
   }
+  // Note (NIP-04 audit re-scope): sigma-rust accepts an empty prefix
+  // (`NipopowProof::scorex_parse` has no lower bound; `is_valid` does not check
+  // `prefix.is_empty()`). We mirror that to stay byte-compatible. The previous
+  // facts claim `prefix.length >= 1` was overstated; see facts/nipopow.md.
 
   // Parse prefix entries: each preceded by a VLQ u32 size prefix bounding the element.
   const prefix: PoPowHeader[] = [];
@@ -161,6 +170,11 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
   }
 
   // suffix_tail_length: VLQ u32 (explicit count, NOT k-1)
+  // Note (NIP-04 audit re-scope): the wire format stores the tail length
+  // explicitly; sigma-rust does NOT enforce `length == k - 1`. Real proofs
+  // generated in "anchor" mode have `length == 0` even when `k > 1` (see
+  // fixture `chain-64-m2-k2-anchor`). The previous facts claim
+  // `suffixTail.length === k - 1` was overstated; see facts/nipopow.md.
   const tailLen = readVlqU32(r, 'suffix_tail_length');
   if (tailLen > MAX_ELEMENTS) {
     throw new ProofParseError(`suffix_tail_length ${tailLen} exceeds sanity limit`, 'oversized');

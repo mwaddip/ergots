@@ -68,6 +68,40 @@ describe('parseProof error cases', () => {
   });
 
   // ───────────────────────────────────────────────────────────────────────────
+  // NIP-04 regression — parseProof must enforce all shape invariants
+  //
+  // facts/nipopow.md declares: m > 0 (NIP-03), k > 0, prefix.length >= 1,
+  // suffixTail.length === k - 1. Pre-fix parseProof read the wire fields
+  // without enforcing these invariants, allowing malformed proof objects
+  // to flow into the verifier and comparer (where they could trigger
+  // incorrect acceptance or — in the bestArg case — infinite loops).
+  // ───────────────────────────────────────────────────────────────────────────
+  test('NIP-04: parseProof rejects k=0 with invalid-k', () => {
+    const original = hexToBytes(fixtures[0]!.bytes_hex);
+    // Byte 0=m, byte 1=k; setting byte 1 to 0 makes k=0.
+    const tampered = new Uint8Array(original);
+    tampered[1] = 0;
+    try {
+      parseProof(tampered);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('invalid-k');
+    }
+  });
+
+  // Note (NIP-04 audit re-scope): the audit also recommended rejecting empty
+  // prefix and `suffixTail.length !== k - 1`. Source-read of sigma-rust
+  // confirmed those are NOT real invariants:
+  //   - `NipopowProof::scorex_parse` does not lower-bound prefix length.
+  //   - `is_valid` does not check `suffix_tail.len() == k - 1`.
+  //   - Fixture `chain-64-m2-k2-anchor` has k=2 with empty suffix_tail
+  //     (anchor-mode proofs). Enforcing the stricter invariant would reject
+  //     this legitimate sigma-rust-generated proof byte-for-byte.
+  // Accordingly we only enforce m > 0 (NIP-03) and k > 0 (NIP-04) at parse
+  // time. The over-claimed facts invariants are relaxed in facts/nipopow.md.
+
+  // ───────────────────────────────────────────────────────────────────────────
   // NIP-03 regression — parseProof must reject m=0
   //
   // m=0 is a shape invariant violation (m is the minimum superchain-length

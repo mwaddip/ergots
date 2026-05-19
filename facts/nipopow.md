@@ -38,7 +38,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 
 - **Precondition:** `bytes.length >= 1` and `bytes.length <= 2_000_000`. (The 2 MB cap mirrors JVM `SizeLimit`; envelope-level cap already enforced this if the caller went through the envelope codec.)
 - **Postcondition (success):** Returns a `NipopowProof` whose serialization is byte-identical to the input. See `Round-trip invariant` below.
-- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`, `trailing-bytes`, `invalid-m`). The function does NOT silently produce a partial proof, rejects any trailing bytes after the encoded suffix_tail (including inside the bounded PoPowHeader header/proof subreaders), and enforces shape invariant `m > 0` (NIP-03 — pre-fix `m === 0` caused `compareProofs.bestArg` to loop forever).
+- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`, `trailing-bytes`, `invalid-m`, `invalid-k`). The function does NOT silently produce a partial proof, rejects any trailing bytes after the encoded suffix_tail (including inside the bounded PoPowHeader header/proof subreaders), and enforces shape invariants `m > 0` (NIP-03 — pre-fix `m === 0` caused `compareProofs.bestArg` to loop forever) and `k > 0` (NIP-04 — matches sigma-rust's `NipopowProof::new` constructor's `k >= 1` requirement; sigma-rust's `scorex_parse` does NOT itself enforce this, so we enforce it here for safety).
 
 #### `serializeProof(proof)`
 
@@ -139,11 +139,20 @@ interface PoPowHeader {
 }
 
 interface NipopowProof {
-  m: number                    // build parameter, > 0
-  k: number                    // build parameter, > 0
-  prefix: PoPowHeader[]        // length >= 1; heights strictly increasing
+  m: number                    // build parameter, > 0 (parser enforced — NIP-03)
+  k: number                    // build parameter, > 0 (parser enforced — NIP-04)
+  prefix: PoPowHeader[]        // heights strictly increasing; sigma-rust does NOT
+                               // enforce a lower bound at parse, so empty prefix
+                               // is accepted byte-for-byte to match upstream
+                               // (legitimate provers always produce non-empty)
   suffixHead: PoPowHeader      // suffixHead.header.height > prefix[last].header.height
-  suffixTail: Header[]         // length == k - 1; heights strictly increasing from suffixHead.height + 1
+                               // (when prefix is non-empty)
+  suffixTail: Header[]         // wire-explicit length, heights strictly increasing
+                               // from suffixHead.height + 1; can be 0 ("anchor"
+                               // proofs) or k-1 ("tip" proofs). sigma-rust does
+                               // NOT enforce `length == k - 1`; the legitimate
+                               // anchor-mode proof in fixture chain-64-m2-k2-anchor
+                               // has k=2 with empty tail.
 }
 ```
 
