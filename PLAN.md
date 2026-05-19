@@ -1,570 +1,117 @@
-# Plan: Phase 2h-c.1 — SHeader runtime + 17 method handlers
+# Phase 2h-c.2 — `SHeader.checkPow` + Autolykos v2 Promotion Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Wire 17 new method-call handlers in `@ergots/ergoscript` (15 `SHeader.*` property accessors at typeId 104, methodIds 1-15 + 2 `SContext.*` additions: `headers` at 101:2 and `LastBlockUtxoRootHash` at 101:9). Add the `SValue.Header` runtime variant (`Header` type imported from `@ergots/scorex`). Promote SHeader SValue wire format from `'not-implemented-phase-2a'` to a V3-gated parse/serialize via a new `treeVersion: number` parameter threaded through `parseSValue`/`serializeSValue`. Add 1 new `EvalError` code (`'header-obj-not-header'`) and 2 new wire-layer error codes (`SValueParseError`/`SValueSerializeError 'sheader-tree-version-too-low'`). Add `EvalContext.headers?: Header[]`. Net regression target: zero — all 3388 existing tests must remain green.
-
-**Architecture:** Additive method-handler phase. Existing dispatcher (`eval/method-call.ts`) routes new entries with no structural changes. Wire-format unlock is a parameter threading change confined to ergoscript (no scorex API changes per brainstorm decision option B). `Header` runtime type is sourced from `@ergots/scorex` workspace dep (already declared during phase 2h-c.0). All 17 handlers follow **Pattern A** (cost charged BEFORE receiver inspection): 15 SHeader at Fixed(10), 2 SContext at Fixed(15). Per-handler cost values and projection semantics drawn from sigma-rust source-reads of `eval/sheader.rs`, `eval/scontext.rs`, `types/sheader.rs`, and `types/scontext.rs` against the pinned `integration/ergots` branch.
-
-**Tech Stack:** TypeScript + vitest (cross-runtime: node + jsdom). No new runtime deps. Workspace dep on `@ergots/scorex@0.1.0`.
-
-**Design spec:** `docs/specs/2026-05-19-ergoscript-phase-2h-c-1-sheader-design.md` (committed `a77f640` in this session).
-
----
-
-## OVERRIDES preamble for every subagent dispatched against this plan
-
-Every subagent implementing tasks below MUST receive this preamble (per `[[feedback-subagent-explicit-rules]]`):
-
-> **OVERRIDES rules (project-wide; override conflicting defaults):**
 >
-> - **Rule #2 — Confidence escalation:** if confidence on a byte-format detail, V3 gating placement, identity-point encoding, or cost-charging order drops below 95%, halt and declare. Read sigma-rust source first.
-> - **Rule #5 — Root-cause mandate:** no `try/catch` swallows, no retry loops, no flag-vars to skip broken logic. Fix the origin.
-> - **Rule #6 — Forced verification:** run `npx tsc --noEmit -p packages/ergoscript/tsconfig.json` AND `npx vitest run packages/ergoscript/` after every implementation step; FIX all errors before claiming done.
-> - **Rule #7 — Context decay:** after 10+ messages, re-read files before editing them.
-> - **Rule #8 — Edit integrity:** read-edit-read around every edit. Max 3 edits to the same file without a verification read between batches.
->
-> **TDD Iron Law:** no production code without a failing test first. Each handler gets its own red→green cycle backed by a sigma-rust-oracle fixture.
-> **Source-first discipline:** read `~/projects/ergots/external/sigma-rust/...` for any wire-format / eval semantics. Notes drift; source is authoritative.
-> **Browser-first hard rules** (CLAUDE.md): no `Buffer`, no `node:*`, no `process`, no WASM, no top-level await. ESM only.
+> **CRITICAL — pass to every implementer subagent verbatim:** [OVERRIDES rule #6 — verification commands must pass before claiming any task done; #2 — confidence < 95% on crypto → halt and declare; #5 — root-cause mandate, no band-aids; #7 — re-read files before editing after 10+ messages; #8 — read→edit→read, max 3 edits between verify reads]. Per `[[feedback-subagent-explicit-rules]]`, this is load-bearing.
+
+**Goal:** Wire `SHeader.checkPow` (typeId 104, methodId 16) into `@ergots/ergoscript`'s evaluator with V3-gating + Pattern A Fixed(700) cost, after promoting the Autolykos v2 PoW verifier (`autolykos-v2.ts`) and its nBits dependency from `@ergots/nipopow` into `@ergots/scorex`.
+
+**Architecture:** File-level migration moves Autolykos v2 + nBits + their tests into scorex with full nipopow-API mirror (no narrowing). Scorex gains one new typed error class `AutolykosV1NotSupportedError` replacing the current plain Error throw. Ergoscript's method-call dispatcher gains optional `minVersion?: number` field on registry entries — V<3 reject incurs receiver + envelope cost but NOT the 700 handler cost (sigma-rust-parity). New `EvalError 'autolykos-v1-not-supported'` code (46 → 47). Method registry grows 38 → 39.
+
+**Tech Stack:** TypeScript (workspace ESM), vitest (node + jsdom), Rust fixture-gen against pinned sigma-rust `integration/ergots` branch, `@noble/hashes@2.2.0` (already a dep; no new runtime deps).
+
+**Spec:** `docs/specs/2026-05-20-ergoscript-phase-2h-c-2-checkpow-design.md`. **Spec wins on any interface disagreement.**
 
 ---
 
-## Phase ordering
+## File structure
 
-Strict sequential — each phase depends on the previous landing cleanly:
+**Created:**
 
-1. **Phase 1** — `SValue.Header` discriminated-union variant + `EvalContext.headers?: Header[]` field; fix every exhaustive-switch site that TS surfaces.
-2. **Phase 2** — Wire-format V3-gated SHeader SValue parse + serialize. Adds `treeVersion: number` parameter to `parseSValue`/`serializeSValue`; threads it through every recursive call site; adds `'sheader-tree-version-too-low'` codes on both error classes.
-3. **Phase 3** — 15 `SHeader.*` method handlers + `'header-obj-not-header'` EvalError code. One handler per task (each its own red→green cycle, each backed by a fixture-gen oracle JSON).
-4. **Phase 4** — 2 `SContext.*` method handlers (`headers` + `lastBlockUtxoRootHash`). Same red→green per handler.
-5. **Phase 5** — V3 SHeader-constant wire-roundtrip fixtures (4-6) + mutation testing (~25-30 single-byte flips, ≥ 90% kill rate per fixture).
-6. **Phase 6** — Update `facts/ergoscript-eval.md`, `facts/ergoscript-wire.md`, `facts/ergoscript.md`. Final verification across all 4 packages.
+- `packages/scorex/src/autolykos-v2.ts` (moved from `packages/nipopow/src/autolykos-v2.ts`; throw replaced with typed class)
+- `packages/scorex/src/nbits.ts` (moved from `packages/nipopow/src/nbits.ts`; content unchanged)
+- `packages/scorex/test/autolykos-v2.test.ts` (moved from `packages/nipopow/test/autolykos-v2.test.ts`)
+- `packages/scorex/test/nbits.test.ts` (moved from `packages/nipopow/test/nbits.test.ts`)
+- `packages/ergoscript/test/eval/sheader-checkpow.test.ts` (NEW: oracle fixture test + parallel-pair cost-correctness tests + throw-path tests)
+- `packages/ergoscript/test/eval/sheader-checkpow-mutation.test.ts` (NEW: mutation tests, ≥90% kill rate)
+- `packages/ergoscript/test/fixtures/eval/sheader-checkpow.json` (NEW: emitted by fixture-gen, committed to repo)
+- `fixture-gen/src/ergoscript/sheader_checkpow.rs` (NEW: Rust module emitting the C1 oracle fixture)
 
-Per `[[feedback-no-artificial-stops]]`: drive Phase 1 → Phase 6 with per-task commits; only stop on verification failure or genuine surprise.
+**Modified:**
+
+- `packages/scorex/src/errors.ts` — add `AutolykosV1NotSupportedError` class
+- `packages/scorex/src/index.ts` — export Autolykos v2 + nBits surface + the new error class
+- `packages/scorex/src/autolykos-v2.ts` (post-move) — switch V1 throw from `Error` to `AutolykosV1NotSupportedError`; flip `@ergots/scorex` imports to relative paths
+- `packages/nipopow/src/verifier.ts` — flip `verifyAutolykosV2` import to `@ergots/scorex`
+- `packages/ergoscript/src/eval/method-call.ts` — wrap registry value type with `{ handler, minVersion? }`; update all 38 existing entries; dispatcher consults `minVersion` before invoking handler
+- `packages/ergoscript/src/eval/sheader.ts` — append `evalSHeaderCheckPow` handler export
+- `packages/ergoscript/src/eval/errors.ts` — add `'autolykos-v1-not-supported'` to the EvalError code union
+- `fixture-gen/src/main.rs` — call into the new `sheader_checkpow` module to emit the fixture
+- `fixture-gen/src/ergoscript/mod.rs` — register the new module
+- `facts/scorex.md` — flip Autolykos v2 from "Does NOT ship" to "Ships in v0.2.0"; add error class to Failure model; add 3 Source Mapping rows
+- `facts/ergoscript-eval.md` — +Phase 2h-c.2 changelog; +1 registry entry (39 total); +`'autolykos-v1-not-supported'` taxonomy entry (47 total); dispatcher `minVersion` documentation
+- `facts/ergoscript.md` — registry count 38→39; error count 46→47; test count refresh
+- `facts/nipopow.md` — remove Autolykos v2 from internal modules section; cross-ref scorex.md
+
+**Deleted (via git mv):**
+
+- `packages/nipopow/src/autolykos-v2.ts`
+- `packages/nipopow/src/nbits.ts`
+- `packages/nipopow/test/autolykos-v2.test.ts`
+- `packages/nipopow/test/nbits.test.ts`
 
 ---
 
-## Phase 1: `SValue.Header` variant + `EvalContext.headers` field
+## Phase 1 — Promote Autolykos v2 + nBits to `@ergots/scorex`
 
-### Task 1.1 — Add `SValue.Header` variant to the discriminated union
-
-**Files:**
-- Modify: `packages/ergoscript/src/mir/types.ts:823-841` (the `SValue` type definition)
-
-- [ ] **Step 1.1.1: Read the existing SValue union to confirm location and import section.**
-
-```bash
-sed -n '1,40p' /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
-sed -n '823,841p' /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
-```
-
-Confirm: `Header` type is NOT yet imported from `@ergots/scorex` at the top of the file (it will be after this step).
-
-- [ ] **Step 1.1.2: Add the `Header` import and `SValue.Header` variant.**
-
-At the top of `packages/ergoscript/src/mir/types.ts`, add (after the existing `@ergots/scorex` import block if one exists, otherwise add a new one):
-
-```ts
-import type { Header } from '@ergots/scorex'
-```
-
-Then insert the new variant into the `SValue` union immediately after the existing `PreHeader` variant (line 833). The block becomes:
-
-```ts
-export type SValue =
-  | { kind: 'Boolean'; value: boolean }
-  | { kind: 'Byte'; value: number }
-  | { kind: 'Short'; value: number }
-  | { kind: 'Int'; value: number }
-  | { kind: 'Long'; value: bigint }
-  | { kind: 'BigInt'; value: bigint }
-  | { kind: 'GroupElement'; value: Uint8Array }
-  | { kind: 'SigmaProp'; value: SigmaBoolean }
-  | { kind: 'Box'; value: ErgoBox }
-  | { kind: 'PreHeader'; value: PreHeader }
-  | { kind: 'Header'; value: Header }              // NEW phase 2h-c.1
-  | { kind: 'AvlTree'; value: AvlTreeData }
-  | { kind: 'Unit' }
-  | { kind: 'Context' }
-  | { kind: 'Global' }
-  | { kind: 'Coll'; elem: SType; items: SValue[] }
-  | { kind: 'Tuple'; items: SValue[] }
-  | { kind: 'Option'; elem: SType; value: SValue | null }
-  | { kind: 'Lambda'; closure: Closure }
-```
-
-- [ ] **Step 1.1.3: Run typecheck — expect a fresh set of exhaustiveness errors.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -50
-```
-
-Expected: multiple errors like `Type 'never' is not assignable to type 'SValue'` or `Argument of type '{ kind: "Header"; value: Header; }' is not assignable to parameter of type 'never'` at every exhaustive switch over `SValue.kind`. These are intentional — Phase 1 fixes them. Capture the file list:
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | grep -E "error TS" | grep -oE 'src/[^(]+' | sort -u
-```
-
-The file list output is the input to Task 1.2.
-
-### Task 1.2 — Fix every exhaustive-switch site that flagged
+### Task 1: `git mv` autolykos-v2.ts and nbits.ts into scorex; update internal imports
 
 **Files:**
-- Modify: every file from Task 1.1.3 output (typically 2-5 files; primary suspect is `packages/ergoscript/src/eval/svalue-equals.ts` or wherever `sValueEquals` lives; secondary suspects include `wire/serialize-svalue.ts`)
+- Move: `packages/nipopow/src/autolykos-v2.ts` → `packages/scorex/src/autolykos-v2.ts`
+- Move: `packages/nipopow/src/nbits.ts` → `packages/scorex/src/nbits.ts`
+- Modify: `packages/scorex/src/autolykos-v2.ts` (just-moved file — flip imports)
 
-- [ ] **Step 1.2.1: For each flagged file, locate the switch and add a `case 'Header':` arm.**
+- [ ] **Step 1: git mv the files (preserves git rename detection)**
 
-Pattern (mirroring the existing `case 'Box':` / `case 'AvlTree':` arms in `sValueEquals`):
+```bash
+git mv packages/nipopow/src/autolykos-v2.ts packages/scorex/src/autolykos-v2.ts
+git mv packages/nipopow/src/nbits.ts packages/scorex/src/nbits.ts
+```
+
+- [ ] **Step 2: Update internal imports in autolykos-v2.ts to avoid circular self-import**
+
+Open `packages/scorex/src/autolykos-v2.ts`. The current top imports look like:
 
 ```ts
-case 'Header':
-  throw new EvalError(
-    `sValueEquals: SValue.kind='Header' is not implemented yet`,
-    'not-implemented-yet'
-  )
+import { blake2b256 } from './crypto/blake2b256';
+import { decodeCompactBits } from './nbits';
+import { serializeHeaderWithoutPow } from '@ergots/scorex';
+import type { Header } from '@ergots/scorex';
 ```
 
-For `serialize-svalue.ts` (if flagged), the switch is over `SType.tag` and dispatches into `SValue.kind` — likely a defensive cross-check rather than a true exhaustive switch. Add the `'Header'` case mapping the `SValue.kind` to the `SType.SHeader` path: when `tpe.tag === 'SHeader'` and `v.kind !== 'Header'`, throw `'type-value-mismatch'` (existing code).
-
-- [ ] **Step 1.2.2: Verify typecheck clean after fixing all sites.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -10
-```
-
-Expected: zero errors. If any remain, repeat Task 1.2.1.
-
-- [ ] **Step 1.2.3: Run existing test suite to verify no semantic regression.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -20
-```
-
-Expected: 2810 tests pass (the existing ergoscript test count before this phase). If any test now fails, the most likely cause is an exhaustive-switch site that needs `case 'Header':` handling beyond a bare throw.
-
-### Task 1.3 — Add `EvalContext.headers?: Header[]` field
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/eval-context.ts`
-
-- [ ] **Step 1.3.1: Read the existing EvalOpts/EvalContext to confirm location of chain-state field declarations.**
-
-```bash
-grep -n "preHeader\?\|dataInputs\?\|EvalOpts\|EvalContext" /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/eval-context.ts | head -20
-```
-
-- [ ] **Step 1.3.2: Add the `headers?: Header[]` field and `Header` import.**
-
-Add to the imports section (at the top of `eval-context.ts`):
+Change the two `@ergots/scorex` imports to relative paths (inside scorex now):
 
 ```ts
-import type { Header } from '@ergots/scorex'
+import { blake2b256 } from './crypto/blake2b256';
+import { decodeCompactBits } from './nbits';
+import { serializeHeaderWithoutPow } from './header';
+import type { Header } from './header';
 ```
 
-Add to the `EvalOpts` interface alongside `preHeader?: PreHeader`, `dataInputs?: ErgoBox[]`, etc.:
+The `./crypto/blake2b256` and `./nbits` paths already resolve in scorex (no edits needed).
 
-```ts
-/** Block headers; sigma-rust uses fixed-size [Header; 10] — TS relaxes to variable length. */
-headers?: Header[]
-```
+- [ ] **Step 3: Run typecheck — must be clean for scorex; nipopow will fail (expected — verifier.ts still imports the deleted files, fixed in Task 5)**
 
-`EvalContext` inherits from `EvalOpts`, so no separate declaration there.
+Run: `npx tsc --noEmit -p packages/scorex/tsconfig.json`
+Expected: PASS (clean).
 
-- [ ] **Step 1.3.3: Verify typecheck clean.**
+Run: `npx tsc --noEmit -p packages/nipopow/tsconfig.json`
+Expected: FAIL with "Cannot find module './autolykos-v2'" or similar in `packages/nipopow/src/verifier.ts`. **This is expected and resolved in Task 5.**
+
+- [ ] **Step 4: Commit**
 
 ```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-```
-
-Expected: clean.
-
-### Task 1.4 — Commit Phase 1
-
-- [ ] **Step 1.4.1: Stage and commit.**
-
-```bash
-cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/mir/types.ts packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/src/eval/svalue-equals.ts packages/ergoscript/src/wire/serialize-svalue.ts
+git add packages/scorex/src/autolykos-v2.ts packages/scorex/src/nbits.ts
 git commit -m "$(cat <<'EOF'
-feat(ergoscript): add SValue.Header variant + EvalContext.headers field
-
-Phase 2h-c.1 Step 1. Additive type-level change: introduces the
-{ kind: 'Header'; value: Header } SValue variant (Header imported from
-@ergots/scorex) and the EvalOpts/EvalContext.headers?: Header[] chain-state
-field. Updates every exhaustive SValue.kind switch site to throw
-'not-implemented-yet' for the new variant (matches existing Box/AvlTree
-arms in sValueEquals). No semantic change to existing eval paths.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
-- [ ] **Step 1.4.2: Verify commit landed.**
-
-```bash
-git -C /home/mwaddip/projects/ergots log --oneline -2
-```
-
----
-
-## Phase 2: Wire-format V3-gated SHeader SValue parse + serialize
-
-This phase changes the signature of `parseSValue` / `serializeSValue` by adding a `treeVersion: number` parameter. Threading this through every recursive callsite is mechanical but easy to miss one — TS's exhaustive switch will catch missing forwards at compile time.
-
-### Task 2.1 — Add `'sheader-tree-version-too-low'` to wire-layer error codes
-
-**Files:**
-- Modify: `packages/ergoscript/src/wire/errors.ts` (or wherever `SValueParseError` / `SValueSerializeError` are declared)
-
-- [ ] **Step 2.1.1: Locate the error class declarations.**
-
-```bash
-grep -n "SValueParseError\|SValueSerializeError" /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/errors.ts
-```
-
-- [ ] **Step 2.1.2: Add `'sheader-tree-version-too-low'` to both unions.**
-
-For `SValueParseError`, add the code to the `code:` type union and any code-list comment:
-
-```ts
-| 'sheader-tree-version-too-low'   // SHeader SValue literal at tree-version < 3; mirrors sigma-rust data.rs:196 NotSupported
-```
-
-For `SValueSerializeError`, same code:
-
-```ts
-| 'sheader-tree-version-too-low'   // SHeader SValue value with tree-version < 3; mirrors sigma-rust data.rs:98 NotSupported
-```
-
-- [ ] **Step 2.1.3: Verify typecheck clean.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-```
-
-### Task 2.2 — Add `treeVersion` parameter to `parseSValue` signature
-
-**Files:**
-- Modify: `packages/ergoscript/src/wire/parse-svalue.ts`
-- Modify: every caller of `parseSValue` (locate via grep)
-
-- [ ] **Step 2.2.1: Find every caller of `parseSValue` in the codebase.**
-
-```bash
-rtk proxy grep -rn "parseSValue(" /home/mwaddip/projects/ergots/packages/ergoscript/src/ --include "*.ts"
-```
-
-Document the call sites: typically `parse-tree.ts` (envelope entry), recursive call sites inside `parse-svalue.ts` itself (`Coll`, `Tuple`, `Option` arms).
-
-- [ ] **Step 2.2.2: Change `parseSValue` signature.**
-
-Update `packages/ergoscript/src/wire/parse-svalue.ts`:
-
-```ts
-// Before:
-export function parseSValue(tpe: SType, r: ByteReader): SValue { ... }
-
-// After:
-export function parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue { ... }
-```
-
-Within `parseSValue`'s recursive call sites (Coll arm, Tuple arm, Option arm), forward `treeVersion`:
-
-```ts
-// Coll arm:
-items.push(parseSValue(elemTpe, treeVersion, r))
-
-// Tuple arm:
-items.push(parseSValue(itemTpe, treeVersion, r))
-
-// Option arm:
-const inner = parseSValue(elemTpe, treeVersion, r)
-```
-
-- [ ] **Step 2.2.3: Update every caller of `parseSValue`.**
-
-For each caller from Step 2.2.1, inject `treeVersion`:
-
-- `parse-tree.ts`: `treeVersion` is already available as `tree.header.version` (or wherever the parsed header is in scope at the time of constant-section parsing). Inject it into the constants-section loop call.
-
-```ts
-// In parseTree, where constants are parsed:
-const constValue = parseSValue(constType, header.version, r)
-```
-
-- [ ] **Step 2.2.4: Verify typecheck clean.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -10
-```
-
-Expected: clean. If any "expected 3 arguments, got 2" errors remain, fix the missed call site.
-
-### Task 2.3 — TDD red: V3 parse of SHeader SValue literal
-
-**Files:**
-- Create: `packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts`
-
-- [ ] **Step 2.3.1: Write the failing test.**
-
-```ts
-// packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts
-import { describe, expect, test } from 'vitest'
-import { parseSValue } from '../../src/wire/parse-svalue'
-import { ByteReader, parseHeader } from '@ergots/scorex'
-import type { SType } from '../../src/mir/types'
-
-// A real mainnet V2 header serialized for reuse — sourced from nipopow's fixtures.
-// Test setup: serialize one to bytes (using scorex's serializeHeader), then assert
-// parseSValue(SHeader, treeVersion=3, r) returns { kind: 'Header', value: <parsed> }.
-
-describe('parseSValue SHeader V3 gating', () => {
-  test('parses SHeader at tree-version 3', () => {
-    const headerBytes = loadHeaderFixtureBytes() // helper: returns Uint8Array of one full mainnet header
-    const r = new ByteReader(headerBytes)
-    const SHEADER: SType = { tag: 'SHeader' }
-
-    const v = parseSValue(SHEADER, 3, r)
-
-    expect(v.kind).toBe('Header')
-    expect((v as { kind: 'Header'; value: { id: Uint8Array } }).value.id).toBeInstanceOf(Uint8Array)
-    expect((v as { kind: 'Header'; value: { id: Uint8Array } }).value.id.length).toBe(32)
-  })
-
-  test('rejects SHeader at tree-version 2 with sheader-tree-version-too-low', () => {
-    const headerBytes = loadHeaderFixtureBytes()
-    const r = new ByteReader(headerBytes)
-    const SHEADER: SType = { tag: 'SHeader' }
-
-    expect(() => parseSValue(SHEADER, 2, r)).toThrowError(
-      expect.objectContaining({ code: 'sheader-tree-version-too-low' })
-    )
-  })
-})
-
-function loadHeaderFixtureBytes(): Uint8Array {
-  // Implementation: load from packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin
-  // The bytes are produced once by fixture-gen (Phase 5) and stored as a static binary fixture.
-  // For Task 2.3 (red), this returns a minimal placeholder buffer that will fail parseHeader
-  // — the test still verifies the signature/error-code path correctly.
-  throw new Error('TODO Task 2.4: replace with real header bytes loaded from disk')
-}
-```
-
-- [ ] **Step 2.3.2: Run the test — expect failure with "function not defined" or "TODO" message.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts 2>&1 | tail -20
-```
-
-Expected: FAIL. Most likely because the `SHeader` arm in `parseSValue` still throws `'not-implemented-phase-2a'`.
-
-### Task 2.4 — TDD green: implement the SHeader arm in `parseSValue`
-
-**Files:**
-- Modify: `packages/ergoscript/src/wire/parse-svalue.ts` (the SHeader arm)
-- Create: `packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin` (and a `.json` companion if useful)
-
-- [ ] **Step 2.4.1: Generate the test fixture header bytes.**
-
-Use scorex's `serializeHeader` to produce the binary from an existing test-side `Header` instance. Easiest path: pick a real mainnet header from `packages/nipopow/test/fixtures/headers/` (or load via nipopow's `parseHeader` and re-serialize) and copy the resulting bytes to `packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin`.
-
-```bash
-ls /home/mwaddip/projects/ergots/packages/nipopow/test/fixtures/headers/ | head
-```
-
-Identify one V2 header fixture; copy its raw `.bin` form into the ergoscript test fixtures directory.
-
-```bash
-mkdir -p /home/mwaddip/projects/ergots/packages/ergoscript/test/fixtures/headers
-cp /home/mwaddip/projects/ergots/packages/nipopow/test/fixtures/headers/<v2-header>.bin /home/mwaddip/projects/ergots/packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin
-```
-
-Update the `loadHeaderFixtureBytes()` helper in the test:
-
-```ts
-import fs from 'node:fs'
-function loadHeaderFixtureBytes(): Uint8Array {
-  // Note: fs is fine in tests (test runner is node); production code does NOT use it.
-  return new Uint8Array(fs.readFileSync('packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin'))
-}
-```
-
-- [ ] **Step 2.4.2: Replace the SHeader arm's `'not-implemented-phase-2a'` throw with V3-gated parsing.**
-
-In `parse-svalue.ts`, locate the existing SHeader arm (currently throws `'not-implemented-phase-2a'`) and replace with:
-
-```ts
-case 'SHeader': {
-  if (treeVersion < 3) {
-    throw new SValueParseError(
-      `SHeader SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
-      'sheader-tree-version-too-low'
-    )
-  }
-  const header = parseHeader(r)
-  return { kind: 'Header', value: header }
-}
-```
-
-Add the `parseHeader` import at the top of the file:
-
-```ts
-import { parseHeader } from '@ergots/scorex'
-```
-
-- [ ] **Step 2.4.3: Run the test — expect pass.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts 2>&1 | tail -10
-```
-
-Expected: both tests PASS.
-
-### Task 2.5 — TDD red/green: serialize side
-
-**Files:**
-- Modify: `packages/ergoscript/src/wire/serialize-svalue.ts`
-- Modify: `packages/ergoscript/src/wire/serialize.ts` (or wherever `serializeTree` lives) — thread `treeVersion` into the constants-section serialize loop
-- Create: `packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts`
-
-- [ ] **Step 2.5.1: Add the failing serialize test.**
-
-```ts
-// packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts
-import { describe, expect, test } from 'vitest'
-import { ByteReader, ByteWriter, parseHeader } from '@ergots/scorex'
-import { parseSValue } from '../../src/wire/parse-svalue'
-import { serializeSValue } from '../../src/wire/serialize-svalue'
-import type { SType, SValue } from '../../src/mir/types'
-import { loadHeaderFixtureBytes } from './_fixture-helpers'
-
-const SHEADER: SType = { tag: 'SHeader' }
-
-describe('serializeSValue SHeader V3 gating', () => {
-  test('serializes SHeader at tree-version 3 byte-equal to scorex serializeHeader', () => {
-    const headerBytes = loadHeaderFixtureBytes()
-    const v = parseSValue(SHEADER, 3, new ByteReader(headerBytes))
-
-    const w = new ByteWriter()
-    serializeSValue(SHEADER, v, 3, w)
-    expect(w.toBytes()).toEqual(headerBytes)
-  })
-
-  test('rejects SHeader at tree-version 2 with sheader-tree-version-too-low', () => {
-    const headerBytes = loadHeaderFixtureBytes()
-    const v = parseSValue(SHEADER, 3, new ByteReader(headerBytes))
-
-    const w = new ByteWriter()
-    expect(() => serializeSValue(SHEADER, v, 2, w)).toThrowError(
-      expect.objectContaining({ code: 'sheader-tree-version-too-low' })
-    )
-  })
-})
-```
-
-(Move the `loadHeaderFixtureBytes` helper into `_fixture-helpers.ts` and import in both parse + serialize tests to DRY.)
-
-- [ ] **Step 2.5.2: Run — expect failure.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts 2>&1 | tail -10
-```
-
-- [ ] **Step 2.5.3: Update `serializeSValue` signature + implement the SHeader arm.**
-
-```ts
-// Before:
-export function serializeSValue(tpe: SType, v: SValue, w: ByteWriter): void { ... }
-
-// After:
-export function serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void { ... }
-```
-
-Within the function, forward `treeVersion` to every recursive call site (Coll, Tuple, Option arms). For the SHeader arm:
-
-```ts
-case 'SHeader': {
-  if (treeVersion < 3) {
-    throw new SValueSerializeError(
-      `SHeader SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
-      'sheader-tree-version-too-low'
-    )
-  }
-  if (v.kind !== 'Header') {
-    throw new SValueSerializeError(
-      `serializeSValue(SHeader, ...): value kind '${v.kind}' does not match SHeader`,
-      'type-value-mismatch'
-    )
-  }
-  const bytes = serializeHeader(v.value)
-  w.writeBytes(bytes)
-  break
-}
-```
-
-Add the import:
-
-```ts
-import { serializeHeader } from '@ergots/scorex'
-```
-
-- [ ] **Step 2.5.4: Find and update every caller of `serializeSValue`.**
-
-```bash
-rtk proxy grep -rn "serializeSValue(" /home/mwaddip/projects/ergots/packages/ergoscript/src/ --include "*.ts"
-```
-
-Update each caller (primary: `serialize-tree.ts` constants-section loop) to inject `treeVersion`:
-
-```ts
-// In serializeTree, where constants are serialized:
-serializeSValue(constType, constValue, tree.header.version, w)
-```
-
-- [ ] **Step 2.5.5: Run serialize test — expect pass.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts 2>&1 | tail -10
-```
-
-Expected: both serialize tests PASS.
-
-### Task 2.6 — Verify Phase 2 + commit
-
-- [ ] **Step 2.6.1: Full typecheck + test suite.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
-```
-
-Expected: typecheck clean; **2810 + 4 (new V3 gating tests) = 2814 tests pass**, no regressions.
-
-- [ ] **Step 2.6.2: Commit Phase 2.**
-
-```bash
-cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/wire/parse-svalue.ts packages/ergoscript/src/wire/serialize-svalue.ts packages/ergoscript/src/wire/errors.ts packages/ergoscript/src/wire/parse.ts packages/ergoscript/src/wire/serialize.ts packages/ergoscript/test/wire/
-git add packages/ergoscript/test/fixtures/headers/
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): V3-gated SHeader SValue wire format
-
-Phase 2h-c.1 Step 2. Replaces the 'not-implemented-phase-2a' throw for
-SHeader SValue parse + serialize with a V3-gated implementation delegating
-to @ergots/scorex's parseHeader / serializeHeader. Mirrors sigma-rust
-ergotree-ir/src/serialization/data.rs:196 (parse) and :98 (serialize).
-
-Signature change: parseSValue and serializeSValue gain a treeVersion: number
-parameter that threads through every recursive callsite (Coll, Tuple, Option
-arms). parseTree and serializeTree inject treeVersion from tree.header.version.
-
-Adds 'sheader-tree-version-too-low' code to both SValueParseError and
-SValueSerializeError code unions. Drops SHeader from the
-'not-implemented-phase-2a' emitting set in both error classes.
-
-Tests: 4 new (parse + serialize, V3 success + V<3 rejection). Fixture
-header-v2-mainnet.bin sourced from nipopow's fixture corpus.
+refactor(scorex): move autolykos-v2.ts + nbits.ts from nipopow
+
+Mechanical move of the Autolykos v2 PoW verifier and decodeCompactBits
+helper from @ergots/nipopow into @ergots/scorex (phase 2h-c.2). Internal
+imports flipped from @ergots/scorex to relative paths to avoid circular
+self-import inside scorex.
+
+Existing internal paths (./crypto/blake2b256, ./nbits) already resolve.
+nipopow consumer (verifier.ts) is updated in a follow-up commit.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -573,687 +120,629 @@ EOF
 
 ---
 
-## Phase 3: 15 SHeader method handlers
-
-The 15 handlers are isomorphic by structure: each follows Pattern A Fixed(10), defensive `obj.kind === 'Header'` check via `assertHeaderObj(obj)`, and projects a single Header field into the appropriate SValue. Implementation lives in a new `eval/sheader.ts` module (mirrors the `eval/savltree.ts` pattern from phase 2h-b).
-
-### Task 3.1 — Add `'header-obj-not-header'` EvalError code
+### Task 2: Add `AutolykosV1NotSupportedError` class in scorex; switch the V1 throw
 
 **Files:**
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (or wherever `EvalError.code` type union lives)
+- Modify: `packages/scorex/src/errors.ts`
+- Modify: `packages/scorex/src/autolykos-v2.ts`
 
-- [ ] **Step 3.1.1: Locate the `EvalError` code union.**
+- [ ] **Step 1: Append the new class to errors.ts**
 
-```bash
-grep -n "EvalErrorCode\|'avl-tree-obj-not-avl-tree'\|'context-obj-not-context'" /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/eval-context.ts
-```
-
-- [ ] **Step 3.1.2: Add the new code.**
-
-Insert `'header-obj-not-header'` into the `EvalErrorCode` type union (alphabetical placement preferred; adjacent to `'avl-tree-obj-not-avl-tree'` works):
+Open `packages/scorex/src/errors.ts`. Below the existing `ReaderError` export, append:
 
 ```ts
-| 'header-obj-not-header'      // SHeader.* handlers: obj is not an SValue.Header
-```
-
-- [ ] **Step 3.1.3: Verify typecheck clean.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-```
-
-### Task 3.2 — Create `eval/sheader.ts` skeleton + `assertHeaderObj` helper
-
-**Files:**
-- Create: `packages/ergoscript/src/eval/sheader.ts`
-
-- [ ] **Step 3.2.1: Write the skeleton file.**
-
-```ts
-// packages/ergoscript/src/eval/sheader.ts
 /**
- * SHeader method handlers — 15 property accessors (typeId 104, methodIds 1-15).
+ * Thrown by verifyAutolykosV2 when called on a v1 (Autolykos v1) header.
  *
- * All handlers follow Pattern A Fixed(10): ctx.addCost(10) → assertHeaderObj(obj)
- * → project a Header field into an SValue.
- *
- * Source: ergotree-interpreter/src/eval/sheader.rs at sigma-rust integration/ergots branch.
- * Per-method line refs in each handler's doc-comment.
- *
- * Error codes originated here:
- *   'header-obj-not-header'    — defensive receiver check; thrown by all 15 handlers
- *                                 when obj.kind !== 'Header'. Wire-format invariants
- *                                 make this unreachable for parser-produced trees.
+ * Autolykos v1 verification is not implemented — sigma-rust itself returns
+ * Err(AutolykosPowSchemeError::Unsupported) for v1 headers
+ * (autolykos_pow_scheme.rs:322-324). Real Ergo nodes (incl. ergo-node-rust)
+ * skip v1 PoW verification structurally; this throw exists for callers that
+ * mistakenly hand a v1 Header to verifyAutolykosV2 directly.
  */
-
-import type { Header } from '@ergots/scorex'
-import { EvalError, type EvalContext } from './eval-context'
-import { bytesToCollByteSValue } from './_byte-coll'
-import type { SValue } from '../mir/types'
-
-/** Defensive receiver check shared by all 15 SHeader handlers. */
-function assertHeaderObj(obj: SValue, methodName: string): asserts obj is SValue & { kind: 'Header' } {
-  if (obj.kind !== 'Header') {
-    throw new EvalError(
-      `SHeader.${methodName} expects a Header obj; got '${obj.kind}'`,
-      'header-obj-not-header'
-    )
+export class AutolykosV1NotSupportedError extends Error {
+  readonly code = 'autolykos-v1-not-supported' as const;
+  constructor(message?: string) {
+    super(message ?? 'Autolykos v1 PoW verification is not implemented');
+    this.name = 'AutolykosV1NotSupportedError';
   }
 }
-
-// 15 handler exports — one per Header property. Each charges Fixed(10) BEFORE the obj check.
-// Handlers are added in Tasks 3.3 through 3.17 (one task per handler).
 ```
 
-- [ ] **Step 3.2.2: Verify typecheck clean (no handler implementations yet).**
+- [ ] **Step 2: Update verifyAutolykosV2 to throw the typed class**
+
+Open `packages/scorex/src/autolykos-v2.ts`. Find the v1 throw block (around line 252-254):
+
+```ts
+  if (header.version === 1) {
+    throw new Error('verifyAutolykosV2: Autolykos v1 is not supported');
+  }
+```
+
+Replace with:
+
+```ts
+  if (header.version === 1) {
+    throw new AutolykosV1NotSupportedError(
+      'verifyAutolykosV2: Autolykos v1 is not supported',
+    );
+  }
+```
+
+Add the import near the top of the file (just below the existing relative imports added in Task 1):
+
+```ts
+import { AutolykosV1NotSupportedError } from './errors';
+```
+
+- [ ] **Step 3: Run scorex typecheck — must be clean**
+
+Run: `npx tsc --noEmit -p packages/scorex/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 4: Commit**
 
 ```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+git add packages/scorex/src/errors.ts packages/scorex/src/autolykos-v2.ts
+git commit -m "$(cat <<'EOF'
+feat(scorex): add AutolykosV1NotSupportedError typed class
+
+verifyAutolykosV2 now throws a typed error class on v1 headers instead
+of a plain Error. Callers can dispatch via instanceof — used in the
+forthcoming SHeader.checkPow ergoscript handler to convert to typed
+EvalError without fragile message-substring matching.
+
+Existing nipopow callers catching plain Error are byte-unaffected
+(the typed class extends Error).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
 
-### Task 3.3 — Implement `SHeader.id` (104:1)
+---
+
+### Task 3: Export Autolykos v2 + nBits + the error class from scorex's index.ts
 
 **Files:**
-- Modify: `packages/ergoscript/src/eval/sheader.ts` (add handler export)
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (register handler)
-- Create: `packages/ergoscript/test/fixtures/eval/sheader-id.json` (oracle fixture)
-- Create: `packages/ergoscript/test/eval/sheader-handlers.test.ts` (first test entry)
+- Modify: `packages/scorex/src/index.ts`
 
-- [ ] **Step 3.3.1: Generate the oracle fixture using fixture-gen.**
+- [ ] **Step 1: Append exports**
 
-The fixture-gen Rust side produces `{ exprBytes (hex), expectedValue (JSON), expectedJitCost (number) }` for each handler call. For `SHeader.id`, the Rust setup is:
+Open `packages/scorex/src/index.ts`. After the existing `Header` exports block (line 32), append:
+
+```ts
+export {
+  calcBigN,
+  autolykosMessage,
+  buildAutolykosSeed,
+  genIndexes,
+  hashElement,
+  verifyAutolykosV2,
+} from './autolykos-v2.ts';
+export { decodeCompactBits } from './nbits.ts';
+export { AutolykosV1NotSupportedError } from './errors.ts';
+```
+
+(Note the `.ts` extensions — this is the existing index.ts convention; see lines 3-32 for prior examples.)
+
+- [ ] **Step 2: Run scorex typecheck — must be clean**
+
+Run: `npx tsc --noEmit -p packages/scorex/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/scorex/src/index.ts
+git commit -m "$(cat <<'EOF'
+feat(scorex): export Autolykos v2 + nBits + AutolykosV1NotSupportedError
+
+Public surface for v0.2.0 mirrors the previous @ergots/nipopow
+exports of the Autolykos v2 verifier. Callers that previously
+imported these from @ergots/nipopow now import from @ergots/scorex.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 4: `git mv` autolykos-v2.test.ts and nbits.test.ts into scorex/test/
+
+**Files:**
+- Move: `packages/nipopow/test/autolykos-v2.test.ts` → `packages/scorex/test/autolykos-v2.test.ts`
+- Move: `packages/nipopow/test/nbits.test.ts` → `packages/scorex/test/nbits.test.ts`
+
+- [ ] **Step 1: git mv the test files**
+
+```bash
+git mv packages/nipopow/test/autolykos-v2.test.ts packages/scorex/test/autolykos-v2.test.ts
+git mv packages/nipopow/test/nbits.test.ts packages/scorex/test/nbits.test.ts
+```
+
+- [ ] **Step 2: Inspect imports in the moved test files**
+
+The moved tests likely import like:
+
+```ts
+import { verifyAutolykosV2 } from '../src/autolykos-v2';
+import { decodeCompactBits } from '../src/nbits';
+```
+
+These relative paths still resolve inside scorex's test/ → src/ structure. **No path edits needed.**
+
+If a test file imports from `@ergots/scorex` (for `Header`), that also still works as a same-package import.
+
+If a test file imports test helpers from `./helpers` or similar, confirm a `packages/scorex/test/helpers.ts` exists (it does — see orientation `ls` output). If the moved test needs a function not present in scorex's helpers, copy it across in this task.
+
+- [ ] **Step 3: Run scorex tests — must pass**
+
+Run: `npx vitest run packages/scorex/`
+Expected: existing scorex tests pass + new (moved) autolykos-v2 and nbits tests pass.
+
+If a test fails with "AutolykosV1NotSupportedError" related issues (the typed error class is new from Task 2), inspect the test — does it assert `throw new Error(...)` or `instanceof Error`? Update the assertion to match the new typed class behavior. **The class extends Error, so `instanceof Error` continues to pass; only message-substring assertions on the old plain Error message would need updating.**
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/scorex/test/autolykos-v2.test.ts packages/scorex/test/nbits.test.ts
+git commit -m "$(cat <<'EOF'
+test(scorex): move autolykos-v2 + nbits tests from nipopow
+
+Move the existing test files alongside their source. Relative imports
+(../src/autolykos-v2 and ../src/nbits) still resolve inside scorex.
+No test logic changes.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 5: Flip nipopow's verifier.ts to import from `@ergots/scorex`
+
+**Files:**
+- Modify: `packages/nipopow/src/verifier.ts` (and any other internal consumer)
+
+- [ ] **Step 1: Find the nipopow consumers**
+
+Run: `grep -rn "from '\./autolykos-v2\|from '\./nbits\|from '\.\./autolykos-v2\|from '\.\./nbits" packages/nipopow/src/`
+Expected: one or more matches inside `packages/nipopow/src/verifier.ts` (and possibly other internal files).
+
+- [ ] **Step 2: Update import paths to `@ergots/scorex`**
+
+For each match, update the import path from a relative path to `@ergots/scorex`. For example, if `verifier.ts` has:
+
+```ts
+import { verifyAutolykosV2 } from './autolykos-v2';
+import { decodeCompactBits } from './nbits';
+```
+
+Replace with:
+
+```ts
+import { verifyAutolykosV2, decodeCompactBits } from '@ergots/scorex';
+```
+
+- [ ] **Step 3: Run nipopow typecheck — must be clean**
+
+Run: `npx tsc --noEmit -p packages/nipopow/tsconfig.json`
+Expected: PASS (the import-path failure from Task 1 Step 3 is now resolved).
+
+- [ ] **Step 4: Run nipopow tests — must pass**
+
+Run: `npx vitest run packages/nipopow/`
+Expected: existing nipopow tests pass.
+
+- [ ] **Step 5: Verify no orphan files remain in nipopow**
+
+Run: `ls packages/nipopow/src/autolykos-v2.ts packages/nipopow/src/nbits.ts packages/nipopow/test/autolykos-v2.test.ts packages/nipopow/test/nbits.test.ts 2>&1 | head -5`
+Expected: all four files report "No such file or directory" (git mv from Tasks 1 and 4 already removed them).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/nipopow/src/verifier.ts
+git commit -m "$(cat <<'EOF'
+refactor(nipopow): consume Autolykos v2 + nBits from @ergots/scorex
+
+After the phase 2h-c.2 promotion, verifyAutolykosV2 and decodeCompactBits
+live in @ergots/scorex. This commit flips nipopow's verifier.ts import
+to the scorex public surface.
+
+No behavior change. Co-package workspace dep already present.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 6: Phase 1 verification — all packages green
+
+- [ ] **Step 1: Run all typechecks**
+
+Run: `npx tsc --noEmit -p packages/scorex/tsconfig.json && npx tsc --noEmit -p packages/nipopow/tsconfig.json && npx tsc --noEmit -p packages/avltree/tsconfig.json && npx tsc --noEmit -p packages/ergoscript/tsconfig.json`
+Expected: all four PASS.
+
+- [ ] **Step 2: Run all tests under node**
+
+Run: `npx vitest run packages/`
+Expected: 3435 tests pass (baseline preserved; migration is zero-delta).
+
+- [ ] **Step 3: Run cross-runtime (jsdom) for the affected packages**
+
+Run: `cd packages/scorex && npx vitest run --config vitest.browser.config.ts && cd ../nipopow && npx vitest run --config vitest.browser.config.ts && cd ../..`
+Expected: PASS for both.
+
+- [ ] **Step 4: Verify git status is clean (modulo gitignored)**
+
+Run: `git status`
+Expected: working tree clean.
+
+**No commit on this task — verification only.**
+
+---
+
+## Phase 2 — Dispatcher upgrade for `minVersion` gating
+
+### Task 7: Refactor `HANDLERS` registry value to `{ handler, minVersion? }`; add dispatcher check
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/method-call.ts`
+
+- [ ] **Step 1: Re-read method-call.ts to find all `HANDLERS.set(` callsites**
+
+Run: `grep -n "HANDLERS.set\|HANDLERS = new\|HANDLERS:" packages/ergoscript/src/eval/method-call.ts`
+Expected: ~38 `HANDLERS.set` lines (current registry size from 2h-c.1) plus the type declaration.
+
+- [ ] **Step 2: Update the registry type to wrap handler in an entry object**
+
+Locate the `HANDLERS` declaration (search for `HANDLERS = new Map` or `const HANDLERS:`). Currently it looks something like:
+
+```ts
+type HandlerFn = (obj: SValue, args: SValue[], ctx: EvalContext, explicitTypeArgs?: SType[]) => SValue
+const HANDLERS = new Map<string, HandlerFn>()
+```
+
+Replace with:
+
+```ts
+type HandlerFn = (obj: SValue, args: SValue[], ctx: EvalContext, explicitTypeArgs?: SType[]) => SValue
+
+interface HandlerEntry {
+  handler: HandlerFn
+  minVersion?: number  // optional ErgoTreeVersion gate; undefined = always callable
+}
+
+const HANDLERS = new Map<string, HandlerEntry>()
+```
+
+- [ ] **Step 3: Update all 38 existing HANDLERS.set callsites to wrap the function in `{ handler: ... }`**
+
+For each line of the form:
+
+```ts
+HANDLERS.set(handlerKey(X, Y), (obj, args, ctx) => { ... })
+```
+
+Wrap with:
+
+```ts
+HANDLERS.set(handlerKey(X, Y), { handler: (obj, args, ctx) => { ... } })
+```
+
+Same for the forwarding entries like:
+
+```ts
+HANDLERS.set(handlerKey(100, 1), (obj, args, ctx) => evalSAvlTreeDigest(obj, ...))
+```
+
+becomes:
+
+```ts
+HANDLERS.set(handlerKey(100, 1), { handler: (obj, args, ctx) => evalSAvlTreeDigest(obj, ...) })
+```
+
+**Mechanical edit; do not change handler bodies.** Re-read the file after editing in batches of ~10 entries to catch any malformed wrapping (per OVERRIDES rule #8).
+
+- [ ] **Step 4: Update the dispatcher to consult `entry.minVersion` before invoking the handler**
+
+Locate the dispatcher invocation point (search for `entry(` or `handler(` near a registry lookup). The current dispatch path looks something like:
+
+```ts
+const entry = HANDLERS.get(key)
+if (entry === undefined) {
+  throw new EvalError('method-not-implemented', `unknown method ${typeId}:${methodId}`)
+}
+return entry(obj, args, ctx, explicitTypeArgs)
+```
+
+Replace with:
+
+```ts
+const entry = HANDLERS.get(key)
+if (entry === undefined) {
+  throw new EvalError('method-not-implemented', `unknown method ${typeId}:${methodId}`)
+}
+if (entry.minVersion !== undefined && (ctx.treeVersion ?? 0) < entry.minVersion) {
+  throw new EvalError(
+    'tree-version-too-low',
+    `method ${typeId}:${methodId} requires tree version >= ${entry.minVersion}, got ${ctx.treeVersion ?? 0}`,
+  )
+}
+return entry.handler(obj, args, ctx, explicitTypeArgs)
+```
+
+The `ctx.treeVersion ?? 0` default-to-V0 mirrors the existing convention in `eval/upcast.ts` and `eval/downcast.ts` (see `facts/ergoscript-eval.md` Phase 2e changelog).
+
+- [ ] **Step 5: Run ergoscript typecheck — must be clean**
+
+Run: `npx tsc --noEmit -p packages/ergoscript/tsconfig.json`
+Expected: PASS. If a HANDLERS.set callsite was wrapped incorrectly, this catches it.
+
+- [ ] **Step 6: Run ergoscript tests — all existing tests must still pass (no regression)**
+
+Run: `npx vitest run packages/ergoscript/`
+Expected: 2857 tests pass (baseline preserved).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/method-call.ts
+git commit -m "$(cat <<'EOF'
+refactor(ergoscript): wrap HANDLERS registry value with optional minVersion
+
+Method-call dispatcher gains minVersion?: number field on registry
+entries. When set, the dispatcher throws EvalError('tree-version-too-low')
+if ctx.treeVersion < entry.minVersion, BEFORE invoking the handler
+(so handler-cost is not charged on V<N reject — sigma-rust-parity).
+
+All 38 existing entries wrapped mechanically; no minVersion-gated
+entries yet (added by the SHeader.checkPow handler in a follow-up commit).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Phase 3 — Fixture-gen Rust-side oracle module
+
+### Task 8: Write the Rust fixture-gen module for `SHeader.checkPow`
+
+**Files:**
+- Create: `fixture-gen/src/ergoscript/sheader_checkpow.rs`
+- Modify: `fixture-gen/src/ergoscript/mod.rs` (register the new submodule)
+- Modify: `fixture-gen/src/main.rs` — call into the new module to emit the fixture
+
+- [ ] **Step 1: Re-read the existing 2h-c.1 sheader-handlers fixture-gen module as a template**
+
+Run: `cat fixture-gen/src/ergoscript/sheader_handlers.rs | head -100`
+
+The existing module shows the pattern: load a mainnet header, construct an Expr via `PropertyCall(...)`, run sigma-rust's `try_eval_out` oracle, emit JSON. The new `sheader_checkpow.rs` follows the same shape but the target Expr is `MethodCall(headers[0], SHeader.checkPow)`.
+
+- [ ] **Step 2: Create the fixture-gen module**
+
+Create `fixture-gen/src/ergoscript/sheader_checkpow.rs`:
 
 ```rust
-// fixture-gen/src/sheader_handlers.rs (NEW)
-use ergotree_ir::mir::{coll_by_index::ByIndex, expr::Expr, property_call::PropertyCall};
-use ergotree_ir::types::{scontext::HEADERS_PROPERTY, sheader::ID_PROPERTY};
-// ... build PropertyCall(ByIndex(PropertyCall(Context, headers), 0), ID_PROPERTY)
-//     run try_eval_out with a mainnet header in ctx.headers[0]
-//     emit JSON fixture
+//! SHeader.checkPow oracle fixture for ergots phase 2h-c.2.
+//!
+//! Emits one fixture: a V3 ErgoTree calling
+//!   MethodCall(ByIndex(PropertyCall(Context, SContext.headers), 0), SHeader.checkPow)
+//! against a real mainnet V2 header. Also emits a V1 header hex (consumed
+//! by the TS test's V1-header throw path).
+//!
+//! Imports follow the pattern established in `sheader_handlers.rs`. The
+//! checkPow SMethod descriptor lives in ergotree-ir/src/types/sheader.rs —
+//! grep that file for `CHECK_POW` symbol name and adopt it.
+
+// (Import block: mirror sheader_handlers.rs imports, plus whatever's needed
+//  for MethodCall construction. Re-read sheader_handlers.rs for exact symbol
+//  names and add what's missing.)
+
+pub fn generate() -> anyhow::Result<serde_json::Value> {
+    // 1. Load V2 + V1 mainnet headers. Reuse the helper from
+    //    sheader_handlers.rs if present (e.g., load_mainnet_header_v2()).
+    //    For V1: load a header with version == 1 from
+    //    packages/nipopow/test/fixtures/headers/ (grep that dir for a
+    //    fixture file whose deserialized version field is 1).
+    let v2_header = load_v2_header()?;
+    let v1_header = load_v1_header()?;
+
+    // 2. Build the Expr matching sheader_handlers.rs's PropertyCall pattern,
+    //    but with the outermost node = MethodCall(SHeader.CHECK_POW, args=[]).
+    //    The receiver is identical to the 15 SHeader accessor fixtures:
+    //      ByIndex(PropertyCall(Context, SContext::HEADERS), Const(SInt, 0))
+    let expr = build_checkpow_expr()?;
+
+    // 3. Serialize Expr to bytes (sigma-rust's serializer, same as
+    //    sheader_handlers.rs).
+    let expr_bytes = serialize_expr(&expr)?;
+
+    // 4. Build sigma-rust Context with headers[0] = v2_header.
+    let ctx = build_context_with_header(&v2_header)?;
+
+    // 5. Run try_eval_out::<bool>(&expr, &ctx).
+    let (value, jit_cost) = try_eval_out::<bool>(&expr, &ctx)?;
+
+    // 6. Emit JSON with both header hex strings.
+    Ok(serde_json::json!({
+        "name": "sheader-checkpow",
+        "exprBytes": hex::encode(expr_bytes),
+        "expectedValue": value,           // true for a real mainnet V2 header
+        "expectedJitCost": jit_cost,
+        "headerHexBytes": hex::encode(serialize_header(&v2_header)?),
+        "headerVersion": v2_header.version,
+        "headerHeight": v2_header.height,
+        "v1HeaderHexBytes": hex::encode(serialize_header(&v1_header)?),
+        "v1HeaderVersion": v1_header.version,
+        "v1HeaderHeight": v1_header.height,
+    }))
+}
 ```
 
-Write the Rust generator following the pattern of the existing SAvlTree fixture-gen module (`fixture-gen/src/savltree_handlers.rs` or similar). Run:
+**Symbol-name lookup:** if `SHeader.CHECK_POW` or `load_v2_header` / `load_v1_header` helper names differ in the actual `sheader_handlers.rs`, adopt the existing names there. Per OVERRIDES rule #2, if the sigma-rust API symbol for `SHeader.checkPow` is unclear after grepping `ergotree-ir/src/types/sheader.rs`, halt and escalate.
+
+- [ ] **Step 3: Register the submodule**
+
+Open `fixture-gen/src/ergoscript/mod.rs`. Add:
+
+```rust
+pub mod sheader_checkpow;
+```
+
+- [ ] **Step 4: Wire into main.rs**
+
+Open `fixture-gen/src/main.rs`. Find the existing line:
+
+```rust
+write_ergoscript_json("eval/sheader-handlers.json", &sheader_handlers_fixture)?;
+```
+
+Below it, add:
+
+```rust
+// Phase 2h-c.2 — SHeader.checkPow oracle fixture
+let sheader_checkpow_fixture = crate::ergoscript::sheader_checkpow::generate()?;
+write_ergoscript_json("eval/sheader-checkpow.json", &sheader_checkpow_fixture)?;
+```
+
+- [ ] **Step 5: Build fixture-gen**
+
+Run: `cd fixture-gen && cargo build --release`
+Expected: PASS once Step 2's `todo!()` is replaced with the real implementation.
+
+- [ ] **Step 6: Run fixture-gen — emit the fixture**
+
+Run: `cd fixture-gen && cargo run --release`
+Expected: a new file at `packages/ergoscript/test/fixtures/eval/sheader-checkpow.json` containing the oracle output.
+
+Inspect the emitted file:
 
 ```bash
-cd /home/mwaddip/projects/ergots/fixture-gen && cargo run --release 2>&1 | tail -5
+head -20 packages/ergoscript/test/fixtures/eval/sheader-checkpow.json
 ```
 
-Verify the fixture lands at `packages/ergoscript/test/fixtures/eval/sheader-id.json`.
+Expected fields: `name`, `exprBytes`, `expectedValue: true`, `expectedJitCost: <integer>`, `headerHexBytes`, `headerVersion: 2`, `headerHeight: <int>`.
 
-- [ ] **Step 3.3.2: Write the failing test.**
+- [ ] **Step 7: Determinism check**
+
+Run: `cd fixture-gen && cargo run --release && cd ..`
+Run: `git diff packages/ergoscript/test/fixtures/eval/sheader-checkpow.json`
+Expected: no diff (deterministic regeneration).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add fixture-gen/src/ergoscript/sheader_checkpow.rs fixture-gen/src/ergoscript/mod.rs fixture-gen/src/main.rs packages/ergoscript/test/fixtures/eval/sheader-checkpow.json
+git commit -m "$(cat <<'EOF'
+test(fixture-gen): SHeader.checkPow oracle fixture
+
+Generates one fixture asserting MethodCall(headers[0], SHeader.checkPow)
+on a real V2 mainnet header returns true with sigma-rust's recorded
+jit_cost. Phase 2h-c.2 — pinned at sigma-rust integration/ergots.
+
+Determinism: cargo run twice produces byte-identical output.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Phase 4 — `SHeader.checkPow` handler implementation
+
+### Task 9: TDD red — write the failing oracle-fixture test
+
+**Files:**
+- Create: `packages/ergoscript/test/eval/sheader-checkpow.test.ts`
+
+- [ ] **Step 1: Re-read the existing 2h-c.1 sheader-handlers test for the AST + evaluator patterns**
+
+Run: `cat packages/ergoscript/test/eval/sheader-handlers.test.ts | head -80`
+
+The new test mirrors that file's structure: load fixture, hex-decode, construct an ErgoTree wrapper around `parseExpr`'s output, call `evaluateWith` with the appropriate context.
+
+- [ ] **Step 2: Write the failing test**
+
+Create `packages/ergoscript/test/eval/sheader-checkpow.test.ts`:
 
 ```ts
-// packages/ergoscript/test/eval/sheader-handlers.test.ts
-import { describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { evaluateWith, makeContext } from '../../src/eval'
-import { parseTree } from '../../src/wire/parse-tree'
-
-interface Fixture {
-  exprBytes: string         // hex
-  expectedValueJson: unknown
-  expectedJitCost: number
-  ctxHeaders?: Array<{ /* serialized Header JSON */ }>
-}
-
-function loadFixture(name: string): Fixture {
-  return JSON.parse(readFileSync(`packages/ergoscript/test/fixtures/eval/${name}.json`, 'utf8')) as Fixture
-}
+/**
+ * SHeader.checkPow oracle fixture test — phase 2h-c.2.
+ *
+ * Loads the fixture emitted by fixture-gen/src/ergoscript/sheader_checkpow.rs
+ * and asserts that the TS evaluator produces the same value + jit_cost as
+ * sigma-rust's try_eval_out oracle.
+ */
+import { describe, it, expect } from 'vitest'
+import fixture from '../fixtures/eval/sheader-checkpow.json'
+import { parseExpr } from '../../src/wire/parse'
+import { ByteReader } from '@ergots/scorex'
+import { evaluateWith, makeContext } from '../../src/eval/evaluate'
+import { EvalError } from '../../src/eval/eval-context'
+import { parseHeader } from '@ergots/scorex'
 
 function hexToBytes(hex: string): Uint8Array {
-  return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
+  const out = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16)
+  }
+  return out
 }
 
-describe('SHeader handlers — Phase 2h-c.1', () => {
-  test('SHeader.id (104:1) Fixed(10)', () => {
-    const fx = loadFixture('sheader-id')
-    const tree = parseTree(hexToBytes(fx.exprBytes))
-    const ctx = makeContext({ headers: fx.ctxHeaders!.map(toRuntimeHeader) })
-    const result = evaluateWith(tree, ctx)
-    expect(toJsonComparable(result)).toEqual(fx.expectedValueJson)
-    expect(ctx.jitCost).toBe(fx.expectedJitCost)
-  })
-})
-
-// Helpers: toRuntimeHeader converts fixture-side Header JSON to runtime Header type
-// (handle Uint8Array<->hex). toJsonComparable serializes SValue to a stable JSON shape.
-// Both helpers exist in test/_helpers.ts (consider extracting if not already).
-function toRuntimeHeader(_h: unknown): never { throw new Error('TODO: implement in _helpers.ts') }
-function toJsonComparable(_v: unknown): unknown { throw new Error('TODO: implement in _helpers.ts') }
-```
-
-- [ ] **Step 3.3.3: Run — expect failure.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/sheader-handlers.test.ts 2>&1 | tail -10
-```
-
-- [ ] **Step 3.3.4: Implement the helpers + `evalSHeaderId` handler.**
-
-Implement `toRuntimeHeader` and `toJsonComparable` (or expand `_helpers.ts`). Then in `eval/sheader.ts`:
-
-```ts
-export function evalSHeaderId(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
-  ctx.addCost(10) // Pattern A; source: eval/sheader.rs:22-26
-  assertHeaderObj(obj, 'id')
-  return bytesToCollByteSValue(obj.value.id)
-}
-```
-
-Register in `eval/method-call.ts` `registerHandlers()` (insert in source-id order — typeId=104, methodId=1):
-
-```ts
-// SHeader.id (PropertyCall, typeId=104, methodId=1)
-// Source: ergotree-interpreter/src/eval/sheader.rs:22-26 — ID_EVAL_FN
-HANDLERS.set(handlerKey(104, 1), (obj, args, ctx) => evalSHeaderId(obj, args, ctx))
-```
-
-Add the import at the top of `method-call.ts`:
-
-```ts
-import { evalSHeaderId } from './sheader'
-```
-
-- [ ] **Step 3.3.5: Run test — expect pass.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/sheader-handlers.test.ts 2>&1 | tail -10
-```
-
-### Task 3.4 — Task 3.17: Implement the remaining 14 SHeader handlers
-
-Each task follows the identical pattern as Task 3.3 (fixture-gen → red test → handler implementation → registry → green test). The 14 remaining handlers, in order:
-
-| Task | Method | typeId:methodId | Field projection | Return shape | Source |
-|---|---|---|---|---|---|
-| 3.4 | `version` | 104:2 | `header.version` | `{ kind: 'Byte', value: ((header.version << 24) >> 24) }` (u8 → i8 sign-extend) | `sheader.rs:16-20` |
-| 3.5 | `parentId` | 104:3 | `header.parentId` | `bytesToCollByteSValue(header.parentId)` | `:28-32` |
-| 3.6 | `adProofsRoot` | 104:4 | `header.adProofsRoot` | `bytesToCollByteSValue(header.adProofsRoot)` | `:34-38` |
-| 3.7 | `stateRoot` | 104:5 | `header.stateRoot` (33 bytes) | `bytesToCollByteSValue(header.stateRoot)` — **see quirk note in design spec** | `:40-44` |
-| 3.8 | `transactionsRoot` | 104:6 | `header.transactionRoot` (scorex field name singular; method name plural) | `bytesToCollByteSValue(header.transactionRoot)` | `:46-50` |
-| 3.9 | `timestamp` | 104:7 | `header.timestamp` (`number`) | `{ kind: 'Long', value: BigInt(header.timestamp) }` | `:58-62` |
-| 3.10 | `nBits` | 104:8 | `header.nBits` (`number`) | `{ kind: 'Long', value: BigInt(header.nBits) }` | `:64-68` |
-| 3.11 | `height` | 104:9 | `header.height` (`number`) | `{ kind: 'Int', value: header.height \| 0 }` (force i32) | `:70-74` |
-| 3.12 | `extensionRoot` | 104:10 | `header.extensionRoot` | `bytesToCollByteSValue(header.extensionRoot)` | `:52-56` |
-| 3.13 | `minerPk` | 104:11 | `header.autolykosSolution.minerPk` (33 bytes) | `{ kind: 'GroupElement', value: header.autolykosSolution.minerPk }` | `:76-80` |
-| 3.14 | `powOnetimePk` | 104:12 | `header.autolykosSolution.powOnetimePk` (nullable) | `{ kind: 'GroupElement', value: header.autolykosSolution.powOnetimePk ?? new Uint8Array(33) }` — **33 zero bytes when null** (identity point) | `:82-86` |
-| 3.15 | `powNonce` | 104:13 | `header.autolykosSolution.nonce` (8 bytes) | `bytesToCollByteSValue(header.autolykosSolution.nonce)` | `:88-92` |
-| 3.16 | `powDistance` | 104:14 | `header.autolykosSolution.powDistance` (nullable bigint) | `{ kind: 'BigInt', value: header.autolykosSolution.powDistance ?? 0n }` — **0n when null** | `:94-107` |
-| 3.17 | `votes` | 104:15 | `header.votes` (3 bytes) | `bytesToCollByteSValue(header.votes)` | `:109-113` |
-
-For EACH task (3.4 through 3.17), the 5 steps are:
-
-- [ ] **Step N.1: Extend `fixture-gen/src/sheader_handlers.rs` to emit the fixture for this method.** Verify `cargo run` writes `packages/ergoscript/test/fixtures/eval/sheader-<methodName>.json` deterministically (same input headers → identical output across runs).
-
-- [ ] **Step N.2: Add the failing test entry inside the existing `describe('SHeader handlers ...')` block.** Use the same shape as Task 3.3.2's test — load fixture, parse tree, evaluate, assert value + jitCost. Expected: FAIL ("method not implemented" — dispatch miss).
-
-- [ ] **Step N.3: Add the handler export to `eval/sheader.ts`.** Use the precise field-projection shape from the table. Cost is always `ctx.addCost(10)`. Defensive check is `assertHeaderObj(obj, '<methodName>')`.
-
-- [ ] **Step N.4: Register the handler in `eval/method-call.ts`.** Insert in numeric order by methodId. Add the import for the new `eval<MethodName>` export. After the registry edit, perform the audit-step diff:
-
-```bash
-git diff /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/method-call.ts | grep "HANDLERS.set"
-```
-
-Confirm the new line uses the documented `(typeId, methodId)` keys and that no existing entries were moved or modified.
-
-- [ ] **Step N.5: Run the test — expect pass.** Verify `jitCost` matches the fixture's `expectedJitCost` byte-for-byte (well, integer-equal). Verify SValue return shape byte-equal for byte-collection cases, value-equal for Long/Int/BigInt cases.
-
-### Task 3.18 — `'header-obj-not-header'` defensive coverage
-
-**Files:**
-- Modify: `packages/ergoscript/test/eval/sheader-handlers.test.ts` (add parameterized throw-path tests)
-
-- [ ] **Step 3.18.1: Add parameterized "non-Header obj" tests across 3 representative handlers.**
-
-Pick handlers from different return-kind categories: `id` (Coll[Byte]), `height` (Int), `minerPk` (GroupElement). For each, construct a `MethodCall` whose `obj` evaluates to a non-Header SValue (e.g., a Long constant) and assert `EvalError('header-obj-not-header')` is thrown.
-
-```ts
-import { EvalError } from '../../src/eval/eval-context'
-
-describe('SHeader.* defensive obj-kind check', () => {
-  test.each([
-    ['SHeader.id (104:1)', 104, 1, 'id'],
-    ['SHeader.height (104:9)', 104, 9, 'height'],
-    ['SHeader.minerPk (104:11)', 104, 11, 'minerPk'],
-  ])('%s throws header-obj-not-header on non-Header obj', (_label, typeId, methodId, methodName) => {
-    // Construct a hand-built PropertyCall with obj=Const(Long, 42n), method=<methodId>
-    // Evaluate; expect throw.
-    const expr = buildPropertyCallWithLongObj(typeId, methodId)
-    expect(() => evaluateExpr(expr)).toThrow(
-      expect.objectContaining({ code: 'header-obj-not-header' })
-    )
-  })
-})
-```
-
-(Helper `buildPropertyCallWithLongObj` is small — synthesizes the Expr tree by hand without fixture-gen.)
-
-- [ ] **Step 3.18.2: Run — expect pass.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/sheader-handlers.test.ts 2>&1 | tail -10
-```
-
-### Task 3.19 — Verify Phase 3 + commit
-
-- [ ] **Step 3.19.1: Full ergoscript test suite.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
-```
-
-Expected: 2814 + 15 (per-handler) + 3 (parameterized defensive) = **2832 tests pass**.
-
-- [ ] **Step 3.19.2: Commit Phase 3.**
-
-```bash
-cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/eval/sheader.ts packages/ergoscript/src/eval/method-call.ts packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/test/eval/sheader-handlers.test.ts packages/ergoscript/test/fixtures/eval/sheader-*.json fixture-gen/src/sheader_handlers.rs fixture-gen/src/main.rs
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): 15 SHeader method handlers + 'header-obj-not-header' code
-
-Phase 2h-c.1 Step 3. Wires the 15 SHeader.* property accessors at typeId 104,
-methodIds 1-15. All Pattern A Fixed(10) — ctx.addCost(10) before
-assertHeaderObj() defensive receiver check, then projects a Header field.
-
-Per-handler return shapes (sigma-rust eval/sheader.rs lines 16-113):
-  id (1) parentId (3) adProofsRoot (4) stateRoot (5) transactionsRoot (6)
-  extensionRoot (10) powNonce (13) votes (15) → Coll[Byte]
-  version (2) → Byte (u8→i8 sign-extend)
-  timestamp (7) nBits (8) → Long (bigint)
-  height (9) → Int (i32)
-  minerPk (11) powOnetimePk (12) → GroupElement (33 bytes)
-  powDistance (14) → BigInt
-
-V2-header semantics: powOnetimePk returns 33 zero bytes when null (identity
-point per EcPoint::default() → scorex_serialize); powDistance returns 0n.
-
-New EvalError code: 'header-obj-not-header' (defensive; 45→46 codes total).
-
-Tests: 15 oracle fixtures (one per handler) + 3 parameterized defensive throws.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Phase 4: 2 SContext method handlers (`headers` + `lastBlockUtxoRootHash`)
-
-Both extend the existing `eval/method-call.ts` registry. Pattern A Fixed(15). Both check `obj.kind === 'Context'` (existing `'context-obj-not-context'` code) and `ctx.headers !== undefined` (existing `'context-field-missing'` code).
-
-### Task 4.1 — `SContext.headers` (101:2)
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler registration + helper)
-- Create: `packages/ergoscript/test/fixtures/eval/scontext-headers.json` (oracle fixture)
-- Modify: `packages/ergoscript/test/eval/scontext-handlers.test.ts` (extend existing file from 2g.5/2g.6)
-
-- [ ] **Step 4.1.1: Generate the oracle fixture.**
-
-Extend `fixture-gen/src/sheader_handlers.rs` (or create `fixture-gen/src/scontext_headers.rs`) to emit a fixture exercising `PropertyCall(Context, HEADERS_PROPERTY)`. Verify deterministic output.
-
-- [ ] **Step 4.1.2: Write the failing test.**
-
-```ts
-// in scontext-handlers.test.ts (extend existing file)
-test('SContext.headers (101:2) Fixed(15) returns Coll[Header]', () => {
-  const fx = loadFixture('scontext-headers')
-  const tree = parseTree(hexToBytes(fx.exprBytes))
-  const ctx = makeContext({ headers: fx.ctxHeaders!.map(toRuntimeHeader) })
-  const result = evaluateWith(tree, ctx)
-  expect(result.kind).toBe('Coll')
-  expect((result as { kind: 'Coll'; items: SValue[] }).items.length).toBe(fx.ctxHeaders!.length)
-  expect(ctx.jitCost).toBe(fx.expectedJitCost)
-})
-
-test('SContext.headers throws context-field-missing when ctx.headers undefined', () => {
-  const fx = loadFixture('scontext-headers')
-  const tree = parseTree(hexToBytes(fx.exprBytes))
-  const ctx = makeContext({}) // no headers
-  expect(() => evaluateWith(tree, ctx)).toThrow(
-    expect.objectContaining({ code: 'context-field-missing' })
-  )
-})
-```
-
-- [ ] **Step 4.1.3: Run — expect failure.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/scontext-handlers.test.ts 2>&1 | tail -10
-```
-
-- [ ] **Step 4.1.4: Implement the handler in `eval/method-call.ts`.**
-
-Inside `registerHandlers()`, add (locate near the existing SContext entries — `dataInputs` 101:1 and `preHeader` 101:3):
-
-```ts
-// SContext.headers (PropertyCall, typeId=101, methodId=2)
-// Source: ergotree-interpreter/src/eval/scontext.rs:58-70 — HEADERS_EVAL_FN
-// Pattern A cost 15 (charged before obj check). Returns Coll[Header].
-HANDLERS.set(handlerKey(101, 2), (obj, _args, ctx, _explicitTypeArgs) => {
-  ctx.addCost(15)
-  if (obj.kind !== 'Context') {
-    throw new EvalError(
-      `SContext.headers expects a Context obj; got '${obj.kind}'`,
-      'context-obj-not-context'
-    )
-  }
-  if (ctx.headers === undefined) {
-    throw new EvalError(`SContext.headers: ctx.headers is undefined`, 'context-field-missing')
-  }
-  return headersCollOf(ctx.headers)
-})
-```
-
-Add the helper (place near `dataInputsCollOf` at the bottom of the file):
-
-```ts
-const SHEADER_ELEM: SType = { tag: 'SHeader' }
-
-function headersCollOf(headers: Header[]): SValue {
-  return {
-    kind: 'Coll',
-    elem: SHEADER_ELEM,
-    items: headers.map((h) => ({ kind: 'Header', value: h })),
-  }
-}
-```
-
-Add the `Header` import at the top:
-
-```ts
-import type { Header } from '@ergots/scorex'
-```
-
-- [ ] **Step 4.1.5: Run tests — expect pass.**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/scontext-handlers.test.ts 2>&1 | tail -10
-```
-
-### Task 4.2 — `SContext.lastBlockUtxoRootHash` (101:9)
-
-**Files:**
-- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler)
-- Create: `packages/ergoscript/test/fixtures/eval/scontext-last-block-utxo-root-hash.json`
-- Modify: `packages/ergoscript/test/eval/scontext-handlers.test.ts`
-
-- [ ] **Step 4.2.1: Generate the oracle fixture.**
-
-Extend the fixture-gen module to emit the `PropertyCall(Context, LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY)` fixture.
-
-- [ ] **Step 4.2.2: Write the failing test.**
-
-```ts
-test('SContext.lastBlockUtxoRootHash (101:9) synthesizes AvlTree from ctx.headers[0].stateRoot', () => {
-  const fx = loadFixture('scontext-last-block-utxo-root-hash')
-  const tree = parseTree(hexToBytes(fx.exprBytes))
-  const ctx = makeContext({ headers: fx.ctxHeaders!.map(toRuntimeHeader) })
-  const result = evaluateWith(tree, ctx)
-  expect(result.kind).toBe('AvlTree')
-  const at = (result as { kind: 'AvlTree'; value: { digest: Uint8Array; treeFlags: number; keyLength: number; valueLengthOpt: number | null } }).value
-  expect(at.digest).toEqual(ctx.headers![0].stateRoot)
-  expect(at.treeFlags).toBe(0b111)
-  expect(at.keyLength).toBe(32)
-  expect(at.valueLengthOpt).toBeNull()
-  expect(ctx.jitCost).toBe(fx.expectedJitCost)
-})
-
-test('SContext.lastBlockUtxoRootHash throws context-field-missing on empty/undefined headers', () => {
-  const fx = loadFixture('scontext-last-block-utxo-root-hash')
-  const tree = parseTree(hexToBytes(fx.exprBytes))
-
-  // Case 1: undefined
-  expect(() => evaluateWith(tree, makeContext({}))).toThrow(
-    expect.objectContaining({ code: 'context-field-missing' })
-  )
-
-  // Case 2: empty array
-  expect(() => evaluateWith(tree, makeContext({ headers: [] }))).toThrow(
-    expect.objectContaining({ code: 'context-field-missing' })
-  )
-})
-```
-
-- [ ] **Step 4.2.3: Run — expect failure.**
-
-- [ ] **Step 4.2.4: Implement the handler in `eval/method-call.ts`.**
-
-```ts
-// SContext.lastBlockUtxoRootHash (PropertyCall, typeId=101, methodId=9)
-// Source: ergotree-interpreter/src/eval/scontext.rs:83-99 — LAST_BLOCK_UTXO_ROOT_HASH_EVAL_FN
-// Pattern A cost 15. Synthesizes AvlTreeData from ctx.headers[0].stateRoot.
-HANDLERS.set(handlerKey(101, 9), (obj, _args, ctx, _explicitTypeArgs) => {
-  ctx.addCost(15)
-  if (obj.kind !== 'Context') {
-    throw new EvalError(
-      `SContext.lastBlockUtxoRootHash expects a Context obj; got '${obj.kind}'`,
-      'context-obj-not-context'
-    )
-  }
-  if (ctx.headers === undefined || ctx.headers.length === 0) {
-    throw new EvalError(
-      `SContext.lastBlockUtxoRootHash: ctx.headers is ${ctx.headers === undefined ? 'undefined' : 'empty'}`,
-      'context-field-missing'
-    )
-  }
-  return {
-    kind: 'AvlTree',
-    value: {
-      digest: ctx.headers[0]!.stateRoot,
-      treeFlags: 0b111, // insert/update/remove all allowed; sigma-rust AvlTreeFlags::new(true, true, true)
-      keyLength: 32,
-      valueLengthOpt: null,
-    },
-  }
-})
-```
-
-- [ ] **Step 4.2.5: Run tests — expect pass.**
-
-### Task 4.3 — Verify Phase 4 + commit
-
-- [ ] **Step 4.3.1: Full test suite.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
-```
-
-Expected: 2832 + 4 = **2836 tests pass**.
-
-- [ ] **Step 4.3.2: Commit Phase 4.**
-
-```bash
-cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/eval/method-call.ts packages/ergoscript/test/eval/scontext-handlers.test.ts packages/ergoscript/test/fixtures/eval/scontext-headers.json packages/ergoscript/test/fixtures/eval/scontext-last-block-utxo-root-hash.json fixture-gen/src/
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): SContext.headers + lastBlockUtxoRootHash handlers
-
-Phase 2h-c.1 Step 4. Wires 2 new SContext method handlers:
-
-  - SContext.headers (101:2) Pattern A Fixed(15) returns Coll[Header]
-    from ctx.headers; source: eval/scontext.rs:58-70.
-  - SContext.lastBlockUtxoRootHash (101:9) Pattern A Fixed(15) synthesizes
-    AvlTree from ctx.headers[0].stateRoot with treeFlags 0b111, keyLength
-    32, valueLengthOpt null; source: eval/scontext.rs:83-99.
-
-Both throw 'context-field-missing' (existing 2f-medium code) when ctx.headers
-is undefined; lastBlockUtxoRootHash also throws on empty array.
-
-Tests: 2 oracle fixtures + 3 throw-path coverage cases.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Phase 5: V3 SHeader-constant wire-roundtrip + mutation testing
-
-### Task 5.1 — Generate 6 V3 SHeader-constant ErgoTree fixtures
-
-**Files:**
-- Create: `packages/ergoscript/test/fixtures/wire/sheader-constants-v3-*.bin` (6 fixtures)
-- Create: `packages/ergoscript/test/wire/svalue-sheader-roundtrip.test.ts`
-
-- [ ] **Step 5.1.1: Extend fixture-gen to synthesize 6 V3 ErgoTrees with embedded SHeader constants.**
-
-Fixtures to emit:
-- `sheader-constants-v3-single-header.bin` — V3 tree, segregated-constants section contains 1 SHeader literal (a mainnet V2 header).
-- `sheader-constants-v3-single-v1-header.bin` — same shape, but the embedded header is a mainnet V1 header (validates V1 vs V2 codec parity).
-- `sheader-constants-v3-coll-of-headers.bin` — V3 tree with `Coll[Header]` of 3 SHeader literals (validates recursive `treeVersion` threading through the Coll arm).
-- `sheader-constants-v3-option-some.bin` — V3 tree with `Option[Header] = Some(h)` (validates Option arm threading).
-- `sheader-constants-v3-option-none.bin` — V3 tree with `Option[Header] = None` (validates the None tag path; no SHeader bytes follow).
-- `sheader-constants-v2-header-literal.bin` — V2 (tree-version=2) tree containing an SHeader constant — **negative fixture**; must trip `'sheader-tree-version-too-low'` on parse.
-
-Use sigma-rust's `ErgoTreeBuilder` or hand-construct via `Constant::new(SType::SHeader, ...)` + `serialize_with_version(version)`. Verify byte determinism (`cargo run` twice → byte-identical outputs).
-
-- [ ] **Step 5.1.2: Write the round-trip tests.**
-
-```ts
-// packages/ergoscript/test/wire/svalue-sheader-roundtrip.test.ts
-import { describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { parseTree, serializeTree } from '../../src/wire'
-
-const FIXTURES = [
-  'sheader-constants-v3-single-header',
-  'sheader-constants-v3-single-v1-header',
-  'sheader-constants-v3-coll-of-headers',
-  'sheader-constants-v3-option-some',
-  'sheader-constants-v3-option-none',
-] as const
-
-describe('SHeader SValue wire round-trip — V3 trees', () => {
-  test.each(FIXTURES)('%s round-trips byte-equal', (name) => {
-    const bytes = new Uint8Array(readFileSync(`packages/ergoscript/test/fixtures/wire/${name}.bin`))
-    const tree = parseTree(bytes)
-    const out = serializeTree(tree)
-    expect(out).toEqual(bytes)
-  })
-})
-
-describe('SHeader SValue wire — V<3 rejection', () => {
-  test('V2 tree with SHeader literal throws sheader-tree-version-too-low', () => {
-    const bytes = new Uint8Array(readFileSync('packages/ergoscript/test/fixtures/wire/sheader-constants-v2-header-literal.bin'))
-    expect(() => parseTree(bytes)).toThrow(
-      expect.objectContaining({ code: 'sheader-tree-version-too-low' })
-    )
-  })
-})
-```
-
-- [ ] **Step 5.1.3: Run — expect all 6 tests pass (5 round-trip + 1 negative).**
-
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-roundtrip.test.ts 2>&1 | tail -10
-```
-
-### Task 5.2 — Add mutation testing for SHeader-constant trees
-
-**Files:**
-- Create: `packages/ergoscript/test/wire/svalue-sheader-mutation.test.ts`
-
-- [ ] **Step 5.2.1: Implement single-byte-flip mutation harness.**
-
-Pattern follows existing `parse-mutation.test.ts` in the ergoscript test suite. For each of the 5 positive C2 fixtures (excluding the negative V2 one), iterate every byte offset, flip the byte, attempt to `parseTree`, and record one of:
-
-- **Killed (typed error):** any subclass of `Error` with a known `.code` from the wire-layer taxonomy (`ErgoTreeParseError`, `ExprParseError`, `STypeParseError`, `SValueParseError`, `ReaderError`).
-- **Killed (re-serializes to non-original):** parses successfully but `serializeTree(parseTree(mutated))` ≠ mutated bytes (mutation moved the bytes off the canonical round-trip).
-- **Tolerated (byte-identical re-serialize):** mutation flipped a byte in `Header.unparsedBytes` forward-compat region that round-trips identically. Document the offset ranges in a per-fixture `tolerated.json`.
-
-Per-fixture kill-rate threshold: **≥ 90%**. Total mutation count target: ≈ 25-30 across the 5 fixtures.
-
-```ts
-// packages/ergoscript/test/wire/svalue-sheader-mutation.test.ts (skeleton)
-import { describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { parseTree, serializeTree } from '../../src/wire'
-
-const FIXTURES = [
-  'sheader-constants-v3-single-header',
-  'sheader-constants-v3-single-v1-header',
-  'sheader-constants-v3-coll-of-headers',
-  'sheader-constants-v3-option-some',
-  'sheader-constants-v3-option-none',
-] as const
-
-describe('SHeader-constant wire mutation testing', () => {
-  test.each(FIXTURES)('%s achieves ≥90%% kill rate', (name) => {
-    const bytes = new Uint8Array(readFileSync(`packages/ergoscript/test/fixtures/wire/${name}.bin`))
-    let killed = 0
-    let total = 0
-    for (let i = 0; i < bytes.length; i++) {
-      for (let bit = 0; bit < 8; bit++) {
-        const mutated = new Uint8Array(bytes)
-        mutated[i] ^= 1 << bit
-        total++
-        try {
-          const tree = parseTree(mutated)
-          const out = serializeTree(tree)
-          if (!byteEqual(out, mutated)) killed++
-        } catch (e) {
-          if (isTypedWireError(e)) killed++
-        }
-      }
+describe('SHeader.checkPow oracle', () => {
+  it('returns true on a real V2 mainnet header with sigma-rust-equal jitCost', () => {
+    const exprBytes = hexToBytes(fixture.exprBytes)
+    const headerBytes = hexToBytes(fixture.headerHexBytes)
+    const header = parseHeader(new ByteReader(headerBytes))
+
+    const expr = parseExpr(new ByteReader(exprBytes), [], [])
+    const ctx = makeContext({
+      treeVersion: 3,
+      headers: [header],
+    })
+
+    // Build a synthetic ErgoTree wrapper for evaluateWith. Match the shape
+    // used in packages/ergoscript/test/eval/sheader-handlers.test.ts.
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: expr,
     }
-    const killRate = killed / total
-    expect(killRate).toBeGreaterThanOrEqual(0.9)
+
+    const result = evaluateWith(tree as any, ctx)
+
+    expect(result).toEqual({ kind: 'Boolean', value: fixture.expectedValue })
+    expect(ctx.jitCost).toBe(fixture.expectedJitCost)
   })
 })
-
-function byteEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-function isTypedWireError(e: unknown): boolean {
-  return (
-    e instanceof Error &&
-    typeof (e as { code?: string }).code === 'string'
-  )
-}
 ```
 
-- [ ] **Step 5.2.2: Run — expect all 5 mutation tests achieve ≥ 90% kill rate.**
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `npx vitest run packages/ergoscript/test/eval/sheader-checkpow.test.ts`
+Expected: FAIL with `EvalError('method-not-implemented', 'unknown method 104:16')` — the handler isn't registered yet.
+
+- [ ] **Step 4: Commit the failing test**
 
 ```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-mutation.test.ts 2>&1 | tail -15
-```
-
-Expected: all 5 PASS at ≥ 90%. If any fixture drops below, inspect tolerated-mutation offsets to confirm they're all in legitimate forward-compat regions (typically `Header.unparsedBytes`); document inline.
-
-### Task 5.3 — Verify Phase 5 + commit
-
-- [ ] **Step 5.3.1: Full test suite + cross-runtime.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
-npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
-# Cross-runtime check (jsdom):
-cd /home/mwaddip/projects/ergots/packages/ergoscript && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -5
-```
-
-Expected: 2836 + 11 (6 round-trip + 5 mutation per-fixture) = **2847 tests pass** under both `node` and `jsdom`.
-
-- [ ] **Step 5.3.2: Commit Phase 5.**
-
-```bash
-cd /home/mwaddip/projects/ergots && git add packages/ergoscript/test/fixtures/wire/ packages/ergoscript/test/wire/ fixture-gen/src/
+git add packages/ergoscript/test/eval/sheader-checkpow.test.ts
 git commit -m "$(cat <<'EOF'
-test(ergoscript): SHeader-constant wire roundtrip + mutation testing
+test(ergoscript): RED — SHeader.checkPow oracle test (no handler yet)
 
-Phase 2h-c.1 Step 5. Adds 6 V3 ErgoTree fixtures with embedded SHeader
-literals (single header V1+V2, Coll[Header], Option[Some/None]) + 1 V2
-negative fixture. Round-trip tests assert serializeTree(parseTree(b)) === b.
-Mutation tests (single-byte flip across all offsets) target ≥ 90% kill
-rate per fixture; tolerated mutations are documented in per-fixture
-inline comments (forward-compat unparsedBytes region only).
+Asserts the not-yet-registered handler will return true with the
+oracle's jit_cost. Fails with 'method-not-implemented' until Task 10
+registers the handler.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1262,162 +751,869 @@ EOF
 
 ---
 
-## Phase 6: Facts files + final verification
+### Task 10: TDD green — implement `evalSHeaderCheckPow`, register the handler, add new EvalError code
 
-### Task 6.1 — Update `facts/ergoscript-eval.md`
+**Files:**
+- Modify: `packages/ergoscript/src/eval/sheader.ts` — append the new handler function
+- Modify: `packages/ergoscript/src/eval/errors.ts` — add `'autolykos-v1-not-supported'` to the EvalError code union
+- Modify: `packages/ergoscript/src/eval/method-call.ts` — register the handler at 104:16 with `minVersion: 3`
+
+- [ ] **Step 1: Add the new EvalError code**
+
+Open `packages/ergoscript/src/eval/errors.ts`. Find the code union (the line with `'tree-version-too-low'` per orientation — line 83 in the current file).
+
+Add `'autolykos-v1-not-supported'` to the union, in alphabetical position:
+
+```ts
+  | 'apply-arity-mismatch'
+  | 'apply-non-lambda'
+  | 'arith-divide-by-zero'
+  | 'arith-overflow'
+  | 'atleast-bound-not-int'
+  | 'atleast-bound-out-of-range'
+  | 'autolykos-v1-not-supported'    // NEW phase 2h-c.2
+  | 'avl-tree-obj-not-avl-tree'
+  // ... rest unchanged
+```
+
+Also update the doc comment block above the union to describe the new code, mirroring the existing entries:
+
+```ts
+//   'autolykos-v1-not-supported'  — SHeader.checkPow handler caught a v1 header.
+//                                   Mirrors sigma-rust's AutolykosPowSchemeError::Unsupported.
+//                                   Wire-format invariants make this unreachable in practice
+//                                   (script-touched headers are typically V2+ for ~5 years
+//                                   post-mainnet-417792); defensive against unusual ctx.headers
+//                                   constructions.
+```
+
+- [ ] **Step 2: Add `evalSHeaderCheckPow` to sheader.ts**
+
+Open `packages/ergoscript/src/eval/sheader.ts`. At the end of the existing handler exports (after `evalSHeaderVotes`), append:
+
+```ts
+import { verifyAutolykosV2, AutolykosV1NotSupportedError } from '@ergots/scorex'
+
+/**
+ * SHeader.checkPow (typeId 104, methodId 16).
+ *
+ * Pattern A Fixed(700) — `ctx.addCost(700)` BEFORE the obj-kind check and
+ * verifier invocation. Sigma-rust source: ergotree-interpreter/src/eval/sheader.rs:115-124.
+ *
+ * V3-gated at the dispatcher level (registration in method-call.ts with
+ * minVersion: 3). The dispatcher's minVersion check fires BEFORE this
+ * handler is invoked, so V<3 reject incurs zero handler cost (sigma-rust
+ * parity — sigma-rust gates this at MethodDesc.min_version).
+ *
+ * Returns SValue.Boolean from verifyAutolykosV2.
+ *
+ * Error codes:
+ *   'header-obj-not-header'        — defensive receiver check (reused from 2h-c.1)
+ *   'autolykos-v1-not-supported'   — verifyAutolykosV2 threw AutolykosV1NotSupportedError on a V1 header
+ */
+export function evalSHeaderCheckPow(
+  obj: SValue,
+  _args: SValue[],
+  ctx: EvalContext,
+): SValue {
+  // 1. Pattern A cost charge (mirrors sigma-rust eval/sheader.rs:116)
+  ctx.addCost(700)
+
+  // 2. Defensive receiver kind check (reuses 'header-obj-not-header' from 2h-c.1)
+  assertHeaderObj(obj)
+
+  // 3. Run verifier; catch typed v1 error and re-throw as EvalError
+  try {
+    const result = verifyAutolykosV2(obj.value)
+    return { kind: 'Boolean', value: result }
+  } catch (e) {
+    if (e instanceof AutolykosV1NotSupportedError) {
+      throw new EvalError(
+        'autolykos-v1-not-supported',
+        'SHeader.checkPow: Autolykos v1 PoW verification is not implemented (mirrors sigma-rust)',
+      )
+    }
+    throw e  // re-throw unexpected errors unwrapped
+  }
+}
+```
+
+**Note:** `assertHeaderObj` already exists in this file (used by the 15 2h-c.1 handlers). Re-read the file top to confirm its signature.
+
+- [ ] **Step 3: Register the handler in method-call.ts with minVersion: 3**
+
+Open `packages/ergoscript/src/eval/method-call.ts`. Locate the existing SHeader handler imports (around line 65-80) and the SHeader registrations (around line 382).
+
+Add `evalSHeaderCheckPow` to the import:
+
+```ts
+import {
+  evalSHeaderId,
+  // ... existing 15 imports
+  evalSHeaderVotes,
+  evalSHeaderCheckPow,  // NEW phase 2h-c.2
+} from './sheader'
+```
+
+After the last SHeader registration (`evalSHeaderVotes` at 104:15), append:
+
+```ts
+HANDLERS.set(handlerKey(104, 16), {
+  handler: (obj, args, ctx) => evalSHeaderCheckPow(obj, args, ctx),
+  minVersion: 3,  // V3 gate — sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3
+})
+```
+
+- [ ] **Step 4: Run the oracle fixture test**
+
+Run: `npx vitest run packages/ergoscript/test/eval/sheader-checkpow.test.ts`
+Expected: PASS — `evaluateWith` returns `{ kind: 'Boolean', value: true }` and `ctx.jitCost === fixture.expectedJitCost`.
+
+If the cost mismatch is off by a few units, re-check the oracle output and the handler implementation order (cost-700 charge must be BEFORE the kind check, per Pattern A).
+
+- [ ] **Step 5: Run the full ergoscript test suite — no regression**
+
+Run: `npx vitest run packages/ergoscript/`
+Expected: 2858 tests pass (2857 baseline + 1 new oracle test).
+
+- [ ] **Step 6: Run ergoscript typecheck — must be clean**
+
+Run: `npx tsc --noEmit -p packages/ergoscript/tsconfig.json`
+Expected: PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/sheader.ts packages/ergoscript/src/eval/errors.ts packages/ergoscript/src/eval/method-call.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): SHeader.checkPow method handler (104:16)
+
+Pattern A Fixed(700) cost. V3-gated at dispatcher via the new
+minVersion: 3 field on the registry entry. Returns SValue.Boolean
+from verifyAutolykosV2.
+
+New EvalError code 'autolykos-v1-not-supported' (46→47) raised when
+verifyAutolykosV2 throws AutolykosV1NotSupportedError on a v1 header.
+Mirrors sigma-rust AutolykosPowSchemeError::Unsupported.
+
+Registry: 38 → 39 entries.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Phase 5 — Throw-path and edge-case tests
+
+### Task 11: Parallel-pair cost-correctness tests for V<3 reject (parameterized treeVersion=0,1,2)
+
+**Files:**
+- Modify: `packages/ergoscript/test/eval/sheader-checkpow.test.ts` — append parallel-pair tests
+
+- [ ] **Step 1: Append the parallel-pair tests**
+
+Open `packages/ergoscript/test/eval/sheader-checkpow.test.ts`. Below the existing `describe('SHeader.checkPow oracle', ...)` block, append:
+
+```ts
+describe('SHeader.checkPow V<3 reject (parallel-pair cost correctness)', () => {
+  const exprBytes = hexToBytes(fixture.exprBytes)
+  const headerBytes = hexToBytes(fixture.headerHexBytes)
+  const header = parseHeader(new ByteReader(headerBytes))
+
+  function buildTree(treeVersion: 0 | 1 | 2 | 3): any {
+    return {
+      header: { version: treeVersion, hasSize: false, constantSegregation: false, rawHeader: treeVersion },
+      constantTypes: [],
+      constants: [],
+      body: parseExpr(new ByteReader(exprBytes), [], []),
+    }
+  }
+
+  function evaluateCapture(treeVersion: 0 | 1 | 2 | 3): { cost: number; threw: Error | null } {
+    const tree = buildTree(treeVersion)
+    const ctx = makeContext({ treeVersion, headers: [header] })
+    try {
+      evaluateWith(tree, ctx)
+      return { cost: ctx.jitCost, threw: null }
+    } catch (e) {
+      return { cost: ctx.jitCost, threw: e as Error }
+    }
+  }
+
+  // Baseline: V3 success.
+  const v3Run = evaluateCapture(3)
+
+  for (const v of [0, 1, 2] as const) {
+    it(`treeVersion=${v}: throws 'tree-version-too-low' and skips the 700 handler cost`, () => {
+      const rejectRun = evaluateCapture(v)
+
+      expect(rejectRun.threw).toBeInstanceOf(EvalError)
+      expect((rejectRun.threw as EvalError).code).toBe('tree-version-too-low')
+
+      // The load-bearing assertion: V<3 reject cost is EXACTLY 700 less than V3 success cost.
+      // Receiver-eval cost and envelope cost are charged in both; handler cost (700) is the diff.
+      expect(v3Run.cost - rejectRun.cost).toBe(700)
+    })
+  }
+
+  it('baseline V3 success establishes the parallel-pair pivot', () => {
+    expect(v3Run.threw).toBeNull()
+    expect(v3Run.cost).toBe(fixture.expectedJitCost)
+  })
+})
+```
+
+- [ ] **Step 2: Run the test — must pass**
+
+Run: `npx vitest run packages/ergoscript/test/eval/sheader-checkpow.test.ts`
+Expected: PASS. All 3 parameterized V<3 tests assert `v3Run.cost - rejectRun.cost === 700`.
+
+If the delta is off, the dispatcher's `minVersion` check is incorrectly positioned (e.g., charging handler cost before the gate). Re-read the method-call.ts dispatcher (Task 7 Step 4) and confirm the `minVersion` check happens BEFORE `entry.handler(...)` is invoked.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/ergoscript/test/eval/sheader-checkpow.test.ts
+git commit -m "$(cat <<'EOF'
+test(ergoscript): parallel-pair V<3 reject tests for SHeader.checkPow
+
+Parameterized over treeVersion=0,1,2. Asserts each throws
+EvalError('tree-version-too-low') AND v3Cost - rejectCost === 700
+(the 700 handler-cost is NOT charged on V<3 reject — dispatcher-level
+gating is sigma-rust-parity).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 12: V3 / V1-header throw test (`'autolykos-v1-not-supported'`)
+
+**Files:**
+- Modify: `packages/ergoscript/test/eval/sheader-checkpow.test.ts` — append the V1-header test
+
+The V1 header hex bytes come from the fixture-gen-emitted `v1HeaderHexBytes` field added in Task 8 Step 2. No separate V1 fixture file is needed.
+
+- [ ] **Step 1: Append the V1-header test**
+
+Append to `packages/ergoscript/test/eval/sheader-checkpow.test.ts`:
+
+```ts
+describe('SHeader.checkPow V1 header rejection', () => {
+  it("V3 tree with V1 header receiver throws 'autolykos-v1-not-supported'", () => {
+    // V1 mainnet header — fixture-gen emits its hex bytes as v1HeaderHexBytes
+    // alongside the V2 oracle data (see fixture-gen/src/ergoscript/sheader_checkpow.rs).
+    const v1Header = parseHeader(new ByteReader(hexToBytes(fixture.v1HeaderHexBytes)))
+    expect(v1Header.version).toBe(1)
+
+    const exprBytes = hexToBytes(fixture.exprBytes)
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: parseExpr(new ByteReader(exprBytes), [], []),
+    }
+    const ctx = makeContext({ treeVersion: 3, headers: [v1Header] })
+
+    try {
+      evaluateWith(tree as any, ctx)
+      throw new Error('expected EvalError throw but evaluate succeeded')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('autolykos-v1-not-supported')
+    }
+  })
+})
+```
+
+- [ ] **Step 2: Run the test — must pass**
+
+Run: `npx vitest run packages/ergoscript/test/eval/sheader-checkpow.test.ts`
+Expected: PASS.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/ergoscript/test/eval/sheader-checkpow.test.ts
+
+git commit -m "$(cat <<'EOF'
+test(ergoscript): SHeader.checkPow V1-header throw path
+
+V3 tree with a V1 header receiver throws
+EvalError('autolykos-v1-not-supported'). Mirrors sigma-rust's
+AutolykosPowSchemeError::Unsupported. V1 header hex bytes come from
+the fixture-gen-emitted v1HeaderHexBytes field.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 13: Non-Header receiver + mutated-nonce + valid-header edge tests
+
+**Files:**
+- Modify: `packages/ergoscript/test/eval/sheader-checkpow.test.ts` — append the remaining 3 tests
+
+- [ ] **Step 1: Append edge tests**
+
+Append to `packages/ergoscript/test/eval/sheader-checkpow.test.ts`:
+
+```ts
+describe('SHeader.checkPow edge cases', () => {
+  const headerBytes = hexToBytes(fixture.headerHexBytes)
+  const header = parseHeader(new ByteReader(headerBytes))
+
+  it("non-Header receiver throws 'header-obj-not-header'", () => {
+    // Direct AST construction bypasses the wire parser (which would catch
+    // this earlier). The receiver is a LongConst(42); the MethodCall targets
+    // SHeader.checkPow (104:16). The dispatcher's V3 gate passes (treeVersion=3);
+    // the cost-700 charge runs; then assertHeaderObj throws because
+    // obj.kind === 'Long' !== 'Header'.
+    //
+    // Re-read packages/ergoscript/test/eval/sheader-handlers.test.ts for the
+    // exact PropertyCall AST shape used by the 15 2h-c.1 accessor tests, and
+    // confirm MethodCall has the same nodes plus an `args` array.
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'MethodCall',
+        typeId: 104,
+        methodId: 16,
+        obj: {
+          tag: 'Const',
+          tpe: { tag: 'SLong' },
+          sValue: { kind: 'Long', value: 42n },
+        },
+        args: [],
+      },
+    }
+    const ctx = makeContext({ treeVersion: 3, headers: [header] })
+
+    try {
+      evaluateWith(tree as any, ctx)
+      throw new Error('expected EvalError throw but evaluate succeeded')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('header-obj-not-header')
+    }
+  })
+
+  it('V2 header with mutated nonce returns Boolean(false), no throw', () => {
+    // Mutate the nonce to a value that overwhelmingly fails the PoW target.
+    const mutatedHeader = {
+      ...header,
+      autolykosSolution: {
+        ...header.autolykosSolution,
+        nonce: new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]),
+      },
+    }
+
+    const exprBytes = hexToBytes(fixture.exprBytes)
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: parseExpr(new ByteReader(exprBytes), [], []),
+    }
+    const ctx = makeContext({ treeVersion: 3, headers: [mutatedHeader] })
+
+    const result = evaluateWith(tree as any, ctx)
+    expect(result).toEqual({ kind: 'Boolean', value: false })
+    // Cost should match the valid-header case — handler runs to completion.
+    expect(ctx.jitCost).toBe(fixture.expectedJitCost)
+  })
+
+  it('valid V2 header at chain tip returns Boolean(true) — fixture redundancy check', () => {
+    // Mirror of the oracle test, here for organizational coherence with the
+    // throw-path siblings.
+    const exprBytes = hexToBytes(fixture.exprBytes)
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: parseExpr(new ByteReader(exprBytes), [], []),
+    }
+    const ctx = makeContext({ treeVersion: 3, headers: [header] })
+
+    const result = evaluateWith(tree as any, ctx)
+    expect(result).toEqual({ kind: 'Boolean', value: true })
+    expect(ctx.jitCost).toBe(fixture.expectedJitCost)
+  })
+})
+```
+
+**Note on AST shape:** the `MethodCall` Expr literal in the non-Header test is the same node shape used by the 15 2h-c.1 SHeader accessor tests via `PropertyCall` — re-read `packages/ergoscript/test/eval/sheader-handlers.test.ts` and confirm the `tag: 'MethodCall'` shape matches the project's MIR type definitions. If the discriminant uses different field names (e.g., `obj` vs `receiver`), adapt the literal to match.
+
+- [ ] **Step 2: Run the test — must pass**
+
+Run: `npx vitest run packages/ergoscript/test/eval/sheader-checkpow.test.ts`
+Expected: PASS (all 3 new tests).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/ergoscript/test/eval/sheader-checkpow.test.ts
+git commit -m "$(cat <<'EOF'
+test(ergoscript): SHeader.checkPow edge cases
+
+- Non-Header receiver → 'header-obj-not-header'
+- V2 header with mutated nonce → Boolean(false), no throw
+- Valid V2 header → Boolean(true) (organizational mirror of oracle)
+
+All edge cases cover the cost-charging post-Pattern-A code path
+(handler cost IS charged on these branches; only V<3 reject skips it).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Phase 6 — Mutation testing + facts files + final verification
+
+### Task 14: Mutation tests on the C1 oracle fixture
+
+**Files:**
+- Create: `packages/ergoscript/test/eval/sheader-checkpow-mutation.test.ts`
+
+- [ ] **Step 1: Re-read the existing mutation-testing pattern**
+
+Run: `ls packages/ergoscript/test/eval/ | grep -i mutation`
+Expected: any existing mutation-testing files. Re-read one for the pattern (single-byte flips at each offset; assert throw or byte-identical).
+
+- [ ] **Step 2: Write the mutation test**
+
+Create `packages/ergoscript/test/eval/sheader-checkpow-mutation.test.ts`:
+
+```ts
+/**
+ * Mutation testing for SHeader.checkPow oracle fixture — phase 2h-c.2.
+ *
+ * Target: ≥ 90% kill rate per fixture. Each single-byte flip either:
+ *   - Flips the Boolean result (killed by assertion)
+ *   - Causes a wire-layer throw (killed by typed-error catch)
+ *   - Flips the V3 gate (killed by 'tree-version-too-low')
+ *   - Leaves bytes identical (tolerated)
+ */
+import { describe, it, expect } from 'vitest'
+import fixture from '../fixtures/eval/sheader-checkpow.json'
+import { parseExpr } from '../../src/wire/parse'
+import { ByteReader } from '@ergots/scorex'
+import { evaluateWith, makeContext } from '../../src/eval/evaluate'
+import { parseHeader } from '@ergots/scorex'
+
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16)
+  }
+  return out
+}
+
+const originalBytes = hexToBytes(fixture.exprBytes)
+const headerBytes = hexToBytes(fixture.headerHexBytes)
+const header = parseHeader(new ByteReader(headerBytes))
+
+const NUM_MUTATIONS = Math.min(originalBytes.length, 40)
+const offsets: number[] = []
+for (let i = 0; i < NUM_MUTATIONS; i++) {
+  offsets.push(Math.floor((i / NUM_MUTATIONS) * originalBytes.length))
+}
+
+let killed = 0
+let tolerated = 0
+let totalRun = 0
+
+function evaluateMutated(mutated: Uint8Array): { result: any; threw: Error | null } {
+  let result: any = null
+  let threw: Error | null = null
+  try {
+    const tree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
+      constantTypes: [],
+      constants: [],
+      body: parseExpr(new ByteReader(mutated), [], []),
+    }
+    const ctx = makeContext({ treeVersion: 3, headers: [header] })
+    result = evaluateWith(tree as any, ctx)
+  } catch (e) {
+    threw = e as Error
+  }
+  return { result, threw }
+}
+
+describe('SHeader.checkPow mutation', () => {
+  offsets.forEach((offset) => {
+    it(`mutation at offset ${offset}: killed or tolerated`, () => {
+      const mutated = new Uint8Array(originalBytes)
+      mutated[offset] = (mutated[offset] + 1) & 0xff
+
+      const { result, threw } = evaluateMutated(mutated)
+      totalRun++
+
+      const isKilled =
+        threw !== null ||
+        (result?.kind === 'Boolean' && result.value === false)
+
+      if (isKilled) {
+        killed++
+      } else {
+        tolerated++
+      }
+
+      // Each mutation is one of: killed (typed throw OR flipped Boolean), or
+      // tolerated (byte-identical / padding region). The original-bytes case
+      // returns true; tolerated mutations must also return true (no silent change).
+      expect(isKilled || result?.value === true).toBe(true)
+    })
+  })
+
+  it(`aggregate kill rate ≥ 90%`, () => {
+    // This test must run AFTER all the offsets above. Vitest runs tests within
+    // a `describe` block sequentially by default — verify in your vitest config
+    // that this assumption holds. If parallelism is enabled, restructure into a
+    // single `it` block that loops internally.
+    console.log(`Mutation kill rate: ${killed}/${totalRun} = ${((killed / totalRun) * 100).toFixed(1)}%`)
+    expect(killed / totalRun).toBeGreaterThanOrEqual(0.9)
+  })
+})
+```
+
+- [ ] **Step 3: Run the mutation test**
+
+Run: `npx vitest run packages/ergoscript/test/eval/sheader-checkpow-mutation.test.ts`
+Expected: PASS with ≥ 90% kill rate logged.
+
+If kill rate is below 90%, inspect the tolerated mutations — are they all in legitimate padding regions (e.g., the `unparsedBytes` forward-compat region of the Header)? Per the 2h-c.1 precedent on `option-none` (87.5% accepted with documentation), small documented exceptions are acceptable. If unexpected mutations are tolerated, investigate the gap.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/ergoscript/test/eval/sheader-checkpow-mutation.test.ts
+git commit -m "$(cat <<'EOF'
+test(ergoscript): SHeader.checkPow mutation testing
+
+Single-byte flips on the C1 oracle fixture bytes. Target ≥ 90% kill
+rate per fixture. Mutations either flip the Boolean result, cause a
+typed wire-layer throw, flip the V3 gate, or leave bytes identical
+(tolerated padding).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 15: Update `facts/scorex.md` for the new Autolykos v2 surface + AutolykosV1NotSupportedError
+
+**Files:**
+- Modify: `facts/scorex.md`
+
+- [ ] **Step 1: Re-read the current facts/scorex.md sections**
+
+Run: `grep -n "Autolykos\|Does NOT ship\|Failure model\|Source mapping\|Public surface\|Ships in this contract" facts/scorex.md`
+
+- [ ] **Step 2: Bump "Ships in this contract" header to v0.2.0 and add new bullets**
+
+Change `**Ships in this contract (v0.1.0):**` → `**Ships in this contract (v0.2.0):**`. After the existing bullets 1-9, append:
+
+```markdown
+10. Autolykos v2 PoW verifier: `verifyAutolykosV2(header): boolean` + helpers (`calcBigN`, `autolykosMessage`, `buildAutolykosSeed`, `genIndexes`, `hashElement`).
+11. `decodeCompactBits(nBits): bigint` — Bitcoin-compact-bits target unpacking, used by the Autolykos v2 verifier.
+12. `AutolykosV1NotSupportedError` typed error class — thrown by `verifyAutolykosV2` on v1 headers (matches sigma-rust `AutolykosPowSchemeError::Unsupported`).
+```
+
+- [ ] **Step 3: Remove Autolykos v2 from "Does NOT ship"**
+
+In the "Does NOT ship" section, remove the existing bullet starting with `**Autolykos v2 PoW verifier.**` (the promotion landed in 2h-c.2).
+
+- [ ] **Step 4: Update the "Public surface" code block**
+
+Change `**Public surface (v0.1.0)**` → `**Public surface (v0.2.0)**`. In the public-surface `// ─── ` code block, before the closing exports, append:
+
+```ts
+// ─── Autolykos v2 PoW verifier ───────────────────────────────────────────────
+
+export function calcBigN(version: number, height: number): number
+export function autolykosMessage(header: Header): Uint8Array  // 32 bytes
+export function buildAutolykosSeed(msg: Uint8Array, nonce: Uint8Array, height: number, bigN: number): Uint8Array  // 32 bytes
+export function genIndexes(seed: Uint8Array, bigN: number): number[]  // 32 indices
+export function hashElement(index: number, height: number): Uint8Array  // 31 bytes
+export function verifyAutolykosV2(header: Header): boolean
+  // throws AutolykosV1NotSupportedError on header.version === 1
+
+// ─── nBits decode ────────────────────────────────────────────────────────────
+
+export function decodeCompactBits(nBits: number): bigint
+```
+
+And in the error-classes section (alongside `ReaderError`):
+
+```ts
+export class AutolykosV1NotSupportedError extends Error {
+  readonly code: 'autolykos-v1-not-supported'
+}
+```
+
+- [ ] **Step 5: Update the "Failure model" section**
+
+Append a new sub-section:
+
+```markdown
+**`AutolykosV1NotSupportedError` — thrown by `verifyAutolykosV2` on V1 headers**
+
+A typed error class wrapping the case where `verifyAutolykosV2` is called with `header.version === 1`. Mirrors sigma-rust's `AutolykosPowSchemeError::Unsupported` (`autolykos_pow_scheme.rs:322-324`). The `code` is the string literal `'autolykos-v1-not-supported'`.
+
+Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this throw exists for callers that mistakenly hand a v1 header to `verifyAutolykosV2` directly. `@ergots/ergoscript`'s `SHeader.checkPow` eval arm catches this class and re-throws as `EvalError('autolykos-v1-not-supported')`.
+```
+
+- [ ] **Step 6: Update the Source Mapping table**
+
+Append rows:
+
+```markdown
+| `ergo-chain-types/src/autolykos_pow_scheme.rs::pow_hit` (lines 176-197) | `verifyAutolykosV2` + helpers (`autolykos-v2.ts`) | V2 path only; V1 sigma-rust returns pow_distance but our port throws AutolykosV1NotSupportedError |
+| `ergo-chain-types/src/autolykos_pow_scheme.rs::decode_compact_bits` | `decodeCompactBits` (`nbits.ts`) | Bitcoin-compact-bits target unpacking; bit-exact mirror |
+| `ergo-chain-types/src/autolykos_pow_scheme.rs::AutolykosPowSchemeError::Unsupported` (line 322) | `AutolykosV1NotSupportedError` (`errors.ts`) | V1 verification not implemented; sigma-rust returns Err on the same condition |
+```
+
+- [ ] **Step 7: Update the Test corpus section**
+
+Append:
+
+```markdown
+- `autolykos-v2.test.ts` — `verifyAutolykosV2` against mainnet V2 headers; V1 throw path; helpers' unit tests.
+- `nbits.test.ts` — `decodeCompactBits` round-trip + boundary values.
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add facts/scorex.md
+git commit -m "$(cat <<'EOF'
+docs(facts): scorex gains Autolykos v2 + nBits + AutolykosV1NotSupportedError
+
+v0.2.0 surface update. Promotes the v2 PoW verifier and decodeCompactBits
+from @ergots/nipopow (phase 2h-c.2). Adds AutolykosV1NotSupportedError
+to the failure model and three Source Mapping rows pointing at
+sigma-rust's autolykos_pow_scheme.rs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 16: Update `facts/ergoscript-eval.md` and `facts/ergoscript.md` for the new handler + EvalError code + dispatcher upgrade
 
 **Files:**
 - Modify: `facts/ergoscript-eval.md`
-
-- [ ] **Step 6.1.1: Add Phase 2h-c.1 changelog block.**
-
-Insert a new section after the existing **"Phase 2h-b — `@ergots/avltree` integration"** block, before the **"Does NOT ship yet (deferred)"** section. Format mirrors prior phase entries:
-
-```markdown
-**Phase 2h-c.1 — SHeader runtime + 17 method handlers** (additive):
-
-- 17 new method handlers wired (21 → 38 registry entries):
-  - **15 `SHeader.*` accessors** (Pattern A Fixed(10) each) at typeId 104, methodIds 1-15: `id` (1), `version` (2), `parentId` (3), `adProofsRoot` (4), `stateRoot` (5), `transactionsRoot` (6), `timestamp` (7), `nBits` (8), `height` (9), `extensionRoot` (10), `minerPk` (11), `powOnetimePk` (12), `powNonce` (13), `powDistance` (14), `votes` (15). Source: `eval/sheader.rs:16-113`.
-  - **2 `SContext.*` additions** (Pattern A Fixed(15) each): `headers` (101:2) returns `Coll[Header]` from `ctx.headers`; `LastBlockUtxoRootHash` (101:9) synthesizes `AvlTree(digest=ctx.headers[0].stateRoot, treeFlags=0b111, keyLength=32, valueLengthOpt=null)`. Source: `eval/scontext.rs:58-70` and `:83-99`.
-- New `SValue` variant: `{ kind: 'Header'; value: Header }` (`Header` imported from `@ergots/scorex`).
-- `EvalOpts` / `EvalContext` gains 1 new optional field: `headers?: Header[]`.
-- 1 new `EvalError` code: `'header-obj-not-header'` (defensive receiver check on all 15 SHeader handlers; 45 → 46 total).
-- Wire-format unlock (cross-references `facts/ergoscript-wire.md`): `parseSValue` / `serializeSValue` signatures gain `treeVersion: number` parameter; SHeader SValue parse + serialize now ship with V3-gating (replaces `'not-implemented-phase-2a'`).
-- V2-header semantic detail: `powOnetimePk` returns 33 zero bytes (identity-point encoding per `EcPoint::default()` → `scorex_serialize`); `powDistance` returns `0n` (BigInt).
-- Notable quirk: `SHeader.stateRoot` is declared with `SType::SAvlTree` in sigma-rust `types/sheader.rs:127`, but the eval (`sheader.rs:40-44`) returns `Coll[Byte]` (33 bytes). We match the eval, not the type-system declaration.
-
-**Phase 2h-c.1 COMPLETE.** Method handler registry: 38 entries. EvalError codes: 46. Test count: ~2847.
-```
-
-- [ ] **Step 6.1.2: Update the method-handler registry table.**
-
-Insert rows #22 through #38 into the existing table (after row #21 from phase 2h-b). Use exact entries from the design spec's Section 3 table.
-
-- [ ] **Step 6.1.3: Update the `EvalError` taxonomy.**
-
-Add the `'header-obj-not-header'` description under a new "Phase 2h-c.1 codes (SHeader.* method handlers)" subsection.
-
-- [ ] **Step 6.1.4: Update the SValue union type-invariants section.**
-
-Add `| { kind: 'Header'; value: Header } // phase 2h-c.1 — Header value carrier` to the `SValue` union block.
-
-- [ ] **Step 6.1.5: Update the EvalOpts table.**
-
-Add `headers?: Header[]` row to the chain-state fields list.
-
-- [ ] **Step 6.1.6: Update the Coverage section's "Coverage and stability" subsection.**
-
-Change "**Method-handler registry: 21 entries**" to "**Method-handler registry: 38 entries** (was 21 before 2h-c.1; +17 from 2h-c.1 — 15 SHeader accessors at typeId 104, methodIds 1-15, + 2 SContext additions at 101:2 and 101:9)."
-
-### Task 6.2 — Update `facts/ergoscript-wire.md`
-
-**Files:**
-- Modify: `facts/ergoscript-wire.md`
-
-- [ ] **Step 6.2.1: Update `SValueParseError` and `SValueSerializeError` code lists.**
-
-Add `'sheader-tree-version-too-low'` to both lists. Update the `'not-implemented-phase-2a'` description to note that SHeader has been removed from its emitting set (mirrors the existing "SBox removed in phase 2f Stop α, SAvlTree removed in phase 2h-b" pattern).
-
-- [ ] **Step 6.2.2: Add a new "Phase 2h-c.1 wire updates (SHeader)" section.**
-
-Mirrors the existing "Phase 2h-b wire updates (SAvlTree)" section. Document:
-
-- `parseSValue(SHeader, treeVersion, r)` and `serializeSValue(SHeader, v, treeVersion, w)` ship with V3 gating.
-- Signature change: both functions gain `treeVersion: number` parameter (threading through every recursive callsite).
-- The wire format delegates to `@ergots/scorex`'s `parseHeader` / `serializeHeader` at V3+; throws `'sheader-tree-version-too-low'` at V<3.
-- 6 fixture entries cover the round-trip + V<3 rejection.
-
-### Task 6.3 — Update `facts/ergoscript.md`
-
-**Files:**
 - Modify: `facts/ergoscript.md`
 
-- [ ] **Step 6.3.1: Update Coverage summary.**
+- [ ] **Step 1: Update facts/ergoscript-eval.md — Phase 2h-c.2 changelog block**
 
-Update the test-count line to "Cross-runtime: ~2847 ergoscript + 143 avltree + 313 nipopow + 115 scorex = ~3418 tests, passing under both `node` and `jsdom`." (Or whatever the actual final count is.)
+Append a new changelog block AFTER the existing Phase 2h-c.1 block:
 
-Update the Evaluator coverage row to "52 of ~70 `Expr` arms wired; **38** method-handler registry entries; **46** `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (post-2h-c.1 uplift TBD on next corpus run)."
+```markdown
+**Phase 2h-c.2 — `SHeader.checkPow` + dispatcher minVersion upgrade** (additive):
 
-### Task 6.4 — Final verification
-
-- [ ] **Step 6.4.1: Full cross-package typecheck.**
-
-```bash
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/scorex/tsconfig.json
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/nipopow/tsconfig.json
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/avltree/tsconfig.json
-npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json
+- 1 new method handler wired (38 → 39 registry entries): **`SHeader.checkPow` (104:16)** — Pattern A Fixed(700) — V3-gated at the dispatcher (registered with `minVersion: 3`). Source: `eval/sheader.rs:115-124`.
+- Dispatcher upgrade: `HANDLERS` registry value type expanded from `HandlerFn` to `{ handler: HandlerFn, minVersion?: number }`. The dispatcher consults `entry.minVersion` and throws `EvalError('tree-version-too-low')` BEFORE invoking the handler — V<N reject incurs 0 handler-cost (sigma-rust-parity with `MethodDesc.min_version` gating).
+- 1 new `EvalError` code: `'autolykos-v1-not-supported'` (46 → 47 codes). Raised when `verifyAutolykosV2` (now in `@ergots/scorex`) throws `AutolykosV1NotSupportedError` on a V1 header.
+- `verifyAutolykosV2` runtime import moves from `@ergots/nipopow` to `@ergots/scorex` (phase 2h-c.2's other half — see `facts/scorex.md`).
 ```
 
-All four must be clean.
+- [ ] **Step 2: Add the new method to the registry table**
 
-- [ ] **Step 6.4.2: Full cross-package test run (node + jsdom).**
+In the "Method-handler registry (38 entries)" table, append after entry #38:
 
-```bash
-npx vitest run /home/mwaddip/projects/ergots/packages/ 2>&1 | tail -10
-# Cross-runtime:
-cd /home/mwaddip/projects/ergots/packages/ergoscript && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -5
-cd /home/mwaddip/projects/ergots/packages/scorex && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -5
+```markdown
+| 39 | `SHeader.checkPow` | 104:16 | 700 | A | `Boolean` — V3-gated via `minVersion: 3` on registry; v1 header throws `'autolykos-v1-not-supported'` | `eval/sheader.rs:115-124` |
 ```
 
-Expected: ≈ 3470 tests pass under both runtimes. Zero regression on existing 3388.
+Update the header from "Method-handler registry (38 entries)" to "Method-handler registry (39 entries)".
 
-- [ ] **Step 6.4.3: fixture-gen determinism check.**
+- [ ] **Step 3: Add the new EvalError code to the taxonomy section**
 
-```bash
-cd /home/mwaddip/projects/ergots/fixture-gen && cargo build --release && cargo run --release 2>&1 | tail -3
-git -C /home/mwaddip/projects/ergots status packages/ergoscript/test/fixtures/eval/ packages/ergoscript/test/fixtures/wire/ packages/ergoscript/test/fixtures/headers/ 2>&1 | head -10
+In the EvalError taxonomy block, add a new sub-section after the Phase 2h-c.1 codes:
+
+```markdown
+### Phase 2h-c.2 codes (SHeader.checkPow)
+
+- **`'autolykos-v1-not-supported'`** — `SHeader.checkPow` handler caught an `AutolykosV1NotSupportedError` from `verifyAutolykosV2`. Mirrors sigma-rust's `AutolykosPowSchemeError::Unsupported` (`autolykos_pow_scheme.rs:322-324`). Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this code is the surface for the unusual case where `ctx.headers` includes a V1 header AND the script invokes `checkPow` on it.
 ```
 
-Expected: clean tree (`cargo run` reproduces the committed fixtures byte-identically).
+Update the count "46 codes" → "47 codes" everywhere it appears in the file.
 
-### Task 6.5 — Commit Phase 6
+- [ ] **Step 4: Document the dispatcher minVersion upgrade**
 
-- [ ] **Step 6.5.1: Stage facts files + commit.**
+Add a new sub-heading near the existing method-call dispatcher documentation:
+
+```markdown
+### Dispatcher minVersion gating (phase 2h-c.2)
+
+The method-call dispatcher consults an optional `minVersion?: number` field on each registry entry. When set, the dispatcher throws `EvalError('tree-version-too-low')` if `(ctx.treeVersion ?? 0) < entry.minVersion`, BEFORE invoking the handler. This is sigma-rust-parity with `MethodDesc.min_version`-level gating: V<N reject incurs receiver-eval cost + envelope cost (4) but NOT the handler's own cost (e.g., 700 for `checkPow`).
+
+Currently only `SHeader.checkPow` (104:16) uses `minVersion: 3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
+```
+
+- [ ] **Step 5: Update facts/ergoscript.md (meta) — registry + error counts**
+
+Open `facts/ergoscript.md`. Find and update:
+- "38-entry method-handler registry" → "39-entry method-handler registry"
+- "46 `EvalError` codes" → "47 `EvalError` codes"
+- "2857 ergoscript + 156 avltree + 307 nipopow + 115 scorex = 3435 tests" → updated total reflecting the new tests added in this phase
+- Coverage summary: register the +1 entry change in the appropriate row
+
+Run: `grep -n "3435\|2857\|38-entry\|46\|method-handler registry" facts/ergoscript.md`
+Use the matches to find each callsite and update.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-cd /home/mwaddip/projects/ergots && git add facts/ergoscript-eval.md facts/ergoscript-wire.md facts/ergoscript.md
+git add facts/ergoscript-eval.md facts/ergoscript.md
 git commit -m "$(cat <<'EOF'
-docs: facts files updated for phase 2h-c.1 SHeader runtime
+docs(facts): ergoscript-eval + ergoscript-meta refresh for 2h-c.2
 
-Updates facts/ergoscript-eval.md (+changelog block, +17 registry rows,
-+'header-obj-not-header' code, +SValue.Header variant, +headers field,
-+coverage summary), facts/ergoscript-wire.md (+'sheader-tree-version-too-low'
-codes, +SHeader removed from 'not-implemented-phase-2a' emitting set,
-+wire-updates section), and facts/ergoscript.md (refreshed test counts +
-coverage stats).
+- +1 method-handler registry entry (38→39): SHeader.checkPow (104:16) with minVersion: 3.
+- +1 EvalError code (46→47): 'autolykos-v1-not-supported'.
+- New "Dispatcher minVersion gating" section documenting the upgrade and the
+  cost-parity guarantee on V<N reject.
+- Meta count refresh.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 6.5.2: Confirm final repo state.**
+---
+
+### Task 17: Update `facts/nipopow.md` — remove Autolykos v2 from internal-modules section
+
+**Files:**
+- Modify: `facts/nipopow.md`
+
+- [ ] **Step 1: Find autolykos-v2 references in facts/nipopow.md**
+
+Run: `grep -n "autolykos-v2\|Autolykos v2\|verifyAutolykosV2" facts/nipopow.md`
+
+- [ ] **Step 2: Update language to reflect new consumer posture**
+
+If a line references `autolykos-v2.ts` as a nipopow-internal artifact, change it to reference `@ergots/scorex` instead. Also confirm the existing "consumes ByteReader, ByteWriter, ... from `@ergots/scorex`" line is augmented with `verifyAutolykosV2` and `decodeCompactBits`.
+
+If no such lines exist (the current facts/nipopow.md may already abstract this away), this task is a no-op.
+
+- [ ] **Step 3: Commit (if any changes were made)**
+
+If changes were made:
 
 ```bash
-git -C /home/mwaddip/projects/ergots log --oneline -10
-git -C /home/mwaddip/projects/ergots status
+git add facts/nipopow.md
+git commit -m "$(cat <<'EOF'
+docs(facts): nipopow consumes Autolykos v2 from @ergots/scorex
+
+Phase 2h-c.2 moved verifyAutolykosV2 and decodeCompactBits to scorex.
+Update facts/nipopow.md to reflect the new import posture.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
 
-Expected: ~6 phase commits + the initial spec commit `a77f640`. Working tree clean modulo the gitignored `audit20260519/` directory.
+If grep showed no changes were needed, skip this commit and proceed.
 
 ---
 
-## Acceptance criteria (Phase 2h-c.1 complete)
+### Task 18: Final verification — full test suite under both runtimes, typechecks, fixture-gen determinism, git status
 
-1. **Zero test regression:** all 3388 pre-phase tests still pass.
-2. **Test count uplift:** ≥ 3470 total tests across all 4 packages (target ≈ 3470; absolute floor 3388 + 80 = 3468).
-3. **Typecheck clean** across all 4 packages.
-4. **fixture-gen deterministic:** `cargo run` reproduces committed fixtures byte-identically.
-5. **Cross-runtime green:** all tests pass under both `node` and `jsdom`.
-6. **Facts files in sync:** `facts/ergoscript-eval.md`, `facts/ergoscript-wire.md`, `facts/ergoscript.md` accurately reflect the landed code.
-7. **No `--no-verify` / `--no-gpg-sign`** flags used on any commit.
-8. **All commits authored Co-by Claude Opus 4.7** per project convention.
+- [ ] **Step 1: All typechecks clean**
 
-## Deferred (not 2h-c.1 scope)
+Run: `npx tsc --noEmit -p packages/scorex/tsconfig.json && npx tsc --noEmit -p packages/nipopow/tsconfig.json && npx tsc --noEmit -p packages/avltree/tsconfig.json && npx tsc --noEmit -p packages/ergoscript/tsconfig.json`
+Expected: all four PASS.
 
-- `SHeader.checkPow` method handler (typeId 104, methodId 16) — phase 2h-c.2 with Autolykos v2 verifier promotion into `@ergots/scorex`.
-- Re-exporting `Header` / `AutolykosSolution` from `@ergots/ergoscript`'s public `index.ts`.
-- C2 mainnet-corpus uplift run.
-- Real-context cost validation (Layer C3) — phase 2j calibration.
-- Open issue from 2h-b: V3+ partial-success path for `SAvlTree.insert`/`update` is implemented but not fixture-tested. ~1-2 hr; carried forward.
+- [ ] **Step 2: All tests pass under node**
+
+Run: `npx vitest run packages/`
+Expected: ~3445-3450 tests pass (baseline 3435 + 10-15 from this phase). The exact count depends on how many edge-case tests landed.
+
+- [ ] **Step 3: Cross-runtime (jsdom) for the affected packages**
+
+Run: `cd packages/scorex && npx vitest run --config vitest.browser.config.ts && cd ../nipopow && npx vitest run --config vitest.browser.config.ts && cd ../ergoscript && npx vitest run --config vitest.browser.config.ts && cd ../..`
+Expected: PASS for all three.
+
+- [ ] **Step 4: Fixture-gen determinism**
+
+Run: `cd fixture-gen && cargo run --release && cd ..`
+Run: `git status fixture-gen/ packages/ergoscript/test/fixtures/eval/sheader-checkpow.json`
+Expected: no diff (deterministic regeneration).
+
+- [ ] **Step 5: Git status clean**
+
+Run: `git status`
+Expected: working tree clean (modulo gitignored `audit20260519/`).
+
+- [ ] **Step 6: Test count regression check**
+
+Run: `npx vitest run packages/ 2>&1 | tail -10 | grep -E "Tests|passed"`
+Expected: total test count is at least 3435 + 10 = 3445; no regression from baseline.
+
+**No commit on this task — verification only.**
+
+If any verification fails, halt and investigate the root cause per OVERRIDES rule #5 (no band-aids). Do not advance to a follow-up plan or update SESSION_CONTEXT.md until all verifications are clean.
+
+---
+
+## Self-review checklist (run after Task 18)
+
+This is a checklist against the spec. Confirm each is implemented:
+
+- [x] Autolykos v2 + nBits files moved from nipopow to scorex (Tasks 1, 4)
+- [x] `AutolykosV1NotSupportedError` typed class added in scorex (Task 2)
+- [x] Scorex index.ts re-exports the new surface (Task 3)
+- [x] Nipopow consumer (verifier.ts) flipped to scorex import (Task 5)
+- [x] Old nipopow source files deleted (Tasks 1, 4 — via git mv)
+- [x] Dispatcher's `HANDLERS` registry wrapped with `{ handler, minVersion? }` (Task 7)
+- [x] Dispatcher consults `minVersion` BEFORE invoking handler (Task 7 Step 4)
+- [x] All 38 existing handler entries wrapped without behavior change (Task 7 Step 3)
+- [x] Fixture-gen Rust module emits the C1 oracle fixture (Task 8)
+- [x] Fixture-gen determinism preserved (Task 8 Step 7, Task 18 Step 4)
+- [x] `evalSHeaderCheckPow` handler implemented in sheader.ts (Task 10 Step 2)
+- [x] Handler registered at 104:16 with `minVersion: 3` (Task 10 Step 3)
+- [x] New EvalError code `'autolykos-v1-not-supported'` added to the union (Task 10 Step 1)
+- [x] C1 oracle fixture test passes (Task 9, Task 10 Step 4)
+- [x] Parallel-pair V<3 reject tests assert `v3Cost - rejectCost === 700` (Task 11)
+- [x] V1-header throw test asserts `'autolykos-v1-not-supported'` (Task 12)
+- [x] Non-Header receiver throw test asserts `'header-obj-not-header'` (Task 13)
+- [x] Mutated-nonce edge case asserts `Boolean(false)` no-throw (Task 13)
+- [x] Mutation testing ≥ 90% kill rate (Task 14)
+- [x] facts/scorex.md reflects v0.2.0 surface + new error class (Task 15)
+- [x] facts/ergoscript-eval.md gains Phase 2h-c.2 changelog + registry entry + new code (Task 16)
+- [x] facts/ergoscript.md count refreshes (Task 16 Step 5)
+- [x] facts/nipopow.md reflects new consumer posture (Task 17, if applicable)
+- [x] All typechecks clean (Tasks 6, 10 Step 6, 18 Step 1)
+- [x] All tests pass under node + jsdom (Tasks 6, 18 Steps 2, 3)
+- [x] No test count regression (Task 18 Step 6)
+- [x] Working tree clean (Task 18 Step 5)
+
+---
+
+## Execution handoff
+
+**Plan complete and saved to `PLAN.md`.** Two execution options:
+
+**1. Subagent-Driven (recommended)** — Dispatch a fresh subagent per task. Two-stage review per phase (spec compliance + code quality). Caught 5 carry-forward items in the 2h-c.1 phase per the SESSION_CONTEXT precedent. **REQUIRED SUB-SKILL:** `superpowers:subagent-driven-development`.
+
+**2. Inline Execution** — Execute tasks in this session using `superpowers:executing-plans`. Batch execution with checkpoints for review.
+
+Which approach?
