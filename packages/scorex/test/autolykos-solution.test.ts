@@ -3,10 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { parseAutolykosSolution, serializeAutolykosSolution } from '../src/autolykos-solution';
-import { ProofParseError } from '../src/errors';
-import { ByteReader } from '../src/scorex/reader';
-import { hexToBytes, bytesToHex } from './helpers';
+import { parseAutolykosSolution, serializeAutolykosSolution } from '../src/autolykos-solution.ts';
+import { ByteReader, ReaderError } from '../src/reader.ts';
+import { hexToBytes, bytesToHex } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,14 +36,14 @@ describe('AutolykosSolution', () => {
     });
   }
 
-  test('truncated input throws ProofParseError', () => {
+  test('truncated input throws ReaderError', () => {
     const r = new ByteReader(hexToBytes('00'.repeat(32))); // 32 bytes — short by 9
     try {
       parseAutolykosSolution(r, 2);
       throw new Error('expected throw');
     } catch (e) {
-      expect(e).toBeInstanceOf(ProofParseError);
-      expect((e as InstanceType<typeof ProofParseError>).code).toBe('truncated');
+      expect(e).toBeInstanceOf(ReaderError);
+      expect((e as ReaderError).code).toBe('truncated');
     }
   });
 });

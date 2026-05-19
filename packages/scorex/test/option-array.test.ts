@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { ByteReader, ByteWriter } from '../src/index.ts';
+import { ByteReader, ByteWriter, ReaderError } from '../src/index.ts';
+import { encodeVlqU } from '../src/vlq.ts';
 
 describe('readBool / writeBool', () => {
   test('writeBool(true) emits 0x01', () => {
@@ -91,5 +92,21 @@ describe('readArray / writeArray', () => {
   test('readArray throws on truncated element stream', () => {
     const r = new ByteReader(new Uint8Array([0x03, 1, 2]));
     expect(() => r.readArray<number>((r) => r.readU8())).toThrow();
+  });
+
+  test('readArray rejects length > 2^24 with slice-out-of-bounds', () => {
+    // Encode (1 << 24) + 1 = 16777217 as VLQ using encodeVlqU, then feed it
+    // to readArray. The bounds check must throw ReaderError('slice-out-of-bounds')
+    // BEFORE attempting allocation or reading any elements.
+    const overlongLengthBytes = encodeVlqU(BigInt((1 << 24) + 1));
+    const r = new ByteReader(overlongLengthBytes);
+    let threw: unknown;
+    try {
+      r.readArray<number>((r) => r.readU8());
+    } catch (e) {
+      threw = e;
+    }
+    expect(threw).toBeInstanceOf(ReaderError);
+    expect((threw as ReaderError).code).toBe('slice-out-of-bounds');
   });
 });

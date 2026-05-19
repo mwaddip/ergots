@@ -33,7 +33,7 @@
  * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs lines 203-261.
  */
 
-import { ByteReader } from './scorex/reader.ts';
+import { ByteReader, ReaderError } from './scorex/reader.ts';
 import { ByteWriter } from './scorex/writer.ts';
 import { encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
 import { parsePoPowHeader, serializePoPowHeader, type PoPowHeader } from './popow-header.ts';
@@ -135,6 +135,7 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
       popowHeader = parsePoPowHeader(subR);
     } catch (e) {
       if (e instanceof ProofParseError) throw e;
+      if (e instanceof ReaderError) throw new ProofParseError(`prefix[${i}]: ${e.message}`, e.code);
       throw new ProofParseError(`prefix[${i}]: ${String(e)}`, 'truncated');
     }
     if (!subR.isExhausted) {
@@ -160,6 +161,7 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
     suffixHead = parsePoPowHeader(shSubR);
   } catch (e) {
     if (e instanceof ProofParseError) throw e;
+    if (e instanceof ReaderError) throw new ProofParseError(`suffix_head: ${e.message}`, e.code);
     throw new ProofParseError(`suffix_head: ${String(e)}`, 'truncated');
   }
   if (!shSubR.isExhausted) {
@@ -197,6 +199,7 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
       tailHeader = parseHeader(stSubR);
     } catch (e) {
       if (e instanceof ProofParseError) throw e;
+      if (e instanceof ReaderError) throw new ProofParseError(`suffix_tail[${i}]: ${e.message}`, e.code);
       throw new ProofParseError(`suffix_tail[${i}]: ${String(e)}`, 'truncated');
     }
     if (!stSubR.isExhausted) {

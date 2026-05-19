@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { parseHeader, serializeHeader, deriveHeaderId } from '../src/header';
-import { ByteReader } from '../src/scorex/reader';
-import { hexToBytes, bytesToHex } from './helpers';
+import { parseHeader, serializeHeader, deriveHeaderId } from '../src/header.ts';
+import { ByteReader, ReaderError } from '../src/reader.ts';
+import { hexToBytes, bytesToHex } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -53,8 +53,7 @@ describe('Header', () => {
     });
   }
 
-  test('truncated input throws ProofParseError', async () => {
-    const { ProofParseError } = await import('../src/errors');
+  test('truncated input throws ReaderError', () => {
     // 50 bytes: enough for version + parentId + adProofsRoot, truncated before
     // transactionRoot (32 more bytes needed).
     const r = new ByteReader(new Uint8Array(50));
@@ -62,8 +61,8 @@ describe('Header', () => {
       parseHeader(r);
       throw new Error('expected throw');
     } catch (e) {
-      expect(e).toBeInstanceOf(ProofParseError);
-      expect((e as InstanceType<typeof ProofParseError>).code).toBe('truncated');
+      expect(e).toBeInstanceOf(ReaderError);
+      expect((e as ReaderError).code).toBe('truncated');
     }
   });
 });

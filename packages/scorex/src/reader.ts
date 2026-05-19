@@ -140,6 +140,12 @@ export class ByteReader {
 
   readArray<T>(reader: (r: ByteReader) => T): T[] {
     const length = this.readVlqU();
+    if (length > 1 << 24) {
+      throw new ReaderError(
+        `readArray: length ${length} exceeds maximum ${1 << 24}`,
+        'slice-out-of-bounds',
+      );
+    }
     const out: T[] = new Array(length);
     for (let i = 0; i < length; i++) out[i] = reader(this);
     return out;
