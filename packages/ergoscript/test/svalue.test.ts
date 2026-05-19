@@ -331,6 +331,66 @@ describe('SValue wire round-trip', () => {
   }
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ERG-06 regression — serialize-side numeric range checks. Pre-fix the
+// serializer silently masked or truncated out-of-range values; post-fix it
+// throws SValueSerializeError('numeric-out-of-range') so callers can't build
+// constants that round-trip to a DIFFERENT value.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('SValue ERG-06 numeric range checks', () => {
+  it.each([
+    [256, 'SByte'],
+    [-129, 'SByte'],
+    [128, 'SByte'],
+  ])('serializeSValue(SByte, %s) → numeric-out-of-range', (value, _name) => {
+    const w = new ByteWriter()
+    try {
+      serializeSValue({ tag: 'SByte' }, { kind: 'Byte', value: value as number }, w)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('numeric-out-of-range')
+    }
+  })
+
+  it.each([
+    [65535, 'SShort'],
+    [-32769, 'SShort'],
+    [32768, 'SShort'],
+  ])('serializeSValue(SShort, %s) → numeric-out-of-range', (value, _name) => {
+    const w = new ByteWriter()
+    try {
+      serializeSValue({ tag: 'SShort' }, { kind: 'Short', value: value as number }, w)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('numeric-out-of-range')
+    }
+  })
+
+  it('serializeSValue(SInt, 4294967296) → numeric-out-of-range', () => {
+    const w = new ByteWriter()
+    try {
+      serializeSValue({ tag: 'SInt' }, { kind: 'Int', value: 4294967296 }, w)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('numeric-out-of-range')
+    }
+  })
+
+  it('serializeSValue(SLong, 2^63) → numeric-out-of-range', () => {
+    const w = new ByteWriter()
+    try {
+      serializeSValue({ tag: 'SLong' }, { kind: 'Long', value: 9223372036854775808n }, w)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueSerializeError)
+      expect((e as SValueSerializeError).code).toBe('numeric-out-of-range')
+    }
+  })
+})
+
 describe('SValue deferred-kind errors', () => {
   // Kinds that have no inline Const(SValue) wire form in phase 2a.
   // parseSValue must throw `SValueParseError` with code `not-implemented-phase-2a`.

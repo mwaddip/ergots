@@ -125,14 +125,28 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
 
     case 'SByte': {
       assertKind(t, v, 'Byte')
-      // Truncate to i8 range; the SValue holds a JS number (any int) so a
-      // defensive mask catches accidental out-of-range producers.
+      // Audit ERG-06: pre-fix this silently masked `v.value & 0xff` which
+      // wrapped 256 → 0 and -129 → 127. Enforce signed i8 range.
+      if (!Number.isInteger(v.value) || v.value < -128 || v.value > 127) {
+        throw new SValueSerializeError(
+          `SByte value ${v.value} out of signed i8 range [-128, 127]`,
+          'numeric-out-of-range',
+        )
+      }
       w.writeU8(v.value & 0xff)
       return
     }
 
     case 'SShort': {
       assertKind(t, v, 'Short')
+      // Audit ERG-06: pre-fix the i32 cast silently wrapped 65535 → -1.
+      // Enforce signed i16 range.
+      if (!Number.isInteger(v.value) || v.value < -32768 || v.value > 32767) {
+        throw new SValueSerializeError(
+          `SShort value ${v.value} out of signed i16 range [-32768, 32767]`,
+          'numeric-out-of-range',
+        )
+      }
       // sigma-rust: `put_u32(encode_i32(v as i32) as u32)` —
       // sign-extend i16 → i32, ZigZag-encode in i32 space, truncate to u32,
       // then VLQ-encode as a u64 with the upper 32 bits zeroed.
@@ -145,6 +159,18 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
 
     case 'SInt': {
       assertKind(t, v, 'Int')
+      // Audit ERG-06: pre-fix `v.value | 0` silently wrapped 4294967296 → 0.
+      // Enforce signed i32 range.
+      if (
+        !Number.isInteger(v.value) ||
+        v.value < -0x80000000 ||
+        v.value > 0x7fffffff
+      ) {
+        throw new SValueSerializeError(
+          `SInt value ${v.value} out of signed i32 range`,
+          'numeric-out-of-range',
+        )
+      }
       // sigma-rust: `put_u64(encode_i32(v))` — ZigZag-encode in i32 space and
       // emit the result as a u64. The `as u64` cast in Rust sign-extends the
       // i32-bit-pattern result above bit 31, so values like i32::MAX/MIN
@@ -162,10 +188,21 @@ export function serializeSValue(t: SType, v: SValue, w: ByteWriter): void {
       return
     }
 
-    case 'SLong':
+    case 'SLong': {
       assertKind(t, v, 'Long')
+      // Audit ERG-06: pre-fix writeVlqBigIntSigned silently wrapped values
+      // outside signed i64 range. Enforce.
+      const I64_MIN = -(1n << 63n)
+      const I64_MAX = (1n << 63n) - 1n
+      if (v.value < I64_MIN || v.value > I64_MAX) {
+        throw new SValueSerializeError(
+          `SLong value ${v.value} out of signed i64 range`,
+          'numeric-out-of-range',
+        )
+      }
       w.writeVlqBigIntSigned(v.value)
       return
+    }
 
     case 'SBigInt': {
       assertKind(t, v, 'BigInt')
