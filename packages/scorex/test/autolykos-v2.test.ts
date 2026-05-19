@@ -10,7 +10,7 @@
  *  6. full verifyAutolykosV2 round-trip
  *  7. mutation test (nonce flip)
  *
- * Fixtures: packages/nipopow/test/fixtures/autolykos_v2.json
+ * Fixtures: packages/scorex/test/fixtures/autolykos_v2.json
  * Reference: sigma-rust ergo-chain-types/src/autolykos_pow_scheme.rs
  */
 import { describe, test, expect } from 'vitest';
@@ -51,7 +51,7 @@ interface AutolykosCase {
 }
 
 const fixtures: AutolykosCase[] = JSON.parse(
-  readFileSync(resolve(__dirname, '../../nipopow/test/fixtures/autolykos_v2.json'), 'utf8')
+  readFileSync(resolve(__dirname, 'fixtures/autolykos_v2.json'), 'utf8')
 );
 
 // Only real headers (synthetic case has no header_bytes_hex)
