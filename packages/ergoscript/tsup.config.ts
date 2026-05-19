@@ -6,7 +6,8 @@ export default defineConfig({
   dts: true,
   clean: true,
   splitting: false,
-  sourcemap: true,
+  // OPS-04: see packages/nipopow/tsup.config.ts for rationale.
+  sourcemap: false,
   target: 'es2022',
   platform: 'neutral',
 });
