@@ -24,6 +24,7 @@ import { ByteWriter } from './scorex/writer.ts';
 import { decodeVlqU, encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
 import { blake2b256 } from './crypto/blake2b256.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from './digests.ts';
+import { ProofParseError } from './errors.ts';
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
 import type { AutolykosSolution } from './autolykos-solution.ts';
 
@@ -58,8 +59,20 @@ export function parseHeader(reader: ByteReader): Header {
   const transactionRoot = readFixed(reader, DIGEST32_LEN, 'transactionRoot');
   const stateRoot = readFixed(reader, AD_DIGEST_LEN, 'stateRoot');
 
-  // timestamp: VLQ u64 — fits in Number for all realistic timestamps (< 2^53 ms)
-  const timestamp = Number(decodeVlqU(reader));
+  // timestamp: VLQ u64 stored as JS Number (audit NIP-08: enforce
+  // <= Number.MAX_SAFE_INTEGER so the parsed value round-trips exactly through
+  // BigInt(header.timestamp) on serialize. Above 2^53-1, Number(BigInt) is
+  // lossy; the serializer would then encode a different value and break
+  // byte-identical round-trip. Real chain timestamps fit in < 2^45 for the
+  // next few millennia.).
+  const timestampBig = decodeVlqU(reader);
+  if (timestampBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new ProofParseError(
+      `timestamp ${timestampBig} exceeds Number.MAX_SAFE_INTEGER`,
+      'vlq-overflow',
+    );
+  }
+  const timestamp = Number(timestampBig);
 
   const extensionRoot = readFixed(reader, DIGEST32_LEN, 'extensionRoot');
 

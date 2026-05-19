@@ -100,6 +100,32 @@ describe('parseProof error cases', () => {
   // a height > 0xffffffff and serializing produces wire bytes that parseProof
   // must reject with 'vlq-overflow'.
   // ───────────────────────────────────────────────────────────────────────────
+  test('NIP-08: parseProof rejects header.timestamp > Number.MAX_SAFE_INTEGER', () => {
+    const proof = buildSyntheticProof({
+      m: 1,
+      k: 1,
+      prefixHeights: [10],
+      suffixHeadHeight: 100,
+    });
+    const sentinel = new Uint8Array(32);
+    proof.prefix[0]!.interlinks = [sentinel];
+    proof.suffixHead.interlinks = [sentinel];
+    proof.suffixHead.header.timestamp = Number.MAX_SAFE_INTEGER + 1; // 2^53 (first lossy value)
+    let bytes: Uint8Array;
+    try {
+      bytes = serializeProof(proof);
+    } catch {
+      return;
+    }
+    try {
+      parseProof(bytes);
+      throw new Error('expected throw on parse');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('vlq-overflow');
+    }
+  });
+
   test('NIP-07: parseProof rejects header.height > u32 max', () => {
     // Build a valid synthetic proof with non-empty interlinks (NIP-05 would
     // otherwise reject the synthetic PoPowHeaders before reaching height
