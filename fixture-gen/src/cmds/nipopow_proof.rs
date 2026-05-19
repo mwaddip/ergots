@@ -107,7 +107,7 @@ fn make_synthetic_header(
 /// Mirrors `ChainPopowReader::build_popow_header` from ergo-node-rust.
 fn build_popow_header(header: Header, interlinks: Vec<BlockId>) -> anyhow::Result<PoPowHeader> {
     let extension_candidate =
-        ExtensionCandidate::new(crate::cmds::interlinks_jvm::pack_interlinks_jvm(interlinks.clone()))
+        ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone()))
             .map_err(|e| anyhow::anyhow!("ExtensionCandidate::new: {e}"))?;
     let interlinks_proof = NipopowAlgos::proof_for_interlink_vector(&extension_candidate)
         .ok_or_else(|| anyhow::anyhow!("proof_for_interlink_vector returned None"))?;
@@ -303,7 +303,7 @@ fn build_chain(count: u32) -> anyhow::Result<SynthChainReader> {
     // Build extension store
     let mut store: HashMap<u32, Vec<u8>> = HashMap::new();
     for (idx, h) in headers.iter().enumerate() {
-        let fields = crate::cmds::interlinks_jvm::pack_interlinks_jvm(interlinks_per_height[idx].clone());
+        let fields = NipopowAlgos::pack_interlinks(interlinks_per_height[idx].clone());
         let ext_bytes = pack_extension_bytes(&h.id, &fields);
         store.insert(h.height, ext_bytes);
     }
@@ -318,7 +318,7 @@ fn build_chain(count: u32) -> anyhow::Result<SynthChainReader> {
 
 fn popow_header_merkle_info(popow: &PoPowHeader) -> (Vec<(String, String)>, String) {
     use ergo_merkle_tree::{MerkleNode, MerkleTree};
-    let fields = crate::cmds::interlinks_jvm::pack_interlinks_jvm(popow.interlinks.clone());
+    let fields = NipopowAlgos::pack_interlinks(popow.interlinks.clone());
     let packed_leaves: Vec<(String, String)> = fields
         .iter()
         .map(|(k, v)| (hex::encode(k), hex::encode(v)))
@@ -375,7 +375,7 @@ fn mutation_break_prefix_connections(proof: &NipopowProof) -> anyhow::Result<Con
     // what we need: a parseable proof that fails has_valid_connections.
     {
         let ext = ExtensionCandidate::new(
-            crate::cmds::interlinks_jvm::pack_interlinks_jvm(mutated.suffix_head.interlinks.clone())
+            NipopowAlgos::pack_interlinks(mutated.suffix_head.interlinks.clone())
         ).map_err(|e| anyhow::anyhow!("ExtensionCandidate: {e}"))?;
         mutated.suffix_head.interlinks_proof =
             NipopowAlgos::proof_for_interlink_vector(&ext)
@@ -439,10 +439,10 @@ fn mutation_expected_to_fail(mutated: &[u8]) -> bool {
             if !proof.has_valid_connections() {
                 return true;
             }
-            // Check interlinks Merkle proof per PoPowHeader (JVM-compat;
-            // mirrors what @ergots/nipopow checkInterlinksProof does in TS).
+            // Check interlinks Merkle proof per PoPowHeader (sigma-rust PR #866
+            // landed; pack_interlinks now produces JVM-compat keys upstream).
             for ph in std::iter::once(&proof.suffix_head).chain(proof.prefix.iter()) {
-                if !crate::cmds::interlinks_jvm::check_interlinks_proof_jvm(ph) {
+                if !ph.check_interlinks_proof() {
                     return true;
                 }
             }

@@ -178,11 +178,11 @@ Each error's `.message` is human-readable; each carries a `code: string` matchin
 
 No other error classes are exported from this package. Internal panics (e.g. blake2b implementation bugs) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
 
-## Known limitations / sigma-rust divergences
+## Known limitations
 
 - **Interlink Merkle proof anchors to interlinks-only-root, NOT `header.extensionRoot`.** The NiPoPoW proof commits to an interlinks-only ExtensionCandidate's Merkle root, mirroring sigma-rust's `PoPowHeader::check_interlinks_proof`. For mainnet blocks whose actual on-chain extension contains only interlinks (no votes/params at this height), `header.extensionRoot` coincidentally equals the interlinks-only-root; for blocks with richer extensions, the two diverge, and verification anchors to interlinks-only-root, not the on-chain commitment. Future work: add an explicit `header.extensionRoot` anchoring mode for callers that need full-extension-root assurance.
 
-- **`packInterlinks` uses JVM Ergo's position-based key encoding.** Key bytes are `[0x01, position_of_first_occurrence_in_interlinks_array]`. Sigma-rust's `NipopowAlgos::pack_interlinks` (ergo-nipopow/src/nipopow_algos.rs:326-357) uses sequential `distinct_ix` (0, 1, 2, ...), which round-trips within sigma-rust's own ecosystem (`unpack_interlinks` ignores key[1] entirely) but produces leaf hashes that don't match JVM-generated mainnet proofs. This package mirrors the JVM semantics for cross-implementation compatibility; fixture-gen wraps the same JVM-compat pack so synthetic fixtures match the real-world wire format. An upstream sigma-rust PR is queued (see `docs/specs/2026-05-19-sigma-rust-pack-interlinks-upstream-prompt.md`).
+- **`packInterlinks` uses JVM Ergo's position-based key encoding** (`[0x01, position_of_first_occurrence_in_interlinks_array]`). Sigma-rust's `NipopowAlgos::pack_interlinks` (ergo-nipopow/src/nipopow_algos.rs:326-357) previously used sequential `distinct_ix` which round-tripped internally but didn't match JVM-generated mainnet proofs; **fixed upstream as [ergoplatform/sigma-rust#866](https://github.com/ergoplatform/sigma-rust/pull/866) (landed 2026-05-19, cherry-picked to `integration/ergots`).** This TS port and fixture-gen now agree with patched sigma-rust byte-for-byte.
 
 ## Test plan summary
 

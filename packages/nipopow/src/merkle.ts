@@ -405,15 +405,13 @@ const INTERLINK_VECTOR_PREFIX = 0x01;
  * Returns `[]` for an empty input (so callers can short-circuit on empty
  * interlinks — see `PoPowHeader::check_interlinks_proof`).
  *
- * KNOWN DIVERGENCE FROM sigma-rust: sigma-rust's `NipopowAlgos::pack_interlinks`
- * (ergo-nipopow/src/nipopow_algos.rs:326-357) uses sequential `distinct_ix`
- * (0, 1, 2, ...) as the second key byte. The JVM Ergo source uses the
- * position-of-first-occurrence in the interlinks array. Sigma-rust round-trips
- * its own buggy output internally (`unpack_interlinks` ignores key[1] entirely)
- * but the bug is observable when interfacing with JVM-generated proofs —
- * the leaf hashes differ for any block with >= 1 duplicate-run, which is every
- * real mainnet block. See @ergots/nipopow CLAUDE.md "Known sigma-rust gaps"
- * (queued: upstream PR to sigma-rust).
+ * HISTORICAL NOTE: sigma-rust's `NipopowAlgos::pack_interlinks` (ergo-nipopow/
+ * src/nipopow_algos.rs:326-357) previously used sequential `distinct_ix` keys
+ * which round-tripped internally (`unpack_interlinks` ignores key[1]) but
+ * didn't match JVM-generated mainnet proofs. Fixed upstream as
+ * [ergoplatform/sigma-rust#866](https://github.com/ergoplatform/sigma-rust/pull/866)
+ * (landed 2026-05-19; cherry-picked to `integration/ergots`). This TS port
+ * agrees with patched sigma-rust byte-for-byte.
  *
  * @throws Error if any interlink is not exactly 32 bytes.
  */

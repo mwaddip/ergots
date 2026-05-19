@@ -66,7 +66,7 @@ fn make_synthetic_header(
 /// over the canonical packed representation of the interlinks.
 fn build_popow_header(header: Header, interlinks: Vec<BlockId>) -> anyhow::Result<PoPowHeader> {
     let extension_candidate =
-        ExtensionCandidate::new(crate::cmds::interlinks_jvm::pack_interlinks_jvm(interlinks.clone()))
+        ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone()))
             .map_err(|e| anyhow::anyhow!("ExtensionCandidate::new: {e}"))?;
     let interlinks_proof = NipopowAlgos::proof_for_interlink_vector(&extension_candidate)
         .ok_or_else(|| anyhow::anyhow!("proof_for_interlink_vector returned None"))?;
@@ -80,7 +80,7 @@ fn build_popow_header(header: Header, interlinks: Vec<BlockId>) -> anyhow::Resul
 fn make_case(label: &str, popow: &PoPowHeader) -> anyhow::Result<PoPowHeaderCase> {
     let bytes = popow.scorex_serialize_bytes()?;
     let proof_bytes = popow.interlinks_proof.scorex_serialize_bytes()?;
-    let fields = crate::cmds::interlinks_jvm::pack_interlinks_jvm(popow.interlinks.clone());
+    let fields = NipopowAlgos::pack_interlinks(popow.interlinks.clone());
     let packed_leaves: Vec<(String, String)> = fields
         .iter()
         .map(|(k, v)| (hex::encode(k), hex::encode(v)))
