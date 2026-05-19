@@ -62,7 +62,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { ByteReader } from './reader'
+import { ByteReader } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSType } from './parse-stype'
 

@@ -33,11 +33,9 @@
  * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs lines 203-261.
  */
 
-import { ByteReader, ReaderError } from './scorex/reader.ts';
-import { ByteWriter } from './scorex/writer.ts';
-import { encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
+import { ByteReader, ByteWriter, ReaderError, encodeVlqU, readVlqU32 } from '@ergots/scorex';
 import { parsePoPowHeader, serializePoPowHeader, type PoPowHeader } from './popow-header.ts';
-import { parseHeader, serializeHeader, type Header } from './header.ts';
+import { parseHeader, serializeHeader, type Header } from '@ergots/scorex';
 import { ProofParseError } from './errors.ts';
 
 export interface NipopowProof {
@@ -90,6 +88,7 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
 
   const r = new ByteReader(bytes);
 
+  try {
   // m: VLQ u32 (plain unsigned)
   const m = readVlqU32(r, 'm');
   // NIP-03: m=0 is invalid (m is the minimum superchain-length parameter; m<=0
@@ -219,6 +218,11 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
   }
 
   return { m, k, prefix, suffixHead, suffixTail };
+  } catch (e) {
+    if (e instanceof ProofParseError) throw e;
+    if (e instanceof ReaderError) throw new ProofParseError(e.message, e.code);
+    throw e;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

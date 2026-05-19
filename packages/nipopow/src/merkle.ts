@@ -24,8 +24,7 @@
  */
 
 import { blake2b256 } from './crypto/blake2b256';
-import { ByteReader } from './scorex/reader';
-import { ByteWriter } from './scorex/writer';
+import { ByteReader, ByteWriter } from '@ergots/scorex';
 import { ProofParseError } from './errors';
 
 // Leaf prefix byte: 0 = leaf node

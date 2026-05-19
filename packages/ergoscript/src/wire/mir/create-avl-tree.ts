@@ -35,8 +35,7 @@
  */
 
 import type { CreateAvlTree, SType, SValue } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { ExprParseError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'

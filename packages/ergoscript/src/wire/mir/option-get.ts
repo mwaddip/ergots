@@ -24,8 +24,7 @@
  */
 
 import type { OptionGet, SType, SValue } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 // Forward import for recursive descent — the Expr graph is mutually
 // recursive (OptionGet → Expr → OptionGet …) so the import cycle is
 // unavoidable.

@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { sTypeEquals, isPrimitive } from '../src/mir/stype-helpers'
 import { parseSType, STypeParseError } from '../src/wire/parse-stype'
 import { serializeSType, STypeSerializeError } from '../src/wire/serialize-stype'
-import { ByteReader } from '../src/wire/reader'
-import { ByteWriter } from '../src/wire/writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import type { SType } from '../src/mir/types'
 
 describe('SType helpers', () => {

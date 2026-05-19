@@ -27,8 +27,7 @@
  */
 
 import type { If, SType, SValue } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 // Forward import for recursive descent — see comment in val-def.ts. The
 // Expr graph is mutually recursive (If → Expr → If …) so the import cycle
 // is unavoidable.

@@ -23,7 +23,7 @@ import { serializeBoxBytes, serializeBoxBytesWithoutRef } from '../../src/wire/e
 import { SValueSerializeError } from '../../src/wire/serialize-svalue'
 import { parseSType } from '../../src/wire/parse-stype'
 import { parseSValue } from '../../src/wire/parse-svalue'
-import { ByteReader } from '../../src/wire/reader'
+import { ByteReader } from '@ergots/scorex'
 import type { ErgoBox, SType } from '../../src/mir/types'
 
 const __filename = fileURLToPath(import.meta.url)

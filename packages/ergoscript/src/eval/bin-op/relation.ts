@@ -28,7 +28,7 @@ import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
 import { isNumeric, valueToBigInt } from './_numeric'
 import { serializeSigmaBoolean } from '../../wire/sigma-boolean'
-import { ByteWriter } from '../../wire/writer'
+import { ByteWriter } from '@ergots/scorex'
 
 /** Cost for ordering Relation ops. sigma-rust bin_op.rs:210. */
 const RELATION_ORDERING_COST = 20

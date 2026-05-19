@@ -17,7 +17,7 @@
  */
 
 import type { ErgoBox, SType, SValue } from '../mir/types'
-import { ByteWriter } from './writer'
+import { ByteWriter } from '@ergots/scorex'
 import { serializeSType } from './serialize-stype'
 import { serializeSigmaBoolean } from './sigma-boolean'
 

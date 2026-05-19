@@ -32,8 +32,7 @@
  */
 
 import type { SType, SValue, ValDef } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { ExprParseError } from '../errors'
 import { exprTpe } from '../../mir/expr-tpe'
 // Forward import: parse.ts and serialize.ts re-export their dispatcher

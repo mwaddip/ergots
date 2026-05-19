@@ -8,7 +8,7 @@ import { parseProof } from '../src/proof.ts';
 import { hexToBytes } from './helpers.ts';
 import type { NipopowProof } from '../src/proof.ts';
 import type { PoPowHeader } from '../src/popow-header.ts';
-import type { Header } from '../src/header.ts';
+import type { Header } from '@ergots/scorex';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

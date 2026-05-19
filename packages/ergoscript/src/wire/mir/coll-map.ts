@@ -23,8 +23,7 @@
  */
 
 import type { Map as CollMap, SType, SValue } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 

@@ -22,10 +22,8 @@
  *            PoPowHeader::scorex_parse.
  */
 
-import { ByteReader } from './scorex/reader.ts';
-import { ByteWriter } from './scorex/writer.ts';
-import { encodeVlqU, readVlqU32 } from './scorex/vlq.ts';
-import { parseHeader, serializeHeader, type Header } from './header.ts';
+import { ByteReader, ByteWriter, ReaderError, encodeVlqU, readVlqU32 } from '@ergots/scorex';
+import { parseHeader, serializeHeader, type Header } from '@ergots/scorex';
 import { parseBatchMerkleProof, serializeBatchMerkleProof, type BatchMerkleProof } from './merkle.ts';
 import { ProofParseError } from './errors.ts';
 
@@ -59,6 +57,7 @@ function writeVlqU32(w: ByteWriter, v: number): void {
 
 /** Parse a PoPowHeader from its ScorexSerializable wire encoding. */
 export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
+  try {
   // VLQ u32: header byte length
   const headerSize = readVlqU32(reader, 'header_size');
   if (headerSize > MAX_HEADER_BYTES) {
@@ -123,6 +122,11 @@ export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   }
 
   return { header, interlinks, interlinksProof };
+  } catch (e) {
+    if (e instanceof ProofParseError) throw e;
+    if (e instanceof ReaderError) throw new ProofParseError(e.message, e.code);
+    throw e;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

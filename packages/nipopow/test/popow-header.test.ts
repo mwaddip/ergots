@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 
 import { parsePoPowHeader, serializePoPowHeader } from '../src/popow-header';
 import { verifyBatchMerkleProof } from '../src/merkle';
-import { ByteReader } from '../src/scorex/reader';
+import { ByteReader } from '@ergots/scorex';
 import { ProofParseError } from '../src/errors';
 import { hexToBytes, bytesToHex } from './helpers';
 

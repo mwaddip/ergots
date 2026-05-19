@@ -15,8 +15,7 @@ import {
 } from '../src/envelope.ts';
 import { EnvelopeParseError } from '../src/errors.ts';
 import { hexToBytes, bytesToHex } from './helpers.ts';
-import { ByteWriter } from '../src/scorex/writer.ts';
-import { encodeVlqZigZag, encodeVlqU } from '../src/scorex/vlq.ts';
+import { ByteWriter, encodeVlqZigZag, encodeVlqU } from '@ergots/scorex';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

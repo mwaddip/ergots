@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as OP from '../src/mir/opcodes'
 import { parseExpr, ExprParseError } from '../src/wire/parse'
-import { ByteReader } from '../src/wire/reader'
+import { ByteReader } from '@ergots/scorex'
 
 /**
  * Task 9: pin opcode constants and dispatch behavior.

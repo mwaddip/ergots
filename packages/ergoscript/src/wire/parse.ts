@@ -31,7 +31,7 @@
  */
 
 import type { Expr, SType, SValue } from '../mir/types'
-import { ByteReader } from './reader'
+import { ByteReader } from '@ergots/scorex'
 import * as OP from '../mir/opcodes'
 // Per-variant parsers live in `wire/mir/<variant>.ts`. The centralized error
 // type lives in `./errors` (a leaf module) so variant parsers can import it

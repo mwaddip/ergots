@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { SType, SValue } from '../src/mir/types'
 import { parseSValue, SValueParseError } from '../src/wire/parse-svalue'
 import { serializeSValue, SValueSerializeError } from '../src/wire/serialize-svalue'
-import { ByteReader } from '../src/wire/reader'
-import { ByteWriter } from '../src/wire/writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 
 describe('SValue (variant smoke tests)', () => {
   it('Boolean variant', () => {

@@ -24,15 +24,15 @@
  * The inner proof's m/k fields use plain VLQ — different layers.
  */
 
-import { ByteReader } from './scorex/reader.ts';
-import { ByteWriter } from './scorex/writer.ts';
+import { ByteReader } from '@ergots/scorex';
+import { ByteWriter } from '@ergots/scorex';
 import {
   encodeVlqU,
   decodeVlqU,
   encodeVlqZigZag,
   decodeVlqZigZag,
-} from './scorex/vlq.ts';
-import { readFixed, writeFixed, BLOCK_ID_LEN } from './digests.ts';
+} from '@ergots/scorex';
+import { readFixed, writeFixed, BLOCK_ID_LEN } from '@ergots/scorex';
 import { EnvelopeParseError } from './errors.ts';
 export { EnvelopeParseError } from './errors.ts';
 

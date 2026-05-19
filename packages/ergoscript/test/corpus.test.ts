@@ -35,8 +35,7 @@ import { parseSType } from '../src/wire/parse-stype'
 import { serializeSType } from '../src/wire/serialize-stype'
 import { parseSValue } from '../src/wire/parse-svalue'
 import { serializeSValue } from '../src/wire/serialize-svalue'
-import { ByteReader } from '../src/wire/reader'
-import { ByteWriter } from '../src/wire/writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { hexToBytes, hydrateSValue } from './_helpers'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url

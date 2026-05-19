@@ -45,7 +45,7 @@ import { fileURLToPath } from 'node:url'
 
 import { parseTree, ErgoTreeParseError } from '../src/wire/ergo-tree'
 import { parseExpr } from '../src/wire/parse'
-import { ByteReader, ReaderError } from '../src/wire/reader'
+import { ByteReader, ReaderError } from '@ergots/scorex'
 import { ExprParseError } from '../src/wire/errors'
 import { STypeParseError } from '../src/wire/parse-stype'
 import { SValueParseError } from '../src/wire/parse-svalue'

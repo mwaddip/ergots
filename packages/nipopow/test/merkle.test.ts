@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 
 import { parseBatchMerkleProof, serializeBatchMerkleProof, verifyBatchMerkleProof } from '../src/merkle';
 import type { BatchMerkleProof } from '../src/merkle';
-import { ByteReader } from '../src/scorex/reader';
+import { ByteReader } from '@ergots/scorex';
 import { hexToBytes, bytesToHex } from './helpers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

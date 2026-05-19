@@ -3,9 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag } from '../src/scorex/vlq';
-import { ByteReader } from '../src/scorex/reader';
-import { ProofParseError } from '../src/errors';
+import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag, ByteReader, ReaderError } from '@ergots/scorex';
 import { hexToBytes } from './helpers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,12 +26,12 @@ describe('VLQ unsigned', () => {
     });
   }
 
-  test('decode of truncated input throws ProofParseError', () => {
+  test('decode of truncated input throws ReaderError', () => {
     const r = new ByteReader(new Uint8Array([0x80, 0x80])); // continuation bytes without terminator
-    expect(() => decodeVlqU(r)).toThrow(ProofParseError);
+    expect(() => decodeVlqU(r)).toThrow(ReaderError);
   });
 
-  test('decode of overlong input throws ProofParseError with vlq-overflow', () => {
+  test('decode of overlong input throws ReaderError with vlq-overflow', () => {
     const overlong = new Uint8Array(11).fill(0x80);
     overlong[10] = 0x01; // terminator after 10 continuation bytes (would represent a value > u64)
     const r = new ByteReader(overlong);
@@ -41,8 +39,8 @@ describe('VLQ unsigned', () => {
       decodeVlqU(r);
       throw new Error('expected throw');
     } catch (e) {
-      expect(e).toBeInstanceOf(ProofParseError);
-      expect((e as ProofParseError).code).toBe('vlq-overflow');
+      expect(e).toBeInstanceOf(ReaderError);
+      expect((e as ReaderError).code).toBe('vlq-overflow');
     }
   });
 

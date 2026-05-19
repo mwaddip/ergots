@@ -27,8 +27,7 @@
  */
 
 import type { SigmaBoolean } from '../mir/types'
-import { ByteReader, ReaderError } from './reader'
-import { ByteWriter } from './writer'
+import { ByteReader, ReaderError, ByteWriter } from '@ergots/scorex'
 
 // Sigma-protocol opcodes (single byte). Same value space as the top-level
 // MIR opcode table — these are part of a unified opcode namespace.

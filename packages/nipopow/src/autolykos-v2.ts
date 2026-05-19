@@ -20,8 +20,8 @@
 
 import { blake2b256 } from './crypto/blake2b256';
 import { decodeCompactBits } from './nbits';
-import { serializeHeaderWithoutPow } from './header';
-import type { Header } from './header';
+import { serializeHeaderWithoutPow } from '@ergots/scorex';
+import type { Header } from '@ergots/scorex';
 
 // ---------------------------------------------------------------------------
 // secp256k1 curve order (constant)

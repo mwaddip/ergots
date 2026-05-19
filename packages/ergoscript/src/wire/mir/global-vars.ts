@@ -34,7 +34,7 @@
  */
 
 import type { GlobalVars } from '../../mir/types'
-import { ByteWriter } from '../writer'
+import { ByteWriter } from '@ergots/scorex'
 import { ExprSerializeError } from '../errors'
 import * as OP from '../../mir/opcodes'
 

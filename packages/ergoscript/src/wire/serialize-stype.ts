@@ -9,7 +9,7 @@
  */
 
 import type { SType, STypeVar } from '../mir/types'
-import { ByteWriter } from './writer'
+import { ByteWriter } from '@ergots/scorex'
 
 const PRIM_RANGE = 12 // MaxPrimTypeCode (11) + 1
 

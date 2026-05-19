@@ -28,7 +28,7 @@
  */
 
 import type { ErgoBox } from '../mir/types'
-import { ByteWriter } from './writer'
+import { ByteWriter } from '@ergots/scorex'
 import { SValueSerializeError, writeBoxBodyWithoutRef } from './serialize-svalue'
 
 /**

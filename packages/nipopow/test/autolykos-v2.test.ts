@@ -26,8 +26,7 @@ import {
   autolykosMessage,
   verifyAutolykosV2,
 } from '../src/autolykos-v2';
-import { parseHeader } from '../src/header';
-import { ByteReader } from '../src/scorex/reader';
+import { parseHeader, ByteReader } from '@ergots/scorex';
 import { blake2b256 } from '../src/crypto/blake2b256';
 import { hexToBytes, bytesToHex } from './helpers';
 

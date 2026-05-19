@@ -16,7 +16,7 @@
  */
 
 import type { SType, STypeVar } from '../mir/types'
-import { ByteReader } from './reader'
+import { ByteReader } from '@ergots/scorex'
 
 const PRIM_RANGE = 12 // MaxPrimTypeCode (11) + 1
 

@@ -30,8 +30,7 @@
  */
 
 import type { GetVar } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { ExprSerializeError } from '../errors'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'

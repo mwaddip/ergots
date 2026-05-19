@@ -38,8 +38,7 @@ import type {
   SType,
   SValue,
 } from '../../mir/types'
-import { ByteReader } from '../reader'
-import { ByteWriter } from '../writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { ExprParseError, ExprSerializeError } from '../errors'
 import * as OP from '../../mir/opcodes'
 // Forward import for recursive descent — see comment in val-def.ts. Plus

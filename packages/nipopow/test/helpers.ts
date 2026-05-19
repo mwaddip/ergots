@@ -1,4 +1,4 @@
-import type { Header } from '../src/header.ts';
+import type { Header } from '@ergots/scorex';
 import type { PoPowHeader } from '../src/popow-header.ts';
 import type { NipopowProof } from '../src/proof.ts';
 

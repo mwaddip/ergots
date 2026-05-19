@@ -11,7 +11,7 @@
  */
 
 import type { Expr } from '../mir/types'
-import { ByteWriter } from './writer'
+import { ByteWriter } from '@ergots/scorex'
 import * as OP from '../mir/opcodes'
 // Per-variant serializers live in `wire/mir/<variant>.ts`. The centralized
 // error type lives in `./errors` (a leaf module) so variant serializers can

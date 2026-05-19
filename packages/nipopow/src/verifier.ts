@@ -33,7 +33,7 @@ import { parseProof } from './proof.ts';
 import type { NipopowProof } from './proof.ts';
 import { hasValidConnections } from './connections.ts';
 import { verifyAutolykosV2 } from './autolykos-v2.ts';
-import type { Header } from './header.ts';
+import type { Header } from '@ergots/scorex';
 import type { PoPowHeader } from './popow-header.ts';
 import {
   hashExtensionLeaf,

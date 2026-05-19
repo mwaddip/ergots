@@ -30,8 +30,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseSValue } from '../../src/wire/parse-svalue'
 import { serializeSValue, SValueSerializeError } from '../../src/wire/serialize-svalue'
-import { ByteReader } from '../../src/wire/reader'
-import { ByteWriter } from '../../src/wire/writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import type { ErgoBox } from '../../src/mir/types'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url

@@ -40,7 +40,7 @@
  */
 
 import { parseProof, type NipopowProof } from './proof.ts';
-import type { Header } from './header.ts';
+import type { Header } from '@ergots/scorex';
 import { hasValidConnections } from './connections.ts';
 import { checkInterlinksProof } from './verifier.ts';
 import { decodeCompactBits } from './nbits.ts';

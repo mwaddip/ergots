@@ -10,9 +10,11 @@ export {
 export { compareProofs } from './compare.ts';
 
 // Type exports for downstream consumers
-export type { Header } from './header.ts';
+// Re-export Header and AutolykosSolution from @ergots/scorex for backward
+// compatibility: external consumers using `import { Header } from '@ergots/nipopow'`
+// continue to work after the internal shim files are deleted.
+export type { Header, AutolykosSolution } from '@ergots/scorex';
 export type { PoPowHeader } from './popow-header.ts';
-export type { AutolykosSolution } from './autolykos-solution.ts';
 
 // Error classes
 export { ProofParseError, ProofVerificationError } from './errors.ts';

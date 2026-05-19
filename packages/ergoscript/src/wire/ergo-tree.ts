@@ -38,8 +38,7 @@
  */
 
 import type { ErgoTree, TreeHeader, SType, SValue } from '../mir/types'
-import { ByteReader } from './reader'
-import { ByteWriter } from './writer'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
 import { serializeSType } from './serialize-stype'
 import { parseSValue } from './parse-svalue'
