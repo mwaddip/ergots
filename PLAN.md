@@ -1,14 +1,14 @@
-# Plan: Phase 2h-c.0 — `@ergots/scorex` extraction
+# Plan: Phase 2h-c.1 — SHeader runtime + 17 method handlers
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extract the Scorex wire-codec layer (`ByteReader`, `ByteWriter`, `ReaderError`, VLQ + ZigZag VLQ encoders/decoders) and block-Header data types (`Header`, `AutolykosSolution`, digest helpers) from `@ergots/nipopow` and `@ergots/ergoscript` into a new shared workspace package `@ergots/scorex` v0.1.0. Add three Fleet-inspired ergonomic helpers (`readOption`/`writeOption`, `readArray`/`writeArray`, `readBool`/`writeBool`). Net regression target: zero — all 3318 existing tests must remain green.
+**Goal:** Wire 17 new method-call handlers in `@ergots/ergoscript` (15 `SHeader.*` property accessors at typeId 104, methodIds 1-15 + 2 `SContext.*` additions: `headers` at 101:2 and `LastBlockUtxoRootHash` at 101:9). Add the `SValue.Header` runtime variant (`Header` type imported from `@ergots/scorex`). Promote SHeader SValue wire format from `'not-implemented-phase-2a'` to a V3-gated parse/serialize via a new `treeVersion: number` parameter threaded through `parseSValue`/`serializeSValue`. Add 1 new `EvalError` code (`'header-obj-not-header'`) and 2 new wire-layer error codes (`SValueParseError`/`SValueSerializeError 'sheader-tree-version-too-low'`). Add `EvalContext.headers?: Header[]`. Net regression target: zero — all 3388 existing tests must remain green.
 
-**Architecture:** A refactor, not a greenfield package. ~702 LOC of audited code moves; the greenfield delta is the package skeleton + the three additive helper pairs (~150 LOC). Uses ergoscript's existing `ByteReader`/`ByteWriter` shape as the unified base (nipopow's is a subset). Transitional shim files in nipopow + ergoscript re-export from `@ergots/scorex` during migration so internal call sites compile unchanged until the final cleanup pass.
+**Architecture:** Additive method-handler phase. Existing dispatcher (`eval/method-call.ts`) routes new entries with no structural changes. Wire-format unlock is a parameter threading change confined to ergoscript (no scorex API changes per brainstorm decision option B). `Header` runtime type is sourced from `@ergots/scorex` workspace dep (already declared during phase 2h-c.0). All 17 handlers follow **Pattern A** (cost charged BEFORE receiver inspection): 15 SHeader at Fixed(10), 2 SContext at Fixed(15). Per-handler cost values and projection semantics drawn from sigma-rust source-reads of `eval/sheader.rs`, `eval/scontext.rs`, `types/sheader.rs`, and `types/scontext.rs` against the pinned `integration/ergots` branch.
 
-**Tech Stack:** TypeScript + vitest (cross-runtime: node + jsdom). `@noble/hashes@2.2.0` (no new deps). Workspace alias `@ergots/scorex`.
+**Tech Stack:** TypeScript + vitest (cross-runtime: node + jsdom). No new runtime deps. Workspace dep on `@ergots/scorex@0.1.0`.
 
-**Design spec:** `docs/specs/2026-05-19-ergots-scorex-package-design.md` (committed in this session).
+**Design spec:** `docs/specs/2026-05-19-ergoscript-phase-2h-c-1-sheader-design.md` (committed `a77f640` in this session).
 
 ---
 
@@ -18,14 +18,14 @@ Every subagent implementing tasks below MUST receive this preamble (per `[[feedb
 
 > **OVERRIDES rules (project-wide; override conflicting defaults):**
 >
-> - **Rule #2 — Confidence escalation:** if confidence on a byte-format detail or VLQ edge case drops below 95%, halt and declare. Read sigma-rust source first.
+> - **Rule #2 — Confidence escalation:** if confidence on a byte-format detail, V3 gating placement, identity-point encoding, or cost-charging order drops below 95%, halt and declare. Read sigma-rust source first.
 > - **Rule #5 — Root-cause mandate:** no `try/catch` swallows, no retry loops, no flag-vars to skip broken logic. Fix the origin.
-> - **Rule #6 — Forced verification:** run `npx tsc --noEmit` AND the affected workspace's `npm test` after every implementation step; FIX all errors before claiming done.
+> - **Rule #6 — Forced verification:** run `npx tsc --noEmit -p packages/ergoscript/tsconfig.json` AND `npx vitest run packages/ergoscript/` after every implementation step; FIX all errors before claiming done.
 > - **Rule #7 — Context decay:** after 10+ messages, re-read files before editing them.
 > - **Rule #8 — Edit integrity:** read-edit-read around every edit. Max 3 edits to the same file without a verification read between batches.
 >
-> **TDD Iron Law:** no production code without a failing test first. (For pure-movement steps in this plan — Phase 1 skeleton, Phase 2 file moves, Phase 3 file moves — TDD is satisfied by the pre-existing test suite running green after the move. New helper code in Phase 2 follows strict TDD red→green.)
-> **Source-first discipline:** read `~/projects/sigma-rust/sigma-rust/...` before writing TS that touches wire-format semantics.
+> **TDD Iron Law:** no production code without a failing test first. Each handler gets its own red→green cycle backed by a sigma-rust-oracle fixture.
+> **Source-first discipline:** read `~/projects/ergots/external/sigma-rust/...` for any wire-format / eval semantics. Notes drift; source is authoritative.
 > **Browser-first hard rules** (CLAUDE.md): no `Buffer`, no `node:*`, no `process`, no WASM, no top-level await. ESM only.
 
 ---
@@ -34,1460 +34,1390 @@ Every subagent implementing tasks below MUST receive this preamble (per `[[feedb
 
 Strict sequential — each phase depends on the previous landing cleanly:
 
-1. **Phase 1** — Create `packages/scorex/` skeleton (empty package; workspace alias resolves).
-2. **Phase 2** — Move `ByteReader` / `ByteWriter` / `ReaderError` / VLQ to scorex; add transitional shims in nipopow + ergoscript; add the three Fleet-inspired helpers TDD red→green.
-3. **Phase 3** — Move `digests.ts` / `autolykos-solution.ts` / `header.ts` to scorex; add transitional shims in nipopow.
-4. **Phase 4** — (Optional cleanup) Refactor inline `0x00`/`0x01` option tags and inline length-prefixed array reads across nipopow + ergoscript to use `readOption`/`writeOption`/`readArray`/`writeArray`.
-5. **Phase 5** — Delete transitional shim files. All internal callers now import directly from `@ergots/scorex`.
-6. **Phase 6** — Write `facts/scorex.md`; update `facts/nipopow.md` cross-refs; final verification.
+1. **Phase 1** — `SValue.Header` discriminated-union variant + `EvalContext.headers?: Header[]` field; fix every exhaustive-switch site that TS surfaces.
+2. **Phase 2** — Wire-format V3-gated SHeader SValue parse + serialize. Adds `treeVersion: number` parameter to `parseSValue`/`serializeSValue`; threads it through every recursive call site; adds `'sheader-tree-version-too-low'` codes on both error classes.
+3. **Phase 3** — 15 `SHeader.*` method handlers + `'header-obj-not-header'` EvalError code. One handler per task (each its own red→green cycle, each backed by a fixture-gen oracle JSON).
+4. **Phase 4** — 2 `SContext.*` method handlers (`headers` + `lastBlockUtxoRootHash`). Same red→green per handler.
+5. **Phase 5** — V3 SHeader-constant wire-roundtrip fixtures (4-6) + mutation testing (~25-30 single-byte flips, ≥ 90% kill rate per fixture).
+6. **Phase 6** — Update `facts/ergoscript-eval.md`, `facts/ergoscript-wire.md`, `facts/ergoscript.md`. Final verification across all 4 packages.
 
-Per `[[feedback-no-artificial-stops]]`: drive through Phase 1 → Phase 6 with per-task commits; only stop on verification failure or surprise.
+Per `[[feedback-no-artificial-stops]]`: drive Phase 1 → Phase 6 with per-task commits; only stop on verification failure or genuine surprise.
 
 ---
 
-## Phase 1: `packages/scorex/` skeleton
+## Phase 1: `SValue.Header` variant + `EvalContext.headers` field
 
-### Task 1.1 — Create directory structure
-
-**Files:**
-- Create: `packages/scorex/src/index.ts` (empty barrel)
-- Create: `packages/scorex/test/.gitkeep`
-
-- [ ] **Step 1.1.1: Create the directory and placeholder files.**
-
-```bash
-mkdir -p /home/mwaddip/projects/ergots/packages/scorex/src
-mkdir -p /home/mwaddip/projects/ergots/packages/scorex/test
-touch /home/mwaddip/projects/ergots/packages/scorex/test/.gitkeep
-```
-
-- [ ] **Step 1.1.2: Write minimal `src/index.ts`.**
-
-Edit `packages/scorex/src/index.ts`:
-
-```ts
-// @ergots/scorex v0.1.0 — Scorex wire-codec layer + block-Header types.
-// Phase 2h-c.0 extraction (in progress); exports added as files are moved.
-export {}
-```
-
-### Task 1.2 — Write package config files
+### Task 1.1 — Add `SValue.Header` variant to the discriminated union
 
 **Files:**
-- Create: `packages/scorex/package.json`
-- Create: `packages/scorex/tsconfig.json`
-- Create: `packages/scorex/vitest.config.ts`
-- Create: `packages/scorex/vitest.browser.config.ts`
-- Create: `packages/scorex/tsup.config.ts`
-- Create: `packages/scorex/LICENSE`
+- Modify: `packages/ergoscript/src/mir/types.ts:823-841` (the `SValue` type definition)
 
-- [ ] **Step 1.2.1: Write `packages/scorex/package.json`.**
-
-Use `packages/avltree/package.json` as template, substituting name/description/keywords:
-
-```json
-{
-  "name": "@ergots/scorex",
-  "version": "0.1.0",
-  "publishConfig": { "access": "public" },
-  "description": "Pure-TypeScript Scorex wire codec (VLQ, ZigZag VLQ, ByteReader/Writer) plus Ergo block-Header / AutolykosSolution data types shared across @ergots/* packages.",
-  "type": "module",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mwaddip/ergots.git",
-    "directory": "packages/scorex"
-  },
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md", "LICENSE"],
-  "scripts": {
-    "build": "tsup",
-    "test": "vitest run",
-    "test:browser": "vitest run --config vitest.browser.config.ts",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@noble/hashes": "2.2.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.0.0",
-    "jsdom": "^29.1.1",
-    "tsup": "^8.5.1",
-    "typescript": "^5.5.0",
-    "vitest": "^2.0.0"
-  },
-  "engines": { "node": ">=20" },
-  "keywords": ["ergo", "scorex", "vlq", "serialization", "blockchain", "browser"]
-}
-```
-
-- [ ] **Step 1.2.2: Write `packages/scorex/tsconfig.json`.**
-
-```json
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "./dist"
-  },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
-}
-```
-
-- [ ] **Step 1.2.3: Write `packages/scorex/vitest.config.ts`.**
-
-```ts
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    include: ['test/**/*.test.ts'],
-    environment: 'node',
-    pool: 'forks',
-  },
-  resolve: {
-    extensions: ['.ts', '.js'],
-  },
-});
-```
-
-- [ ] **Step 1.2.4: Write `packages/scorex/vitest.browser.config.ts`.**
-
-```ts
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    include: ['test/**/*.test.ts'],
-    environment: 'jsdom',
-    pool: 'forks',
-  },
-  resolve: {
-    extensions: ['.ts', '.js'],
-  },
-});
-```
-
-- [ ] **Step 1.2.5: Write `packages/scorex/tsup.config.ts`.**
-
-```ts
-import { defineConfig } from 'tsup';
-
-export default defineConfig({
-  entry: ['src/index.ts'],
-  format: ['esm'],
-  dts: true,
-  clean: true,
-  splitting: false,
-  // OPS-04: see packages/nipopow/tsup.config.ts for rationale.
-  sourcemap: false,
-  target: 'es2022',
-  platform: 'neutral',
-});
-```
-
-- [ ] **Step 1.2.6: Copy LICENSE.**
+- [ ] **Step 1.1.1: Read the existing SValue union to confirm location and import section.**
 
 ```bash
-cp /home/mwaddip/projects/ergots/packages/avltree/LICENSE /home/mwaddip/projects/ergots/packages/scorex/LICENSE
+sed -n '1,40p' /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
+sed -n '823,841p' /home/mwaddip/projects/ergots/packages/ergoscript/src/mir/types.ts
 ```
 
-### Task 1.3 — Declare workspace alias in consumer packages
+Confirm: `Header` type is NOT yet imported from `@ergots/scorex` at the top of the file (it will be after this step).
+
+- [ ] **Step 1.1.2: Add the `Header` import and `SValue.Header` variant.**
+
+At the top of `packages/ergoscript/src/mir/types.ts`, add (after the existing `@ergots/scorex` import block if one exists, otherwise add a new one):
+
+```ts
+import type { Header } from '@ergots/scorex'
+```
+
+Then insert the new variant into the `SValue` union immediately after the existing `PreHeader` variant (line 833). The block becomes:
+
+```ts
+export type SValue =
+  | { kind: 'Boolean'; value: boolean }
+  | { kind: 'Byte'; value: number }
+  | { kind: 'Short'; value: number }
+  | { kind: 'Int'; value: number }
+  | { kind: 'Long'; value: bigint }
+  | { kind: 'BigInt'; value: bigint }
+  | { kind: 'GroupElement'; value: Uint8Array }
+  | { kind: 'SigmaProp'; value: SigmaBoolean }
+  | { kind: 'Box'; value: ErgoBox }
+  | { kind: 'PreHeader'; value: PreHeader }
+  | { kind: 'Header'; value: Header }              // NEW phase 2h-c.1
+  | { kind: 'AvlTree'; value: AvlTreeData }
+  | { kind: 'Unit' }
+  | { kind: 'Context' }
+  | { kind: 'Global' }
+  | { kind: 'Coll'; elem: SType; items: SValue[] }
+  | { kind: 'Tuple'; items: SValue[] }
+  | { kind: 'Option'; elem: SType; value: SValue | null }
+  | { kind: 'Lambda'; closure: Closure }
+```
+
+- [ ] **Step 1.1.3: Run typecheck — expect a fresh set of exhaustiveness errors.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -50
+```
+
+Expected: multiple errors like `Type 'never' is not assignable to type 'SValue'` or `Argument of type '{ kind: "Header"; value: Header; }' is not assignable to parameter of type 'never'` at every exhaustive switch over `SValue.kind`. These are intentional — Phase 1 fixes them. Capture the file list:
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | grep -E "error TS" | grep -oE 'src/[^(]+' | sort -u
+```
+
+The file list output is the input to Task 1.2.
+
+### Task 1.2 — Fix every exhaustive-switch site that flagged
 
 **Files:**
-- Modify: `packages/nipopow/package.json` (add `@ergots/scorex` to dependencies)
-- Modify: `packages/ergoscript/package.json` (add `@ergots/scorex` to dependencies)
+- Modify: every file from Task 1.1.3 output (typically 2-5 files; primary suspect is `packages/ergoscript/src/eval/svalue-equals.ts` or wherever `sValueEquals` lives; secondary suspects include `wire/serialize-svalue.ts`)
 
-- [ ] **Step 1.3.1: Read current consumer package.json dependencies.**
+- [ ] **Step 1.2.1: For each flagged file, locate the switch and add a `case 'Header':` arm.**
+
+Pattern (mirroring the existing `case 'Box':` / `case 'AvlTree':` arms in `sValueEquals`):
+
+```ts
+case 'Header':
+  throw new EvalError(
+    `sValueEquals: SValue.kind='Header' is not implemented yet`,
+    'not-implemented-yet'
+  )
+```
+
+For `serialize-svalue.ts` (if flagged), the switch is over `SType.tag` and dispatches into `SValue.kind` — likely a defensive cross-check rather than a true exhaustive switch. Add the `'Header'` case mapping the `SValue.kind` to the `SType.SHeader` path: when `tpe.tag === 'SHeader'` and `v.kind !== 'Header'`, throw `'type-value-mismatch'` (existing code).
+
+- [ ] **Step 1.2.2: Verify typecheck clean after fixing all sites.**
 
 ```bash
-grep -A 5 '"dependencies"' /home/mwaddip/projects/ergots/packages/nipopow/package.json
-grep -A 5 '"dependencies"' /home/mwaddip/projects/ergots/packages/ergoscript/package.json
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -10
 ```
 
-- [ ] **Step 1.3.2: Add `"@ergots/scorex": "0.1.0"` to `packages/nipopow/package.json` dependencies.**
+Expected: zero errors. If any remain, repeat Task 1.2.1.
 
-Use Edit tool to insert into the dependencies object. Resulting block should be (preserve existing `@noble/hashes` entry):
-
-```json
-  "dependencies": {
-    "@ergots/scorex": "0.1.0",
-    "@noble/hashes": "2.2.0"
-  },
-```
-
-- [ ] **Step 1.3.3: Add `"@ergots/scorex": "0.1.0"` to `packages/ergoscript/package.json` dependencies.**
-
-Same insertion pattern. Preserve all existing deps (`@ergots/avltree`, `@noble/curves`, `@noble/hashes`):
-
-```json
-  "dependencies": {
-    "@ergots/avltree": "0.2.0",
-    "@ergots/scorex": "0.1.0",
-    "@noble/curves": "2.2.0",
-    "@noble/hashes": "2.2.0"
-  },
-```
-
-### Task 1.4 — Resolve workspace and verify clean baseline
-
-- [ ] **Step 1.4.1: Run `npm install` from repo root.**
+- [ ] **Step 1.2.3: Run existing test suite to verify no semantic regression.**
 
 ```bash
-cd /home/mwaddip/projects/ergots && npm install 2>&1 | tail -10
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -20
 ```
 
-Expected: completes without errors. Verify workspace alias by running:
+Expected: 2810 tests pass (the existing ergoscript test count before this phase). If any test now fails, the most likely cause is an exhaustive-switch site that needs `case 'Header':` handling beyond a bare throw.
+
+### Task 1.3 — Add `EvalContext.headers?: Header[]` field
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/eval-context.ts`
+
+- [ ] **Step 1.3.1: Read the existing EvalOpts/EvalContext to confirm location of chain-state field declarations.**
 
 ```bash
-ls -la /home/mwaddip/projects/ergots/node_modules/@ergots/scorex
+grep -n "preHeader\?\|dataInputs\?\|EvalOpts\|EvalContext" /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/eval-context.ts | head -20
 ```
 
-Expected: symlink to `packages/scorex`.
+- [ ] **Step 1.3.2: Add the `headers?: Header[]` field and `Header` import.**
 
-- [ ] **Step 1.4.2: Typecheck the new empty package.**
+Add to the imports section (at the top of `eval-context.ts`):
 
-```bash
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
+```ts
+import type { Header } from '@ergots/scorex'
 ```
 
-Expected: zero errors.
+Add to the `EvalOpts` interface alongside `preHeader?: PreHeader`, `dataInputs?: ErgoBox[]`, etc.:
 
-- [ ] **Step 1.4.3: Typecheck unchanged consumer packages.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
+```ts
+/** Block headers; sigma-rust uses fixed-size [Header; 10] — TS relaxes to variable length. */
+headers?: Header[]
 ```
 
-Expected: zero errors in both.
+`EvalContext` inherits from `EvalOpts`, so no separate declaration there.
 
-- [ ] **Step 1.4.4: Run all consumer tests to confirm baseline is unchanged.**
+- [ ] **Step 1.3.3: Verify typecheck clean.**
 
 ```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/nipopow/ packages/ergoscript/ 2>&1 | tail -10
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
 ```
 
-Expected: 335 (nipopow) + 2827 (ergoscript) = 3162 tests pass.
+Expected: clean.
 
-### Task 1.5 — Commit the skeleton
+### Task 1.4 — Commit Phase 1
 
-- [ ] **Step 1.5.1: Stage and commit.**
+- [ ] **Step 1.4.1: Stage and commit.**
 
 ```bash
-cd /home/mwaddip/projects/ergots
-git add packages/scorex/ packages/nipopow/package.json packages/ergoscript/package.json package-lock.json
+cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/mir/types.ts packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/src/eval/svalue-equals.ts packages/ergoscript/src/wire/serialize-svalue.ts
 git commit -m "$(cat <<'EOF'
-build(scorex): create @ergots/scorex v0.1.0 package skeleton
+feat(ergoscript): add SValue.Header variant + EvalContext.headers field
 
-Phase 2h-c.0 step 1/6 — empty package with package.json, tsconfig,
-vitest configs (node + jsdom), tsup config, LICENSE. Declared as
-workspace dependency in @ergots/nipopow and @ergots/ergoscript.
-
-No functional changes. All 3162 consumer tests remain green.
+Phase 2h-c.1 Step 1. Additive type-level change: introduces the
+{ kind: 'Header'; value: Header } SValue variant (Header imported from
+@ergots/scorex) and the EvalOpts/EvalContext.headers?: Header[] chain-state
+field. Updates every exhaustive SValue.kind switch site to throw
+'not-implemented-yet' for the new variant (matches existing Box/AvlTree
+arms in sValueEquals). No semantic change to existing eval paths.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-Expected: commit succeeds with no pre-commit hook failures.
-
----
-
-## Phase 2: Move codec layer + add Fleet-inspired helpers
-
-### Task 2.1 — Move ByteReader to `@ergots/scorex/src/reader.ts`
-
-**Files:**
-- Create: `packages/scorex/src/errors.ts`
-- Create: `packages/scorex/src/reader.ts`
-- Modify: `packages/scorex/src/index.ts` (export new symbols)
-
-- [ ] **Step 2.1.1: Read ergoscript's existing reader and writer to know what's being moved.**
+- [ ] **Step 1.4.2: Verify commit landed.**
 
 ```bash
-cat /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/reader.ts | head -50
-cat /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/writer.ts | head -50
-```
-
-- [ ] **Step 2.1.2: Create `packages/scorex/src/errors.ts` with single-source ReaderError.**
-
-```ts
-/**
- * @ergots/scorex — wire-codec error class.
- *
- * Thrown by ByteReader on malformed bytes (truncation, VLQ overflow, etc.).
- * Carries a structural `code: string` matching a fixed enum of reasons for
- * programmatic dispatch (instanceof + .code).
- */
-export class ReaderError extends Error {
-  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds') {
-    super(message);
-    this.name = 'ReaderError';
-  }
-}
-```
-
-- [ ] **Step 2.1.3: Move ergoscript's reader.ts content into `packages/scorex/src/reader.ts`.**
-
-```bash
-cp /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/reader.ts /home/mwaddip/projects/ergots/packages/scorex/src/reader.ts
-```
-
-Then edit the copy:
-- Remove the duplicate `ReaderError` declaration; replace with `import { ReaderError } from './errors.ts';`.
-- Verify no other imports reference `./wire/...` paths (this is a fresh package; all imports must be relative-internal or `@noble/hashes` style).
-
-- [ ] **Step 2.1.4: Update `packages/scorex/src/index.ts` to re-export.**
-
-```ts
-export { ByteReader } from './reader.ts';
-export { ReaderError } from './errors.ts';
-```
-
-- [ ] **Step 2.1.5: Typecheck the new file.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
-```
-
-Expected: zero errors.
-
-### Task 2.2 — Move ByteWriter to `@ergots/scorex/src/writer.ts`
-
-**Files:**
-- Create: `packages/scorex/src/writer.ts`
-- Modify: `packages/scorex/src/index.ts`
-
-- [ ] **Step 2.2.1: Move ergoscript's writer.ts.**
-
-```bash
-cp /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/writer.ts /home/mwaddip/projects/ergots/packages/scorex/src/writer.ts
-```
-
-Edit the copy:
-- Verify no imports reference `./wire/...` paths.
-- If the writer imports `ReaderError` for any reason (it shouldn't), redirect to `./errors.ts`.
-
-- [ ] **Step 2.2.2: Update `packages/scorex/src/index.ts`.**
-
-```ts
-export { ByteReader } from './reader.ts';
-export { ByteWriter } from './writer.ts';
-export { ReaderError } from './errors.ts';
-```
-
-- [ ] **Step 2.2.3: Typecheck.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
-```
-
-Expected: zero errors.
-
-### Task 2.3 — Move VLQ free functions and add as scorex exports
-
-**Files:**
-- Create: `packages/scorex/src/vlq.ts`
-- Modify: `packages/scorex/src/index.ts`
-
-- [ ] **Step 2.3.1: Read nipopow's VLQ implementation.**
-
-```bash
-cat /home/mwaddip/projects/ergots/packages/nipopow/src/scorex/vlq.ts
-```
-
-- [ ] **Step 2.3.2: Create `packages/scorex/src/vlq.ts` with the free-function API.**
-
-Copy the content from `packages/nipopow/src/scorex/vlq.ts`, updating import paths:
-- `import { ByteReader } from './reader.ts';` (was `./reader.ts` — same relative path; just verify after copy).
-- `import { ReaderError } from './errors.ts';` if any error-throwing path uses it.
-
-Exported symbols (same as nipopow's vlq.ts):
-- `encodeVlqU(value: bigint): Uint8Array`
-- `decodeVlqU(reader: ByteReader): bigint`
-- `encodeVlqZigZag(value: bigint): Uint8Array`
-- `decodeVlqZigZag(reader: ByteReader): bigint`
-- `readVlqU32(reader: ByteReader, fieldName: string): number`
-
-**DRY follow-up (per spec):** After both `reader.ts` (which already contains ergoscript's instance-method VLQ logic) and `vlq.ts` (nipopow's free-function logic) coexist in `packages/scorex/src/`, audit for duplicated VLQ-decode loops. Spec calls for "backed by the same code paths as the reader/writer instance methods (DRY via shared internal `_decodeVlqU`/`_encodeVlqU` helpers)". If both implementations are byte-equivalent (verified via the moved test suites), refactor one path to delegate to the other — typically the free functions delegate to ByteReader/ByteWriter via a thin wrapper. Defer if both paths' tests pass and the duplication is small; capture as a follow-up commit.
-
-- [ ] **Step 2.3.3: Update `packages/scorex/src/index.ts`.**
-
-```ts
-export { ByteReader } from './reader.ts';
-export { ByteWriter } from './writer.ts';
-export { ReaderError } from './errors.ts';
-export {
-  encodeVlqU,
-  decodeVlqU,
-  encodeVlqZigZag,
-  decodeVlqZigZag,
-  readVlqU32,
-} from './vlq.ts';
-```
-
-- [ ] **Step 2.3.4: Typecheck.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
-```
-
-Expected: zero errors.
-
-### Task 2.4 — Add transitional shims in nipopow + ergoscript
-
-**Files:**
-- Modify: `packages/nipopow/src/scorex/reader.ts` (replace with re-export shim)
-- Modify: `packages/nipopow/src/scorex/writer.ts` (replace with re-export shim)
-- Modify: `packages/nipopow/src/scorex/vlq.ts` (replace with re-export shim)
-- Modify: `packages/ergoscript/src/wire/reader.ts` (replace with re-export shim)
-- Modify: `packages/ergoscript/src/wire/writer.ts` (replace with re-export shim)
-
-- [ ] **Step 2.4.1: Replace `packages/nipopow/src/scorex/reader.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after all nipopow internal
-// callers import directly from '@ergots/scorex' (Phase 5 of PLAN.md).
-export { ByteReader, ReaderError } from '@ergots/scorex';
-```
-
-- [ ] **Step 2.4.2: Replace `packages/nipopow/src/scorex/writer.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export { ByteWriter } from '@ergots/scorex';
-```
-
-- [ ] **Step 2.4.3: Replace `packages/nipopow/src/scorex/vlq.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export {
-  encodeVlqU,
-  decodeVlqU,
-  encodeVlqZigZag,
-  decodeVlqZigZag,
-  readVlqU32,
-} from '@ergots/scorex';
-```
-
-- [ ] **Step 2.4.4: Replace `packages/ergoscript/src/wire/reader.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export { ByteReader, ReaderError } from '@ergots/scorex';
-```
-
-- [ ] **Step 2.4.5: Replace `packages/ergoscript/src/wire/writer.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export { ByteWriter } from '@ergots/scorex';
-```
-
-- [ ] **Step 2.4.6: Typecheck all packages.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
-npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
-```
-
-Expected: zero errors in all three.
-
-- [ ] **Step 2.4.7: Run all tests to confirm zero regression.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ packages/nipopow/ packages/ergoscript/ packages/avltree/ 2>&1 | tail -15
-```
-
-Expected: 3318 tests pass (avltree unaffected: 156; nipopow: 335; ergoscript: 2827; scorex: 0 since no test files yet).
-
-### Task 2.5 — Move existing codec tests to scorex
-
-**Files:**
-- Create: `packages/scorex/test/reader.test.ts` (moved from ergoscript)
-- Create: `packages/scorex/test/writer.test.ts` (moved from ergoscript)
-- Create: `packages/scorex/test/vlq.test.ts` (moved from nipopow)
-- Delete: `packages/ergoscript/test/wire/reader.test.ts`
-- Delete: `packages/ergoscript/test/wire/writer.test.ts`
-- Delete: `packages/nipopow/test/scorex/vlq.test.ts`
-- Delete: `packages/nipopow/test/scorex/reader.test.ts` if it exists
-- Delete: `packages/nipopow/test/scorex/writer.test.ts` if it exists
-
-- [ ] **Step 2.5.1: Locate existing codec tests.**
-
-```bash
-find /home/mwaddip/projects/ergots/packages/ergoscript/test -name 'reader.test.ts' -o -name 'writer.test.ts' | head -5
-find /home/mwaddip/projects/ergots/packages/nipopow/test -name 'vlq.test.ts' -o -name 'reader.test.ts' -o -name 'writer.test.ts' | head -5
-```
-
-- [ ] **Step 2.5.2: Move ergoscript's reader.test.ts and writer.test.ts to scorex.**
-
-```bash
-git mv /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/reader.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/reader.test.ts
-git mv /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/writer.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/writer.test.ts
-```
-
-Edit the moved files to update imports:
-- Find: `from '../../src/wire/reader.ts'` or `from '../src/wire/reader.ts'`
-- Replace with: `from '@ergots/scorex'` (preferred) or `from '../src/reader.ts'`
-
-- [ ] **Step 2.5.3: Move nipopow's vlq.test.ts to scorex.**
-
-```bash
-git mv /home/mwaddip/projects/ergots/packages/nipopow/test/scorex/vlq.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/vlq.test.ts
-```
-
-Edit imports same way. If nipopow has reader.test.ts / writer.test.ts under `test/scorex/`, also move them.
-
-- [ ] **Step 2.5.4: Run scorex tests to verify they pass.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ 2>&1 | tail -15
-```
-
-Expected: all moved tests pass.
-
-- [ ] **Step 2.5.5: Run all packages' tests to verify no regression elsewhere.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -15
-```
-
-Expected: total test count unchanged (3318) — tests just live in a different package now.
-
-### Task 2.6 — TDD: add `readBool` / `writeBool` (helper pair 1 of 3)
-
-**Files:**
-- Create: `packages/scorex/test/option-array.test.ts`
-- Modify: `packages/scorex/src/reader.ts`
-- Modify: `packages/scorex/src/writer.ts`
-
-- [ ] **Step 2.6.1: Write failing test.**
-
-Create `packages/scorex/test/option-array.test.ts`:
-
-```ts
-import { describe, expect, test } from 'vitest';
-import { ByteReader, ByteWriter } from '../src/index.ts';
-
-describe('readBool / writeBool', () => {
-  test('writeBool(true) emits 0x01', () => {
-    const w = new ByteWriter();
-    w.writeBool(true);
-    expect(w.toBytes()).toEqual(new Uint8Array([0x01]));
-  });
-
-  test('writeBool(false) emits 0x00', () => {
-    const w = new ByteWriter();
-    w.writeBool(false);
-    expect(w.toBytes()).toEqual(new Uint8Array([0x00]));
-  });
-
-  test('readBool round-trips both values', () => {
-    for (const v of [true, false]) {
-      const w = new ByteWriter();
-      w.writeBool(v);
-      const r = new ByteReader(w.toBytes());
-      expect(r.readBool()).toBe(v);
-      expect(r.isExhausted).toBe(true);
-    }
-  });
-
-  test('readBool rejects non-{0,1} byte', () => {
-    const r = new ByteReader(new Uint8Array([0x02]));
-    expect(() => r.readBool()).toThrow();
-  });
-});
-```
-
-Run: `cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10`
-Expected: 4 fails with "readBool is not a function" / "writeBool is not a function".
-
-- [ ] **Step 2.6.2: Implement `writeBool` in `packages/scorex/src/writer.ts`.**
-
-Add to the `ByteWriter` class body:
-
-```ts
-  writeBool(value: boolean): void {
-    this.writeU8(value ? 1 : 0);
-  }
-```
-
-- [ ] **Step 2.6.3: Implement `readBool` in `packages/scorex/src/reader.ts`.**
-
-Add to the `ByteReader` class body. Use the existing `ReaderError` import:
-
-```ts
-  readBool(): boolean {
-    const b = this.readU8();
-    if (b === 0) return false;
-    if (b === 1) return true;
-    throw new ReaderError(`readBool: expected 0 or 1, got ${b}`, 'truncated');
-  }
-```
-
-Note: the `'truncated'` code is a reuse for "wire-shape violation"; this matches the spec's commitment to "no new error codes introduced by this extraction".
-
-- [ ] **Step 2.6.4: Run tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10
-```
-
-Expected: all 4 tests pass.
-
-### Task 2.7 — TDD: add `readOption` / `writeOption` (helper pair 2 of 3)
-
-**Files:**
-- Modify: `packages/scorex/test/option-array.test.ts` (append)
-- Modify: `packages/scorex/src/reader.ts`
-- Modify: `packages/scorex/src/writer.ts`
-
-- [ ] **Step 2.7.1: Append failing tests to `packages/scorex/test/option-array.test.ts`.**
-
-```ts
-describe('readOption / writeOption', () => {
-  test('writeOption(null) emits 0x00', () => {
-    const w = new ByteWriter();
-    w.writeOption<number>(null, (w, v) => w.writeU8(v));
-    expect(w.toBytes()).toEqual(new Uint8Array([0x00]));
-  });
-
-  test('writeOption(value, ser) emits 0x01 + ser bytes', () => {
-    const w = new ByteWriter();
-    w.writeOption<number>(42, (w, v) => w.writeU8(v));
-    expect(w.toBytes()).toEqual(new Uint8Array([0x01, 42]));
-  });
-
-  test('readOption round-trips null and value', () => {
-    for (const v of [null, 7] as Array<number | null>) {
-      const w = new ByteWriter();
-      w.writeOption<number>(v, (w, v) => w.writeU8(v));
-      const r = new ByteReader(w.toBytes());
-      const decoded = r.readOption<number>((r) => r.readU8());
-      expect(decoded).toEqual(v);
-      expect(r.isExhausted).toBe(true);
-    }
-  });
-
-  test('readOption rejects malformed tag byte', () => {
-    const r = new ByteReader(new Uint8Array([0x02, 0x00]));
-    expect(() => r.readOption<number>((r) => r.readU8())).toThrow();
-  });
-});
-```
-
-Run: `cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10`
-Expected: 4 new failures.
-
-- [ ] **Step 2.7.2: Implement `writeOption`.**
-
-Add to `ByteWriter` class body:
-
-```ts
-  writeOption<T>(value: T | null, serializer: (w: ByteWriter, v: T) => void): void {
-    if (value === null) {
-      this.writeU8(0);
-      return;
-    }
-    this.writeU8(1);
-    serializer(this, value);
-  }
-```
-
-- [ ] **Step 2.7.3: Implement `readOption`.**
-
-Add to `ByteReader` class body:
-
-```ts
-  readOption<T>(reader: (r: ByteReader) => T): T | null {
-    const tag = this.readU8();
-    if (tag === 0) return null;
-    if (tag === 1) return reader(this);
-    throw new ReaderError(`readOption: expected tag 0 or 1, got ${tag}`, 'truncated');
-  }
-```
-
-- [ ] **Step 2.7.4: Run tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10
-```
-
-Expected: all 8 tests pass (4 from Task 2.6 + 4 new).
-
-### Task 2.8 — TDD: add `readArray` / `writeArray` (helper pair 3 of 3)
-
-**Files:**
-- Modify: `packages/scorex/test/option-array.test.ts` (append)
-- Modify: `packages/scorex/src/reader.ts`
-- Modify: `packages/scorex/src/writer.ts`
-
-- [ ] **Step 2.8.1: Append failing tests.**
-
-```ts
-describe('readArray / writeArray', () => {
-  test('writeArray([]) emits single 0x00 VLQ length', () => {
-    const w = new ByteWriter();
-    w.writeArray<number>([], (w, v) => w.writeU8(v));
-    expect(w.toBytes()).toEqual(new Uint8Array([0x00]));
-  });
-
-  test('writeArray([1,2,3]) emits VLQ length + items', () => {
-    const w = new ByteWriter();
-    w.writeArray<number>([1, 2, 3], (w, v) => w.writeU8(v));
-    expect(w.toBytes()).toEqual(new Uint8Array([0x03, 1, 2, 3]));
-  });
-
-  test('readArray round-trips empty, small, and multi-byte-length arrays', () => {
-    for (const arr of [
-      [] as number[],
-      [9] as number[],
-      Array.from({ length: 256 }, (_, i) => i % 200), // multi-byte VLQ length
-    ]) {
-      const w = new ByteWriter();
-      w.writeArray<number>(arr, (w, v) => w.writeU8(v));
-      const r = new ByteReader(w.toBytes());
-      const decoded = r.readArray<number>((r) => r.readU8());
-      expect(decoded).toEqual(arr);
-      expect(r.isExhausted).toBe(true);
-    }
-  });
-
-  test('readArray throws on truncated element stream', () => {
-    // length = 3, but only 2 bytes follow.
-    const r = new ByteReader(new Uint8Array([0x03, 1, 2]));
-    expect(() => r.readArray<number>((r) => r.readU8())).toThrow();
-  });
-});
-```
-
-Run: `cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/test/option-array.test.ts 2>&1 | tail -10`
-Expected: 4 new failures.
-
-- [ ] **Step 2.8.2: Implement `writeArray`.**
-
-Add to `ByteWriter` class body:
-
-```ts
-  writeArray<T>(items: T[], serializer: (w: ByteWriter, item: T) => void): void {
-    this.writeVlqU(items.length);
-    for (const item of items) serializer(this, item);
-  }
-```
-
-- [ ] **Step 2.8.3: Implement `readArray`.**
-
-Add to `ByteReader` class body:
-
-```ts
-  readArray<T>(reader: (r: ByteReader) => T): T[] {
-    const length = this.readVlqU();
-    const out: T[] = new Array(length);
-    for (let i = 0; i < length; i++) out[i] = reader(this);
-    return out;
-  }
-```
-
-- [ ] **Step 2.8.4: Run all scorex tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ 2>&1 | tail -10
-```
-
-Expected: all 12 helper tests pass plus the moved reader/writer/vlq tests.
-
-- [ ] **Step 2.8.5: Run cross-runtime (jsdom) variant.**
-
-```bash
-cd /home/mwaddip/projects/ergots/packages/scorex && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -10
-```
-
-Expected: same pass count under jsdom.
-
-- [ ] **Step 2.8.6: Run all consumer tests to confirm zero regression.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -15
-```
-
-Expected: 3318 total tests pass (avltree 156 + nipopow 335 + ergoscript 2827 + scorex moved tests).
-
-- [ ] **Step 2.8.7: Commit Phase 2.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-git add packages/scorex/ packages/nipopow/src/scorex/ packages/ergoscript/src/wire/reader.ts packages/ergoscript/src/wire/writer.ts packages/ergoscript/test/wire/ packages/nipopow/test/scorex/ 2>/dev/null || true
-# git add commands above may produce no-ops for deletions; use status to verify:
-git status
-git add -A packages/scorex/ packages/nipopow/ packages/ergoscript/
-git commit -m "$(cat <<'EOF'
-refactor(scorex): move ByteReader/ByteWriter/VLQ + add Option/Array/Bool helpers
-
-Phase 2h-c.0 step 2/6. Moves the wire-codec layer from
-packages/ergoscript/src/wire/{reader,writer}.ts and packages/nipopow/src/scorex/*.ts
-into @ergots/scorex/src/. Transitional shims (re-exports from @ergots/scorex) keep
-internal callers compiling unchanged; shims are removed in Phase 5.
-
-Adds three Fleet-inspired helpers TDD red-green:
-  - readBool / writeBool
-  - readOption / writeOption (callback-based)
-  - readArray / writeArray (VLQ-length-prefixed, callback-based)
-
-Test suite: 3318 tests pass (unchanged count; tests moved into @ergots/scorex
-keep their names + fixtures). Cross-runtime green (node + jsdom).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+git -C /home/mwaddip/projects/ergots log --oneline -2
 ```
 
 ---
 
-## Phase 3: Move digests + Header + AutolykosSolution
+## Phase 2: Wire-format V3-gated SHeader SValue parse + serialize
 
-### Task 3.1 — Move `digests.ts` to scorex
+This phase changes the signature of `parseSValue` / `serializeSValue` by adding a `treeVersion: number` parameter. Threading this through every recursive callsite is mechanical but easy to miss one — TS's exhaustive switch will catch missing forwards at compile time.
 
-**Files:**
-- Create: `packages/scorex/src/digests.ts`
-- Modify: `packages/nipopow/src/digests.ts` (replace with re-export shim)
-- Modify: `packages/scorex/src/index.ts` (export digest helpers)
-
-- [ ] **Step 3.1.1: Move file content.**
-
-```bash
-cp /home/mwaddip/projects/ergots/packages/nipopow/src/digests.ts /home/mwaddip/projects/ergots/packages/scorex/src/digests.ts
-```
-
-Edit `packages/scorex/src/digests.ts` to fix relative imports:
-- Find: `from './scorex/reader.ts'` → replace with `from './reader.ts'`
-- Find: `from './scorex/writer.ts'` → replace with `from './writer.ts'`
-
-- [ ] **Step 3.1.2: Update `packages/scorex/src/index.ts`.**
-
-Append:
-
-```ts
-export {
-  BLOCK_ID_LEN,
-  DIGEST32_LEN,
-  EC_POINT_LEN,
-  readFixed,
-  writeFixed,
-} from './digests.ts';
-```
-
-(Adjust the export list to match actual exports of `digests.ts`; verify with the existing nipopow file's exports.)
-
-- [ ] **Step 3.1.3: Replace `packages/nipopow/src/digests.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export {
-  BLOCK_ID_LEN,
-  DIGEST32_LEN,
-  EC_POINT_LEN,
-  readFixed,
-  writeFixed,
-} from '@ergots/scorex';
-```
-
-- [ ] **Step 3.1.4: Typecheck.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-npx tsc --noEmit -p packages/scorex/tsconfig.json 2>&1 | tail -5
-npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
-```
-
-Expected: zero errors.
-
-### Task 3.2 — Move `autolykos-solution.ts` to scorex
+### Task 2.1 — Add `'sheader-tree-version-too-low'` to wire-layer error codes
 
 **Files:**
-- Create: `packages/scorex/src/autolykos-solution.ts`
-- Modify: `packages/nipopow/src/autolykos-solution.ts` (re-export shim)
-- Modify: `packages/scorex/src/index.ts`
-- Move: `packages/nipopow/test/autolykos-solution.test.ts` → `packages/scorex/test/autolykos-solution.test.ts`
+- Modify: `packages/ergoscript/src/wire/errors.ts` (or wherever `SValueParseError` / `SValueSerializeError` are declared)
 
-- [ ] **Step 3.2.1: Move file content.**
+- [ ] **Step 2.1.1: Locate the error class declarations.**
 
 ```bash
-cp /home/mwaddip/projects/ergots/packages/nipopow/src/autolykos-solution.ts /home/mwaddip/projects/ergots/packages/scorex/src/autolykos-solution.ts
+grep -n "SValueParseError\|SValueSerializeError" /home/mwaddip/projects/ergots/packages/ergoscript/src/wire/errors.ts
 ```
 
-Edit to fix imports:
-- `from './scorex/reader.ts'` → `from './reader.ts'`
-- `from './scorex/writer.ts'` → `from './writer.ts'`
-- `from './digests.ts'` (no change — same relative path)
+- [ ] **Step 2.1.2: Add `'sheader-tree-version-too-low'` to both unions.**
 
-- [ ] **Step 3.2.2: Update `packages/scorex/src/index.ts`.**
-
-Append:
+For `SValueParseError`, add the code to the `code:` type union and any code-list comment:
 
 ```ts
-export type { AutolykosSolution } from './autolykos-solution.ts';
-export {
-  parseAutolykosSolution,
-  serializeAutolykosSolution,
-} from './autolykos-solution.ts';
+| 'sheader-tree-version-too-low'   // SHeader SValue literal at tree-version < 3; mirrors sigma-rust data.rs:196 NotSupported
 ```
 
-(Adjust to match actual exports; the nipopow file may not have all four — verify before writing.)
-
-- [ ] **Step 3.2.3: Replace `packages/nipopow/src/autolykos-solution.ts` with a re-export shim.**
+For `SValueSerializeError`, same code:
 
 ```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export type { AutolykosSolution } from '@ergots/scorex';
-export { parseAutolykosSolution, serializeAutolykosSolution } from '@ergots/scorex';
+| 'sheader-tree-version-too-low'   // SHeader SValue value with tree-version < 3; mirrors sigma-rust data.rs:98 NotSupported
 ```
 
-- [ ] **Step 3.2.4: Move the test file.**
+- [ ] **Step 2.1.3: Verify typecheck clean.**
 
 ```bash
-git mv /home/mwaddip/projects/ergots/packages/nipopow/test/autolykos-solution.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/autolykos-solution.test.ts
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
 ```
 
-Edit imports:
-- Find: `from '../src/autolykos-solution.ts'` → replace with `from '@ergots/scorex'` or `from '../src/autolykos-solution.ts'`.
-- Also update any reader/writer imports.
-
-- [ ] **Step 3.2.5: Run scorex + nipopow tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/scorex/ packages/nipopow/ 2>&1 | tail -10
-```
-
-Expected: total count unchanged (335 + scorex including new autolykos-solution.test.ts).
-
-### Task 3.3 — Move `header.ts` to scorex
+### Task 2.2 — Add `treeVersion` parameter to `parseSValue` signature
 
 **Files:**
-- Create: `packages/scorex/src/header.ts`
-- Modify: `packages/nipopow/src/header.ts` (re-export shim)
-- Modify: `packages/scorex/src/index.ts`
-- Move: `packages/nipopow/test/header.test.ts` → `packages/scorex/test/header.test.ts`
-
-- [ ] **Step 3.3.1: Move file content.**
-
-```bash
-cp /home/mwaddip/projects/ergots/packages/nipopow/src/header.ts /home/mwaddip/projects/ergots/packages/scorex/src/header.ts
-```
-
-Edit to fix imports:
-- `from './scorex/reader.ts'` → `from './reader.ts'`
-- `from './scorex/writer.ts'` → `from './writer.ts'`
-- `from './digests.ts'` (no change)
-- `from './autolykos-solution.ts'` (no change)
-- `from '@noble/hashes/blake2.js'` (no change — third-party dep)
-
-- [ ] **Step 3.3.2: Update `packages/scorex/src/index.ts`.**
-
-Append:
-
-```ts
-export type { Header } from './header.ts';
-export {
-  parseHeader,
-  serializeHeader,
-} from './header.ts';
-```
-
-- [ ] **Step 3.3.3: Replace `packages/nipopow/src/header.ts` with a re-export shim.**
-
-```ts
-// Transitional shim — Phase 2h-c.0. Delete after Phase 5.
-export type { Header } from '@ergots/scorex';
-export { parseHeader, serializeHeader } from '@ergots/scorex';
-```
-
-- [ ] **Step 3.3.4: Move the test file.**
-
-```bash
-git mv /home/mwaddip/projects/ergots/packages/nipopow/test/header.test.ts /home/mwaddip/projects/ergots/packages/scorex/test/header.test.ts
-```
-
-Edit imports to point at `@ergots/scorex` (or `../src/header.ts`).
-
-- [ ] **Step 3.3.5: Run all tests across all packages.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -15
-```
-
-Expected: 3318 total tests pass.
-
-- [ ] **Step 3.3.6: Verify cross-runtime green.**
-
-```bash
-cd /home/mwaddip/projects/ergots/packages/scorex && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -10
-```
-
-Expected: same pass count under jsdom.
-
-### Task 3.4 — Commit Phase 3
-
-- [ ] **Step 3.4.1: Stage and commit.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-git add -A packages/scorex/ packages/nipopow/
-git commit -m "$(cat <<'EOF'
-refactor(scorex): move digests + Header + AutolykosSolution to @ergots/scorex
-
-Phase 2h-c.0 step 3/6. Moves nipopow's shared block-header data layer:
-  - packages/nipopow/src/digests.ts → @ergots/scorex/src/digests.ts
-  - packages/nipopow/src/autolykos-solution.ts → @ergots/scorex/src/autolykos-solution.ts
-  - packages/nipopow/src/header.ts → @ergots/scorex/src/header.ts
-
-Plus the corresponding test files (header.test.ts, autolykos-solution.test.ts)
-which now live in packages/scorex/test/. Transitional shims in nipopow keep
-internal callers compiling unchanged; removed in Phase 5.
-
-Note: @ergots/nipopow's autolykos-v2.ts (the PoW verifier) stays in nipopow.
-Phase 2h-c.2 will likely promote it to @ergots/scorex when @ergots/ergoscript
-needs SHeader.checkPow, but that's a separate spec.
-
-Test suite: 3318 tests pass. Cross-runtime green.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Phase 4: Optional cleanup pass — refactor inline call sites to use helpers
-
-This phase is **optional** in the sense that all tests already pass without it. Its purpose is to dedupe the ~30+ inline `0x00`/`0x01` option tags and inline VLQ-length-prefixed-array reads that exist across both packages. Per `[[feedback-no-artificial-stops]]` — drive through.
-
-### Task 4.1 — Audit and refactor `Option` tag sites
-
-**Files (search-and-refactor):**
 - Modify: `packages/ergoscript/src/wire/parse-svalue.ts`
-- Modify: `packages/ergoscript/src/wire/serialize-svalue.ts`
-- Modify: `packages/ergoscript/src/wire/parse.ts` (per-arm option handling — verify with grep)
-- Modify: `packages/nipopow/src/proof.ts` (interlinks option handling — verify)
-- Modify: any other inline `0x00`/`0x01` tag sites surfaced by grep
+- Modify: every caller of `parseSValue` (locate via grep)
 
-- [ ] **Step 4.1.1: Find candidate sites.**
+- [ ] **Step 2.2.1: Find every caller of `parseSValue` in the codebase.**
 
 ```bash
-cd /home/mwaddip/projects/ergots
-grep -rn '0x01.*tag\|tag.*0x01\|readU8.*===.*1\|readU8.*===.*0' packages/nipopow/src/ packages/ergoscript/src/ | head -30
+rtk proxy grep -rn "parseSValue(" /home/mwaddip/projects/ergots/packages/ergoscript/src/ --include "*.ts"
 ```
 
-For each match, judge: is this a 0x00/0x01-tagged option pattern? If yes, refactor to use `readOption` / `writeOption`. If it's a special opcode dispatch or non-option boolean check, skip.
+Document the call sites: typically `parse-tree.ts` (envelope entry), recursive call sites inside `parse-svalue.ts` itself (`Coll`, `Tuple`, `Option` arms).
 
-- [ ] **Step 4.1.2: Refactor `parse-svalue.ts` Option branch.**
+- [ ] **Step 2.2.2: Change `parseSValue` signature.**
 
-Locate the SOption parser (search for `case 'SOption'` or `case SType.SOption`). The current shape will look like:
+Update `packages/ergoscript/src/wire/parse-svalue.ts`:
 
 ```ts
-const tag = reader.readU8();
-let value: SValue | null;
-if (tag === 0) value = null;
-else if (tag === 1) value = parseSValue(elemTpe, reader);
-else throw new SValueParseError(...);
+// Before:
+export function parseSValue(tpe: SType, r: ByteReader): SValue { ... }
+
+// After:
+export function parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue { ... }
 ```
 
-Replace with:
+Within `parseSValue`'s recursive call sites (Coll arm, Tuple arm, Option arm), forward `treeVersion`:
 
 ```ts
-const value = reader.readOption<SValue>((r) => parseSValue(elemTpe, r));
+// Coll arm:
+items.push(parseSValue(elemTpe, treeVersion, r))
+
+// Tuple arm:
+items.push(parseSValue(itemTpe, treeVersion, r))
+
+// Option arm:
+const inner = parseSValue(elemTpe, treeVersion, r)
 ```
 
-(Verify the error class match — if existing code throws `SValueParseError` for malformed tag, the `readOption` throw of `ReaderError` is a behavior change. Decision: keep `SValueParseError` for the SOption case by wrapping or by leaving this site alone. Use grep + the existing test suite to confirm: if tests assert `SValueParseError instanceof`, do NOT refactor this site; leave it inline.)
+- [ ] **Step 2.2.3: Update every caller of `parseSValue`.**
 
-- [ ] **Step 4.1.3: Refactor `valueLengthOpt` site in ergoscript SAvlTree wire.**
+For each caller from Step 2.2.1, inject `treeVersion`:
 
-Located in `parse-svalue.ts` / `serialize-svalue.ts` for `case 'SAvlTree'`. Same refactor as Step 4.1.2 — replace inline tag-byte handling with `readOption<number>((r) => r.readVlqU())` / `writeOption<number>(v, (w, x) => w.writeVlqU(x))`.
-
-- [ ] **Step 4.1.4: Run all tests after each refactor batch.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -10
-```
-
-Expected: 3318 pass. If any test fails, halt and investigate (likely an error-class divergence per Step 4.1.2 note).
-
-### Task 4.2 — Audit and refactor length-prefixed-array sites
-
-- [ ] **Step 4.2.1: Find candidate sites.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-grep -rn 'readVlqU()\|writeVlqU(.*length)' packages/nipopow/src/ packages/ergoscript/src/ | head -30
-```
-
-For each match: is the VLQ length immediately followed by a loop reading/writing N items of a uniform type? If yes, candidate for `readArray` / `writeArray`. If the length is used for other purposes (e.g., bounds-checking a single byte sequence read via `readBytes(n)`), skip.
-
-- [ ] **Step 4.2.2: Refactor obvious sites.**
-
-Common candidates (verify with grep):
-- `NipopowProof.prefix` parser (length-prefixed `PoPowHeader[]`)
-- `NipopowProof.suffixTail` parser
-- `PoPowHeader.interlinks` parser
-- `ErgoBox.tokens` parser
-- `ErgoBox.additionalRegisters` parser (be careful — registers are keyed, not a flat array; may not fit `readArray`)
-- `SValue` `Coll` arm
-
-Pattern, before:
+- `parse-tree.ts`: `treeVersion` is already available as `tree.header.version` (or wherever the parsed header is in scope at the time of constant-section parsing). Inject it into the constants-section loop call.
 
 ```ts
-const length = reader.readVlqU();
-const items: T[] = [];
-for (let i = 0; i < length; i++) items.push(parseT(reader));
+// In parseTree, where constants are parsed:
+const constValue = parseSValue(constType, header.version, r)
 ```
 
-After:
-
-```ts
-const items = reader.readArray<T>((r) => parseT(r));
-```
-
-- [ ] **Step 4.2.3: Run all tests after each refactor batch.**
+- [ ] **Step 2.2.4: Verify typecheck clean.**
 
 ```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -10
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -10
 ```
 
-Expected: 3318 pass.
+Expected: clean. If any "expected 3 arguments, got 2" errors remain, fix the missed call site.
 
-### Task 4.3 — Audit and refactor `Bool` sites
-
-- [ ] **Step 4.3.1: Find candidate sites.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-grep -rn 'readU8()' packages/nipopow/src/ packages/ergoscript/src/ | grep -iE 'bool|boolean' | head -10
-```
-
-Most "bool" reads in this codebase are inside the `parseSValue(SBoolean, r)` flow, which already calls `readU8()`. Whether to refactor that to `readBool()` is debatable — `readBool` adds error-on-non-{0,1} that `readU8()` doesn't. Decision: only refactor where the strict 0/1 check is wanted (e.g., the SBoolean SValue parser); leave other `readU8()` calls alone.
-
-- [ ] **Step 4.3.2: Refactor `SBoolean` SValue parser if applicable.**
-
-Locate in `parse-svalue.ts`:
-
-```ts
-// before
-const v = reader.readU8();
-return { kind: 'Boolean', value: v !== 0 };
-
-// after
-return { kind: 'Boolean', value: reader.readBool() };
-```
-
-This is a behavior tightening — previously any non-zero byte became `true`; now only `0x01` does. Verify against sigma-rust: does sigma-rust reject non-{0,1} bytes? **If sigma-rust accepts any non-zero byte as true, do NOT refactor this site** (would create a spurious parse rejection).
-
-- [ ] **Step 4.3.3: Source-read sigma-rust for SBoolean.**
-
-```bash
-grep -rn 'SBoolean\|Value::Boolean' /home/mwaddip/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/data.rs | head -10
-```
-
-Read the SBoolean parse branch. If it strict-checks 0/1, the refactor is safe. If it accepts any non-zero as true, leave the site alone and document in the task log.
-
-- [ ] **Step 4.3.4: Run all tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots && npx vitest run packages/ 2>&1 | tail -10
-```
-
-Expected: 3318 pass.
-
-### Task 4.4 — Commit Phase 4
-
-- [ ] **Step 4.4.1: Stage and commit.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-git add -A packages/nipopow/src/ packages/ergoscript/src/
-git commit -m "$(cat <<'EOF'
-refactor: replace inline option/array codecs with @ergots/scorex helpers
-
-Phase 2h-c.0 step 4/6 (optional cleanup). Replaces inline 0x00/0x01 option
-tag handling and inline VLQ-length-prefixed array reads/writes with the
-new readOption/writeOption + readArray/writeArray helpers from @ergots/scorex.
-
-Sites refactored:
-  [list the actual sites touched, e.g.:]
-  - ergoscript: SAvlTree.valueLengthOpt encoding
-  - nipopow: PoPowHeader.interlinks length-prefix
-  - ergoscript: SColl wire codec length-prefix
-  ...
-
-Sites deliberately NOT refactored (with reason):
-  - ergoscript SOption SValue parser — keeps SValueParseError throw on
-    malformed tag (readOption would throw ReaderError, a behavior change)
-  - ErgoBox.additionalRegisters — keyed, not a flat array
-
-Test suite: 3318 tests pass. No behavior change beyond strict 0/1 boolean
-tightening on SBoolean SValue parser (only if Step 4.3.3 source-read
-confirmed sigma-rust does the same).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Phase 5: Delete transitional shims
-
-### Task 5.1 — Audit shim usage and delete
-
-**Files to delete (after confirming no callers remain):**
-- Delete: `packages/nipopow/src/scorex/reader.ts`
-- Delete: `packages/nipopow/src/scorex/writer.ts`
-- Delete: `packages/nipopow/src/scorex/vlq.ts`
-- Delete: `packages/nipopow/src/scorex/` (empty directory)
-- Delete: `packages/nipopow/src/digests.ts`
-- Delete: `packages/nipopow/src/header.ts` (or keep as type-only re-export, per spec "Open questions")
-- Delete: `packages/nipopow/src/autolykos-solution.ts` (same caveat)
-- Delete: `packages/ergoscript/src/wire/reader.ts`
-- Delete: `packages/ergoscript/src/wire/writer.ts`
-
-- [ ] **Step 5.1.1: Find remaining internal callers of each shim file.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-echo "=== nipopow scorex shims ==="
-grep -rn "from.*['\"]\\.\\.*scorex/reader" packages/nipopow/src/ 2>/dev/null
-grep -rn "from.*['\"]\\.\\.*scorex/writer" packages/nipopow/src/ 2>/dev/null
-grep -rn "from.*['\"]\\.\\.*scorex/vlq" packages/nipopow/src/ 2>/dev/null
-echo "=== nipopow Header/AutolykosSolution shims ==="
-grep -rn "from.*['\"]\\.\\.*header\\b" packages/nipopow/src/ 2>/dev/null
-grep -rn "from.*['\"]\\.\\.*autolykos-solution" packages/nipopow/src/ 2>/dev/null
-grep -rn "from.*['\"]\\.\\.*digests" packages/nipopow/src/ 2>/dev/null
-echo "=== ergoscript wire shims ==="
-grep -rn "from.*['\"]\\.\\.*wire/reader" packages/ergoscript/src/ 2>/dev/null
-grep -rn "from.*['\"]\\.\\.*wire/writer" packages/ergoscript/src/ 2>/dev/null
-```
-
-For each callable found, edit the import to point at `@ergots/scorex` instead. Example:
-
-```ts
-// before
-import { ByteReader } from './scorex/reader.ts';
-// after
-import { ByteReader } from '@ergots/scorex';
-```
-
-- [ ] **Step 5.1.2: After all internal callers updated, run typecheck + tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
-npx vitest run packages/ 2>&1 | tail -10
-```
-
-Expected: zero TS errors; 3318 tests pass.
-
-- [ ] **Step 5.1.3: Decide on `Header` / `AutolykosSolution` re-export from `@ergots/nipopow`.**
-
-Per spec "Open questions": yes, re-export. Edit `packages/nipopow/src/index.ts` to add:
-
-```ts
-// Re-exports of scorex types for backward compatibility with external
-// callers using `import { Header } from '@ergots/nipopow'`.
-export type { Header, AutolykosSolution } from '@ergots/scorex';
-```
-
-Then delete the source files (the shims) — the re-export from `index.ts` covers any external consumer.
-
-- [ ] **Step 5.1.4: Delete shim files.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-rm packages/nipopow/src/scorex/reader.ts
-rm packages/nipopow/src/scorex/writer.ts
-rm packages/nipopow/src/scorex/vlq.ts
-rmdir packages/nipopow/src/scorex/ 2>/dev/null || true
-rm packages/nipopow/src/header.ts
-rm packages/nipopow/src/autolykos-solution.ts
-rm packages/nipopow/src/digests.ts
-rm packages/ergoscript/src/wire/reader.ts
-rm packages/ergoscript/src/wire/writer.ts
-```
-
-- [ ] **Step 5.1.5: Re-run typecheck + tests.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-npx tsc --noEmit -p packages/nipopow/tsconfig.json 2>&1 | tail -5
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json 2>&1 | tail -5
-npx vitest run packages/ 2>&1 | tail -15
-```
-
-Expected: zero errors; 3318 pass.
-
-- [ ] **Step 5.1.6: Commit Phase 5.**
-
-```bash
-cd /home/mwaddip/projects/ergots
-git add -A packages/nipopow/ packages/ergoscript/
-git commit -m "$(cat <<'EOF'
-refactor: delete transitional shims; nipopow + ergoscript import from @ergots/scorex
-
-Phase 2h-c.0 step 5/6. After Phase 4's cleanup pass, all internal callers
-in @ergots/nipopow and @ergots/ergoscript import the codec layer (ByteReader,
-ByteWriter, VLQ, ReaderError) and block-header types (Header,
-AutolykosSolution, digest helpers) directly from @ergots/scorex.
-
-Deleted shim files:
-  packages/nipopow/src/scorex/{reader,writer,vlq}.ts
-  packages/nipopow/src/{header,autolykos-solution,digests}.ts
-  packages/ergoscript/src/wire/{reader,writer}.ts
-
-@ergots/nipopow's public surface re-exports Header and AutolykosSolution types
-from @ergots/scorex via index.ts so external consumers using
-'import { Header } from \"@ergots/nipopow\"' continue to work.
-
-Test suite: 3318 tests pass. Cross-runtime green.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Phase 6: `facts/scorex.md` + final verification
-
-### Task 6.1 — Write `facts/scorex.md`
+### Task 2.3 — TDD red: V3 parse of SHeader SValue literal
 
 **Files:**
-- Create: `facts/scorex.md`
-- Modify: `facts/nipopow.md` (update Header/AutolykosSolution refs to point at scorex.md)
-- Modify: `CLAUDE.md` (add `facts/scorex.md` to the read-first list)
+- Create: `packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts`
 
-- [ ] **Step 6.1.1: Write `facts/scorex.md` following the boundary-contract convention.**
+- [ ] **Step 2.3.1: Write the failing test.**
 
-Use `facts/avltree.md` as the structural template. Required sections:
+```ts
+// packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts
+import { describe, expect, test } from 'vitest'
+import { parseSValue } from '../../src/wire/parse-svalue'
+import { ByteReader, parseHeader } from '@ergots/scorex'
+import type { SType } from '../../src/mir/types'
 
-1. Title + scope statement (one-paragraph)
-2. Authoritative source-of-truth pointer (sigma-rust ergotree-ir + sigma-ser)
-3. **Ships in this contract (v0.1.0)** — bullet list
-4. **Does NOT ship** — bullet list (no Autolykos v2 verifier; no SValue/SType/Expr; no ErgoBox; no base58)
-5. Public surface listing — code block with full ts signatures (ByteReader class API, ByteWriter class API, VLQ free functions, digest helpers, Header / AutolykosSolution types + codecs)
-6. Type invariants — Header fields (33-byte ADDigest stateRoot, etc.), AutolykosSolution V1-vs-V2 differences
-7. Cross-cutting guarantees — purity, sync, browser-compat, ESM-only, no-WASM
-8. Test corpus — moved tests with counts (reader.test, writer.test, vlq.test, header.test, autolykos-solution.test, option-array.test)
-9. Source mapping table — maps each scorex symbol to its sigma-rust/scorex-ser source location
-10. Cross-references
+// A real mainnet V2 header serialized for reuse — sourced from nipopow's fixtures.
+// Test setup: serialize one to bytes (using scorex's serializeHeader), then assert
+// parseSValue(SHeader, treeVersion=3, r) returns { kind: 'Header', value: <parsed> }.
 
-Length target: ~250-300 lines (similar to `facts/avltree.md` v0.2.0).
+describe('parseSValue SHeader V3 gating', () => {
+  test('parses SHeader at tree-version 3', () => {
+    const headerBytes = loadHeaderFixtureBytes() // helper: returns Uint8Array of one full mainnet header
+    const r = new ByteReader(headerBytes)
+    const SHEADER: SType = { tag: 'SHeader' }
 
-- [ ] **Step 6.1.2: Update `facts/nipopow.md` to cross-reference scorex.md.**
+    const v = parseSValue(SHEADER, 3, r)
 
-Find the existing references to `Header`, `AutolykosSolution`, `ByteReader`, etc. in `facts/nipopow.md`. Replace inline definitions with one-line references like:
+    expect(v.kind).toBe('Header')
+    expect((v as { kind: 'Header'; value: { id: Uint8Array } }).value.id).toBeInstanceOf(Uint8Array)
+    expect((v as { kind: 'Header'; value: { id: Uint8Array } }).value.id.length).toBe(32)
+  })
 
+  test('rejects SHeader at tree-version 2 with sheader-tree-version-too-low', () => {
+    const headerBytes = loadHeaderFixtureBytes()
+    const r = new ByteReader(headerBytes)
+    const SHEADER: SType = { tag: 'SHeader' }
+
+    expect(() => parseSValue(SHEADER, 2, r)).toThrowError(
+      expect.objectContaining({ code: 'sheader-tree-version-too-low' })
+    )
+  })
+})
+
+function loadHeaderFixtureBytes(): Uint8Array {
+  // Implementation: load from packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin
+  // The bytes are produced once by fixture-gen (Phase 5) and stored as a static binary fixture.
+  // For Task 2.3 (red), this returns a minimal placeholder buffer that will fail parseHeader
+  // — the test still verifies the signature/error-code path correctly.
+  throw new Error('TODO Task 2.4: replace with real header bytes loaded from disk')
+}
 ```
-- `Header` — defined in [`facts/scorex.md`](./scorex.md); see that contract for the canonical shape and wire format.
-```
 
-- [ ] **Step 6.1.3: Update `CLAUDE.md` read-first list.**
-
-Locate the "Read-first files" section in `CLAUDE.md`. Add `facts/scorex.md` as the first entry under `facts/`, since it's now the foundational contract that other facts files reference:
-
-```
-- `facts/scorex.md` — `@ergots/scorex` interface (codec layer + block-Header types; shared by other packages)
-- `facts/nipopow.md` — `@ergots/nipopow` interface
-- ... (existing list)
-```
-
-### Task 6.2 — Final verification + commit
-
-- [ ] **Step 6.2.1: Run the project-wide verification command suite from CLAUDE.md.**
+- [ ] **Step 2.3.2: Run the test — expect failure with "function not defined" or "TODO" message.**
 
 ```bash
-cd /home/mwaddip/projects/ergots
-echo "=== typecheck all packages ==="
-npx tsc --noEmit -p packages/scorex/tsconfig.json
-npx tsc --noEmit -p packages/nipopow/tsconfig.json
-npx tsc --noEmit -p packages/avltree/tsconfig.json
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json
-echo "=== test all packages (node) ==="
-npx vitest run packages/
-echo "=== test scorex under jsdom ==="
-cd packages/scorex && npx vitest run --config vitest.browser.config.ts
-cd /home/mwaddip/projects/ergots
-echo "=== fixture-gen smoke check ==="
-cd fixture-gen && cargo build --release 2>&1 | tail -5
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts 2>&1 | tail -20
 ```
 
-Expected: zero TS errors; 3318 vitest pass under node; same pass under jsdom for scorex; cargo build clean (fixture-gen unaffected by this TS-side refactor).
+Expected: FAIL. Most likely because the `SHeader` arm in `parseSValue` still throws `'not-implemented-phase-2a'`.
 
-- [ ] **Step 6.2.2: Commit Phase 6.**
+### Task 2.4 — TDD green: implement the SHeader arm in `parseSValue`
+
+**Files:**
+- Modify: `packages/ergoscript/src/wire/parse-svalue.ts` (the SHeader arm)
+- Create: `packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin` (and a `.json` companion if useful)
+
+- [ ] **Step 2.4.1: Generate the test fixture header bytes.**
+
+Use scorex's `serializeHeader` to produce the binary from an existing test-side `Header` instance. Easiest path: pick a real mainnet header from `packages/nipopow/test/fixtures/headers/` (or load via nipopow's `parseHeader` and re-serialize) and copy the resulting bytes to `packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin`.
 
 ```bash
-cd /home/mwaddip/projects/ergots
-git add facts/scorex.md facts/nipopow.md CLAUDE.md
+ls /home/mwaddip/projects/ergots/packages/nipopow/test/fixtures/headers/ | head
+```
+
+Identify one V2 header fixture; copy its raw `.bin` form into the ergoscript test fixtures directory.
+
+```bash
+mkdir -p /home/mwaddip/projects/ergots/packages/ergoscript/test/fixtures/headers
+cp /home/mwaddip/projects/ergots/packages/nipopow/test/fixtures/headers/<v2-header>.bin /home/mwaddip/projects/ergots/packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin
+```
+
+Update the `loadHeaderFixtureBytes()` helper in the test:
+
+```ts
+import fs from 'node:fs'
+function loadHeaderFixtureBytes(): Uint8Array {
+  // Note: fs is fine in tests (test runner is node); production code does NOT use it.
+  return new Uint8Array(fs.readFileSync('packages/ergoscript/test/fixtures/headers/header-v2-mainnet.bin'))
+}
+```
+
+- [ ] **Step 2.4.2: Replace the SHeader arm's `'not-implemented-phase-2a'` throw with V3-gated parsing.**
+
+In `parse-svalue.ts`, locate the existing SHeader arm (currently throws `'not-implemented-phase-2a'`) and replace with:
+
+```ts
+case 'SHeader': {
+  if (treeVersion < 3) {
+    throw new SValueParseError(
+      `SHeader SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+      'sheader-tree-version-too-low'
+    )
+  }
+  const header = parseHeader(r)
+  return { kind: 'Header', value: header }
+}
+```
+
+Add the `parseHeader` import at the top of the file:
+
+```ts
+import { parseHeader } from '@ergots/scorex'
+```
+
+- [ ] **Step 2.4.3: Run the test — expect pass.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-parse.test.ts 2>&1 | tail -10
+```
+
+Expected: both tests PASS.
+
+### Task 2.5 — TDD red/green: serialize side
+
+**Files:**
+- Modify: `packages/ergoscript/src/wire/serialize-svalue.ts`
+- Modify: `packages/ergoscript/src/wire/serialize.ts` (or wherever `serializeTree` lives) — thread `treeVersion` into the constants-section serialize loop
+- Create: `packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts`
+
+- [ ] **Step 2.5.1: Add the failing serialize test.**
+
+```ts
+// packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts
+import { describe, expect, test } from 'vitest'
+import { ByteReader, ByteWriter, parseHeader } from '@ergots/scorex'
+import { parseSValue } from '../../src/wire/parse-svalue'
+import { serializeSValue } from '../../src/wire/serialize-svalue'
+import type { SType, SValue } from '../../src/mir/types'
+import { loadHeaderFixtureBytes } from './_fixture-helpers'
+
+const SHEADER: SType = { tag: 'SHeader' }
+
+describe('serializeSValue SHeader V3 gating', () => {
+  test('serializes SHeader at tree-version 3 byte-equal to scorex serializeHeader', () => {
+    const headerBytes = loadHeaderFixtureBytes()
+    const v = parseSValue(SHEADER, 3, new ByteReader(headerBytes))
+
+    const w = new ByteWriter()
+    serializeSValue(SHEADER, v, 3, w)
+    expect(w.toBytes()).toEqual(headerBytes)
+  })
+
+  test('rejects SHeader at tree-version 2 with sheader-tree-version-too-low', () => {
+    const headerBytes = loadHeaderFixtureBytes()
+    const v = parseSValue(SHEADER, 3, new ByteReader(headerBytes))
+
+    const w = new ByteWriter()
+    expect(() => serializeSValue(SHEADER, v, 2, w)).toThrowError(
+      expect.objectContaining({ code: 'sheader-tree-version-too-low' })
+    )
+  })
+})
+```
+
+(Move the `loadHeaderFixtureBytes` helper into `_fixture-helpers.ts` and import in both parse + serialize tests to DRY.)
+
+- [ ] **Step 2.5.2: Run — expect failure.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts 2>&1 | tail -10
+```
+
+- [ ] **Step 2.5.3: Update `serializeSValue` signature + implement the SHeader arm.**
+
+```ts
+// Before:
+export function serializeSValue(tpe: SType, v: SValue, w: ByteWriter): void { ... }
+
+// After:
+export function serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void { ... }
+```
+
+Within the function, forward `treeVersion` to every recursive call site (Coll, Tuple, Option arms). For the SHeader arm:
+
+```ts
+case 'SHeader': {
+  if (treeVersion < 3) {
+    throw new SValueSerializeError(
+      `SHeader SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+      'sheader-tree-version-too-low'
+    )
+  }
+  if (v.kind !== 'Header') {
+    throw new SValueSerializeError(
+      `serializeSValue(SHeader, ...): value kind '${v.kind}' does not match SHeader`,
+      'type-value-mismatch'
+    )
+  }
+  const bytes = serializeHeader(v.value)
+  w.writeBytes(bytes)
+  break
+}
+```
+
+Add the import:
+
+```ts
+import { serializeHeader } from '@ergots/scorex'
+```
+
+- [ ] **Step 2.5.4: Find and update every caller of `serializeSValue`.**
+
+```bash
+rtk proxy grep -rn "serializeSValue(" /home/mwaddip/projects/ergots/packages/ergoscript/src/ --include "*.ts"
+```
+
+Update each caller (primary: `serialize-tree.ts` constants-section loop) to inject `treeVersion`:
+
+```ts
+// In serializeTree, where constants are serialized:
+serializeSValue(constType, constValue, tree.header.version, w)
+```
+
+- [ ] **Step 2.5.5: Run serialize test — expect pass.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-v3-serialize.test.ts 2>&1 | tail -10
+```
+
+Expected: both serialize tests PASS.
+
+### Task 2.6 — Verify Phase 2 + commit
+
+- [ ] **Step 2.6.1: Full typecheck + test suite.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
+```
+
+Expected: typecheck clean; **2810 + 4 (new V3 gating tests) = 2814 tests pass**, no regressions.
+
+- [ ] **Step 2.6.2: Commit Phase 2.**
+
+```bash
+cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/wire/parse-svalue.ts packages/ergoscript/src/wire/serialize-svalue.ts packages/ergoscript/src/wire/errors.ts packages/ergoscript/src/wire/parse.ts packages/ergoscript/src/wire/serialize.ts packages/ergoscript/test/wire/
+git add packages/ergoscript/test/fixtures/headers/
 git commit -m "$(cat <<'EOF'
-docs(scorex): add facts/scorex.md interface contract; update cross-refs
+feat(ergoscript): V3-gated SHeader SValue wire format
 
-Phase 2h-c.0 step 6/6 — finalization. Adds the boundary-contract document
-for @ergots/scorex v0.1.0 to facts/scorex.md, structured per the project's
-existing facts/*.md convention (avltree.md as template).
+Phase 2h-c.1 Step 2. Replaces the 'not-implemented-phase-2a' throw for
+SHeader SValue parse + serialize with a V3-gated implementation delegating
+to @ergots/scorex's parseHeader / serializeHeader. Mirrors sigma-rust
+ergotree-ir/src/serialization/data.rs:196 (parse) and :98 (serialize).
 
-facts/nipopow.md updated to cross-reference scorex.md for the now-shared
-Header / AutolykosSolution / ByteReader / ByteWriter / VLQ surface.
-CLAUDE.md read-first list updated to include facts/scorex.md.
+Signature change: parseSValue and serializeSValue gain a treeVersion: number
+parameter that threads through every recursive callsite (Coll, Tuple, Option
+arms). parseTree and serializeTree inject treeVersion from tree.header.version.
 
-Phase 2h-c.0 (extraction) complete. Successor phase 2h-c.1 (SHeader runtime
-+ 17 method handlers in @ergots/ergoscript) lands separately.
+Adds 'sheader-tree-version-too-low' code to both SValueParseError and
+SValueSerializeError code unions. Drops SHeader from the
+'not-implemented-phase-2a' emitting set in both error classes.
+
+Tests: 4 new (parse + serialize, V3 success + V<3 rejection). Fixture
+header-v2-mainnet.bin sourced from nipopow's fixture corpus.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 6.2.3: Verify final repo state.**
+---
+
+## Phase 3: 15 SHeader method handlers
+
+The 15 handlers are isomorphic by structure: each follows Pattern A Fixed(10), defensive `obj.kind === 'Header'` check via `assertHeaderObj(obj)`, and projects a single Header field into the appropriate SValue. Implementation lives in a new `eval/sheader.ts` module (mirrors the `eval/savltree.ts` pattern from phase 2h-b).
+
+### Task 3.1 — Add `'header-obj-not-header'` EvalError code
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/eval-context.ts` (or wherever `EvalError.code` type union lives)
+
+- [ ] **Step 3.1.1: Locate the `EvalError` code union.**
 
 ```bash
-cd /home/mwaddip/projects/ergots
-git log --oneline -7
-git status
+grep -n "EvalErrorCode\|'avl-tree-obj-not-avl-tree'\|'context-obj-not-context'" /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/eval-context.ts
 ```
 
-Expected: 7 new commits since the audit-completion baseline (b9cabb8). Working tree clean modulo gitignored `audit20260519/`.
+- [ ] **Step 3.1.2: Add the new code.**
+
+Insert `'header-obj-not-header'` into the `EvalErrorCode` type union (alphabetical placement preferred; adjacent to `'avl-tree-obj-not-avl-tree'` works):
+
+```ts
+| 'header-obj-not-header'      // SHeader.* handlers: obj is not an SValue.Header
+```
+
+- [ ] **Step 3.1.3: Verify typecheck clean.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+```
+
+### Task 3.2 — Create `eval/sheader.ts` skeleton + `assertHeaderObj` helper
+
+**Files:**
+- Create: `packages/ergoscript/src/eval/sheader.ts`
+
+- [ ] **Step 3.2.1: Write the skeleton file.**
+
+```ts
+// packages/ergoscript/src/eval/sheader.ts
+/**
+ * SHeader method handlers — 15 property accessors (typeId 104, methodIds 1-15).
+ *
+ * All handlers follow Pattern A Fixed(10): ctx.addCost(10) → assertHeaderObj(obj)
+ * → project a Header field into an SValue.
+ *
+ * Source: ergotree-interpreter/src/eval/sheader.rs at sigma-rust integration/ergots branch.
+ * Per-method line refs in each handler's doc-comment.
+ *
+ * Error codes originated here:
+ *   'header-obj-not-header'    — defensive receiver check; thrown by all 15 handlers
+ *                                 when obj.kind !== 'Header'. Wire-format invariants
+ *                                 make this unreachable for parser-produced trees.
+ */
+
+import type { Header } from '@ergots/scorex'
+import { EvalError, type EvalContext } from './eval-context'
+import { bytesToCollByteSValue } from './_byte-coll'
+import type { SValue } from '../mir/types'
+
+/** Defensive receiver check shared by all 15 SHeader handlers. */
+function assertHeaderObj(obj: SValue, methodName: string): asserts obj is SValue & { kind: 'Header' } {
+  if (obj.kind !== 'Header') {
+    throw new EvalError(
+      `SHeader.${methodName} expects a Header obj; got '${obj.kind}'`,
+      'header-obj-not-header'
+    )
+  }
+}
+
+// 15 handler exports — one per Header property. Each charges Fixed(10) BEFORE the obj check.
+// Handlers are added in Tasks 3.3 through 3.17 (one task per handler).
+```
+
+- [ ] **Step 3.2.2: Verify typecheck clean (no handler implementations yet).**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+```
+
+### Task 3.3 — Implement `SHeader.id` (104:1)
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/sheader.ts` (add handler export)
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (register handler)
+- Create: `packages/ergoscript/test/fixtures/eval/sheader-id.json` (oracle fixture)
+- Create: `packages/ergoscript/test/eval/sheader-handlers.test.ts` (first test entry)
+
+- [ ] **Step 3.3.1: Generate the oracle fixture using fixture-gen.**
+
+The fixture-gen Rust side produces `{ exprBytes (hex), expectedValue (JSON), expectedJitCost (number) }` for each handler call. For `SHeader.id`, the Rust setup is:
+
+```rust
+// fixture-gen/src/sheader_handlers.rs (NEW)
+use ergotree_ir::mir::{coll_by_index::ByIndex, expr::Expr, property_call::PropertyCall};
+use ergotree_ir::types::{scontext::HEADERS_PROPERTY, sheader::ID_PROPERTY};
+// ... build PropertyCall(ByIndex(PropertyCall(Context, headers), 0), ID_PROPERTY)
+//     run try_eval_out with a mainnet header in ctx.headers[0]
+//     emit JSON fixture
+```
+
+Write the Rust generator following the pattern of the existing SAvlTree fixture-gen module (`fixture-gen/src/savltree_handlers.rs` or similar). Run:
+
+```bash
+cd /home/mwaddip/projects/ergots/fixture-gen && cargo run --release 2>&1 | tail -5
+```
+
+Verify the fixture lands at `packages/ergoscript/test/fixtures/eval/sheader-id.json`.
+
+- [ ] **Step 3.3.2: Write the failing test.**
+
+```ts
+// packages/ergoscript/test/eval/sheader-handlers.test.ts
+import { describe, expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { evaluateWith, makeContext } from '../../src/eval'
+import { parseTree } from '../../src/wire/parse-tree'
+
+interface Fixture {
+  exprBytes: string         // hex
+  expectedValueJson: unknown
+  expectedJitCost: number
+  ctxHeaders?: Array<{ /* serialized Header JSON */ }>
+}
+
+function loadFixture(name: string): Fixture {
+  return JSON.parse(readFileSync(`packages/ergoscript/test/fixtures/eval/${name}.json`, 'utf8')) as Fixture
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
+}
+
+describe('SHeader handlers — Phase 2h-c.1', () => {
+  test('SHeader.id (104:1) Fixed(10)', () => {
+    const fx = loadFixture('sheader-id')
+    const tree = parseTree(hexToBytes(fx.exprBytes))
+    const ctx = makeContext({ headers: fx.ctxHeaders!.map(toRuntimeHeader) })
+    const result = evaluateWith(tree, ctx)
+    expect(toJsonComparable(result)).toEqual(fx.expectedValueJson)
+    expect(ctx.jitCost).toBe(fx.expectedJitCost)
+  })
+})
+
+// Helpers: toRuntimeHeader converts fixture-side Header JSON to runtime Header type
+// (handle Uint8Array<->hex). toJsonComparable serializes SValue to a stable JSON shape.
+// Both helpers exist in test/_helpers.ts (consider extracting if not already).
+function toRuntimeHeader(_h: unknown): never { throw new Error('TODO: implement in _helpers.ts') }
+function toJsonComparable(_v: unknown): unknown { throw new Error('TODO: implement in _helpers.ts') }
+```
+
+- [ ] **Step 3.3.3: Run — expect failure.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/sheader-handlers.test.ts 2>&1 | tail -10
+```
+
+- [ ] **Step 3.3.4: Implement the helpers + `evalSHeaderId` handler.**
+
+Implement `toRuntimeHeader` and `toJsonComparable` (or expand `_helpers.ts`). Then in `eval/sheader.ts`:
+
+```ts
+export function evalSHeaderId(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
+  ctx.addCost(10) // Pattern A; source: eval/sheader.rs:22-26
+  assertHeaderObj(obj, 'id')
+  return bytesToCollByteSValue(obj.value.id)
+}
+```
+
+Register in `eval/method-call.ts` `registerHandlers()` (insert in source-id order — typeId=104, methodId=1):
+
+```ts
+// SHeader.id (PropertyCall, typeId=104, methodId=1)
+// Source: ergotree-interpreter/src/eval/sheader.rs:22-26 — ID_EVAL_FN
+HANDLERS.set(handlerKey(104, 1), (obj, args, ctx) => evalSHeaderId(obj, args, ctx))
+```
+
+Add the import at the top of `method-call.ts`:
+
+```ts
+import { evalSHeaderId } from './sheader'
+```
+
+- [ ] **Step 3.3.5: Run test — expect pass.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/sheader-handlers.test.ts 2>&1 | tail -10
+```
+
+### Task 3.4 — Task 3.17: Implement the remaining 14 SHeader handlers
+
+Each task follows the identical pattern as Task 3.3 (fixture-gen → red test → handler implementation → registry → green test). The 14 remaining handlers, in order:
+
+| Task | Method | typeId:methodId | Field projection | Return shape | Source |
+|---|---|---|---|---|---|
+| 3.4 | `version` | 104:2 | `header.version` | `{ kind: 'Byte', value: ((header.version << 24) >> 24) }` (u8 → i8 sign-extend) | `sheader.rs:16-20` |
+| 3.5 | `parentId` | 104:3 | `header.parentId` | `bytesToCollByteSValue(header.parentId)` | `:28-32` |
+| 3.6 | `adProofsRoot` | 104:4 | `header.adProofsRoot` | `bytesToCollByteSValue(header.adProofsRoot)` | `:34-38` |
+| 3.7 | `stateRoot` | 104:5 | `header.stateRoot` (33 bytes) | `bytesToCollByteSValue(header.stateRoot)` — **see quirk note in design spec** | `:40-44` |
+| 3.8 | `transactionsRoot` | 104:6 | `header.transactionRoot` (scorex field name singular; method name plural) | `bytesToCollByteSValue(header.transactionRoot)` | `:46-50` |
+| 3.9 | `timestamp` | 104:7 | `header.timestamp` (`number`) | `{ kind: 'Long', value: BigInt(header.timestamp) }` | `:58-62` |
+| 3.10 | `nBits` | 104:8 | `header.nBits` (`number`) | `{ kind: 'Long', value: BigInt(header.nBits) }` | `:64-68` |
+| 3.11 | `height` | 104:9 | `header.height` (`number`) | `{ kind: 'Int', value: header.height \| 0 }` (force i32) | `:70-74` |
+| 3.12 | `extensionRoot` | 104:10 | `header.extensionRoot` | `bytesToCollByteSValue(header.extensionRoot)` | `:52-56` |
+| 3.13 | `minerPk` | 104:11 | `header.autolykosSolution.minerPk` (33 bytes) | `{ kind: 'GroupElement', value: header.autolykosSolution.minerPk }` | `:76-80` |
+| 3.14 | `powOnetimePk` | 104:12 | `header.autolykosSolution.powOnetimePk` (nullable) | `{ kind: 'GroupElement', value: header.autolykosSolution.powOnetimePk ?? new Uint8Array(33) }` — **33 zero bytes when null** (identity point) | `:82-86` |
+| 3.15 | `powNonce` | 104:13 | `header.autolykosSolution.nonce` (8 bytes) | `bytesToCollByteSValue(header.autolykosSolution.nonce)` | `:88-92` |
+| 3.16 | `powDistance` | 104:14 | `header.autolykosSolution.powDistance` (nullable bigint) | `{ kind: 'BigInt', value: header.autolykosSolution.powDistance ?? 0n }` — **0n when null** | `:94-107` |
+| 3.17 | `votes` | 104:15 | `header.votes` (3 bytes) | `bytesToCollByteSValue(header.votes)` | `:109-113` |
+
+For EACH task (3.4 through 3.17), the 5 steps are:
+
+- [ ] **Step N.1: Extend `fixture-gen/src/sheader_handlers.rs` to emit the fixture for this method.** Verify `cargo run` writes `packages/ergoscript/test/fixtures/eval/sheader-<methodName>.json` deterministically (same input headers → identical output across runs).
+
+- [ ] **Step N.2: Add the failing test entry inside the existing `describe('SHeader handlers ...')` block.** Use the same shape as Task 3.3.2's test — load fixture, parse tree, evaluate, assert value + jitCost. Expected: FAIL ("method not implemented" — dispatch miss).
+
+- [ ] **Step N.3: Add the handler export to `eval/sheader.ts`.** Use the precise field-projection shape from the table. Cost is always `ctx.addCost(10)`. Defensive check is `assertHeaderObj(obj, '<methodName>')`.
+
+- [ ] **Step N.4: Register the handler in `eval/method-call.ts`.** Insert in numeric order by methodId. Add the import for the new `eval<MethodName>` export. After the registry edit, perform the audit-step diff:
+
+```bash
+git diff /home/mwaddip/projects/ergots/packages/ergoscript/src/eval/method-call.ts | grep "HANDLERS.set"
+```
+
+Confirm the new line uses the documented `(typeId, methodId)` keys and that no existing entries were moved or modified.
+
+- [ ] **Step N.5: Run the test — expect pass.** Verify `jitCost` matches the fixture's `expectedJitCost` byte-for-byte (well, integer-equal). Verify SValue return shape byte-equal for byte-collection cases, value-equal for Long/Int/BigInt cases.
+
+### Task 3.18 — `'header-obj-not-header'` defensive coverage
+
+**Files:**
+- Modify: `packages/ergoscript/test/eval/sheader-handlers.test.ts` (add parameterized throw-path tests)
+
+- [ ] **Step 3.18.1: Add parameterized "non-Header obj" tests across 3 representative handlers.**
+
+Pick handlers from different return-kind categories: `id` (Coll[Byte]), `height` (Int), `minerPk` (GroupElement). For each, construct a `MethodCall` whose `obj` evaluates to a non-Header SValue (e.g., a Long constant) and assert `EvalError('header-obj-not-header')` is thrown.
+
+```ts
+import { EvalError } from '../../src/eval/eval-context'
+
+describe('SHeader.* defensive obj-kind check', () => {
+  test.each([
+    ['SHeader.id (104:1)', 104, 1, 'id'],
+    ['SHeader.height (104:9)', 104, 9, 'height'],
+    ['SHeader.minerPk (104:11)', 104, 11, 'minerPk'],
+  ])('%s throws header-obj-not-header on non-Header obj', (_label, typeId, methodId, methodName) => {
+    // Construct a hand-built PropertyCall with obj=Const(Long, 42n), method=<methodId>
+    // Evaluate; expect throw.
+    const expr = buildPropertyCallWithLongObj(typeId, methodId)
+    expect(() => evaluateExpr(expr)).toThrow(
+      expect.objectContaining({ code: 'header-obj-not-header' })
+    )
+  })
+})
+```
+
+(Helper `buildPropertyCallWithLongObj` is small — synthesizes the Expr tree by hand without fixture-gen.)
+
+- [ ] **Step 3.18.2: Run — expect pass.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/sheader-handlers.test.ts 2>&1 | tail -10
+```
+
+### Task 3.19 — Verify Phase 3 + commit
+
+- [ ] **Step 3.19.1: Full ergoscript test suite.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
+```
+
+Expected: 2814 + 15 (per-handler) + 3 (parameterized defensive) = **2832 tests pass**.
+
+- [ ] **Step 3.19.2: Commit Phase 3.**
+
+```bash
+cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/eval/sheader.ts packages/ergoscript/src/eval/method-call.ts packages/ergoscript/src/eval/eval-context.ts packages/ergoscript/test/eval/sheader-handlers.test.ts packages/ergoscript/test/fixtures/eval/sheader-*.json fixture-gen/src/sheader_handlers.rs fixture-gen/src/main.rs
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): 15 SHeader method handlers + 'header-obj-not-header' code
+
+Phase 2h-c.1 Step 3. Wires the 15 SHeader.* property accessors at typeId 104,
+methodIds 1-15. All Pattern A Fixed(10) — ctx.addCost(10) before
+assertHeaderObj() defensive receiver check, then projects a Header field.
+
+Per-handler return shapes (sigma-rust eval/sheader.rs lines 16-113):
+  id (1) parentId (3) adProofsRoot (4) stateRoot (5) transactionsRoot (6)
+  extensionRoot (10) powNonce (13) votes (15) → Coll[Byte]
+  version (2) → Byte (u8→i8 sign-extend)
+  timestamp (7) nBits (8) → Long (bigint)
+  height (9) → Int (i32)
+  minerPk (11) powOnetimePk (12) → GroupElement (33 bytes)
+  powDistance (14) → BigInt
+
+V2-header semantics: powOnetimePk returns 33 zero bytes when null (identity
+point per EcPoint::default() → scorex_serialize); powDistance returns 0n.
+
+New EvalError code: 'header-obj-not-header' (defensive; 45→46 codes total).
+
+Tests: 15 oracle fixtures (one per handler) + 3 parameterized defensive throws.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
 
 ---
 
-## Post-completion checklist
+## Phase 4: 2 SContext method handlers (`headers` + `lastBlockUtxoRootHash`)
 
-After all six phases land:
+Both extend the existing `eval/method-call.ts` registry. Pattern A Fixed(15). Both check `obj.kind === 'Context'` (existing `'context-obj-not-context'` code) and `ctx.headers !== undefined` (existing `'context-field-missing'` code).
 
-- [ ] All 3318 tests pass under both `node` and `jsdom`.
-- [ ] `npx tsc --noEmit` clean for all four packages (scorex + nipopow + avltree + ergoscript).
-- [ ] `cargo build --release` clean for fixture-gen (no fixture regeneration needed — TS-side refactor only).
-- [ ] `packages/scorex/dist/` does NOT exist yet (no `npm run build` invoked; published-bundle smoke check is a separate publish-prep concern, not part of 2h-c.0).
-- [ ] `facts/scorex.md` exists; `facts/nipopow.md` references it; `CLAUDE.md` lists it.
-- [ ] Git working tree clean. ~6-7 commits ahead of `origin/master`. No push (per project workflow expectations — commits stay local until user requests push).
+### Task 4.1 — `SContext.headers` (101:2)
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler registration + helper)
+- Create: `packages/ergoscript/test/fixtures/eval/scontext-headers.json` (oracle fixture)
+- Modify: `packages/ergoscript/test/eval/scontext-handlers.test.ts` (extend existing file from 2g.5/2g.6)
+
+- [ ] **Step 4.1.1: Generate the oracle fixture.**
+
+Extend `fixture-gen/src/sheader_handlers.rs` (or create `fixture-gen/src/scontext_headers.rs`) to emit a fixture exercising `PropertyCall(Context, HEADERS_PROPERTY)`. Verify deterministic output.
+
+- [ ] **Step 4.1.2: Write the failing test.**
+
+```ts
+// in scontext-handlers.test.ts (extend existing file)
+test('SContext.headers (101:2) Fixed(15) returns Coll[Header]', () => {
+  const fx = loadFixture('scontext-headers')
+  const tree = parseTree(hexToBytes(fx.exprBytes))
+  const ctx = makeContext({ headers: fx.ctxHeaders!.map(toRuntimeHeader) })
+  const result = evaluateWith(tree, ctx)
+  expect(result.kind).toBe('Coll')
+  expect((result as { kind: 'Coll'; items: SValue[] }).items.length).toBe(fx.ctxHeaders!.length)
+  expect(ctx.jitCost).toBe(fx.expectedJitCost)
+})
+
+test('SContext.headers throws context-field-missing when ctx.headers undefined', () => {
+  const fx = loadFixture('scontext-headers')
+  const tree = parseTree(hexToBytes(fx.exprBytes))
+  const ctx = makeContext({}) // no headers
+  expect(() => evaluateWith(tree, ctx)).toThrow(
+    expect.objectContaining({ code: 'context-field-missing' })
+  )
+})
+```
+
+- [ ] **Step 4.1.3: Run — expect failure.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/scontext-handlers.test.ts 2>&1 | tail -10
+```
+
+- [ ] **Step 4.1.4: Implement the handler in `eval/method-call.ts`.**
+
+Inside `registerHandlers()`, add (locate near the existing SContext entries — `dataInputs` 101:1 and `preHeader` 101:3):
+
+```ts
+// SContext.headers (PropertyCall, typeId=101, methodId=2)
+// Source: ergotree-interpreter/src/eval/scontext.rs:58-70 — HEADERS_EVAL_FN
+// Pattern A cost 15 (charged before obj check). Returns Coll[Header].
+HANDLERS.set(handlerKey(101, 2), (obj, _args, ctx, _explicitTypeArgs) => {
+  ctx.addCost(15)
+  if (obj.kind !== 'Context') {
+    throw new EvalError(
+      `SContext.headers expects a Context obj; got '${obj.kind}'`,
+      'context-obj-not-context'
+    )
+  }
+  if (ctx.headers === undefined) {
+    throw new EvalError(`SContext.headers: ctx.headers is undefined`, 'context-field-missing')
+  }
+  return headersCollOf(ctx.headers)
+})
+```
+
+Add the helper (place near `dataInputsCollOf` at the bottom of the file):
+
+```ts
+const SHEADER_ELEM: SType = { tag: 'SHeader' }
+
+function headersCollOf(headers: Header[]): SValue {
+  return {
+    kind: 'Coll',
+    elem: SHEADER_ELEM,
+    items: headers.map((h) => ({ kind: 'Header', value: h })),
+  }
+}
+```
+
+Add the `Header` import at the top:
+
+```ts
+import type { Header } from '@ergots/scorex'
+```
+
+- [ ] **Step 4.1.5: Run tests — expect pass.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/eval/scontext-handlers.test.ts 2>&1 | tail -10
+```
+
+### Task 4.2 — `SContext.lastBlockUtxoRootHash` (101:9)
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/method-call.ts` (add handler)
+- Create: `packages/ergoscript/test/fixtures/eval/scontext-last-block-utxo-root-hash.json`
+- Modify: `packages/ergoscript/test/eval/scontext-handlers.test.ts`
+
+- [ ] **Step 4.2.1: Generate the oracle fixture.**
+
+Extend the fixture-gen module to emit the `PropertyCall(Context, LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY)` fixture.
+
+- [ ] **Step 4.2.2: Write the failing test.**
+
+```ts
+test('SContext.lastBlockUtxoRootHash (101:9) synthesizes AvlTree from ctx.headers[0].stateRoot', () => {
+  const fx = loadFixture('scontext-last-block-utxo-root-hash')
+  const tree = parseTree(hexToBytes(fx.exprBytes))
+  const ctx = makeContext({ headers: fx.ctxHeaders!.map(toRuntimeHeader) })
+  const result = evaluateWith(tree, ctx)
+  expect(result.kind).toBe('AvlTree')
+  const at = (result as { kind: 'AvlTree'; value: { digest: Uint8Array; treeFlags: number; keyLength: number; valueLengthOpt: number | null } }).value
+  expect(at.digest).toEqual(ctx.headers![0].stateRoot)
+  expect(at.treeFlags).toBe(0b111)
+  expect(at.keyLength).toBe(32)
+  expect(at.valueLengthOpt).toBeNull()
+  expect(ctx.jitCost).toBe(fx.expectedJitCost)
+})
+
+test('SContext.lastBlockUtxoRootHash throws context-field-missing on empty/undefined headers', () => {
+  const fx = loadFixture('scontext-last-block-utxo-root-hash')
+  const tree = parseTree(hexToBytes(fx.exprBytes))
+
+  // Case 1: undefined
+  expect(() => evaluateWith(tree, makeContext({}))).toThrow(
+    expect.objectContaining({ code: 'context-field-missing' })
+  )
+
+  // Case 2: empty array
+  expect(() => evaluateWith(tree, makeContext({ headers: [] }))).toThrow(
+    expect.objectContaining({ code: 'context-field-missing' })
+  )
+})
+```
+
+- [ ] **Step 4.2.3: Run — expect failure.**
+
+- [ ] **Step 4.2.4: Implement the handler in `eval/method-call.ts`.**
+
+```ts
+// SContext.lastBlockUtxoRootHash (PropertyCall, typeId=101, methodId=9)
+// Source: ergotree-interpreter/src/eval/scontext.rs:83-99 — LAST_BLOCK_UTXO_ROOT_HASH_EVAL_FN
+// Pattern A cost 15. Synthesizes AvlTreeData from ctx.headers[0].stateRoot.
+HANDLERS.set(handlerKey(101, 9), (obj, _args, ctx, _explicitTypeArgs) => {
+  ctx.addCost(15)
+  if (obj.kind !== 'Context') {
+    throw new EvalError(
+      `SContext.lastBlockUtxoRootHash expects a Context obj; got '${obj.kind}'`,
+      'context-obj-not-context'
+    )
+  }
+  if (ctx.headers === undefined || ctx.headers.length === 0) {
+    throw new EvalError(
+      `SContext.lastBlockUtxoRootHash: ctx.headers is ${ctx.headers === undefined ? 'undefined' : 'empty'}`,
+      'context-field-missing'
+    )
+  }
+  return {
+    kind: 'AvlTree',
+    value: {
+      digest: ctx.headers[0]!.stateRoot,
+      treeFlags: 0b111, // insert/update/remove all allowed; sigma-rust AvlTreeFlags::new(true, true, true)
+      keyLength: 32,
+      valueLengthOpt: null,
+    },
+  }
+})
+```
+
+- [ ] **Step 4.2.5: Run tests — expect pass.**
+
+### Task 4.3 — Verify Phase 4 + commit
+
+- [ ] **Step 4.3.1: Full test suite.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
+```
+
+Expected: 2832 + 4 = **2836 tests pass**.
+
+- [ ] **Step 4.3.2: Commit Phase 4.**
+
+```bash
+cd /home/mwaddip/projects/ergots && git add packages/ergoscript/src/eval/method-call.ts packages/ergoscript/test/eval/scontext-handlers.test.ts packages/ergoscript/test/fixtures/eval/scontext-headers.json packages/ergoscript/test/fixtures/eval/scontext-last-block-utxo-root-hash.json fixture-gen/src/
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): SContext.headers + lastBlockUtxoRootHash handlers
+
+Phase 2h-c.1 Step 4. Wires 2 new SContext method handlers:
+
+  - SContext.headers (101:2) Pattern A Fixed(15) returns Coll[Header]
+    from ctx.headers; source: eval/scontext.rs:58-70.
+  - SContext.lastBlockUtxoRootHash (101:9) Pattern A Fixed(15) synthesizes
+    AvlTree from ctx.headers[0].stateRoot with treeFlags 0b111, keyLength
+    32, valueLengthOpt null; source: eval/scontext.rs:83-99.
+
+Both throw 'context-field-missing' (existing 2f-medium code) when ctx.headers
+is undefined; lastBlockUtxoRootHash also throws on empty array.
+
+Tests: 2 oracle fixtures + 3 throw-path coverage cases.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
 
 ---
 
-## Cross-references
+## Phase 5: V3 SHeader-constant wire-roundtrip + mutation testing
 
-- Spec: `docs/specs/2026-05-19-ergots-scorex-package-design.md`
-- Sibling contract: `facts/avltree.md` (v0.2.0 — template for facts/scorex.md style + depth)
-- Sibling contract: `facts/nipopow.md` (will be updated in Task 6.1.2)
-- sigma-rust wire-format oracle: `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/` and `sigma-ser/src/vlq_encode.rs`
-- Fleet SDK comparator: <https://github.com/fleet-sdk/fleet/tree/master/packages/serializer/src/coders>
-- Audit-cleared baseline (this plan's starting point): commit `b9cabb8`
-- Successor plan target: `docs/specs/2026-05-19-ergoscript-phase-2h-c-1-sheader-design.md` (TBD — written after 2h-c.0 lands)
+### Task 5.1 — Generate 6 V3 SHeader-constant ErgoTree fixtures
+
+**Files:**
+- Create: `packages/ergoscript/test/fixtures/wire/sheader-constants-v3-*.bin` (6 fixtures)
+- Create: `packages/ergoscript/test/wire/svalue-sheader-roundtrip.test.ts`
+
+- [ ] **Step 5.1.1: Extend fixture-gen to synthesize 6 V3 ErgoTrees with embedded SHeader constants.**
+
+Fixtures to emit:
+- `sheader-constants-v3-single-header.bin` — V3 tree, segregated-constants section contains 1 SHeader literal (a mainnet V2 header).
+- `sheader-constants-v3-single-v1-header.bin` — same shape, but the embedded header is a mainnet V1 header (validates V1 vs V2 codec parity).
+- `sheader-constants-v3-coll-of-headers.bin` — V3 tree with `Coll[Header]` of 3 SHeader literals (validates recursive `treeVersion` threading through the Coll arm).
+- `sheader-constants-v3-option-some.bin` — V3 tree with `Option[Header] = Some(h)` (validates Option arm threading).
+- `sheader-constants-v3-option-none.bin` — V3 tree with `Option[Header] = None` (validates the None tag path; no SHeader bytes follow).
+- `sheader-constants-v2-header-literal.bin` — V2 (tree-version=2) tree containing an SHeader constant — **negative fixture**; must trip `'sheader-tree-version-too-low'` on parse.
+
+Use sigma-rust's `ErgoTreeBuilder` or hand-construct via `Constant::new(SType::SHeader, ...)` + `serialize_with_version(version)`. Verify byte determinism (`cargo run` twice → byte-identical outputs).
+
+- [ ] **Step 5.1.2: Write the round-trip tests.**
+
+```ts
+// packages/ergoscript/test/wire/svalue-sheader-roundtrip.test.ts
+import { describe, expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { parseTree, serializeTree } from '../../src/wire'
+
+const FIXTURES = [
+  'sheader-constants-v3-single-header',
+  'sheader-constants-v3-single-v1-header',
+  'sheader-constants-v3-coll-of-headers',
+  'sheader-constants-v3-option-some',
+  'sheader-constants-v3-option-none',
+] as const
+
+describe('SHeader SValue wire round-trip — V3 trees', () => {
+  test.each(FIXTURES)('%s round-trips byte-equal', (name) => {
+    const bytes = new Uint8Array(readFileSync(`packages/ergoscript/test/fixtures/wire/${name}.bin`))
+    const tree = parseTree(bytes)
+    const out = serializeTree(tree)
+    expect(out).toEqual(bytes)
+  })
+})
+
+describe('SHeader SValue wire — V<3 rejection', () => {
+  test('V2 tree with SHeader literal throws sheader-tree-version-too-low', () => {
+    const bytes = new Uint8Array(readFileSync('packages/ergoscript/test/fixtures/wire/sheader-constants-v2-header-literal.bin'))
+    expect(() => parseTree(bytes)).toThrow(
+      expect.objectContaining({ code: 'sheader-tree-version-too-low' })
+    )
+  })
+})
+```
+
+- [ ] **Step 5.1.3: Run — expect all 6 tests pass (5 round-trip + 1 negative).**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-roundtrip.test.ts 2>&1 | tail -10
+```
+
+### Task 5.2 — Add mutation testing for SHeader-constant trees
+
+**Files:**
+- Create: `packages/ergoscript/test/wire/svalue-sheader-mutation.test.ts`
+
+- [ ] **Step 5.2.1: Implement single-byte-flip mutation harness.**
+
+Pattern follows existing `parse-mutation.test.ts` in the ergoscript test suite. For each of the 5 positive C2 fixtures (excluding the negative V2 one), iterate every byte offset, flip the byte, attempt to `parseTree`, and record one of:
+
+- **Killed (typed error):** any subclass of `Error` with a known `.code` from the wire-layer taxonomy (`ErgoTreeParseError`, `ExprParseError`, `STypeParseError`, `SValueParseError`, `ReaderError`).
+- **Killed (re-serializes to non-original):** parses successfully but `serializeTree(parseTree(mutated))` ≠ mutated bytes (mutation moved the bytes off the canonical round-trip).
+- **Tolerated (byte-identical re-serialize):** mutation flipped a byte in `Header.unparsedBytes` forward-compat region that round-trips identically. Document the offset ranges in a per-fixture `tolerated.json`.
+
+Per-fixture kill-rate threshold: **≥ 90%**. Total mutation count target: ≈ 25-30 across the 5 fixtures.
+
+```ts
+// packages/ergoscript/test/wire/svalue-sheader-mutation.test.ts (skeleton)
+import { describe, expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { parseTree, serializeTree } from '../../src/wire'
+
+const FIXTURES = [
+  'sheader-constants-v3-single-header',
+  'sheader-constants-v3-single-v1-header',
+  'sheader-constants-v3-coll-of-headers',
+  'sheader-constants-v3-option-some',
+  'sheader-constants-v3-option-none',
+] as const
+
+describe('SHeader-constant wire mutation testing', () => {
+  test.each(FIXTURES)('%s achieves ≥90%% kill rate', (name) => {
+    const bytes = new Uint8Array(readFileSync(`packages/ergoscript/test/fixtures/wire/${name}.bin`))
+    let killed = 0
+    let total = 0
+    for (let i = 0; i < bytes.length; i++) {
+      for (let bit = 0; bit < 8; bit++) {
+        const mutated = new Uint8Array(bytes)
+        mutated[i] ^= 1 << bit
+        total++
+        try {
+          const tree = parseTree(mutated)
+          const out = serializeTree(tree)
+          if (!byteEqual(out, mutated)) killed++
+        } catch (e) {
+          if (isTypedWireError(e)) killed++
+        }
+      }
+    }
+    const killRate = killed / total
+    expect(killRate).toBeGreaterThanOrEqual(0.9)
+  })
+})
+
+function byteEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+function isTypedWireError(e: unknown): boolean {
+  return (
+    e instanceof Error &&
+    typeof (e as { code?: string }).code === 'string'
+  )
+}
+```
+
+- [ ] **Step 5.2.2: Run — expect all 5 mutation tests achieve ≥ 90% kill rate.**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/test/wire/svalue-sheader-mutation.test.ts 2>&1 | tail -15
+```
+
+Expected: all 5 PASS at ≥ 90%. If any fixture drops below, inspect tolerated-mutation offsets to confirm they're all in legitimate forward-compat regions (typically `Header.unparsedBytes`); document inline.
+
+### Task 5.3 — Verify Phase 5 + commit
+
+- [ ] **Step 5.3.1: Full test suite + cross-runtime.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json 2>&1 | head -5
+npx vitest run /home/mwaddip/projects/ergots/packages/ergoscript/ 2>&1 | tail -5
+# Cross-runtime check (jsdom):
+cd /home/mwaddip/projects/ergots/packages/ergoscript && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -5
+```
+
+Expected: 2836 + 11 (6 round-trip + 5 mutation per-fixture) = **2847 tests pass** under both `node` and `jsdom`.
+
+- [ ] **Step 5.3.2: Commit Phase 5.**
+
+```bash
+cd /home/mwaddip/projects/ergots && git add packages/ergoscript/test/fixtures/wire/ packages/ergoscript/test/wire/ fixture-gen/src/
+git commit -m "$(cat <<'EOF'
+test(ergoscript): SHeader-constant wire roundtrip + mutation testing
+
+Phase 2h-c.1 Step 5. Adds 6 V3 ErgoTree fixtures with embedded SHeader
+literals (single header V1+V2, Coll[Header], Option[Some/None]) + 1 V2
+negative fixture. Round-trip tests assert serializeTree(parseTree(b)) === b.
+Mutation tests (single-byte flip across all offsets) target ≥ 90% kill
+rate per fixture; tolerated mutations are documented in per-fixture
+inline comments (forward-compat unparsedBytes region only).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Phase 6: Facts files + final verification
+
+### Task 6.1 — Update `facts/ergoscript-eval.md`
+
+**Files:**
+- Modify: `facts/ergoscript-eval.md`
+
+- [ ] **Step 6.1.1: Add Phase 2h-c.1 changelog block.**
+
+Insert a new section after the existing **"Phase 2h-b — `@ergots/avltree` integration"** block, before the **"Does NOT ship yet (deferred)"** section. Format mirrors prior phase entries:
+
+```markdown
+**Phase 2h-c.1 — SHeader runtime + 17 method handlers** (additive):
+
+- 17 new method handlers wired (21 → 38 registry entries):
+  - **15 `SHeader.*` accessors** (Pattern A Fixed(10) each) at typeId 104, methodIds 1-15: `id` (1), `version` (2), `parentId` (3), `adProofsRoot` (4), `stateRoot` (5), `transactionsRoot` (6), `timestamp` (7), `nBits` (8), `height` (9), `extensionRoot` (10), `minerPk` (11), `powOnetimePk` (12), `powNonce` (13), `powDistance` (14), `votes` (15). Source: `eval/sheader.rs:16-113`.
+  - **2 `SContext.*` additions** (Pattern A Fixed(15) each): `headers` (101:2) returns `Coll[Header]` from `ctx.headers`; `LastBlockUtxoRootHash` (101:9) synthesizes `AvlTree(digest=ctx.headers[0].stateRoot, treeFlags=0b111, keyLength=32, valueLengthOpt=null)`. Source: `eval/scontext.rs:58-70` and `:83-99`.
+- New `SValue` variant: `{ kind: 'Header'; value: Header }` (`Header` imported from `@ergots/scorex`).
+- `EvalOpts` / `EvalContext` gains 1 new optional field: `headers?: Header[]`.
+- 1 new `EvalError` code: `'header-obj-not-header'` (defensive receiver check on all 15 SHeader handlers; 45 → 46 total).
+- Wire-format unlock (cross-references `facts/ergoscript-wire.md`): `parseSValue` / `serializeSValue` signatures gain `treeVersion: number` parameter; SHeader SValue parse + serialize now ship with V3-gating (replaces `'not-implemented-phase-2a'`).
+- V2-header semantic detail: `powOnetimePk` returns 33 zero bytes (identity-point encoding per `EcPoint::default()` → `scorex_serialize`); `powDistance` returns `0n` (BigInt).
+- Notable quirk: `SHeader.stateRoot` is declared with `SType::SAvlTree` in sigma-rust `types/sheader.rs:127`, but the eval (`sheader.rs:40-44`) returns `Coll[Byte]` (33 bytes). We match the eval, not the type-system declaration.
+
+**Phase 2h-c.1 COMPLETE.** Method handler registry: 38 entries. EvalError codes: 46. Test count: ~2847.
+```
+
+- [ ] **Step 6.1.2: Update the method-handler registry table.**
+
+Insert rows #22 through #38 into the existing table (after row #21 from phase 2h-b). Use exact entries from the design spec's Section 3 table.
+
+- [ ] **Step 6.1.3: Update the `EvalError` taxonomy.**
+
+Add the `'header-obj-not-header'` description under a new "Phase 2h-c.1 codes (SHeader.* method handlers)" subsection.
+
+- [ ] **Step 6.1.4: Update the SValue union type-invariants section.**
+
+Add `| { kind: 'Header'; value: Header } // phase 2h-c.1 — Header value carrier` to the `SValue` union block.
+
+- [ ] **Step 6.1.5: Update the EvalOpts table.**
+
+Add `headers?: Header[]` row to the chain-state fields list.
+
+- [ ] **Step 6.1.6: Update the Coverage section's "Coverage and stability" subsection.**
+
+Change "**Method-handler registry: 21 entries**" to "**Method-handler registry: 38 entries** (was 21 before 2h-c.1; +17 from 2h-c.1 — 15 SHeader accessors at typeId 104, methodIds 1-15, + 2 SContext additions at 101:2 and 101:9)."
+
+### Task 6.2 — Update `facts/ergoscript-wire.md`
+
+**Files:**
+- Modify: `facts/ergoscript-wire.md`
+
+- [ ] **Step 6.2.1: Update `SValueParseError` and `SValueSerializeError` code lists.**
+
+Add `'sheader-tree-version-too-low'` to both lists. Update the `'not-implemented-phase-2a'` description to note that SHeader has been removed from its emitting set (mirrors the existing "SBox removed in phase 2f Stop α, SAvlTree removed in phase 2h-b" pattern).
+
+- [ ] **Step 6.2.2: Add a new "Phase 2h-c.1 wire updates (SHeader)" section.**
+
+Mirrors the existing "Phase 2h-b wire updates (SAvlTree)" section. Document:
+
+- `parseSValue(SHeader, treeVersion, r)` and `serializeSValue(SHeader, v, treeVersion, w)` ship with V3 gating.
+- Signature change: both functions gain `treeVersion: number` parameter (threading through every recursive callsite).
+- The wire format delegates to `@ergots/scorex`'s `parseHeader` / `serializeHeader` at V3+; throws `'sheader-tree-version-too-low'` at V<3.
+- 6 fixture entries cover the round-trip + V<3 rejection.
+
+### Task 6.3 — Update `facts/ergoscript.md`
+
+**Files:**
+- Modify: `facts/ergoscript.md`
+
+- [ ] **Step 6.3.1: Update Coverage summary.**
+
+Update the test-count line to "Cross-runtime: ~2847 ergoscript + 143 avltree + 313 nipopow + 115 scorex = ~3418 tests, passing under both `node` and `jsdom`." (Or whatever the actual final count is.)
+
+Update the Evaluator coverage row to "52 of ~70 `Expr` arms wired; **38** method-handler registry entries; **46** `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (post-2h-c.1 uplift TBD on next corpus run)."
+
+### Task 6.4 — Final verification
+
+- [ ] **Step 6.4.1: Full cross-package typecheck.**
+
+```bash
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/scorex/tsconfig.json
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/nipopow/tsconfig.json
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/avltree/tsconfig.json
+npx tsc --noEmit -p /home/mwaddip/projects/ergots/packages/ergoscript/tsconfig.json
+```
+
+All four must be clean.
+
+- [ ] **Step 6.4.2: Full cross-package test run (node + jsdom).**
+
+```bash
+npx vitest run /home/mwaddip/projects/ergots/packages/ 2>&1 | tail -10
+# Cross-runtime:
+cd /home/mwaddip/projects/ergots/packages/ergoscript && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -5
+cd /home/mwaddip/projects/ergots/packages/scorex && npx vitest run --config vitest.browser.config.ts 2>&1 | tail -5
+```
+
+Expected: ≈ 3470 tests pass under both runtimes. Zero regression on existing 3388.
+
+- [ ] **Step 6.4.3: fixture-gen determinism check.**
+
+```bash
+cd /home/mwaddip/projects/ergots/fixture-gen && cargo build --release && cargo run --release 2>&1 | tail -3
+git -C /home/mwaddip/projects/ergots status packages/ergoscript/test/fixtures/eval/ packages/ergoscript/test/fixtures/wire/ packages/ergoscript/test/fixtures/headers/ 2>&1 | head -10
+```
+
+Expected: clean tree (`cargo run` reproduces the committed fixtures byte-identically).
+
+### Task 6.5 — Commit Phase 6
+
+- [ ] **Step 6.5.1: Stage facts files + commit.**
+
+```bash
+cd /home/mwaddip/projects/ergots && git add facts/ergoscript-eval.md facts/ergoscript-wire.md facts/ergoscript.md
+git commit -m "$(cat <<'EOF'
+docs: facts files updated for phase 2h-c.1 SHeader runtime
+
+Updates facts/ergoscript-eval.md (+changelog block, +17 registry rows,
++'header-obj-not-header' code, +SValue.Header variant, +headers field,
++coverage summary), facts/ergoscript-wire.md (+'sheader-tree-version-too-low'
+codes, +SHeader removed from 'not-implemented-phase-2a' emitting set,
++wire-updates section), and facts/ergoscript.md (refreshed test counts +
+coverage stats).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 6.5.2: Confirm final repo state.**
+
+```bash
+git -C /home/mwaddip/projects/ergots log --oneline -10
+git -C /home/mwaddip/projects/ergots status
+```
+
+Expected: ~6 phase commits + the initial spec commit `a77f640`. Working tree clean modulo the gitignored `audit20260519/` directory.
+
+---
+
+## Acceptance criteria (Phase 2h-c.1 complete)
+
+1. **Zero test regression:** all 3388 pre-phase tests still pass.
+2. **Test count uplift:** ≥ 3470 total tests across all 4 packages (target ≈ 3470; absolute floor 3388 + 80 = 3468).
+3. **Typecheck clean** across all 4 packages.
+4. **fixture-gen deterministic:** `cargo run` reproduces committed fixtures byte-identically.
+5. **Cross-runtime green:** all tests pass under both `node` and `jsdom`.
+6. **Facts files in sync:** `facts/ergoscript-eval.md`, `facts/ergoscript-wire.md`, `facts/ergoscript.md` accurately reflect the landed code.
+7. **No `--no-verify` / `--no-gpg-sign`** flags used on any commit.
+8. **All commits authored Co-by Claude Opus 4.7** per project convention.
+
+## Deferred (not 2h-c.1 scope)
+
+- `SHeader.checkPow` method handler (typeId 104, methodId 16) — phase 2h-c.2 with Autolykos v2 verifier promotion into `@ergots/scorex`.
+- Re-exporting `Header` / `AutolykosSolution` from `@ergots/ergoscript`'s public `index.ts`.
+- C2 mainnet-corpus uplift run.
+- Real-context cost validation (Layer C3) — phase 2j calibration.
+- Open issue from 2h-b: V3+ partial-success path for `SAvlTree.insert`/`update` is implemented but not fixture-tested. ~1-2 hr; carried forward.
