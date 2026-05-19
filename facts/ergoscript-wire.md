@@ -229,6 +229,7 @@ The phase 2a parse-mutation suite exercises 6,221 single-byte mutations: 66% thr
 - [`facts/ergoscript.md`](./ergoscript.md) — meta + cross-cutting guarantees
 - [`facts/ergoscript-eval.md`](./ergoscript-eval.md) — evaluator surface (`SValue` / `SType` / `Expr` canonical definitions)
 - [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) — sigma-protocol verifier (`SigmaBoolean` 6-variant union, `verifySignature`, `VerifyError`)
+- [`facts/scorex.md`](./scorex.md) — codec layer; defines `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions consumed throughout this file
 - `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — design rationale, phase plan, validation strategy
 - `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`, HEAD `ed5452cf`) — byte-format and implementation oracle
 - `~/projects/sigmastate-interpreter/docs/LangSpec.md` — canonical language specification for opcode semantics

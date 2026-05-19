@@ -218,14 +218,15 @@ Callers may rely on these without re-checking after any value returned from the 
 
 These represent malformed or truncated wire input, not programming errors on the caller's side.
 
+`ReaderError.code` is one of (the union is inline on the class constructor in `errors.ts`; not separately exported):
+
 ```ts
-export type ReaderErrorCode =
-  | 'truncated'           // readU8/readBytes/readFixed beyond end of buffer;
-                          // also readBool/readOption when tag byte is out of range
-  | 'vlq-overflow'        // VLQ continuation bit set on byte 10 (exceeds u64);
-                          // or decoded value exceeds the declared type bound (readVlqU32 > 0xffffffff)
-  | 'slice-out-of-bounds' // slice(start, end) args violate [0, buf.length]
-  | 'array-too-large'     // readArray decoded length > MAX_ARRAY_LENGTH (1 << 24)
+// 'truncated'           — readU8/readBytes/readFixed beyond end of buffer;
+//                         also readBool/readOption when tag byte is out of range
+// 'vlq-overflow'        — VLQ continuation bit set on byte 10 (exceeds u64);
+//                         or decoded value exceeds the declared type bound (readVlqU32 > 0xffffffff)
+// 'slice-out-of-bounds' — slice(start, end) args violate [0, buf.length]
+// 'array-too-large'     — readArray decoded length > MAX_ARRAY_LENGTH (1 << 24)
 ```
 
 **Plain `Error` — thrown by `ByteWriter` and `writeFixed` on programming errors**
