@@ -182,7 +182,7 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  *   Coll                         → COLL_MATCH_TYPE_COST = 1 always, then if lengths equal:
  *                                   addPerItemJitCost(perItemCost(elem), n) (lines 27, 108-117)
  *   Unit/SigmaProp/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
- *   Box/AvlTree                  → throw 'not-implemented-yet' (runtime shapes land in 2e/2h)
+ *   Box/AvlTree/PreHeader/Header → throw 'not-implemented-yet' (runtime shapes land in 2e/2h)
  *
  * Different `kind` → `false` (no cross-type coercion, matching sigma-rust's
  * match-arm posture which returns Ok(false) for cross-type pairs).
@@ -362,9 +362,9 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
  * no cost is charged per comparison in the search loop. Any semantics change
  * here requires coordinating with that handler.
  *
- * Unhandled kinds (Box, AvlTree, Context, Lambda) fall through: Box/AvlTree
- * throw 'not-implemented-yet'; Lambda and Context return `false`/`true`
- * respectively via their explicit arms above. The `default` exhaustiveness arm
+ * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through:
+ * Box/AvlTree/PreHeader/Header throw 'not-implemented-yet'; Lambda and Context
+ * return `false`/`true` respectively via their explicit arms above. The `default` exhaustiveness arm
  * below covers any future additions.
  */
 export function primitiveValueEqual(a: SValue, b: SValue): boolean {
