@@ -370,7 +370,7 @@ function registerHandlers(): void {
       value: {
         digest: ctx.headers[0]!.stateRoot,
         treeFlags: 0b00000111,
-        keyLength: 32,
+        keyLength: 32, // blake2b-256 digest length; hard-coded in sigma-rust AvlTreeData
         valueLengthOpt: null,
       },
     }

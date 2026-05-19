@@ -118,3 +118,25 @@ describe('SContext.lastBlockUtxoRootHash — defensive obj-kind check', () => {
     expect(err.code).toBe('context-obj-not-context')
   })
 })
+
+// ---------- SContext.headers — defensive obj-kind check ----------
+
+describe('SContext.headers — defensive obj-kind check', () => {
+  it('throws context-obj-not-context when obj is not Context', () => {
+    // Construct PropertyCall(Global, headers) — obj will be 'Global'.
+    const nonContextExpr: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Global' },
+      typeId: 101,
+      methodId: 2,
+    }
+    // ctx.headers must be populated to confirm the obj check fires (not a
+    // missing-headers path). Use the fixture's opts_json which includes a headers array.
+    const ctx = makeContext(rehydrateEvalOpts(fixture.entries[0]!.opts_json))
+    const err = captureEvalError(() =>
+      evalPropertyCall(nonContextExpr, Env.empty(), ctx)
+    )
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('context-obj-not-context')
+  })
+})
