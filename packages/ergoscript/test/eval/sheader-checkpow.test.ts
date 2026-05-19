@@ -6,7 +6,7 @@
  * sigma-rust's try_eval_out oracle.
  */
 import { describe, it, expect } from 'vitest'
-import { makeContext } from '../../src/eval/eval-context'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { hexToBytes } from '../_helpers'
@@ -60,5 +60,44 @@ describe('SHeader.checkPow oracle (Phase 2h-c.2)', () => {
 
     expect(result).toEqual({ kind: 'Boolean', value: fixture.expectedValue })
     expect(ctx.jitCost).toBe(fixture.expectedJitCost)
+  })
+})
+
+describe('SHeader.checkPow V<3 reject (parallel-pair cost correctness)', () => {
+  // One parsed tree reused across all 4 runs — dispatcher reads ctx.treeVersion,
+  // NOT tree.header.version, so a single tree object is sufficient.
+  const tree = parseTree(hexToBytes(fixture.exprBytes))
+  const headerBytes = hexToBytes(fixture.headerHexBytes)
+  const header = parseHeader(new ByteReader(headerBytes))
+
+  function evaluateCapture(treeVersion: 0 | 1 | 2 | 3): { cost: number; threw: Error | null } {
+    const ctx = makeContext({ treeVersion, headers: [header] })
+    try {
+      evaluateWith(tree, ctx)
+      return { cost: ctx.jitCost, threw: null }
+    } catch (e) {
+      return { cost: ctx.jitCost, threw: e as Error }
+    }
+  }
+
+  // Baseline: V3 success — establishes the pivot cost for the parallel-pair delta.
+  const v3Run = evaluateCapture(3)
+
+  for (const v of [0, 1, 2] as const) {
+    it(`treeVersion=${v}: throws 'tree-version-too-low' and skips the 700 handler cost`, () => {
+      const rejectRun = evaluateCapture(v)
+
+      expect(rejectRun.threw).toBeInstanceOf(EvalError)
+      expect((rejectRun.threw as EvalError).code).toBe('tree-version-too-low')
+
+      // The load-bearing assertion: V<3 reject cost is EXACTLY 700 less than V3 success cost.
+      // Receiver-eval cost and envelope cost are charged in both; handler cost (700) is the diff.
+      expect(v3Run.cost - rejectRun.cost).toBe(700)
+    })
+  }
+
+  it('baseline V3 success establishes the parallel-pair pivot', () => {
+    expect(v3Run.threw).toBeNull()
+    expect(v3Run.cost).toBe(fixture.expectedJitCost)
   })
 })
