@@ -97,14 +97,11 @@ function isKill(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
     return baseline.errorCode !== mutated.errorCode
   }
   // One threw, the other didn't — always a kill.
-  if (!baseline.ok && mutated.ok) return true
-  if (baseline.ok && !mutated.ok) return true
+  if (!baseline.ok || !mutated.ok) return true
   // Both succeeded — kill if the value changed.
   // The baseline returns { kind: 'Boolean', value: true }; any change (false or
   // a different kind) is a kill.
-  const baseJson = JSON.stringify(baseline.value)
-  const mutJson = JSON.stringify(mutated.value)
-  return baseJson !== mutJson
+  return JSON.stringify(baseline.value) !== JSON.stringify(mutated.value)
 }
 
 describe('SHeader.checkPow mutation testing (phase 2h-c.2)', () => {
