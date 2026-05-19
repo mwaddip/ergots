@@ -7,8 +7,11 @@
  *
  * The registry is module-internal. Handlers are registered inline below the
  * dispatcher definition (in this same file) — keeping co-location simple
- * while the registry size is moderate (8 entries as of Task 7). Promote to a
- * subdirectory if/when count grows beyond ~12.
+ * while the registry size is moderate (8 entries as of Task 7; 15 after
+ * phase 2h-b Tier 1). Tier-1 SAvlTree handlers (typeId=100, methodIds 1..7)
+ * are split into their own file (`./savltree.ts`) per the file-based pattern
+ * — registry count is now 15, slightly past the "~12" threshold called out
+ * below, and Tier-2 verification handlers will land in phase F next.
  *
  * Error codes originated here:
  *   'method-not-implemented'    — dispatcher hit a (typeId, methodId) not in the registry;
@@ -16,6 +19,9 @@
  *                                  (per the design spec's option-1 error taxonomy).
  *   'context-obj-not-context'   — thrown by SContext.dataInputs handler when obj is not Context;
  *                                  also reused by SContext.preHeader (Task 6) for the same shape.
+ *   'avl-tree-obj-not-avl-tree' — thrown by the 7 SAvlTree Tier-1 accessor handlers when obj is not
+ *                                  AvlTree (defensive; unreachable for parser-produced trees).
+ *                                  Code originated in `./savltree.ts` (phase 2h-b Tier 1).
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
@@ -32,6 +38,15 @@ import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
 import { primitiveValueEqual } from './bin-op/relation'
+import {
+  evalSAvlTreeDigest,
+  evalSAvlTreeEnabledOperations,
+  evalSAvlTreeIsInsertAllowed,
+  evalSAvlTreeIsRemoveAllowed,
+  evalSAvlTreeIsUpdateAllowed,
+  evalSAvlTreeKeyLength,
+  evalSAvlTreeValueLengthOpt,
+} from './savltree'
 
 // Module-level SType singletons used in handler helpers.
 // Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
@@ -249,6 +264,19 @@ function registerHandlers(): void {
     }
     return zipCollsOf(obj, arg)
   })
+
+  // ---------- SAvlTree Tier-1 (pure accessors) — phase 2h-b ----------
+  // All 7 are Pattern A cost 15. Source: ergotree-interpreter/src/eval/savltree.rs:29-75.
+  // Handler bodies live in ./savltree.ts; they expect `(obj, args, ctx)` —
+  // explicitTypeArgs is unused. Wrapping closures drop it so the function
+  // signature stays compatible with `MethodHandler`.
+  HANDLERS.set(handlerKey(100, 1), (obj, args, ctx) => evalSAvlTreeDigest(obj, args, ctx))
+  HANDLERS.set(handlerKey(100, 2), (obj, args, ctx) => evalSAvlTreeEnabledOperations(obj, args, ctx))
+  HANDLERS.set(handlerKey(100, 3), (obj, args, ctx) => evalSAvlTreeKeyLength(obj, args, ctx))
+  HANDLERS.set(handlerKey(100, 4), (obj, args, ctx) => evalSAvlTreeValueLengthOpt(obj, args, ctx))
+  HANDLERS.set(handlerKey(100, 5), (obj, args, ctx) => evalSAvlTreeIsInsertAllowed(obj, args, ctx))
+  HANDLERS.set(handlerKey(100, 6), (obj, args, ctx) => evalSAvlTreeIsUpdateAllowed(obj, args, ctx))
+  HANDLERS.set(handlerKey(100, 7), (obj, args, ctx) => evalSAvlTreeIsRemoveAllowed(obj, args, ctx))
 }
 
 registerHandlers()

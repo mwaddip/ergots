@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 40 + 3 = 43 codes added through phase 2g.5 task 5
+ *   - documents the 40 + 3 + 1 = 44 codes added through phase 2h-b Tier 1
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -19,7 +19,8 @@
  *    + 1 code added in phase 2g-medium (sigma-protocol primitives)
  *    + 4 codes added in phase 2g-combinators (Atleast + sigma helpers)
  *    + 3 codes added in phase 2g.5 (method-call dispatch + SigmaPropBytes + SContext.dataInputs)
- *   = 43 codes total after phase 2g.5.
+ *    + 1 code added in phase 2h-b Tier 1 (SAvlTree pure accessors)
+ *   = 44 codes total after phase 2h-b Tier 1.
  */
 
 /**
@@ -246,3 +247,19 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/scontext.rs:17-31
    */
   | 'context-obj-not-context'
+
+  // -------------------------------------------------------------------------
+  // Phase 2h-b Tier 1 — SAvlTree pure accessors (1 new code; 43 → 44)
+  // -------------------------------------------------------------------------
+  /**
+   * Any of the 7 SAvlTree Tier-1 accessor handlers
+   * (`digest` / `enabledOperations` / `keyLength` / `valueLengthOpt` /
+   * `isInsertAllowed` / `isUpdateAllowed` / `isRemoveAllowed`) when `obj`
+   * evaluated to a non-AvlTree SValue. Wire-format invariants (PropertyCall
+   * construction with an SAvlTree-typed obj) make this unreachable for
+   * parser-produced trees; defensive against `ConstantPlaceholder` injection
+   * or hand-crafted MIR trees.
+   *
+   * Source: ergotree-interpreter/src/eval/savltree.rs:29-75
+   */
+  | 'avl-tree-obj-not-avl-tree'
