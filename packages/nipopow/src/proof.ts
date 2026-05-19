@@ -89,135 +89,135 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
   const r = new ByteReader(bytes);
 
   try {
-  // m: VLQ u32 (plain unsigned)
-  const m = readVlqU32(r, 'm');
-  // NIP-03: m=0 is invalid (m is the minimum superchain-length parameter; m<=0
-  // produces a non-terminating loop in compareProofs' bestArg). The facts file
-  // declares m>0 as a type invariant; we enforce it at parse time so downstream
-  // code (verifier, comparer) can rely on it without re-checking.
-  if (m === 0) {
-    throw new ProofParseError('m must be > 0', 'invalid-m');
-  }
-
-  // k: VLQ u32 (plain unsigned)
-  const k = readVlqU32(r, 'k');
-  // NIP-04: k=0 is invalid (k is the suffix-length parameter; facts/nipopow.md
-  // declares it as `> 0` type invariant).
-  if (k === 0) {
-    throw new ProofParseError('k must be > 0', 'invalid-k');
-  }
-
-  // prefix_length: VLQ u32
-  const prefixLen = readVlqU32(r, 'prefix_length');
-  if (prefixLen > MAX_ELEMENTS) {
-    throw new ProofParseError(`prefix_length ${prefixLen} exceeds sanity limit`, 'oversized');
-  }
-  // Note (NIP-04 audit re-scope): sigma-rust accepts an empty prefix
-  // (`NipopowProof::scorex_parse` has no lower bound; `is_valid` does not check
-  // `prefix.is_empty()`). We mirror that to stay byte-compatible. The previous
-  // facts claim `prefix.length >= 1` was overstated; see facts/nipopow.md.
-
-  // Parse prefix entries: each preceded by a VLQ u32 size prefix bounding the element.
-  const prefix: PoPowHeader[] = [];
-  for (let i = 0; i < prefixLen; i++) {
-    // size: VLQ u32 (byte count of the following PoPowHeader)
-    const sz = readVlqU32(r, `prefix[${i}].size`);
-    let elemBytes: Uint8Array;
-    try {
-      elemBytes = r.readBytes(sz);
-    } catch {
-      throw new ProofParseError(`prefix[${i}]: declared size ${sz} but input truncated`, 'truncated');
+    // m: VLQ u32 (plain unsigned)
+    const m = readVlqU32(r, 'm');
+    // NIP-03: m=0 is invalid (m is the minimum superchain-length parameter; m<=0
+    // produces a non-terminating loop in compareProofs' bestArg). The facts file
+    // declares m>0 as a type invariant; we enforce it at parse time so downstream
+    // code (verifier, comparer) can rely on it without re-checking.
+    if (m === 0) {
+      throw new ProofParseError('m must be > 0', 'invalid-m');
     }
-    const subR = new ByteReader(elemBytes);
-    let popowHeader: PoPowHeader;
+
+    // k: VLQ u32 (plain unsigned)
+    const k = readVlqU32(r, 'k');
+    // NIP-04: k=0 is invalid (k is the suffix-length parameter; facts/nipopow.md
+    // declares it as `> 0` type invariant).
+    if (k === 0) {
+      throw new ProofParseError('k must be > 0', 'invalid-k');
+    }
+
+    // prefix_length: VLQ u32
+    const prefixLen = readVlqU32(r, 'prefix_length');
+    if (prefixLen > MAX_ELEMENTS) {
+      throw new ProofParseError(`prefix_length ${prefixLen} exceeds sanity limit`, 'oversized');
+    }
+    // Note (NIP-04 audit re-scope): sigma-rust accepts an empty prefix
+    // (`NipopowProof::scorex_parse` has no lower bound; `is_valid` does not check
+    // `prefix.is_empty()`). We mirror that to stay byte-compatible. The previous
+    // facts claim `prefix.length >= 1` was overstated; see facts/nipopow.md.
+
+    // Parse prefix entries: each preceded by a VLQ u32 size prefix bounding the element.
+    const prefix: PoPowHeader[] = [];
+    for (let i = 0; i < prefixLen; i++) {
+      // size: VLQ u32 (byte count of the following PoPowHeader)
+      const sz = readVlqU32(r, `prefix[${i}].size`);
+      let elemBytes: Uint8Array;
+      try {
+        elemBytes = r.readBytes(sz);
+      } catch {
+        throw new ProofParseError(`prefix[${i}]: declared size ${sz} but input truncated`, 'truncated');
+      }
+      const subR = new ByteReader(elemBytes);
+      let popowHeader: PoPowHeader;
+      try {
+        popowHeader = parsePoPowHeader(subR);
+      } catch (e) {
+        if (e instanceof ProofParseError) throw e;
+        if (e instanceof ReaderError) throw new ProofParseError(`prefix[${i}]: ${e.message}`, e.code);
+        throw new ProofParseError(`prefix[${i}]: ${String(e)}`, 'truncated');
+      }
+      if (!subR.isExhausted) {
+        throw new ProofParseError(
+          `prefix[${i}]: declared size ${sz} but ${subR.remaining} bytes unused`,
+          'oversized',
+        );
+      }
+      prefix.push(popowHeader);
+    }
+
+    // suffix_head_size: VLQ u32 bounding the suffix_head element
+    const shSz = readVlqU32(r, 'suffix_head.size');
+    let shBytes: Uint8Array;
     try {
-      popowHeader = parsePoPowHeader(subR);
+      shBytes = r.readBytes(shSz);
+    } catch {
+      throw new ProofParseError(`suffix_head: declared size ${shSz} but input truncated`, 'truncated');
+    }
+    const shSubR = new ByteReader(shBytes);
+    let suffixHead: PoPowHeader;
+    try {
+      suffixHead = parsePoPowHeader(shSubR);
     } catch (e) {
       if (e instanceof ProofParseError) throw e;
-      if (e instanceof ReaderError) throw new ProofParseError(`prefix[${i}]: ${e.message}`, e.code);
-      throw new ProofParseError(`prefix[${i}]: ${String(e)}`, 'truncated');
+      if (e instanceof ReaderError) throw new ProofParseError(`suffix_head: ${e.message}`, e.code);
+      throw new ProofParseError(`suffix_head: ${String(e)}`, 'truncated');
     }
-    if (!subR.isExhausted) {
+    if (!shSubR.isExhausted) {
       throw new ProofParseError(
-        `prefix[${i}]: declared size ${sz} but ${subR.remaining} bytes unused`,
+        `suffix_head: declared size ${shSz} but ${shSubR.remaining} bytes unused`,
         'oversized',
       );
     }
-    prefix.push(popowHeader);
-  }
 
-  // suffix_head_size: VLQ u32 bounding the suffix_head element
-  const shSz = readVlqU32(r, 'suffix_head.size');
-  let shBytes: Uint8Array;
-  try {
-    shBytes = r.readBytes(shSz);
-  } catch {
-    throw new ProofParseError(`suffix_head: declared size ${shSz} but input truncated`, 'truncated');
-  }
-  const shSubR = new ByteReader(shBytes);
-  let suffixHead: PoPowHeader;
-  try {
-    suffixHead = parsePoPowHeader(shSubR);
-  } catch (e) {
-    if (e instanceof ProofParseError) throw e;
-    if (e instanceof ReaderError) throw new ProofParseError(`suffix_head: ${e.message}`, e.code);
-    throw new ProofParseError(`suffix_head: ${String(e)}`, 'truncated');
-  }
-  if (!shSubR.isExhausted) {
-    throw new ProofParseError(
-      `suffix_head: declared size ${shSz} but ${shSubR.remaining} bytes unused`,
-      'oversized',
-    );
-  }
-
-  // suffix_tail_length: VLQ u32 (explicit count, NOT k-1)
-  // Note (NIP-04 audit re-scope): the wire format stores the tail length
-  // explicitly; sigma-rust does NOT enforce `length == k - 1`. Real proofs
-  // generated in "anchor" mode have `length == 0` even when `k > 1` (see
-  // fixture `chain-64-m2-k2-anchor`). The previous facts claim
-  // `suffixTail.length === k - 1` was overstated; see facts/nipopow.md.
-  const tailLen = readVlqU32(r, 'suffix_tail_length');
-  if (tailLen > MAX_ELEMENTS) {
-    throw new ProofParseError(`suffix_tail_length ${tailLen} exceeds sanity limit`, 'oversized');
-  }
-
-  // Parse suffix_tail entries: each preceded by a VLQ u32 size prefix bounding the element.
-  const suffixTail: Header[] = [];
-  for (let i = 0; i < tailLen; i++) {
-    // size: VLQ u32 (byte count of the following Header)
-    const stSz = readVlqU32(r, `suffix_tail[${i}].size`);
-    let stBytes: Uint8Array;
-    try {
-      stBytes = r.readBytes(stSz);
-    } catch {
-      throw new ProofParseError(`suffix_tail[${i}]: declared size ${stSz} but input truncated`, 'truncated');
+    // suffix_tail_length: VLQ u32 (explicit count, NOT k-1)
+    // Note (NIP-04 audit re-scope): the wire format stores the tail length
+    // explicitly; sigma-rust does NOT enforce `length == k - 1`. Real proofs
+    // generated in "anchor" mode have `length == 0` even when `k > 1` (see
+    // fixture `chain-64-m2-k2-anchor`). The previous facts claim
+    // `suffixTail.length === k - 1` was overstated; see facts/nipopow.md.
+    const tailLen = readVlqU32(r, 'suffix_tail_length');
+    if (tailLen > MAX_ELEMENTS) {
+      throw new ProofParseError(`suffix_tail_length ${tailLen} exceeds sanity limit`, 'oversized');
     }
-    const stSubR = new ByteReader(stBytes);
-    let tailHeader: Header;
-    try {
-      tailHeader = parseHeader(stSubR);
-    } catch (e) {
-      if (e instanceof ProofParseError) throw e;
-      if (e instanceof ReaderError) throw new ProofParseError(`suffix_tail[${i}]: ${e.message}`, e.code);
-      throw new ProofParseError(`suffix_tail[${i}]: ${String(e)}`, 'truncated');
+
+    // Parse suffix_tail entries: each preceded by a VLQ u32 size prefix bounding the element.
+    const suffixTail: Header[] = [];
+    for (let i = 0; i < tailLen; i++) {
+      // size: VLQ u32 (byte count of the following Header)
+      const stSz = readVlqU32(r, `suffix_tail[${i}].size`);
+      let stBytes: Uint8Array;
+      try {
+        stBytes = r.readBytes(stSz);
+      } catch {
+        throw new ProofParseError(`suffix_tail[${i}]: declared size ${stSz} but input truncated`, 'truncated');
+      }
+      const stSubR = new ByteReader(stBytes);
+      let tailHeader: Header;
+      try {
+        tailHeader = parseHeader(stSubR);
+      } catch (e) {
+        if (e instanceof ProofParseError) throw e;
+        if (e instanceof ReaderError) throw new ProofParseError(`suffix_tail[${i}]: ${e.message}`, e.code);
+        throw new ProofParseError(`suffix_tail[${i}]: ${String(e)}`, 'truncated');
+      }
+      if (!stSubR.isExhausted) {
+        throw new ProofParseError(
+          `suffix_tail[${i}]: declared size ${stSz} but ${stSubR.remaining} bytes unused`,
+          'oversized',
+        );
+      }
+      suffixTail.push(tailHeader);
     }
-    if (!stSubR.isExhausted) {
+
+    if (!r.isExhausted) {
       throw new ProofParseError(
-        `suffix_tail[${i}]: declared size ${stSz} but ${stSubR.remaining} bytes unused`,
-        'oversized',
+        `proof: ${r.remaining} trailing bytes after end of suffix_tail`,
+        'trailing-bytes',
       );
     }
-    suffixTail.push(tailHeader);
-  }
 
-  if (!r.isExhausted) {
-    throw new ProofParseError(
-      `proof: ${r.remaining} trailing bytes after end of suffix_tail`,
-      'trailing-bytes',
-    );
-  }
-
-  return { m, k, prefix, suffixHead, suffixTail };
+    return { m, k, prefix, suffixHead, suffixTail };
   } catch (e) {
     if (e instanceof ProofParseError) throw e;
     if (e instanceof ReaderError) throw new ProofParseError(e.message, e.code);

@@ -58,70 +58,70 @@ function writeVlqU32(w: ByteWriter, v: number): void {
 /** Parse a PoPowHeader from its ScorexSerializable wire encoding. */
 export function parsePoPowHeader(reader: ByteReader): PoPowHeader {
   try {
-  // VLQ u32: header byte length
-  const headerSize = readVlqU32(reader, 'header_size');
-  if (headerSize > MAX_HEADER_BYTES) {
-    throw new ProofParseError(`header_size ${headerSize} exceeds sanity limit`, 'oversized');
-  }
-  // Read exactly headerSize bytes, then parse from a sub-reader
-  let headerBytes: Uint8Array;
-  try {
-    headerBytes = reader.readBytes(headerSize);
-  } catch {
-    throw new ProofParseError('header bytes: truncated', 'truncated');
-  }
-  const headerReader = new ByteReader(headerBytes);
-  const header = parseHeader(headerReader);
-  if (!headerReader.isExhausted) {
-    throw new ProofParseError(
-      `popow_header: ${headerReader.remaining} trailing bytes in header subreader`,
-      'trailing-bytes',
-    );
-  }
-
-  // VLQ u32: interlinks count
-  const interlinksCount = readVlqU32(reader, 'interlinks_count');
-  if (interlinksCount > MAX_INTERLINKS) {
-    throw new ProofParseError(`interlinks_count ${interlinksCount} exceeds sanity limit`, 'oversized');
-  }
-  // NIP-05: empty interlinks weaken proof anchoring — every PoPowHeader must
-  // commit to at least interlinks[0] (the genesis id). sigma-rust's parser
-  // permissively accepts empty interlinks, and `check_interlinks_proof` returns
-  // true vacuously for empty + empty proof; we surface this as a typed parse
-  // failure rather than relying on downstream connection checks to catch it.
-  if (interlinksCount === 0) {
-    throw new ProofParseError('interlinks must be non-empty', 'invalid-interlinks-empty');
-  }
-  const interlinks: Uint8Array[] = [];
-  for (let i = 0; i < interlinksCount; i++) {
-    try {
-      interlinks.push(reader.readBytes(BLOCK_ID_LEN).slice());
-    } catch {
-      throw new ProofParseError(`interlink[${i}]: truncated`, 'truncated');
+    // VLQ u32: header byte length
+    const headerSize = readVlqU32(reader, 'header_size');
+    if (headerSize > MAX_HEADER_BYTES) {
+      throw new ProofParseError(`header_size ${headerSize} exceeds sanity limit`, 'oversized');
     }
-  }
+    // Read exactly headerSize bytes, then parse from a sub-reader
+    let headerBytes: Uint8Array;
+    try {
+      headerBytes = reader.readBytes(headerSize);
+    } catch {
+      throw new ProofParseError('header bytes: truncated', 'truncated');
+    }
+    const headerReader = new ByteReader(headerBytes);
+    const header = parseHeader(headerReader);
+    if (!headerReader.isExhausted) {
+      throw new ProofParseError(
+        `popow_header: ${headerReader.remaining} trailing bytes in header subreader`,
+        'trailing-bytes',
+      );
+    }
 
-  // VLQ u32: proof byte length
-  const proofSize = readVlqU32(reader, 'proof_size');
-  if (proofSize > MAX_PROOF_BYTES) {
-    throw new ProofParseError(`proof_size ${proofSize} exceeds sanity limit`, 'oversized');
-  }
-  let proofBytes: Uint8Array;
-  try {
-    proofBytes = reader.readBytes(proofSize);
-  } catch {
-    throw new ProofParseError('proof bytes: truncated', 'truncated');
-  }
-  const proofReader = new ByteReader(proofBytes);
-  const interlinksProof = parseBatchMerkleProof(proofReader);
-  if (!proofReader.isExhausted) {
-    throw new ProofParseError(
-      `popow_header: ${proofReader.remaining} trailing bytes in proof subreader`,
-      'trailing-bytes',
-    );
-  }
+    // VLQ u32: interlinks count
+    const interlinksCount = readVlqU32(reader, 'interlinks_count');
+    if (interlinksCount > MAX_INTERLINKS) {
+      throw new ProofParseError(`interlinks_count ${interlinksCount} exceeds sanity limit`, 'oversized');
+    }
+    // NIP-05: empty interlinks weaken proof anchoring — every PoPowHeader must
+    // commit to at least interlinks[0] (the genesis id). sigma-rust's parser
+    // permissively accepts empty interlinks, and `check_interlinks_proof` returns
+    // true vacuously for empty + empty proof; we surface this as a typed parse
+    // failure rather than relying on downstream connection checks to catch it.
+    if (interlinksCount === 0) {
+      throw new ProofParseError('interlinks must be non-empty', 'invalid-interlinks-empty');
+    }
+    const interlinks: Uint8Array[] = [];
+    for (let i = 0; i < interlinksCount; i++) {
+      try {
+        interlinks.push(reader.readBytes(BLOCK_ID_LEN).slice());
+      } catch {
+        throw new ProofParseError(`interlink[${i}]: truncated`, 'truncated');
+      }
+    }
 
-  return { header, interlinks, interlinksProof };
+    // VLQ u32: proof byte length
+    const proofSize = readVlqU32(reader, 'proof_size');
+    if (proofSize > MAX_PROOF_BYTES) {
+      throw new ProofParseError(`proof_size ${proofSize} exceeds sanity limit`, 'oversized');
+    }
+    let proofBytes: Uint8Array;
+    try {
+      proofBytes = reader.readBytes(proofSize);
+    } catch {
+      throw new ProofParseError('proof bytes: truncated', 'truncated');
+    }
+    const proofReader = new ByteReader(proofBytes);
+    const interlinksProof = parseBatchMerkleProof(proofReader);
+    if (!proofReader.isExhausted) {
+      throw new ProofParseError(
+        `popow_header: ${proofReader.remaining} trailing bytes in proof subreader`,
+        'trailing-bytes',
+      );
+    }
+
+    return { header, interlinks, interlinksProof };
   } catch (e) {
     if (e instanceof ProofParseError) throw e;
     if (e instanceof ReaderError) throw new ProofParseError(e.message, e.code);

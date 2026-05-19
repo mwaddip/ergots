@@ -5,6 +5,7 @@ Per-project instructions for Claude. Read these alongside the user's global `~/p
 ## Read-first files (in this order, every session)
 
 1. **`facts/`** — per-package interface contracts. These define what other packages may rely on (preconditions, postconditions, invariants, error taxonomy). The `facts/` files are the *boundary*; everything else is implementation. Current:
+   - `facts/scorex.md` — `@ergots/scorex` interface (codec layer: `ByteReader`/`ByteWriter`/`ReaderError`/VLQ + block-`Header`/`AutolykosSolution` types; shared by `@ergots/nipopow` and `@ergots/ergoscript`)
    - `facts/nipopow.md` — `@ergots/nipopow` interface
    - `facts/ergoscript.md` — `@ergots/ergoscript` meta hub (cross-cutting guarantees + lookup table forwarding to per-slice files)
    - `facts/ergoscript-wire.md` — wire format slice (`parseTree`, `serializeTree`, address helpers, `ErgoTree` types, wire-layer error classes)

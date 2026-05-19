@@ -8,7 +8,7 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 
 **Ships in this contract:**
 
-1. Parse + serialize for `NipopowProof`, `PoPowHeader`, `Header`, `AutolykosSolution`, `BlockId`, interlinks merkle proof, and `n_bits` target unpacking.
+1. Parse + serialize for `NipopowProof`, `PoPowHeader`, interlinks merkle proof, and `n_bits` target unpacking. `Header`, `AutolykosSolution`, `ByteReader`, `ByteWriter`, `ReaderError`, and VLQ functions are re-exported from `@ergots/scorex` — see [`facts/scorex.md`](./scorex.md) for their canonical shapes and wire formats.
 2. Stateless verification: structural checks (heights, connections) + optional Autolykos v2 PoW.
 3. Pairwise comparison (KMZ17 §4.3 "is A better than B").
 4. P2P envelope codec for message codes 90 (`GetNipopowProof`) and 91 (`NipopowProof`), exposed via the `/envelope` subpath.
@@ -116,21 +116,18 @@ These hold on every `NipopowProof` returned by the public API. Callers may rely 
 type BlockId = Uint8Array      // length 32
 type Digest32 = Uint8Array     // length 32
 
-interface Header {
-  version: number              // 0..=255
-  id: BlockId                  // derived from serialization; not present on the wire
-  parentId: BlockId
-  adProofsRoot: Digest32
-  stateRoot: Uint8Array        // length 33 (ADDigest = 32-byte digest + 1-byte tree height)
-  transactionRoot: Digest32
-  timestamp: number            // i.e. ms since epoch, but stored as the network's 8-byte unsigned
-  nBits: number                // Bitcoin-compact difficulty target encoding (u32)
-  height: number               // u32; > 0
-  extensionRoot: Digest32
-  autolykosSolution: AutolykosSolution
-  votes: Uint8Array            // length 3
-  unparsedBytes: Uint8Array    // forward-compat field; preserved on round-trip
-}
+// Header and AutolykosSolution are defined in facts/scorex.md.
+// The canonical field list, wire format, and type invariants live there.
+// Summary for reference:
+//   Header.id             -- 32 bytes, derived via blake2b256; not present on wire
+//   Header.parentId       -- 32 bytes
+//   Header.adProofsRoot   -- 32 bytes
+//   Header.stateRoot      -- 33 bytes (ADDigest)
+//   Header.transactionRoot -- 32 bytes
+//   Header.votes          -- 3 bytes
+//   Header.nBits          -- u32, 4 bytes big-endian on wire (NOT VLQ)
+//   Header.unparsedBytes  -- forward-compat; preserved on round-trip
+// See facts/scorex.md for the full interface and AutolykosSolution layout.
 
 interface PoPowHeader {
   header: Header
@@ -207,6 +204,7 @@ No other error classes are exported from this package. Internal panics (e.g. bla
 
 ## Cross-references
 
+- `facts/scorex.md` — foundational codec contract; defines `Header`, `AutolykosSolution`, `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions consumed by this package
 - `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — design rationale, validation strategy, risks
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
 - `~/projects/ergo-node-rust/facts/nipopow.md` — wire format canonical source
