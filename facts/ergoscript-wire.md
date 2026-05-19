@@ -87,8 +87,8 @@ parseSType(r: ByteReader): SType
 serializeSType(t: SType, w: ByteWriter): void
 
 // wire/parse-svalue.ts / wire/serialize-svalue.ts
-parseSValue(tpe: SType, r: ByteReader): SValue
-serializeSValue(tpe: SType, v: SValue, w: ByteWriter): void
+parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue
+serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void
 
 // wire/sigma-boolean.ts
 parseSigmaBoolean(r: ByteReader): SigmaBoolean

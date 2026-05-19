@@ -193,7 +193,7 @@ Callers may rely on these without re-checking after any value returned from the 
 - `minerPk` is exactly 33 bytes (compressed secp256k1 point).
 - `powOnetimePk` is `null` for version >= 2 headers; exactly 33 bytes for version 1 headers.
 - `nonce` is exactly 8 bytes.
-- `powDistance` is `null` for version >= 2 headers; a non-negative `bigint` for version 1 headers (minimal big-endian encoding from the `d_len` + `d_bytes` wire representation; `powDistance === 0n` when `d_len === 0`).
+- `powDistance` is `null` for version >= 2 headers; a non-negative `bigint` for version 1 headers (minimal big-endian encoding from the `d_len` + `d_bytes` wire representation). `powDistance === 0n` corresponds to `d_len === 1, d_bytes === [0x00]` on the wire (matching sigma-rust's `BigUint::to_bytes_be()` which returns `[0]` for zero). For backwards compatibility the parser also accepts `d_len === 0` and produces `powDistance === 0n`, but the writer always emits the `d_len=1` form.
 
 **VLQ:**
 
