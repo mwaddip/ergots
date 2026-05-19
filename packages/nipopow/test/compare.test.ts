@@ -59,6 +59,46 @@ describe('compareProofs', () => {
     expect(() => compareProofs(valid, malformed)).toThrow(ProofParseError);
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // NIP-03 regression — compareProofs must fail fast on m=0 (no infinite loop)
+  //
+  // Pre-fix bestArg's `args.length >= m` check passed for every iteration when
+  // m=0, causing the loop to never terminate (audit repro: comparison script
+  // timed out after 5 s). Post-fix parseProof rejects m=0 with 'invalid-m',
+  // so compareProofs (which calls parseProof) surfaces the failure before
+  // bestArg is ever reached.
+  // ───────────────────────────────────────────────────────────────────────────
+  test('NIP-03: compareProofs fails fast on m=0 (does not hang)', () => {
+    const validA = hexToBytes(fixtures[0]!.a_hex);
+    const validB = hexToBytes(fixtures[0]!.b_hex);
+    // First byte of a NipopowProof is the VLQ-u32 m field. Setting it to 0 makes m=0.
+    // The fixture's original m is small enough to be a single VLQ byte (< 0x80),
+    // so byte 0 is the entire m field.
+    const mutatedA = new Uint8Array(validA);
+    mutatedA[0] = 0;
+    try {
+      compareProofs(mutatedA, validB);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('invalid-m');
+    }
+  });
+
+  test('NIP-03: compareProofs fails fast on m=0 in second argument', () => {
+    const validA = hexToBytes(fixtures[0]!.a_hex);
+    const validB = hexToBytes(fixtures[0]!.b_hex);
+    const mutatedB = new Uint8Array(validB);
+    mutatedB[0] = 0;
+    try {
+      compareProofs(validA, mutatedB);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('invalid-m');
+    }
+  });
+
   // Codex audit Finding #2: compareProofs must NOT score proofs with invalid
   // interlinks proofs as if they were valid. Mirrors sigma-rust is_better_than:
   // if b is invalid and a is valid → a wins; if both invalid → false.

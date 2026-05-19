@@ -59,7 +59,7 @@ Parse the canonical NiPoPoW wire format into a `NipopowProof` struct.
 
 - **Precondition:** `1 ≤ bytes.length ≤ 2_000_000`.
 - **Returns:** A `NipopowProof` whose serialization is byte-identical to the input.
-- **Throws:** `ProofParseError` with `.code` in `'empty-proof' | 'truncated' | 'vlq-overflow' | 'oversized' | 'unexpected-tag'`. The function never silently produces a partial proof.
+- **Throws:** `ProofParseError` with `.code` in `'empty-proof' | 'truncated' | 'trailing-bytes' | 'vlq-overflow' | 'oversized' | 'unexpected-tag' | 'invalid-m'`. The function never silently produces a partial proof.
 
 ```ts
 const proof = parseProof(proofBytes);
@@ -309,8 +309,10 @@ Thrown by `parseProof` (and indirectly by `verifyProof` via `.cause`).
 | `'empty-proof'` | Input bytes have length 0 |
 | `'oversized'` | Input bytes exceed `NIPOPOW_PROOF_MAX_SIZE`, or a size field exceeds its declared bound |
 | `'truncated'` | Input bytes end before all declared fields are read |
+| `'trailing-bytes'` | Input bytes are followed by content after the last declared field |
 | `'vlq-overflow'` | A VLQ-encoded field exceeds its declared bit width (e.g. u32 from a 6-byte VLQ) |
 | `'unexpected-tag'` | A discriminant byte doesn't match any known variant |
+| `'invalid-m'` | Parsed `m === 0`. `m` is the minimum superchain-length parameter and must be `> 0`; values `<= 0` would produce a non-terminating loop in `compareProofs` (audit NIP-03). |
 
 ### `ProofVerificationError` codes
 

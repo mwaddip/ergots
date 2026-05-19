@@ -92,6 +92,13 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
 
   // m: VLQ u32 (plain unsigned)
   const m = readVlqU32(r, 'm');
+  // NIP-03: m=0 is invalid (m is the minimum superchain-length parameter; m<=0
+  // produces a non-terminating loop in compareProofs' bestArg). The facts file
+  // declares m>0 as a type invariant; we enforce it at parse time so downstream
+  // code (verifier, comparer) can rely on it without re-checking.
+  if (m === 0) {
+    throw new ProofParseError('m must be > 0', 'invalid-m');
+  }
 
   // k: VLQ u32 (plain unsigned)
   const k = readVlqU32(r, 'k');
