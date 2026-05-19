@@ -22,6 +22,7 @@ import { blake2b256 } from './crypto/blake2b256';
 import { decodeCompactBits } from './nbits';
 import { serializeHeaderWithoutPow } from './header';
 import type { Header } from './header';
+import { AutolykosV1NotSupportedError } from './errors';
 
 // ---------------------------------------------------------------------------
 // secp256k1 curve order (constant)
@@ -251,7 +252,9 @@ export function hashElement(index: number, height: number): Uint8Array {
 export function verifyAutolykosV2(header: Header): boolean {
   // v1 headers are not supported here; per sigma-rust check_pow returns an error
   if (header.version === 1) {
-    throw new Error('verifyAutolykosV2: Autolykos v1 is not supported');
+    throw new AutolykosV1NotSupportedError(
+      'verifyAutolykosV2: Autolykos v1 is not supported',
+    );
   }
 
   const msg = autolykosMessage(header);

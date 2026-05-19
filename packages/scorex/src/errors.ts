@@ -21,3 +21,20 @@ export class ReaderError extends Error {
     this.name = 'ReaderError';
   }
 }
+
+/**
+ * Thrown by verifyAutolykosV2 when called on a v1 (Autolykos v1) header.
+ *
+ * Autolykos v1 verification is not implemented — sigma-rust itself returns
+ * Err(AutolykosPowSchemeError::Unsupported) for v1 headers
+ * (autolykos_pow_scheme.rs:322-324). Real Ergo nodes (incl. ergo-node-rust)
+ * skip v1 PoW verification structurally; this throw exists for callers that
+ * mistakenly hand a v1 Header to verifyAutolykosV2 directly.
+ */
+export class AutolykosV1NotSupportedError extends Error {
+  readonly code = 'autolykos-v1-not-supported' as const;
+  constructor(message?: string) {
+    super(message ?? 'Autolykos v1 PoW verification is not implemented');
+    this.name = 'AutolykosV1NotSupportedError';
+  }
+}
