@@ -54,6 +54,7 @@ import {
   evalSAvlTreeGet,
   evalSAvlTreeGetMany,
   evalSAvlTreeInsert,
+  evalSAvlTreeInsertOrUpdate,
   evalSAvlTreeIsInsertAllowed,
   evalSAvlTreeIsRemoveAllowed,
   evalSAvlTreeIsUpdateAllowed,
@@ -359,6 +360,20 @@ function registerHandlers(): void {
   HANDLERS.set(handlerKey(100, 12), { handler: (obj, args, ctx) => evalSAvlTreeInsert(ctx, obj, args) })
   HANDLERS.set(handlerKey(100, 13), { handler: (obj, args, ctx) => evalSAvlTreeUpdate(ctx, obj, args) })
   HANDLERS.set(handlerKey(100, 14), { handler: (obj, args, ctx) => evalSAvlTreeRemove(ctx, obj, args) })
+
+  // ---------- SAvlTree.insertOrUpdate (100:16) — phase 2h-d Task 11 ----------
+  // V3-gated batch-InsertOrUpdate. `minVersion: 3` on the HANDLERS entry causes
+  // the dispatcher to throw 'tree-version-too-low' BEFORE invoking the handler
+  // when (ctx.treeVersion ?? 0) < 3, mirroring sigma-rust's
+  // MethodDesc.min_version: ErgoTreeVersion::V3 (types/savltree.rs:377-403).
+  // Pre-check requires BOTH insert_allowed AND update_allowed set, else Option
+  // None. Per-op fail is always graceful break under V3+ (no V<3 throw path
+  // because the dispatcher already rejected V<3 trees).
+  // Source: ergotree-interpreter/src/eval/savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN.
+  HANDLERS.set(handlerKey(100, 16), {
+    handler: (obj, args, ctx) => evalSAvlTreeInsertOrUpdate(ctx, obj, args),
+    minVersion: 3,  // V3 gate — sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3
+  })
 
   // ---------- SContext.headers (typeId=101, methodId=2) — phase 2h-c.1 ----------
   // Pattern A cost 15 (charged before obj check). Returns Coll[Header] from ctx.headers ?? [].

@@ -43,6 +43,7 @@ import { verifyAvlBatch, verifyAvlBatchPartial } from '@ergots/avltree'
 import {
   avlTreeDataToConfig,
   buildInsertOps,
+  buildInsertOrUpdateOps,
   buildLookupOps,
   buildRemoveOps,
   buildSingleLookupOp,
@@ -638,4 +639,57 @@ export function evalSAvlTreeUpdateDigest(
     )
   }
   return { kind: 'AvlTree', value: withUpdatedDigest(obj.value, newDigest) }
+}
+
+/**
+ * `SAvlTree.insertOrUpdate` (100:16) — V3-gated InsertOrUpdate batch.
+ * Source: savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN. Descriptor at
+ * types/savltree.rs:377-403 with min_version: ErgoTreeVersion::V3.
+ *
+ * V-gating: dispatcher-level via `minVersion: 3` on the HANDLERS entry. The
+ * dispatcher throws 'tree-version-too-low' BEFORE invoking this handler when
+ * (ctx.treeVersion ?? 0) < 3. Mirrors sigma-rust's MethodDesc.min_version
+ * gate. Receiver-eval + envelope cost (4) are still charged; the handler's
+ * zero per-handler cost is not.
+ *
+ * Pre-check: BOTH insert_allowed AND update_allowed must be set
+ * (line 444). Asymmetric vs insert (insert_allowed only) and update
+ * (update_allowed only). Either flag unset → Option None.
+ *
+ * Verifier path: verifyAvlBatchPartial with InsertOrUpdate ops:
+ *   - partial === null (construct fail) → throw 'avl-tree-proof-failed'
+ *   - partial.opsCompleted < ops.length → graceful break (always; no V<3
+ *     throw path because dispatcher already rejected V<3) → Option None
+ *   - Full success → Some(AvlTree(new_digest))
+ */
+export function evalSAvlTreeInsertOrUpdate(
+  _ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  expectAvlTree('SAvlTree.insertOrUpdate', obj)
+  expectTwoArgs('SAvlTree.insertOrUpdate', args)
+  if (
+    (obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0 ||
+    (obj.value.treeFlags & UPDATE_ALLOWED_BIT) === 0
+  ) {
+    return noneAvlTree()
+  }
+  const ops = buildInsertOrUpdateOps(args[0]!)
+  const proof = extractBytes(args[1]!)
+  const config = avlTreeDataToConfig(obj.value)
+
+  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  if (partial === null) {
+    throw new EvalError(
+      'SAvlTree.insertOrUpdate: verifier construct failed',
+      'avl-tree-proof-failed'
+    )
+  }
+  if (partial.opsCompleted < ops.length) {
+    // V<3 already rejected at dispatcher; V3+ break path: bv.digest()
+    // returns None post-poison → Option None (matches savltree.rs:495-497).
+    return noneAvlTree()
+  }
+  return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }
