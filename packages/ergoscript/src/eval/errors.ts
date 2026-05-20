@@ -23,7 +23,9 @@
  *    + 1 code added in phase 2h-b Tier 2 (SAvlTree verification ops)
  *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
  *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
- *   = 47 codes total after phase 2h-c.2.
+ *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
+ *    + 1 code added in phase 2i-a (pure-bytes predef input guard)
+ *   = 49 codes total after phase 2i-a T2 (CalcBlake2b256).
  */
 
 /**
@@ -336,3 +338,22 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/savltree.rs:98
    */
   | 'avl-tree-bad-digest-length'
+
+  // -------------------------------------------------------------------------
+  // Phase 2i-a — Pure-bytes predefs (1 new code; 48 → 49)
+  // -------------------------------------------------------------------------
+  /**
+   * Pure-bytes predef arms (`CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`,
+   * `ByteArrayToBigInt`, `LongToByteArray`, `Xor`, `DecodePoint`,
+   * `SubstConstants`): input expression evaluated to a non-`Coll[Byte]`
+   * SValue (or an inner item kind didn't match `Byte`). Wire-format
+   * invariants (`OneArgOpTryBuild::try_build` / per-arm `try_build` enforce
+   * `check_post_eval_tpe(SColl(SByte))` at parse time) make this unreachable
+   * for parser-produced trees; defensive against `ConstantPlaceholder`
+   * injection or hand-crafted MIR.
+   *
+   * Source: ergotree-interpreter/src/eval/calc_blake2b256.rs:14-34
+   *         ergotree-interpreter/src/eval/calc_sha256.rs (companion)
+   *         (T3-T9 follow the same code per phase 2i-a design)
+   */
+  | 'predef-input-not-byte-array'

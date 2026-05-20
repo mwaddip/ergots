@@ -25,6 +25,7 @@ import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
 import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
+import { evalCalcBlake2b256 } from './calc-blake2b256'
 import { evalAppend } from './coll-append'
 import { evalByIndex } from './coll-by-index'
 import { evalExists } from './coll-exists'
@@ -112,6 +113,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalBoolToSigmaProp(e, env, ctx)
     case 'BitInversion':
       return evalBitInversion(e, env, ctx)
+    case 'CalcBlake2b256':
+      return evalCalcBlake2b256(e, env, ctx)
     case 'Negation':
       return evalNegation(e, env, ctx)
     case 'Or':
