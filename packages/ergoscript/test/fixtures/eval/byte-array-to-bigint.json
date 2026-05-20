@@ -1,0 +1,109 @@
+{
+  "corpus": "eval_byte_array_to_bigint",
+  "entries": [
+    {
+      "name": "b2bi_plus_one",
+      "tree_bytes_hex": "007b0e0101",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "1"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_neg_one_1byte",
+      "tree_bytes_hex": "007b0e01ff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_neg_one_2byte",
+      "tree_bytes_hex": "007b0e02ffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-1"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_256",
+      "tree_bytes_hex": "007b0e020100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "256"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_neg_32768",
+      "tree_bytes_hex": "007b0e028000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-32768"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_i256_max",
+      "tree_bytes_hex": "007b0e207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_i256_min",
+      "tree_bytes_hex": "007b0e208000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "-57896044618658097711785492504343953926634992332820282019728792003956564819968"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_33byte_in_range",
+      "tree_bytes_hex": "007b0e21007e00000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "BigInt",
+        "value": "56991418921491564935038844183963579646531320577619965113170529628894743494656"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2bi_33byte_above_max",
+      "tree_bytes_hex": "007b0e21008000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "byte-array-to-bigint-out-of-range"
+    },
+    {
+      "name": "b2bi_empty",
+      "tree_bytes_hex": "007b0e00",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "byte-array-to-bigint-empty"
+    }
+  ]
+}
