@@ -22,8 +22,8 @@
 //! `{ kind: "AvlTree", value: <avl_tree_data> }` to match the TS
 //! `hydrateSValue` AvlTree arm at `packages/ergoscript/test/_helpers/index.ts:94`.
 //! (`value_to_json` in `common.rs` has no AvlTree arm — falls back to
-//! `kind: "Opaque"`. We reuse `savltree_insert::avl_tree_data_to_json` for
-//! the inner shape.)
+//! `kind: "Opaque"`. We reuse `savltree_insert::avl_tree_value_json` for
+//! the JSON encoding.)
 //!
 //! Phase 2h-d Task 1.
 
