@@ -13,8 +13,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
+import { evalMethodCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import type { MethodCall as MethodCallExpr } from '../../src/mir/types'
 
 interface FixtureEntry {
   name: string
@@ -43,4 +46,27 @@ describe('SGroupElement.getEncoded — fixture-driven (Layer C1)', () => {
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }
+})
+
+describe('SGroupElement.getEncoded — edge cases', () => {
+  // The throw path is unreachable via the parser (sigma-rust's MethodCall::new
+  // type-checks SGroupElement→Coll[Byte] at construction; a non-GroupElement
+  // obj would be rejected before fixture-gen ships bytes). Test via a
+  // synthesized MethodCall MIR node. Cost-on-throw assertion confirms
+  // Pattern A: cost 250 is charged BEFORE the obj-kind check.
+  it('charges Fixed(250) before obj-kind check + throws method-not-implemented on non-GroupElement obj', () => {
+    const ctx = makeContext({})
+    const e: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: 0n } },
+      typeId: 7,
+      methodId: 2,
+      args: [],
+      explicitTypeArgs: {},
+    }
+    expect(() => evalMethodCall(e, Env.empty(), ctx)).toThrow(EvalError)
+    // Cost breakdown: 4 (MethodCall envelope) + 5 (Const child) + 250 (handler
+    // Pattern A) = 259. Charged BEFORE the obj-kind check throws.
+    expect(ctx.jitCost).toBe(259)
+  })
 })
