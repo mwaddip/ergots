@@ -34,26 +34,25 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `Xor`. `ForAll` was wired
-// in Task 10 (phase 2f Coll HOFs), so it no longer falls through to
-// `not-implemented-yet`. `Xor` is an unwired byte-array XOR variant and
-// keeps falling through until its own per-arm task lands.
-const treeWithXorBody = (): ErgoTree => {
-  const leftExpr = {
+// A tree whose body is an unported variant — `DecodePoint`. `Xor` was wired
+// in Task T7 (phase 2i-a pure-bytes predefs), so it no longer falls through
+// to `not-implemented-yet`. `DecodePoint` is the next-in-line unwired
+// variant and keeps falling through until its own per-arm task (T8) lands.
+const treeWithDecodePointBody = (): ErgoTree => {
+  const inputExpr = {
     tag: 'Const' as const,
-    tpe: { tag: 'SBoolean' as const },
-    value: { kind: 'Boolean' as const, value: true },
-  }
-  const rightExpr = {
-    tag: 'Const' as const,
-    tpe: { tag: 'SBoolean' as const },
-    value: { kind: 'Boolean' as const, value: false },
+    tpe: { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+    value: {
+      kind: 'Coll' as const,
+      elem: { tag: 'SByte' as const },
+      items: [],
+    },
   }
   return {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'Xor', left: leftExpr, right: rightExpr },
+    body: { tag: 'DecodePoint', input: inputExpr },
   }
 }
 
@@ -77,8 +76,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. Xor)', () => {
-    const err = captureEvalError(() => evaluate(treeWithXorBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. DecodePoint)', () => {
+    const err = captureEvalError(() => evaluate(treeWithDecodePointBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -91,9 +90,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (Xor not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (DecodePoint not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithXorBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithDecodePointBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })
