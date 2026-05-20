@@ -35,6 +35,14 @@
 //! level by T12 (parallel-pair pattern mirroring 2h-c.2's `SHeader.checkPow`
 //! V<3 reject test).
 //!
+//! **`opts_json.treeVersion` convention.** All five V3 scenarios (1, 2, 3, 4, 5)
+//! encode `opts_json: { "treeVersion": 3 }` so the TS test's `makeContext({
+//! ...entry.opts_json })` drives `ctx.treeVersion = 3` past the dispatcher's
+//! `minVersion: 3` gate into the handler. Scenario 6 (v2_dispatcher_reject)
+//! encodes `treeVersion: 2` to trigger the dispatcher's pre-handler throw.
+//! Matches the convention from `downcast.rs` / `option_get_or_else.rs`
+//! (V3-requiring entries always carry `opts_json.treeVersion` explicitly).
+//!
 //! Six scenarios:
 //!
 //! 1. `insert_or_update_happy_v3` — V3 tree, both flags set, 3-op mixed batch
@@ -268,7 +276,7 @@ fn make_happy_v3_entry() -> anyhow::Result<InsertOrUpdateFixture> {
     Ok(InsertOrUpdateFixture {
         name: "insert_or_update_happy_v3".into(),
         tree_bytes_hex,
-        opts_json: json!({}),
+        opts_json: json!({ "treeVersion": 3 }),
         expected_value_json: option_avl_tree_json(&val)?,
         expected_cost: cost,
         expected_error_code: json!(null),
@@ -320,7 +328,7 @@ fn make_pre_check_fail_entry(
     Ok(InsertOrUpdateFixture {
         name: name.into(),
         tree_bytes_hex,
-        opts_json: json!({}),
+        opts_json: json!({ "treeVersion": 3 }),
         expected_value_json: option_avl_tree_json(&val)?,
         expected_cost: cost,
         expected_error_code: json!(null),
@@ -403,7 +411,7 @@ fn make_per_op_fail_entry() -> anyhow::Result<InsertOrUpdateFixture> {
     Ok(InsertOrUpdateFixture {
         name: "insert_or_update_per_op_fail_graceful".into(),
         tree_bytes_hex,
-        opts_json: json!({}),
+        opts_json: json!({ "treeVersion": 3 }),
         expected_value_json: option_avl_tree_json(&val)?,
         expected_cost: cost,
         expected_error_code: json!(null),
@@ -462,7 +470,7 @@ fn make_malformed_proof_entry() -> anyhow::Result<InsertOrUpdateFixture> {
     Ok(InsertOrUpdateFixture {
         name: "insert_or_update_malformed_proof".into(),
         tree_bytes_hex,
-        opts_json: json!({}),
+        opts_json: json!({ "treeVersion": 3 }),
         expected_value_json: json!(null),
         expected_cost: 0,
         expected_error_code: json!("avl-tree-proof-failed"),
