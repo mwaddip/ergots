@@ -69,6 +69,7 @@ pub mod get_var;
 pub mod global_vars;
 pub mod if_arm;
 pub mod logical_not;
+pub mod long_to_byte_array;
 pub mod negation;
 pub mod option_get;
 pub mod option_get_or_else;

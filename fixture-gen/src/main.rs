@@ -143,6 +143,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/calc-sha256.json", &calc_sha256_fixture)?;
     let byte_array_to_long_fixture = cmds::ergoscript::eval::byte_array_to_long::generate()?;
     write_ergoscript_json("eval/byte-array-to-long.json", &byte_array_to_long_fixture)?;
+    let long_to_byte_array_fixture = cmds::ergoscript::eval::long_to_byte_array::generate()?;
+    write_ergoscript_json("eval/long-to-byte-array.json", &long_to_byte_array_fixture)?;
     let negation_fixture = cmds::ergoscript::eval::negation::generate()?;
     write_ergoscript_json("eval/negation.json", &negation_fixture)?;
     let upcast_fixture = cmds::ergoscript::eval::upcast::generate()?;
