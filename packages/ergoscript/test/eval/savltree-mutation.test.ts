@@ -71,7 +71,7 @@ function loadFixture(file: string): FixtureFile {
 const HANDLERS: Array<{
   name: string
   file: string
-  collIndex: 0 | 1 // which inline Coll[Byte] is the proof; renamed from whichColl
+  collIndex: 0 | 1 // 0 = first inline Coll[Byte], 1 = second
   successEntries: string[]
 }> = [
   {

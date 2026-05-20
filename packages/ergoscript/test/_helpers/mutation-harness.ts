@@ -84,7 +84,7 @@ export function locateBytes(haystack: Uint8Array, needle: Uint8Array): number {
 }
 
 /**
- * Locate a proof region by index into the inline-Coll[Byte] list.
+ * Locate a byte region by index into the inline-Coll[Byte] list.
  * Returns `{ start, end, length }` byte offsets within `treeBytes`.
  */
 export function locateInlineCollRegion(
@@ -118,12 +118,13 @@ export type EvalOutcome =
  */
 export function evalSafely(
   treeBytes: Uint8Array,
-  optsJson: Record<string, unknown>,
+  optsJson?: Record<string, unknown>,
   makeCtx?: (opts: Record<string, unknown>) => ReturnType<typeof makeContext>,
 ): EvalOutcome {
   try {
+    const opts = optsJson ?? {}
     const tree = parseTree(treeBytes)
-    const ctx = makeCtx ? makeCtx(optsJson) : makeContext(rehydrateEvalOpts(optsJson))
+    const ctx = makeCtx ? makeCtx(opts) : makeContext(rehydrateEvalOpts(opts))
     const value = evaluateWith(tree, ctx)
     return { ok: true, value }
   } catch (e) {
@@ -145,13 +146,13 @@ export function svalueEqual(a: SValue, b: SValue): boolean {
 }
 
 /**
- * The "throw-or-diverge" kill rule (used by `savltree-mutation.test.ts` and
+ * The standard kill rule (used by `savltree-mutation.test.ts` and
  * the 3 inline savltree-* consumers):
  *   - both threw → not a kill
  *   - one threw → kill
  *   - both ok → kill iff values differ
  */
-export function isKillThrowOrDiverge(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
+export function isKillStandard(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
   if (!baseline.ok && !mutated.ok) return false
   if (!baseline.ok && mutated.ok) return true
   if (baseline.ok && !mutated.ok) return true
@@ -166,7 +167,7 @@ export function isKillThrowOrDiverge(baseline: EvalOutcome, mutated: EvalOutcome
  *   - one threw → kill
  *   - both ok → kill iff values differ
  *
- * The difference vs `isKillThrowOrDiverge` is the both-threw branch:
+ * The difference vs `isKillStandard` is the both-threw branch:
  * sheader.checkPow wants finer-grained kill detection because a byte flip
  * that changes the throw site (e.g. wire-parse error → eval error) counts
  * as a kill there.
@@ -185,17 +186,25 @@ export const DEFAULT_KILL_THRESHOLD = 0.9
 export interface MutationRunConfig {
   treeBytes: Uint8Array
   region: { start: number; end: number }
-  optsJson: Record<string, unknown>
+  optsJson?: Record<string, unknown>
   xorPatterns?: number[]
   isKill?: (baseline: EvalOutcome, mutated: EvalOutcome) => boolean
   makeCtx?: (opts: Record<string, unknown>) => ReturnType<typeof makeContext>
+}
+
+/** A single survived mutation: the (offset, xor pattern) pair plus the
+ *  outcome that wasn't a kill. Used by `MutationRunResult.survived`. */
+export interface SurvivedMutation {
+  offset: number
+  xor: number
+  outcome: EvalOutcome
 }
 
 export interface MutationRunResult {
   killed: number
   total: number
   rate: number
-  survived: Array<{ offset: number; xor: number; outcome: EvalOutcome }>
+  survived: SurvivedMutation[]
 }
 
 /**
@@ -209,11 +218,11 @@ export interface MutationRunResult {
  */
 export function runMutationLoop(config: MutationRunConfig): MutationRunResult {
   const xorPatterns = config.xorPatterns ?? XOR_PATTERNS_STANDARD
-  const isKill = config.isKill ?? isKillThrowOrDiverge
+  const isKill = config.isKill ?? isKillStandard
   const baseline = evalSafely(config.treeBytes, config.optsJson, config.makeCtx)
   let killed = 0
   let total = 0
-  const survived: Array<{ offset: number; xor: number; outcome: EvalOutcome }> = []
+  const survived: SurvivedMutation[] = []
   for (let i = config.region.start; i < config.region.end; i++) {
     for (const xor of xorPatterns) {
       total++
