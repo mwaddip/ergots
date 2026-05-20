@@ -20,6 +20,10 @@ import { Env } from '../../src/eval/env'
 import { evalSCollFlatMap } from '../../src/eval/scoll-flat-map'
 import type { Closure, Expr, MethodCall, SType, SValue } from '../../src/mir/types'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import {
+  runMutationLoop,
+  DEFAULT_KILL_THRESHOLD,
+} from '../_helpers/mutation-harness'
 
 interface FixtureEntry {
   name: string
@@ -253,5 +257,52 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     // Const body eval inside loop adds ADD_TO_ENV_COST not applicable; just
     // Const cost 5. Total at throw: 70 + 5 = 75.
     expect(ctx.jitCost).toBe(75)
+  })
+})
+
+// ─── Mutation testing (Layer C3.a) ──────────────────────────────────────────
+//
+// Per Spec § R6: mutate the full tree bytes for each success-path scenario,
+// using the shared runMutationLoop from phase 2h-e. Standard isKill rule
+// (throw-or-diverge). Aggregate kill rate target: ≥ 0.9 per scenario.
+//
+// Mutation region: { start: 0, end: treeBytes.length } — broad mutation, since
+// flatMap fixtures have no inline-Coll[Byte] payload to narrow to. Most bytes
+// (header, MethodCall opcode, typeIds, receiver Const, lambda body) are
+// load-bearing; broad mutation reliably hits ≥ 90% kill.
+
+describe('SColl.flatMap mutation testing (Layer C3.a)', () => {
+  // Only the 4 success-path scenarios participate. Throw-path entries are
+  // skipped (mutation against an error baseline isn't well-defined).
+  const successEntries = fixture.entries.filter((e) => e.expected_error_code === null)
+  let aggKilled = 0
+  let aggTotal = 0
+
+  for (const entry of successEntries) {
+    it(`${entry.name}: ≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate`, () => {
+      const treeBytes = hexToBytes(entry.tree_bytes_hex)
+      const result = runMutationLoop({
+        treeBytes,
+        region: { start: 0, end: treeBytes.length },
+        optsJson: entry.opts_json,
+      })
+      // eslint-disable-next-line no-console
+      console.log(
+        `[mutation] SColl.flatMap.${entry.name}: killed=${result.killed} ` +
+          `total=${result.total} rate=${result.rate.toFixed(3)}`,
+      )
+      aggKilled += result.killed
+      aggTotal += result.total
+      expect(result.rate).toBeGreaterThanOrEqual(DEFAULT_KILL_THRESHOLD)
+    })
+  }
+
+  it(`SColl.flatMap aggregate kill rate ≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}%`, () => {
+    const rate = aggTotal === 0 ? 1 : aggKilled / aggTotal
+    // eslint-disable-next-line no-console
+    console.log(
+      `[mutation] AGG SColl.flatMap: killed=${aggKilled} total=${aggTotal} rate=${rate.toFixed(3)}`,
+    )
+    expect(rate).toBeGreaterThanOrEqual(DEFAULT_KILL_THRESHOLD)
   })
 })
