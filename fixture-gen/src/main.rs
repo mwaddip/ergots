@@ -147,6 +147,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/long-to-byte-array.json", &long_to_byte_array_fixture)?;
     let byte_array_to_bigint_fixture = cmds::ergoscript::eval::byte_array_to_bigint::generate()?;
     write_ergoscript_json("eval/byte-array-to-bigint.json", &byte_array_to_bigint_fixture)?;
+    let xor_fixture = cmds::ergoscript::eval::xor::generate()?;
+    write_ergoscript_json("eval/xor.json", &xor_fixture)?;
     let negation_fixture = cmds::ergoscript::eval::negation::generate()?;
     write_ergoscript_json("eval/negation.json", &negation_fixture)?;
     let upcast_fixture = cmds::ergoscript::eval::upcast::generate()?;
