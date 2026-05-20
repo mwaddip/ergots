@@ -25,11 +25,15 @@
 //! **V3 dispatcher gate.** The method's MethodDesc has `min_version: V3`. The
 //! TS dispatcher (`method-call.ts:143-148`) throws `'tree-version-too-low'`
 //! BEFORE invoking the handler when `ctx.treeVersion < 3`. The fixture's
-//! `v2-dispatcher-reject` scenario carries the same tree bytes as the happy
-//! V3 scenario and relies on the TS test driving `ctx.treeVersion = 2` to
-//! trigger the dispatcher reject. Cost = 0 sentinel for the throw entry; the
-//! cost-parity invariant is checked at the TS level by T12 (parallel-pair
-//! pattern mirroring 2h-c.2's `SHeader.checkPow` V<3 reject test).
+//! `v2-dispatcher-reject` scenario uses byte-identical `tree_bytes_hex` to the
+//! happy V3 scenario (same initial tree + same 3-op ops batch + same proof);
+//! only `opts_json.treeVersion = 2` differs. The TS test then drives
+//! `ctx.treeVersion = 2` to trigger the dispatcher reject. Cost = 0 sentinel
+//! for the throw entry; the cost-parity invariant (V<3 reject cost ===
+//! V3-receiver+envelope-only cost, with the handler's zero per-handler cost
+//! confirming the dispatcher gate suppresses the handler) is checked at the TS
+//! level by T12 (parallel-pair pattern mirroring 2h-c.2's `SHeader.checkPow`
+//! V<3 reject test).
 //!
 //! Six scenarios:
 //!
@@ -114,7 +118,7 @@ use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use sigma_ser::ScorexSerializable;
 
-use super::savltree_insert::{avl_tree_data_to_json, entries_constant, savl_tree_type_json};
+use super::savltree_insert::{entries_constant, option_avl_tree_json};
 
 /// Fixture struct extending the standard EvalFixture shape with
 /// `expected_error_code` for the throw scenarios.
@@ -143,34 +147,6 @@ pub struct InsertOrUpdateFixtureFile {
 
 fn make_resolver() -> Arc<dyn Fn(&Digest32) -> Node + Send + Sync> {
     Arc::new(|digest: &Digest32| Node::LabelOnly(NodeHeader::new(Some(*digest), None)))
-}
-
-/// Encode an `Option[AvlTree]` Value as the TS SValue Option variant.
-/// Local copy mirroring `savltree_insert::option_avl_tree_json` because the
-/// `pub(super)` export there does not cover the error-code-bearing variant
-/// shape used here. (Reuses `avl_tree_data_to_json` for the inner shape.)
-fn option_avl_tree_json(value: &Value) -> anyhow::Result<JsonValue> {
-    let inner = match value {
-        Value::Opt(None) => None,
-        Value::Opt(Some(boxed)) => match boxed.as_ref() {
-            Value::AvlTree(avl) => Some(json!({
-                "kind": "AvlTree",
-                "value": avl_tree_data_to_json(avl),
-            })),
-            other => anyhow::bail!(
-                "savltree_insert_or_update: expected Value::Opt(AvlTree), got Some({:?})",
-                other
-            ),
-        },
-        other => anyhow::bail!(
-            "savltree_insert_or_update: expected Value::Opt, got {:?}",
-            other
-        ),
-    };
-    Ok(match inner {
-        None => json!({ "kind": "Option", "elem": savl_tree_type_json(), "value": null }),
-        Some(v) => json!({ "kind": "Option", "elem": savl_tree_type_json(), "value": v }),
-    })
 }
 
 /// Build a `BatchAVLProver` populated with the given initial entries, capture
@@ -234,9 +210,12 @@ fn val_8(byte: u8) -> Vec<u8> {
     vec![byte; 8]
 }
 
-/// Scenario 1: happy V3 path — 3 mixed ops (2 inserts + 1 update). Captures
-/// the post-batch digest via `try_eval_out`.
-fn make_happy_v3_entry() -> anyhow::Result<InsertOrUpdateFixture> {
+/// Build the happy-pattern `ErgoTree` shared by scenarios 1 (happy_v3) and 6
+/// (v2_dispatcher_reject). Both scenarios MUST produce byte-identical
+/// `tree_bytes_hex` so T12's cost-parity invariant (V<3 reject cost ===
+/// V3-receiver+envelope-only cost) can be asserted rigorously. Only the
+/// scenario's `opts_json.treeVersion` differs at the TS level.
+fn build_happy_pattern_tree() -> anyhow::Result<ErgoTree> {
     // Initial tree: 3 leaves at 0x01/0x02/0x03 with 8-byte values.
     let initial: Vec<(Vec<u8>, Vec<u8>)> = vec![
         (key1(0x01), val_8(0x01)),
@@ -271,7 +250,15 @@ fn make_happy_v3_entry() -> anyhow::Result<InsertOrUpdateFixture> {
     };
 
     let expr = build_insert_or_update_expr(tree_data, &fixture_entries, proof_bytes)?;
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    Ok(ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?)
+}
+
+/// Scenario 1: happy V3 path — 3 mixed ops (2 inserts + 1 update). Captures
+/// the post-batch digest via `try_eval_out`. Reuses `build_happy_pattern_tree`
+/// so the emitted `tree_bytes_hex` is byte-identical to scenario 6's
+/// `v2_dispatcher_reject` (only `opts_json.treeVersion` differs).
+fn make_happy_v3_entry() -> anyhow::Result<InsertOrUpdateFixture> {
+    let tree = build_happy_pattern_tree()?;
     let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
     let ctx = sigma_test_util::force_any_val::<Context>();
@@ -484,43 +471,18 @@ fn make_malformed_proof_entry() -> anyhow::Result<InsertOrUpdateFixture> {
 
 /// Scenario 6: V<3 dispatcher reject.
 ///
-/// Tree bytes match the happy-V3 shape (otherwise valid). The fixture encodes
-/// `opts_json: { "treeVersion": 2 }` (matching the convention from
-/// `downcast.rs` / `option_get_or_else.rs`); the TS test passes this through
-/// `makeContext({ ...entry.opts_json })`. The dispatcher's `minVersion: 3`
+/// Tree bytes are byte-identical to the happy-V3 scenario via the shared
+/// `build_happy_pattern_tree` helper — only `opts_json.treeVersion = 2`
+/// differs at the TS level. The TS test passes `opts_json` through
+/// `makeContext({ ...entry.opts_json })`; the dispatcher's `minVersion: 3`
 /// gate then fires BEFORE the handler runs, throwing `'tree-version-too-low'`.
 /// No sigma-rust oracle is consulted (parse-time `UnknownMethodId` rejection).
 /// The cost-parity invariant (V2 reject cost === V3 success receiver+envelope
 /// cost, since the handler has zero per-handler cost) is verified by T12's
-/// parallel-pair cost test.
+/// parallel-pair cost test — which is only rigorous because the tree bytes
+/// (and hence the wire-decode / envelope work) are identical across the pair.
 fn make_v2_dispatcher_reject_entry() -> anyhow::Result<InsertOrUpdateFixture> {
-    let initial: Vec<(Vec<u8>, Vec<u8>)> = vec![
-        (key1(0x01), val_8(0x01)),
-        (key1(0x02), val_8(0x02)),
-        (key1(0x03), val_8(0x03)),
-    ];
-    let fixture_entries: Vec<(Vec<u8>, Vec<u8>)> = vec![(key1(0x10), val_8(0xAA))];
-    let prover_ops: Vec<Operation> = fixture_entries
-        .iter()
-        .map(|(k, v)| {
-            Operation::InsertOrUpdate(KeyValue {
-                key: Bytes::from(k.clone()),
-                value: Bytes::from(v.clone()),
-            })
-        })
-        .collect();
-
-    let (starting_digest, proof_bytes) = build_proof_for_ops(1, &initial, &prover_ops)?;
-
-    let tree_data = AvlTreeData {
-        digest: starting_digest,
-        tree_flags: AvlTreeFlags::new(true, true, false),
-        key_length: 1,
-        value_length_opt: None,
-    };
-
-    let expr = build_insert_or_update_expr(tree_data, &fixture_entries, proof_bytes)?;
-    let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+    let tree = build_happy_pattern_tree()?;
     let tree_bytes_hex = hex::encode(tree.sigma_serialize_bytes()?);
 
     Ok(InsertOrUpdateFixture {
