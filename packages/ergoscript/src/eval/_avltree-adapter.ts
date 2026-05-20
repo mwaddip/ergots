@@ -139,6 +139,18 @@ export function buildUpdateOps(entries: SValue): Operation[] {
 }
 
 /**
+ * Same shape as `buildInsertOps` but emits `InsertOrUpdate` ops. Used by
+ * `SAvlTree.insertOrUpdate` (100:16; V3-gated). Source: savltree.rs:480-489.
+ *
+ * `extractEntries` returns `{ key, value }[]` per the existing
+ * shape-extractor signature.
+ */
+export function buildInsertOrUpdateOps(entries: SValue): Operation[] {
+  const pairs = extractEntries(entries)
+  return pairs.map(({ key, value }) => ({ tag: 'InsertOrUpdate', key, value }))
+}
+
+/**
  * Build `Remove` ops from a `Uint8Array[]` of keys. Used by `remove`.
  *
  * Note: takes already-extracted keys (not an SValue) — caller is expected
