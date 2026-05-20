@@ -129,10 +129,22 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2h-c.2 COMPLETE.** Method handler registry: 39 entries. EvalError codes: 47. Test count: 2867 (ergoscript).
 
+**Phase 2h-d — `SAvlTree.*` completion** (additive):
+
+- 3 new method handlers wired (39 → 42 registry entries) — closes the final three `SAvlTree.*` methods:
+  - **`SAvlTree.updateOperations` (100:8)** — Pattern A Fixed(45), V0+. Pure projection over `AvlTreeData.treeFlags`; returns a new `{kind:'AvlTree'}` SValue with the supplied `newOperations: Byte` substituted in. No `@ergots/avltree` call. Source: `eval/savltree.rs:77-88`.
+  - **`SAvlTree.updateDigest` (100:15)** — Pattern A Fixed(40), V0+. Validates `newDigest.length === 33` (mirrors sigma-rust's `ADDigest::try_from` length-check); on success returns a new `{kind:'AvlTree'}` SValue with the digest substituted. Source: `eval/savltree.rs:90-102`.
+  - **`SAvlTree.insertOrUpdate` (100:16)** — zero per-handler cost, **V3-gated at the dispatcher** (registered with `minVersion: 3`; pre-V3 trees reject via `'tree-version-too-low'` before the handler runs, incurring receiver-eval + dispatcher-envelope cost only). Calls into `@ergots/avltree`'s `verifyAvlBatch` with `InsertOrUpdate` ops (sigma-rust's `Operation::InsertOrUpdate` = upsert: insert when absent, update when present). Returns `Option[AvlTree]`; per-op failure surfaces as Option None (no throw); verifier construct failure throws `'avl-tree-proof-failed'`. Source: `eval/savltree.rs:441-498`; descriptor at `types/savltree.rs:377-403` with `min_version: ErgoTreeVersion::V3`.
+- 1 new `EvalError` code: `'avl-tree-bad-digest-length'` (47 → 48 total). Thrown by `SAvlTree.updateDigest` when the supplied `newDigest` byte length is not 33. Mirrors sigma-rust's `ADDigest::try_from` length-check failure.
+- 2 new `_avltree-adapter.ts` helpers: `withUpdatedFlags(data, newFlags)` (Tier-1 projection over `treeFlags`) and `buildInsertOrUpdateOps(entries)` (Tier-2 batch construction for the V3-only upsert path).
+- 2 carry-forward fixtures closed: V3+ per-op-fail-graceful behavior for `insert` (sigma-rust V3 break path at `eval/savltree.rs:259-266`); unconditional per-op-fail-graceful behavior for `update` (sigma-rust unconditional break at `eval/savltree.rs:420-429`). Both confirm the sigma-rust source-read corrections from phase 2h-b.
+
+**Phase 2h-d COMPLETE.** Method handler registry: 42 entries. EvalError codes: 48. Test count: 2903 (ergoscript).
+
 **Does NOT ship yet (deferred):**
 
 - **`Xor`** (byte-array XOR) — phase 2i alongside other predefs.
-- Broader method-call surface beyond the 38 registered handlers: `Coll.zipWith` / `.reverse` / `.flatten` / `.getOrElse`, `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader` methods, the 3 remaining `SAvlTree.*` methods (`updateOperations`/`updateDigest`/`insertOrUpdate`). Wait until phase 2i or corpus demand resurfaces.
+- Broader method-call surface beyond the 42 registered handlers: `Coll.zipWith` / `.reverse` / `.flatten` / `.getOrElse`, `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader` methods. Wait until phase 2i or corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
@@ -250,7 +262,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (47 codes)
+## `EvalError` taxonomy (48 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -358,15 +370,19 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 
 - **`'autolykos-v1-not-supported'`** — `SHeader.checkPow` handler caught an `AutolykosV1NotSupportedError` from `verifyAutolykosV2`. Mirrors sigma-rust's `AutolykosPowSchemeError::Unsupported` (`autolykos_pow_scheme.rs:322-324`). Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this code is the surface for the unusual case where `ctx.headers` includes a V1 header AND the script invokes `checkPow` on it.
 
+### Phase 2h-d codes (SAvlTree.updateDigest)
+
+- **`'avl-tree-bad-digest-length'`** — `SAvlTree.updateDigest` handler received a `newDigest: Coll[Byte]` whose length is not 33 bytes. Mirrors sigma-rust's `ADDigest::try_from` length-check failure (`eval/savltree.rs:90-102`). Wire-format invariants do NOT make this unreachable — the caller supplies the digest at eval-time as a script-constructed `Coll[Byte]`, so any 0..n-byte value is a legitimate input shape.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
 ## Dispatcher minVersion gating (phase 2h-c.2)
 
 The method-call dispatcher consults an optional `minVersion?: number` field on each registry entry. When set, the dispatcher throws `EvalError('tree-version-too-low')` if `(ctx.treeVersion ?? 0) < entry.minVersion`, BEFORE invoking the handler. This is sigma-rust-parity with `MethodDesc.min_version`-level gating: V<N reject incurs receiver-eval cost + envelope cost (4) but NOT the handler's own cost (e.g., 700 for `checkPow`).
 
-Currently only `SHeader.checkPow` (104:16) uses `minVersion: 3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
+Two registry entries currently use `minVersion: 3`: `SHeader.checkPow` (104:16; phase 2h-c.2) and `SAvlTree.insertOrUpdate` (100:16; phase 2h-d) — both mirror sigma-rust descriptors with `min_version: ErgoTreeVersion::V3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
 
-## Method-handler registry (39 entries)
+## Method-handler registry (42 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -411,6 +427,9 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 37 | `SContext.headers` | 101:2 | 15 | A | `Coll[Header]` from `ctx.headers`; throws `'context-field-missing'` if undefined | `eval/scontext.rs:58-70` |
 | 38 | `SContext.lastBlockUtxoRootHash` | 101:9 | 15 | A | `AvlTree` synthesized from `ctx.headers[0].stateRoot`; throws `'context-field-missing'` if undefined/empty | `:83-99` |
 | 39 | `SHeader.checkPow` | 104:16 | 700 | A | `Boolean` — V3-gated via `minVersion: 3` on registry; v1 header throws `'autolykos-v1-not-supported'` | `eval/sheader.rs:115-124` |
+| 40 | `SAvlTree.updateOperations` | 100:8 | 45 | A | `AvlTree` — projects new `treeFlags`; pure (no `@ergots/avltree` call) | `eval/savltree.rs:77-88` |
+| 41 | `SAvlTree.updateDigest` | 100:15 | 40 | A | `AvlTree` — projects new 33-byte digest; throws `'avl-tree-bad-digest-length'` on length ≠ 33 | `eval/savltree.rs:90-102` |
+| 42 | `SAvlTree.insertOrUpdate` | 100:16 | 0 | — | `Option[AvlTree]` — V3-gated via `minVersion: 3` on registry; upsert semantics via `verifyAvlBatch` | `eval/savltree.rs:441-498` |
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 
@@ -418,9 +437,11 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 (The 17 handlers from phase 2h-c.1 — entries 22-38 — are 15 `SHeader.*` accessors (typeId 104, methodIds 1-15) at Fixed(10) Pattern A each, plus `SContext.headers` (101:2) and `SContext.lastBlockUtxoRootHash` (101:9) at Fixed(15) Pattern A. The SContext handlers join the existing `SContext.dataInputs` (101:1) and `SContext.preHeader` (101:3) in the registry. Entry 39 from phase 2h-c.2 is `SHeader.checkPow` (104:16) at Fixed(700) Pattern A with `minVersion: 3` dispatcher gating.)
 
+(The 3 `SAvlTree.*` handlers from phase 2h-d — entries 40-42 — close the final three `SAvlTree.*` methods. `updateOperations` (100:8) and `updateDigest` (100:15) are pure Tier-1-shaped projections (cost 45 / 40, Pattern A, no `@ergots/avltree` call); `insertOrUpdate` (100:16) is a Tier-2-shaped upsert (zero per-handler cost) gated at the dispatcher via `minVersion: 3` — sigma-rust ships `InsertOrUpdate` only at V3+.)
+
 ## Coverage and stability
 
-**52 / ~70 `Expr` variants** have arms in v0.2.0 (phase 2h-c.2):
+**52 / ~70 `Expr` variants** have arms in v0.2.0 (phase 2h-d):
 - 8 from phase 2b
 - 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp`
 - 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast`
@@ -436,9 +457,9 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 - 4 from phase 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`
 - 1 from phase 2g.6: `Global`
 
-Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70.
+Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70.
 
-**Method-handler registry: 39 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16).
+**Method-handler registry: 42 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating).
 
 **Public function signatures are stable** from v0.2.0 onward. Future arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 

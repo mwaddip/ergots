@@ -13,7 +13,7 @@ Authoritative source-of-truth for wire-format byte layout and evaluator semantic
 | Concern | File |
 |---|---|
 | Wire format (`parseTree`, `serializeTree`, address helpers, `ErgoTree` / `TreeHeader` types, wire-layer error classes incl. `ErgoTreeParseError`/`SerializeError` and `SigmaBooleanParseError`) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 47 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 52/~70, 39-entry method-handler registry, `EvalOpts` chain-state fields) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 48 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 52/~70, 42-entry method-handler registry, `EvalOpts` chain-state fields) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
 | Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 8 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
 | AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
 | Cost validation (`evaluateWithCost`) | (future, phase 2j) |
@@ -53,7 +53,7 @@ No `Buffer`, no `node:*` outside test files, no WASM.
 The package exports multiple typed error classes, one per surface, each carrying a structural `code: string` for programmatic dispatch:
 
 - **Wire layer** (see [`ergoscript-wire.md`](./ergoscript-wire.md) for full taxonomy): `ErgoTreeParseError`, `ErgoTreeSerializeError`, `ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`, `AddressDecodeError`.
-- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 46 codes): `EvalError`.
+- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 48 codes): `EvalError`.
 - **Sigma-protocol verifier** (see [`ergoscript-sigma.md`](./ergoscript-sigma.md) for full taxonomy of 8 codes): `VerifyError`.
 
 Common discipline: `.message` is human-readable; `.code` matches a fixed enum of structural reason strings for programmatic handling. No other error classes are exported. Internal panics (e.g., a bug in `@noble/hashes` or `@noble/curves`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
@@ -75,12 +75,12 @@ See `docs/specs/` for per-phase test-strategy detail.
 | Slice | Status |
 |---|---|
 | Wire format | 100% of MIR variants parse + serialize byte-identically (255 + 1 + 6 fixtures; 6,221 mutations; 100% taxonomy coverage) |
-| Evaluator | 52 of ~70 `Expr` arms wired; 39 method-handler registry entries; 47 `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (post-2h-c.1 uplift TBD on next corpus run) |
+| Evaluator | 52 of ~70 `Expr` arms wired; 42 method-handler registry entries; 48 `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (post-2h-c.1 uplift TBD on next corpus run) |
 | Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 8 `VerifyError` codes (3 reserved for ABI stability) |
-| AVL+ | Integrated via `@ergots/avltree` v0.2.0 (phase 2h-b): 13 of 16 `SAvlTree.*` method handlers wired (7 Tier-1 accessors + 6 Tier-2 verification ops); 3 remaining (`updateOperations`/`updateDigest`/`insertOrUpdate`) deferred |
+| AVL+ | Integrated via `@ergots/avltree` v0.2.0: full 16 of 16 `SAvlTree.*` method handlers wired (phase 2h-b: 7 Tier-1 accessors + 6 Tier-2 verification ops; phase 2h-d: `updateOperations`/`updateDigest` Tier-1 + V3-gated `insertOrUpdate` Tier-2) |
 | Cost validation | (not yet — phase 2j; consensus-critical per umbrella spec) |
 
-Cross-runtime: 2867 ergoscript + 156 avltree + 307 nipopow + 115 scorex = 3445 tests, passing under both `node` and `jsdom`.
+Cross-runtime: 2903 ergoscript + 156 avltree + 245 nipopow + 177 scorex = 3481 tests, passing under both `node` and `jsdom`.
 
 **Convention:** when a slice file's coverage changes, this summary table is updated in the same commit.
 
