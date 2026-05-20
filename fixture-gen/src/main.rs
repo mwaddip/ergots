@@ -14,6 +14,13 @@ fn ergoscript_fixtures_dir() -> PathBuf {
         .join("packages/ergoscript/test/fixtures")
 }
 
+fn scorex_fixtures_dir() -> PathBuf {
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    here.parent()
+        .unwrap()
+        .join("packages/scorex/test/fixtures")
+}
+
 fn write_json_at<T: serde::Serialize>(dir: &Path, name: &str, value: &T) -> anyhow::Result<()> {
     let path = dir.join(name);
     let json = serde_json::to_string_pretty(value)?;
@@ -30,6 +37,10 @@ fn write_ergoscript_json<T: serde::Serialize>(name: &str, value: &T) -> anyhow::
     write_json_at(&ergoscript_fixtures_dir(), name, value)
 }
 
+fn write_scorex_json<T: serde::Serialize>(name: &str, value: &T) -> anyhow::Result<()> {
+    write_json_at(&scorex_fixtures_dir(), name, value)
+}
+
 fn main() -> anyhow::Result<()> {
     // Subcommand dispatch: `cargo run -p fixture-gen -- wider_corpus` routes here.
     let args: Vec<String> = std::env::args().collect();
@@ -42,19 +53,22 @@ fn main() -> anyhow::Result<()> {
 
     std::fs::create_dir_all(proof_fixtures_dir())?;
     std::fs::create_dir_all(ergoscript_fixtures_dir())?;
+    std::fs::create_dir_all(scorex_fixtures_dir())?;
 
     // Proof package (@ergots/nipopow) fixtures.
     write_proof_json("vlq.json", &cmds::vlq::generate()?)?;
     write_proof_json("blake2b256.json", &cmds::blake2b::generate()?)?;
     write_proof_json("autolykos_solution.json", &cmds::autolykos_solution::generate()?)?;
-    write_proof_json("nbits.json", &cmds::nbits::generate()?)?;
     write_proof_json("header.json", &cmds::header::generate()?)?;
     write_proof_json("batch_merkle.json", &cmds::batch_merkle::generate()?)?;
     write_proof_json("popow_header.json", &cmds::popow_header::generate()?)?;
     write_proof_json("nipopow_proof.json", &cmds::nipopow_proof::generate()?)?;
-    write_proof_json("autolykos_v2.json", &cmds::autolykos_v2::generate()?)?;
     write_proof_json("compare.json", &cmds::compare::generate()?)?;
     write_proof_json("envelope.json", &cmds::envelope::generate()?)?;
+
+    // Scorex package (@ergots/scorex) fixtures — moved from nipopow in phase 2h-c.2.
+    write_scorex_json("nbits.json", &cmds::nbits::generate()?)?;
+    write_scorex_json("autolykos_v2.json", &cmds::autolykos_v2::generate()?)?;
 
     // Ergoscript package (@ergots/ergoscript) synthetic fixtures.
     write_ergoscript_json("synthetic_stype.json", &cmds::ergoscript::synthetic_stype::generate()?)?;
