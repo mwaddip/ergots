@@ -60,6 +60,7 @@ import {
   evalSAvlTreeKeyLength,
   evalSAvlTreeRemove,
   evalSAvlTreeUpdate,
+  evalSAvlTreeUpdateOperations,
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 import {
@@ -323,6 +324,13 @@ function registerHandlers(): void {
   HANDLERS.set(handlerKey(100, 5), { handler: (obj, args, ctx) => evalSAvlTreeIsInsertAllowed(obj, args, ctx) })
   HANDLERS.set(handlerKey(100, 6), { handler: (obj, args, ctx) => evalSAvlTreeIsUpdateAllowed(obj, args, ctx) })
   HANDLERS.set(handlerKey(100, 7), { handler: (obj, args, ctx) => evalSAvlTreeIsRemoveAllowed(obj, args, ctx) })
+
+  // ---------- SAvlTree.updateOperations (100:8) — phase 2h-d Task 3 ----------
+  // Pattern A Fixed(45); V0+. Pure projection over AvlTreeData.treeFlags.
+  // Source: ergotree-interpreter/src/eval/savltree.rs:77-88 — UPDATE_OPERATIONS_EVAL_FN.
+  // Handler body lives in ./savltree.ts; signature is (ctx, obj, args) so the
+  // wrapper here flips argument order to match `MethodHandler` shape.
+  HANDLERS.set(handlerKey(100, 8), { handler: (obj, args, ctx) => evalSAvlTreeUpdateOperations(ctx, obj, args) })
 
   // ---------- SAvlTree Tier-2 (verification ops) — phase 2h-b Phase F ----------
   // No per-handler cost (Tier-2 sigma-rust EvalFns do not add_jit_cost; the

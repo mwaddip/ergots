@@ -50,6 +50,7 @@ import {
   extractByteArrayList,
   extractBytes,
   withUpdatedDigest,
+  withUpdatedFlags,
 } from './_avltree-adapter'
 
 /** Cost charged Pattern A by every SAvlTree accessor; source: savltree.rs:29..75. */
@@ -250,6 +251,20 @@ function expectTwoArgs(handlerName: string, args: SValue[]): void {
   if (args.length !== 2) {
     throw new EvalError(
       `${handlerName} expects 2 args; got ${args.length}`,
+      'method-not-implemented'
+    )
+  }
+}
+
+/**
+ * Defensive 1-arg arity check; updateOperations (Byte) and updateDigest
+ * (Coll[Byte]) both take exactly 1 arg. Reuses `'method-not-implemented'`
+ * per the compact-taxonomy decision.
+ */
+function expectOneArg(handlerName: string, args: SValue[]): void {
+  if (args.length !== 1) {
+    throw new EvalError(
+      `${handlerName} expects 1 arg; got ${args.length}`,
       'method-not-implemented'
     )
   }
@@ -555,4 +570,35 @@ export function evalSAvlTreeRemove(
     )
   }
   return someAvlTree(withUpdatedDigest(obj.value, r.newDigest))
+}
+
+/**
+ * `SAvlTree.updateOperations` (100:8) — replaces treeFlags byte.
+ * Source: savltree.rs:77-88 — UPDATE_OPERATIONS_EVAL_FN.
+ *
+ * Pattern A Fixed(45) — addCost(45) BEFORE shape check (matches sigma-rust's
+ * `ctx.add_jit_cost(45)?` at line 78). Pure projection over AvlTreeData;
+ * no @ergots/avltree call.
+ *
+ * SType: (SAvlTree, SByte) → SAvlTree.
+ *
+ * Defensive checks reuse 'avl-tree-obj-not-avl-tree' (existing) and
+ * 'method-not-implemented' (existing per compact-taxonomy).
+ */
+export function evalSAvlTreeUpdateOperations(
+  ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  ctx.addCost(45)
+  expectAvlTree('SAvlTree.updateOperations', obj)
+  expectOneArg('SAvlTree.updateOperations', args)
+  if (args[0]!.kind !== 'Byte') {
+    throw new EvalError(
+      `SAvlTree.updateOperations expects Byte arg; got '${args[0]!.kind}'`,
+      'method-not-implemented'
+    )
+  }
+  const newFlags = args[0]!.value & 0xff  // i8 → u8
+  return { kind: 'AvlTree', value: withUpdatedFlags(obj.value, newFlags) }
 }

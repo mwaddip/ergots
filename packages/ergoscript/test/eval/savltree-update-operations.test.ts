@@ -5,6 +5,8 @@
  * typeId=100, methodId=8 yet. This test loads the fixture and asserts
  * evaluate() value + cost; until Task 3 wires the handler, the dispatcher
  * throws EvalError('method-not-implemented') before the assertions run.
+ *
+ * Source: ergotree-interpreter/src/eval/savltree.rs:77-88 — UPDATE_OPERATIONS_EVAL_FN.
  */
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
