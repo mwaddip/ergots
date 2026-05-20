@@ -36,6 +36,38 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixturePath = join(__dirname, '../fixtures/eval/savltree-insert.json')
 const fixture: InsertFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
 
+/**
+ * Carry-forward fixtures from phase 2h-d (T14). The V3+ graceful break path
+ * and V<3 throw hardening path share a single fixture shape; both use
+ * `expected_error_code: string | null` to distinguish success/throw entries.
+ */
+interface InsertPartialEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+  expected_error_code: string | null
+}
+
+interface InsertPartialFixture {
+  corpus: string
+  entries: InsertPartialEntry[]
+}
+
+const insertPartialPath = join(__dirname, '../fixtures/eval/savltree-insert-partial.json')
+const insertPartialFixture: InsertPartialFixture = JSON.parse(
+  readFileSync(insertPartialPath, 'utf-8')
+)
+
+const insertPartialV2ThrowPath = join(
+  __dirname,
+  '../fixtures/eval/savltree-insert-partial-v2-throw.json'
+)
+const insertPartialV2ThrowFixture: InsertPartialFixture = JSON.parse(
+  readFileSync(insertPartialV2ThrowPath, 'utf-8')
+)
+
 describe('SAvlTree.insert — fixture-driven', () => {
   for (const entry of fixture.entries) {
     it(entry.name, () => {
@@ -94,4 +126,56 @@ describe('SAvlTree.insert — throw paths', () => {
     const value = evaluateWith(tree, ctx)
     expect(value).toEqual(hydrateSValue(sample.expected_value_json))
   })
+})
+
+// ---------------------------------------------------------------------------
+// Carry-forward from phase 2h-b (T14/T15 of 2h-d)
+//
+// The V3+ per-op-fail-graceful break path (savltree.ts:446-460) was implemented
+// in 2h-b but lacked a committed fixture. T14 emitted two carry-forward
+// fixtures targeting this gap:
+//   - savltree-insert-partial.json: V3+ graceful — handler returns
+//     Option None (not Some(AvlTree(partial))) via the break-to-None branch.
+//   - savltree-insert-partial-v2-throw.json: V<3 hardening — same proof bytes
+//     under treeVersion=0 must throw 'avl-tree-proof-failed' (the V<3 branch
+//     at savltree.rs:263-267 propagates per-op failures as errors).
+//
+// Sigma-rust semantics (savltree.rs:495-497): bv.digest() is poisoned to None
+// after a per-op fail under V3+; the handler returns Option None, NOT a
+// Some(AvlTree) carrying a partial-state digest. This is the load-bearing
+// invariant the V3+ test exercises.
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree.insert — V3+ per-op-fail-graceful (carry-forward from 2h-b)', () => {
+  for (const entry of insertPartialFixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      if (entry.expected_error_code !== null) {
+        const err = captureEvalError(() => evaluateWith(tree, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
+      } else {
+        const value = evaluateWith(tree, ctx)
+        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(ctx.jitCost).toBe(entry.expected_cost)
+      }
+    })
+  }
+})
+
+describe('SAvlTree.insert — V<3 per-op-fail-throw (hardening, carry-forward from 2h-b audit)', () => {
+  for (const entry of insertPartialV2ThrowFixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      if (entry.expected_error_code !== null) {
+        const err = captureEvalError(() => evaluateWith(tree, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
+      } else {
+        const value = evaluateWith(tree, ctx)
+        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(ctx.jitCost).toBe(entry.expected_cost)
+      }
+    })
+  }
 })
