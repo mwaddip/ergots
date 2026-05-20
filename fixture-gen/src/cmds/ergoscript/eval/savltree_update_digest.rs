@@ -43,7 +43,7 @@
 //! The eval result `Value::AvlTree(Box<AvlTreeData>)` is encoded manually as
 //! `{ kind: "AvlTree", value: <avl_tree_data> }` to match the TS
 //! `hydrateSValue` AvlTree arm at `packages/ergoscript/test/_helpers/index.ts`.
-//! Reuses `savltree_insert::avl_tree_data_to_json` for the inner shape.
+//! Reuses `avl_tree_value_json` for the inner shape.
 //!
 //! Phase 2h-d Task 6.
 
