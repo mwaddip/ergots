@@ -323,3 +323,16 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/sheader.rs:115-124
    */
   | 'autolykos-v1-not-supported'
+
+  // -------------------------------------------------------------------------
+  // Phase 2h-d — SAvlTree.updateDigest (1 new code; 47 → 48)
+  // -------------------------------------------------------------------------
+  /**
+   * `SAvlTree.updateDigest`: the Coll[Byte] argument is not exactly 33 bytes
+   * (the required ADDigest length: 32-byte root hash + 1 tree-height byte).
+   * Mirrors sigma-rust's `ADDigest::try_from` length-check failure surfaced
+   * as `EvalError::Misc`.
+   *
+   * Source: ergotree-interpreter/src/eval/savltree.rs:98
+   */
+  | 'avl-tree-bad-digest-length'
