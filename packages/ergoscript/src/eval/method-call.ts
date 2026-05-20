@@ -262,6 +262,21 @@ function registerHandlers(): void {
     return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
   } })
 
+  // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
+  // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN
+  // Pattern A Fixed(250). Returns 33-byte SEC1-compressed point as Coll[Byte].
+  // No args; no type-variable resolution needed (monomorphic on SGroupElement).
+  HANDLERS.set(handlerKey(7, 2), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(250) // sigma-rust line 16
+    if (obj.kind !== 'GroupElement') {
+      throw new EvalError(
+        `SGroupElement.getEncoded expects a GroupElement obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return bytesToCollByteSValue(obj.value)
+  } })
+
   // SColl.indices (MethodCall, typeId=12, methodId=14)
   // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
   // Pattern B cost: addPerItemCost(20, 2, 16, n) AFTER Coll extraction.
