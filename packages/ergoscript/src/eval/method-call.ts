@@ -99,7 +99,13 @@ type HandlerFn = (
   obj: SValue,
   args: SValue[],
   ctx: EvalContext,
-  explicitTypeArgs: Record<string, SType>
+  explicitTypeArgs: Record<string, SType>,
+  // Phase 2h-f: optional 5th arg for handlers that need the originating
+  // MethodCall MIR node (for static type access not on the runtime Closure
+  // SValue, e.g. SColl.flatMap's elem-type check) + the caller's Env
+  // (for env-extend during per-item body eval). 41 of 43 existing handlers
+  // (post-2h-f) ignore this arg via TS structural typing.
+  extra?: { mc: MethodCall; env: Env }
 ) => SValue
 
 interface HandlerEntry {
@@ -117,13 +123,13 @@ export function evalMethodCall(e: MethodCall, env: Env, ctx: EvalContext): SValu
   ctx.addCost(4) // Pattern A; source: method_call.rs:17
   const obj = evalExpr(e.obj, env, ctx)
   const args = e.args.map((a) => evalExpr(a, env, ctx))
-  return dispatch(e.typeId, e.methodId, obj, args, ctx, e.explicitTypeArgs)
+  return dispatch(e.typeId, e.methodId, obj, args, ctx, e.explicitTypeArgs, { mc: e, env })
 }
 
 export function evalPropertyCall(e: PropertyCall, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(4) // Pattern A; source: property_call.rs:16
   const obj = evalExpr(e.obj, env, ctx)
-  return dispatch(e.typeId, e.methodId, obj, [], ctx, {})
+  return dispatch(e.typeId, e.methodId, obj, [], ctx, {}, undefined)
 }
 
 function dispatch(
@@ -132,7 +138,8 @@ function dispatch(
   obj: SValue,
   args: SValue[],
   ctx: EvalContext,
-  explicitTypeArgs: Record<string, SType>
+  explicitTypeArgs: Record<string, SType>,
+  extra: { mc: MethodCall; env: Env } | undefined
 ): SValue {
   const entry = HANDLERS.get(handlerKey(typeId, methodId))
   if (entry === undefined) {
@@ -147,7 +154,7 @@ function dispatch(
       'tree-version-too-low'
     )
   }
-  return entry.handler(obj, args, ctx, explicitTypeArgs)
+  return entry.handler(obj, args, ctx, explicitTypeArgs, extra)
 }
 
 // ---------- Handler registration ----------
