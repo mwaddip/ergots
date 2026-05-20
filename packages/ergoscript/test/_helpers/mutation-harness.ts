@@ -190,6 +190,10 @@ export interface MutationRunConfig {
   xorPatterns?: number[]
   isKill?: (baseline: EvalOutcome, mutated: EvalOutcome) => boolean
   makeCtx?: (opts: Record<string, unknown>) => ReturnType<typeof makeContext>
+  /** Offsets within the region to skip (no mutation, not counted in total).
+   *  Use when a byte range is semantically invisible to the handler (e.g.
+   *  receiver-digest bytes that the handler replaces verbatim). */
+  excludedOffsets?: ReadonlySet<number>
 }
 
 /** A single survived mutation: the (offset, xor pattern) pair plus the
@@ -224,6 +228,7 @@ export function runMutationLoop(config: MutationRunConfig): MutationRunResult {
   let total = 0
   const survived: SurvivedMutation[] = []
   for (let i = config.region.start; i < config.region.end; i++) {
+    if (config.excludedOffsets?.has(i)) continue
     for (const xor of xorPatterns) {
       total++
       const mutated = new Uint8Array(config.treeBytes)

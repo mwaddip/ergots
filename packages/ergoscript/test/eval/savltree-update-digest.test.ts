@@ -36,6 +36,7 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import type { MethodCall, SType, SValue } from '../../src/mir/types'
 import { captureEvalError, hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { runMutationLoop, evalSafely, DEFAULT_KILL_THRESHOLD } from '../_helpers/mutation-harness'
 
 interface UpdateDigestEntry {
   name: string
@@ -309,56 +310,6 @@ describe('SAvlTree.updateDigest — edge cases', () => {
 //   No other tolerances. Observed rate: 130 killed / 132 = 0.985.
 // ---------------------------------------------------------------------------
 
-type EvalOutcome =
-  | { ok: true; value: SValue }
-  | { ok: false; errorCode: string | undefined; errorMessage: string }
-
-function evalSafely(treeBytes: Uint8Array, optsJson: Record<string, unknown>): EvalOutcome {
-  try {
-    const tree = parseTree(treeBytes)
-    const ctx = makeContext(rehydrateEvalOpts(optsJson))
-    const value = evaluateWith(tree, ctx)
-    return { ok: true, value }
-  } catch (e) {
-    if (e instanceof EvalError) {
-      return { ok: false, errorCode: e.code, errorMessage: e.message }
-    }
-    if (e instanceof Error) {
-      return { ok: false, errorCode: undefined, errorMessage: e.message }
-    }
-    return { ok: false, errorCode: undefined, errorMessage: String(e) }
-  }
-}
-
-/** Deep-equal two SValues via JSON serialization (BigInt-safe). */
-function svalueEqual(a: SValue, b: SValue): boolean {
-  const replacer = (_k: string, v: unknown): unknown =>
-    typeof v === 'bigint' ? `__bigint__${v.toString()}__` : v
-  return JSON.stringify(a, replacer) === JSON.stringify(b, replacer)
-}
-
-/**
- * A "kill" = the mutated outcome is observably different from the baseline.
- *   - both threw: NOT a kill
- *   - exactly one threw: kill
- *   - both succeeded: kill iff values differ
- *
- * Mirrors T4's helper exactly. The happy-only mutation scope means the
- * "both threw" branch is rare (only triggers when a mutation breaks parsing
- * AND was already broken in the baseline, which is impossible for a happy
- * baseline) — included for shape parity with T4.
- */
-function isKill(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
-  if (!baseline.ok && !mutated.ok) return false
-  if (!baseline.ok && mutated.ok) return true
-  if (baseline.ok && !mutated.ok) return true
-  if (!baseline.ok || !mutated.ok) return false // narrowing
-  return !svalueEqual(baseline.value, mutated.value)
-}
-
-const XOR_PATTERNS = [0xff, 0x01, 0x80]
-const THRESHOLD = 0.9
-
 /**
  * Receiver-digest byte range inside `update_digest_replace_33_byte`'s
  * tree_bytes_hex. Excluded from the mutation surface (load-bearing tolerance
@@ -369,41 +320,39 @@ const RECEIVER_DIGEST_END = 37
 
 describe('SAvlTree.updateDigest — mutation testing', () => {
   // Happy entry only. The throw entry (`update_digest_bad_length_32_byte`)
-  // is structurally incompatible with THRESHOLD = 0.9 — see comment block above.
+  // is structurally incompatible with DEFAULT_KILL_THRESHOLD = 0.9 — see comment block above.
   const happyEntry = fixture.entries.find((e) => e.expected_error_code === null)
   if (happyEntry === undefined) {
     throw new Error('expected at least one happy-path entry in savltree-update-digest fixture')
   }
 
-  it(`${happyEntry.name}: ≥${(THRESHOLD * 100).toFixed(0)}% kill rate on non-tolerated byte mutations`, () => {
+  it(`${happyEntry.name}: ≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate on non-tolerated byte mutations`, () => {
     const treeBytes = hexToBytes(happyEntry.tree_bytes_hex)
 
-    // Baseline outcome (unmutated). Must succeed for kill-rate math to mean
-    // anything — the success-path fixture is the reference.
+    // Precondition: baseline must succeed for kill-rate math to mean anything.
     const baseline = evalSafely(treeBytes, happyEntry.opts_json)
     expect(baseline.ok).toBe(true)
 
-    let killed = 0
-    let total = 0
-    for (let i = 0; i < treeBytes.length; i++) {
-      // Skip the load-bearing tolerance region (receiver digest replaced by handler).
-      if (i >= RECEIVER_DIGEST_START && i <= RECEIVER_DIGEST_END) continue
-      for (const xor of XOR_PATTERNS) {
-        total++
-        const mutated = new Uint8Array(treeBytes)
-        mutated[i] = (mutated[i]! ^ xor) & 0xff
-        const outcome = evalSafely(mutated, happyEntry.opts_json)
-        if (isKill(baseline, outcome)) killed++
-      }
+    // Build the exclusion set: receiver-digest bytes are replaced verbatim
+    // by withUpdatedDigest; mutating them is semantically invisible.
+    const excludedOffsets = new Set<number>()
+    for (let i = RECEIVER_DIGEST_START; i <= RECEIVER_DIGEST_END; i++) {
+      excludedOffsets.add(i)
     }
 
-    const rate = total === 0 ? 1 : killed / total
+    const result = runMutationLoop({
+      treeBytes,
+      region: { start: 0, end: treeBytes.length },
+      optsJson: happyEntry.opts_json,
+      excludedOffsets,
+    })
+
     // eslint-disable-next-line no-console
     console.log(
-      `[mutation] updateDigest.${happyEntry.name}: killed=${killed} ` +
-        `total=${total} rate=${rate.toFixed(3)} bytes=${treeBytes.length} ` +
-        `(excluded receiver-digest offsets ${RECEIVER_DIGEST_START}..${RECEIVER_DIGEST_END})`
+      `[mutation] updateDigest.${happyEntry.name}: killed=${result.killed} ` +
+        `total=${result.total} rate=${result.rate.toFixed(3)} bytes=${treeBytes.length} ` +
+        `(excluded receiver-digest offsets ${RECEIVER_DIGEST_START}..${RECEIVER_DIGEST_END})`,
     )
-    expect(rate).toBeGreaterThanOrEqual(THRESHOLD)
+    expect(result.rate).toBeGreaterThanOrEqual(DEFAULT_KILL_THRESHOLD)
   })
 })

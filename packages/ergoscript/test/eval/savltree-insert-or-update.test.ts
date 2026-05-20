@@ -30,10 +30,10 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import { parseTree } from '../../src/wire/ergo-tree'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
-import type { SValue } from '../../src/mir/types'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { runMutationLoop, evalSafely, DEFAULT_KILL_THRESHOLD } from '../_helpers/mutation-harness'
 
 interface InsertOrUpdateEntry {
   name: string
@@ -194,90 +194,30 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
 //     tree-shape byte the verifier replays).
 // ---------------------------------------------------------------------------
 
-type EvalOutcome =
-  | { ok: true; value: SValue }
-  | { ok: false; errorCode: string | undefined; errorMessage: string }
-
-function evalSafely(treeBytes: Uint8Array, optsJson: Record<string, unknown>): EvalOutcome {
-  try {
-    const tree = parseTree(treeBytes)
-    const ctx = makeContext(rehydrateEvalOpts(optsJson))
-    const value = evaluateWith(tree, ctx)
-    return { ok: true, value }
-  } catch (e) {
-    if (e instanceof EvalError) {
-      return { ok: false, errorCode: e.code, errorMessage: e.message }
-    }
-    if (e instanceof Error) {
-      return { ok: false, errorCode: undefined, errorMessage: e.message }
-    }
-    return { ok: false, errorCode: undefined, errorMessage: String(e) }
-  }
-}
-
-/** Deep-equal two SValues via JSON serialization (BigInt-safe). */
-function svalueEqual(a: SValue, b: SValue): boolean {
-  const replacer = (_k: string, v: unknown): unknown =>
-    typeof v === 'bigint' ? `__bigint__${v.toString()}__` : v
-  return JSON.stringify(a, replacer) === JSON.stringify(b, replacer)
-}
-
-/**
- * A "kill" = the mutated outcome is observably different from the baseline.
- *   - both threw: NOT a kill
- *   - exactly one threw: kill
- *   - both succeeded: kill iff values differ
- *
- * Mirrors T4/T8's helper exactly. The happy-only mutation scope means the
- * "both threw" branch is rare (only triggers when a mutation breaks parsing
- * AND was already broken in the baseline, which is impossible for a happy
- * baseline) — included for shape parity.
- */
-function isKill(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
-  if (!baseline.ok && !mutated.ok) return false
-  if (!baseline.ok && mutated.ok) return true
-  if (baseline.ok && !mutated.ok) return true
-  if (!baseline.ok || !mutated.ok) return false // narrowing
-  return !svalueEqual(baseline.value, mutated.value)
-}
-
-const XOR_PATTERNS = [0xff, 0x01, 0x80]
-const THRESHOLD = 0.9
-
 describe('SAvlTree.insertOrUpdate — mutation testing', () => {
-  // Happy-v3 entry only. The five non-happy scenarios are structurally
-  // incompatible with THRESHOLD = 0.9 — see comment block above.
   const happyEntry = fixture.entries.find((e) => e.name === 'insert_or_update_happy_v3')
   if (happyEntry === undefined) {
     throw new Error('expected insert_or_update_happy_v3 entry in fixture')
   }
 
-  it(`${happyEntry.name}: ≥${(THRESHOLD * 100).toFixed(0)}% kill rate on whole-tree byte mutations`, () => {
+  it(`${happyEntry.name}: ≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate on whole-tree byte mutations`, () => {
     const treeBytes = hexToBytes(happyEntry.tree_bytes_hex)
 
-    // Baseline outcome (unmutated). Must succeed for kill-rate math to mean
-    // anything — the success-path fixture is the reference.
+    // Precondition: baseline must succeed for kill-rate math to be meaningful.
     const baseline = evalSafely(treeBytes, happyEntry.opts_json)
     expect(baseline.ok).toBe(true)
 
-    let killed = 0
-    let total = 0
-    for (let i = 0; i < treeBytes.length; i++) {
-      for (const xor of XOR_PATTERNS) {
-        total++
-        const mutated = new Uint8Array(treeBytes)
-        mutated[i] = (mutated[i]! ^ xor) & 0xff
-        const outcome = evalSafely(mutated, happyEntry.opts_json)
-        if (isKill(baseline, outcome)) killed++
-      }
-    }
+    const result = runMutationLoop({
+      treeBytes,
+      region: { start: 0, end: treeBytes.length },
+      optsJson: happyEntry.opts_json,
+    })
 
-    const rate = total === 0 ? 1 : killed / total
     // eslint-disable-next-line no-console
     console.log(
-      `[mutation] insertOrUpdate.${happyEntry.name}: killed=${killed} ` +
-        `total=${total} rate=${rate.toFixed(3)} bytes=${treeBytes.length}`
+      `[mutation] insertOrUpdate.${happyEntry.name}: killed=${result.killed} ` +
+        `total=${result.total} rate=${result.rate.toFixed(3)} bytes=${treeBytes.length}`,
     )
-    expect(rate).toBeGreaterThanOrEqual(THRESHOLD)
+    expect(result.rate).toBeGreaterThanOrEqual(DEFAULT_KILL_THRESHOLD)
   })
 })
