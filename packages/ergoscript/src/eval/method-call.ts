@@ -65,6 +65,7 @@ import {
   evalSAvlTreeUpdateOperations,
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
+import { evalSCollFlatMap } from './scoll-flat-map'
 import {
   evalSHeaderId,
   evalSHeaderVersion,
@@ -335,6 +336,28 @@ function registerHandlers(): void {
     }
     return zipCollsOf(obj, arg)
   } })
+
+  // SColl.flatMap (MethodCall, typeId=12, methodId=15) — phase 2h-f
+  // Source: ergotree-interpreter/src/eval/scoll.rs:52-136 — flatmap_eval
+  // Pattern B addPerItemCost(60, 10, 8, n). Lambda HOF with body-restriction
+  // quirk + SAny-tolerant outElem (R3 divergences from sigma-rust). Handler
+  // body lives in ./scoll-flat-map.ts; this wrapper extracts mc + env from
+  // `extra` and forwards. V0+.
+  HANDLERS.set(handlerKey(12, 15), {
+    handler: (obj, args, ctx, explicitTypeArgs, extra) => {
+      if (extra === undefined) {
+        // Defensive — should never happen for MethodCall dispatch (only
+        // PropertyCall passes extra=undefined, and SColl.flatMap is not a
+        // PropertyCall). Surface as a programming-error throw rather than a
+        // silent miscompute.
+        throw new EvalError(
+          `SColl.flatMap requires extra={mc, env}; got undefined (programming error)`,
+          'method-not-implemented'
+        )
+      }
+      return evalSCollFlatMap(obj, args, ctx, explicitTypeArgs, extra.mc, extra.env)
+    },
+  })
 
   // ---------- SAvlTree Tier-1 (pure accessors) — phase 2h-b ----------
   // All 7 are Pattern A cost 15. Source: ergotree-interpreter/src/eval/savltree.rs:29-75.
