@@ -57,13 +57,11 @@
 //!
 //! Phase 2h-d Task 14.
 
-use std::sync::Arc;
-
 use bytes::Bytes;
 use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
 use ergo_avltree_rust::batch_avl_prover::BatchAVLProver;
-use ergo_avltree_rust::batch_node::{AVLTree, Node, NodeHeader};
-use ergo_avltree_rust::operation::{Digest32, KeyValue, Operation};
+use ergo_avltree_rust::batch_node::AVLTree;
+use ergo_avltree_rust::operation::{KeyValue, Operation};
 use ergo_chain_types::ADDigest;
 use ergotree_interpreter::eval::test_util::{try_eval_out, try_eval_out_with_version};
 use ergotree_ir::chain::context::Context;
@@ -79,6 +77,7 @@ use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use sigma_ser::ScorexSerializable;
 
+use super::savltree_helpers::make_resolver;
 use super::savltree_insert::{entries_constant, option_avl_tree_json};
 
 /// Fixture struct extending the standard EvalFixture shape with
@@ -104,10 +103,6 @@ pub struct PartialSuccessFixture {
 pub struct PartialSuccessFixtureFile {
     pub corpus: &'static str,
     pub entries: Vec<PartialSuccessFixture>,
-}
-
-fn make_resolver() -> Arc<dyn Fn(&Digest32) -> Node + Send + Sync> {
-    Arc::new(|digest: &Digest32| Node::LabelOnly(NodeHeader::new(Some(*digest), None)))
 }
 
 /// Build a prover with initial state and capture a proof for a heterogeneous

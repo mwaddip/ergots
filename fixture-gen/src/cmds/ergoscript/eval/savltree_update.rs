@@ -24,13 +24,11 @@
 //!
 //! Phase 2h-b Phase B wave 2.
 
-use std::sync::Arc;
-
 use bytes::Bytes;
 use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
 use ergo_avltree_rust::batch_avl_prover::BatchAVLProver;
-use ergo_avltree_rust::batch_node::{AVLTree, Node, NodeHeader};
-use ergo_avltree_rust::operation::{Digest32, KeyValue, Operation};
+use ergo_avltree_rust::batch_node::AVLTree;
+use ergo_avltree_rust::operation::{KeyValue, Operation};
 use ergo_chain_types::ADDigest;
 use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
@@ -45,11 +43,8 @@ use serde_json::json;
 use sigma_ser::ScorexSerializable;
 
 use super::common::{EvalFixture, EvalFixtureFile};
+use super::savltree_helpers::make_resolver;
 use super::savltree_insert::{entries_constant, option_avl_tree_json};
-
-fn make_resolver() -> Arc<dyn Fn(&Digest32) -> Node + Send + Sync> {
-    Arc::new(|digest: &Digest32| Node::LabelOnly(NodeHeader::new(Some(*digest), None)))
-}
 
 /// Build a prover with the initial state (inserts) and capture the proof for
 /// applying the update batch.

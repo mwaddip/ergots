@@ -17,14 +17,12 @@
 //!
 //! Phase 2h-b Phase B wave 2 (per PLAN.md Phase B).
 
-use std::sync::Arc;
-
 use bytes::Bytes;
 use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
 use ergo_avltree_rust::batch_avl_prover::BatchAVLProver;
 use ergo_avltree_rust::batch_avl_verifier::BatchAVLVerifier;
-use ergo_avltree_rust::batch_node::{AVLTree, Node, NodeHeader};
-use ergo_avltree_rust::operation::{Digest32, KeyValue, Operation};
+use ergo_avltree_rust::batch_node::AVLTree;
+use ergo_avltree_rust::operation::{KeyValue, Operation};
 use ergo_chain_types::ADDigest;
 use ergotree_interpreter::eval::test_util::try_eval_out;
 use ergotree_ir::chain::context::Context;
@@ -39,11 +37,7 @@ use serde_json::json;
 use sigma_ser::ScorexSerializable;
 
 use super::common::{value_to_json, EvalFixture, EvalFixtureFile};
-
-/// Resolver used by both prover construction.
-fn make_resolver() -> Arc<dyn Fn(&Digest32) -> Node + Send + Sync> {
-    Arc::new(|digest: &Digest32| Node::LabelOnly(NodeHeader::new(Some(*digest), None)))
-}
+use super::savltree_helpers::make_resolver;
 
 /// Build a prover, insert the given key/value pairs, and produce
 /// `(starting_digest, proof_bytes)` for a subsequent `Lookup(test_key)` op.
