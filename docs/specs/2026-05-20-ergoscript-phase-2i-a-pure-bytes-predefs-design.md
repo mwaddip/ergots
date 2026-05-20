@@ -3,7 +3,7 @@
 **Status:** Draft
 **Date:** 2026-05-20
 **Packages:** `@ergots/ergoscript` (TS) + `fixture-gen` (Rust)
-**Interface contracts:** `facts/ergoscript-eval.md` — eval-arm coverage grows 52 → 60; `EvalError` codes 48 → 56; method-handler registry unchanged at 44.
+**Interface contracts:** `facts/ergoscript-eval.md` — eval-arm coverage grows 52 → 60; `EvalError` codes 48 → 55; method-handler registry unchanged at 44.
 **Brainstorm transcript:** session 2026-05-20 (continuation of HANDOFF_PROMPT.md d4623e9; scope locked by corpus-survey demand data in `docs/specs/2026-05-18-task-b-corpus-survey-tally.json`)
 **Predecessor spec:** `docs/specs/2026-05-20-ergoscript-phase-2h-f-tier-3-method-handlers-design.md` (Phase 2h-f — Tier-3 method-handler cleanup, landed)
 **Parent phase:** 2i — Predefs and oddments (umbrella from `docs/specs/2026-05-13-ergoscript-interpreter-design.md:70`)
@@ -60,13 +60,22 @@ The shape is uniform: extract input, charge cost (A or B), apply the operation, 
 ```ts
 // eval/decode-point.ts — Pattern A, Fixed(300)
 // Source: ergotree-interpreter/src/eval/decode_point.rs:14-30
+//         ergo-chain-types/src/ec_point.rs:139-152 (EcPoint::scorex_parse — identity convention)
+// REUSES the existing `decodePoint` adapter from crypto/secp256k1.ts which already
+// handles Ergo's 33-zero-bytes identity convention. (See "Pre-existing divergence
+// note" below — our adapter is stricter than sigma-rust on the edge case where
+// buf[0]===0 but the remaining 32 bytes are non-zero. sigma-rust accepts this as
+// identity; we reject it. Pre-existing in the verifier surface — not introduced
+// by this slice. Out-of-scope follow-up listed in §"Risk hotspots".)
 export function evalDecodePoint(e: DecodePoint, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(300)
   const bytes = extractCollByte(evalExpr(e.input, env, ctx))
   let point: Point
-  try { point = secp256k1.Point.fromBytes(bytes) }
+  try { point = decodePoint(bytes) }  // handles 33-zero -> Point.ZERO; throws otherwise
   catch (cause) { throw new EvalError('DecodePoint: invalid point bytes', 'decode-point-invalid') }
-  return { kind: 'GroupElement', value: point.toBytes(true) }  // 33-byte SEC1
+  // point.toBytes(true) re-encodes to 33-byte SEC1. For identity, the adapter
+  // round-trips back to 33 zero bytes (matches sigma-rust EcPoint::scorex_serialize:127-137).
+  return { kind: 'GroupElement', value: point.is0() ? new Uint8Array(33) : point.toBytes(true) }
 }
 
 // eval/calc-blake2b256.ts — Pattern B
@@ -86,14 +95,18 @@ export function evalCalcSha256(e: CalcSha256, env: Env, ctx: EvalContext): SValu
 }
 
 // eval/byte-array-to-long.ts — Pattern A, Fixed(16)
-// Source: ergotree-interpreter/src/eval/byte_array_to_long.rs:15-30
+// Source: ergotree-interpreter/src/eval/byte_array_to_long.rs:18-34
+// Reads the first 8 bytes as big-endian i64; trailing bytes (if any) are IGNORED.
+// Sigma-rust's `eval_skip_tail` test (byte_array_to_long.rs:62-65) asserts this.
+// Throws ONLY when input is shorter than 8 bytes.
 export function evalByteArrayToLong(e: ByteArrayToLong, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(16)
   const bytes = extractCollByte(evalExpr(e.input, env, ctx))
-  if (bytes.length !== 8) {
-    throw new EvalError(`ByteArrayToLong: expected 8 bytes, got ${bytes.length}`,
-      'byte-array-to-long-wrong-length')
+  if (bytes.length < 8) {
+    throw new EvalError(`ByteArrayToLong: array must contain at least 8 elements, got ${bytes.length}`,
+      'byte-array-to-long-too-short')
   }
+  // Read first 8 bytes. DataView's getBigInt64 reads exactly 8 starting at offset 0.
   const dv = new DataView(bytes.buffer, bytes.byteOffset, 8)
   return { kind: 'Long', value: dv.getBigInt64(0, false) }  // big-endian i64
 }
@@ -131,18 +144,21 @@ export function evalByteArrayToBigInt(e: ByteArrayToBigInt, env: Env, ctx: EvalC
 }
 
 // eval/xor.ts — Pattern B
-// Source: ergotree-interpreter/src/eval/xor.rs (cost 10, 2, 128)
-// Evaluate LEFT first, then RIGHT, then cost. Order matters when both inputs throw.
+// Source: ergotree-interpreter/src/eval/xor.rs:13-41 (helper_xor + Evaluable impl)
+// Evaluate LEFT first → eval RIGHT → both must be Coll[Byte] (throw if not) → charge cost → compute.
+// NOTE: sigma-rust's helper_xor uses `x.iter().zip(y.iter())` which TRUNCATES to the shorter
+// operand silently (no length-mismatch error). Output length = min(left.length, right.length).
+// Cost size argument is `l_byte.len()` — the LEFT operand's length, NOT the min.
 export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
-  const l = extractCollByte(evalExpr(e.left, env, ctx))
-  const r = extractCollByte(evalExpr(e.right, env, ctx))
-  if (l.length !== r.length) {
-    throw new EvalError(`Xor: length mismatch (${l.length} vs ${r.length})`,
-      'xor-length-mismatch')
-  }
+  const leftV = evalExpr(e.left, env, ctx)
+  const rightV = evalExpr(e.right, env, ctx)
+  const l = extractCollByte(leftV)
+  const r = extractCollByte(rightV)
+  // Cost sized by LEFT length (sigma-rust line 31: `l_byte.len() as u32`).
   ctx.addPerItemCost(10, 2, 128, l.length)
-  const out = new Uint8Array(l.length)
-  for (let i = 0; i < l.length; i++) out[i] = l[i]! ^ r[i]!
+  const outLen = Math.min(l.length, r.length)
+  const out = new Uint8Array(outLen)
+  for (let i = 0; i < outLen; i++) out[i] = l[i]! ^ r[i]!
   return bytesToCollByteSValue(out)
 }
 ```
@@ -252,20 +268,21 @@ The `_exhaust: never` discriminant at the end of the switch ensures any newly ad
 
 ## Error taxonomy
 
-**8 new `EvalError` codes (48 → 56):**
+**7 new `EvalError` codes (48 → 55):**
 
 | Code | Thrown by | Mirrors sigma-rust |
 |---|---|---|
 | `'predef-input-not-byte-array'` | calc-blake / calc-sha / byte-array-to-long / byte-array-to-bigint / xor / decode-point when input isn't `Coll[Byte]` | Generic `UnexpectedValue` |
 | `'predef-input-not-long'` | long-to-byte-array when input isn't `Long` | Generic `UnexpectedValue` |
-| `'decode-point-invalid'` | DecodePoint on off-curve / wrong-length / malformed bytes | `Misc("DecodePoint: Failed to parse EC point…")` |
-| `'byte-array-to-long-wrong-length'` | ByteArrayToLong when bytes.length !== 8 | `UnexpectedValue("Input size 8 is expected…")` |
+| `'decode-point-invalid'` | DecodePoint on malformed bytes (off-curve / wrong-length / `decodePoint` adapter throw) | `Misc("DecodePoint: Failed to parse EC point…")` |
+| `'byte-array-to-long-too-short'` | ByteArrayToLong when `bytes.length < 8` (trailing bytes IGNORED — no upper bound) | `UnexpectedValue("array must contain at least 8 elements")` |
 | `'byte-array-to-bigint-empty'` | ByteArrayToBigInt on empty input | `UnexpectedValue("byte array is empty")` |
 | `'byte-array-to-bigint-out-of-range'` | ByteArrayToBigInt when decoded value falls outside i256 | `UnexpectedValue("input array out of bounds")` |
-| `'xor-length-mismatch'` | Xor when operand byte arrays differ in length | `UnexpectedValue("XOR length mismatch…")` |
-| `'subst-constants-error'` | SubstConstants — single compact code covering 5 throw paths: bad template bytes, new_values not Coll, positions/new_values length mismatch, position out of range, type mismatch | 5 distinct `Misc(...)` errors in sigma-rust |
+| `'subst-constants-error'` | SubstConstants — single compact code covering 7 throw paths: bad template bytes (parseTree throws), new_values not Coll, positions/new_values length mismatch, per-item Coll→Constant conversion failure, position out of range, type mismatch, re-serialize failure | 7 distinct `Misc(...)` errors in sigma-rust (`subst_const.rs:36, 42-46, 49-55, 59-64, 71-77, 88` + `ergo_tree.rs:51-61, 63-68`) |
 
-**Why 8 codes (not the section-2 estimate of 6):**
+**Note:** `Xor` does NOT throw on length mismatch. Sigma-rust's `helper_xor` (`xor.rs:13-15`) uses `x.iter().zip(y.iter())` which truncates to the shorter operand. Output length = `min(left.length, right.length)`; cost size = `left.length`. No `'xor-length-mismatch'` code.
+
+**Why 7 codes (not the section-2 estimate of 6):**
 - `'byte-array-to-bigint-empty'` is split out from `'out-of-range'` because sigma-rust treats them as structurally distinct (one is a precondition on input shape, the other a postcondition on decoded value).
 - `'predef-input-not-long'` is separate from `'predef-input-not-byte-array'` because `LongToByteArray`'s input is `Long`, not `Coll[Byte]` — the existing byte-array code doesn't fit semantically.
 
@@ -291,10 +308,10 @@ fixture-gen/src/cmds/ergoscript/eval/
 ├── subst_constants.rs           ← 13 scenarios (consensus-critical)
 ├── calc_blake2b256.rs           ← 7 scenarios
 ├── calc_sha256.rs               ← 7 scenarios
-├── byte_array_to_long.rs        ← 8 scenarios
+├── byte_array_to_long.rs        ← 11 scenarios (includes trailing-byte-ignored happy paths)
 ├── byte_array_to_bigint.rs      ← 10 scenarios (range-edge heavy)
 ├── long_to_byte_array.rs        ← 7 scenarios
-└── xor.rs                       ← 7 scenarios
+└── xor.rs                       ← 9 scenarios (includes asymmetric-length truncation happy paths)
 ```
 
 ### Per-arm fixture matrix
@@ -305,11 +322,11 @@ fixture-gen/src/cmds/ergoscript/eval/
 | `SubstConstants` ★ | single substitution, 3-substitution, identity reorder (positions=[2,0,1]), empty positions | template with 0 constants (segregation false), template with mixed types substituted | bad template bytes (malformed VLQ), position-out-of-range, type-mismatch, positions/values length mismatch, non-Coll new_values | 13 |
 | `CalcBlake2b256` | empty input, 1-byte, 64-byte, 1024-byte, mainnet-shape | hash-of-hash chain | non-Coll[Byte] | 7 |
 | `CalcSha256` | empty input, 1-byte, 64-byte, 1024-byte, NIST test vector | hash-of-hash chain | non-Coll[Byte] | 7 |
-| `ByteArrayToLong` | +1, -1, 0, i64::MAX, i64::MIN | high-bit-set, roundtrip with LongToByteArray | length 0, length 7, length 9 | 8 |
+| `ByteArrayToLong` | +1, -1, 0, i64::MAX, i64::MIN, length-9 trailing-byte-ignored, length-16 trailing-bytes-ignored | high-bit-set, roundtrip with LongToByteArray | length 0, length 7 | 11 |
 | `ByteArrayToBigInt` | small +/-, 32-byte i256 MAX, 32-byte i256 MIN, 1-byte 0xFF (= -1), 2-byte 0xFFFF (= -1) | exact 32-byte boundary, 33-byte in-range, all-zero | 33-byte just-above-MAX, 33-byte just-below-MIN, empty, non-Coll[Byte] | 10 |
 | `LongToByteArray` | +1, -1, 0, i64::MAX, i64::MIN | roundtrip with ByteArrayToLong | non-Long input | 7 |
-| `Xor` | empty (zero-length), 32-byte, identical (→ all-zero), inverse (→ all-FF) | 1-byte, asymmetric (0x01 ^ 0xFF) | length mismatch, non-Coll[Byte] | 7 |
-| **Total** | — | — | — | **65 fixtures** |
+| `Xor` | empty (zero-length), 32-byte equal-length, identical (→ all-zero), inverse (→ all-FF), **asymmetric (left longer; output = min length)**, **asymmetric (right longer; output = min length)** | 1-byte, both single-byte | non-Coll[Byte] | 9 |
+| **Total** | — | — | — | **70 fixtures** |
 
 ★ `SubstConstants` fixtures are consensus-critical. Each substitution scenario asserts the post-substitution bytes are byte-identical to what `ErgoTree::sigma_serialize_bytes` produces in Rust. The "type-mismatch" fixture is intentionally hand-crafted (sigma-rust's typed prover never produces such a tree) — synthesized via direct `Expr::SubstConstants {…}` construction at fixture-gen time.
 
@@ -321,9 +338,9 @@ fixture-gen/src/cmds/ergoscript/eval/
 
 ### Expected test count delta
 
-- ergoscript: 2922 → ~3170 (+~248).
-- Total: 3500 → ~3748.
-- Fixtures: ~65 new oracle fixtures + matching mutation scenarios.
+- ergoscript: 2922 → ~3180 (+~258).
+- Total: 3500 → ~3758.
+- Fixtures: ~70 new oracle fixtures + matching mutation scenarios.
 - LOC: ~700-900 new source LOC (handlers); ~1200-1500 new test LOC; ~1500-2000 new fixture-gen Rust LOC.
 
 ## Source mapping to sigma-rust
@@ -332,15 +349,15 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 
 | Rust function / type (file) | TS function (file) | Cost pattern | Notes |
 |---|---|---|---|
-| `ergotree-interpreter/src/eval/decode_point.rs:14-30` | `evalDecodePoint` (`eval/decode-point.ts`) | A `Fixed(300)` | `@noble/curves` `Point.fromBytes` mirrors `EcPoint::sigma_parse_bytes` |
+| `ergotree-interpreter/src/eval/decode_point.rs:14-30` | `evalDecodePoint` (`eval/decode-point.ts`) | A `Fixed(300)` | Reuses existing `decodePoint` adapter from `crypto/secp256k1.ts:65`; pre-existing divergence on `[0x00, nonzero, ...]` inputs (Risk Hotspot 3) |
 | `ergotree-interpreter/src/eval/subst_const.rs:18-89` | `evalSubstConstants` (`eval/subst-constants.ts`) | B `(100, 100, 1, n)` | n = template's `constants.length`, NOT positions.length (subst_const.rs:65; bug-3 regression at :221-283) |
 | `ergotree-ir/src/ergo_tree.rs:45-70` | inline in `evalSubstConstants` | — | `with_constant(i, c)` type-check mirrored as `sTypeEquals(newValuesV.elem, tree.constantTypes[i])` |
 | `ergotree-interpreter/src/eval/calc_blake2b256.rs:14-34` | `evalCalcBlake2b256` (`eval/calc-blake2b256.ts`) | B `(20, 7, 128, n)` | `@noble/hashes/blake2.js` blake2b-256 |
 | `ergotree-interpreter/src/eval/calc_sha256.rs` (analogous) | `evalCalcSha256` (`eval/calc-sha256.ts`) | B `(80, 8, 64, n)` | `@noble/hashes/sha2.js` sha256 |
-| `ergotree-interpreter/src/eval/byte_array_to_long.rs:15-30` | `evalByteArrayToLong` (`eval/byte-array-to-long.ts`) | A `Fixed(16)` | DataView `getBigInt64(0, false)` for BE i64 |
+| `ergotree-interpreter/src/eval/byte_array_to_long.rs:18-34` | `evalByteArrayToLong` (`eval/byte-array-to-long.ts`) | A `Fixed(16)` | DataView `getBigInt64(0, false)` for first 8 bytes; **trailing bytes IGNORED** per sigma-rust `eval_skip_tail` test (`:62-65`); throws only on `length < 8` |
 | `ergotree-interpreter/src/eval/long_to_byte_array.rs:14-25` | `evalLongToByteArray` (`eval/long-to-byte-array.ts`) | A `Fixed(17)` | DataView `setBigInt64(0, v, false)` for BE i64 |
-| `ergotree-interpreter/src/eval/byte_array_to_bigint.rs:14-34` | `evalByteArrayToBigInt` (`eval/byte-array-to-bigint.ts`) | A `Fixed(30)` | `BigInt256::from_be_slice` mirrored as `signedBeBytesToBigInt` + `[I256_MIN, I256_MAX]` range check |
-| `ergotree-interpreter/src/eval/xor.rs` | `evalXor` (`eval/xor.ts`) | B `(10, 2, 128, n)` | Pairwise XOR; length-match precondition |
+| `ergotree-interpreter/src/eval/byte_array_to_bigint.rs:14-34` | `evalByteArrayToBigInt` (`eval/byte-array-to-bigint.ts`) | A `Fixed(30)` | `BigInt256::from_be_slice` mirrored as `signedBeBytesToBigInt` + `[I256_MIN, I256_MAX]` range check. Empty input throws separately. Length not capped — any input that decodes in-range succeeds. |
+| `ergotree-interpreter/src/eval/xor.rs:13-41` | `evalXor` (`eval/xor.ts`) | B `(10, 2, 128, n)` | n = LEFT length (line 31). Pairwise XOR via truncating-zip — output length = `min(left.length, right.length)` (line 14 `x.iter().zip(y.iter())`). **No length-match precondition.** |
 
 ## Execution order
 
@@ -356,7 +373,7 @@ T6   eval/byte-array-to-bigint.ts ← signed BE decode + i256 range check
 T7   eval/xor.ts                  ← pairwise XOR + length match
 T8   eval/decode-point.ts         ← @noble/curves Point.fromBytes wrap
 T9   eval/subst-constants.ts      ← consensus-critical bytes-in/bytes-out (LAST)
-T10  docs: facts/ergoscript-eval.md sweep (coverage 52→60, codes 48→56, changelog entry)
+T10  docs: facts/ergoscript-eval.md sweep (coverage 52→60, codes 48→55, changelog entry)
 T11  docs: README.md + SESSION_CONTEXT.md + HANDOFF_PROMPT.md sweep + spec → finalized
 ```
 
@@ -380,19 +397,31 @@ Sigma-rust uses `BigInt256` (signed 256-bit). Range is `[-2^255, 2^255 - 1]`. Ou
 
 Test coverage: explicit fixtures for `(33 bytes, in-range)` success and `(33 bytes, just-above-MAX)` failure. Mirrors sigma-rust `byte_array_to_bigint.rs:107-118` (`eval_above_max_bound`).
 
-### 3. `DecodePoint` `@noble/curves` consistency
+### 3. `DecodePoint` identity-point handling — pre-existing adapter divergence (acknowledged)
 
-Our sigma-protocol verifier (`crypto/secp256k1.ts`) already wraps `Point.fromBytes` with an off-curve throw. `DecodePoint` reuses the same wrapper. Open question: does `@noble/curves` reject the **identity point** (all-zero) by default? Need to verify in T8 — sigma-rust accepts identity as a valid EcPoint (`EcPoint::default()` is identity, e.g. used as `powOnetimePk` placeholder for V2+ headers).
+`@noble/curves@2.2.0`'s raw `Point.fromBytes` throws on the all-zero 33-byte input. Our existing `decodePoint` adapter at `crypto/secp256k1.ts:65-77` handles this: it pre-checks `isZero33(bytes)` and returns `secp256k1.Point.ZERO` directly. `DecodePoint` reuses this adapter.
 
-If `@noble/curves`'s `Point.fromBytes` rejects identity, we need an explicit identity-byte-check before the call (similar pattern to how `SHeader.powOnetimePk` was handled in phase 2h-c.1).
+**Pre-existing divergence (not introduced by this slice):** sigma-rust's `EcPoint::scorex_parse` (`ec_point.rs:139-152`) dispatches on `buf[0] !== 0` — meaning a 33-byte input like `[0x00, 0xAB, 0xCD, ...]` decodes to identity in sigma-rust but our `decodePoint` adapter rejects it (`isZero33` returns false → falls through to `Point.fromBytes` which throws). This affects the sigma-protocol verifier surface too, not just `DecodePoint`. It is **not a 2i-a-introduced bug** — pre-spec inheritance.
 
-### 4. `Xor` operand evaluation order
+The practical impact is bounded: in-corpus fixtures only ever produce identity as `[0x00; 33]` exactly (the canonical serialization sigma-rust emits via `scorex_serialize:127-137`). Pathological inputs with `[0x00, nonzero, …]` would only arise from hand-crafted contracts or fuzz inputs.
 
-Sigma-rust evals left first, then right, then cost. Order matters when both inputs throw — left's throw fires first. Our handler matches this order (`evalExpr(e.left, ...)` precedes `evalExpr(e.right, ...)`).
+**Follow-up (out of scope for 2i-a):** converge `crypto/secp256k1.ts:decodePoint` to sigma-rust's `buf[0] !== 0` dispatch. Affects all callers (sigma-protocol verifier + DecodePoint). Requires re-running the verifier fixture suite to confirm no regressions. Track as a separate issue.
+
+### 4. `Xor` cost-charging order
+
+Sigma-rust order: eval left → eval right → shape-match BOTH as `Coll[Byte]` (throw `'predef-input-not-byte-array'` if not) → charge cost sized by **left** length → compute via truncating-zip. Our handler matches this order exactly. The cost-charging-after-shape-match means a throw on shape leaves no cost charged from this arm (mirrors sigma-rust `xor.rs:27-32`).
 
 ### 5. VLQ-Int decode of `positions: Coll[Int]`
 
 Coll[Int] elements are i32 ZigZag-VLQ encoded. Negative positions are theoretically encodable. Our handler rejects any position outside `[0, tree.constants.length)` — sigma-rust does the same via `usize` cast (negative → huge → out-of-bounds).
+
+### 6. `parseTree` is all-or-nothing (no `Unparsed` state)
+
+Sigma-rust distinguishes `ErgoTree::Parsed` vs `ErgoTree::Unparsed` — the latter is a wrapper for trees with malformed inner Exprs that failed to fully parse. Sigma-rust's `with_constant` returns an error on `Unparsed` (`ergo_tree.rs:329`). Our TS `parseTree` is all-or-nothing: either fully parses to a complete `ErgoTree` or throws `ErgoTreeParseError` / `ExprParseError`. There is no partial-parse state to handle. The spec inherits this assumption when reusing `parseTree` inside `SubstConstants`.
+
+### 7. `sTypeEquals` structural depth — verified
+
+`SubstConstants` validates `sTypeEquals(newValuesV.elem, tree.constantTypes[i])`. Sigma-rust's `SType` `PartialEq` is auto-derived (structural). Verified at spec time: `mir/stype-helpers.ts:48-72` recurses through `SColl.elem`, `SOption.elem`, `STuple.items`, `SFunc.args`/`result` — fully structural, no shortcut on `tag` equality alone. No T9 follow-up needed.
 
 ## Rollback plan
 
@@ -418,7 +447,7 @@ All ≥ 95% — no escalation required per OVERRIDES rule #2.
 - **Predecessor spec:** `docs/specs/2026-05-20-ergoscript-phase-2h-f-tier-3-method-handlers-design.md`
 - **Parent / umbrella:** `docs/specs/2026-05-13-ergoscript-interpreter-design.md:70` (Phase 2i — Predefs and oddments)
 - **Corpus demand source:** `docs/specs/2026-05-18-task-b-corpus-survey-tally.json`
-- **Boundary contract:** `facts/ergoscript-eval.md` (registry + EvalError codes; this spec proposes coverage 52→60, codes 48→56)
+- **Boundary contract:** `facts/ergoscript-eval.md` (registry + EvalError codes; this spec proposes coverage 52→60, codes 48→55)
 - **Wire-format dependency:** `facts/ergoscript-wire.md` — `parseTree` / `serializeTree` reused by `SubstConstants`
 - **Sigma-rust source:** `~/projects/ergots/external/sigma-rust/`, branch `integration/ergots`
 - **Memory:** `[[feedback-pre-v1-coverage-not-load-bearing]]`, `[[feedback-focused-specs]]`, `[[feedback-review-by-default]]`, `[[reference-source-first-discipline]]`
