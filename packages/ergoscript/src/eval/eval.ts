@@ -58,6 +58,7 @@ import { evalExtractScriptBytes } from './extract-script-bytes'
 import { evalFuncValue } from './func-value'
 import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
+import { evalLongToByteArray } from './long-to-byte-array'
 import { evalMethodCall, evalPropertyCall } from './method-call'
 import { evalNegation } from './negation'
 import { evalOr } from './or'
@@ -121,6 +122,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalCalcBlake2b256(e, env, ctx)
     case 'CalcSha256':
       return evalCalcSha256(e, env, ctx)
+    case 'LongToByteArray':
+      return evalLongToByteArray(e, env, ctx)
     case 'Negation':
       return evalNegation(e, env, ctx)
     case 'Or':

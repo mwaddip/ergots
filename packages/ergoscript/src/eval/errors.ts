@@ -369,3 +369,15 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/byte_array_to_long.rs:20-24
    */
   | 'byte-array-to-long-too-short'
+  /**
+   * `LongToByteArray`: input SValue had a `kind` other than `'Long'`.
+   * Sigma-rust raises `EvalError::TryExtractFrom` (via
+   * `try_extract_into::<i64>()` after `eval`). Wire-format invariants
+   * (`LongToByteArray::try_build` enforces `check_post_eval_tpe(SLong)`
+   * at parse time) make this unreachable for parser-produced trees;
+   * defensive against `ConstantPlaceholder` injection or hand-crafted MIR.
+   *
+   * Source: ergotree-interpreter/src/eval/long_to_byte_array.rs:17 (try_extract_into::<i64>)
+   *         ergotree-ir/src/mir/long_to_byte_array.rs:43-48 (build-time guard)
+   */
+  | 'predef-input-not-long'
