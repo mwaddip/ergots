@@ -44,6 +44,7 @@ import { fileURLToPath } from 'node:url'
 import { hexToBytes } from '../_helpers'
 import {
   runMutationLoop,
+  evalSafely,
   isKillStrict,
   DEFAULT_KILL_THRESHOLD,
 } from '../_helpers/mutation-harness'
@@ -73,6 +74,18 @@ describe('SHeader.checkPow mutation testing (phase 2h-c.2)', () => {
     const originalBytes = hexToBytes(fixture.exprBytes)
     const headerBytes = hexToBytes(fixture.headerHexBytes)
     const header = parseHeader(new ByteReader(headerBytes))
+
+    // Precondition: the unmutated baseline must succeed and return Boolean(true).
+    // The harness will use the same baseline internally for kill/survive
+    // comparisons; this explicit check provides a cleaner failure message
+    // when SHeader.checkPow itself regresses.
+    const baseline = evalSafely(originalBytes, undefined, () =>
+      makeContext({ treeVersion: 3, headers: [header] }),
+    )
+    expect(baseline.ok).toBe(true)
+    if (baseline.ok) {
+      expect(baseline.value).toEqual({ kind: 'Boolean', value: true })
+    }
 
     const result = runMutationLoop({
       treeBytes: originalBytes,
