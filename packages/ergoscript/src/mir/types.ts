@@ -153,6 +153,14 @@ export interface Closure {
   body: Expr
   /** Lexical environment captured at definition time, keyed by ValId. */
   capturedEnv: Record<number, SValue>
+  // NOTE: deliberately no `argTpes: SType[]` field. Sigma-rust's runtime
+  // `Value::Lambda` carries per-arg static types and uses them for elem-type
+  // checks in lambda HOFs (`coll-map.ts:94-108`, `scoll-flat-map.ts` step 5).
+  // Without `argTpes` here, those checks fall back to the MIR-node FuncValue's
+  // declared arg type — fine for inline-FuncValue lambdas, skipped for
+  // ValUse-source lambdas. See `facts/ergoscript-eval.md` Phase 2h-f changelog
+  // R3(a) for the documented divergence. Adding `argTpes` here would close it
+  // for flatMap + MapColl/Filter/Fold/Exists/ForAll equally (cross-arm scope).
 }
 
 /**

@@ -143,6 +143,14 @@ export function exprTpe(e: Expr): SType {
       // for the resolver. If/when that happens we'll prioritize bringing the
       // resolver online; for now the placeholder lets a tree that *only*
       // round-trips bytes pass through without us needing to know the type.
+      //
+      // Phase 2h-f: `SColl.flatMap` is now a concrete load-bearing consumer.
+      // The canonical body `xs.flatMap(x => x.indices)` is a PropertyCall →
+      // SAny. The flatMap handler tolerates this (3-branch outElem init +
+      // first-iter refinement from itemRes.elem). Empty-input flatMap with a
+      // PropertyCall body returns Coll[SAny] (sigma-rust returns concrete
+      // Coll[T]). See `facts/ergoscript-eval.md` Phase 2h-f changelog R3(b).
+      // Bringing the SMethod resolver online closes the divergence.
       return { tag: 'SAny' }
     case 'SelectField': {
       // sigma-rust `mir/select_field.rs::SelectField::tpe` (line 107-109): the
@@ -264,6 +272,12 @@ export function exprTpe(e: Expr): SType {
       // in phase 2a. Mirror the PropertyCall path: return SAny as a
       // placeholder so downstream val-defs continue to round-trip without
       // knowing the method return type.
+      //
+      // Phase 2h-f R3(b) divergence (same root cause as PropertyCall above):
+      // a lambda body that is a MethodCall (e.g. `xs.flatMap(x => x.zip(ys))`
+      // — hypothetical; flatMap's body-restriction would reject this shape)
+      // would return SAny here. Bringing the SMethod resolver online closes
+      // this for both arms.
       return { tag: 'SAny' }
     case 'Downcast':
       // sigma-rust `mir/downcast.rs::Downcast::tpe`: target type stored on
