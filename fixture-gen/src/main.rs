@@ -139,6 +139,8 @@ fn main() -> anyhow::Result<()> {
     write_ergoscript_json("eval/bit-inversion.json", &bit_inversion_fixture)?;
     let calc_blake2b256_fixture = cmds::ergoscript::eval::calc_blake2b256::generate()?;
     write_ergoscript_json("eval/calc-blake2b256.json", &calc_blake2b256_fixture)?;
+    let calc_sha256_fixture = cmds::ergoscript::eval::calc_sha256::generate()?;
+    write_ergoscript_json("eval/calc-sha256.json", &calc_sha256_fixture)?;
     let negation_fixture = cmds::ergoscript::eval::negation::generate()?;
     write_ergoscript_json("eval/negation.json", &negation_fixture)?;
     let upcast_fixture = cmds::ergoscript::eval::upcast::generate()?;
