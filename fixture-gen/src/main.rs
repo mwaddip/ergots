@@ -390,6 +390,16 @@ fn main() -> anyhow::Result<()> {
         &savltree_insert_partial_v2_throw_fixture,
     )?;
 
+    // Phase 2h-f Task 2: SGroupElement.getEncoded handler (MethodCall typeId=7,
+    // methodId=2). Pattern A Fixed(250); returns 33-byte SEC1-compressed point
+    // as Coll[Byte]. V0+. Three scenarios: arbitrary, generator, identity.
+    let sgroup_elem_get_encoded_fixture =
+        cmds::ergoscript::eval::sgroup_elem_get_encoded::generate()?;
+    write_ergoscript_json(
+        "eval/sgroup-element-get-encoded.json",
+        &sgroup_elem_get_encoded_fixture,
+    )?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
