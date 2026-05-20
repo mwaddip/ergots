@@ -381,3 +381,33 @@ export type EvalErrorCode =
    *         ergotree-ir/src/mir/long_to_byte_array.rs:43-48 (build-time guard)
    */
   | 'predef-input-not-long'
+  /**
+   * `ByteArrayToBigInt`: input Coll[Byte] is empty (length 0). Sigma-rust
+   * raises `EvalError::UnexpectedValue("ByteArrayToBigInt: byte array is
+   * empty")` via the explicit `input.is_empty()` check. Matches the Scala
+   * sigmastate-interpreter behavior of throwing on empty rather than
+   * defaulting to BigInt(0) (bnum returns 0 for empty input, so the explicit
+   * check is required to preserve consensus semantics).
+   *
+   * Source: ergotree-interpreter/src/eval/byte_array_to_bigint.rs:20-22
+   *         ergotree-ir/src/bigint256.rs:55-62 (BigInt256::from_be_slice rejects empty)
+   */
+  | 'byte-array-to-bigint-empty'
+  /**
+   * `ByteArrayToBigInt`: decoded signed-BE value falls outside
+   * `[I256::MIN, I256::MAX]` = `[-2^255, 2^255 - 1]`. Sigma-rust raises
+   * `EvalError::UnexpectedValue("ByteArrayToBigInt: input array out of
+   * bounds")` when `BigInt256::from_be_slice` returns `None` (via
+   * `bnum::I256::from_be_slice` rejecting >32-byte slices whose leading
+   * non-sign-extension bytes carry value out of i256 range).
+   *
+   * Length is NOT capped at 32: 33+ byte inputs with leading redundant
+   * sign-extension bytes (0x00 for positive, 0xFF for negative) succeed
+   * when their effective value fits in i256 (sigma-rust's
+   * `eval_above_max_bound` test at byte_array_to_bigint.rs:107-118).
+   *
+   * Source: ergotree-interpreter/src/eval/byte_array_to_bigint.rs:28-31
+   *         ergotree-ir/src/bigint256.rs:60 (delegates to I256::from_be_slice)
+   *         bnum-0.12.1/src/bint/endian.rs:53-58 (Option<None> for out-of-range)
+   */
+  | 'byte-array-to-bigint-out-of-range'

@@ -25,6 +25,7 @@ import { evalBinOp } from './bin-op'
 import { evalBitInversion } from './bit-inversion'
 import { evalBlockValue } from './block-value'
 import { evalBoolToSigmaProp } from './bool-to-sigma-prop'
+import { evalByteArrayToBigInt } from './byte-array-to-bigint'
 import { evalByteArrayToLong } from './byte-array-to-long'
 import { evalCalcBlake2b256 } from './calc-blake2b256'
 import { evalCalcSha256 } from './calc-sha256'
@@ -116,6 +117,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalBoolToSigmaProp(e, env, ctx)
     case 'BitInversion':
       return evalBitInversion(e, env, ctx)
+    case 'ByteArrayToBigInt':
+      return evalByteArrayToBigInt(e, env, ctx)
     case 'ByteArrayToLong':
       return evalByteArrayToLong(e, env, ctx)
     case 'CalcBlake2b256':
