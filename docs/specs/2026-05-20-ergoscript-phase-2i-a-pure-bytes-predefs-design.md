@@ -3,7 +3,7 @@
 **Status:** Draft
 **Date:** 2026-05-20
 **Packages:** `@ergots/ergoscript` (TS) + `fixture-gen` (Rust)
-**Interface contracts:** `facts/ergoscript-eval.md` — eval-arm coverage grows 52 → 60; `EvalError` codes 48 → 54; method-handler registry unchanged at 44.
+**Interface contracts:** `facts/ergoscript-eval.md` — eval-arm coverage grows 52 → 60; `EvalError` codes 48 → 56; method-handler registry unchanged at 44.
 **Brainstorm transcript:** session 2026-05-20 (continuation of HANDOFF_PROMPT.md d4623e9; scope locked by corpus-survey demand data in `docs/specs/2026-05-18-task-b-corpus-survey-tally.json`)
 **Predecessor spec:** `docs/specs/2026-05-20-ergoscript-phase-2h-f-tier-3-method-handlers-design.md` (Phase 2h-f — Tier-3 method-handler cleanup, landed)
 **Parent phase:** 2i — Predefs and oddments (umbrella from `docs/specs/2026-05-13-ergoscript-interpreter-design.md:70`)
@@ -30,7 +30,7 @@ Per-arm demand counts from the Task B 12,712-box wider mainnet corpus survey:
 | 7 | `LongToByteArray` | A, `Fixed(17)` | `Coll[Byte]` (8) | 3 |
 | 8 | `Xor` | B, `addPerItemCost(10, 2, 128, n)` | `Coll[Byte]` | 0 |
 
-Tier-1 arms (≥30 boxes) cover ~5785 distinct boxes (≈46% of the wider corpus). Tier-2/3 arms ride along under the same architectural shape — incremental cost of wiring them is small enough that demand-driven cuts here would be wasteful.
+Tier-1 arms (≥30 boxes — `DecodePoint`, `SubstConstants`, `CalcBlake2b256`, `ByteArrayToLong`) cover ~5782 distinct boxes (≈46% of the wider corpus). Tier-2/3 arms (`CalcSha256`, `ByteArrayToBigInt`, `LongToByteArray`, `Xor` — all zero corpus demand) ride along under the same architectural shape — incremental cost of wiring them is small enough that demand-driven cuts here would be wasteful.
 
 ## Non-goals
 
@@ -252,7 +252,7 @@ The `_exhaust: never` discriminant at the end of the switch ensures any newly ad
 
 ## Error taxonomy
 
-**6 new `EvalError` codes (48 → 54):**
+**8 new `EvalError` codes (48 → 56):**
 
 | Code | Thrown by | Mirrors sigma-rust |
 |---|---|---|
@@ -263,31 +263,15 @@ The `_exhaust: never` discriminant at the end of the switch ensures any newly ad
 | `'byte-array-to-bigint-empty'` | ByteArrayToBigInt on empty input | `UnexpectedValue("byte array is empty")` |
 | `'byte-array-to-bigint-out-of-range'` | ByteArrayToBigInt when decoded value falls outside i256 | `UnexpectedValue("input array out of bounds")` |
 | `'xor-length-mismatch'` | Xor when operand byte arrays differ in length | `UnexpectedValue("XOR length mismatch…")` |
-| `'subst-constants-error'` | SubstConstants — single compact code covering 6 throw paths: bad template bytes, new_values not Coll, positions/new_values length mismatch, position out of range, type mismatch | 6 distinct `Misc(...)` errors in sigma-rust |
+| `'subst-constants-error'` | SubstConstants — single compact code covering 5 throw paths: bad template bytes, new_values not Coll, positions/new_values length mismatch, position out of range, type mismatch | 5 distinct `Misc(...)` errors in sigma-rust |
 
-Wait — that's 8 codes, not 6. Recount:
+**Why 8 codes (not the section-2 estimate of 6):**
+- `'byte-array-to-bigint-empty'` is split out from `'out-of-range'` because sigma-rust treats them as structurally distinct (one is a precondition on input shape, the other a postcondition on decoded value).
+- `'predef-input-not-long'` is separate from `'predef-input-not-byte-array'` because `LongToByteArray`'s input is `Long`, not `Coll[Byte]` — the existing byte-array code doesn't fit semantically.
 
-1. `'predef-input-not-byte-array'`
-2. `'predef-input-not-long'`
-3. `'decode-point-invalid'`
-4. `'byte-array-to-long-wrong-length'`
-5. `'byte-array-to-bigint-empty'`
-6. `'byte-array-to-bigint-out-of-range'`
-7. `'xor-length-mismatch'`
-8. `'subst-constants-error'`
-
-Plus a new helper code:
-9. `'coll-elem-not-int'` — `extractCollInt` helper, when the Coll's elements aren't `SInt`. Could be merged into `'coll-elem-tpe-mismatch'` (existing) per the compact-taxonomy principle.
-
-**Decision:** merge `'coll-elem-not-int'` into the existing `'coll-elem-tpe-mismatch'`. Result: **8 new codes (48 → 56).**
-
-This is more than the original Section 2 estimate of 6. The growth comes from:
-- Splitting `'byte-array-to-bigint-empty'` out from `'out-of-range'` because sigma-rust treats them as structurally distinct (one is a precondition, the other a postcondition).
-- Adding `'predef-input-not-long'` for the LongToByteArray input check (`'predef-input-not-byte-array'` doesn't fit semantically).
-
-Note: existing codes are reused where the dispatch is identical to a previous use:
-- `'coll-elem-tpe-mismatch'` — extends to cover `extractCollInt`'s non-SInt case.
-- No re-use of method-call-related codes — these are top-level `Expr` arms.
+**Existing codes reused** where the dispatch is identical to a previous use:
+- `'coll-elem-tpe-mismatch'` — extends to cover `extractCollInt`'s non-SInt case (no new code needed per the compact-taxonomy decision).
+- No re-use of method-call-related codes — these 8 arms are all top-level `Expr` variants.
 
 ## Test strategy
 
