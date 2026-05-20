@@ -30,8 +30,9 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import { parseTree } from '../../src/wire/ergo-tree'
-import { makeContext } from '../../src/eval/eval-context'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
+import type { SValue } from '../../src/mir/types'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
 
 interface InsertOrUpdateEntry {
@@ -119,5 +120,164 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
     // V<3 gate were moved BEFORE these charges, this assertion would fail
     // and reveal a regression in cost-before-throw semantics.
     expect(v2Ctx.jitCost).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Mutation testing (T13 — single-byte XOR mutations across tree_bytes_hex)
+//
+// Pattern mirrors `test/eval/savltree-update-operations.test.ts` (T4) and
+// `test/eval/savltree-update-digest.test.ts` (T8): three XOR patterns per
+// byte (0xFF, 0x01, 0x80); kill iff the mutated outcome observably diverges
+// from the baseline. Same helpers (`evalSafely`, `svalueEqual`, `isKill`) and
+// threshold (`THRESHOLD = 0.9`).
+//
+// Scope: ONLY the happy scenario (`insert_or_update_happy_v3`) is mutated.
+// The other five scenarios are structurally incompatible with a mutation
+// suite under THRESHOLD = 0.9:
+//
+//   - insert_allowed_false / update_allowed_false: handler pre-check returns
+//     Option None when the receiver flag bit is clear (savltree.ts:672-677).
+//     Mutations that DON'T alter the pre-check still return Option None →
+//     survive. Most byte mutations to flags/keys/proof are downstream of the
+//     pre-check and produce identical Option None output.
+//   - per_op_fail_graceful: baseline returns Option None (verifier yields a
+//     partial batch). Mutations that still produce a verifier-recognized
+//     partial outcome continue to return Option None → survive.
+//   - malformed_proof: baseline throws 'avl-tree-proof-failed'. Mutations
+//     that still produce a malformed-but-non-crashing proof throw the same
+//     error code → survive under the "different error or value" kill rule.
+//   - v2_dispatcher_reject: baseline throws 'tree-version-too-low' from the
+//     dispatcher BEFORE the handler runs. Mutations to tree bytes don't
+//     change opts_json.treeVersion, so the dispatcher still rejects → all
+//     mutations survive trivially. Also: the v2_reject tree bytes are
+//     byte-identical to happy_v3 (only opts_json differs), so mutating them
+//     is redundant with the happy_v3 mutation surface.
+//
+// These five are already pinned by the fixture-driven oracle suite above.
+// Per the T8 precedent and the user's recommendation in the task brief,
+// happy-v3-only mutation is the correct scope.
+//
+// MUTATION SURFACE — happy scenario, 148-byte tree, FULL whole-tree:
+//   - All 148 bytes are eligible (no excluded receiver-digest region).
+//   - For insertOrUpdate, the receiver digest at offsets 5..37 inside the
+//     SAvlTree Const is CONSUMED by the verifier as `startingDigest`
+//     (savltree.ts:682: `verifyAvlBatchPartial(obj.value.digest, ...)`).
+//     A flipped receiver digest produces either a verifier construct-fail
+//     (throw 'avl-tree-proof-failed') or a successful verifier run with a
+//     different output digest — either way a KILL. This is the opposite of
+//     T8's updateDigest where the receiver digest is REPLACED by args[0]
+//     and is therefore semantically invisible.
+//
+//   Mutation surface: 148 bytes × 3 patterns = 444 mutations.
+//
+// TOLERATED (survived) mutations — observed for insert_or_update_happy_v3
+// (3 survivors out of 444 mutations; rate 441/444 = 0.993):
+//   - offset 0 (header byte, 0x00), xor 0x01 → 0x01 (v1 header tag): parses
+//     identically (no constants section to validate); body and evaluation
+//     unchanged. Same tolerance as T4/T8 (universal across ergo-tree wire
+//     fixtures with `0x00` header byte).
+//   - offset 0 (header byte, 0x00), xor 0x80 → 0x80 (reserved bit set):
+//     parser tolerates the reserved bit per the wire spec; body unchanged.
+//     Same tolerance as T4/T8.
+//   - offset 147 (last byte of proof, 0x08), xor 0x80 → 0x88 (bit 7 set):
+//     this byte is the trailing byte of the inline 66-byte AVL proof Coll[Byte].
+//     The AVL verifier consumes directions as a bit-string indexed by
+//     `proof[i >> 3] & (1 << (i & 7))` (batch-verifier.ts:102), reading only
+//     as many bits as the operations require. For the 3-op happy fixture, the
+//     directions consumer doesn't reach bit 7 of the final byte — so that bit
+//     is never inspected by the verifier and a flip is structurally invisible.
+//     This is a property of the proof's directions bit-string ending mid-byte;
+//     not a verifier bug and not a missed kill — bits past the consumed end
+//     are simply unread. The xor 0xFF and xor 0x01 mutations at the same
+//     offset DO kill (they flip the value within consumed bits or alter the
+//     tree-shape byte the verifier replays).
+// ---------------------------------------------------------------------------
+
+type EvalOutcome =
+  | { ok: true; value: SValue }
+  | { ok: false; errorCode: string | undefined; errorMessage: string }
+
+function evalSafely(treeBytes: Uint8Array, optsJson: Record<string, unknown>): EvalOutcome {
+  try {
+    const tree = parseTree(treeBytes)
+    const ctx = makeContext(rehydrateEvalOpts(optsJson))
+    const value = evaluateWith(tree, ctx)
+    return { ok: true, value }
+  } catch (e) {
+    if (e instanceof EvalError) {
+      return { ok: false, errorCode: e.code, errorMessage: e.message }
+    }
+    if (e instanceof Error) {
+      return { ok: false, errorCode: undefined, errorMessage: e.message }
+    }
+    return { ok: false, errorCode: undefined, errorMessage: String(e) }
+  }
+}
+
+/** Deep-equal two SValues via JSON serialization (BigInt-safe). */
+function svalueEqual(a: SValue, b: SValue): boolean {
+  const replacer = (_k: string, v: unknown): unknown =>
+    typeof v === 'bigint' ? `__bigint__${v.toString()}__` : v
+  return JSON.stringify(a, replacer) === JSON.stringify(b, replacer)
+}
+
+/**
+ * A "kill" = the mutated outcome is observably different from the baseline.
+ *   - both threw: NOT a kill
+ *   - exactly one threw: kill
+ *   - both succeeded: kill iff values differ
+ *
+ * Mirrors T4/T8's helper exactly. The happy-only mutation scope means the
+ * "both threw" branch is rare (only triggers when a mutation breaks parsing
+ * AND was already broken in the baseline, which is impossible for a happy
+ * baseline) — included for shape parity.
+ */
+function isKill(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
+  if (!baseline.ok && !mutated.ok) return false
+  if (!baseline.ok && mutated.ok) return true
+  if (baseline.ok && !mutated.ok) return true
+  if (!baseline.ok || !mutated.ok) return false // narrowing
+  return !svalueEqual(baseline.value, mutated.value)
+}
+
+const XOR_PATTERNS = [0xff, 0x01, 0x80]
+const THRESHOLD = 0.9
+
+describe('SAvlTree.insertOrUpdate — mutation testing', () => {
+  // Happy-v3 entry only. The five non-happy scenarios are structurally
+  // incompatible with THRESHOLD = 0.9 — see comment block above.
+  const happyEntry = fixture.entries.find((e) => e.name === 'insert_or_update_happy_v3')
+  if (happyEntry === undefined) {
+    throw new Error('expected insert_or_update_happy_v3 entry in fixture')
+  }
+
+  it(`${happyEntry.name}: ≥${(THRESHOLD * 100).toFixed(0)}% kill rate on whole-tree byte mutations`, () => {
+    const treeBytes = hexToBytes(happyEntry.tree_bytes_hex)
+
+    // Baseline outcome (unmutated). Must succeed for kill-rate math to mean
+    // anything — the success-path fixture is the reference.
+    const baseline = evalSafely(treeBytes, happyEntry.opts_json)
+    expect(baseline.ok).toBe(true)
+
+    let killed = 0
+    let total = 0
+    for (let i = 0; i < treeBytes.length; i++) {
+      for (const xor of XOR_PATTERNS) {
+        total++
+        const mutated = new Uint8Array(treeBytes)
+        mutated[i] = (mutated[i]! ^ xor) & 0xff
+        const outcome = evalSafely(mutated, happyEntry.opts_json)
+        if (isKill(baseline, outcome)) killed++
+      }
+    }
+
+    const rate = total === 0 ? 1 : killed / total
+    // eslint-disable-next-line no-console
+    console.log(
+      `[mutation] insertOrUpdate.${happyEntry.name}: killed=${killed} ` +
+        `total=${total} rate=${rate.toFixed(3)} bytes=${treeBytes.length}`
+    )
+    expect(rate).toBeGreaterThanOrEqual(THRESHOLD)
   })
 })
