@@ -38,26 +38,10 @@ use ergotree_ir::mir::method_call::MethodCall;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::types::savltree::UPDATE_OPERATIONS_METHOD;
-use serde_json::{json, Value as JsonValue};
+use serde_json::json;
 
 use super::common::{EvalFixture, EvalFixtureFile};
-use super::savltree_insert::avl_tree_data_to_json;
-
-/// Encode an `AvlTree` Value as the TS SValue AvlTree variant:
-///   `{ kind: "AvlTree", value: <avl_tree_data> }`
-/// matching `hydrateSValue` at `test/_helpers/index.ts:94-111`.
-fn avl_tree_value_json(value: &Value) -> anyhow::Result<JsonValue> {
-    match value {
-        Value::AvlTree(avl) => Ok(json!({
-            "kind": "AvlTree",
-            "value": avl_tree_data_to_json(avl),
-        })),
-        other => anyhow::bail!(
-            "savltree_update_operations: expected Value::AvlTree, got {:?}",
-            other
-        ),
-    }
-}
+use super::savltree_insert::avl_tree_value_json;
 
 fn digest_pattern(pattern: u8) -> ADDigest {
     let bytes: [u8; 33] = [pattern; 33];

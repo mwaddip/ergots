@@ -96,6 +96,22 @@ pub(super) fn option_avl_tree_json(value: &Value) -> anyhow::Result<JsonValue> {
     })
 }
 
+/// Encode a bare `AvlTree` Value as the TS SValue AvlTree variant:
+///   `{ "kind": "AvlTree", "value": <avl_tree_data> }`
+/// matching `hydrateSValue` at `packages/ergoscript/test/_helpers/index.ts:94`.
+///
+/// Promoted to `pub(super)` in Phase 2h-e to deduplicate copies previously
+/// inlined in `savltree_update_operations.rs` and `savltree_update_digest.rs`.
+pub(super) fn avl_tree_value_json(value: &Value) -> anyhow::Result<JsonValue> {
+    match value {
+        Value::AvlTree(avl) => Ok(json!({
+            "kind": "AvlTree",
+            "value": avl_tree_data_to_json(avl),
+        })),
+        other => anyhow::bail!("expected Value::AvlTree, got {:?}", other),
+    }
+}
+
 /// Build a prover with the initial state and produce
 /// `(starting_digest, proof_bytes)` for a multi-Insert op batch.
 ///

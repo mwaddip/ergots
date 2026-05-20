@@ -61,7 +61,7 @@ use ergotree_ir::types::savltree::UPDATE_DIGEST_METHOD;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 
-use super::savltree_insert::avl_tree_data_to_json;
+use super::savltree_insert::avl_tree_value_json;
 
 /// Fixture struct extending the standard EvalFixture shape with
 /// `expected_error_code` for the bad-length throw scenario.
@@ -85,21 +85,6 @@ pub struct UpdateDigestFixture {
 pub struct UpdateDigestFixtureFile {
     pub corpus: &'static str,
     pub entries: Vec<UpdateDigestFixture>,
-}
-
-/// Encode an `AvlTree` Value as the TS SValue AvlTree variant:
-///   `{ kind: "AvlTree", value: <avl_tree_data> }`
-fn avl_tree_value_json(value: &Value) -> anyhow::Result<JsonValue> {
-    match value {
-        Value::AvlTree(avl) => Ok(json!({
-            "kind": "AvlTree",
-            "value": avl_tree_data_to_json(avl),
-        })),
-        other => anyhow::bail!(
-            "savltree_update_digest: expected Value::AvlTree, got {:?}",
-            other
-        ),
-    }
 }
 
 /// Build a starting AvlTreeData with the given digest pattern + flags.
