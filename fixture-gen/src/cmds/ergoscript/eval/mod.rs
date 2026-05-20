@@ -10,6 +10,7 @@ pub mod bin_op_relation;
 pub mod bit_inversion;
 pub mod block_value;
 pub mod bool_to_sigma_prop;
+pub mod byte_array_to_long;
 pub mod calc_blake2b256;
 pub mod calc_sha256;
 pub mod coll_append;

@@ -1,0 +1,120 @@
+{
+  "corpus": "eval_byte_array_to_long",
+  "entries": [
+    {
+      "name": "b2l_plus_one",
+      "tree_bytes_hex": "007c0e080000000000000001",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "1"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_neg_one",
+      "tree_bytes_hex": "007c0e08ffffffffffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-1"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_zero",
+      "tree_bytes_hex": "007c0e080000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "0"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_max",
+      "tree_bytes_hex": "007c0e087fffffffffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "9223372036854775807"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_min",
+      "tree_bytes_hex": "007c0e088000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775808"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_high_bit",
+      "tree_bytes_hex": "007c0e088000000000000001",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775807"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_length_9_skip_tail",
+      "tree_bytes_hex": "007c0e09000000000000000142",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "1"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_length_16_skip_tail",
+      "tree_bytes_hex": "007c0e100000000000000001ffffffffffffffff",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "1"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_sigmastate_equiv_1",
+      "tree_bytes_hex": "007c0e08712d7f00ff807f7f",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "8155314142501175167"
+      },
+      "expected_cost": 21,
+      "expected_error_code": null
+    },
+    {
+      "name": "b2l_empty",
+      "tree_bytes_hex": "007c0e00",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "byte-array-to-long-too-short"
+    },
+    {
+      "name": "b2l_length_7",
+      "tree_bytes_hex": "007c0e0700000000000000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "byte-array-to-long-too-short"
+    }
+  ]
+}
