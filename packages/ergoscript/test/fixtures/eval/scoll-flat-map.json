@@ -1,0 +1,112 @@
+{
+  "corpus": "eval_scoll_flat_map",
+  "entries": [
+    {
+      "name": "flatmap_happy_property_body",
+      "tree_bytes_hex": "00dc0c0f83021183020505140528830105053c01d9010111dc0c0e720100",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 0
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 216,
+      "expected_error_code": null
+    },
+    {
+      "name": "flatmap_happy_concrete_body",
+      "tree_bytes_hex": "00dc0c0f8302050514052801d901010583020572017201",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "10"
+          },
+          {
+            "kind": "Long",
+            "value": "10"
+          },
+          {
+            "kind": "Long",
+            "value": "20"
+          },
+          {
+            "kind": "Long",
+            "value": "20"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 169,
+      "expected_error_code": null
+    },
+    {
+      "name": "flatmap_empty_concrete_body",
+      "tree_bytes_hex": "00dc0c0f83000501d90101058301057201",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 89,
+      "expected_error_code": null
+    },
+    {
+      "name": "flatmap_body_restriction_throw",
+      "tree_bytes_hex": "00dc0c0f830111830105050201d9010111dc0c1d72010183010505c601",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "lambda-not-callable"
+    },
+    {
+      "name": "flatmap_valuse_source_lambda",
+      "tree_bytes_hex": "00d801d600d9010111dc0c0e720100dc0c0f83021183020505140528830105053c017200",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "items": [
+          {
+            "kind": "Int",
+            "value": 0
+          },
+          {
+            "kind": "Int",
+            "value": 1
+          },
+          {
+            "kind": "Int",
+            "value": 0
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 228,
+      "expected_error_code": null
+    }
+  ]
+}

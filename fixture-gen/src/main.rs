@@ -392,13 +392,21 @@ fn main() -> anyhow::Result<()> {
 
     // Phase 2h-f Task 2: SGroupElement.getEncoded handler (MethodCall typeId=7,
     // methodId=2). Pattern A Fixed(250); returns 33-byte SEC1-compressed point
-    // as Coll[Byte]. V0+. Three scenarios: arbitrary, generator, identity.
+    // as Coll[Byte]. V0+. Two scenarios: generator, identity.
     let sgroup_elem_get_encoded_fixture =
         cmds::ergoscript::eval::sgroup_elem_get_encoded::generate()?;
     write_ergoscript_json(
         "eval/sgroup-element-get-encoded.json",
         &sgroup_elem_get_encoded_fixture,
     )?;
+
+    // Phase 2h-f Task 7: SColl.flatMap handler (MethodCall typeId=12, methodId=15).
+    // Pattern B addPerItemCost(60, 10, 8, n). Lambda HOF with concat semantics +
+    // body-restriction (MethodCall body must have 0 args) + SAny-tolerant outElem.
+    // 5 scenarios: happy property-call body, happy concrete body, empty
+    // concrete body, body-restriction throw, ValUse-source lambda.
+    let scoll_flat_map_fixture = cmds::ergoscript::eval::scoll_flat_map::generate()?;
+    write_ergoscript_json("eval/scoll-flat-map.json", &scoll_flat_map_fixture)?;
 
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;

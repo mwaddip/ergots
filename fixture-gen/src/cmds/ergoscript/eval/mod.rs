@@ -38,6 +38,7 @@ pub mod savltree_update;
 pub mod savltree_update_digest;
 pub mod savltree_update_operations;
 pub mod savltree_value_length_opt;
+pub mod scoll_flat_map;
 pub mod scoll_indices;
 pub mod scoll_zip;
 pub mod scontext_last_block_utxo_root_hash;
