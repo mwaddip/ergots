@@ -141,10 +141,24 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2h-d COMPLETE.** Method handler registry: 42 entries. EvalError codes: 48. Test count: 2903 (ergoscript).
 
+**Phase 2h-f — Tier-3 method-handler cleanup** (additive):
+
+- 2 new method handlers wired (42 → 44 registry entries) — closes the two Tier-3 long-tail deferrals from the 2g.6 demand survey:
+  - **`SGroupElement.getEncoded` (7:2)** — Pattern A Fixed(250). Returns 33-byte SEC1-compressed point as `Coll[Byte]`. Reuses existing `bytesToCollByteSValue` helper (no new dependency on `@noble/curves` — the bytes are already SEC1-encoded on `SValue.GroupElement.value`). V0+. Source: `eval/sgroup_elem.rs:15-26`.
+  - **`SColl.flatMap` (12:15)** — Pattern B `addPerItemCost(60, 10, 8, n)`. Lambda HOF with concat semantics. Defensive body restriction mirrors sigma-rust `scoll.rs:78-84`: when the runtime `closure.body` is a `MethodCall`, its args MUST be empty (property-call style); throws `'lambda-not-callable'` otherwise. Allowed: `xs.flatMap(x => x.indices)`. Not allowed: `xs.flatMap(x => x.indexOf(5, 0))`. V0+. Handler lives in new module `eval/scoll-flat-map.ts`. Source: `eval/scoll.rs:52-136`.
+- **Naming correction:** the 2g.6 demand survey labeled this method "flatten" — that was wrong. sigma-rust ships `flatMap` (lambda HOF), not `flatten` (no-lambda specialization). The 2-mainnet-box demand count from the survey applies to methodId 15 (flatMap).
+- `HandlerFn` signature gains optional 5th `extra?: { mc: MethodCall; env: Env }` argument (forwarded by `evalMethodCall`; `evalPropertyCall` passes `undefined`). flatMap is the first consumer; 42 existing handlers ignore the arg via TS structural typing.
+- **Two TS-from-sigma-rust divergences on lambda static typing (both inherited from existing arms; both load-bearing for flatMap):**
+  - **R3(a) elem-type check.** Runtime `Closure` SValue (`mir/types.ts:149-156`) does NOT carry `argTpes`. The elem-type check (`sTypeEquals(input.elem, lambdaArgTpe)`) runs only when `mc.args[0]` is an inline FuncValue MIR node; skipped for ValUse-source lambdas. Mirrors existing `coll-map.ts:94-108` convention. Sigma-rust always runs the check via runtime `lambda.args[0].tpe`.
+  - **R3(b) output elem type.** `exprTpe(closure.body)` returns `SAny` for `PropertyCall` and `MethodCall` body Exprs (`expr-tpe.ts:138-146` / `:261-267` — SMethod resolver not yet online in phase 2a). The canonical flatMap body `x.indices` IS a PropertyCall. Handler tolerates SAny pre-loop and refines from `itemRes.elem` after the first iter. **Empty-input flatMap with PropertyCall body returns `Coll[SAny]`** — sigma-rust would return `Coll[T]` concrete; this is a documented loss of static type information, NOT a value-correctness issue (items field is correct).
+- Zero new `EvalError` codes — both handlers reuse `'method-not-implemented'`, `'coll-input-not-coll'`, `'lambda-not-callable'`, `'coll-elem-tpe-mismatch'`, `'lambda-result-type-mismatch'` per the 2g.5 compact-taxonomy decision.
+
+**Phase 2h-f COMPLETE.** Method handler registry: 44 entries. EvalError codes: 48 (unchanged). Test count: 2922 (ergoscript; was 2903, +19 from 2h-f).
+
 **Does NOT ship yet (deferred):**
 
 - **`Xor`** (byte-array XOR) — phase 2i alongside other predefs.
-- Broader method-call surface beyond the 42 registered handlers: `Coll.zipWith` / `.reverse` / `.flatten` / `.getOrElse`, `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader` methods. Wait until phase 2i or corpus demand resurfaces.
+- Broader method-call surface beyond the 44 registered handlers: `Coll.zipWith` / `.reverse` / `.patch` / `.updated` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader`/`SGroupElement` methods (exponentiate, multiply, negate). Wait until phase 2i or corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
@@ -382,7 +396,7 @@ The method-call dispatcher consults an optional `minVersion?: number` field on e
 
 Two registry entries currently use `minVersion: 3`: `SHeader.checkPow` (104:16; phase 2h-c.2) and `SAvlTree.insertOrUpdate` (100:16; phase 2h-d) — both mirror sigma-rust descriptors with `min_version: ErgoTreeVersion::V3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
 
-## Method-handler registry (42 entries)
+## Method-handler registry (44 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -430,6 +444,8 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 40 | `SAvlTree.updateOperations` | 100:8 | 45 | A | `AvlTree` — projects new `treeFlags`; pure (no `@ergots/avltree` call) | `eval/savltree.rs:77-88` |
 | 41 | `SAvlTree.updateDigest` | 100:15 | 40 | A | `AvlTree` — projects new 33-byte digest; throws `'avl-tree-bad-digest-length'` on length ≠ 33 | `eval/savltree.rs:90-102` |
 | 42 | `SAvlTree.insertOrUpdate` | 100:16 | 0 | — | `Option[AvlTree]` — V3-gated via `minVersion: 3` on registry; upsert semantics via `verifyAvlBatch` | `eval/savltree.rs:441-498` |
+| 43 | `SGroupElement.getEncoded` | 7:2 | 250 | A | `Coll[Byte]` (33 SEC1-compressed) | `eval/sgroup_elem.rs:15-26` |
+| 44 | `SColl.flatMap` | 12:15 | `addPerItemCost(60,10,8,n)` | B | `Coll[OV]` (lambda HOF + concat); body-restriction `'lambda-not-callable'` if body is MethodCall with non-empty args; two R3 divergences from sigma-rust on lambda static typing (see Phase 2h-f changelog below) | `eval/scoll.rs:52-136` |
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 
@@ -438,6 +454,8 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 (The 17 handlers from phase 2h-c.1 — entries 22-38 — are 15 `SHeader.*` accessors (typeId 104, methodIds 1-15) at Fixed(10) Pattern A each, plus `SContext.headers` (101:2) and `SContext.lastBlockUtxoRootHash` (101:9) at Fixed(15) Pattern A. The SContext handlers join the existing `SContext.dataInputs` (101:1) and `SContext.preHeader` (101:3) in the registry. Entry 39 from phase 2h-c.2 is `SHeader.checkPow` (104:16) at Fixed(700) Pattern A with `minVersion: 3` dispatcher gating.)
 
 (The 3 `SAvlTree.*` handlers from phase 2h-d — entries 40-42 — close the final three `SAvlTree.*` methods. `updateOperations` (100:8) and `updateDigest` (100:15) are pure Tier-1-shaped projections (cost 45 / 40, Pattern A, no `@ergots/avltree` call); `insertOrUpdate` (100:16) is a Tier-2-shaped upsert (zero per-handler cost) gated at the dispatcher via `minVersion: 3` — sigma-rust ships `InsertOrUpdate` only at V3+.)
+
+(The 2 handlers from phase 2h-f — entries 43-44 — close the two Tier-3 long-tail deferrals from the 2g.6 demand survey. `SGroupElement.getEncoded` (7:2) is a Pattern A Fixed(250) returning the 33-byte SEC1-compressed point as `Coll[Byte]`. `SColl.flatMap` (12:15) is a Pattern B `addPerItemCost(60, 10, 8, n)` lambda HOF with concat semantics + body-restriction (MethodCall body with non-empty args → `'lambda-not-callable'`, mirroring sigma-rust `scoll.rs:78-84`). The handler lives in the new module `eval/scoll-flat-map.ts`; the dispatcher passes `{ mc, env }` via the new optional `extra` arg added to `HandlerFn` in 2h-f T8. The 2g.6 survey labeled this method "flatten" — that was wrong; flatten doesn't exist on the sigma-rust surface. Two divergences from sigma-rust on flatMap's lambda static typing: **(R3a)** the elem-type check `sTypeEquals(input.elem, lambdaArgTpe)` runs only when `mc.args[0]` is an inline `FuncValue` MIR node — skipped for ValUse-source lambdas because the runtime `Closure` SValue has no `argTpes`. Mirrors the existing `coll-map.ts:94-108` convention. **(R3b)** the output elem type from `exprTpe(closure.body)` returns `SAny` for `PropertyCall` and `MethodCall` body shapes (SMethod resolver not yet online in phase 2a; the canonical flatMap body `x.indices` IS a PropertyCall, so SAny is the common case). The handler tolerates SAny pre-loop and refines from `itemRes.elem` after the first iter. **Consequence: empty-input flatMap with a PropertyCall body returns `Coll[SAny]` (sigma-rust returns `Coll[T]` concrete via SMethod resolver — but only the elem-type information is lost; the items field is correct).** Future work: extend `Closure` to carry `argTpes` and/or bring the SMethod resolver online — both also affect MapColl/Filter/Fold/Exists/ForAll's static-typing accuracy.)
 
 ## Coverage and stability
 
@@ -459,7 +477,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70.
 
-**Method-handler registry: 42 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating).
+**Method-handler registry: 44 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating; +2 from 2h-f — `SGroupElement.getEncoded` at 7:2 and `SColl.flatMap` at 12:15).
 
 **Public function signatures are stable** from v0.2.0 onward. Future arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 

@@ -13,7 +13,7 @@ Authoritative source-of-truth for wire-format byte layout and evaluator semantic
 | Concern | File |
 |---|---|
 | Wire format (`parseTree`, `serializeTree`, address helpers, `ErgoTree` / `TreeHeader` types, wire-layer error classes incl. `ErgoTreeParseError`/`SerializeError` and `SigmaBooleanParseError`) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 48 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 52/~70, 42-entry method-handler registry, `EvalOpts` chain-state fields) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 48 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 52/~70, 44-entry method-handler registry, `EvalOpts` chain-state fields) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
 | Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 8 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
 | AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
 | Cost validation (`evaluateWithCost`) | (future, phase 2j) |
@@ -75,12 +75,12 @@ See `docs/specs/` for per-phase test-strategy detail.
 | Slice | Status |
 |---|---|
 | Wire format | 100% of MIR variants parse + serialize byte-identically (255 + 1 + 6 fixtures; 6,221 mutations; 100% taxonomy coverage) |
-| Evaluator | 52 of ~70 `Expr` arms wired; 42 method-handler registry entries; 48 `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (post-2h-c.1 uplift TBD on next corpus run) |
+| Evaluator | 52 of ~70 `Expr` arms wired; 44 method-handler registry entries; 48 `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (post-2h-c.1 uplift TBD on next corpus run; 2h-f adds 1-3 mainnet boxes per the 2g.6 survey's 2-box flatMap + 1-box getEncoded demand counts) |
 | Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 8 `VerifyError` codes (3 reserved for ABI stability) |
 | AVL+ | Integrated via `@ergots/avltree` v0.2.0: full 16 of 16 `SAvlTree.*` method handlers wired (phase 2h-b: 7 Tier-1 accessors + 6 Tier-2 verification ops; phase 2h-d: `updateOperations`/`updateDigest` Tier-1 + V3-gated `insertOrUpdate` Tier-2) |
 | Cost validation | (not yet — phase 2j; consensus-critical per umbrella spec) |
 
-Cross-runtime: 2903 ergoscript + 156 avltree + 245 nipopow + 177 scorex = 3481 tests, passing under both `node` and `jsdom`.
+Cross-runtime: 2922 ergoscript + 156 avltree + 245 nipopow + 177 scorex = 3500 tests, passing under both `node` and `jsdom`.
 
 **Convention:** when a slice file's coverage changes, this summary table is updated in the same commit.
 
