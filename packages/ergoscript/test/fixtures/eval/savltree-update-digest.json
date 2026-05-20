@@ -1,0 +1,29 @@
+{
+  "corpus": "eval_savltree_update_digest",
+  "entries": [
+    {
+      "name": "update_digest_replace_33_byte",
+      "tree_bytes_hex": "00dc640f64424242424242424242424242424242424242424242424242424242424242424242072000010e21ababababababababababababababababababababababababababababababababab",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "ababababababababababababababababababababababababababababababababab",
+          "keyLength": 32,
+          "treeFlags": 7,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 54,
+      "expected_error_code": null
+    },
+    {
+      "name": "update_digest_bad_length_32_byte",
+      "tree_bytes_hex": "00dc640f64424242424242424242424242424242424242424242424242424242424242424242072000010e20abababababababababababababababababababababababababababababababab",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "avl-tree-bad-digest-length"
+    }
+  ]
+}

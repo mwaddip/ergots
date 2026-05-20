@@ -338,6 +338,17 @@ fn main() -> anyhow::Result<()> {
         &savltree_update_operations_fixture,
     )?;
 
+    // Phase 2h-d Task 6: SAvlTree.updateDigest handler (MethodCall typeId=100,
+    // methodId=15). Pattern A cost 40; returns new AvlTree with digest replaced.
+    // Two scenarios: happy (33-byte arg → success) and bad-length-throw
+    // (32-byte arg → EvalError 'avl-tree-bad-digest-length').
+    let savltree_update_digest_fixture =
+        cmds::ergoscript::eval::savltree_update_digest::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-update-digest.json",
+        &savltree_update_digest_fixture,
+    )?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
