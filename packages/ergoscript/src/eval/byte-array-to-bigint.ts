@@ -33,7 +33,12 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { signedBeBytesToBigInt, I256_MIN, I256_MAX } from './_byte-coll'
+import {
+  collByteToUint8Array,
+  signedBeBytesToBigInt,
+  I256_MIN,
+  I256_MAX,
+} from './_byte-coll'
 
 export function evalByteArrayToBigInt(
   e: ByteArrayToBigInt,
@@ -42,28 +47,7 @@ export function evalByteArrayToBigInt(
 ): SValue {
   ctx.addCost(30) // Pattern A: charge BEFORE eval-child
   const inputV = evalExpr(e.input, env, ctx)
-  if (inputV.kind !== 'Coll' || inputV.elem.tag !== 'SByte') {
-    throw new EvalError(
-      `ByteArrayToBigInt: expected Coll[Byte] input, got kind='${inputV.kind}'`,
-      'predef-input-not-byte-array'
-    )
-  }
-  // Pack i8 items back to u8 bytes. Inline (no `extractCollByte` helper yet
-  // — extraction deferred to T7 Xor's 3rd-caller threshold per the
-  // byte_array_to_long.ts precedent).
-  const bytes = new Uint8Array(inputV.items.length)
-  for (let i = 0; i < inputV.items.length; i++) {
-    const item = inputV.items[i]!
-    // Defensive: parser produces Byte items, but ConstantPlaceholder may inject
-    // non-Byte items past the elem-tag guard above.
-    if (item.kind !== 'Byte') {
-      throw new EvalError(
-        `ByteArrayToBigInt: expected Byte item at index ${i}, got '${item.kind}'`,
-        'predef-input-not-byte-array'
-      )
-    }
-    bytes[i] = item.value & 0xff
-  }
+  const bytes = collByteToUint8Array(inputV, 'ByteArrayToBigInt')
   // Empty-input check runs BEFORE the range check (mirrors sigma-rust order:
   // explicit is_empty() at byte_array_to_bigint.rs:20-22).
   if (bytes.length === 0) {

@@ -32,51 +32,15 @@
 import type { SValue, Xor } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
 
 export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
   // Pattern B: eval children FIRST, then guard, then charge.
   const leftV = evalExpr(e.left, env, ctx)
   const rightV = evalExpr(e.right, env, ctx)
-  if (
-    leftV.kind !== 'Coll' ||
-    leftV.elem.tag !== 'SByte' ||
-    rightV.kind !== 'Coll' ||
-    rightV.elem.tag !== 'SByte'
-  ) {
-    throw new EvalError(
-      `Xor: expected Coll[Byte] for both operands, got left='${leftV.kind}', right='${rightV.kind}'`,
-      'predef-input-not-byte-array',
-    )
-  }
-  // Pack i8 items back to u8 bytes (matches extractBytes / calc_sha256 convention).
-  const l = new Uint8Array(leftV.items.length)
-  for (let i = 0; i < leftV.items.length; i++) {
-    const item = leftV.items[i]!
-    // Defensive: parser produces Byte items, but ConstantPlaceholder may inject
-    // non-Byte items past the elem-tag guard above. Single predef error code
-    // per the 2i-a design decision.
-    if (item.kind !== 'Byte') {
-      throw new EvalError(
-        `Xor: left Coll[Byte] item at index ${i} is not Byte (got '${item.kind}')`,
-        'predef-input-not-byte-array',
-      )
-    }
-    l[i] = item.value & 0xff
-  }
-  const r = new Uint8Array(rightV.items.length)
-  for (let i = 0; i < rightV.items.length; i++) {
-    const item = rightV.items[i]!
-    if (item.kind !== 'Byte') {
-      throw new EvalError(
-        `Xor: right Coll[Byte] item at index ${i} is not Byte (got '${item.kind}')`,
-        'predef-input-not-byte-array',
-      )
-    }
-    r[i] = item.value & 0xff
-  }
+  const l = collByteToUint8Array(leftV, 'Xor')
+  const r = collByteToUint8Array(rightV, 'Xor')
   // Pattern B: charge cost AFTER eval-children + AFTER type-guard. Cost sized
   // by LEFT length — NOT min(left, right). This asymmetry is the consensus
   // invariant; mirroring sigma-rust's `l_byte.len() as u32`.

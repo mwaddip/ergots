@@ -28,6 +28,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { collByteToUint8Array } from './_byte-coll'
 
 export function evalByteArrayToLong(
   e: ByteArrayToLong,
@@ -36,27 +37,7 @@ export function evalByteArrayToLong(
 ): SValue {
   ctx.addCost(16) // Pattern A: charge BEFORE eval-child
   const inputV = evalExpr(e.input, env, ctx)
-  if (inputV.kind !== 'Coll' || inputV.elem.tag !== 'SByte') {
-    throw new EvalError(
-      `ByteArrayToLong: expected Coll[Byte] input, got kind='${inputV.kind}'`,
-      'predef-input-not-byte-array'
-    )
-  }
-  // Pack i8 items back to u8 bytes. Inline (no `extractCollByte` helper yet
-  // — extraction deferred to T7 Xor's 3rd-caller threshold).
-  const bytes = new Uint8Array(inputV.items.length)
-  for (let i = 0; i < inputV.items.length; i++) {
-    const item = inputV.items[i]!
-    // Defensive: parser produces Byte items, but ConstantPlaceholder may inject
-    // non-Byte items past the elem-tag guard above.
-    if (item.kind !== 'Byte') {
-      throw new EvalError(
-        `ByteArrayToLong: expected Byte item at index ${i}, got '${item.kind}'`,
-        'predef-input-not-byte-array'
-      )
-    }
-    bytes[i] = item.value & 0xff
-  }
+  const bytes = collByteToUint8Array(inputV, 'ByteArrayToLong')
   if (bytes.length < 8) {
     throw new EvalError(
       `ByteArrayToLong: array must contain at least 8 elements, got ${bytes.length}`,

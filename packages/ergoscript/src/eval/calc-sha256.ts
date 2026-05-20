@@ -25,9 +25,8 @@ import { sha256 } from '@noble/hashes/sha2.js'
 import type { CalcSha256, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
 
 export function evalCalcSha256(
   e: CalcSha256,
@@ -35,27 +34,7 @@ export function evalCalcSha256(
   ctx: EvalContext
 ): SValue {
   const input = evalExpr(e.input, env, ctx)
-  if (input.kind !== 'Coll' || input.elem.tag !== 'SByte') {
-    throw new EvalError(
-      `CalcSha256: expected Coll[Byte] input, got kind='${input.kind}'`,
-      'predef-input-not-byte-array'
-    )
-  }
-  // Pack i8 items back to u8 bytes (matches `extractBytes` convention).
-  const bytes = new Uint8Array(input.items.length)
-  for (let i = 0; i < input.items.length; i++) {
-    const item = input.items[i]!
-    // Defensive: parser produces Byte items, but ConstantPlaceholder may inject
-    // non-Byte items past the elem-tag guard above. Same code per Decision in
-    // the 2i-a design (single predef error code).
-    if (item.kind !== 'Byte') {
-      throw new EvalError(
-        `CalcSha256: expected Byte item at index ${i}, got '${item.kind}'`,
-        'predef-input-not-byte-array'
-      )
-    }
-    bytes[i] = item.value & 0xff
-  }
+  const bytes = collByteToUint8Array(input, 'CalcSha256')
   // Pattern B: charge AFTER eval-child + AFTER type guard.
   ctx.addPerItemCost(80, 8, 64, bytes.length)
   const digest = sha256(bytes)

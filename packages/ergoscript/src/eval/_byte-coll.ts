@@ -15,6 +15,8 @@
  */
 
 import type { SType, SValue } from '../mir/types'
+import type { EvalErrorCode } from './errors'
+import { EvalError } from './eval-context'
 
 const SBYTE_TYPE: SType = { tag: 'SByte' }
 
@@ -59,3 +61,45 @@ export const I256_MIN = -(1n << 255n)
 
 /** Signed 256-bit integer maximum: 2^255 - 1. Used by ByteArrayToBigInt range check. */
 export const I256_MAX = (1n << 255n) - 1n
+
+/**
+ * Extract a Coll[Byte] SValue as a Uint8Array. Throws EvalError with the given
+ * code on:
+ * - Non-Coll input (kind !== 'Coll')
+ * - Coll whose elem isn't SByte (covers Coll[Int], Coll[Long], etc.)
+ * - Per-item kind mismatch (defends against ConstantPlaceholder injection in
+ *   hand-crafted MIR)
+ *
+ * The `arm` label is interpolated into error messages for caller-context
+ * (e.g., `${arm}: expected Coll[Byte] input, got kind='${v.kind}'`).
+ *
+ * Consolidated from 6+ inline copies across phase 2i-a arms (T2-T7) — the
+ * pattern recurred as predicted by the spec's "extract on 3rd caller" rule.
+ *
+ * Used by: CalcBlake2b256, CalcSha256, ByteArrayToLong, ByteArrayToBigInt,
+ * Xor (twice for left/right), DecodePoint (T8 phase 2i-a), SubstConstants (T9).
+ */
+export function collByteToUint8Array(
+  v: SValue,
+  arm: string,
+  code: EvalErrorCode = 'predef-input-not-byte-array',
+): Uint8Array {
+  if (v.kind !== 'Coll' || v.elem.tag !== 'SByte') {
+    throw new EvalError(
+      `${arm}: expected Coll[Byte] input, got kind='${v.kind}'`,
+      code,
+    )
+  }
+  const out = new Uint8Array(v.items.length)
+  for (let i = 0; i < v.items.length; i++) {
+    const item = v.items[i]!
+    if (item.kind !== 'Byte') {
+      throw new EvalError(
+        `${arm}: Coll[Byte] item is not Byte (got '${item.kind}')`,
+        code,
+      )
+    }
+    out[i] = item.value & 0xff
+  }
+  return out
+}
