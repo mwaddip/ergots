@@ -82,11 +82,13 @@
 //!    `UnknownMethodId` when `tree_version < V3` (per
 //!    `ergotree-ir/src/serialization/method_call.rs:40-45`). We do NOT call
 //!    `try_eval_out_with_version` here either (parse rejects); emit
-//!    `expected_value_json: null`, `expected_cost: 0`,
-//!    `expected_error_code: "tree-version-too-low"`. The TS test sets
-//!    `ctx.treeVersion = 2` to drive the V<3 dispatcher reject. The
-//!    cost-parity invariant (V2-reject cost === V3-success-receiver-cost,
-//!    handler cost is zero) is verified by T12's parallel-pair cost test.
+//!    `opts_json: { "treeVersion": 2 }` (matching the convention from
+//!    `downcast.rs` / `option_get_or_else.rs`), `expected_value_json: null`,
+//!    `expected_cost: 0`, `expected_error_code: "tree-version-too-low"`. The
+//!    TS test reads `treeVersion: 2` from `opts_json` via the standard
+//!    `makeContext({ ...entry.opts_json })` pattern. The cost-parity invariant
+//!    (V2-reject cost === V3-success-receiver-cost, handler cost is zero) is
+//!    verified by T12's parallel-pair cost test.
 //!
 //! Phase 2h-d Task 10.
 
@@ -482,11 +484,13 @@ fn make_malformed_proof_entry() -> anyhow::Result<InsertOrUpdateFixture> {
 
 /// Scenario 6: V<3 dispatcher reject.
 ///
-/// Tree bytes match the happy-V3 shape (otherwise valid). The TS-side test
-/// sets `ctx.treeVersion = 2`; the dispatcher's `minVersion: 3` gate fires
-/// BEFORE the handler runs, throwing `'tree-version-too-low'`. No sigma-rust
-/// oracle is consulted (parse-time `UnknownMethodId` rejection). The
-/// cost-parity invariant (V2 reject cost === V3 success receiver+envelope
+/// Tree bytes match the happy-V3 shape (otherwise valid). The fixture encodes
+/// `opts_json: { "treeVersion": 2 }` (matching the convention from
+/// `downcast.rs` / `option_get_or_else.rs`); the TS test passes this through
+/// `makeContext({ ...entry.opts_json })`. The dispatcher's `minVersion: 3`
+/// gate then fires BEFORE the handler runs, throwing `'tree-version-too-low'`.
+/// No sigma-rust oracle is consulted (parse-time `UnknownMethodId` rejection).
+/// The cost-parity invariant (V2 reject cost === V3 success receiver+envelope
 /// cost, since the handler has zero per-handler cost) is verified by T12's
 /// parallel-pair cost test.
 fn make_v2_dispatcher_reject_entry() -> anyhow::Result<InsertOrUpdateFixture> {
@@ -522,7 +526,7 @@ fn make_v2_dispatcher_reject_entry() -> anyhow::Result<InsertOrUpdateFixture> {
     Ok(InsertOrUpdateFixture {
         name: "insert_or_update_v2_dispatcher_reject".into(),
         tree_bytes_hex,
-        opts_json: json!({}),
+        opts_json: json!({ "treeVersion": 2 }),
         expected_value_json: json!(null),
         expected_cost: 0,
         expected_error_code: json!("tree-version-too-low"),

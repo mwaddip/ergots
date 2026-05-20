@@ -76,7 +76,9 @@
     {
       "name": "insert_or_update_v2_dispatcher_reject",
       "tree_bytes_hex": "00dc641064ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02030100020c3c0e0e01011008aaaaaaaaaaaaaaaa0e55030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff03bbec60f62d91ab07e19999a1eda913d10cc474b3006ae96a7912adb51d93c13f0203ff00000008030303030303030300000400",
-      "opts_json": {},
+      "opts_json": {
+        "treeVersion": 2
+      },
       "expected_value_json": null,
       "expected_cost": 0,
       "expected_error_code": "tree-version-too-low"
