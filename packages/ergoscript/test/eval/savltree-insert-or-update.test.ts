@@ -67,3 +67,57 @@ describe('SAvlTree.insertOrUpdate (100:16) — V3-gated, fixture-driven', () => 
     })
   }
 })
+
+describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
+  // Parallel-pair cost-correctness invariant (mirrors SHeader.checkPow precedent
+  // at sheader-checkpow.test.ts:66-103). The V<3 dispatcher reject must charge
+  // EXACTLY receiver-eval + envelope cost, NOT the handler's per-handler cost.
+  //
+  // For SAvlTree.insertOrUpdate the per-handler cost is 0 (the verifier owns
+  // the work and `@ergots/avltree` does not charge per-op verifier costs back
+  // to ctx.jitCost — see src/eval/savltree.ts:14-17). So the V3-vs-V2 delta is
+  // 0, and the load-bearing assertion is `v3 === v2`.
+  //
+  // To distinguish this from "dispatcher throws before any cost is charged",
+  // the test also asserts the V<3 reject cost is positive — proving the
+  // dispatcher's cost-before-throw semantics (envelope (4) + receiver Const +
+  // args Const are accumulated before the minVersion gate at method-call.ts:144).
+  //
+  // The fixture's `expected_cost: 0` on the v2-reject entry is a sentinel (the
+  // fixture-driven oracle test above skips cost assertion on throw entries);
+  // the actual numeric cost-at-throw is asserted here instead.
+  it('V2 reject incurs receiver-eval + envelope cost only, not the handler cost', () => {
+    const v3Happy = fixture.entries.find((e) => e.name === 'insert_or_update_happy_v3')!
+    const v2Reject = fixture.entries.find((e) => e.name === 'insert_or_update_v2_dispatcher_reject')!
+
+    // Capture the V3 success cost (the pivot for the parallel-pair delta).
+    const v3Tree = parseTree(hexToBytes(v3Happy.tree_bytes_hex))
+    const v3Ctx = makeContext(rehydrateEvalOpts(v3Happy.opts_json))
+    evaluateWith(v3Tree, v3Ctx)
+
+    // Capture the V2 reject cost: evaluateWith throws but the EvalContext
+    // accumulates cost up to the throw (cost-before-throw semantics from
+    // 2h-c.2 dispatcher; see method-call.ts:116-150).
+    const v2Tree = parseTree(hexToBytes(v2Reject.tree_bytes_hex))
+    const v2Ctx = makeContext(rehydrateEvalOpts(v2Reject.opts_json))
+    const err = captureEvalError(() => evaluateWith(v2Tree, v2Ctx))
+    expect(err.code).toBe('tree-version-too-low')
+
+    // V3 fixture-driven oracle: success cost matches sigma-rust try_eval_out.
+    expect(v3Ctx.jitCost).toBe(v3Happy.expected_cost)
+
+    // Load-bearing assertion: the cost delta between V3 success and V2 reject
+    // equals the handler's per-handler cost — which is 0 for insertOrUpdate
+    // (verifier owns the work). Therefore V3 cost and V2 reject cost are
+    // EXACTLY equal. If a future regression added a per-handler ctx.addCost
+    // call before the dispatcher gate (or if the handler started running on
+    // V<3 by mistake), this delta would become positive and the test would fail.
+    expect(v3Ctx.jitCost - v2Ctx.jitCost).toBe(0)
+
+    // Sanity: the V2 reject cost is positive (envelope + receiver + args
+    // were charged before the dispatcher's minVersion check fired). If the
+    // V<3 gate were moved BEFORE these charges, this assertion would fail
+    // and reveal a regression in cost-before-throw semantics.
+    expect(v2Ctx.jitCost).toBeGreaterThan(0)
+  })
+})
