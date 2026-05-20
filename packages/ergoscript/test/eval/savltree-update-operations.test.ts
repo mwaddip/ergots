@@ -9,6 +9,8 @@
  * test below).
  *
  * Source: ergotree-interpreter/src/eval/savltree.rs:77-88 — UPDATE_OPERATIONS_EVAL_FN.
+ *
+ * Mutation block migrated to shared harness in Phase 2h-e (mutation-harness.ts).
  */
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -22,6 +24,7 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import type { MethodCall, SValue } from '../../src/mir/types'
 import { captureEvalError, hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { runMutationLoop, evalSafely, DEFAULT_KILL_THRESHOLD } from '../_helpers/mutation-harness'
 
 interface UpdateOperationsEntry {
   name: string
@@ -174,82 +177,34 @@ describe('SAvlTree.updateOperations — edge cases', () => {
 //     updateOperations REPLACES the receiver's treeFlags with args[0] (0x05),
 //     so input flags are discarded — mutating them is semantically invisible.
 //     This is the load-bearing tolerance: handler-by-design, not a bug.
+//
+// Harness extracted to test/_helpers/mutation-harness.ts in Phase 2h-e.
 // ---------------------------------------------------------------------------
-
-type EvalOutcome =
-  | { ok: true; value: SValue }
-  | { ok: false; errorCode: string | undefined; errorMessage: string }
-
-function evalSafely(treeBytes: Uint8Array, optsJson: Record<string, unknown>): EvalOutcome {
-  try {
-    const tree = parseTree(treeBytes)
-    const ctx = makeContext(rehydrateEvalOpts(optsJson))
-    const value = evaluateWith(tree, ctx)
-    return { ok: true, value }
-  } catch (e) {
-    if (e instanceof EvalError) {
-      return { ok: false, errorCode: e.code, errorMessage: e.message }
-    }
-    if (e instanceof Error) {
-      return { ok: false, errorCode: undefined, errorMessage: e.message }
-    }
-    return { ok: false, errorCode: undefined, errorMessage: String(e) }
-  }
-}
-
-/** Deep-equal two SValues via JSON serialization (BigInt-safe). */
-function svalueEqual(a: SValue, b: SValue): boolean {
-  const replacer = (_k: string, v: unknown): unknown =>
-    typeof v === 'bigint' ? `__bigint__${v.toString()}__` : v
-  return JSON.stringify(a, replacer) === JSON.stringify(b, replacer)
-}
-
-/**
- * A "kill" = the mutated outcome is observably different from the baseline.
- *   - both threw: NOT a kill
- *   - exactly one threw: kill
- *   - both succeeded: kill iff values differ
- */
-function isKill(baseline: EvalOutcome, mutated: EvalOutcome): boolean {
-  if (!baseline.ok && !mutated.ok) return false
-  if (!baseline.ok && mutated.ok) return true
-  if (baseline.ok && !mutated.ok) return true
-  if (!baseline.ok || !mutated.ok) return false // narrowing
-  return !svalueEqual(baseline.value, mutated.value)
-}
-
-const XOR_PATTERNS = [0xff, 0x01, 0x80]
-const THRESHOLD = 0.9
 
 describe('SAvlTree.updateOperations — mutation testing', () => {
   for (const entry of fixture.entries) {
-    it(`${entry.name}: ≥${(THRESHOLD * 100).toFixed(0)}% kill rate on whole-tree byte mutations`, () => {
+    it(`${entry.name}: ≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate on whole-tree byte mutations`, () => {
       const treeBytes = hexToBytes(entry.tree_bytes_hex)
 
-      // Baseline outcome (unmutated). Must succeed for kill-rate math to mean
-      // anything — the success-path fixture is the reference.
+      // Precondition: the unmutated baseline must succeed. The harness uses
+      // the same baseline internally; this explicit check provides a clean
+      // failure message when the handler itself regresses (vs a confusing
+      // 'kill rate < 90%' diagnostic).
       const baseline = evalSafely(treeBytes, entry.opts_json)
       expect(baseline.ok).toBe(true)
 
-      let killed = 0
-      let total = 0
-      for (let i = 0; i < treeBytes.length; i++) {
-        for (const xor of XOR_PATTERNS) {
-          total++
-          const mutated = new Uint8Array(treeBytes)
-          mutated[i] = (mutated[i]! ^ xor) & 0xff
-          const outcome = evalSafely(mutated, entry.opts_json)
-          if (isKill(baseline, outcome)) killed++
-        }
-      }
+      const result = runMutationLoop({
+        treeBytes,
+        region: { start: 0, end: treeBytes.length },
+        optsJson: entry.opts_json,
+      })
 
-      const rate = total === 0 ? 1 : killed / total
       // eslint-disable-next-line no-console
       console.log(
-        `[mutation] updateOperations.${entry.name}: killed=${killed} ` +
-          `total=${total} rate=${rate.toFixed(3)} bytes=${treeBytes.length}`
+        `[mutation] updateOperations.${entry.name}: killed=${result.killed} ` +
+          `total=${result.total} rate=${result.rate.toFixed(3)} bytes=${treeBytes.length}`,
       )
-      expect(rate).toBeGreaterThanOrEqual(THRESHOLD)
+      expect(result.rate).toBeGreaterThanOrEqual(DEFAULT_KILL_THRESHOLD)
     })
   }
 })
