@@ -1,0 +1,21 @@
+{
+  "corpus": "eval_savltree_update_partial",
+  "entries": [
+    {
+      "name": "update_partial_success_graceful",
+      "tree_bytes_hex": "00dc640d64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02020100020c3c0e0e03010108aaaaaaaaaaaaaaaa01fe08bbbbbbbbbbbbbbbb010308cccccccccccccccc0e650385ab460a6564d1e5ded17716cd5866650d7fbb9cada7fecabd5fe21e2f80e43a0201020000000801010101010101010003bbec60f62d91ab07e19999a1eda913d10cc474b3006ae96a7912adb51d93c13f0203ff00000008030303030303030300000401",
+      "opts_json": {
+        "treeVersion": 0
+      },
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 19,
+      "expected_error_code": null
+    }
+  ]
+}

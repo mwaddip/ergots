@@ -27,6 +27,7 @@ pub mod savltree_get;
 pub mod savltree_get_many;
 pub mod savltree_insert;
 pub mod savltree_insert_or_update;
+pub mod savltree_partial_success;
 pub mod savltree_is_insert_allowed;
 pub mod savltree_is_remove_allowed;
 pub mod savltree_is_update_allowed;

@@ -364,6 +364,32 @@ fn main() -> anyhow::Result<()> {
         &savltree_insert_or_update_fixture,
     )?;
 
+    // Phase 2h-d Task 14: SAvlTree.insert / SAvlTree.update per-op-fail-graceful
+    // carry-forward fixtures (closing previously-untested 2h-b branches).
+    //   - insert V3+ per-op-fail-graceful (savltree.ts:446-460)
+    //   - update per-op-fail-graceful (savltree.ts:507-510)
+    //   - insert V<3 per-op-fail-throw (savltree.ts:464-469; optional hardening
+    //     added because the audit of `savltree-insert.json` found no V<3 throw
+    //     coverage among its 3 existing scenarios).
+    let savltree_insert_partial_fixture =
+        cmds::ergoscript::eval::savltree_partial_success::generate_insert_partial()?;
+    write_ergoscript_json(
+        "eval/savltree-insert-partial.json",
+        &savltree_insert_partial_fixture,
+    )?;
+    let savltree_update_partial_fixture =
+        cmds::ergoscript::eval::savltree_partial_success::generate_update_partial()?;
+    write_ergoscript_json(
+        "eval/savltree-update-partial.json",
+        &savltree_update_partial_fixture,
+    )?;
+    let savltree_insert_partial_v2_throw_fixture =
+        cmds::ergoscript::eval::savltree_partial_success::generate_insert_v2_throw()?;
+    write_ergoscript_json(
+        "eval/savltree-insert-partial-v2-throw.json",
+        &savltree_insert_partial_v2_throw_fixture,
+    )?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;

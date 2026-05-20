@@ -1,0 +1,15 @@
+{
+  "corpus": "eval_savltree_insert_partial_v2_throw",
+  "entries": [
+    {
+      "name": "insert_partial_v2_throw",
+      "tree_bytes_hex": "00dc640c64ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02010100020c3c0e0e03011008aaaaaaaaaaaaaaaa010208bbbbbbbbbbbbbbbb012008cccccccccccccccc0e42030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff02020300000008020202020202020202ff00000008030303030303030300000408",
+      "opts_json": {
+        "treeVersion": 0
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "avl-tree-proof-failed"
+    }
+  ]
+}
