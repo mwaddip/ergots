@@ -40,6 +40,33 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixturePath = join(__dirname, '../fixtures/eval/savltree-update.json')
 const fixture: UpdateFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
 
+/**
+ * Carry-forward fixture from phase 2h-d (T14). Update has no V<3/V3+ split —
+ * sigma-rust unconditionally graceful-breaks on per-op failure (savltree.rs:
+ * 421-431). Schema mirrors the insert carry-forward (extended with
+ * `expected_error_code: string | null`) for consistency, though for update
+ * every entry's `expected_error_code` is null (success path returns
+ * Option None — no throw counterpart exists).
+ */
+interface UpdatePartialEntry {
+  name: string
+  tree_bytes_hex: string
+  opts_json: Record<string, unknown>
+  expected_value_json: unknown
+  expected_cost: number
+  expected_error_code: string | null
+}
+
+interface UpdatePartialFixture {
+  corpus: string
+  entries: UpdatePartialEntry[]
+}
+
+const updatePartialPath = join(__dirname, '../fixtures/eval/savltree-update-partial.json')
+const updatePartialFixture: UpdatePartialFixture = JSON.parse(
+  readFileSync(updatePartialPath, 'utf-8')
+)
+
 describe('SAvlTree.update — fixture-driven', () => {
   for (const entry of fixture.entries) {
     it(entry.name, () => {
@@ -71,4 +98,36 @@ describe('SAvlTree.update — throw paths', () => {
     const err = captureEvalError(() => evaluateWith(tree, ctx))
     expect(err.code).toBe('avl-tree-proof-failed')
   })
+})
+
+// ---------------------------------------------------------------------------
+// Carry-forward from phase 2h-b (T14/T16 of 2h-d)
+//
+// The per-op-fail-graceful break path (savltree.ts:507-510) was implemented
+// in 2h-b but lacked a committed fixture. T14 emitted a single carry-forward
+// fixture targeting this gap. Unlike insert, update has no V<3/V3+ split —
+// sigma-rust unconditionally graceful-breaks on per-op failure (savltree.rs:
+// 421-431). Source-read confirmation: line 429 is `break;` without a
+// tree_version check.
+//
+// Sigma-rust semantics: after the unconditional break, bv.digest() returns
+// None (poisoned) and the handler returns Option None, NOT a Some(AvlTree)
+// carrying a partial-state digest.
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree.update — per-op-fail-graceful (carry-forward from 2h-b)', () => {
+  for (const entry of updatePartialFixture.entries) {
+    it(entry.name, () => {
+      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
+      if (entry.expected_error_code !== null) {
+        const err = captureEvalError(() => evaluateWith(tree, ctx))
+        expect(err.code).toBe(entry.expected_error_code)
+      } else {
+        const value = evaluateWith(tree, ctx)
+        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(ctx.jitCost).toBe(entry.expected_cost)
+      }
+    })
+  }
 })
