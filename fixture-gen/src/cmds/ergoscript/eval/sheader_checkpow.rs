@@ -14,7 +14,9 @@
 //!   min_version:   `ErgoTreeVersion::V3`
 //!   jit cost:      `ctx.add_jit_cost(700)` (CHECK_POW_EVAL_FN)
 //!
-//! Cost breakdown:
+//! Cost breakdown (oracle-determined; the per-arm pieces below are an
+//! approximation — the authoritative value is whatever sigma-rust's
+//! `try_eval_out` reports and is what `expectedJitCost` records):
 //!   4  (MethodCall dispatcher)
 //! + 4  (ByIndex arm)
 //! + 1  (Const arm — index literal 0)
@@ -22,7 +24,8 @@
 //! + 1  (Context arm)
 //! + 15 (SContext.headers handler)
 //! + 700 (SHeader.checkPow handler)
-//! = 729
+//! + 30 (additional sigma-rust dispatcher / receiver-eval costs not pinned to a single arm)
+//! = 759 (current oracle value at sigma-rust integration/ergots HEAD)
 
 use ergo_chain_types::Header;
 use ergotree_interpreter::eval::test_util::try_eval_out;
