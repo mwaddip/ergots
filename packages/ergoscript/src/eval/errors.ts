@@ -25,7 +25,8 @@
  *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
  *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
  *    + 1 code added in phase 2i-a (pure-bytes predef input guard)
- *   = 49 codes total after phase 2i-a T2 (CalcBlake2b256).
+ *    + 1 code added in phase 2i-a T4 (ByteArrayToLong length guard)
+ *   = 50 codes total after phase 2i-a T4 (ByteArrayToLong).
  */
 
 /**
@@ -340,7 +341,7 @@ export type EvalErrorCode =
   | 'avl-tree-bad-digest-length'
 
   // -------------------------------------------------------------------------
-  // Phase 2i-a — Pure-bytes predefs (1 new code; 48 → 49)
+  // Phase 2i-a — Pure-bytes predefs (2 new codes; 48 → 50)
   // -------------------------------------------------------------------------
   /**
    * Pure-bytes predef arms (`CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`,
@@ -357,3 +358,14 @@ export type EvalErrorCode =
    *         (T3-T9 follow the same code per phase 2i-a design)
    */
   | 'predef-input-not-byte-array'
+  /**
+   * `ByteArrayToLong`: input Coll[Byte] has fewer than 8 elements (the
+   * minimum required to construct a big-endian i64). Sigma-rust returns
+   * `EvalError::UnexpectedValue("byteArrayToLong: array must contain at
+   * least 8 elements")`. The length comparison is `< 8`, NOT `!= 8`:
+   * trailing bytes after the first 8 are silently ignored (sigma-rust's
+   * `eval_skip_tail` test at byte_array_to_long.rs:62-65).
+   *
+   * Source: ergotree-interpreter/src/eval/byte_array_to_long.rs:20-24
+   */
+  | 'byte-array-to-long-too-short'
