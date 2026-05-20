@@ -8,12 +8,12 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 | Package | Status | What |
 |---|---|---|
-| `@ergots/scorex` | **local v0.1.0** (never published) | Shared Scorex wire codec: `ByteReader` / `ByteWriter` / VLQ + ZigZag VLQ / `ReaderError` (4 codes) + block-Header types (`Header`, `AutolykosSolution`, digest helpers). 115 tests. Workspace dep of nipopow + ergoscript. |
-| `@ergots/nipopow` | **local v0.2.0** (was published as `@mwaddip/ergots-proof@0.1.0` pre-rename) | NiPoPoW proof parse / serialize / verify / compare, P2P envelope codec. 307 tests. Workspace dep on `@ergots/scorex`. |
+| `@ergots/scorex` | **local v0.2.0** (never published) | Shared Scorex wire codec: `ByteReader` / `ByteWriter` / VLQ + ZigZag VLQ / `ReaderError` (4 codes) + block-Header types (`Header`, `AutolykosSolution`, digest helpers) + Autolykos v2 PoW verifier (`verifyAutolykosV2`, `decodeCompactBits`, `AutolykosV1NotSupportedError`). 177 tests. Workspace dep of nipopow + ergoscript. |
+| `@ergots/nipopow` | **local v0.2.1** (was published as `@mwaddip/ergots-proof@0.1.0` pre-rename) | NiPoPoW proof parse / serialize / verify / compare, P2P envelope codec. 245 tests. Workspace dep on `@ergots/scorex` (Autolykos v2 verifier consumed from there since v0.2.1). |
 | `@ergots/avltree` | **local v0.2.0** (ready to publish) | Batch AVL+ authenticated-tree verifier (`verifyAvlBatch`, `verifyAvlBatchPartial`, `verifyAvlLookup`). 156 tests, 50 corpus fixtures, ≥ 90% mutation kill rate per `Operation` variant. |
-| `@ergots/ergoscript` | **in active development** (local v0.2.x, pre-publish) | ErgoTree parser + serializer + partial evaluator + sigma-protocol verifier. **2857 tests.** 52 of ~70 `Expr` arms wired; **38-entry method-handler registry**; 46 `EvalError` codes. Wire format complete (incl. V3-gated SHeader literals); sigma-protocol verifier shipped (full `SigmaBoolean` surface incl. Cand/Cor/Cthreshold); AVL+ integration shipped via `@ergots/avltree`; SHeader/Header method-call surface shipped. Cost validation and remaining Expr arms planned. |
+| `@ergots/ergoscript` | **in active development** (local v0.3.x, pre-publish) | ErgoTree parser + serializer + partial evaluator + sigma-protocol verifier. **2903 tests.** 52 of ~70 `Expr` arms wired; **42-entry method-handler registry**; 48 `EvalError` codes. Wire format complete (incl. V3-gated SHeader literals); sigma-protocol verifier shipped (full `SigmaBoolean` surface incl. Cand/Cor/Cthreshold); AVL+ integration shipped via `@ergots/avltree` with the `SAvlTree.*` method surface now 16/16 complete; SHeader/Header method-call surface complete (incl. `checkPow`). Cost validation and remaining Expr arms (predefs, `Xor`, `ModQ` family, `Coll` shift/rotate) planned. |
 
-Total tests across packages: **3435**, passing under both `node` and `jsdom` (cross-runtime).
+Total tests across packages: **3481**, passing under both `node` and `jsdom` (cross-runtime).
 
 A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md).
 
@@ -23,7 +23,7 @@ These packages are **not yet a consensus-complete kernel**. They are an in-progr
 
 - **`@ergots/nipopow`'s `verifyProof` is a structural + Autolykos-v2 verifier.** It validates proof framing, parent linkage, strictly-increasing heights, and each version ≥ 2 header's Autolykos v2 solution under that header's **self-declared** `nBits`. It does NOT validate `nBits` against the network's difficulty-adjustment rule, does NOT validate `header.version` against the network's hard-fork schedule, and does NOT anchor the proof to a trusted checkpoint. Full consensus header validation is a planned future phase.
 
-- **`@ergots/ergoscript`'s `evaluate` is a partial interpreter** (52 of ~70 `Expr` arms wired today; 38-entry method-handler registry covering `SHeader.*` ×15, `SContext.*` ×4, `SAvlTree.*` ×13, `SColl.*` ×3, `SGlobal.*` ×1, `SBox.tokens`, `SPreHeader.timestamp`). Treat each evaluator success as "the inputs are structurally valid and the implemented arms passed."
+- **`@ergots/ergoscript`'s `evaluate` is a partial interpreter** (52 of ~70 `Expr` arms wired today; 42-entry method-handler registry covering `SHeader.*` ×16 (incl. `checkPow`), `SContext.*` ×4, `SAvlTree.*` ×16 (full surface), `SColl.*` ×3, `SGlobal.*` ×1, `SBox.tokens`, `SPreHeader.timestamp`). Treat each evaluator success as "the inputs are structurally valid and the implemented arms passed."
 
 - **`@ergots/ergoscript`'s `verifySignature` is the sigma-protocol verifier** — full `SigmaBoolean` surface (leaf + Cand/Cor/Cthreshold conjecture walks) shipped via `@noble/curves@2.2.0` and an internal GF(2^192) module. 8 `VerifyError` codes (3 currently reserved for ABI stability).
 

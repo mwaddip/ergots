@@ -1,8 +1,8 @@
 # @ergots/scorex
 
-Pure-TypeScript Scorex wire-codec layer and block-Header types. Browser-compatible. Validated byte-for-byte against sigma-rust (`ergo-chain-types` + `sigma-ser`, branch `integration/ergots`).
+Pure-TypeScript Scorex wire-codec layer, block-Header types, and Autolykos v2 PoW verifier. Browser-compatible. Validated byte-for-byte against sigma-rust (`ergo-chain-types` + `sigma-ser`, branch `integration/ergots`).
 
-This package is the shared foundation for `@ergots/nipopow` and `@ergots/ergoscript`: it provides the `ByteReader` / `ByteWriter` classes, VLQ + ZigZag-VLQ encode/decode, the `Header` and `AutolykosSolution` types, and digest-length constants. Extracting this layer removes duplicate codec implementations across packages and provides a stable, single-source-of-truth for the Ergo block-header wire format.
+This package is the shared foundation for `@ergots/nipopow` and `@ergots/ergoscript`: it provides the `ByteReader` / `ByteWriter` classes, VLQ + ZigZag-VLQ encode/decode, the `Header` and `AutolykosSolution` types, digest-length constants, and the Autolykos v2 proof-of-work verifier (`verifyAutolykosV2` and `decodeCompactBits`). Extracting this layer removes duplicate codec implementations across packages and provides a stable, single-source-of-truth for the Ergo block-header wire format.
 
 ## Install
 
@@ -52,6 +52,17 @@ const id     = deriveHeaderId(header); // blake2b256(serializeHeader(header)); 3
 import { BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN, EC_POINT_LEN, readFixed, writeFixed } from '@ergots/scorex';
 ```
 
+### Autolykos v2 PoW verifier
+
+```ts
+import { verifyAutolykosV2, decodeCompactBits, AutolykosV1NotSupportedError } from '@ergots/scorex';
+
+const ok: boolean = verifyAutolykosV2(header);  // throws AutolykosV1NotSupportedError on v1 headers
+const target: bigint = decodeCompactBits(header.nBits);  // Bitcoin-compact difficulty -> 256-bit target
+```
+
+Verifies an Autolykos v2 proof-of-work solution against the header's self-declared `nBits` target. v1 headers throw a typed error (sigma-rust parity — neither sigma-rust nor `ergo-node-rust` verify v1 PoW; v1 is JVM-only territory).
+
 See [facts/scorex.md](../../facts/scorex.md) for the full interface contract: all method signatures, type invariants, VLQ semantics, error codes, and source mapping to sigma-rust.
 
 ## Browser compatibility
@@ -62,7 +73,6 @@ All codec functions are pure and synchronous: bytes in, structured result out. N
 
 ## What this package does NOT do
 
-- **Autolykos v2 PoW verification.** Lives in `@ergots/nipopow`; may be promoted here in phase 2h-c.2.
 - **`SValue` / `SType` / `Expr` / `ErgoBox` types.** Package-specific to `@ergots/ergoscript`.
 - **`NipopowProof` / `AvlTreeData` / `Operation` types.** Package-specific to their respective packages.
 - **base58 / base58check.** Single-consumer in `@ergots/ergoscript`; not promoted to shared layer.
