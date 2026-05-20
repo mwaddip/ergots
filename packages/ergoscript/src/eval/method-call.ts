@@ -60,6 +60,7 @@ import {
   evalSAvlTreeKeyLength,
   evalSAvlTreeRemove,
   evalSAvlTreeUpdate,
+  evalSAvlTreeUpdateDigest,
   evalSAvlTreeUpdateOperations,
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
@@ -331,6 +332,14 @@ function registerHandlers(): void {
   // Handler body lives in ./savltree.ts; signature is (ctx, obj, args) so the
   // wrapper here flips argument order to match `MethodHandler` shape.
   HANDLERS.set(handlerKey(100, 8), { handler: (obj, args, ctx) => evalSAvlTreeUpdateOperations(ctx, obj, args) })
+
+  // ---------- SAvlTree.updateDigest (100:15) — phase 2h-d Task 7 ----------
+  // Pattern A Fixed(40); V0+. Pure projection over AvlTreeData.digest.
+  // Defensive 33-byte length check throws 'avl-tree-bad-digest-length'.
+  // Source: ergotree-interpreter/src/eval/savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
+  // Handler body lives in ./savltree.ts; signature is (ctx, obj, args) so the
+  // wrapper here flips argument order to match `MethodHandler` shape.
+  HANDLERS.set(handlerKey(100, 15), { handler: (obj, args, ctx) => evalSAvlTreeUpdateDigest(ctx, obj, args) })
 
   // ---------- SAvlTree Tier-2 (verification ops) — phase 2h-b Phase F ----------
   // No per-handler cost (Tier-2 sigma-rust EvalFns do not add_jit_cost; the

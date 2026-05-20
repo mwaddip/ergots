@@ -602,3 +602,40 @@ export function evalSAvlTreeUpdateOperations(
   const newFlags = args[0]!.value & 0xff  // i8 → u8
   return { kind: 'AvlTree', value: withUpdatedFlags(obj.value, newFlags) }
 }
+
+/**
+ * `SAvlTree.updateDigest` (100:15) — replaces the 33-byte digest.
+ * Source: savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
+ *
+ * Pattern A Fixed(40) — addCost(40) BEFORE shape check (matches sigma-rust's
+ * `ctx.add_jit_cost(40)?` at line 91). Pure projection over AvlTreeData;
+ * no @ergots/avltree call.
+ *
+ * SType: (SAvlTree, SColl(SByte)) → SAvlTree.
+ *
+ * Defensive 33-byte length check — sigma-rust surfaces the same condition
+ * via `ADDigest::try_from(bytes_vec)` failing inside `map_eval_err`. Reachable
+ * from script-controlled data (any Coll[Byte] can be passed); thrown
+ * specifically as 'avl-tree-bad-digest-length' (NEW code; not reused).
+ *
+ * `withUpdatedDigest` (existing helper, _avltree-adapter.ts:68-75) does NOT
+ * validate length — it's pure field-substitution. The handler's pre-check
+ * is the sole length gate.
+ */
+export function evalSAvlTreeUpdateDigest(
+  ctx: EvalContext,
+  obj: SValue,
+  args: SValue[]
+): SValue {
+  ctx.addCost(40)
+  expectAvlTree('SAvlTree.updateDigest', obj)
+  expectOneArg('SAvlTree.updateDigest', args)
+  const newDigest = extractBytes(args[0]!)
+  if (newDigest.length !== 33) {
+    throw new EvalError(
+      `SAvlTree.updateDigest: digest must be 33 bytes, got ${newDigest.length}`,
+      'avl-tree-bad-digest-length'
+    )
+  }
+  return { kind: 'AvlTree', value: withUpdatedDigest(obj.value, newDigest) }
+}
