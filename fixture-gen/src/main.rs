@@ -349,6 +349,21 @@ fn main() -> anyhow::Result<()> {
         &savltree_update_digest_fixture,
     )?;
 
+    // Phase 2h-d Task 10: SAvlTree.insertOrUpdate handler (MethodCall typeId=100,
+    // methodId=16, V3-gated at dispatcher). Zero per-handler cost; returns
+    // Option[AvlTree] with new digest on full success, Option None on
+    // pre-check fail or per-op fail, or throws on malformed proof / V<3
+    // dispatcher reject. Six scenarios: happy V3, insertAllowed=false
+    // pre-check, updateAllowed=false pre-check, per-op-fail-graceful (V3+
+    // break path via directions-mismatch), malformed proof
+    // ('avl-tree-proof-failed'), V2 dispatcher reject ('tree-version-too-low').
+    let savltree_insert_or_update_fixture =
+        cmds::ergoscript::eval::savltree_insert_or_update::generate()?;
+    write_ergoscript_json(
+        "eval/savltree-insert-or-update.json",
+        &savltree_insert_or_update_fixture,
+    )?;
+
     // Phase 2g.5 Task 2: SigmaPropBytes Expr arm — prop_bytes serialization.
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
