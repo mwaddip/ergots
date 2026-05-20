@@ -74,6 +74,26 @@ export function withUpdatedDigest(tree: AvlTreeData, newDigest: Uint8Array): Avl
   }
 }
 
+/**
+ * Immutable: produce a new `AvlTreeData` with `treeFlags` replaced; `digest`,
+ * `keyLength`, `valueLengthOpt` carry forward unchanged.
+ *
+ * Used by `SAvlTree.updateOperations` (100:8) — caller pre-narrows the input
+ * i8 SValue to u8 via `& 0xff`. Source: sigma-rust's
+ * `avl_tree_data.tree_flags = AvlTreeFlags::parse(new_byte)` at
+ * `eval/savltree.rs:86`. We store the byte directly; flag-bit semantics are
+ * encoded by the existing `INSERT_ALLOWED_BIT` / `UPDATE_ALLOWED_BIT` /
+ * `REMOVE_ALLOWED_BIT` constants in `savltree.ts`.
+ */
+export function withUpdatedFlags(tree: AvlTreeData, flags: number): AvlTreeData {
+  return {
+    digest: tree.digest,
+    treeFlags: flags & 0xff,
+    keyLength: tree.keyLength,
+    valueLengthOpt: tree.valueLengthOpt,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Op-builders — Operation[] assembly.
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ pub mod savltree_is_update_allowed;
 pub mod savltree_key_length;
 pub mod savltree_remove;
 pub mod savltree_update;
+pub mod savltree_update_operations;
 pub mod savltree_value_length_opt;
 pub mod scoll_indices;
 pub mod scoll_zip;

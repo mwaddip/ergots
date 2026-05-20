@@ -1,0 +1,20 @@
+{
+  "corpus": "eval_savltree_update_operations",
+  "entries": [
+    {
+      "name": "update_operations_drop_update_bit",
+      "tree_bytes_hex": "00dc640864424242424242424242424242424242424242424242424242424242424242424242072000010205",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "424242424242424242424242424242424242424242424242424242424242424242",
+          "keyLength": 32,
+          "treeFlags": 5,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 59
+    }
+  ]
+}
