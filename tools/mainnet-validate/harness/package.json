@@ -1,0 +1,28 @@
+{
+  "name": "ergots-mainnet-validate-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript validation harness for the ergots mainnet-validate shim. Spawns the Rust shim, walks the chain block-by-block, exercises @ergots/scorex + @ergots/ergoscript + @ergots/avltree against chain-accepted mainnet data.",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ergots/scorex": "file:../../../packages/scorex",
+    "@ergots/ergoscript": "file:../../../packages/ergoscript",
+    "@ergots/avltree": "file:../../../packages/avltree",
+    "cbor-x": "^1.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

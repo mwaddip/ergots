@@ -1,5 +1,7 @@
 # Build artifacts
 target/
+harness/node_modules/
+harness/dist/
 
 # Runtime state (sidecar UTXO index + harness checkpoint + error report)
 utxo-index.redb
