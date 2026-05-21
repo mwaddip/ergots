@@ -93,5 +93,6 @@ pub mod method_call;
 pub mod multiply_group;
 pub mod exponentiate;
 pub mod create_avl_tree;
+pub mod tree_lookup;
 pub mod sheader_handlers;
 pub mod sheader_checkpow;

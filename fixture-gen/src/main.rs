@@ -458,6 +458,16 @@ fn main() -> anyhow::Result<()> {
     let create_avl_tree_fixture = cmds::ergoscript::eval::create_avl_tree::generate()?;
     write_ergoscript_json("eval/create-avl-tree.json", &create_avl_tree_fixture)?;
 
+    // Phase 2i-b T6: TreeLookup Expr arm — no inline cost (children-only).
+    // 3-input verifier delegate: AvlTree + Coll[Byte] key + Coll[Byte] proof
+    // → Option[Coll[Byte]]. Sigma-rust ref:
+    // ergotree-interpreter/src/eval/tree_lookup.rs:20-65. Double-null semantic:
+    // outer null = proof construct fail → 'avl-tree-proof-failed';
+    // {value:null} = key absent → Option None.
+    // 4 happy + 3 throw entries.
+    let tree_lookup_fixture = cmds::ergoscript::eval::tree_lookup::generate()?;
+    write_ergoscript_json("eval/tree-lookup.json", &tree_lookup_fixture)?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;
