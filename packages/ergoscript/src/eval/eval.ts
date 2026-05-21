@@ -74,6 +74,7 @@ import { evalValUse } from './val-use'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalDecodePoint } from './decode-point'
+import { evalSubstConstants } from './subst-constants'
 import { evalXor } from './xor'
 import { evalXorOf } from './xor-of'
 
@@ -193,6 +194,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalSizeOf(e, env, ctx)
     case 'Slice':
       return evalSlice(e, env, ctx)
+    case 'SubstConstants':
+      return evalSubstConstants(e, env, ctx)
     case 'Xor':
       return evalXor(e, env, ctx)
     case 'XorOf':

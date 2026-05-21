@@ -27,7 +27,8 @@
  *    + 1 code added in phase 2i-a (pure-bytes predef input guard)
  *    + 1 code added in phase 2i-a T4 (ByteArrayToLong length guard)
  *    + 1 code added in phase 2i-a T8 (DecodePoint adapter failure)
- *   = 51 codes total after phase 2i-a T8 (DecodePoint).
+ *    + 1 code added in phase 2i-a T9 (SubstConstants — compact umbrella for 7 paths)
+ *   = 52 codes total after phase 2i-a T9 (SubstConstants).
  */
 
 /**
@@ -342,7 +343,11 @@ export type EvalErrorCode =
   | 'avl-tree-bad-digest-length'
 
   // -------------------------------------------------------------------------
-  // Phase 2i-a — Pure-bytes predefs (2 new codes; 48 → 50)
+  // Phase 2i-a — Pure-bytes predefs (7 new codes; 48 → 52). Per-code purposes
+  // span T2-T9: predef-input-not-byte-array (T2-T9 shared); byte-array-to-
+  // long-too-short (T4); predef-input-not-long (T5); byte-array-to-bigint-
+  // empty / -out-of-range (T6); decode-point-invalid (T8); subst-constants-
+  // error (T9 — umbrella for 7 throw paths).
   // -------------------------------------------------------------------------
   /**
    * Pure-bytes predef arms (`CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`,
@@ -429,3 +434,26 @@ export type EvalErrorCode =
    *         ergo-chain-types/src/ec_point.rs:140-152 (scorex_parse)
    */
   | 'decode-point-invalid'
+  /**
+   * `SubstConstants` (CONSENSUS-CRITICAL — output bytes go on-chain): any of
+   * the 7 throw paths in the substitute-constants arm collapse to this single
+   * compact code per the 2g.5 compact-taxonomy decision. The throw paths are:
+   *   - `script_bytes` evaluated to non-`Coll[Byte]` (defensive — build-time
+   *     guard `SubstConstants::new` enforces `SColl(SByte)`).
+   *   - `positions` evaluated to non-`Coll[Int]` (defensive — build-time guard
+   *     enforces `SColl(SInt)`).
+   *   - `new_values` evaluated to non-`Coll[_]` (defensive — build-time guard
+   *     enforces `SColl(_)`).
+   *   - `positions.length !== new_values.items.length`.
+   *   - Bad template bytes (any wire-layer error from `parseTree`).
+   *   - `positions[ix]` out of `[0, template.constants.length)`.
+   *   - Type mismatch: `new_values.elem` differs from `template.constantTypes[i]`.
+   *
+   * Distinguished by `error.message` text. Mirrors sigma-rust's mix of
+   * `EvalError::Misc` (subst_const.rs:36-87) and `SetConstantError`
+   * (ergo_tree.rs:51-66) cases.
+   *
+   * Source: ergotree-interpreter/src/eval/subst_const.rs:18-89
+   *         ergotree-ir/src/ergo_tree.rs:45-70 (with_constant)
+   */
+  | 'subst-constants-error'

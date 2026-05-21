@@ -23,6 +23,7 @@
  */
 
 import type { Closure, SType, SValue } from '../mir/types'
+import type { EvalErrorCode } from './errors'
 import { EvalError } from './eval-context'
 
 /**
@@ -74,4 +75,49 @@ export function extractFuncValue(v: SValue): Closure {
     )
   }
   return v.closure
+}
+
+/**
+ * Extract a `Coll[Int]` SValue as a `number[]`. Throws `EvalError` with the
+ * supplied code on:
+ *   - non-Coll input (`v.kind !== 'Coll'`)
+ *   - declared element type isn't `SInt`
+ *   - per-item kind mismatch (defends against `ConstantPlaceholder` injection
+ *     in hand-crafted MIR)
+ *
+ * Used by: `SubstConstants` (T9 phase 2i-a) for the `positions` argument.
+ *
+ * Default code `'coll-input-not-coll'` so existing Coll-HOF call-sites can
+ * adopt the helper without widening their taxonomy; T9 passes its arm-specific
+ * code (`'subst-constants-error'`) to keep all 7 throw paths under one umbrella.
+ */
+export function extractCollInt(
+  v: SValue,
+  arm: string,
+  code: EvalErrorCode = 'coll-input-not-coll',
+): number[] {
+  if (v.kind !== 'Coll') {
+    throw new EvalError(
+      `${arm}: expected Coll input, got kind='${v.kind}'`,
+      code,
+    )
+  }
+  if (v.elem.tag !== 'SInt') {
+    throw new EvalError(
+      `${arm}: expected Coll[Int], got Coll[${v.elem.tag}]`,
+      code,
+    )
+  }
+  const out: number[] = new Array(v.items.length)
+  for (let i = 0; i < v.items.length; i++) {
+    const item = v.items[i]!
+    if (item.kind !== 'Int') {
+      throw new EvalError(
+        `${arm}: Coll[Int] item is not Int (got '${item.kind}')`,
+        code,
+      )
+    }
+    out[i] = item.value
+  }
+  return out
 }
