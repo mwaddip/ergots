@@ -459,8 +459,9 @@ export type EvalErrorCode =
   | 'subst-constants-error'
 
   // -------------------------------------------------------------------------
-  // Phase 2i-b — Curve + AVL + sigma-trivial predefs (1 new code added in T2;
-  // 52 → 53 after T2). Further codes added in T3-T5.
+  // Phase 2i-b — Curve + AVL + sigma-trivial predefs. T2 added 1 code
+  // (sigma-prop-is-proven-no-eval; 52 → 53). T3 adds 1 code
+  // (group-op-input-not-group-element; 53 → 54). Further codes added in T4-T5.
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no
@@ -473,3 +474,19 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25
    */
   | 'sigma-prop-is-proven-no-eval'
+  /**
+   * `MultiplyGroup` (both operands) — and, in phase 2i-b T4, `Exponentiate`
+   * (base) — when an input expression evaluates to a non-`GroupElement` SValue.
+   * Wire-format invariants (`MultiplyGroup::new` / `Exponentiate::new` enforce
+   * `(SGroupElement, SGroupElement)` / `(SGroupElement, SBigInt)` at
+   * construction) make this unreachable for parser-produced trees; defensive
+   * against `ConstantPlaceholder` injection or hand-crafted MIR.
+   *
+   * Distinct from `'sigma-prop-input-not-group-element'` (2g-medium), which
+   * is specifically for sigma-prop creation arms (`CreateProveDlog` /
+   * `CreateProveDhTuple`); the names parallel each other.
+   *
+   * Source: ergotree-interpreter/src/eval/multiply_group.rs:23-26
+   *         ergotree-interpreter/src/eval/exponentiate.rs:20 (T4)
+   */
+  | 'group-op-input-not-group-element'

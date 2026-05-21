@@ -61,6 +61,7 @@ import { evalIf } from './if'
 import { evalLogicalNot } from './logical-not'
 import { evalLongToByteArray } from './long-to-byte-array'
 import { evalMethodCall, evalPropertyCall } from './method-call'
+import { evalMultiplyGroup } from './multiply-group'
 import { evalNegation } from './negation'
 import { evalOr } from './or'
 import { evalSelectField } from './select-field'
@@ -177,6 +178,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalMap(e, env, ctx)
     case 'MethodCall':
       return evalMethodCall(e, env, ctx)
+    case 'MultiplyGroup':
+      return evalMultiplyGroup(e, env, ctx)
     case 'OptionGet':
       return evalOptionGet(e, env, ctx)
     case 'OptionGetOrElse':
