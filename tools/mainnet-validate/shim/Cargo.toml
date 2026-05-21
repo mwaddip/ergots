@@ -1,0 +1,30 @@
+[package]
+name = "ergots-mainnet-validate-shim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust shim subprocess for the ergots mainnet validation harness (T2 of 15 scaffolding; T3-T5 add GET_TIP_HEIGHT / GET_BLOCK)."
+
+# This crate is intentionally NOT a member of any workspace. It lives outside
+# both the ergots npm/cargo trees and the ergo-node-rust cargo workspace. The
+# `enr-store` path-dep below reaches into ergo-node-rust's workspace but does
+# not join it.
+
+[dependencies]
+# Modifier store from the user's local ergo-node-rust checkout. Only
+# `enr-store` is needed at T2 (open store.redb + tip(101)/tip(102) query).
+# T3-T5 will add sigma-rust crates (`ergo-lib`, `ergotree-ir`,
+# `ergo-chain-types`) for tx/header/extension parsing.
+enr-store = { path = "../../../../ergo-node-rust/store" }
+
+# redb version pinned to match ergo-node-rust's pin
+# (ergo-node-rust/Cargo.toml:50 + ergo-node-rust/store/Cargo.toml:9 — both "4")
+# to avoid duplicate-version conflicts via the enr-store path-dep.
+redb = "4"
+
+# CBOR framing on the wire (per spec Decision 8). 0.2.2 is what sigma-rust
+# pulls transitively; pin to "0.2" for caret-compatibility with that.
+ciborium = "0.2"
+
+serde = { version = "1", features = ["derive"] }
+anyhow = "1"

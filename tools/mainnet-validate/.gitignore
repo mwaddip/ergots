@@ -1,0 +1,8 @@
+# Build artifacts
+target/
+
+# Runtime state (sidecar UTXO index + harness checkpoint + error report)
+utxo-index.redb
+*.redb.lock
+checkpoint.json
+error-report.json
