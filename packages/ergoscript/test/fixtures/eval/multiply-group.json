@@ -1,0 +1,87 @@
+{
+  "corpus": "eval_multiply_group",
+  "entries": [
+    {
+      "name": "mg_gen_gen",
+      "tree_bytes_hex": "00a0070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 50,
+      "expected_error_code": null
+    },
+    {
+      "name": "mg_gen_identity",
+      "tree_bytes_hex": "00a0070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179807000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 50,
+      "expected_error_code": null
+    },
+    {
+      "name": "mg_identity_identity",
+      "tree_bytes_hex": "00a00700000000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "000000000000000000000000000000000000000000000000000000000000000000",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 50,
+      "expected_error_code": null
+    },
+    {
+      "name": "mg_random_random",
+      "tree_bytes_hex": "00a007000000000000000000000000000000000000000000000000000000000000000000070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 50,
+      "expected_error_code": null
+    },
+    {
+      "name": "mg_asymmetric",
+      "tree_bytes_hex": "00a0070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798070379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "000000000000000000000000000000000000000000000000000000000000000000",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 50,
+      "expected_error_code": null
+    },
+    {
+      "name": "mg_inverse_then_doubling",
+      "tree_bytes_hex": "00a00702c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5070379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 50,
+      "expected_error_code": null
+    },
+    {
+      "name": "mg_throw_non_grp_left",
+      "tree_bytes_hex": "00a00454070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "group-op-input-not-group-element"
+    },
+    {
+      "name": "mg_throw_non_grp_right",
+      "tree_bytes_hex": "00a0070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980454",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "group-op-input-not-group-element"
+    }
+  ]
+}

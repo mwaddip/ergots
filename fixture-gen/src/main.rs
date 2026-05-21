@@ -436,6 +436,12 @@ fn main() -> anyhow::Result<()> {
     let sigma_prop_is_proven_fixture = cmds::ergoscript::eval::sigma_prop_is_proven::generate()?;
     write_ergoscript_json("eval/sigma-prop-is-proven.json", &sigma_prop_is_proven_fixture)?;
 
+    // Phase 2i-b T3: MultiplyGroup Expr arm — Pattern A Fixed(40), curve "multiply"
+    // = point ADDITION under multiplicative notation (ec_point.rs:74-80
+    // Mul<&EcPoint> = ProjectivePoint::add). 6 success + 2 throw entries.
+    let multiply_group_fixture = cmds::ergoscript::eval::multiply_group::generate()?;
+    write_ergoscript_json("eval/multiply-group.json", &multiply_group_fixture)?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;
