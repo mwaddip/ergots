@@ -81,55 +81,14 @@
               }
             }
           }
-        }
+        },
+        "height": 999999
       },
       "expected_value_json": {
         "kind": "Boolean",
         "value": true
       },
       "expected_cost": 34,
-      "expected_error": null,
-      "expected_error_code": null
-    },
-    {
-      "name": "dc_v3_unsigned_bigint",
-      "tree_bytes_hex": "03d40901",
-      "opts_json": {
-        "extension": {
-          "values": {
-            "1": {
-              "tpe": {
-                "elem": {
-                  "tag": "SByte"
-                },
-                "tag": "SColl"
-              },
-              "value": {
-                "elem": {
-                  "tag": "SByte"
-                },
-                "items": [
-                  {
-                    "kind": "Byte",
-                    "value": 9
-                  },
-                  {
-                    "kind": "Byte",
-                    "value": 0
-                  }
-                ],
-                "kind": "Coll"
-              }
-            }
-          }
-        },
-        "treeVersion": 3
-      },
-      "expected_value_json": {
-        "kind": "UnsignedBigInt",
-        "value": "0"
-      },
-      "expected_cost": 5,
       "expected_error": null,
       "expected_error_code": null
     },

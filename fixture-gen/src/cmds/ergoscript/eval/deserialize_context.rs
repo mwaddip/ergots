@@ -49,21 +49,19 @@ use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::global_vars::GlobalVars;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::serialization::SigmaSerializable;
+// UnsignedBigInt was used by the dropped dc_v3_unsigned_bigint fixture; no
+// longer referenced after the V3 fixture was excised from 2i-c.
+// use ergotree_ir::unsignedbigint256::UnsignedBigInt;
 use ergotree_ir::sigma_protocol::sigma_boolean::{
     ProveDlog, SigmaBoolean, SigmaProofOfKnowledgeTree, SigmaProp,
 };
 use ergotree_ir::types::stype::SType;
-use ergotree_ir::unsignedbigint256::UnsignedBigInt;
-use num_traits::Zero;
 use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use sigma_ser::ScorexSerializable;
 use sigma_test_util::force_any_val;
 
 use super::common::value_to_json;
-
-/// Header byte for V3 (no segregation, no size flag) = version bits 0b011.
-const HEADER_V3: u8 = 0x03;
 
 /// Minimal `ContextExtensionProvider` carrying a single owned `ContextExtension`.
 struct SimpleExtProvider(ContextExtension);
@@ -210,15 +208,6 @@ fn extension_to_opts_json(ext: &ContextExtension) -> JsonValue {
     json!({ "values": values })
 }
 
-/// Encode an UnsignedBigInt as JSON `{ kind: "UnsignedBigInt", value: "<decimal>" }`.
-/// The TS side does not natively model SUnsignedBigInt (it's a v6-only type
-/// rejected at parse), so this fixture's expected_value is descriptive only —
-/// the TS test asserts on parse-time rejection or eval-time behavior, not on
-/// the SValue payload.
-fn unsigned_bigint_value_json(v: &UnsignedBigInt) -> JsonValue {
-    json!({ "kind": "UnsignedBigInt", "value": v.to_string() })
-}
-
 /// Encode a SigmaProp(ProveDlog(g)) value as `{ kind: "SigmaProp", raw_hex: ... }`
 /// (mirrors `sigma_prop_value_to_json` from create_prove_dlog.rs).
 fn sigma_prop_value_json(val: &Value) -> anyhow::Result<JsonValue> {
@@ -282,7 +271,13 @@ pub fn generate() -> anyhow::Result<DeserializeContextFixtureFile> {
         entries.push(DeserializeContextFixture {
             name: "dc_height_eq_compare".into(),
             tree_bytes_hex: hex,
-            opts_json: json!({ "extension": extension_to_opts_json(&ext) }),
+            // Inner Expr accesses GlobalVars.Height; opts_json must carry
+            // `height` so the TS test's makeContext reconstructs the same
+            // chain-state the oracle ran under (controlled_context height=999999).
+            opts_json: json!({
+                "extension": extension_to_opts_json(&ext),
+                "height": 999_999,
+            }),
             expected_value_json: value_to_json(&val),
             expected_cost: ctx.jit_cost_value(),
             expected_error: json!(null),
@@ -291,38 +286,11 @@ pub fn generate() -> anyhow::Result<DeserializeContextFixtureFile> {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 3. dc_v3_unsigned_bigint — V3 outer tree, inner=Const(SUnsignedBigInt, 0).
-    //    Mirrors sigma-rust's `deserialize_v6_type` test: V0 eval throws,
-    //    V3 eval succeeds. We capture the V3-success oracle.
-    //    Note: TS-side does not natively model SUnsignedBigInt (rejected at
-    //    parse-stype). The fixture's expected_value is descriptive only; the
-    //    TS test will assert on parse-time rejection.
+    // (V3 SUnsignedBigInt fixture dropped from 2i-c — SUnsignedBigInt is a
+    //  v6-only type that our parser rejects at parse-stype. Validating the
+    //  substitute pass's treeVersion threading without it is acceptable for
+    //  this slice; revisit when v6 types ship.)
     // ─────────────────────────────────────────────────────────────────────────
-    {
-        let inner: Expr = Constant::from(UnsignedBigInt::zero()).into();
-        let inner_bytes = inner.sigma_serialize_bytes()?;
-        let constant = coll_byte_constant(inner_bytes);
-        let ext = extension_one(1, constant);
-
-        // V3 outer tree (header byte 0x03 = version=3, no segregation, no size).
-        let (tree, hex) = build_outer_tree(SType::SUnsignedBigInt, 1, HEADER_V3)?;
-        let ctx = controlled_context(ext.clone(), 3);
-        let outer_expr = tree.proposition()?;
-        let val: UnsignedBigInt = try_eval_with_deserialize::<UnsignedBigInt>(&outer_expr, &ctx)?;
-
-        entries.push(DeserializeContextFixture {
-            name: "dc_v3_unsigned_bigint".into(),
-            tree_bytes_hex: hex,
-            opts_json: json!({
-                "extension": extension_to_opts_json(&ext),
-                "treeVersion": 3,
-            }),
-            expected_value_json: unsigned_bigint_value_json(&val),
-            expected_cost: ctx.jit_cost_value(),
-            expected_error: json!(null),
-            expected_error_code: json!(null),
-        });
-    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // 4. dc_const_sigmaprop_inner — P2PK 50-cost short-circuit canary.

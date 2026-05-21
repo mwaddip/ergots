@@ -231,6 +231,10 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
     result.treeVersion = optsObj.treeVersion
   }
 
+  if (typeof optsObj.height === 'number') {
+    result.height = optsObj.height
+  }
+
   if (optsObj.selfBox !== undefined) {
     result.selfBox = hydrateErgoBox(optsObj.selfBox)
   }

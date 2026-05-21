@@ -13,6 +13,7 @@ import { Env } from './env'
 import { evalExpr } from './eval'
 import { makeContext } from './eval-context'
 import type { EvalContext, EvalOpts } from './eval-context'
+import { substituteDeserialize, treeHasDeserialize } from './_substitute-deserialize'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -66,11 +67,37 @@ export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
     constants: opts.constants ?? tree.constants,
     treeVersion: opts.treeVersion ?? tree.header.version,
   })
-  return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
+  return dispatchTreeBody(tree, ctx)
 }
 
 export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
   // Caller-supplied ctx is honored verbatim. If they want tree.constants
   // resolution they must set it themselves before calling.
+  return dispatchTreeBody(tree, ctx)
+}
+
+/**
+ * Internal dispatch — mirrors sigma-rust `eval.rs:203-280`:
+ *
+ *   if tree.has_deserialize() { substitute_then_eval } else { straight_eval }
+ *
+ * Both branches end with `tryTrivialReduce ?? evalExpr`. The substitute path
+ * runs `substituteDeserialize` as a bottom-up pre-eval rewrite, then dispatches
+ * on the REWRITTEN body (so the P2PK 50-cost short-circuit can fire on a
+ * substituted `Const(SSigmaProp)` body — see fixture `dc_const_sigmaprop_inner`).
+ *
+ * Architectural divergence from sigma-rust (deliberate, cost-equivalent): we
+ * keep `ctx.constants` populated for all paths and rely on
+ * `tryTrivialReduceExpr` handling both `Const(SSigmaProp)` and
+ * `ConstPlaceholder(SSigmaProp)` via ctx.constants lookup; sigma-rust's
+ * substitute path uses `tree.proposition()` to eagerly substitute placeholders.
+ * Same observable cost-integer and value output (verified by
+ * `dc_const_sigmaprop_inner` cost === 50).
+ */
+function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
+  if (treeHasDeserialize(tree)) {
+    const rewrittenBody = substituteDeserialize(tree.body, tree, ctx)
+    return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
+  }
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }
