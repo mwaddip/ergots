@@ -79,6 +79,7 @@ import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalDecodePoint } from './decode-point'
 import { evalExponentiate } from './exponentiate'
 import { evalSubstConstants } from './subst-constants'
+import { evalTreeLookup } from './tree-lookup'
 import { evalXor } from './xor'
 import { evalXorOf } from './xor-of'
 
@@ -208,6 +209,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalSlice(e, env, ctx)
     case 'SubstConstants':
       return evalSubstConstants(e, env, ctx)
+    case 'TreeLookup':
+      return evalTreeLookup(e, env, ctx)
     case 'Xor':
       return evalXor(e, env, ctx)
     case 'XorOf':
