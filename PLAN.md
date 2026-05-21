@@ -162,7 +162,7 @@ git log --oneline -3  # confirm: PLAN commit + spec commit + 2i-d head
 - Create: `tools/mainnet-validate/shim/src/protocol.rs`
 - Create: `tools/mainnet-validate/.gitignore` (entries: `target/`, `*.redb`, `checkpoint.json`, `error-report.json`)
 
-**Cargo.toml dependencies (path-deps where possible):**
+**Cargo.toml dependencies (T2-verified upstream crate names):**
 ```toml
 [package]
 name = "ergots-mainnet-validate-shim"
@@ -170,17 +170,30 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sigma-rust-ergo-lib = { path = "../../../external/sigma-rust/ergo-lib" }
-sigma-rust-ergotree-ir = { path = "../../../external/sigma-rust/ergotree-ir" }
-ergo-chain-types = { path = "../../../external/sigma-rust/ergo-chain-types" }
-ergo-node-chain = { path = "../../../../ergo-node-rust/chain" }
-ergo-node-store = { path = "../../../../ergo-node-rust/store" }
-redb = "2.x"  # match ergo-node-rust's pinned version
+# sigma-rust crates — deferred to T5 (when sigma-rust API is actually needed).
+# When adding at T5, see the sigma-rust resolver-choice note in Task 5 below.
+# Verified package names from `external/sigma-rust/` (2026-05-21):
+#   ergo-lib (external/sigma-rust/ergo-lib/Cargo.toml:2)
+#   ergotree-ir (external/sigma-rust/ergotree-ir/Cargo.toml:2)
+#   ergo-chain-types (external/sigma-rust/ergo-chain-types/Cargo.toml:2)
+
+# ergo-node-rust crates — package names prefixed `enr-`:
+enr-store = { path = "../../../../ergo-node-rust/store" }
+# enr-chain: deferred to T4/T5 (when Header / BlockTransactions parsing needed)
+
+# redb version pinned to ergo-node-rust's workspace pin (verified by T2 agent
+# against ergo-node-rust/Cargo.toml:50). Mismatch would silently produce two
+# parallel redb crates in the dep graph; type identities wouldn't unify.
+redb = "4"
 ciborium = "0.2"
+serde = { version = "1", features = ["derive"] }
 anyhow = "1"
 ```
 
-(Exact crate names per workspace Cargo.toml — verify against `external/sigma-rust/Cargo.toml` and `ergo-node-rust/Cargo.toml` before writing. Crate names may be `ergo-lib`, `ergotree-ir` per the upstream crates.)
+T2 agent's source-read corrections from the original v1 PLAN sketch:
+- `ergo-node-store` → `enr-store` (the `enr-` prefix is consistent across the ergo-node-rust workspace per `ergo-node-rust/store/Cargo.toml`).
+- `redb = "2.x"` → `redb = "4"` (workspace is on v4 per `ergo-node-rust/Cargo.toml:50`).
+- sigma-rust path-deps deliberately deferred from T2 to T5 — T2's scope (open store + tip check + stub stdin loop) doesn't compile against any sigma-rust API.
 
 - [ ] **Step 1: Create directory structure + .gitignore**
 
@@ -324,7 +337,7 @@ pub struct TxBundle { /* empty at T4 */ }
 In `main.rs`, when request is `GetBlock { height }`:
 1. `let header_id = store.best_header_at(height).ok_or(...)?` — handles missing height as `{ok: false, error: {code: "past-tip" or "missing-block"}}`.
 2. `let header_bytes = store.read_header_at(height)?` — canonical header bytes.
-3. Parse `header_bytes` via sigma-rust's `Header::sigma_parse` to extract `parent_id`.
+3. **Extract `parent_id` from `header_bytes` without a sigma-rust dep:** the canonical Header serialization places `parent_id` at offset 1 (immediately after the 1-byte version), exactly 32 bytes (per `facts/scorex.md`'s Header type invariants). Use `header_bytes[1..33].try_into()`. **Defer adding sigma-rust as a Cargo dep until T5** — see T5's "Sigma-rust resolver choice" section for the resolution options. T4's narrow needs (parent_id only) are met by direct byte extraction; pulling in sigma-rust here just to read one field forces the resolver decision earlier than necessary.
 4. Build `BlockBundle { height, block_id: header_id, parent_id, header_bytes, transactions: vec![] }`.
 5. Emit as CBOR via `write_response`.
 
@@ -385,6 +398,19 @@ EOF
 - Edit: `tools/mainnet-validate/shim/src/protocol.rs` (full TxBundle, InputBundle, parameters)
 - Edit: `tools/mainnet-validate/shim/src/utxo_index.rs` (batch insert helper for tx-output ingestion)
 - Create: `tools/mainnet-validate/shim/src/block_walker.rs` — per-block ingestion logic
+- Edit: `tools/mainnet-validate/shim/Cargo.toml` (add sigma-rust deps; see resolver-choice note below)
+
+**Sigma-rust resolver choice — RESOLVE AT THIS TASK** (T2 agent flagged; user clarified 2026-05-21):
+
+T5 is the first task that genuinely needs sigma-rust APIs (`Transaction::bytes_to_sign()`, `Transaction::sigma_parse`, `Constant::sigma_serialize`, `Parameters::max_block_cost()`, `ErgoBox::sigma_serialize_bytes`). Adding these as path-deps to `external/sigma-rust/` introduces a Cargo-resolver question, because `enr-chain` (which T5 may also depend on for block-parsing helpers) references sigma-rust via a git rev (`3aa0832f` at the time of T2). The git-rev and our local `external/sigma-rust/` HEAD (`6ba9d524`) are content-equivalent (both carry the nipopow fixes per user 2026-05-21), so there's no functional conflict — but Cargo's resolver treats different sources as different crates, meaning types from one don't unify with types from the other. Three resolution options:
+
+1. **Match `enr-chain`'s git-rev approach.** Our shim adds sigma-rust crates via `{ git = "...", rev = "3aa0832f" }` matching exactly. Cargo unifies them as one crate. Cost: depending on git fetches; harder to debug if `external/sigma-rust/` ever diverges in development.
+2. **Use path-deps + a `[patch]` redirect.** Our shim adds `[patch."https://github.com/ergoplatform/sigma-rust"]` (or whatever upstream URL `enr-chain` references) pointing at our local `external/sigma-rust/` paths. Cargo redirects enr-chain's git-rev to our local path. Cost: one `[patch]` block in the shim's Cargo.toml; cleanest semantically ("library reads same bytes our local sigma-rust serializes").
+3. **Don't depend on `enr-chain` at all.** If we can re-derive everything we need from sigma-rust + raw store.redb access, we don't need enr-chain's helpers, and the conflict doesn't arise. Cost: re-implementing whatever enr-chain provides (probably modifier-id derivation per `chain/src/section.rs:60-66`).
+
+**Recommendation: Option 2 (`[patch]` redirect).** Preserves "library reads same bytes the local sigma-rust serializes," matches the `fixture-gen/` pattern, allows local sigma-rust development to flow through without re-pinning. If `[patch]` proves finicky at impl time, fall back to Option 1.
+
+Either way, run `cargo tree | grep ergo-lib` after adding the deps to confirm only one version appears in the dependency graph.
 
 **Full BlockBundle:**
 ```rust
