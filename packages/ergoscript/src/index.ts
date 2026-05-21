@@ -15,7 +15,16 @@ export {
   AddressDecodeError
 } from './address'
 export type { Network, AddressType } from './address'
-export type { ErgoTree, TreeHeader, SType, SValue, Expr, ErgoBox } from './mir/types'
+export type {
+  ErgoTree,
+  TreeHeader,
+  SType,
+  SValue,
+  Expr,
+  ErgoBox,
+  PreHeader,
+  ContextExtension,
+} from './mir/types'
 
 // Wire-layer SValue parser/serializer surface — exposed for downstream
 // packages that need to parse canonical box / register bytes outside the
@@ -27,6 +36,11 @@ export type { ErgoTree, TreeHeader, SType, SValue, Expr, ErgoBox } from './mir/t
 // behind a `/wire` subpath export (see facts/ergoscript-wire.md note).
 export { parseSValue, SValueParseError } from './wire/parse-svalue'
 export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
+// SType wire codec — exposed for the harness's `ContextExtension`
+// Constant decoding (each blob is `SType || SValue` per sigma-rust
+// `Constant::sigma_serialize`).
+export { parseSType } from './wire/parse-stype'
+export { serializeSType } from './wire/serialize-stype'
 
 // v0.2.0 (phase 2b) — evaluator surface
 export { evaluate, evaluateWith } from './eval/evaluate'

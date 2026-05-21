@@ -54,6 +54,7 @@ import {
 
 import type { BlockBundle } from './protocol.js';
 import { HarnessError } from './errors.js';
+import { validateTx } from './validate-tx.js';
 
 /**
  * Cross-block validation state. Mutated in-place by `validateHeader`.
@@ -377,6 +378,33 @@ export function validateOutputRoundtrips(
                 );
             }
         }
+    }
+}
+
+/**
+ * Per-block orchestrator (PLAN.md T10 Step 5): wires header + output
+ * round-trip + per-tx evaluate/verifySignature passes in sequence.
+ * Halt-on-first-failure: each phase throws `HarnessError` on detected
+ * mismatch and the orchestrator propagates without catching.
+ *
+ * The order MUST be header → output → per-tx because the per-tx pass
+ * reads `walkerState.rollingHeaders[0]` for the current PreHeader and
+ * the header pass is what populates it.
+ *
+ * `treeVersionFn` is plumbed through to `validateOutputRoundtrips` per
+ * T9's design — T11's `main.ts` injects a real derivation; tests
+ * can inject a stub.
+ */
+export function validateBlock(
+    bundle: BlockBundle,
+    state: WalkerState,
+    treeVersionFn: (boxBytes: Uint8Array) => number,
+): void {
+    validateHeader(bundle, state);
+    validateOutputRoundtrips(bundle, treeVersionFn);
+    for (let txIndex = 0; txIndex < bundle.transactions.length; txIndex++) {
+        const tx = bundle.transactions[txIndex]!;
+        validateTx(tx, bundle, state, txIndex);
     }
 }
 
