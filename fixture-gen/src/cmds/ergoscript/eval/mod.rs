@@ -95,5 +95,6 @@ pub mod exponentiate;
 pub mod create_avl_tree;
 pub mod tree_lookup;
 pub mod deserialize_context;
+pub mod deserialize_register;
 pub mod sheader_handlers;
 pub mod sheader_checkpow;

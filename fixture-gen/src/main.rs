@@ -481,6 +481,20 @@ fn main() -> anyhow::Result<()> {
         &deserialize_context_fixture,
     )?;
 
+    // Phase 2i-c T10: DeserializeRegister oracle fixtures (8 scenarios).
+    // Mirrors DC structure but reads ctx.self_box.get_register(reg) instead
+    // of ctx.extension.values[id]. Sigma-rust ref:
+    // ergotree-ir/src/mir/expr.rs:466-491 (DR branch + tpe check); the
+    // "leave node unchanged" branch (expr.rs:478-481) is captured by the
+    // dr_throw_no_register_no_default scenario (uses try_eval_out directly
+    // to mirror the defensive eval-time throw at eval/expr.rs:102-104).
+    let deserialize_register_fixture =
+        cmds::ergoscript::eval::deserialize_register::generate()?;
+    write_ergoscript_json(
+        "eval/deserialize-register.json",
+        &deserialize_register_fixture,
+    )?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;

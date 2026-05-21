@@ -1,0 +1,265 @@
+{
+  "corpus": "eval_deserialize_register",
+  "entries": [
+    {
+      "name": "dr_r4_bool_neq",
+      "tree_bytes_hex": "00d5040100",
+      "opts_json": {
+        "height": 999999,
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {
+            "4": {
+              "tpe": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "tag": "SColl"
+              },
+              "value": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": -108
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": -93
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 4
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  }
+                ],
+                "kind": "Coll"
+              }
+            }
+          },
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 34,
+      "expected_error": null,
+      "expected_error_code": null
+    },
+    {
+      "name": "dr_r5_default_int",
+      "tree_bytes_hex": "00d50504010402",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Int",
+        "value": 1
+      },
+      "expected_cost": 5,
+      "expected_error": null,
+      "expected_error_code": null
+    },
+    {
+      "name": "dr_default_used_when_register_absent",
+      "tree_bytes_hex": "00d505010194a30400",
+      "opts_json": {
+        "height": 999999,
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": {
+        "kind": "Boolean",
+        "value": true
+      },
+      "expected_cost": 34,
+      "expected_error": null,
+      "expected_error_code": null
+    },
+    {
+      "name": "dr_throw_register_wrong_type",
+      "tree_bytes_hex": "00d5040100",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {
+            "4": {
+              "tpe": {
+                "tag": "SInt"
+              },
+              "value": {
+                "kind": "Int",
+                "value": 1
+              }
+            }
+          },
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error": "must be Coll[Byte]",
+      "expected_error_code": "deserialize-input-not-byte-array"
+    },
+    {
+      "name": "dr_throw_default_wrong_type",
+      "tree_bytes_hex": "00d50504010101",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error": "tpe mismatch",
+      "expected_error_code": "deserialize-tpe-mismatch"
+    },
+    {
+      "name": "dr_throw_inner_wrong_type",
+      "tree_bytes_hex": "00d5040100",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {
+            "4": {
+              "tpe": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "tag": "SColl"
+              },
+              "value": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": 4
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": 2
+                  }
+                ],
+                "kind": "Coll"
+              }
+            }
+          },
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error": "tpe mismatch",
+      "expected_error_code": "deserialize-tpe-mismatch"
+    },
+    {
+      "name": "dr_throw_parse_failed",
+      "tree_bytes_hex": "00d5040100",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {
+            "4": {
+              "tpe": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "tag": "SColl"
+              },
+              "value": {
+                "elem": {
+                  "tag": "SByte"
+                },
+                "items": [
+                  {
+                    "kind": "Byte",
+                    "value": -1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": -1
+                  },
+                  {
+                    "kind": "Byte",
+                    "value": -1
+                  }
+                ],
+                "kind": "Coll"
+              }
+            }
+          },
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error": "inner Expr parse failed",
+      "expected_error_code": "deserialize-parse-failed"
+    },
+    {
+      "name": "dr_throw_no_register_no_default",
+      "tree_bytes_hex": "00d5050100",
+      "opts_json": {
+        "selfBox": {
+          "creation_height": 0,
+          "ergo_tree_bytes_hex": "09020101",
+          "index": 0,
+          "registers": {},
+          "tokens": [],
+          "tx_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+          "value_nanoerg": "10800"
+        }
+      },
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error": "substitute pass did not rewrite",
+      "expected_error_code": "deserialize-not-substituted"
+    }
+  ]
+}
