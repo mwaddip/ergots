@@ -34,42 +34,21 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `SubstConstants`. `DecodePoint`
-// was wired in Task T8 (phase 2i-a pure-bytes predefs), so it no longer falls
-// through to `not-implemented-yet`. `SubstConstants` is the next-in-line
-// unwired variant (last 2i-a arm) and keeps falling through until its own
-// per-arm task (T9) lands.
-const treeWithSubstConstantsBody = (): ErgoTree => {
-  const placeholderColl = {
-    tag: 'Const' as const,
-    tpe: { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
-    value: {
-      kind: 'Coll' as const,
-      elem: { tag: 'SByte' as const },
-      items: [],
-    },
-  }
-  const placeholderIntColl = {
-    tag: 'Const' as const,
-    tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
-    value: {
-      kind: 'Coll' as const,
-      elem: { tag: 'SInt' as const },
-      items: [],
-    },
-  }
-  return {
-    header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
-    constantTypes: [],
-    constants: [],
-    body: {
-      tag: 'SubstConstants',
-      scriptBytes: placeholderColl,
-      positions: placeholderIntColl,
-      newValues: placeholderColl,
-    },
-  }
-}
+// A tree whose body is an unported variant — `DeserializeContext`.
+// `SubstConstants` was wired in Task T9 (last 2i-a arm), so it no longer
+// falls through to `not-implemented-yet`. `DeserializeContext` is the
+// next-in-line unwired variant (phase 2i-c candidate) and keeps falling
+// through until its own per-arm task lands.
+const treeWithUnwiredBody = (): ErgoTree => ({
+  header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
+  constantTypes: [],
+  constants: [],
+  body: {
+    tag: 'DeserializeContext',
+    tpe: { tag: 'SBoolean' },
+    id: 0,
+  },
+})
 
 describe('evaluate', () => {
   it('routes through dispatch — Const body returns the literal and charges 5', () => {
@@ -91,8 +70,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. SubstConstants)', () => {
-    const err = captureEvalError(() => evaluate(treeWithSubstConstantsBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. DeserializeContext)', () => {
+    const err = captureEvalError(() => evaluate(treeWithUnwiredBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -105,9 +84,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (SubstConstants not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (DeserializeContext not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithSubstConstantsBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithUnwiredBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })

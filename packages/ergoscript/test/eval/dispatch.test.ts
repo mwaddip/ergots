@@ -7,29 +7,19 @@ import { captureEvalError } from '../_helpers'
 
 describe('evalExpr (central dispatch — chassis only)', () => {
   it('throws not-implemented-yet for any unwired variant', () => {
-    // Use SubstConstants as a representative — `DecodePoint` was wired in
-    // Task T8 (phase 2i-a pure-bytes predefs), so we pick the next still-
-    // unported variant. SubstConstants is the last 2i-a arm (T9) and remains
-    // unwired until that task lands. The expr shape is irrelevant to the
-    // dispatch path; only the `tag` matters before the default arm fires.
-    const placeholderColl: Expr = {
-      tag: 'Const',
-      tpe: { tag: 'SColl', elem: { tag: 'SByte' } },
-      value: { kind: 'Coll', elem: { tag: 'SByte' }, items: [] },
-    }
-    const placeholderIntColl: Expr = {
-      tag: 'Const',
-      tpe: { tag: 'SColl', elem: { tag: 'SInt' } },
-      value: { kind: 'Coll', elem: { tag: 'SInt' }, items: [] },
-    }
+    // Use DeserializeContext as a representative — `SubstConstants` was wired
+    // in Task T9 (final pure-bytes predef of phase 2i-a), so we pick the next
+    // still-unported variant. DeserializeContext is a strong candidate for
+    // phase 2i-c (it extracts a serialized script from the context extension
+    // and inlines it). The expr shape is irrelevant to the dispatch path; only
+    // the `tag` matters before the default arm fires.
     const e: Expr = {
-      tag: 'SubstConstants',
-      scriptBytes: placeholderColl,
-      positions: placeholderIntColl,
-      newValues: placeholderColl,
+      tag: 'DeserializeContext',
+      tpe: { tag: 'SBoolean' },
+      id: 0,
     }
     const err = captureEvalError(() => evalExpr(e, Env.empty(), makeContext()))
     expect(err.code).toBe('not-implemented-yet')
-    expect(err.message).toContain("'SubstConstants'")
+    expect(err.message).toContain("'DeserializeContext'")
   })
 })
