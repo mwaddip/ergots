@@ -24,11 +24,20 @@
  *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
  *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
  *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
- *    + 1 code added in phase 2i-a (pure-bytes predef input guard)
- *    + 1 code added in phase 2i-a T4 (ByteArrayToLong length guard)
- *    + 1 code added in phase 2i-a T8 (DecodePoint adapter failure)
- *    + 1 code added in phase 2i-a T9 (SubstConstants — compact umbrella for 7 paths)
- *   = 52 codes total after phase 2i-a T9 (SubstConstants).
+ *    + 7 codes added in phase 2i-a (pure-bytes predefs):
+ *        - 'predef-input-not-byte-array' (T2; shared by T2/T3/T4/T6/T7/T8)
+ *        - 'byte-array-to-long-too-short' (T4)
+ *        - 'predef-input-not-long' (T5)
+ *        - 'byte-array-to-bigint-empty' (T6)
+ *        - 'byte-array-to-bigint-out-of-range' (T6)
+ *        - 'decode-point-invalid' (T8)
+ *        - 'subst-constants-error' (T9 — compact umbrella for 7 paths)
+ *    + 4 codes added in phase 2i-b (curve + AVL + sigma-trivial predefs):
+ *        - 'sigma-prop-is-proven-no-eval' (T2 — frontend-only structural throw)
+ *        - 'group-op-input-not-group-element' (T3+T4 — MultiplyGroup + Exponentiate base)
+ *        - 'predef-input-not-bigint' (T4 — Exponentiate's BigInt exponent)
+ *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/valueLength)
+ *   = 59 codes total after phase 2i-b T6 (TreeLookup).
  */
 
 /**

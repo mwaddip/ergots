@@ -184,12 +184,35 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2i-a COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 55. Eval arm coverage: 60 of ~70. Ergoscript test count: 3074. Total monorepo: 3652.
 
+**Phase 2i-b — Curve + AVL + sigma-trivial predefs** (additive):
+
+- 5 new eval arms wired (coverage 60 → 65 of ~70 `Expr` arms):
+  - **`SigmaPropIsProven`** — structural throw, no eval of `e.input`, no cost charged. Mirrors sigma-rust `sigma_prop_is_proven.rs:11-25` frontend-only-throw pattern (Scala typer rewrites `prop.isProven` to this node; AOT graph-IR rewrite elides it before evaluation; sigma-rust bytecode interpreter mirrors with unconditional `Err(EvalError::Misc(...))`).
+  - **`MultiplyGroup`** — Pattern A `Fixed(40)`. Group operation under multiplicative notation = point ADDITION on the curve (per `ec_point.rs:74-80` `Mul<&EcPoint>` = `ProjectivePoint::add`). Reuses existing `pointAdd` adapter from `crypto/secp256k1.ts`.
+  - **`Exponentiate`** — Pattern A `Fixed(900)`. Scalar multiplication. **REQUIRES explicit identity-base guard** — `@noble/curves@2.2.0` `Point.multiply` (`weierstrass.ts:1067`) does NOT short-circuit on `Point.ZERO`. Only `multiplyUnsafe` (line 1103) does. Handler checks `base.is0()` explicitly and returns 33 zero bytes (identity), mirroring sigma-rust `ec_point::exponentiate` at `ec_point.rs:111-119` (`if !is_identity(base) { ... } else { *base }`). BigInt256 → scalar mod n reduction handled by existing `pointMul` adapter.
+  - **`CreateAvlTree`** — no inline cost (children-only). 4-input value constructor (Byte flags, Coll[Byte] digest, Int keyLength, Option[Int] valueLength). **AvlTreeFlags canonicalized to bits 0..2** via `flagsV.value & 0x07` — mirrors sigma-rust's `AvlTreeFlags::parse → new` round-trip stripping reserved bits 3..7 (`mir/avl_tree_data.rs`). KeyLength + valueLength use `>>> 0` (u32 bit-cast) — matches sigma-rust's `i32 as u32`. Digest length check (33 bytes) throws `'avl-tree-bad-digest-length'` (reused from 2h-d).
+  - **`TreeLookup`** — no inline cost (children-only + verifier delegation). Thin wrap over `@ergots/avltree` v0.2.0's `verifyAvlLookup`. Double-null semantic: outer `null` (proof construct failure) throws `'avl-tree-proof-failed'`; inner `.value === null` (proof OK, key absent) returns `Option None`; `.value: Uint8Array` (key found) returns `Option Some<Coll[Byte]>`. Output element type: `SColl[SByte]`.
+- 4 new `EvalError` codes (55 → 59):
+  - `'sigma-prop-is-proven-no-eval'` (T2) — structural-throw code, mirrors sigma-rust's `Misc("SigmaPropIsProven has no interpreter eval...")` for byte-match-parity opcode 95.
+  - `'group-op-input-not-group-element'` (T3 + T4) — shared by MultiplyGroup (both operands) and Exponentiate (base). Distinct from `'sigma-prop-input-not-group-element'` (2g-medium) which is for sigma-prop creation arms.
+  - `'predef-input-not-bigint'` (T4) — Exponentiate's BigInt exponent. Future arms in the `ModQ` family (phase 2i-d) will reuse.
+  - `'create-avl-tree-shape-mismatch'` (T5) — compact code covering 3 throw paths in CreateAvlTree (non-Byte flags, non-Int keyLength, non-Int valueLength); `.message` carries the specific field name.
+- 0 new method-handler registry entries (44 unchanged).
+- Two pre-existing TS-from-sigma-rust divergences acknowledged (neither introduced by 2i-b):
+  - **`DecodePoint` identity convention** — inherited from 2i-a. Affects `MultiplyGroup` and `Exponentiate` base decode (both use `decodePoint`). Pre-existing across verifier surface; tracked as separate follow-up.
+  - **`CreateAvlTree` keyLength bit-cast** — sigma-rust accepts negative i32 → huge u32 via `as u32` bit-cast; TS mirrors via `>>> 0`. Validated by oracle fixture `cat_negative_keylength`.
+- **Process finding (worth tracking as a follow-up):** sigma-rust `fixture-gen`'s `force_any_val::<T>()` is NOT deterministic across runs (`TestRunner::default()` uses a fresh proptest seed). Encountered repeatedly in T3 / T4 / T6. T4 worked around by hardcoding payloads; T3's `mg_random_random` fixture has the latent issue (the value byte-flips between two equivalent point orderings on regeneration). Not yet remediated.
+
+**Phase 2i-b COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 59. Eval arm coverage: 65 of ~70. Ergoscript test count: 3142. Total monorepo: 3720.
+
 **Does NOT ship yet (deferred):**
 
-- Broader method-call surface beyond the 44 registered handlers: `Coll.zipWith` / `.reverse` / `.patch` / `.updated` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader`/`SGroupElement` methods (exponentiate, multiply, negate). Wait until phase 2i or corpus demand resurfaces.
+- Broader method-call surface beyond the 44 registered handlers: `Coll.zipWith` / `.reverse` / `.patch` / `.updated` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader`/`SGroupElement` methods (negate). Wait until phase 2i-d or corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
+- `DeserializeContext` / `DeserializeRegister` — phase 2i-c (recursive-eval architectural lift).
+- Long-tail parse-rejecting / deprecated arms (`OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `ModQ` family, `CollShift`/`CollRotate`) — phase 2i-d.
 
 ## Public surface (v0.2.0)
 
@@ -425,6 +448,15 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 - **`'byte-array-to-bigint-out-of-range'`** — `ByteArrayToBigInt` arm: signed-BE-decoded bigint fell outside `[I256_MIN, I256_MAX]` = `[-2^255, 2^255 - 1]`. Sigma-rust mirror: `byte_array_to_bigint.rs` range-check after decode.
 - **`'decode-point-invalid'`** — `DecodePoint` arm: the 33-byte SEC1-compressed input failed `decodePoint` adapter validation (non-zero33 AND non-decodable per `crypto/secp256k1.ts`). Charged Pattern A cost 300 BEFORE the throw.
 - **`'subst-constants-error'`** — `SubstConstants` arm: compact taxonomy code covering 7 distinct throw paths (positions vs newValues length mismatch; position out of range; type mismatch between newValues' element type and the template's constant type at that position; newValues' input not a Coll; positions' input not a Coll; scriptBytes' input not Coll[Byte]; nested `parseTree`/`serializeTree` error). Per the 2g.5 compact-taxonomy decision — these are all "the input shape doesn't satisfy SubstConstants' contract" and are not branched-on by callers.
+
+### Phase 2i-b codes (curve + AVL + sigma-trivial predefs)
+
+- **`'sigma-prop-is-proven-no-eval'`** — `SigmaPropIsProven` arm always throws structurally. No `e.input` evaluation, no cost charged. Mirrors sigma-rust `sigma_prop_is_proven.rs:11-25` `Misc("SigmaPropIsProven has no interpreter eval...")`. Op-code 95 is reserved in the IR for byte-match parity with Scala sigmastate, whose typer rewrites `prop.isProven` to a `SigmaPropIsProven` node; the AOT graph-IR rewrite elides the node before evaluation.
+- **`'group-op-input-not-group-element'`** — `MultiplyGroup` (both operands) and `Exponentiate` (base) when input `kind !== 'GroupElement'`. Distinct from `'sigma-prop-input-not-group-element'` (2g-medium) which is for sigma-prop creation arms (`CreateProveDlog` / `CreateProveDhTuple`). Wire-format invariants make this unreachable for parser-produced trees.
+- **`'predef-input-not-bigint'`** — `Exponentiate` arm when exponent `kind !== 'BigInt'`. Future arms in the `ModQ` family (phase 2i-d) will reuse.
+- **`'create-avl-tree-shape-mismatch'`** — `CreateAvlTree` arm. Compact code covering 3 throw paths: non-Byte flags, non-Int keyLength, non-Int valueLength. `.message` carries the specific field name for debugging. (Coll[Byte] check on digest reuses `'predef-input-not-byte-array'`; digest length check reuses `'avl-tree-bad-digest-length'`.)
+
+`TreeLookup` introduces ZERO new codes — reuses `'avl-tree-obj-not-avl-tree'` (2h-b; non-AvlTree receiver), `'predef-input-not-byte-array'` (2i-a; non-Coll[Byte] key/proof), and `'avl-tree-proof-failed'` (2h-b; verifier construct failure).
 
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
