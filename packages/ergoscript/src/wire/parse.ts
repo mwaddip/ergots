@@ -393,27 +393,37 @@ export function parseExprWithFirstByte(
       return parseContext()
     case OP.OP_XOR_OF:
       return parseXorOf(r, constantTypes, constantValues, valDefTypes)
-    // Named-but-unhandled opcodes — present in sigma-rust's `op_code.rs`
-    // table but with no current TS handler. Distinguished from truly
-    // unknown bytes (which fall to the `default` arm below) so that the
-    // documented taxonomy holds: `not-implemented-yet` means "named in
-    // sigma-rust but no TS handler yet"; `unknown-opcode` means "byte
-    // not in sigma-rust's table". No Task number — these are rarely used
-    // in production trees and don't correspond to a specific later task.
+    // Wire opcodes with no top-level Expr dispatch in sigma-rust. Split
+    // into two taxonomies:
+    //   - 'opcode-reserved' (19 sites) — reserved in sigma-rust's
+    //     `op_code.rs` enum but NEVER dispatched at the wire-Expr layer
+    //     or implemented in `ergotree-interpreter/src/eval/`. We mirror
+    //     via unconditional parse-reject. The opcodes exist in the wire
+    //     enum for forward-compat / historical reasons but no
+    //     `Evaluable` impl will ever ship.
+    //   - 'not-implemented-yet' (4 sites: LastBlockUtxoRootHash,
+    //     FlatMap, TrivialPropFalse, TrivialPropTrue) — routed through
+    //     other dispatch paths in sigma-rust (PropertyCall id 9 on
+    //     SContext for the first, SColl method-call for FlatMap,
+    //     SSigmaProp nesting for the TrivialProp pair). Top-level
+    //     direct dispatch may also be expected; status undetermined
+    //     pending separate review.
+    // Distinguished from truly unknown bytes via the `default` arm
+    // below which throws 'unknown-opcode'.
     case OP.OP_TRUE:
       throw new ExprParseError(
-        'OpTrue opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'OpTrue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_FALSE:
       throw new ExprParseError(
-        'OpFalse opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'OpFalse opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_UNIT_CONSTANT:
       throw new ExprParseError(
-        'UnitConstant opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'UnitConstant opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_LAST_BLOCK_UTXO_ROOT_HASH:
       // Sigma-rust does NOT dispatch this opcode as a top-level Expr arm —
@@ -429,28 +439,28 @@ export function parseExprWithFirstByte(
       )
     case OP.OP_SELECT_1:
       throw new ExprParseError(
-        'Select1 opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'Select1 opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_SELECT_2:
       throw new ExprParseError(
-        'Select2 opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'Select2 opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_SELECT_3:
       throw new ExprParseError(
-        'Select3 opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'Select3 opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_SELECT_4:
       throw new ExprParseError(
-        'Select4 opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'Select4 opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_SELECT_5:
       throw new ExprParseError(
-        'Select5 opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'Select5 opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_FLAT_MAP:
       throw new ExprParseError(
@@ -459,18 +469,18 @@ export function parseExprWithFirstByte(
       )
     case OP.OP_FUN_DEF:
       throw new ExprParseError(
-        'FunDef opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'FunDef opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_SOME_VALUE:
       throw new ExprParseError(
-        'SomeValue opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'SomeValue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_NONE_VALUE:
       throw new ExprParseError(
-        'NoneValue opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'NoneValue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_TRIVIAL_PROP_FALSE:
       throw new ExprParseError(
@@ -484,43 +494,43 @@ export function parseExprWithFirstByte(
       )
     case OP.OP_MOD_Q:
       throw new ExprParseError(
-        'ModQ opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'ModQ opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_PLUS_MOD_Q:
       throw new ExprParseError(
-        'PlusModQ opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'PlusModQ opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_MINUS_MOD_Q:
       throw new ExprParseError(
-        'MinusModQ opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'MinusModQ opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_COLL_SHIFT_RIGHT:
       throw new ExprParseError(
-        'CollShiftRight opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'CollShiftRight opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_COLL_SHIFT_LEFT:
       throw new ExprParseError(
-        'CollShiftLeft opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'CollShiftLeft opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_COLL_SHIFT_RIGHT_ZEROED:
       throw new ExprParseError(
-        'CollShiftRightZeroed opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'CollShiftRightZeroed opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_COLL_ROTATE_LEFT:
       throw new ExprParseError(
-        'CollRotateLeft opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'CollRotateLeft opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_COLL_ROTATE_RIGHT:
       throw new ExprParseError(
-        'CollRotateRight opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'CollRotateRight opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     default:
       throw new ExprParseError(
