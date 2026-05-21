@@ -14,12 +14,22 @@
 //!   more than 1000 blocks indicates a utxo_bootstrap-only node.
 //! - Stdin read loop with stub response.
 //!
-//! T3 adds (this task):
+//! T3 added:
 //! - Second positional argv: sidecar path.
 //! - Sidecar open-or-create with source-store fingerprint check (auto-rebuild
 //!   on mismatch per spec Open item #4).
 //! - GET_TIP_HEIGHT handler: returns `tip(101)` as `{ok: true, data: {tip}}`.
-//! - GET_BLOCK stub: emits `not-implemented` until T4/T5 wire it.
+//! - GET_BLOCK stub: emitted `not-implemented` until T4/T5 wired it.
+//!
+//! T4 adds (this task):
+//! - GET_BLOCK <height> handler emitting a header-only BlockBundle (height,
+//!   block_id, parent_id, header_bytes, transactions=[]). Parent id is
+//!   extracted from `header_bytes[1..33]` per the Header wire format,
+//!   avoiding a sigma-rust dep at T4 (deferred to T5 with the rest of the
+//!   BlockTransactions / Extension parsing).
+//! - Missing-block error path: `best_header_at(h)` returning None emits
+//!   `{ok: false, error: {code: "missing-block", ...}}` without exiting
+//!   the loop.
 //!
 //! Per spec docs/specs/2026-05-21-mainnet-validate-harness-design.md
 //! Decisions 3, 6, 7, 8, 11.
@@ -34,7 +44,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use enr_store::{ModifierStore, RedbModifierStore};
 
-use crate::protocol::TipHeightResponse;
+use crate::protocol::{BlockBundle, TipHeightResponse};
 use crate::utxo_index::UtxoIndex;
 
 /// Modifier type IDs (per `ergo-node-rust/chain/src/section.rs:12-15`).
@@ -172,18 +182,9 @@ fn stdin_loop(store: &RedbModifierStore, _sidecar: &UtxoIndex) -> Result<()> {
                     }
                 }
             }
-            Ok(protocol::Request::GetBlock { .. }) => {
-                // T4/T5 will replace this with the real walk-and-bundle
-                // logic; surfacing "not-implemented" here makes the
-                // failure mode obvious if a harness in T3-era is
-                // accidentally pointed at GET_BLOCK.
-                protocol::write_err(
-                    &mut stdout,
-                    "not-implemented",
-                    "GET_BLOCK is implemented at T4 (header-only) and T5 (full bundle); \
-                     T3 only ships GET_TIP_HEIGHT and the sidecar scaffolding",
-                )
-                .context("writing GET_BLOCK not-implemented error")?;
+            Ok(protocol::Request::GetBlock { height }) => {
+                handle_get_block(store, &mut stdout, height)
+                    .with_context(|| format!("handling GET_BLOCK {height}"))?;
             }
             Err(msg) => {
                 protocol::write_err(&mut stdout, "unknown-command", &msg)
@@ -191,6 +192,92 @@ fn stdin_loop(store: &RedbModifierStore, _sidecar: &UtxoIndex) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+/// Handle a single GET_BLOCK <height> request: emit a header-only
+/// BlockBundle on success or a structured error on a missing height.
+///
+/// Header-only at T4: `transactions` is always `vec![]`; T5 will replace
+/// this body with the forward-walking UTXO ingestion path.
+///
+/// The handler does NOT exit the stdin loop on a missing-height error —
+/// it emits the CBOR error and returns Ok so the loop can serve further
+/// requests. Only IO errors writing to stdout (broken pipe, harness died)
+/// propagate up to terminate the shim.
+fn handle_get_block(
+    store: &RedbModifierStore,
+    stdout: &mut impl io::Write,
+    height: u32,
+) -> Result<()> {
+    // Canonical header id for this height. None means the height is
+    // past tip or otherwise not in BEST_CHAIN.
+    let header_id = store
+        .best_header_at(height)
+        .with_context(|| format!("best_header_at({height})"))?;
+    let header_id = match header_id {
+        Some(id) => id,
+        None => {
+            let msg = format!(
+                "no canonical header at height {height}; possibly past tip"
+            );
+            protocol::write_err(stdout, "missing-block", &msg)
+                .context("writing missing-block error")?;
+            return Ok(());
+        }
+    };
+
+    // Raw header bytes — `read_header_at` returns Vec<u8> directly from
+    // PRIMARY (per ergo-node-rust/store/src/redb.rs:809-831), so no
+    // sigma-rust dep is needed to satisfy T4. Confirmed against
+    // store/src/lib.rs:208-211 trait signature.
+    let header_bytes = store
+        .read_header_at(height)
+        .with_context(|| format!("read_header_at({height})"))?;
+    let header_bytes = match header_bytes {
+        Some(b) => b,
+        None => {
+            // best_header_at returned Some but read_header_at returned
+            // None: this can only happen if PRIMARY was concurrently
+            // truncated between the two reads, which would be a store
+            // corruption. Surface as a distinct error code so the harness
+            // can distinguish it from past-tip.
+            let msg = format!(
+                "best_header_at({height}) returned id but read_header_at returned None; \
+                 store may have been mutated between calls"
+            );
+            protocol::write_err(stdout, "store-race", &msg)
+                .context("writing store-race error")?;
+            return Ok(());
+        }
+    };
+
+    // Header serialization places `parent_id` at offset 1..33: 1-byte
+    // version, then 32-byte Digest32 parent_id. Verified against
+    // facts/scorex.md (Header type invariants line 150) and
+    // external/sigma-rust/ergo-chain-types/src/header.rs:77-78 which
+    // emits `put_u8(version)` then `parent_id.0.scorex_serialize(w)`.
+    //
+    // If header_bytes is shorter than 33 bytes, the source-store is
+    // corrupt — a real header is hundreds of bytes minimum. Panic via
+    // try_into().unwrap() is the right behavior here: any caller chain
+    // reading this far has already passed the startup full-archive
+    // check, so a < 33-byte "header" indicates store corruption that
+    // halts the harness loudly rather than emitting garbage parent_id.
+    let parent_id: [u8; 32] = header_bytes[1..33]
+        .try_into()
+        .expect("header_bytes < 33 bytes — corrupt store");
+
+    let bundle = BlockBundle {
+        height,
+        block_id: header_id,
+        parent_id,
+        header_bytes,
+        transactions: vec![], // T5 populates this
+    };
+
+    protocol::write_ok(stdout, &bundle)
+        .context("writing GET_BLOCK response")?;
     Ok(())
 }
 
