@@ -8,26 +8,29 @@
  * need to inspect `ctx.jitCost` after evaluation completes.
  */
 
-import type { ErgoTree, SValue } from '../mir/types'
+import type { ErgoTree, Expr, SValue } from '../mir/types'
 import { Env } from './env'
 import { evalExpr } from './eval'
 import { makeContext } from './eval-context'
 import type { EvalContext, EvalOpts } from './eval-context'
 
 /**
- * P2PK short-circuit — mirrors sigma-rust's `trivial_reduce` in
+ * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
  * `ergotree-interpreter/src/eval.rs:138-158, 268-278`.
  *
- * A tree whose root body is a plain `Const(SSigmaProp, _)` or a
- * `ConstPlaceholder` resolving to a SigmaProp is short-circuited with a
- * flat 50 JitCost (`EVAL_SIGMA_PROP_CONSTANT`). Without this, bare P2PK
- * trees undercharge by 10× vs sigma-rust.
+ * An Expr that is a plain `Const(SSigmaProp, _)` or a `ConstPlaceholder`
+ * resolving to a SigmaProp is short-circuited with a flat 50 JitCost
+ * (`EVAL_SIGMA_PROP_CONSTANT`). Without this, bare P2PK trees undercharge
+ * by 10× vs sigma-rust.
  *
  * Returns the SigmaProp SValue if short-circuiting applies (and charges
  * the cost on ctx), or `null` if full eval is required.
+ *
+ * Extracted from `tryTrivialReduce(tree, ctx)` in phase 2i-c T5 so the
+ * substitute-pre-pass (T8) can call this directly on the SUBSTITUTED body
+ * Expr without synthesizing a wrapping ErgoTree.
  */
-function tryTrivialReduce(tree: ErgoTree, ctx: EvalContext): SValue | null {
-  const body = tree.body
+export function tryTrivialReduceExpr(body: Expr, ctx: EvalContext): SValue | null {
   if (body.tag === 'Const' && body.tpe.tag === 'SSigmaProp') {
     // Non-segregated case: Const(SSigmaProp, ...) at the tree root.
     ctx.addCost(50)
@@ -46,6 +49,15 @@ function tryTrivialReduce(tree: ErgoTree, ctx: EvalContext): SValue | null {
     }
   }
   return null
+}
+
+/**
+ * Thin wrapper over `tryTrivialReduceExpr` for the common
+ * tree-body-is-trivial-reduce case. Preserves the original phase 2g-medium
+ * call shape used by `evaluate` / `evaluateWith` on the non-substitute path.
+ */
+function tryTrivialReduce(tree: ErgoTree, ctx: EvalContext): SValue | null {
+  return tryTrivialReduceExpr(tree.body, ctx)
 }
 
 export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
