@@ -77,6 +77,8 @@ import { evalCreateAvlTree } from './create-avl-tree'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalDecodePoint } from './decode-point'
+import { evalDeserializeContext } from './deserialize-context'
+import { evalDeserializeRegister } from './deserialize-register'
 import { evalExponentiate } from './exponentiate'
 import { evalSubstConstants } from './subst-constants'
 import { evalTreeLookup } from './tree-lookup'
@@ -137,6 +139,10 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalCalcSha256(e, env, ctx)
     case 'DecodePoint':
       return evalDecodePoint(e, env, ctx)
+    case 'DeserializeContext':
+      return evalDeserializeContext(e, env, ctx)
+    case 'DeserializeRegister':
+      return evalDeserializeRegister(e, env, ctx)
     case 'LongToByteArray':
       return evalLongToByteArray(e, env, ctx)
     case 'Negation':

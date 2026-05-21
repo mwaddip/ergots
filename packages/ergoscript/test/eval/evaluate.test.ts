@@ -34,19 +34,20 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `DeserializeContext`.
-// `SubstConstants` was wired in Task T9 (last 2i-a arm), so it no longer
-// falls through to `not-implemented-yet`. `DeserializeContext` is the
-// next-in-line unwired variant (phase 2i-c candidate) and keeps falling
-// through until its own per-arm task lands.
+// A tree whose body is an unported variant — `ZkProofBlock`.
+// `DeserializeContext` was wired in phase 2i-c (defensive throw via the
+// substitute-pre-pass architecture). `ZkProofBlock` is modeled in the Expr
+// union for AST parity but its serializer throws `NotSupported` (mirrors
+// sigma-rust's `OpCodes.Undefined`) — the evaluator never sees a parser-built
+// node of this shape on the happy path. We use it here as a stable
+// dispatch-default canary that stays unwired across phase 2i-c/d.
 const treeWithUnwiredBody = (): ErgoTree => ({
   header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
   constantTypes: [],
   constants: [],
   body: {
-    tag: 'DeserializeContext',
-    tpe: { tag: 'SBoolean' },
-    id: 0,
+    tag: 'ZkProofBlock',
+    input: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } },
   },
 })
 
@@ -70,7 +71,7 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. DeserializeContext)', () => {
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. ZkProofBlock)', () => {
     const err = captureEvalError(() => evaluate(treeWithUnwiredBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
@@ -84,7 +85,7 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (DeserializeContext not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (ZkProofBlock not yet wired)', () => {
     const ctx = makeContext()
     expect(() => evaluateWith(treeWithUnwiredBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
