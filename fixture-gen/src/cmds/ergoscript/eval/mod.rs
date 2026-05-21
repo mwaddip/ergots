@@ -81,6 +81,7 @@ pub mod select_field;
 pub mod sigma_and;
 pub mod sigma_or;
 pub mod sigma_prop_bytes;
+pub mod sigma_prop_is_proven;
 pub mod subst_constants;
 pub mod tuple;
 pub mod upcast;

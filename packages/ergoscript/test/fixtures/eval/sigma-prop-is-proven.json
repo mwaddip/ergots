@@ -1,0 +1,13 @@
+{
+  "corpus": "eval_sigma_prop_is_proven",
+  "entries": [
+    {
+      "name": "sigma_prop_is_proven_const_sigma_prop_input",
+      "tree_bytes_hex": "00cf08cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "sigma-prop-is-proven-no-eval"
+    }
+  ]
+}

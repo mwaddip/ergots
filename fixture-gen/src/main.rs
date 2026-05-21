@@ -428,6 +428,14 @@ fn main() -> anyhow::Result<()> {
     let sigma_prop_bytes_fixture = cmds::ergoscript::eval::sigma_prop_bytes::generate()?;
     write_ergoscript_json("eval/sigma-prop-bytes.json", &sigma_prop_bytes_fixture)?;
 
+    // Phase 2i-b T2: SigmaPropIsProven Expr arm — frontend-only structural throw.
+    // Captures sigma-rust's `Err(EvalError::Misc(...))` shape at
+    // ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25. Per throw-only
+    // fixture-gen convention (decode_point.rs::error_entry), no try_eval_out
+    // call — TS test asserts only the error code.
+    let sigma_prop_is_proven_fixture = cmds::ergoscript::eval::sigma_prop_is_proven::generate()?;
+    write_ergoscript_json("eval/sigma-prop-is-proven.json", &sigma_prop_is_proven_fixture)?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;
