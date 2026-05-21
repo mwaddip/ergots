@@ -468,6 +468,19 @@ fn main() -> anyhow::Result<()> {
     let tree_lookup_fixture = cmds::ergoscript::eval::tree_lookup::generate()?;
     write_ergoscript_json("eval/tree-lookup.json", &tree_lookup_fixture)?;
 
+    // Phase 2i-c T6: DeserializeContext oracle fixtures (8 scenarios).
+    // No inline cost charge; cost arrives via substituted inner Expr's eval.
+    // Sigma-rust ref: ergotree-ir/src/mir/expr.rs:442-496 (substitute walker);
+    // ergotree-interpreter/src/eval/deserialize_context.rs (tests-only).
+    // P2PK 50-cost short-circuit canary (dc_const_sigmaprop_inner) pins the
+    // tryTrivialReduceExpr contract on substituted bodies (T8 integration).
+    let deserialize_context_fixture =
+        cmds::ergoscript::eval::deserialize_context::generate()?;
+    write_ergoscript_json(
+        "eval/deserialize-context.json",
+        &deserialize_context_fixture,
+    )?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;
