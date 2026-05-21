@@ -53,6 +53,15 @@ struct OkBody<T: Serialize> {
     data: T,
 }
 
+/// Response payload for `GET_TIP_HEIGHT`. Wrapped by `write_ok` so the
+/// emitted CBOR is `{"ok": true, "data": {"tip": <u32>}}`. Keeping the
+/// `tip` field nested under `data` matches the shape the harness expects
+/// for every command — spec Decision 8.
+#[derive(Serialize)]
+pub struct TipHeightResponse {
+    pub tip: u32,
+}
+
 /// Top-level error body — `{"ok": false, "error": {"code", "message"}}`.
 #[derive(Serialize)]
 struct ErrBody<'a> {

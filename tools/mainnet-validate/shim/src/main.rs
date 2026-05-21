@@ -1,23 +1,31 @@
 //! Shim subprocess for the ergots mainnet validation harness.
 //!
 //! Reads `modifiers.redb` from argv[1] (read-only at the protocol level —
-//! T2 never calls a write API; `enr-store`'s constructor is a single
-//! `RedbModifierStore::new` that opens-or-creates the database file).
+//! the shim never writes to the source store; `enr-store`'s constructor is
+//! a single `RedbModifierStore::new` that opens-or-creates the database
+//! file). The sidecar at argv[2] is OPENED FOR WRITE — it's the shim's
+//! private UTXO index (per spec Decision 11) and is owned exclusively by
+//! the running shim process.
 //!
-//! T2 scope:
-//! - Argv parsing (positional store path required).
+//! T2 scope (already shipped):
+//! - Argv parsing for the store path.
 //! - Startup full-archive check: tip(101) (Header) and tip(102)
 //!   (BlockTransactions). Empty store or a tip(102) gap from tip(101) of
-//!   more than 1000 blocks indicates a utxo_bootstrap-only node and is
-//!   reported via `{ok: false, error: ...}` followed by exit 1.
-//! - Stdin read loop: each request parses via protocol::parse_request,
-//!   but T2 only emits a stub success response (no GET_TIP_HEIGHT /
-//!   GET_BLOCK logic yet — T3 / T4 / T5).
+//!   more than 1000 blocks indicates a utxo_bootstrap-only node.
+//! - Stdin read loop with stub response.
+//!
+//! T3 adds (this task):
+//! - Second positional argv: sidecar path.
+//! - Sidecar open-or-create with source-store fingerprint check (auto-rebuild
+//!   on mismatch per spec Open item #4).
+//! - GET_TIP_HEIGHT handler: returns `tip(101)` as `{ok: true, data: {tip}}`.
+//! - GET_BLOCK stub: emits `not-implemented` until T4/T5 wire it.
 //!
 //! Per spec docs/specs/2026-05-21-mainnet-validate-harness-design.md
-//! Decisions 3, 6, 7, 8.
+//! Decisions 3, 6, 7, 8, 11.
 
 mod protocol;
+mod utxo_index;
 
 use std::io::{self, BufRead};
 use std::path::Path;
@@ -25,6 +33,9 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use enr_store::{ModifierStore, RedbModifierStore};
+
+use crate::protocol::TipHeightResponse;
+use crate::utxo_index::UtxoIndex;
 
 /// Modifier type IDs (per `ergo-node-rust/chain/src/section.rs:12-15`).
 const HEADER_TYPE_ID: u8 = 101;
@@ -84,9 +95,9 @@ impl<E: Into<anyhow::Error>> From<E> for StartupOrIoError {
 
 fn run() -> Result<(), StartupOrIoError> {
     let args: Vec<String> = std::env::args().collect();
-    let store_path = args
-        .get(1)
-        .context("usage: ergots-mainnet-validate-shim <modifiers.redb path>")?;
+    let usage = "usage: ergots-mainnet-validate-shim <modifiers.redb path> <sidecar.redb path>";
+    let store_path = args.get(1).context(usage)?;
+    let sidecar_path = args.get(2).context(usage)?;
 
     let store = RedbModifierStore::new(Path::new(store_path))
         .with_context(|| format!("opening modifier store at {store_path}"))?;
@@ -96,24 +107,83 @@ fn run() -> Result<(), StartupOrIoError> {
         StartupOutcome::Ok => {}
     }
 
-    stdin_loop()?;
+    // Compute the source-store fingerprint and open (or rebuild) the
+    // sidecar. Genesis HEADER_ID = blake2b256(genesis_header_bytes) is
+    // itself a 32-byte chain-discriminator: differs across chains
+    // (mainnet vs testnet vs custom), stable for any progressed copy of
+    // the same chain. We use the precomputed id (already in BEST_CHAIN
+    // at height 1) rather than re-hashing the header bytes — same
+    // discriminating power, no hash-crate dep, and `best_header_at(1)`
+    // is the canonical "give me the genesis id" call (Ergo genesis is
+    // at height 1, per `ergo-node-rust/chain/src/chain.rs:85`).
+    let source_store_hash = store
+        .best_header_at(1)
+        .context("reading genesis header id (best_header_at(1)) for sidecar fingerprint")?
+        .context(
+            "store.redb has no header at height 1 — cannot derive sidecar source-store \
+             fingerprint. This is unreachable under the startup full-archive check \
+             (which already required tip(101) >= 1), but is reported here as a safety \
+             net against future refactors of startup_check",
+        )?;
+
+    let sidecar = UtxoIndex::open_or_create(Path::new(sidecar_path), &source_store_hash)
+        .with_context(|| format!("opening sidecar UTXO index at {sidecar_path}"))?;
+    let indexed_height = sidecar
+        .indexed_up_to_height()
+        .context("reading sidecar indexed_up_to_height marker")?;
+    eprintln!("sidecar opened at height {indexed_height}");
+
+    stdin_loop(&store, &sidecar)?;
     Ok(())
 }
 
-/// Reads stdin line-by-line; for each line emits a T2 stub response.
+/// Reads stdin line-by-line; dispatches each request to its handler.
 ///
-/// T3-T5 replace the inner branch with real dispatch on `Request`.
-fn stdin_loop() -> Result<()> {
+/// `sidecar` is borrowed but not actually written-to in T3 (only
+/// GET_TIP_HEIGHT is wired; GET_BLOCK is stubbed). T5's GET_BLOCK
+/// handler will be the first writer of the sidecar's box table.
+fn stdin_loop(store: &RedbModifierStore, _sidecar: &UtxoIndex) -> Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
     for line in stdin.lock().lines() {
         let line = line.context("reading from stdin")?;
         match protocol::parse_request(&line) {
-            Ok(_request) => {
-                // T2 stub: emit `{ok: true, data: "stub"}`. Real handlers
-                // for GetTipHeight and GetBlock arrive in T3 / T4 / T5.
-                protocol::write_ok(&mut stdout, "stub")
-                    .context("writing stub response")?;
+            Ok(protocol::Request::GetTipHeight) => {
+                let tip = store
+                    .tip(HEADER_TYPE_ID)
+                    .context("querying tip for type 101 (Header) during GET_TIP_HEIGHT")?;
+                // Startup check rejected the empty-store case, so a
+                // None tip here would be a chain-meta race or external
+                // mutation. Either way the harness should see it.
+                match tip {
+                    Some((h, _)) => {
+                        protocol::write_ok(&mut stdout, TipHeightResponse { tip: h })
+                            .context("writing GET_TIP_HEIGHT response")?;
+                    }
+                    None => {
+                        protocol::write_err(
+                            &mut stdout,
+                            "empty-store",
+                            "tip(101) returned None during GET_TIP_HEIGHT despite \
+                             startup check passing; the store appears to have been \
+                             cleared since open",
+                        )
+                        .context("writing GET_TIP_HEIGHT empty-store error")?;
+                    }
+                }
+            }
+            Ok(protocol::Request::GetBlock { .. }) => {
+                // T4/T5 will replace this with the real walk-and-bundle
+                // logic; surfacing "not-implemented" here makes the
+                // failure mode obvious if a harness in T3-era is
+                // accidentally pointed at GET_BLOCK.
+                protocol::write_err(
+                    &mut stdout,
+                    "not-implemented",
+                    "GET_BLOCK is implemented at T4 (header-only) and T5 (full bundle); \
+                     T3 only ships GET_TIP_HEIGHT and the sidecar scaffolding",
+                )
+                .context("writing GET_BLOCK not-implemented error")?;
             }
             Err(msg) => {
                 protocol::write_err(&mut stdout, "unknown-command", &msg)

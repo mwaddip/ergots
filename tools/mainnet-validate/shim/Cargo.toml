@@ -28,3 +28,8 @@ ciborium = "0.2"
 
 serde = { version = "1", features = ["derive"] }
 anyhow = "1"
+
+[dev-dependencies]
+# Isolated tempdirs for sidecar unit tests. Matches enr-store's dev-dep
+# pin so the resolver doesn't pull a duplicate version.
+tempfile = "3"
