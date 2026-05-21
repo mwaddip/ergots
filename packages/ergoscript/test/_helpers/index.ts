@@ -138,17 +138,35 @@ export function hydrateSValue(json: any): SValue {
 }
 
 /**
- * Rehydrate an ErgoBox JSON object (from fixture-gen `ergo_box_to_json`) into
- * a runtime `ErgoBox` value. Schema:
+ * Rehydrate an ErgoBox JSON object (from fixture-gen `ergo_box_to_json` or
+ * `ergo_box_to_json_with_registers`) into a runtime `ErgoBox` value. Schema:
  *   value_nanoerg: decimal string → bigint
  *   ergo_tree_bytes_hex: hex → Uint8Array
  *   tokens: [{ id_hex, amount }] → { id: Uint8Array, amount: bigint }[]
- *   registers: {} → empty Record (no non-mandatory registers in simple boxes)
+ *   registers: Record<string, { tpe: SType, value: SValue }> → number-keyed
+ *     Record (string-coerced keys converted to number; SValue rehydrated via
+ *     hydrateSValue). Empty / missing → empty Record. Phase 2i-c T11 extended
+ *     this to support DeserializeRegister fixtures via the
+ *     ergo_box_to_json_with_registers helper.
  *   creation_height: number
  *   tx_id_hex: hex → Uint8Array
  *   index: number
  */
 export function hydrateErgoBox(json: any): ErgoBox {
+  const registers: Record<number, { tpe: SType; value: SValue } | undefined> = {}
+  const regJson = (json.registers ?? {}) as Record<
+    string,
+    { tpe: SType; value: unknown } | undefined
+  >
+  for (const [k, entry] of Object.entries(regJson)) {
+    const regId = Number(k)
+    if (entry !== undefined) {
+      registers[regId] = {
+        tpe: entry.tpe,
+        value: hydrateSValue(entry.value),
+      }
+    }
+  }
   return {
     value: BigInt(json.value_nanoerg as string),
     ergoTreeBytes: hexToBytes(json.ergo_tree_bytes_hex as string),
@@ -156,7 +174,7 @@ export function hydrateErgoBox(json: any): ErgoBox {
       id: hexToBytes(t.id_hex as string),
       amount: BigInt(t.amount as string),
     })),
-    registers: {},
+    registers,
     creationHeight: json.creation_height as number,
     txId: hexToBytes(json.tx_id_hex as string),
     index: json.index as number,
