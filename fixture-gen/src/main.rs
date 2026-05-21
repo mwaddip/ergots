@@ -442,6 +442,13 @@ fn main() -> anyhow::Result<()> {
     let multiply_group_fixture = cmds::ergoscript::eval::multiply_group::generate()?;
     write_ergoscript_json("eval/multiply-group.json", &multiply_group_fixture)?;
 
+    // Phase 2i-b T4: Exponentiate Expr arm — Pattern A Fixed(900), scalar
+    // multiplication (ec_point.rs:111-119; identity-base short-circuit at
+    // line 113-118). BigInt256 exponent reduced mod n via dlog_group::
+    // bigint256_to_scalar (dlog_group.rs:60-64). 9 success + 2 throw entries.
+    let exponentiate_fixture = cmds::ergoscript::eval::exponentiate::generate()?;
+    write_ergoscript_json("eval/exponentiate.json", &exponentiate_fixture)?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;

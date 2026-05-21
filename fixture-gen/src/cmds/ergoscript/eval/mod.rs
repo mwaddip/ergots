@@ -91,5 +91,6 @@ pub mod xor;
 pub mod xor_of;
 pub mod method_call;
 pub mod multiply_group;
+pub mod exponentiate;
 pub mod sheader_handlers;
 pub mod sheader_checkpow;
