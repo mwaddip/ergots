@@ -461,7 +461,8 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // Phase 2i-b — Curve + AVL + sigma-trivial predefs. T2 added 1 code
   // (sigma-prop-is-proven-no-eval; 52 → 53). T3 adds 1 code
-  // (group-op-input-not-group-element; 53 → 54). Further codes added in T4-T5.
+  // (group-op-input-not-group-element; 53 → 54). T4 adds 1 code
+  // (predef-input-not-bigint; 54 → 55). Further codes added in T5.
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no
@@ -490,3 +491,15 @@ export type EvalErrorCode =
    *         ergotree-interpreter/src/eval/exponentiate.rs:20 (T4)
    */
   | 'group-op-input-not-group-element'
+  /**
+   * `Exponentiate`: exponent expression evaluated to a non-`BigInt` SValue.
+   * Wire-format invariants (`Exponentiate::new` enforces
+   * `(SGroupElement, SBigInt)` at construction) make this unreachable for
+   * parser-produced trees; defensive against `ConstantPlaceholder` injection
+   * or hand-crafted MIR. Mirrors sigma-rust's `try_extract_into::<BigInt256>()`
+   * failure at `exponentiate.rs:21`. Future arms in the `ModQ` family
+   * (phase 2i-d) will reuse this code.
+   *
+   * Source: ergotree-interpreter/src/eval/exponentiate.rs:21
+   */
+  | 'predef-input-not-bigint'

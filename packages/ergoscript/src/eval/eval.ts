@@ -76,6 +76,7 @@ import { evalValUse } from './val-use'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalDecodePoint } from './decode-point'
+import { evalExponentiate } from './exponentiate'
 import { evalSubstConstants } from './subst-constants'
 import { evalXor } from './xor'
 import { evalXorOf } from './xor-of'
@@ -160,6 +161,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalExtractScriptBytes(e, env, ctx)
     case 'Exists':
       return evalExists(e, env, ctx)
+    case 'Exponentiate':
+      return evalExponentiate(e, env, ctx)
     case 'ForAll':
       return evalForAll(e, env, ctx)
     case 'Filter':
