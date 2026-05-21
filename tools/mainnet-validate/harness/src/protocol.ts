@@ -41,7 +41,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { Decoder } from 'cbor-x';
 
-/** Stable error codes emitted by the shim on the wire. */
+/**
+ * Stable error codes emitted by the shim on the wire.
+ *
+ * Sourced from grep of `write_err(` calls across `shim/src/main.rs` +
+ * `shim/src/block_walker.rs`. Update this union AND the shim's emit sites
+ * together if a new code lands.
+ */
 export type ShimErrorCode =
     | 'missing-block'
     | 'missing-utxo'
@@ -51,11 +57,8 @@ export type ShimErrorCode =
     | 'past-indexed'
     | 'utxo-bootstrap-detected'
     | 'empty-store'
-    | 'not-implemented'
     | 'walker-error'
-    | 'unknown-command'
-    | 'prerequisite-violation'
-    | 'fingerprint-mismatch';
+    | 'unknown-command';
 
 /** Top-level CBOR shape: `{ok: true, data: T}` or `{ok: false, error}`. */
 export type ShimResponse<T> =
