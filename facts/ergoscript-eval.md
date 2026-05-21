@@ -249,7 +249,7 @@ class EvalError extends Error { code: string }
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised inside the recursive evaluator bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** 60 of ~70 `Expr` variants currently have implemented arms. Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2i–2j add remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 19 wire opcodes (ModQ family, OpTrue/False, UnitConstant, Select1-5, CollShift/Rotate families, FunDef, SomeValue, NoneValue) are reserved in sigma-rust's `OpCode` enum but unconditionally parse-rejected — sigma-rust itself never dispatches them. We mirror via `ExprParseError 'opcode-reserved'`. A further 4 (LastBlockUtxoRootHash, FlatMap, TrivialPropFalse, TrivialPropTrue) are routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or an eval path with a defensive `EvalError 'not-implemented-yet'` (5 sites: `eval.ts:229`, `global-vars.ts:136`, `bin-op/relation.ts` ×2, `bin-op/bit.ts:58`) still throw at runtime. The `evaluate` signature itself is stable; phase 2j adds cost calibration.
 
 ### `evaluateWith(tree, ctx)`
 
@@ -555,7 +555,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 ## Coverage and stability
 
-**60 / ~70 `Expr` variants** have arms in v0.2.0 (phase 2i-a):
+**67 of 67 implementable `Expr` variants** have arms (post-2i-c). 19 variants in sigma-rust's `OpCode` enum are reserved-but-never-dispatched and parse-reject via `ExprParseError 'opcode-reserved'`; 4 more (LastBlockUtxoRootHash, FlatMap, TrivialPropFalse, TrivialPropTrue) parse-reject via `'not-implemented-yet'` pending separate review of their top-level direct-dispatch status (routed elsewhere in sigma-rust). The 67 implementable variants:
 - 8 from phase 2b
 - 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp`
 - 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast`
@@ -571,6 +571,8 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 - 4 from phase 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`
 - 1 from phase 2g.6: `Global`
 - 8 from phase 2i-a: `CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`, `LongToByteArray`, `ByteArrayToBigInt`, `Xor`, `DecodePoint`, `SubstConstants`
+- 5 from phase 2i-b: `SigmaPropIsProven`, `MultiplyGroup`, `Exponentiate`, `CreateAvlTree`, `TreeLookup`
+- 2 from phase 2i-c: `DeserializeContext`, `DeserializeRegister`
 
 Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-f adds 2 more method handlers (`SGroupElement.getEncoded` + `SColl.flatMap`) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2i-a adds 8 new `Expr` arms (pure-bytes predefs) — coverage advances to 60 / ~70; post-2i-a uplift to C2 corpus TBD on next corpus run.
 
