@@ -1,0 +1,51 @@
+{
+  "corpus": "eval_decode_point",
+  "entries": [
+    {
+      "name": "dp_generator",
+      "tree_bytes_hex": "00ee0e210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 305,
+      "expected_error_code": null
+    },
+    {
+      "name": "dp_identity",
+      "tree_bytes_hex": "00ee0e21000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": {
+        "bytes_hex": "000000000000000000000000000000000000000000000000000000000000000000",
+        "kind": "GroupElement"
+      },
+      "expected_cost": 305,
+      "expected_error_code": null
+    },
+    {
+      "name": "dp_wrong_length_32",
+      "tree_bytes_hex": "00ee0e200000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "decode-point-invalid"
+    },
+    {
+      "name": "dp_wrong_length_34",
+      "tree_bytes_hex": "00ee0e2200000000000000000000000000000000000000000000000000000000000000000000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "decode-point-invalid"
+    },
+    {
+      "name": "dp_off_curve",
+      "tree_bytes_hex": "00ee0e21040102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "decode-point-invalid"
+    }
+  ]
+}

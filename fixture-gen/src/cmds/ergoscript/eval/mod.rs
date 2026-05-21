@@ -55,6 +55,7 @@ pub mod sglobal_group_generator;
 pub mod sgroup_elem_get_encoded;
 pub mod create_prove_dh_tuple;
 pub mod create_prove_dlog;
+pub mod decode_point;
 pub mod p2pk_short_circuit;
 pub mod const_arm;
 pub mod const_placeholder;
