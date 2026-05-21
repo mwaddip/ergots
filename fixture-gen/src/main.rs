@@ -449,6 +449,15 @@ fn main() -> anyhow::Result<()> {
     let exponentiate_fixture = cmds::ergoscript::eval::exponentiate::generate()?;
     write_ergoscript_json("eval/exponentiate.json", &exponentiate_fixture)?;
 
+    // Phase 2i-b T5: CreateAvlTree Expr arm — no inline cost (children-only).
+    // 4-input constructor: Byte flags + Coll[Byte] digest + Int keyLength +
+    // Option[Int] valueLength → AvlTreeData. Sigma-rust ref:
+    // ergotree-interpreter/src/eval/create_avl_tree.rs:15-41. AvlTreeFlags::parse
+    // canonicalizes flags to bits 0..2 (mir/avl_tree_data.rs:32-38).
+    // 7 success + 4 throw entries.
+    let create_avl_tree_fixture = cmds::ergoscript::eval::create_avl_tree::generate()?;
+    write_ergoscript_json("eval/create-avl-tree.json", &create_avl_tree_fixture)?;
+
     // Phase 2g.5 Task 4: SBox.tokens handler (PropertyCall typeId=99, methodId=8).
     let method_call_fixture = cmds::ergoscript::eval::method_call::generate()?;
     write_ergoscript_json("eval/method-call.json", &method_call_fixture)?;

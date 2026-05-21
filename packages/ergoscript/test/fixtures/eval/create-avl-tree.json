@@ -1,0 +1,149 @@
+{
+  "corpus": "eval_create_avl_tree",
+  "entries": [
+    {
+      "name": "cat_flags_0_no_vlen",
+      "tree_bytes_hex": "00b602000e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20044000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 32,
+          "treeFlags": 0,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_flags_7_vlen_5",
+      "tree_bytes_hex": "00b602070e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20044001040a",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 32,
+          "treeFlags": 7,
+          "valueLengthOpt": 5
+        }
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_flags_3_vlen_0",
+      "tree_bytes_hex": "00b602030e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a200440010400",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 32,
+          "treeFlags": 3,
+          "valueLengthOpt": 0
+        }
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_valuelen_i32_max",
+      "tree_bytes_hex": "00b602010e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a2004400104feffffffffffffffff01",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 32,
+          "treeFlags": 1,
+          "valueLengthOpt": 2147483647
+        }
+      },
+      "expected_cost": 20,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_negative_keylength",
+      "tree_bytes_hex": "00b602000e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a2004ffffffffffffffffff0100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 2147483648,
+          "treeFlags": 0,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_large_keylength",
+      "tree_bytes_hex": "00b602000e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a2004feffffffffffffffff0100",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 2147483647,
+          "treeFlags": 0,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_flags_FF_canonicalize",
+      "tree_bytes_hex": "00b602ff0e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20044000",
+      "opts_json": {},
+      "expected_value_json": {
+        "kind": "AvlTree",
+        "value": {
+          "digest_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20",
+          "keyLength": 32,
+          "treeFlags": 7,
+          "valueLengthOpt": null
+        }
+      },
+      "expected_cost": 15,
+      "expected_error_code": null
+    },
+    {
+      "name": "cat_throw_digest_32bytes",
+      "tree_bytes_hex": "00b602000e200000000000000000000000000000000000000000000000000000000000000000044000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "avl-tree-bad-digest-length"
+    },
+    {
+      "name": "cat_throw_non_byte_flags",
+      "tree_bytes_hex": "00b604540e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20044000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "create-avl-tree-shape-mismatch"
+    },
+    {
+      "name": "cat_throw_non_coll_digest",
+      "tree_bytes_hex": "00b602000454044000",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "predef-input-not-byte-array"
+    },
+    {
+      "name": "cat_throw_non_int_keylength",
+      "tree_bytes_hex": "00b602000e210714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a20055400",
+      "opts_json": {},
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "create-avl-tree-shape-mismatch"
+    }
+  ]
+}
