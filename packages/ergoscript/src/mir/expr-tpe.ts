@@ -384,6 +384,15 @@ export function exprTpe(e: Expr): SType {
       // that every item is SSigmaProp (else InvalidArgumentError); the
       // result composition itself is SSigmaProp.
       return { tag: 'SSigmaProp' }
+    case 'DeserializeContext':
+    case 'DeserializeRegister':
+      // sigma-rust `mir/deserialize_context.rs::DeserializeContext::tpe`
+      // (line 28-31) and `mir/deserialize_register.rs::DeserializeRegister::tpe`
+      // (line 40-43): both return the arm's static `e.tpe` field — the declared
+      // result type of the deserialized script. The substitute-pre-pass
+      // (eval/_substitute-deserialize.ts) validates the parsed inner Expr's
+      // tpe against this declared tpe at substitute time.
+      return e.tpe
     default:
       // Reachable today for any Expr variant whose parser/serializer is
       // not yet implemented. Once Tasks 12-26 land, each new tag gets its

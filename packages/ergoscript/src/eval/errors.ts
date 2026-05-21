@@ -37,7 +37,14 @@
  *        - 'group-op-input-not-group-element' (T3+T4 — MultiplyGroup + Exponentiate base)
  *        - 'predef-input-not-bigint' (T4 — Exponentiate's BigInt exponent)
  *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/valueLength)
- *   = 59 codes total after phase 2i-b T6 (TreeLookup).
+ *    + 5 codes added in phase 2i-c (deserialize family):
+ *        - 'deserialize-context-key-not-found' (DC: ctx.extension.values[id] missing)
+ *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
+ *        - 'deserialize-parse-failed' (both: inner Expr bytes malformed)
+ *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed) !== e.tpe)
+ *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
+ *          for DR with register absent + default null OR recursive-Deserialize)
+ *   = 64 codes total after phase 2i-c.
  */
 
 /**
@@ -534,3 +541,77 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/create_avl_tree.rs:21, 23, 26
    */
   | 'create-avl-tree-shape-mismatch'
+
+  // -------------------------------------------------------------------------
+  // Phase 2i-c — Deserialize family (5 new codes; 59 → 64). Substitute-pre-pass
+  // architecture mirroring sigma-rust eval.rs:203-250 + mir/expr.rs:442-496.
+  // Codes 1-4 are thrown by substituteDeserialize; code 5 is the defensive
+  // eval-time throw on the Deserialize* arms (reached when substitute pass
+  // does NOT rewrite — either DR with register absent + default null, or
+  // recursive Deserialize inside a substituted inner Expr).
+  // -------------------------------------------------------------------------
+  /**
+   * `DeserializeContext` substitute pass: `ctx.extension.values[e.id]` is
+   * undefined. Mirrors sigma-rust `SubstDeserializeError::ExtensionKeyNotFound(id)`
+   * at `ergotree-ir/src/mir/expr.rs:457`. Message includes the id for symmetry.
+   *
+   * Source: ergotree-ir/src/mir/expr.rs:453-457
+   */
+  | 'deserialize-context-key-not-found'
+  /**
+   * `DeserializeContext` / `DeserializeRegister` substitute pass: the
+   * context-extension entry or register entry does NOT carry a Coll[Byte]
+   * value (either `entry.tpe.tag !== 'SColl'` / `entry.tpe.elem.tag !== 'SByte'`
+   * or the Coll's items contain non-Byte elements). Mirrors sigma-rust
+   * `SubstDeserializeError::TryExtractFromError` via
+   * `try_extract_into::<Vec<u8>>()` failure.
+   *
+   * Source: ergotree-ir/src/mir/expr.rs:459 (DC), :472 (DR)
+   */
+  | 'deserialize-input-not-byte-array'
+  /**
+   * `DeserializeContext` / `DeserializeRegister` substitute pass: the inner
+   * Expr bytes (decoded from `ctx.extension` or `selfBox.registers`) fail to
+   * parse. The underlying wire-layer error class + message is wrapped into
+   * `.message`. Mirrors sigma-rust `SubstDeserializeError::ExprParsingError(SigmaParsingError)`
+   * at `ergotree-ir/src/mir/expr.rs:725`.
+   *
+   * Common causes: malformed opcode stream, truncated bytes, ConstantPlaceholder
+   * referenced with empty constants store (verified against sigma-rust
+   * `serialization/constant_placeholder.rs:14-24` — both rust and our port
+   * reject placeholders at parse when no store).
+   *
+   * Source: ergotree-ir/src/mir/expr.rs:462-464 (DC), :474 (DR)
+   */
+  | 'deserialize-parse-failed'
+  /**
+   * `DeserializeContext` / `DeserializeRegister` substitute pass: the parsed
+   * inner Expr's `exprTpe()` doesn't match the arm's declared `e.tpe`. The
+   * check runs on BOTH the register-decoded inner Expr AND the `default`
+   * fallback Expr (per sigma-rust `expr.rs:486-491`). Mirrors
+   * `SubstDeserializeError::ExprTpeError { expected, actual }` at line 727.
+   *
+   * Source: ergotree-ir/src/mir/expr.rs:486-491
+   */
+  | 'deserialize-tpe-mismatch'
+  /**
+   * `DeserializeContext` / `DeserializeRegister` eval-time defensive throw.
+   * Reached when the substitute pass did NOT rewrite this node:
+   *   (a) DeserializeRegister with register absent + `e.default === null` —
+   *       sigma-rust `substitute_deserialize` returns `Ok(())` LEAVING the
+   *       node unchanged (per `expr.rs:478-481` "When script in register is
+   *       not found, and default is not defined, leave DeserializeRegisterNode
+   *       unchanged, which will error on evaluation"). The defensive throw IS
+   *       the canonical mirror.
+   *   (b) Recursive Deserialize: an outer DeserializeContext decoded to an
+   *       inner Expr containing another Deserialize* node. sigma-rust's
+   *       `try_rewrite_bu` does NOT re-walk substituted children
+   *       (`mir/expr.rs:397-408`), so the inner Deserialize survives and
+   *       trips the eval-time throw. Sigma-rust mirror: eval/deserialize_*.rs
+   *       files contain ONLY tests; NO Evaluable impl — falls through to
+   *       "not implemented" at eval-time.
+   *
+   * Source: ergotree-ir/src/mir/expr.rs:478-481, :397-408;
+   *         ergotree-interpreter/src/eval/deserialize_context.rs (tests-only)
+   */
+  | 'deserialize-not-substituted'
