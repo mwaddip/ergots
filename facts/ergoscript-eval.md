@@ -1,6 +1,6 @@
 # `@ergots/ergoscript` — Evaluator Surface Contract
 
-This file documents the **evaluator slice** of the `@ergots/ergoscript` boundary contract (phases 2b through 2g.6). It is also the canonical home for the `SValue` / `SType` / `Expr` discriminated unions, which are produced by the wire layer (see [`facts/ergoscript-wire.md`](./ergoscript-wire.md)) and consumed across the package.
+This file documents the **evaluator slice** of the `@ergots/ergoscript` boundary contract (phases 2b through 2i-a). It is also the canonical home for the `SValue` / `SType` / `Expr` discriminated unions, which are produced by the wire layer (see [`facts/ergoscript-wire.md`](./ergoscript-wire.md)) and consumed across the package.
 
 For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/ergoscript.md`](./ergoscript.md). For the sigma-protocol verifier (which consumes `SValue.SigmaProp` produced by this layer) see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md).
 
@@ -155,9 +155,37 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2h-f COMPLETE.** Method handler registry: 44 entries. EvalError codes: 48 (unchanged). Test count: 2922 (ergoscript; was 2903, +19 from 2h-f).
 
+**Phase 2i-a — Pure-bytes predefs** (additive):
+
+- 8 new eval arms wired (coverage 52 → 60 of ~70 `Expr` arms):
+  - **`CalcBlake2b256`** — Pattern B `addPerItemCost(20, 7, 128, n)`. `@noble/hashes/blake2.js` blake2b at 32-byte output (`dkLen: 32`).
+  - **`CalcSha256`** — Pattern B `addPerItemCost(80, 8, 64, n)`. `@noble/hashes/sha2.js` sha256.
+  - **`ByteArrayToLong`** — Pattern A `Fixed(16)`. First 8 bytes BE → i64; trailing bytes IGNORED (sigma-rust `byte_array_to_long.rs:62-65` `eval_skip_tail` confirms). Throws on `length < 8`.
+  - **`LongToByteArray`** — Pattern A `Fixed(17)`. i64 → 8 bytes BE via DataView.setBigInt64.
+  - **`ByteArrayToBigInt`** — Pattern A `Fixed(30)`. Signed BE → bigint; range-checked to i256 `[-2^255, 2^255 - 1]`. Empty input throws separately. Length NOT capped — 33+ byte inputs in-range succeed (sigma-rust `eval_above_max_bound`).
+  - **`Xor`** — Pattern B `addPerItemCost(10, 2, 128, l_length)`. Cost sized by LEFT operand. Truncating-zip: output length = `min(left, right)`. NO length-mismatch error (mirrors sigma-rust `helper_xor`).
+  - **`DecodePoint`** — Pattern A `Fixed(300)`. Reuses existing `crypto/secp256k1.ts:decodePoint` adapter (handles Ergo 33-zero-bytes identity convention).
+  - **`SubstConstants`** — Pattern B `addPerItemCost(100, 100, 1, template.constants.length)`. **Consensus-critical bytes-in/bytes-out.** Cost sized by TEMPLATE'S `constants.length`, NOT positions.length (sigma-rust bug-3 regression at `subst_const.rs:221-283`). Output byte-equality with sigma-rust guaranteed by reusing `parseTree`/`serializeTree`.
+- 7 new `EvalError` codes (48 → 55):
+  - `'predef-input-not-byte-array'` (T2; shared by T2/T3/T4/T6/T7/T8 for non-Coll[Byte] inputs)
+  - `'byte-array-to-long-too-short'` (T4; length < 8)
+  - `'predef-input-not-long'` (T5; LongToByteArray's non-Long input)
+  - `'byte-array-to-bigint-empty'` (T6)
+  - `'byte-array-to-bigint-out-of-range'` (T6)
+  - `'decode-point-invalid'` (T8)
+  - `'subst-constants-error'` (T9 — compact code covering 7 throw paths per the 2g.5 compact-taxonomy decision)
+- 3 new shared helpers:
+  - `collByteToUint8Array(v, arm, code?)` in `eval/_byte-coll.ts` — extracted in T7.5 from 6-7 inline copies; takes optional EvalErrorCode (default `'predef-input-not-byte-array'`).
+  - `signedBeBytesToBigInt(bytes): bigint` + `I256_MIN`, `I256_MAX` constants in `eval/_byte-coll.ts` — T6.
+  - `extractCollInt(v, arm, code?)` in `eval/_coll-helpers.ts` — T9 (for SubstConstants positions argument).
+- Two documented TS-from-sigma-rust divergences (both inherited, neither introduced by this slice):
+  - **`DecodePoint` identity**: existing `decodePoint` adapter at `crypto/secp256k1.ts:65-77` checks `isZero33(bytes)` (all 33 bytes zero), while sigma-rust dispatches on `buf[0] !== 0` only. Pre-existing across the verifier surface; not introduced by 2i-a. In-corpus fixtures always produce identity as exactly 33 zero bytes (canonical sigma-rust serialization). Pathological inputs like `[0x00, nonzero, …]` would diverge — out-of-scope follow-up tracked separately.
+  - **`SubstConstants` type-check**: TS validates `sTypeEquals(newValuesV.elem, tree.constantTypes[i])` (the outer Coll's declared element type) vs sigma-rust's per-item `Constant.tpe == old_constant.tpe`. Equivalent for well-typed inputs (all of mainnet); divergence only on pathological hand-crafted hetero-typed Colls.
+
+**Phase 2i-a COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 55. Eval arm coverage: 60 of ~70. Ergoscript test count: 3074. Total monorepo: 3652.
+
 **Does NOT ship yet (deferred):**
 
-- **`Xor`** (byte-array XOR) — phase 2i alongside other predefs.
 - Broader method-call surface beyond the 44 registered handlers: `Coll.zipWith` / `.reverse` / `.patch` / `.updated` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader`/`SGroupElement` methods (exponentiate, multiply, negate). Wait until phase 2i or corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
@@ -180,7 +208,7 @@ class EvalError extends Error { code: string }
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised inside the recursive evaluator bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** 52 of ~70 `Expr` variants currently have implemented arms. Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2h–2j add remaining arms; the `evaluate` signature itself is stable.
+- **Coverage caveat:** 60 of ~70 `Expr` variants currently have implemented arms. Any tree whose body — or whose evaluation reaches — any other variant throws `EvalError 'not-implemented-yet'`. Phases 2i–2j add remaining arms; the `evaluate` signature itself is stable.
 
 ### `evaluateWith(tree, ctx)`
 
@@ -276,13 +304,13 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (48 codes)
+## `EvalError` taxonomy (55 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
 ### Phase 2b codes
 
-- **`'not-implemented-yet'`** — central dispatch (`eval/eval.ts`) hit an `Expr` variant with no arm yet (~18 variants remaining after phase 2g.6). Message includes the offending `tag`.
+- **`'not-implemented-yet'`** — central dispatch (`eval/eval.ts`) hit an `Expr` variant with no arm yet (~10 variants remaining after phase 2i-a). Message includes the offending `tag`.
 - **`'cost-limit-exceeded'`** — `EvalContext.addCost` (and therefore `addPerItemCost`) detected `ctx.jitCost > ctx.jitCostLimit` after a charge. Only raised when the caller set `jitCostLimit` (default `undefined` skips the check).
 - **`'val-def-outside-block'`** — the `ValDef` arm was reached at the top level (or as an arbitrary sub-expression). `ValDef` is only structurally valid as an item inside `BlockValue.items`.
 - **`'val-use-unbound'`** — `ValUse(id)` referenced a `valId` with no binding in the current `Env`. Cost 5 is charged BEFORE the env lookup (mirrors sigma-rust).
@@ -388,6 +416,16 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 
 - **`'avl-tree-bad-digest-length'`** — `SAvlTree.updateDigest` handler received a `newDigest: Coll[Byte]` whose length is not 33 bytes. Mirrors sigma-rust's `ADDigest::try_from` length-check failure (`eval/savltree.rs:90-102`). Wire-format invariants do NOT make this unreachable — the caller supplies the digest at eval-time as a script-constructed `Coll[Byte]`, so any 0..n-byte value is a legitimate input shape.
 
+### Phase 2i-a codes (pure-bytes predefs)
+
+- **`'predef-input-not-byte-array'`** — defensive `Coll[Byte]` kind-check shared by 6 of the 8 new arms: `CalcBlake2b256` (T2; primary owner), `CalcSha256` (T3), `ByteArrayToLong` (T4), `ByteArrayToBigInt` (T6), `Xor` (T7, both operands), `DecodePoint` (T8). Defaultable via the optional 3rd arg of the new `collByteToUint8Array` helper. Wire-format invariants make this unreachable for parser-produced trees.
+- **`'byte-array-to-long-too-short'`** — `ByteArrayToLong` arm: input `Coll[Byte]` had `length < 8`. Charged Pattern A cost 16 BEFORE the throw.
+- **`'predef-input-not-long'`** — `LongToByteArray` arm: input `SValue.kind !== 'Long'`. Unreachable from parser-produced trees.
+- **`'byte-array-to-bigint-empty'`** — `ByteArrayToBigInt` arm: input `Coll[Byte]` had length 0. Distinct from the out-of-range code so callers can distinguish "empty input" from "value out of i256 bounds".
+- **`'byte-array-to-bigint-out-of-range'`** — `ByteArrayToBigInt` arm: signed-BE-decoded bigint fell outside `[I256_MIN, I256_MAX]` = `[-2^255, 2^255 - 1]`. Sigma-rust mirror: `byte_array_to_bigint.rs` range-check after decode.
+- **`'decode-point-invalid'`** — `DecodePoint` arm: the 33-byte SEC1-compressed input failed `decodePoint` adapter validation (non-zero33 AND non-decodable per `crypto/secp256k1.ts`). Charged Pattern A cost 300 BEFORE the throw.
+- **`'subst-constants-error'`** — `SubstConstants` arm: compact taxonomy code covering 7 distinct throw paths (positions vs newValues length mismatch; position out of range; type mismatch between newValues' element type and the template's constant type at that position; newValues' input not a Coll; positions' input not a Coll; scriptBytes' input not Coll[Byte]; nested `parseTree`/`serializeTree` error). Per the 2g.5 compact-taxonomy decision — these are all "the input shape doesn't satisfy SubstConstants' contract" and are not branched-on by callers.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
 ## Dispatcher minVersion gating (phase 2h-c.2)
@@ -459,7 +497,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 ## Coverage and stability
 
-**52 / ~70 `Expr` variants** have arms in v0.2.0 (phase 2h-d):
+**60 / ~70 `Expr` variants** have arms in v0.2.0 (phase 2i-a):
 - 8 from phase 2b
 - 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp`
 - 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast`
@@ -474,8 +512,9 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 - 3 from phase 2g-combinators: `Atleast`, `SigmaAnd`, `SigmaOr`
 - 4 from phase 2g.5: `Context`, `SigmaPropBytes`, `MethodCall`, `PropertyCall`
 - 1 from phase 2g.6: `Global`
+- 8 from phase 2i-a: `CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`, `LongToByteArray`, `ByteArrayToBigInt`, `Xor`, `DecodePoint`, `SubstConstants`
 
-Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70.
+Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-f adds 2 more method handlers (`SGroupElement.getEncoded` + `SColl.flatMap`) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2i-a adds 8 new `Expr` arms (pure-bytes predefs) — coverage advances to 60 / ~70; post-2i-a uplift to C2 corpus TBD on next corpus run.
 
 **Method-handler registry: 44 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating; +2 from 2h-f — `SGroupElement.getEncoded` at 7:2 and `SColl.flatMap` at 12:15).
 
@@ -492,4 +531,5 @@ Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from t
 - [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) — sigma-protocol verifier (`SigmaBoolean`, `verifySignature`, `VerifyError`)
 - `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella spec
 - `docs/specs/2026-05-17-ergoscript-phase-2g-5-method-call-dispatch-design.md` — method-call dispatcher
-- `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` — most recent eval phase (5 new method handlers + Global arm)
+- `docs/specs/2026-05-18-ergoscript-phase-2g-6-method-handlers-design.md` — phase 2g.6 (5 new method handlers + Global arm)
+- `docs/specs/2026-05-20-ergoscript-phase-2i-a-pure-bytes-predefs-design.md` — most recent eval phase (8 new Expr arms: hash predefs + byte<->numeric conversions + Xor + DecodePoint + SubstConstants)
