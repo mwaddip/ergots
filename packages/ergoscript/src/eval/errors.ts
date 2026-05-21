@@ -26,7 +26,8 @@
  *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
  *    + 1 code added in phase 2i-a (pure-bytes predef input guard)
  *    + 1 code added in phase 2i-a T4 (ByteArrayToLong length guard)
- *   = 50 codes total after phase 2i-a T4 (ByteArrayToLong).
+ *    + 1 code added in phase 2i-a T8 (DecodePoint adapter failure)
+ *   = 51 codes total after phase 2i-a T8 (DecodePoint).
  */
 
 /**
@@ -411,3 +412,20 @@ export type EvalErrorCode =
    *         bnum-0.12.1/src/bint/endian.rs:53-58 (Option<None> for out-of-range)
    */
   | 'byte-array-to-bigint-out-of-range'
+  /**
+   * `DecodePoint`: the `crypto/secp256k1.ts:decodePoint` adapter rejected the
+   * input. Three failure modes all surface as this code:
+   *   - Wrong byte length (`bytes.length !== 33`).
+   *   - Off-curve / invalid SEC1 encoding (`@noble/curves` throws "bad point").
+   *   - (Possible in theory but blocked by the adapter's all-zero short-circuit:
+   *     malformed identity-like inputs where the first byte is 0x00 but the
+   *     trailing 32 bytes are non-zero.)
+   *
+   * Mirrors sigma-rust's `EvalError::Misc("DecodePoint: Failed to parse EC
+   * point from bytes …")` which wraps `SigmaSerializable::sigma_parse_bytes`
+   * errors from `EcPoint::scorex_parse`.
+   *
+   * Source: ergotree-interpreter/src/eval/decode_point.rs:23-29
+   *         ergo-chain-types/src/ec_point.rs:140-152 (scorex_parse)
+   */
+  | 'decode-point-invalid'

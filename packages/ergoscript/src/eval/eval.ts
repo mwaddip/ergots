@@ -73,6 +73,7 @@ import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
+import { evalDecodePoint } from './decode-point'
 import { evalXor } from './xor'
 import { evalXorOf } from './xor-of'
 
@@ -126,6 +127,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalCalcBlake2b256(e, env, ctx)
     case 'CalcSha256':
       return evalCalcSha256(e, env, ctx)
+    case 'DecodePoint':
+      return evalDecodePoint(e, env, ctx)
     case 'LongToByteArray':
       return evalLongToByteArray(e, env, ctx)
     case 'Negation':
