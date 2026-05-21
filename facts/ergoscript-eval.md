@@ -205,13 +205,31 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2i-b COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 59. Eval arm coverage: 65 of ~70. Ergoscript test count: 3142. Total monorepo: 3720.
 
+**Phase 2i-c — Deserialize family** (additive):
+
+- 2 new eval arms wired (coverage 65 → 67 of ~70 `Expr` arms): `DeserializeContext`, `DeserializeRegister`.
+- **Architecture: substitute-pre-pass.** Mirrors sigma-rust `eval.rs:203-250` + `mir/expr.rs:442-496`. New module `eval/_substitute-deserialize.ts` exports `treeHasDeserialize(tree)` and `substituteDeserialize(body, tree, ctx)`. `evaluate` / `evaluateWith` dispatch to a substitute-then-eval path when `treeHasDeserialize(tree)` is true; the rewritten body goes through `tryTrivialReduceExpr` (T5 refactor extracted from `tryTrivialReduce`) + `evalExpr`. The Deserialize* eval arms are **defensive throws** (`'deserialize-not-substituted'`) reachable only when substitution did NOT rewrite a node — either (a) `DeserializeRegister` with register absent + `default` null (sigma-rust `expr.rs:478-481` LEAVES the node unchanged), or (b) a Deserialize* node lurking inside an already-substituted inner Expr (sigma-rust's `try_rewrite_bu` does NOT re-walk substituted children).
+- 5 new `EvalError` codes (59 → 64):
+  - `'deserialize-context-key-not-found'` — DC arm: `ctx.extension.values[id]` undefined. Mirrors sigma-rust `SubstDeserializeError::ExtensionKeyNotFound`.
+  - `'deserialize-input-not-byte-array'` — both arms: extension entry / register entry not `Coll[Byte]`. Mirrors `SubstDeserializeError::TryExtractFromError`.
+  - `'deserialize-parse-failed'` — both arms: inner Expr bytes malformed. Wraps the underlying wire-layer error message in `.message`. Mirrors `SubstDeserializeError::ExprParsingError`.
+  - `'deserialize-tpe-mismatch'` — both arms: `exprTpe(parsed) !== e.tpe`. Check runs on BOTH register-decoded inner AND `default` fallback (per `expr.rs:486-491`). Mirrors `SubstDeserializeError::ExprTpeError`.
+  - `'deserialize-not-substituted'` — defensive eval-time throw on both Deserialize* arms (cases (a) and (b) above).
+- 0 new method-handler registry entries (44 unchanged).
+- 0 new runtime dependencies.
+- **Architectural divergence from sigma-rust** (deliberate, cost-equivalent): we keep `ctx.constants` populated for all paths; sigma-rust's substitute path uses `tree.proposition()` to eagerly substitute placeholders before `substitute_deserialize`. Our `tryTrivialReduceExpr` (T5) handles both `Const(SSigmaProp)` and `ConstPlaceholder(SSigmaProp)` via `ctx.constants` lookup — same observable cost+value output as sigma-rust's path. Validated by fixture `dc_const_sigmaprop_inner` (P2PK 50-cost short-circuit on a substituted SigmaProp body; cost === 50).
+- **`tryTrivialReduce` refactor** (T5, mechanical): extracted `tryTrivialReduceExpr(body, ctx)` from the previous `tryTrivialReduce(tree, ctx)`. The original becomes a one-line wrapper. No behavior change.
+- **Two T6 fixture fix-forwards in T8** (documented in T8 commit `4ca85b1`): (1) `dc_height_eq_compare` opts_json now carries `height: 999999` (inner `GlobalVars.Height` needs ctx.height); (2) `dc_v3_unsigned_bigint` was dropped from the fixture set — sigma-rust's SUnsignedBigInt is a v6-only type our parser rejects at parse-stype. Treeversion threading is still exercised via outer-tree header bits.
+- **Mutation-test exemption notes** (DR aggregate 86.4% with 0.85 threshold, vs 0.90 for other arms): the DR fixture set is dominated by small-payload entries (5-9 tree bytes, 2-4 inner bytes); the surviving mutations fall in legitimate same-code-throw equivalence classes (mostly `'deserialize-tpe-mismatch'` and `'deserialize-parse-failed'`) that mirror sigma-rust behavior byte-for-byte. Structural ceiling, not implementation gap.
+
+**Phase 2i-c COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 64. Eval arm coverage: 67 of ~70. Ergoscript test count: ~3174. Total monorepo: ~3752.
+
 **Does NOT ship yet (deferred):**
 
 - Broader method-call surface beyond the 44 registered handlers: `Coll.zipWith` / `.reverse` / `.patch` / `.updated` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader`/`SGroupElement` methods (negate). Wait until phase 2i-d or corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
-- `DeserializeContext` / `DeserializeRegister` — phase 2i-c (recursive-eval architectural lift).
 - Long-tail parse-rejecting / deprecated arms (`OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `ModQ` family, `CollShift`/`CollRotate`) — phase 2i-d.
 
 ## Public surface (v0.2.0)
@@ -457,6 +475,14 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 - **`'create-avl-tree-shape-mismatch'`** — `CreateAvlTree` arm. Compact code covering 3 throw paths: non-Byte flags, non-Int keyLength, non-Int valueLength. `.message` carries the specific field name for debugging. (Coll[Byte] check on digest reuses `'predef-input-not-byte-array'`; digest length check reuses `'avl-tree-bad-digest-length'`.)
 
 `TreeLookup` introduces ZERO new codes — reuses `'avl-tree-obj-not-avl-tree'` (2h-b; non-AvlTree receiver), `'predef-input-not-byte-array'` (2i-a; non-Coll[Byte] key/proof), and `'avl-tree-proof-failed'` (2h-b; verifier construct failure).
+
+### Phase 2i-c codes (deserialize family)
+
+- **`'deserialize-context-key-not-found'`** — `DeserializeContext` substitute pass: `ctx.extension.values[e.id]` is undefined. Mirrors sigma-rust `SubstDeserializeError::ExtensionKeyNotFound(id)` at `mir/expr.rs:457`. Message includes the id for symmetry.
+- **`'deserialize-input-not-byte-array'`** — `DeserializeContext` / `DeserializeRegister` substitute pass: the context-extension entry / register entry's `tpe` is not `SColl<SByte>` (or its `value` is not a `Coll` with Byte items). Mirrors sigma-rust `SubstDeserializeError::TryExtractFromError` via `try_extract_into::<Vec<u8>>()` failure at `mir/expr.rs:459` (DC) and `:472` (DR).
+- **`'deserialize-parse-failed'`** — `DeserializeContext` / `DeserializeRegister` substitute pass: the inner Expr bytes (decoded from `ctx.extension` or `selfBox.registers`) fail to parse. Wraps the underlying wire-layer error class + message in `.message`. Mirrors `SubstDeserializeError::ExprParsingError(SigmaParsingError)` at `mir/expr.rs:725` and the inner parse calls at `:462-464` (DC) / `:474` (DR).
+- **`'deserialize-tpe-mismatch'`** — `DeserializeContext` / `DeserializeRegister` substitute pass: `exprTpe(parsed) !== e.tpe`. Check runs on BOTH the register-decoded inner Expr AND the `default` fallback Expr (per `mir/expr.rs:486-491` — applied post-`.or(default.as_deref().cloned())`). Mirrors `SubstDeserializeError::ExprTpeError { expected, actual }` at line 727.
+- **`'deserialize-not-substituted'`** — `DeserializeContext` / `DeserializeRegister` eval-time defensive throw. Reached when the substitute pass did NOT rewrite a node. Two cases: (a) `DeserializeRegister` with register absent + `e.default === null` — sigma-rust `substitute_deserialize` returns `Ok(())` LEAVING the node unchanged per `mir/expr.rs:478-481` ("When script in register is not found, and default is not defined, leave DeserializeRegisterNode unchanged, which will error on evaluation"); the defensive throw is the canonical mirror. (b) Recursive Deserialize: an outer Deserialize* decoded to an inner Expr containing another Deserialize* node — sigma-rust's `try_rewrite_bu` does NOT re-walk substituted children (`mir/expr.rs:397-408`), so the inner Deserialize survives and trips this throw.
 
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 

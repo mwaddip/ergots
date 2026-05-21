@@ -13,7 +13,7 @@ Authoritative source-of-truth for wire-format byte layout and evaluator semantic
 | Concern | File |
 |---|---|
 | Wire format (`parseTree`, `serializeTree`, address helpers, `ErgoTree` / `TreeHeader` types, wire-layer error classes incl. `ErgoTreeParseError`/`SerializeError` and `SigmaBooleanParseError`) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 59 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 65/~70, 44-entry method-handler registry, `EvalOpts` chain-state fields) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 64 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 67/~70, 44-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
 | Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 8 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
 | AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
 | Cost validation (`evaluateWithCost`) | (future, phase 2j) |
@@ -75,12 +75,12 @@ See `docs/specs/` for per-phase test-strategy detail.
 | Slice | Status |
 |---|---|
 | Wire format | 100% of MIR variants parse + serialize byte-identically (255 + 1 + 6 fixtures; 6,221 mutations; 100% taxonomy coverage) |
-| Evaluator | 65 of ~70 `Expr` arms wired (post-2i-b); 44 method-handler registry entries; 59 `EvalError` codes; mainnet C2 corpus `success` ≥ 18 (uplift TBD on next corpus run; 2i-a + 2i-b arms ride along under shape-uniform handlers) |
+| Evaluator | 67 of ~70 `Expr` arms wired (post-2i-c); 44 method-handler registry entries; 64 `EvalError` codes; substitute-pre-pass architecture (`_substitute-deserialize.ts`) for DeserializeContext / DeserializeRegister arms; mainnet C2 corpus `success` ≥ 18 (uplift TBD on next corpus run; 2i-a/b/c arms ride along under shape-uniform handlers) |
 | Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 8 `VerifyError` codes (3 reserved for ABI stability) |
 | AVL+ | Integrated via `@ergots/avltree` v0.2.0: full 16 of 16 `SAvlTree.*` method handlers wired (phase 2h-b: 7 Tier-1 accessors + 6 Tier-2 verification ops; phase 2h-d: `updateOperations`/`updateDigest` Tier-1 + V3-gated `insertOrUpdate` Tier-2) |
 | Cost validation | (not yet — phase 2j; consensus-critical per umbrella spec) |
 
-Cross-runtime: 3142 ergoscript + 156 avltree + 245 nipopow + 177 scorex = 3720 tests, passing under both `node` and `jsdom`.
+Cross-runtime: 3174 ergoscript + 156 avltree + 245 nipopow + 177 scorex = 3752 tests, passing under both `node` and `jsdom`.
 
 **Convention:** when a slice file's coverage changes, this summary table is updated in the same commit.
 
