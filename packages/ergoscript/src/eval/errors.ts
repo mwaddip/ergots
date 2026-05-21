@@ -457,3 +457,19 @@ export type EvalErrorCode =
    *         ergotree-ir/src/ergo_tree.rs:45-70 (with_constant)
    */
   | 'subst-constants-error'
+
+  // -------------------------------------------------------------------------
+  // Phase 2i-b — Curve + AVL + sigma-trivial predefs (1 new code added in T2;
+  // 52 → 53 after T2). Further codes added in T3-T5.
+  // -------------------------------------------------------------------------
+  /**
+   * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no
+   * cost charged. Op-code 95 (`SIGMA_PROP_IS_PROVEN`) is reserved in the IR
+   * for byte-match parity with Scala sigmastate, whose typer rewrites
+   * `prop.isProven` to this node; the AOT graph-IR rewrite removes the node
+   * before evaluation. Sigma-rust mirrors with an unconditional
+   * `Err(EvalError::Misc("SigmaPropIsProven has no interpreter eval ..."))`.
+   *
+   * Source: ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25
+   */
+  | 'sigma-prop-is-proven-no-eval'
