@@ -123,6 +123,12 @@ type CheckedTree =
  *   a = pointAdd(pointMul(G, z), pointNegate(pointMul(decode(h), e)))
  *
  * Source: ergotree-interpreter/src/sigma_protocol/dlog_protocol.rs:173-184
+ *
+ * Note: `decodePoint` (invoked here and in `commitmentProveDhTuple` below,
+ * 5 total invocations in this file) silently rejects `[0x00, non-zero]`
+ * inputs that sigma-rust would accept as identity. See the central
+ * `decodePoint` docstring at `crypto/secp256k1.ts` for the divergence
+ * rationale (production-unreachable; deliberate strict-reject).
  */
 function commitmentProveDlog(
   hBytes: Uint8Array,

@@ -58,9 +58,29 @@ function isZero33(bytes: Uint8Array): boolean {
  * Decode a 33-byte SEC1 compressed point. The Ergo convention: 33 zero bytes
  * decodes to the identity (point-at-infinity).
  *
+ * **Deliberate divergence from sigma-rust (documented strict-reject):**
+ * sigma-rust's `ec_point.rs:139-151` dispatches on `buf[0] != 0` alone —
+ * ANY 33-byte payload whose first byte is `0x00` is silently treated as
+ * identity, regardless of the remaining 32 bytes. Our adapter requires
+ * ALL 33 bytes to be zero (`isZero33`) and rejects malformed
+ * `[0x00, non-zero...]` inputs as invalid SEC1.
+ *
+ * **Why strict-reject is correct:** the divergence is unreachable on
+ * well-formed inputs because sigma-rust's serializer at
+ * `ec_point.rs:127-136` always emits identity as exactly 33 zero bytes
+ * (`is_identity → write [0u8; 33]`). The only inputs that trigger the
+ * divergence are hand-crafted MIR or hostile peer bytes. For hostile
+ * inputs, strict-reject is a small additional safety margin: we don't
+ * silently accept malformed-but-byte-zero-prefixed encodings.
+ *
+ * Consumers (9 invocations across 4 files: verifier.ts ×5, decode-point.ts,
+ * multiply-group.ts ×2, exponentiate.ts) carry a per-file pointer comment
+ * back to this docstring rather than copy-pasting the rationale.
+ *
  * Throws on wrong length or invalid SEC1 encoding.
  *
- * Source: sigma-rust `ec_point.rs:130-135` (Ergo identity convention).
+ * Source: sigma-rust `ec_point.rs:127-151` (Ergo identity convention +
+ *         divergence reference).
  */
 export function decodePoint(bytes: Uint8Array): Point {
   if (bytes.length !== POINT_BYTES) {

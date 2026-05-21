@@ -43,6 +43,11 @@
  * Ergo 33-zero-byte identity encoding. The guard returns a freshly-allocated
  * 33-zero-byte Uint8Array to match sigma-rust's `EcPoint::scorex_serialize`
  * at `ec_point.rs:127-137`.
+ *
+ * Note: `decodePoint` (invoked below for the base operand) silently rejects
+ * `[0x00, non-zero]` inputs that sigma-rust would accept as identity. See
+ * the central `decodePoint` docstring at `crypto/secp256k1.ts` for the
+ * divergence rationale (production-unreachable; deliberate strict-reject).
  */
 
 import type { Exponentiate, SValue } from '../mir/types'

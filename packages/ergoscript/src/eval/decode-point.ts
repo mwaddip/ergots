@@ -26,21 +26,12 @@
  * "bad point: ZERO" from `Point.ZERO.toBytes()` (see crypto/secp256k1.ts:17-18
  * and encodePoint at :85-92 for the established precedent).
  *
- * PRE-EXISTING DIVERGENCE (not introduced by this arm): sigma-rust's
- * `EcPoint::scorex_parse` (`ec_point.rs:140-152`) dispatches on `buf[0] != 0` —
- * it treats ANY 33-byte payload whose first byte is 0x00 as the curve
- * identity, regardless of the remaining 32 bytes. Our TS adapter at
- * `crypto/secp256k1.ts:65-74` is STRICTER: it requires all 33 bytes to be
- * zero (via `isZero33`). A hand-crafted input like `[0x00, 0xAB, ...]` would
- * decode to identity under sigma-rust and would throw under our adapter.
- *
- * In practice this divergence is unreachable through the standard parse path
- * because sigma-rust's `scorex_serialize` always emits identity as exactly 33
- * zero bytes (it short-circuits when `caff.is_identity()` is true and writes
- * 33 zero bytes literally). Only hand-crafted MIR or hostile input bytes
- * could trigger it. The divergence is inherited from the sigma-protocol
- * verifier surface and is NOT introduced by this slice. See the design spec
- * §"Risk Hotspot 3" for the full discussion and out-of-scope follow-up.
+ * Divergence note: `decodePoint` here silently rejects `[0x00, non-zero]`
+ * inputs that sigma-rust would accept as identity. Documented centrally at
+ * `crypto/secp256k1.ts:decodePoint` (phase 2i-d closeout); deliberate strict-
+ * reject as a safety margin against hand-crafted/hostile inputs. Production-
+ * unreachable because sigma-rust's serializer always emits identity as
+ * exactly 33 zero bytes.
  *
  * Build-time type guard: `DecodePoint::try_build` (sigma-rust
  * `ergotree-ir/src/mir/decode_point.rs:43-48`) calls
