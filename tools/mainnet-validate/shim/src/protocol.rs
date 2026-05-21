@@ -32,8 +32,14 @@ pub enum Request {
 ///
 /// Field semantics (consumed by harness T9/T10):
 /// - `box_id`: 32 bytes, the canonical id of the input box. Stored
-///   redundantly with the position in `spent_box_bytes` so the harness can
-///   sanity-check the index emitted matching bytes.
+///   redundantly for diagnostic correlation. **The harness MUST
+///   recompute `box_id` from `spent_box_bytes` via blake2b256 and
+///   reject if they disagree** — this field is for sanity-checking the
+///   shim's UTXO index, NOT for trusting as a signing input.
+///   Authoritative source: `spent_box_bytes`. A mismatch here means the
+///   sidecar index stored the wrong bytes for an entry (shim bug or
+///   on-disk corruption); failing fast at the harness boundary keeps
+///   T9 round-trip and T10 verify from running on lies.
 /// - `spent_box_bytes`: result of `ErgoBox::sigma_serialize` on the spent
 ///   box; the same bytes the index stored at the producing block's output
 ///   step. Round-trip target for T9's "serialize parsed box, compare

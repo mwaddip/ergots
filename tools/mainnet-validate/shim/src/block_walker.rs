@@ -52,6 +52,105 @@ use crate::protocol::{
 };
 use crate::utxo_index::UtxoIndex;
 
+/// Typed error returned by `ingest_block`. Each variant corresponds to a
+/// distinct wire-level error code emitted by `main.rs::handle_get_block`
+/// — `code()` returns the canonical short identifier the harness
+/// dispatches on, and `message()` carries the human-readable detail.
+///
+/// Replaces an earlier substring-match-on-anyhow-chain dispatch (whose
+/// failure mode was that `"missing-data-utxo"` contains `"missing-utxo"`,
+/// so data-input misses were misclassified as UTXO misses). The typed
+/// enum is matched by variant; no string parsing.
+#[derive(Debug)]
+pub enum WalkerError {
+    /// A spending input referenced a box not in the UTXO index.
+    /// `box_id` is the canonical 32-byte id of the missing entry;
+    /// `height` is the block at which the miss occurred. Off-genesis
+    /// inputs unconditionally LOOKUP+REMOVE, so a miss is either an
+    /// index-stale bug or a chain inconsistency.
+    MissingUtxo { box_id: [u8; 32], height: u32 },
+    /// A data input referenced a box not in the UTXO index. Distinct
+    /// from `MissingUtxo` because data inputs are LOOKUP-only (no
+    /// removal); a miss has the same root cause classes but the wire
+    /// code is separate so the harness can apply different retry/repair
+    /// policies. Note: variant name discriminates cleanly; this is
+    /// where the prior substring-match bug lived.
+    MissingDataUtxo { box_id: [u8; 32], height: u32 },
+    /// `read_header_at(height)` returned `Some` from the BEST_CHAIN
+    /// index but `best_header_at(height)` returned `None` mid-walk,
+    /// or vice-versa — a smell of concurrent mutation by another
+    /// writer between calls. Surface this distinctly from
+    /// `MissingBlock` (target past tip) and from a generic store
+    /// error.
+    StoreRace { height: u32, detail: String },
+    /// The BlockTransactions or Extension modifier was absent from the
+    /// store at a height where BEST_CHAIN claims a header exists.
+    /// Reported in addition to the generic case so the harness can
+    /// distinguish "store missing a block we expected to be there"
+    /// from "walker can't parse what's there." Carries the modifier
+    /// type id (102 or 108) and the derived modifier id for diagnosis.
+    MissingSection {
+        height: u32,
+        type_id: u8,
+        modifier_id: [u8; 32],
+    },
+    /// Any other failure in the per-block walk (wire-format parse
+    /// failure, header_id mismatch in an embedded section, sigma-rust
+    /// `Transaction::sigma_parse` error, hash-derivation mismatch).
+    /// Carries the anyhow chain so the harness's stderr capture sees
+    /// the full context.
+    Other(anyhow::Error),
+}
+
+impl WalkerError {
+    /// Wire-level short identifier dispatched on by the harness. Must
+    /// remain stable across releases for downstream catalogues.
+    pub fn code(&self) -> &'static str {
+        match self {
+            WalkerError::MissingUtxo { .. } => "missing-utxo",
+            WalkerError::MissingDataUtxo { .. } => "missing-data-utxo",
+            WalkerError::StoreRace { .. } => "store-race",
+            WalkerError::MissingSection { .. } => "missing-section",
+            WalkerError::Other(_) => "walker-error",
+        }
+    }
+
+    /// Human-readable message rendered into the wire error payload.
+    /// For `Other`, this is the anyhow-formatted chain (`{e:#}`).
+    pub fn message(&self) -> String {
+        match self {
+            WalkerError::MissingUtxo { box_id, height } => format!(
+                "tx input at height {height} references box {} which is \
+                 not in the UTXO index",
+                hex_short(box_id)
+            ),
+            WalkerError::MissingDataUtxo { box_id, height } => format!(
+                "tx data-input at height {height} references box {} which \
+                 is not in the UTXO index",
+                hex_short(box_id)
+            ),
+            WalkerError::StoreRace { height, detail } => format!(
+                "store-race at height {height}: {detail}"
+            ),
+            WalkerError::MissingSection {
+                height,
+                type_id,
+                modifier_id,
+            } => format!(
+                "section type {type_id} modifier {} missing at height {height}",
+                hex_short(modifier_id)
+            ),
+            WalkerError::Other(e) => format!("{e:#}"),
+        }
+    }
+}
+
+impl From<anyhow::Error> for WalkerError {
+    fn from(e: anyhow::Error) -> Self {
+        WalkerError::Other(e)
+    }
+}
+
 /// Modifier type IDs for the two block-section modifiers we fetch in T5.
 /// Header (101) lookups go through `store.read_header_at` / `best_header_at`,
 /// which take height rather than (type_id, modifier_id), so we don't need
@@ -120,36 +219,43 @@ fn prefixed_hash(prefix: u8, data1: &[u8; 32], data2: &[u8; 32]) -> [u8; 32] {
 ///   entirely (Risk-hotspot #9 in the harness design spec).
 /// - Data-input lookups do NOT remove the entry.
 ///
-/// Errors:
-/// - `missing-block` is NOT raised here — `main.rs` does that check
-///   before invoking `ingest_block`. If `best_header_at(height)`
-///   returns `None`, the caller emits the error and never reaches this
-///   function.
-/// - `missing-utxo` (a spending input references a box not in the
-///   index) bubbles up as an anyhow context — main.rs maps that to the
-///   wire-level error code.
+/// Errors are returned as the typed `WalkerError` enum (each variant
+/// maps to a wire-level error code via `WalkerError::code()`):
+/// - `MissingUtxo` / `MissingDataUtxo`: spending or data input
+///   references a box not in the index.
+/// - `MissingSection`: BlockTransactions or Extension modifier
+///   missing in the store at this height.
+/// - `StoreRace`: `read_header_at` returned `Some` but
+///   `best_header_at` returned `None` (or vice-versa) mid-walk.
+/// - `Other`: any other failure (parse error, embedded-id mismatch,
+///   etc.) — carries the anyhow chain.
+///
+/// `MissingBlock` is NOT emitted here — `main.rs` checks that BEFORE
+/// invoking `ingest_block`. If `best_header_at(height)` returns
+/// `None`, the caller emits the wire error and never reaches this
+/// function.
 pub fn ingest_block(
     height: u32,
     store: &RedbModifierStore,
     index: &UtxoIndex,
-) -> Result<BlockBundle> {
+) -> Result<BlockBundle, WalkerError> {
     // Header: parse the bytes so we can pull the two section roots out
     // (transaction_root, extension_root). `read_header_at` returns
     // Some at this point because main.rs's GET_BLOCK already verified
     // `best_header_at(height)` is Some for the *target* height, and
     // intermediate heights from indexed+1..target are in BEST_CHAIN
-    // (otherwise the walk wouldn't be expected to succeed). We still
-    // bubble Err for "intermediate height missing in PRIMARY" rather
-    // than panicking — a real store-race surfaces as a structured
-    // error to the harness.
+    // (otherwise the walk wouldn't be expected to succeed). We
+    // surface a store-race for "intermediate height missing in
+    // PRIMARY despite BEST_CHAIN claiming a header at h" — the
+    // walker isn't the actor that mutated the store, so this is a
+    // concurrent-writer race rather than a walker bug.
     let header_bytes = store
         .read_header_at(height)
         .with_context(|| format!("read_header_at({height})"))?
-        .ok_or_else(|| {
-            anyhow!(
-                "read_header_at({height}) returned None mid-walk; \
-                 BEST_CHAIN/PRIMARY out of sync"
-            )
+        .ok_or_else(|| WalkerError::StoreRace {
+            height,
+            detail: "read_header_at returned None mid-walk; BEST_CHAIN/PRIMARY out of sync"
+                .to_string(),
         })?;
 
     // sigma-rust's Header includes the `id` field — it's reconstructed
@@ -162,11 +268,11 @@ pub fn ingest_block(
     let header_id = store
         .best_header_at(height)
         .with_context(|| format!("best_header_at({height}) during walker re-fetch"))?
-        .ok_or_else(|| {
-            anyhow!(
-                "best_header_at({height}) returned None during walk; \
-                 BEST_CHAIN race with another writer"
-            )
+        .ok_or_else(|| WalkerError::StoreRace {
+            height,
+            detail: "best_header_at returned None during walk; BEST_CHAIN race with another \
+                     writer"
+                .to_string(),
         })?;
 
     // Header is a Scorex-serializable (not Sigma-serializable). The parser
@@ -196,12 +302,10 @@ pub fn ingest_block(
                 hex_short(&block_txs_id)
             )
         })?
-        .ok_or_else(|| {
-            anyhow!(
-                "BlockTransactions modifier missing for height {height} \
-                 (derived id = {})",
-                hex_short(&block_txs_id)
-            )
+        .ok_or_else(|| WalkerError::MissingSection {
+            height,
+            type_id: BLOCK_TRANSACTIONS_TYPE_ID,
+            modifier_id: block_txs_id,
         })?;
 
     let transactions = parse_and_walk_transactions(
@@ -210,7 +314,18 @@ pub fn ingest_block(
         height,
         index,
     )
-    .with_context(|| format!("parsing BlockTransactions at height {height}"))?;
+    .map_err(|e| match e {
+        // Preserve typed missing-utxo / missing-data-utxo variants;
+        // only wrap the generic-parse-failure branch with the
+        // "parsing BlockTransactions at height H" context. Doing the
+        // wrap unconditionally would erase the typed variant inside
+        // a WalkerError::Other and re-introduce the substring-match
+        // problem.
+        WalkerError::Other(err) => WalkerError::Other(
+            err.context(format!("parsing BlockTransactions at height {height}")),
+        ),
+        other => other,
+    })?;
 
     // ----- Extension (type 108) -----
     // Modifier id = blake2b256(108 || header_id || extension_root).
@@ -234,12 +349,10 @@ pub fn ingest_block(
                 hex_short(&ext_id)
             )
         })?
-        .ok_or_else(|| {
-            anyhow!(
-                "Extension modifier missing for height {height} \
-                 (derived id = {})",
-                hex_short(&ext_id)
-            )
+        .ok_or_else(|| WalkerError::MissingSection {
+            height,
+            type_id: EXTENSION_TYPE_ID,
+            modifier_id: ext_id,
         })?;
 
     let parameters = match parse_extension_parameters(&ext_bytes, &header_id) {
@@ -269,26 +382,30 @@ pub fn ingest_block(
 /// Wire format (see file-level docs): leading 32-byte header_id, then a
 /// VLQ that either IS the tx_count (block_version 1) or is `block_version
 /// + BLOCK_VERSION_SENTINEL` followed by a separate tx_count VLQ.
+///
+/// Returns `WalkerError::MissingUtxo` / `MissingDataUtxo` for the typed
+/// per-input miss paths, and `WalkerError::Other(_)` for parse/format
+/// failures.
 fn parse_and_walk_transactions(
     data: &[u8],
     expected_header_id: &[u8; 32],
     height: u32,
     index: &UtxoIndex,
-) -> Result<Vec<TxBundle>> {
+) -> Result<Vec<TxBundle>, WalkerError> {
     if data.len() < 33 {
-        bail!(
+        return Err(WalkerError::Other(anyhow!(
             "BlockTransactions at height {height} too short: {} bytes (need at least 33)",
             data.len()
-        );
+        )));
     }
     let embedded_header_id: [u8; 32] = data[..32].try_into().expect("len-checked above");
     if embedded_header_id != *expected_header_id {
-        bail!(
+        return Err(WalkerError::Other(anyhow!(
             "BlockTransactions header_id mismatch at height {height}: \
              expected {}, got {}",
             hex_short(expected_header_id),
             hex_short(&embedded_header_id)
-        );
+        )));
     }
 
     let mut cursor = Cursor::new(&data[32..]);
@@ -297,7 +414,13 @@ fn parse_and_walk_transactions(
     })?;
 
     let tx_count: usize = if ver_or_count > BLOCK_VERSION_SENTINEL {
-        let _block_version = ver_or_count - BLOCK_VERSION_SENTINEL; // unused but parsed for cursor advance
+        // Discard intermediate value; cursor was already advanced by
+        // the prior `get_u32()` call. The arithmetic here is purely
+        // documentation — the block_version is the sentinel-subtracted
+        // remainder — and isn't fed back into parsing because the
+        // remainder of the BlockTransactions wire format is
+        // version-stable.
+        let _block_version = ver_or_count - BLOCK_VERSION_SENTINEL;
         let count = cursor.get_u32().with_context(|| {
             format!("reading tx_count VLQ for BlockTransactions at height {height}")
         })?;
@@ -316,8 +439,17 @@ fn parse_and_walk_transactions(
     for tx_idx in 0..tx_count {
         let tx = Transaction::sigma_parse(&mut reader)
             .with_context(|| format!("Transaction::sigma_parse #{tx_idx} at height {height}"))?;
-        let bundle = walk_transaction(&tx, height, tx_idx, index).with_context(|| {
-            format!("walking tx #{tx_idx} (id = {}) at height {height}", tx.id())
+        let tx_id_for_ctx = tx.id();
+        let bundle = walk_transaction(&tx, height, tx_idx, index).map_err(|e| match e {
+            // Same preservation pattern as in `ingest_block`: only
+            // wrap the generic branch with tx-index context. The
+            // typed MissingUtxo / MissingDataUtxo variants already
+            // carry box_id + height so additional anyhow context
+            // would be redundant.
+            WalkerError::Other(err) => WalkerError::Other(err.context(format!(
+                "walking tx #{tx_idx} (id = {tx_id_for_ctx}) at height {height}"
+            ))),
+            other => other,
         })?;
         bundles.push(bundle);
     }
@@ -328,12 +460,17 @@ fn parse_and_walk_transactions(
 /// Walk a single transaction's outputs (insert), inputs (lookup + remove,
 /// skipping at genesis), and data inputs (lookup) through the sidecar
 /// index. Returns the assembled `TxBundle`.
+///
+/// Returns `WalkerError::MissingUtxo` (input box absent) or
+/// `WalkerError::MissingDataUtxo` (data-input box absent) for the
+/// typed per-input miss paths, and `WalkerError::Other(_)` for any
+/// other failure (serialization, registry lookup, etc.).
 fn walk_transaction(
     tx: &Transaction,
     height: u32,
     tx_idx: usize,
     index: &UtxoIndex,
-) -> Result<TxBundle> {
+) -> Result<TxBundle, WalkerError> {
     // TxId(pub Digest32) and Digest32 = Digest<32>(pub [u8; 32]) — the
     // outer field is public, so `tx.id().0.0` is the [u8; 32]. We do not
     // own the value, but [u8; 32] is Copy.
@@ -395,12 +532,9 @@ fn walk_transaction(
                         hex_short(&box_id_arr)
                     )
                 })?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "missing-utxo: tx #{tx_idx} input #{in_idx} at height {height} \
-                         references box {} which is not in the UTXO index",
-                        hex_short(&box_id_arr)
-                    )
+                .ok_or(WalkerError::MissingUtxo {
+                    box_id: box_id_arr,
+                    height,
                 })?
         };
 
@@ -439,12 +573,9 @@ fn walk_transaction(
                     hex_short(&box_id_arr)
                 )
             })?
-            .ok_or_else(|| {
-                anyhow!(
-                    "missing-data-utxo: tx #{tx_idx} data_input #{di_idx} at height {height} \
-                     references box {} which is not in the UTXO index",
-                    hex_short(&box_id_arr)
-                )
+            .ok_or(WalkerError::MissingDataUtxo {
+                box_id: box_id_arr,
+                height,
             })?;
         data_input_boxes.push(box_bytes);
     }
@@ -756,5 +887,278 @@ mod tests {
             0xCA, 0xFE, 0xBA, 0xBE, // 4 tail
         ];
         assert_eq!(hex_short(&id), "deadbeef...cafebabe");
+    }
+
+    /// Integration test: a synthetic genesis-height block survives the
+    /// full `ingest_block` walk path end-to-end.
+    ///
+    /// Construction recipe (option (a) from the T5 quality-review
+    /// rubric):
+    /// 1. Build one P2PK `ErgoBoxCandidate` (value = SAFE_USER_MIN,
+    ///    pubkey = secp256k1 generator point, additional_registers
+    ///    empty).
+    /// 2. Wrap it in a single-input `Transaction`. The input box_id
+    ///    is `[0x00; 32]` — at genesis, `ingest_block` SKIPS the
+    ///    UTXO-index lookup-and-remove for inputs (per
+    ///    `GENESIS_HEIGHT` special-case), so the input doesn't need
+    ///    to correspond to any pre-existing index entry. This is the
+    ///    whole reason genesis is the cheap-to-test height.
+    /// 3. Serialize the tx via `Transaction::sigma_serialize_bytes`.
+    /// 4. Hand-craft a v2 Ergo `Header` with `transaction_root =
+    ///    blake2b256(tx_bytes)` (technically the wire format uses a
+    ///    merkle root, but `ingest_block` just READS the field —
+    ///    nothing here checks tx_root vs. txs) and
+    ///    `extension_root = blake2b256(empty_extension_bytes)`.
+    /// 5. Serialize the Header via `scorex_serialize`.
+    /// 6. Write everything into a temp `RedbModifierStore`:
+    ///    - `put_header` for type 101 with the header bytes.
+    ///    - `put` for type 102 (BlockTransactions) with
+    ///      [header_id || tx_count_vlq=1 || tx_bytes].
+    ///    - `put` for type 108 (Extension) with [header_id ||
+    ///      field_count_vlq=0].
+    /// 7. Open a sidecar `UtxoIndex` in another temp file.
+    /// 8. Call `ingest_block(GENESIS_HEIGHT, &store, &sidecar)`.
+    /// 9. Assert the returned `BlockBundle` has the right shape:
+    ///    - height = 1
+    ///    - block_id matches what we derived for the header
+    ///    - one transaction with the right tx_id, one input with
+    ///      empty `spent_box_bytes` (genesis skip), and one output
+    ///      with the box bytes we serialized
+    ///    - the sidecar boxes table contains the output's
+    ///      sigma_serialize bytes under its box_id (i.e. INSERT
+    ///      happened).
+    ///
+    /// We deliberately keep the construction at GENESIS because the
+    /// alternative — a non-genesis block referencing a prior output
+    /// — would require building a valid `parent_id` chain (two
+    /// stored headers, both passing `read_header_at`). The genesis
+    /// path covers exactly the behaviour the quality review flagged
+    /// as untested: a real walk through `parse_and_walk_transactions`
+    /// that actually mutates the sidecar.
+    #[test]
+    fn ingest_block_walks_synthetic_genesis_block_end_to_end() {
+        use ergo_lib::chain::transaction::input::Input;
+        use ergo_lib::chain::transaction::prover_result::ProverResult;
+        use ergo_lib::ergo_chain_types::{
+            blake2b256_hash, ec_point, AutolykosSolution, BlockId, Digest, Digest32, Header,
+            Votes,
+        };
+        use ergo_lib::ergotree_interpreter::sigma_protocol::prover::ProofBytes;
+        use ergotree_ir::chain::context_extension::ContextExtension;
+        use ergotree_ir::chain::ergo_box::box_value::BoxValue;
+        use ergotree_ir::chain::ergo_box::{BoxId, ErgoBoxCandidate, NonMandatoryRegisters};
+        use ergotree_ir::ergo_tree::ErgoTree;
+        use sigma_ser::vlq_encode::WriteSigmaVlqExt;
+        use tempfile::TempDir;
+
+        // ----- Step 1: build the P2PK output box. -----
+        // Minimal valid ergo_tree (no constant segregation header
+        // byte, SigmaPropConstant of secp256k1 generator). Hex:
+        //   00       = ErgoTreeHeader v0, no segregation
+        //   08cd     = SigmaPropConstant of GroupElement
+        //   <33B>    = secp256k1 generator compressed
+        let ergo_tree_bytes = {
+            let mut v = vec![0x00u8, 0x08u8, 0xcdu8];
+            // Use a well-known compressed public key (sigma-rust test
+            // fixture from wallet/signing.rs:533): the 33-byte
+            // secp256k1-compressed encoding of a valid point. Any valid
+            // 33-byte compressed secp256k1 point would do.
+            v.extend_from_slice(&[
+                0x03, 0x27, 0xe6, 0x57, 0x11, 0xa5, 0x93, 0x78, 0xc5, 0x93, 0x59, 0xc3, 0xe1,
+                0xd0, 0xf7, 0xab, 0xe9, 0x06, 0x47, 0x9e, 0xcc, 0xb7, 0x60, 0x94, 0xe5, 0x0f,
+                0xe7, 0x9d, 0x74, 0x3c, 0xcc, 0x15, 0xe6,
+            ]);
+            v
+        };
+        let ergo_tree =
+            ErgoTree::sigma_parse_bytes(&ergo_tree_bytes).expect("parse minimal ergo tree");
+
+        let output_candidate = ErgoBoxCandidate {
+            value: BoxValue::SAFE_USER_MIN,
+            ergo_tree,
+            tokens: None,
+            additional_registers: NonMandatoryRegisters::empty(),
+            creation_height: 1,
+        };
+
+        // ----- Step 2: build the transaction. -----
+        // The input box_id is irrelevant at genesis (no lookup) but
+        // must be 32 bytes. Use zeros — we can later assert this
+        // sentinel made it into `bundle.transactions[0].inputs[0].box_id`.
+        let input = Input::new(
+            BoxId::zero(),
+            ProverResult {
+                proof: ProofBytes::Empty,
+                extension: ContextExtension::empty(),
+            },
+        );
+        let tx = Transaction::new_from_vec(
+            vec![input],
+            vec![],
+            vec![output_candidate.clone()],
+        )
+        .expect("build tx");
+
+        // ----- Step 3: serialize the transaction. -----
+        let tx_bytes = tx.sigma_serialize_bytes().expect("serialize tx");
+
+        // ----- Step 4: hand-craft a v2 Header. -----
+        // tx_root / ext_root are NOT cryptographically meaningful
+        // here — `ingest_block` only READS these fields to derive
+        // modifier IDs via `prefixed_hash`. Any 32-byte value works
+        // as long as the same value is used to compute the modifier
+        // IDs we put() under.
+        let tx_root: [u8; 32] = blake2b256_hash(&tx_bytes).0;
+        // Pre-craft the empty Extension payload so we know what
+        // ext_root to bake in (we use a content-addressed value just
+        // to keep the test internally consistent — the field isn't
+        // load-bearing for ingest_block's correctness).
+        let empty_ext_payload = {
+            let mut v: Vec<u8> = Vec::new();
+            // (We'll compute the full bytes including header_id once
+            // we know the header_id; for the ext_root we only need
+            // to commit to SOMETHING, so use the tag-only bytes.)
+            WriteSigmaVlqExt::put_u32(&mut v, 0u32).expect("write 0 field_count");
+            v
+        };
+        let ext_root: [u8; 32] = blake2b256_hash(&empty_ext_payload).0;
+
+        let header = Header {
+            version: 2,
+            // id gets recomputed by scorex_parse so it can be a
+            // placeholder zero here.
+            id: BlockId(Digest32::zero()),
+            parent_id: BlockId(Digest32::zero()),
+            ad_proofs_root: Digest::from([0x42u8; 32]),
+            state_root: Digest::from([0x42u8; 33]),
+            transaction_root: Digest::from(tx_root),
+            timestamp: 1_500_000_000_000,
+            n_bits: 0x1d00ffff,
+            height: GENESIS_HEIGHT,
+            extension_root: Digest::from(ext_root),
+            autolykos_solution: AutolykosSolution {
+                miner_pk: Box::new(ec_point::generator()),
+                pow_onetime_pk: None,
+                nonce: vec![0u8; 8],
+                pow_distance: None,
+            },
+            votes: Votes([0u8, 0u8, 0u8]),
+            unparsed_bytes: Box::new([]),
+        };
+
+        // ----- Step 5: serialize the header. -----
+        let header_bytes = header.scorex_serialize_bytes().expect("serialize header");
+
+        // Re-derive the canonical header_id by running the header
+        // bytes back through scorex_parse — sigma-rust computes it
+        // by hashing serialize_without_pow + solution_bytes. This is
+        // the value `best_header_at` will return from BEST_CHAIN.
+        let parsed_header = Header::scorex_parse_bytes(&header_bytes).expect("re-parse");
+        let header_id: [u8; 32] = parsed_header.id.0.0;
+
+        // ----- Step 6: write everything into a temp redb store. -----
+        let store_dir = TempDir::new().expect("store tempdir");
+        let store_path = store_dir.path().join("modifiers.redb");
+        let store = RedbModifierStore::new(&store_path).expect("open temp store");
+
+        // Score: a single non-zero byte is sufficient; the store
+        // doesn't interpret it on the read paths ingest_block uses.
+        store
+            .put_header(&header_id, GENESIS_HEIGHT, 0, &[0x01u8], &header_bytes)
+            .expect("put_header");
+
+        // BlockTransactions wire format: header_id (32B) ||
+        // tx_count_vlq || serialized_txs. Block version <= 1 sentinel
+        // path is the simpler one (no version embedded).
+        let block_tx_payload = {
+            let mut v = Vec::new();
+            v.extend_from_slice(&header_id);
+            // tx_count = 1, encoded as plain (non-sentinel) VLQ.
+            WriteSigmaVlqExt::put_u32(&mut v, 1u32).expect("write tx_count");
+            v.extend_from_slice(&tx_bytes);
+            v
+        };
+        let block_tx_id = prefixed_hash(BLOCK_TRANSACTIONS_TYPE_ID, &header_id, &tx_root);
+        store
+            .put(BLOCK_TRANSACTIONS_TYPE_ID, &block_tx_id, GENESIS_HEIGHT, &block_tx_payload)
+            .expect("put block_tx");
+
+        // Extension wire format: header_id (32B) || field_count_vlq
+        //  || fields. We use field_count = 0.
+        let ext_payload = {
+            let mut v = Vec::new();
+            v.extend_from_slice(&header_id);
+            v.extend_from_slice(&empty_ext_payload);
+            v
+        };
+        let ext_id = prefixed_hash(EXTENSION_TYPE_ID, &header_id, &ext_root);
+        store
+            .put(EXTENSION_TYPE_ID, &ext_id, GENESIS_HEIGHT, &ext_payload)
+            .expect("put extension");
+
+        // ----- Step 7: open a sidecar at a fresh path. -----
+        let sidecar_dir = TempDir::new().expect("sidecar tempdir");
+        let sidecar_path = sidecar_dir.path().join("utxo-index.redb");
+        let sidecar = UtxoIndex::open_or_create(&sidecar_path, &header_id)
+            .expect("open sidecar");
+
+        // ----- Step 8: invoke ingest_block end-to-end. -----
+        let bundle = ingest_block(GENESIS_HEIGHT, &store, &sidecar).expect("ingest_block");
+
+        // ----- Step 9: shape assertions on the returned bundle. -----
+        assert_eq!(bundle.height, GENESIS_HEIGHT, "bundle height");
+        assert_eq!(bundle.block_id, header_id, "bundle block_id");
+        assert_eq!(bundle.parent_id, [0u8; 32], "bundle parent_id (synthetic genesis)");
+        assert_eq!(bundle.header_bytes, header_bytes, "bundle header_bytes verbatim");
+        assert_eq!(bundle.transactions.len(), 1, "one transaction");
+        let tx_bundle = &bundle.transactions[0];
+        assert_eq!(tx_bundle.tx_id, tx.id().0.0, "tx_id matches sigma-rust id()");
+        assert_eq!(tx_bundle.inputs.len(), 1, "one input");
+        assert_eq!(
+            tx_bundle.inputs[0].box_id, [0u8; 32],
+            "input box_id is the sentinel we put in"
+        );
+        assert!(
+            tx_bundle.inputs[0].spent_box_bytes.is_empty(),
+            "genesis input has empty spent_box_bytes (lookup skipped)"
+        );
+        assert_eq!(tx_bundle.outputs.len(), 1, "one output");
+        // The output bytes the walker captured must match what
+        // ErgoBox::sigma_serialize would emit for the output (the
+        // walker re-derives the bytes from the parsed tx, so this
+        // also covers the per-output insert).
+        let parsed_output = tx
+            .outputs
+            .iter()
+            .next()
+            .expect("at least one output in parsed tx");
+        let expected_output_bytes =
+            parsed_output.sigma_serialize_bytes().expect("ser output");
+        assert_eq!(
+            tx_bundle.outputs[0], expected_output_bytes,
+            "output bytes match the serialized ErgoBox"
+        );
+
+        // ----- Step 10: verify the sidecar INSERT actually happened. -----
+        // The walker just put this output into the index; a `get` by
+        // its canonical box_id must come back with the same bytes.
+        let output_box_id: [u8; 32] = parsed_output
+            .box_id()
+            .as_ref()
+            .try_into()
+            .expect("box_id is 32 bytes");
+        let index_lookup = sidecar.get(&output_box_id).expect("sidecar.get");
+        assert_eq!(
+            index_lookup,
+            Some(expected_output_bytes),
+            "sidecar boxes table populated with the output bytes"
+        );
+
+        // Parameters: empty extension means no max_block_cost field
+        // was present; ingest_block emits None in that case.
+        assert!(
+            bundle.parameters.is_none(),
+            "empty extension produces parameters = None"
+        );
     }
 }

@@ -218,21 +218,35 @@ fn stdin_loop(store: &RedbModifierStore, sidecar: &UtxoIndex) -> Result<()> {
 /// loop can serve further requests. Only IO errors writing to stdout
 /// (broken pipe, harness died) propagate up to terminate the shim.
 ///
-/// Error codes emitted on the wire (consumed by the harness):
+/// Error codes emitted on the wire (consumed by the harness). Each
+/// corresponds to a `WalkerError` variant (or a pre-walker pre-flight
+/// check); the dispatch in `handle_get_block` is a typed match, NOT a
+/// substring scan over the rendered anyhow chain — see T5 quality
+/// review for the historical bug (`"missing-data-utxo"` contains
+/// `"missing-utxo"` as a substring, so the old dispatch never reached
+/// the data-utxo branch).
+///
 /// - `missing-block`: `best_header_at(h)` for some h in
 ///   `indexed+1..=height` returned None (past tip, or a hole in
-///   BEST_CHAIN we never expected to encounter).
+///   BEST_CHAIN we never expected to encounter). Emitted by the
+///   pre-flight check in this function, NOT by the walker.
 /// - `store-race`: `best_header_at` returned Some but a subsequent
 ///   `read_header_at` returned None — a store concurrent-mutation
-///   smell.
-/// - `missing-utxo`: a tx input referenced a box that wasn't in the
-///   index. Could mean the index is stale (rebuild needed), the
-///   walker has a bug, or the source store has chain data inconsistent
-///   with its own header sequence.
+///   smell. Emitted both by the pre-flight check here and by the
+///   walker if the race happens between the pre-flight and the per-
+///   block read.
+/// - `missing-utxo` / `missing-data-utxo`: a tx input or data input
+///   referenced a box that wasn't in the index. Could mean the index
+///   is stale (rebuild needed), the walker has a bug, or the source
+///   store has chain data inconsistent with its own header sequence.
+/// - `missing-section`: BlockTransactions or Extension modifier
+///   absent from the store at a height where BEST_CHAIN claims a
+///   header. Distinct from `missing-block` because the header DOES
+///   exist; it's the secondary section that's gone.
 /// - `walker-error`: generic catch-all when ingestion fails for some
 ///   other reason (sigma-rust parse failure, malformed Extension,
 ///   blake2 hash mismatch in derived modifier id, etc.). The message
-///   carries the anyhow chain.
+///   carries the anyhow chain via `WalkerError::message()`.
 fn handle_get_block(
     store: &RedbModifierStore,
     sidecar: &UtxoIndex,
@@ -242,7 +256,10 @@ fn handle_get_block(
     // Pre-flight: confirm the *target* height exists in BEST_CHAIN
     // before we burn any sidecar writes on intermediate heights. If
     // the caller asked for a height past the tip, surface that as
-    // `missing-block` without doing the walk.
+    // `missing-block` without doing the walk. We also do a paired
+    // `read_header_at` here so a BEST_CHAIN-says-yes-but-PRIMARY-
+    // says-no inconsistency surfaces as `store-race` rather than
+    // disappearing under a generic walker error mid-loop.
     let target_header_id = store
         .best_header_at(height)
         .with_context(|| format!("best_header_at({height})"))?;
@@ -252,6 +269,24 @@ fn handle_get_block(
         );
         protocol::write_err(stdout, "missing-block", &msg)
             .context("writing missing-block error")?;
+        return Ok(());
+    }
+    // Pre-flight store-race check: BEST_CHAIN points to a header but
+    // PRIMARY (which `read_header_at` consults) doesn't. The race is
+    // benign for the *next* call (a retry usually wins), but emitting
+    // a distinct wire code lets the harness avoid trying to repair
+    // the index for a transient store-mutation window.
+    let target_header_bytes = store
+        .read_header_at(height)
+        .with_context(|| format!("read_header_at({height}) preflight"))?;
+    if target_header_bytes.is_none() {
+        let msg = format!(
+            "best_header_at({height}) returned Some but read_header_at({height}) \
+             returned None — likely concurrent store mutation between the two \
+             reads. Retry the call once the writer settles."
+        );
+        protocol::write_err(stdout, "store-race", &msg)
+            .context("writing store-race error")?;
         return Ok(());
     }
 
@@ -306,20 +341,16 @@ fn handle_get_block(
                     .set_indexed_up_to_height(h)
                     .with_context(|| format!("advancing indexed_up_to_height to {h}"))?;
             }
-            Err(e) => {
-                // The walker surfaces `missing-utxo` as an anyhow chain.
-                // We pattern-match on the message prefix to map back to
-                // the wire-level error code; this isn't fragile because
-                // the walker controls both sides of the string.
-                let err_chain = format!("{e:#}");
-                let code = if err_chain.contains("missing-utxo") {
-                    "missing-utxo"
-                } else if err_chain.contains("missing-data-utxo") {
-                    "missing-data-utxo"
-                } else {
-                    "walker-error"
-                };
-                let msg = format!("ingest_block({h}): {err_chain}");
+            Err(walker_err) => {
+                // Dispatch on the typed `WalkerError` variant rather
+                // than substring-matching the rendered anyhow chain.
+                // Substring matching was the original implementation
+                // and was wrong: `"missing-data-utxo"` contains the
+                // substring `"missing-utxo"`, so the second branch
+                // was unreachable under that scheme. See T5 quality
+                // review for the bug walkthrough.
+                let code = walker_err.code();
+                let msg = format!("ingest_block({h}): {}", walker_err.message());
                 protocol::write_err(stdout, code, &msg)
                     .context("writing walker error")?;
                 return Ok(());

@@ -50,14 +50,14 @@ pub struct UtxoIndex {
     db: Database,
 }
 
-// `get`, `insert`, `remove`, and `set_indexed_up_to_height` are called
-// only from unit tests at T3 — main.rs's stdin loop wires GET_TIP_HEIGHT
-// (which doesn't touch the sidecar boxes table) and stubs GET_BLOCK as
-// not-implemented. T5 will be the first non-test caller of all four
-// methods when it adds the per-block walker. Suppressing dead_code here
-// is correct for T3's surface; the warning would re-trigger if the
-// methods were still unused after T5, which is a regression signal.
-#[allow(dead_code)]
+// All four data methods (`get`, `insert`, `remove`,
+// `set_indexed_up_to_height`) are now reachable from production code
+// in T5's block walker (`block_walker::walk_transaction`) and the
+// T5 main-loop `handle_get_block` path — the prior
+// `#[allow(dead_code)]` (a T3 transitional measure when only unit
+// tests called these methods) is no longer needed. If a future
+// refactor leaves any of them unused, the warning re-emerges from
+// the compiler naturally and that's the regression signal we want.
 impl UtxoIndex {
     /// Open the sidecar at `path` (creating it if absent). The
     /// `source_store_hash` argument is compared against the value
