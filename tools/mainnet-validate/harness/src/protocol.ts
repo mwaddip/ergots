@@ -349,6 +349,14 @@ export class ShimClient {
     private readonly decoder: Decoder;
     private pendingResolver: ((body: Buffer) => void) | null = null;
     private pendingRejecter: ((err: Error) => void) | null = null;
+    /**
+     * Frames that arrived while no request was pending. With the current
+     * serialized-request guard (`inFlight`), this should always be empty —
+     * but a single stdout chunk can deliver multiple complete frames, and
+     * future ack-emit / pipelining changes would land them here for the
+     * next request to consume. Drained head-first by `request()`.
+     */
+    private readonly unclaimedFrames: Buffer[] = [];
     private inFlight = false;
     private exited = false;
     private exitError: Error | null = null;
@@ -358,13 +366,23 @@ export class ShimClient {
         this.decoder = new Decoder({ useRecords: false, mapsAsObjects: true });
 
         this.proc.stdout.on('data', (chunk: Buffer) => {
+            // A single stdout chunk may carry multiple complete frames (pipe
+            // buffering can coalesce writes; if the shim ever ack-emits or we
+            // pipeline requests later, this loop matters). Drain ALL complete
+            // frames; resolve the pending request with the first, buffer the
+            // rest in `unclaimedFrames` for subsequent `request()` calls.
             this.frames.push(chunk);
-            const body = this.frames.pop();
-            if (body !== null && this.pendingResolver !== null) {
-                const resolve = this.pendingResolver;
-                this.pendingResolver = null;
-                this.pendingRejecter = null;
-                resolve(body);
+            let body = this.frames.pop();
+            while (body !== null) {
+                if (this.pendingResolver !== null) {
+                    const resolve = this.pendingResolver;
+                    this.pendingResolver = null;
+                    this.pendingRejecter = null;
+                    resolve(body);
+                } else {
+                    this.unclaimedFrames.push(body);
+                }
+                body = this.frames.pop();
             }
         });
 
@@ -415,6 +433,18 @@ export class ShimClient {
         }
         if (this.exited) {
             throw this.exitError ?? new Error('ShimClient: shim has exited');
+        }
+        // Defensive check: with strict serialization + one-response-per-request
+        // the shim contract, unclaimedFrames MUST be empty when a new request
+        // starts. A non-empty buffer means the shim emitted out-of-band data
+        // (ack frame, pipelined response, or our own bug). Surface as an error
+        // rather than silently serve a stale frame to the new request.
+        if (this.unclaimedFrames.length > 0) {
+            this.unclaimedFrames.length = 0;
+            throw new Error(
+                'ShimClient: unexpected unclaimed frames in buffer; ' +
+                'shim may have emitted out-of-band data — please file a bug',
+            );
         }
         this.inFlight = true;
         try {
