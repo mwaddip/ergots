@@ -73,6 +73,7 @@ import { evalTuple } from './tuple'
 import { evalUpcast } from './upcast'
 import { evalValDef } from './val-def'
 import { evalValUse } from './val-use'
+import { evalCreateAvlTree } from './create-avl-tree'
 import { evalCreateProveDhTuple } from './create-prove-dh-tuple'
 import { evalCreateProveDlog } from './create-prove-dlog'
 import { evalDecodePoint } from './decode-point'
@@ -87,6 +88,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalAnd(e, env, ctx)
     case 'Atleast':
       return evalAtleast(e, env, ctx)
+    case 'CreateAvlTree':
+      return evalCreateAvlTree(e, env, ctx)
     case 'CreateProveDhTuple':
       return evalCreateProveDhTuple(e, env, ctx)
     case 'CreateProveDlog':

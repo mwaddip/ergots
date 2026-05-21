@@ -462,7 +462,8 @@ export type EvalErrorCode =
   // Phase 2i-b — Curve + AVL + sigma-trivial predefs. T2 added 1 code
   // (sigma-prop-is-proven-no-eval; 52 → 53). T3 adds 1 code
   // (group-op-input-not-group-element; 53 → 54). T4 adds 1 code
-  // (predef-input-not-bigint; 54 → 55). Further codes added in T5.
+  // (predef-input-not-bigint; 54 → 55). T5 adds 1 code
+  // (create-avl-tree-shape-mismatch; 55 → 56).
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no
@@ -503,3 +504,24 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/exponentiate.rs:21
    */
   | 'predef-input-not-bigint'
+  /**
+   * `CreateAvlTree` arm: compact umbrella code covering 3 distinct shape-
+   * mismatch throw paths. The `.message` text carries the specific field
+   * name (flags / keyLength / valueLength):
+   *   - flags `kind !== 'Byte'`        — mirrors sigma-rust try_extract_into::<i8>() at create_avl_tree.rs:21
+   *   - keyLength `kind !== 'Int'`     — mirrors sigma-rust try_extract_into::<i32>() at create_avl_tree.rs:23
+   *   - valueLength `kind !== 'Int'`   — mirrors sigma-rust try_extract_into::<i32>() at create_avl_tree.rs:26
+   *
+   * Wire-format invariants (`CreateAvlTree::new` enforces SByte / SColl(SByte)
+   * / SInt / Option<SInt> at construction — `ergotree-ir/src/mir/create_avl_tree.rs:31-59`)
+   * make these unreachable for parser-produced trees; defensive against
+   * `ConstantPlaceholder` injection or hand-crafted MIR.
+   *
+   * Distinct from `'avl-tree-bad-digest-length'` (2h-d, reused here) which
+   * covers the eval-time digest length check, and from `'predef-input-not-byte-array'`
+   * (2i-a, reused here via `collByteToUint8Array`) which covers the
+   * digest non-Coll[Byte] path.
+   *
+   * Source: ergotree-interpreter/src/eval/create_avl_tree.rs:21, 23, 26
+   */
+  | 'create-avl-tree-shape-mismatch'
