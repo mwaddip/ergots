@@ -34,12 +34,13 @@ const treeWithConstBody = (): ErgoTree => ({
   body: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
 })
 
-// A tree whose body is an unported variant — `DecodePoint`. `Xor` was wired
-// in Task T7 (phase 2i-a pure-bytes predefs), so it no longer falls through
-// to `not-implemented-yet`. `DecodePoint` is the next-in-line unwired
-// variant and keeps falling through until its own per-arm task (T8) lands.
-const treeWithDecodePointBody = (): ErgoTree => {
-  const inputExpr = {
+// A tree whose body is an unported variant — `SubstConstants`. `DecodePoint`
+// was wired in Task T8 (phase 2i-a pure-bytes predefs), so it no longer falls
+// through to `not-implemented-yet`. `SubstConstants` is the next-in-line
+// unwired variant (last 2i-a arm) and keeps falling through until its own
+// per-arm task (T9) lands.
+const treeWithSubstConstantsBody = (): ErgoTree => {
+  const placeholderColl = {
     tag: 'Const' as const,
     tpe: { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
     value: {
@@ -48,11 +49,25 @@ const treeWithDecodePointBody = (): ErgoTree => {
       items: [],
     },
   }
+  const placeholderIntColl = {
+    tag: 'Const' as const,
+    tpe: { tag: 'SColl' as const, elem: { tag: 'SInt' as const } },
+    value: {
+      kind: 'Coll' as const,
+      elem: { tag: 'SInt' as const },
+      items: [],
+    },
+  }
   return {
     header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
     constantTypes: [],
     constants: [],
-    body: { tag: 'DecodePoint', input: inputExpr },
+    body: {
+      tag: 'SubstConstants',
+      scriptBytes: placeholderColl,
+      positions: placeholderIntColl,
+      newValues: placeholderColl,
+    },
   }
 }
 
@@ -76,8 +91,8 @@ describe('evaluate', () => {
     expect(err.code).toBe('cost-limit-exceeded')
   })
 
-  it('still throws not-implemented-yet for variants with no arm wired (e.g. DecodePoint)', () => {
-    const err = captureEvalError(() => evaluate(treeWithDecodePointBody()))
+  it('still throws not-implemented-yet for variants with no arm wired (e.g. SubstConstants)', () => {
+    const err = captureEvalError(() => evaluate(treeWithSubstConstantsBody()))
     expect(err.code).toBe('not-implemented-yet')
   })
 })
@@ -90,9 +105,9 @@ describe('evaluateWith', () => {
     expect(ctx.jitCost).toBe(5)
   })
 
-  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (DecodePoint not yet wired)', () => {
+  it('leaves ctx.jitCost at 0 if dispatch throws before any addCost runs (SubstConstants not yet wired)', () => {
     const ctx = makeContext()
-    expect(() => evaluateWith(treeWithDecodePointBody(), ctx)).toThrow(EvalError)
+    expect(() => evaluateWith(treeWithSubstConstantsBody(), ctx)).toThrow(EvalError)
     expect(ctx.jitCost).toBe(0)
   })
 })
