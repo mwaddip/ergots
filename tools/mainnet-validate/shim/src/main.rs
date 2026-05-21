@@ -21,7 +21,7 @@
 //! - GET_TIP_HEIGHT handler: returns `tip(101)` as `{ok: true, data: {tip}}`.
 //! - GET_BLOCK stub: emitted `not-implemented` until T4/T5 wired it.
 //!
-//! T4 adds (this task):
+//! T4 added:
 //! - GET_BLOCK <height> handler emitting a header-only BlockBundle (height,
 //!   block_id, parent_id, header_bytes, transactions=[]). Parent id is
 //!   extracted from `header_bytes[1..33]` per the Header wire format,
@@ -31,9 +31,23 @@
 //!   `{ok: false, error: {code: "missing-block", ...}}` without exiting
 //!   the loop.
 //!
+//! T5 adds (this task):
+//! - Forward-walking UTXO ingestion. GET_BLOCK <H> walks every height
+//!   from `sidecar.indexed_up_to_height + 1` to `H`, ingesting each
+//!   block's BlockTransactions and Extension into the sidecar. The
+//!   block at `H` is the one returned in the BlockBundle; intermediate
+//!   bundles are discarded but their index mutations persist.
+//! - Full TxBundle population (signing_message, inputs, outputs,
+//!   data_input_boxes) per `block_walker::ingest_block`.
+//! - Extension parameter extraction (max_block_cost surfaced via
+//!   `BlockBundle::parameters`).
+//! - `missing-utxo` error code when an input references an absent
+//!   index entry — propagated as a wire error without exiting the loop.
+//!
 //! Per spec docs/specs/2026-05-21-mainnet-validate-harness-design.md
 //! Decisions 3, 6, 7, 8, 11.
 
+mod block_walker;
 mod protocol;
 mod utxo_index;
 
@@ -44,7 +58,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use enr_store::{ModifierStore, RedbModifierStore};
 
-use crate::protocol::{BlockBundle, TipHeightResponse};
+use crate::protocol::TipHeightResponse;
 use crate::utxo_index::UtxoIndex;
 
 /// Modifier type IDs (per `ergo-node-rust/chain/src/section.rs:12-15`).
@@ -149,10 +163,9 @@ fn run() -> Result<(), StartupOrIoError> {
 
 /// Reads stdin line-by-line; dispatches each request to its handler.
 ///
-/// `sidecar` is borrowed but not actually written-to in T3 (only
-/// GET_TIP_HEIGHT is wired; GET_BLOCK is stubbed). T5's GET_BLOCK
-/// handler will be the first writer of the sidecar's box table.
-fn stdin_loop(store: &RedbModifierStore, _sidecar: &UtxoIndex) -> Result<()> {
+/// `sidecar` is passed through to `handle_get_block` for the
+/// forward-walking UTXO ingestion (T5).
+fn stdin_loop(store: &RedbModifierStore, sidecar: &UtxoIndex) -> Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
     for line in stdin.lock().lines() {
@@ -183,7 +196,7 @@ fn stdin_loop(store: &RedbModifierStore, _sidecar: &UtxoIndex) -> Result<()> {
                 }
             }
             Ok(protocol::Request::GetBlock { height }) => {
-                handle_get_block(store, &mut stdout, height)
+                handle_get_block(store, sidecar, &mut stdout, height)
                     .with_context(|| format!("handling GET_BLOCK {height}"))?;
             }
             Err(msg) => {
@@ -195,89 +208,130 @@ fn stdin_loop(store: &RedbModifierStore, _sidecar: &UtxoIndex) -> Result<()> {
     Ok(())
 }
 
-/// Handle a single GET_BLOCK <height> request: emit a header-only
-/// BlockBundle on success or a structured error on a missing height.
+/// Handle a single GET_BLOCK <height> request: walk forward from the
+/// sidecar's `indexed_up_to_height + 1` to `height`, populating the
+/// UTXO index along the way, and emit the assembled BlockBundle for
+/// `height`.
 ///
-/// Header-only at T4: `transactions` is always `vec![]`; T5 will replace
-/// this body with the forward-walking UTXO ingestion path.
+/// The handler does NOT exit the stdin loop on a missing-height or
+/// ingestion error — it emits the CBOR error and returns Ok so the
+/// loop can serve further requests. Only IO errors writing to stdout
+/// (broken pipe, harness died) propagate up to terminate the shim.
 ///
-/// The handler does NOT exit the stdin loop on a missing-height error —
-/// it emits the CBOR error and returns Ok so the loop can serve further
-/// requests. Only IO errors writing to stdout (broken pipe, harness died)
-/// propagate up to terminate the shim.
+/// Error codes emitted on the wire (consumed by the harness):
+/// - `missing-block`: `best_header_at(h)` for some h in
+///   `indexed+1..=height` returned None (past tip, or a hole in
+///   BEST_CHAIN we never expected to encounter).
+/// - `store-race`: `best_header_at` returned Some but a subsequent
+///   `read_header_at` returned None — a store concurrent-mutation
+///   smell.
+/// - `missing-utxo`: a tx input referenced a box that wasn't in the
+///   index. Could mean the index is stale (rebuild needed), the
+///   walker has a bug, or the source store has chain data inconsistent
+///   with its own header sequence.
+/// - `walker-error`: generic catch-all when ingestion fails for some
+///   other reason (sigma-rust parse failure, malformed Extension,
+///   blake2 hash mismatch in derived modifier id, etc.). The message
+///   carries the anyhow chain.
 fn handle_get_block(
     store: &RedbModifierStore,
+    sidecar: &UtxoIndex,
     stdout: &mut impl io::Write,
     height: u32,
 ) -> Result<()> {
-    // Canonical header id for this height. None means the height is
-    // past tip or otherwise not in BEST_CHAIN.
-    let header_id = store
+    // Pre-flight: confirm the *target* height exists in BEST_CHAIN
+    // before we burn any sidecar writes on intermediate heights. If
+    // the caller asked for a height past the tip, surface that as
+    // `missing-block` without doing the walk.
+    let target_header_id = store
         .best_header_at(height)
         .with_context(|| format!("best_header_at({height})"))?;
-    let header_id = match header_id {
-        Some(id) => id,
-        None => {
+    if target_header_id.is_none() {
+        let msg = format!(
+            "no canonical header at height {height}; possibly past tip"
+        );
+        protocol::write_err(stdout, "missing-block", &msg)
+            .context("writing missing-block error")?;
+        return Ok(());
+    }
+
+    let indexed = sidecar
+        .indexed_up_to_height()
+        .context("reading sidecar indexed_up_to_height marker before walk")?;
+
+    if height <= indexed {
+        // Block already past the indexed point — the index has already
+        // been advanced past this height (and the bundle's spent-box
+        // bytes for inputs are no longer in the index, since they were
+        // REMOVED at the producing block). We could in principle
+        // re-derive them by walking from genesis, but the spec lifts
+        // this responsibility to the *caller*: the harness walks
+        // monotonically forward, never backward, and a request at or
+        // below `indexed` is a usage error. Surface that distinctly so
+        // a future harness bug is loud.
+        let msg = format!(
+            "GET_BLOCK {height}: requested height is at or below sidecar.indexed_up_to_height={indexed}; \
+             the forward walker cannot serve already-past heights"
+        );
+        protocol::write_err(stdout, "past-indexed", &msg)
+            .context("writing past-indexed error")?;
+        return Ok(());
+    }
+
+    // Walk forward through each intermediate height. For the target
+    // height we keep the bundle; for intermediates we discard but
+    // persist the index mutation.
+    let mut final_bundle: Option<protocol::BlockBundle> = None;
+    for h in (indexed + 1)..=height {
+        // Confirm BEST_CHAIN coverage at h before invoking the walker,
+        // so we can emit a precise wire error if the chain has a hole.
+        let id_at_h = store
+            .best_header_at(h)
+            .with_context(|| format!("best_header_at({h}) during walk"))?;
+        if id_at_h.is_none() {
             let msg = format!(
-                "no canonical header at height {height}; possibly past tip"
+                "walk to {height} hit a missing canonical header at intermediate height {h}"
             );
             protocol::write_err(stdout, "missing-block", &msg)
-                .context("writing missing-block error")?;
+                .context("writing missing-block error during walk")?;
             return Ok(());
         }
-    };
 
-    // Raw header bytes — `read_header_at` returns Vec<u8> directly from
-    // PRIMARY (per ergo-node-rust/store/src/redb.rs:809-831), so no
-    // sigma-rust dep is needed to satisfy T4. Confirmed against
-    // store/src/lib.rs:208-211 trait signature.
-    let header_bytes = store
-        .read_header_at(height)
-        .with_context(|| format!("read_header_at({height})"))?;
-    let header_bytes = match header_bytes {
-        Some(b) => b,
-        None => {
-            // best_header_at returned Some but read_header_at returned
-            // None: this can only happen if PRIMARY was concurrently
-            // truncated between the two reads, which would be a store
-            // corruption. Surface as a distinct error code so the harness
-            // can distinguish it from past-tip.
-            let msg = format!(
-                "best_header_at({height}) returned id but read_header_at returned None; \
-                 store may have been mutated between calls"
-            );
-            protocol::write_err(stdout, "store-race", &msg)
-                .context("writing store-race error")?;
-            return Ok(());
+        match block_walker::ingest_block(h, store, sidecar) {
+            Ok(bundle) => {
+                if h == height {
+                    final_bundle = Some(bundle);
+                }
+                sidecar
+                    .set_indexed_up_to_height(h)
+                    .with_context(|| format!("advancing indexed_up_to_height to {h}"))?;
+            }
+            Err(e) => {
+                // The walker surfaces `missing-utxo` as an anyhow chain.
+                // We pattern-match on the message prefix to map back to
+                // the wire-level error code; this isn't fragile because
+                // the walker controls both sides of the string.
+                let err_chain = format!("{e:#}");
+                let code = if err_chain.contains("missing-utxo") {
+                    "missing-utxo"
+                } else if err_chain.contains("missing-data-utxo") {
+                    "missing-data-utxo"
+                } else {
+                    "walker-error"
+                };
+                let msg = format!("ingest_block({h}): {err_chain}");
+                protocol::write_err(stdout, code, &msg)
+                    .context("writing walker error")?;
+                return Ok(());
+            }
         }
-    };
+    }
 
-    // Header serialization places `parent_id` at offset 1..33: 1-byte
-    // version, then 32-byte Digest32 parent_id. Verified against
-    // facts/scorex.md (Header type invariants line 150) and
-    // external/sigma-rust/ergo-chain-types/src/header.rs:77-78 which
-    // emits `put_u8(version)` then `parent_id.0.scorex_serialize(w)`.
-    //
-    // If header_bytes is shorter than 33 bytes, the source-store is
-    // corrupt — a real header is hundreds of bytes minimum. Panic via
-    // try_into().unwrap() is the right behavior here: any caller chain
-    // reading this far has already passed the startup full-archive
-    // check, so a < 33-byte "header" indicates store corruption that
-    // halts the harness loudly rather than emitting garbage parent_id.
-    let parent_id: [u8; 32] = header_bytes[1..33]
-        .try_into()
-        .expect("header_bytes < 33 bytes — corrupt store");
+    let bundle = final_bundle.expect(
+        "loop ran with height >= indexed + 1, so final_bundle must be set when h == height",
+    );
 
-    let bundle = BlockBundle {
-        height,
-        block_id: header_id,
-        parent_id,
-        header_bytes,
-        transactions: vec![], // T5 populates this
-    };
-
-    protocol::write_ok(stdout, &bundle)
-        .context("writing GET_BLOCK response")?;
+    protocol::write_ok(stdout, &bundle).context("writing GET_BLOCK response")?;
     Ok(())
 }
 

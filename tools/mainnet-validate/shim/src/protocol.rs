@@ -25,33 +25,100 @@ pub enum Request {
     GetBlock { height: u32 },
 }
 
-/// Per-transaction bundle skeleton.
+/// Per-input bundle. Each entry pairs the input (by box_id) with the
+/// canonical bytes of the spent box (pulled from the forward-walking UTXO
+/// index right before removal), the spending signature, and the user-
+/// supplied context extension.
 ///
-/// T4 emits an empty struct; T5 populates it with `tx_id`, `signing_message`,
-/// `inputs` (with spent box bytes, signature bytes, context extension),
-/// `outputs`, and `data_input_boxes`. Keeping the type defined here so
-/// `BlockBundle::transactions: Vec<TxBundle>` can be constructed at T4
-/// (always-empty for now) without a follow-up signature change at T5.
+/// Field semantics (consumed by harness T9/T10):
+/// - `box_id`: 32 bytes, the canonical id of the input box. Stored
+///   redundantly with the position in `spent_box_bytes` so the harness can
+///   sanity-check the index emitted matching bytes.
+/// - `spent_box_bytes`: result of `ErgoBox::sigma_serialize` on the spent
+///   box; the same bytes the index stored at the producing block's output
+///   step. Round-trip target for T9's "serialize parsed box, compare
+///   bytes" check.
+/// - `signature_bytes`: `ProverResult::proof` bytes (empty when the input
+///   spends a no-script box like a miner reward). T10's signature pass
+///   feeds this to `verifySignature`.
+/// - `context_extension`: list of `(varId, constantBytes)` pairs in the
+///   order the spending tx provides them. `constantBytes` is the result
+///   of `Constant::sigma_serialize` so the TS evaluator decodes them via
+///   `parseConstant` and binds them in the eval context.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct InputBundle {
+    pub box_id: [u8; 32],
+    pub spent_box_bytes: Vec<u8>,
+    pub signature_bytes: Vec<u8>,
+    pub context_extension: Vec<ContextExtensionEntry>,
+}
+
+/// Single (varId, serialized-Constant-bytes) pair from an input's
+/// `ContextExtension::values`. Kept as a separate struct so the CBOR
+/// shape is `[{var_id, value_bytes}, ...]` (a CBOR-array-of-maps) rather
+/// than a CBOR map with non-string keys — ciborium serialises u8-keyed
+/// maps as CBOR maps with integer keys, which `cbor-x` on the harness
+/// side handles but the explicit array-of-objects shape is friendlier
+/// to round-trip equality tests.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct ContextExtensionEntry {
+    pub var_id: u8,
+    pub value_bytes: Vec<u8>,
+}
+
+/// Per-transaction bundle, populated by the T5 forward walker.
+///
+/// `signing_message` is `Transaction::bytes_to_sign()` — the deterministic
+/// pre-signature serialization that every input's signature commits to.
+/// `inputs` are in tx-order. `data_input_boxes` are full
+/// `ErgoBox::sigma_serialize` bytes for data-input box lookups (no
+/// removal from the index).
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TxBundle {
-    // empty at T4; T5 adds tx_id, signing_message, inputs, outputs, data_input_boxes
+    pub tx_id: [u8; 32],
+    pub signing_message: Vec<u8>,
+    pub inputs: Vec<InputBundle>,
+    /// Canonical `ErgoBox::sigma_serialize` bytes for each output, in tx-order.
+    pub outputs: Vec<Vec<u8>>,
+    /// Data-input box bytes, in tx-order. Empty for txs with no data inputs.
+    pub data_input_boxes: Vec<Vec<u8>>,
+}
+
+/// Block-level voting/parameters snapshot extracted from the Extension
+/// section. Currently only carries `max_block_cost` (T10 needs it for
+/// the per-block cost ceiling); future passes can extend this with the
+/// rest of `Parameters` without changing the wire shape (CBOR maps
+/// extend additively).
+///
+/// `max_block_cost` is i32 because that's the JVM-canonical type — see
+/// `Parameters::max_block_cost` in
+/// `external/sigma-rust/ergo-lib/src/chain/parameters.rs:79`. Negative
+/// values shouldn't be reachable on mainnet but we preserve the sign so
+/// a faulty extension parse surfaces here rather than silently truncating.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct BlockParameters {
+    pub max_block_cost: i32,
 }
 
 /// Per-block bundle emitted by GET_BLOCK.
 ///
-/// At T4: `transactions` is always `vec![]` — only the header layer is
-/// populated. The harness's header pass (T8) can validate against this.
-/// At T5, `transactions` is filled in by the forward-walking UTXO index.
+/// At T5 (this task), `transactions` is fully populated by walking the
+/// store forward from the sidecar's `indexed_up_to_height` up to the
+/// requested height. `parameters` is `Some(_)` whenever the requested
+/// block's Extension carries parameter votes — at the moment that's
+/// every block on mainnet, but the field is Option-typed because
+/// pre-version-2 blocks (genesis era) don't have the parameter
+/// encoding format the parser expects.
 ///
 /// Field encoding notes for the CBOR consumer (TS harness):
-/// - `block_id` and `parent_id` are 32-byte fixed arrays. With serde's
-///   default representation, ciborium emits these as CBOR major-type-4
-///   arrays of small integers, not as byte strings. The harness side
-///   (T6, cbor-x) will decode them as `number[]` and map to Uint8Array.
-///   If at T6 this proves CBOR-inefficient (each byte ≥ 1 CBOR byte
-///   overhead vs. ~1 byte per byte in a major-type-2 byte string), we
-///   can switch these fields to `#[serde(with = "serde_bytes")]` and
-///   bump them to byte-string encoding. The `block_bundle_roundtrip`
+/// - `block_id`, `parent_id`, and per-input `box_id`s are 32-byte fixed
+///   arrays. With serde's default representation, ciborium emits these
+///   as CBOR major-type-4 arrays of small integers, not as byte strings.
+///   The harness side (T6, cbor-x) will decode them as `number[]` and
+///   map to Uint8Array. If at T6 this proves CBOR-inefficient (each byte
+///   ≥ 1 CBOR byte overhead vs. ~1 byte per byte in a major-type-2 byte
+///   string), we can switch these fields to `#[serde(with = "serde_bytes")]`
+///   and bump them to byte-string encoding. The `block_bundle_roundtrip`
 ///   unit test below would still pass — it only asserts structural
 ///   equality, not the on-wire byte shape.
 /// - `header_bytes: Vec<u8>` uses the same `Vec`-of-integers encoding by
@@ -63,8 +130,11 @@ pub struct BlockBundle {
     pub block_id: [u8; 32],
     pub parent_id: [u8; 32],
     pub header_bytes: Vec<u8>,
-    /// Empty at T4; populated at T5.
     pub transactions: Vec<TxBundle>,
+    /// `None` when the Extension at this height doesn't carry parameter
+    /// votes in the format the parser recognises (e.g. very early
+    /// version-1 blocks).
+    pub parameters: Option<BlockParameters>,
 }
 
 /// Parse a single stdin line into a `Request`. Trims trailing whitespace
@@ -231,14 +301,16 @@ mod tests {
         &buf[4..]
     }
 
-    /// Layer 1 round-trip: a populated `BlockBundle` survives serialization
-    /// to length-prefixed CBOR and back without loss. Covers the T4 happy
-    /// path: GET_BLOCK responds with a header-only BlockBundle.
+    /// Layer 1 round-trip: a header-only `BlockBundle` (no transactions,
+    /// no parameters) survives serialization to length-prefixed CBOR
+    /// and back without loss. Covers the T4 happy path that the T5
+    /// walker preserves for height-0 / no-block cases.
     ///
-    /// The bundle is hand-crafted with deterministic byte patterns so the
-    /// assertion failure (if any) points at the exact field that diverged.
+    /// The bundle is hand-crafted with deterministic byte patterns so
+    /// the assertion failure (if any) points at the exact field that
+    /// diverged.
     #[test]
-    fn block_bundle_roundtrip() {
+    fn block_bundle_roundtrip_header_only() {
         let bundle = BlockBundle {
             height: 12345,
             block_id: [0xAAu8; 32],
@@ -254,7 +326,8 @@ mod tests {
                 v.extend_from_slice(&[0xCCu8, 0xDD, 0xEE, 0xFF]);
                 v
             },
-            transactions: vec![], // T4 always-empty
+            transactions: vec![],
+            parameters: None,
         };
 
         let mut buf = Vec::new();
@@ -266,6 +339,60 @@ mod tests {
 
         assert!(parsed.ok, "ok flag must be true");
         assert_eq!(parsed.data, bundle, "BlockBundle structural equality");
+    }
+
+    /// Layer 1 round-trip for a fully-populated `BlockBundle` — a single
+    /// transaction with one input + one output + one data-input + a
+    /// two-entry context extension, plus a `BlockParameters` carrying
+    /// a max_block_cost. Covers the T5 emission shape end-to-end.
+    ///
+    /// Distinct cases used by the harness side (T9/T10) all exercised:
+    /// - Outputs as `Vec<Vec<u8>>` (variable per-output byte vectors).
+    /// - InputBundle with non-empty signature + extension.
+    /// - DataInput as a separate `Vec<Vec<u8>>` lookup.
+    /// - BlockParameters in `Some(_)`.
+    #[test]
+    fn block_bundle_roundtrip_full() {
+        let bundle = BlockBundle {
+            height: 540_001,
+            block_id: [0x96u8; 32],
+            parent_id: [0xC5u8; 32],
+            header_bytes: vec![0x02; 221],
+            transactions: vec![TxBundle {
+                tx_id: [0xD3u8; 32],
+                signing_message: vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05],
+                inputs: vec![InputBundle {
+                    box_id: [0x80u8; 32],
+                    spent_box_bytes: vec![0xE0u8; 64],
+                    signature_bytes: vec![0xDEu8, 0xADu8, 0xBEu8, 0xEFu8],
+                    context_extension: vec![
+                        ContextExtensionEntry {
+                            var_id: 0,
+                            value_bytes: vec![0x04, 0x80, 0x02],
+                        },
+                        ContextExtensionEntry {
+                            var_id: 1,
+                            value_bytes: vec![0x05, 0xFE],
+                        },
+                    ],
+                }],
+                outputs: vec![vec![0xAAu8; 100], vec![0xBBu8; 60]],
+                data_input_boxes: vec![vec![0xCCu8; 80]],
+            }],
+            parameters: Some(BlockParameters {
+                max_block_cost: 1_000_000,
+            }),
+        };
+
+        let mut buf = Vec::new();
+        write_ok(&mut buf, &bundle).expect("write_ok");
+
+        let body = strip_length_prefix(&buf);
+        let parsed: OkBodyDe<BlockBundle> =
+            ciborium::from_reader(body).expect("ciborium decode of OkBody<BlockBundle>");
+
+        assert!(parsed.ok, "ok flag must be true");
+        assert_eq!(parsed.data, bundle, "fully-populated BlockBundle structural equality");
     }
 
     /// Layer 1 round-trip for the error path: `write_err(code, message)`
