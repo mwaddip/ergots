@@ -1,726 +1,863 @@
-# Phase 2i-b — Curve + AVL + sigma-trivial predefs Implementation Plan
+# Phase 2i-c — Deserialize family (DeserializeContext + DeserializeRegister) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **CRITICAL — pass to every implementer subagent verbatim:** [OVERRIDES rule #6 — verification commands must pass before claiming any task done; #2 — confidence < 95% on crypto → halt and declare; #5 — root-cause mandate, no band-aids; #7 — re-read files before editing after 10+ messages; #8 — read→edit→read, max 3 edits between verify reads]. Per `[[feedback-subagent-explicit-rules]]`, this is load-bearing.
+> **CRITICAL — pass to every implementer subagent verbatim:** [OVERRIDES rule #6 — verification commands must pass before claiming any task done; #2 — confidence < 95% on crypto/cost-path → halt and declare; #5 — root-cause mandate, no band-aids; #7 — re-read files before editing after 10+ messages; #8 — read→edit→read, max 3 edits between verify reads]. Per `[[feedback-subagent-explicit-rules]]`, this is load-bearing.
 
-**Spec:** `docs/specs/2026-05-21-ergoscript-phase-2i-b-curve-avl-sigma-trivial-design.md` (HEAD will land at PLAN.md commit)
+**Spec:** `docs/specs/2026-05-21-ergoscript-phase-2i-c-deserialize-design.md` (HEAD `bf112b7`)
 
-**Goal:** Wire eval arms for 5 `Expr` variants — `SigmaPropIsProven`, `MultiplyGroup`, `Exponentiate`, `CreateAvlTree`, `TreeLookup`. Closes curve-arithmetic, AVL+ value-constructor, AVL+ single-key lookup, and sigma-trivial frontend-only-throw surfaces.
+**Goal:** Wire eval semantics for the two `Expr` arms that consume untrusted runtime bytes as code:
 
-**Architecture:** Each arm is a single-file handler in `packages/ergoscript/src/eval/`, dispatched from the central `evalExpr` switch in `eval.ts`. Each validated byte-for-byte against sigma-rust's `try_eval_out` oracle via fixture-gen-generated JSON (except `SigmaPropIsProven` which captures the structural-throw shape). TDD red-green cycle per arm: fixture-gen → RED test → GREEN handler → mutation tests → commit. Execute simplest first.
+1. **`DeserializeContext`** — read `ctx.extension.values[id]` as `Coll[Byte]`, decode as `Expr`, evaluate.
+2. **`DeserializeRegister`** — read `ctx.selfBox.registers[reg]` as `Coll[Byte]`, decode as `Expr`, evaluate. Fall back to `default` (an inline `Expr` baked into the outer tree) if register absent; LEAVE node unchanged if both absent (eval-time defensive throw catches).
 
-**Tech Stack:** TypeScript (vitest, node + jsdom cross-runtime), `@noble/hashes@2.2.0`, `@noble/curves@2.2.0`, `@ergots/avltree@0.2.0` (workspace), Rust `fixture-gen` crate, sigma-rust branch `integration/ergots`.
+**Architecture:** substitute-pre-pass mirroring sigma-rust `eval.rs:203-250` + `mir/expr.rs:442-496`. `substituteDeserialize` is a bottom-up tree rewrite that runs in `evaluate`/`evaluateWith` BEFORE `tryTrivialReduceExpr` + `evalExpr`. The Deserialize* eval arms are defensive throws (`'deserialize-not-substituted'`).
 
-**Invariants:** Coverage 60 → 65 `Expr` arms; EvalError codes 55 → 59 (+4 new); method-handler registry unchanged at 44; 34 new oracle fixtures; ~106 new tests (3652 → ~3758).
+**Tech Stack:** TypeScript (vitest, node + jsdom cross-runtime), Rust `fixture-gen` crate, sigma-rust branch `integration/ergots`. No new runtime dependencies.
+
+**Invariants:** Coverage 65 → 67 `Expr` arms; EvalError codes 59 → **64** (+5 new); method-handler registry unchanged at 44; ~15 new oracle fixtures; ~60–80 new tests (3142 → ~3200–3220 ergoscript).
 
 ---
 
-## Task ordering (simplest → most complex)
+## Task ordering (TDD-compliant: arch skeleton → fixture → RED → integration → GREEN)
 
 ```
 T1   PLAN.md committed (this document)
-T2   SigmaPropIsProven   ← structural throw, simplest (3 commits, no mutation tests)
-T3   MultiplyGroup       ← Pattern A Fixed(40), thin wrap of pointAdd
-T4   Exponentiate        ← Pattern A Fixed(900), pointMul + identity-base guard
-T5   CreateAvlTree       ← 4-input value constructor, no inline cost
-T6   TreeLookup          ← thin wrap over verifyAvlLookup, no inline cost
-T7   facts/ergoscript-eval.md sweep
-T8   README + SESSION_CONTEXT + HANDOFF_PROMPT sweep + push
+T2   exprTpe + 5 new EvalErrorCodes      ← additive, no behavior change
+T3   Defensive-throw eval arms wired      ← Deserialize* arms throw 'deserialize-not-substituted'
+T4   substituteDeserialize module         ← type-checked, exported, NOT called from evaluate yet
+T5   tryTrivialReduce refactor            ← mechanical extract of tryTrivialReduceExpr
+T6   DeserializeContext oracle fixtures   ← fixture-gen + JSON
+T7   DC RED test                          ← FAILS with 'deserialize-not-substituted' (T8 lands integration)
+T8   substitute integration in evaluate/evaluateWith  ← T7 test now GREEN ✓
+T9   DeserializeContext mutation tests    ← Layer C3.a
+T10  DeserializeRegister oracle fixtures
+T11  DeserializeRegister oracle test      ← PASSES immediately (architecture from T4-T8 handles both arms)
+T12  DeserializeRegister mutation tests
+T13  facts/ergoscript-eval.md sweep
+T14  README + SESSION_CONTEXT + HANDOFF_PROMPT sweep + push
 ```
+
+Total: ~14 commits (excluding the spec commit `bf112b7` which is already landed).
 
 ---
 
 ## Task 1: Commit PLAN.md
 
 **Files:**
-- Create: `/home/mwaddip/projects/ergots/PLAN.md` (this file, overwrites previous 2i-a plan)
+- Create: `/home/mwaddip/projects/ergots/PLAN.md` (this file, overwrites 2i-b plan)
 
 - [ ] **Step 1: Stage and commit**
 
 ```bash
 git add PLAN.md
 git commit -m "$(cat <<'EOF'
-docs(plan): overwrite PLAN.md with phase 2i-b execution plan
+docs(plan): overwrite PLAN.md with phase 2i-c execution plan
 
 Per HANDOFF_PROMPT.md convention: PLAN.md is the in-flight phase's task list,
 overwritten at each phase boundary. Spec at
-docs/specs/2026-05-21-ergoscript-phase-2i-b-curve-avl-sigma-trivial-design.md.
+docs/specs/2026-05-21-ergoscript-phase-2i-c-deserialize-design.md.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-Expected: 1 file changed, ~500+ insertions.
+Expected: 1 file changed.
 
 ---
 
-## Task 2: `SigmaPropIsProven` — frontend-only structural throw (3 commits)
+## Task 2: exprTpe coverage + 5 new EvalErrorCode entries (1 commit)
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/sigma_prop_is_proven.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (add `pub mod sigma_prop_is_proven;`)
-- Modify: `fixture-gen/src/main.rs` (append generate-and-write block)
-- Create: `packages/ergoscript/test/fixtures/eval/sigma-prop-is-proven.json` (output of fixture-gen)
-- Create: `packages/ergoscript/src/eval/sigma-prop-is-proven.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts` (add import + switch case)
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (add `'sigma-prop-is-proven-no-eval'` to `EvalErrorCode` union)
-- Create: `packages/ergoscript/test/eval/sigma-prop-is-proven.test.ts`
+- Modify: `packages/ergoscript/src/mir/expr-tpe.ts` — add `case 'DeserializeContext':` and `case 'DeserializeRegister':` returning `e.tpe`.
+- Modify: `packages/ergoscript/src/eval/errors.ts` — add 5 new entries to the `EvalErrorCode` union.
 
-**Source:** `ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25` — structural throw, no eval of input, no cost.
+**Source:** `mir/expr.rs:713-728` `SubstDeserializeError` (variant-to-code mapping); `eval/sheader.rs` and other phase-2h arms for the EvalErrorCode location.
 
-**Special property:** This arm has NO mutation tests (no input bytes to mutate) — T2 commit shape is 3 (fixture-gen + RED + GREEN), not the 4-commit T3-T6 pattern.
+**New codes:**
+
+1. `'deserialize-context-key-not-found'` — DeserializeContext: `ctx.extension.values[e.id]` undefined.
+2. `'deserialize-input-not-byte-array'` — both arms: entry's tpe !== SColl<SByte> or value not Coll[Byte].
+3. `'deserialize-parse-failed'` — both arms: inner Expr bytes malformed (wrap underlying wire error message).
+4. `'deserialize-tpe-mismatch'` — both arms: `exprTpe(parsed) !== e.tpe`.
+5. `'deserialize-not-substituted'` — defensive eval-time throw on the Deserialize* arms.
+
+- [ ] **Step 1: Locate exact insertion points**
+
+```bash
+grep -n "case 'CreateAvlTree'" packages/ergoscript/src/mir/expr-tpe.ts        # alphabetical neighborhood
+grep -n "EvalErrorCode" packages/ergoscript/src/eval/errors.ts                # union location
+```
+
+- [ ] **Step 2: Add exprTpe cases**
+
+The expr-tpe.ts file has a central switch over `e.tag`. Add (in alphabetical order):
+
+```ts
+case 'DeserializeContext':
+case 'DeserializeRegister':
+  return e.tpe
+```
+
+- [ ] **Step 3: Add 5 new EvalErrorCode entries**
+
+Append the 5 codes to the `EvalErrorCode` union (or its equivalent — check current shape via `grep -n EvalErrorCode`). Keep alphabetical/topical grouping.
+
+- [ ] **Step 4: Verify (REQUIRED — OVERRIDES rule #6)**
+
+```bash
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json     # CLEAN
+cd packages/ergoscript && npx vitest run                   # all 3142 pass (no behavior change)
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/ergoscript/src/mir/expr-tpe.ts packages/ergoscript/src/eval/errors.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): exprTpe coverage + 5 EvalErrorCodes for phase 2i-c
+
+Adds exprTpe cases for DeserializeContext + DeserializeRegister returning
+e.tpe. Adds 5 EvalErrorCode entries (no thrower yet — defensive arm wiring
+in T3, substitute pass in T4+T8):
+- 'deserialize-context-key-not-found'
+- 'deserialize-input-not-byte-array'
+- 'deserialize-parse-failed'
+- 'deserialize-tpe-mismatch'
+- 'deserialize-not-substituted'
+
+Codes mirror sigma-rust's SubstDeserializeError variants (mir/expr.rs:713-728);
+'deserialize-not-substituted' covers both the inner-Expr-recursive-Deserialize
+case and the DeserializeRegister-absent-no-default case (sigma-rust expr.rs:
+478-481 leaves the node unchanged, defensive eval-time throw catches).
+
+No behavior change. EvalError codes 59 -> 64.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 3: Defensive-throw eval arms wired (1 commit)
+
+**Files:**
+- Create: `packages/ergoscript/src/eval/deserialize-context.ts`
+- Create: `packages/ergoscript/src/eval/deserialize-register.ts`
+- Modify: `packages/ergoscript/src/eval/eval.ts` — add switch cases for both arms.
+
+**Source:** `ergotree-interpreter/src/eval/deserialize_context.rs` (test-only file, NO Evaluable impl — defensive throw is the canonical mirror).
+
+- [ ] **Step 1: Implement evalDeserializeContext**
+
+```ts
+// File: packages/ergoscript/src/eval/deserialize-context.ts
+
+import type { DeserializeContext } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
+
+/**
+ * Defensive throw — substituteDeserialize should rewrite this node before eval.
+ * Reachable only when the node lives inside an already-substituted inner Expr
+ * (matches sigma-rust eval/deserialize_context.rs which contains ONLY tests —
+ * no Evaluable impl; falls through to "not implemented" at eval-time).
+ */
+export function evalDeserializeContext(
+  e: DeserializeContext,
+  _env: Env,
+  _ctx: EvalContext,
+): never {
+  throw new EvalError(
+    `DeserializeContext: node reached eval — substitute pass did not rewrite ` +
+      `(likely nested in an inner-Expr from substitution). id=${e.id} tpe=${e.tpe.tag}`,
+    'deserialize-not-substituted',
+  )
+}
+```
+
+- [ ] **Step 2: Implement evalDeserializeRegister** (parallel shape)
+
+```ts
+// File: packages/ergoscript/src/eval/deserialize-register.ts
+
+import type { DeserializeRegister } from '../mir/types'
+import type { Env } from './env'
+import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
+
+/**
+ * Defensive throw — substituteDeserialize should rewrite this node before
+ * eval. Reachable when:
+ *   (a) register absent AND e.default is null — substitute leaves the node
+ *       unchanged per sigma-rust expr.rs:478-481;
+ *   (b) the node lives inside an inner Expr decoded from runtime bytes
+ *       (recursive Deserialize).
+ *
+ * sigma-rust eval/deserialize_register.rs contains ONLY tests — no Evaluable
+ * impl; defensive eval-time throw is the canonical mirror.
+ */
+export function evalDeserializeRegister(
+  e: DeserializeRegister,
+  _env: Env,
+  _ctx: EvalContext,
+): never {
+  throw new EvalError(
+    `DeserializeRegister: node reached eval — substitute pass did not rewrite ` +
+      `(register absent + no default, OR nested in inner-Expr). reg=${e.reg} tpe=${e.tpe.tag}`,
+    'deserialize-not-substituted',
+  )
+}
+```
+
+- [ ] **Step 3: Wire dispatcher in eval.ts**
+
+Add (alphabetical ordering — check the existing switch in `packages/ergoscript/src/eval/eval.ts`):
+
+```ts
+import { evalDeserializeContext } from './deserialize-context'
+import { evalDeserializeRegister } from './deserialize-register'
+// ...
+case 'DeserializeContext': return evalDeserializeContext(e, env, ctx)
+case 'DeserializeRegister': return evalDeserializeRegister(e, env, ctx)
+```
+
+- [ ] **Step 4: Verify (REQUIRED)**
+
+```bash
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json     # CLEAN
+cd packages/ergoscript && npx vitest run                   # all 3142 pass
+```
+
+No new tests fail because no test currently exercises these arms (they were 'not-implemented-yet' before).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/deserialize-context.ts \
+        packages/ergoscript/src/eval/deserialize-register.ts \
+        packages/ergoscript/src/eval/eval.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): defensive-throw eval arms for Deserialize* (T3 of 2i-c)
+
+Wires DeserializeContext + DeserializeRegister eval arms. Both throw
+'deserialize-not-substituted' — substituteDeserialize (T4+T8) should
+rewrite these nodes before eval. Reachable cases:
+- DeserializeRegister with register absent + e.default null (sigma-rust
+  expr.rs:478-481 leaves the node unchanged)
+- inner-Expr nested Deserialize (try_rewrite_bu does NOT re-walk
+  substituted children)
+
+Defensive throw is the canonical mirror: sigma-rust eval/deserialize_*.rs
+files contain ONLY tests; no Evaluable impl.
+
+Eval arm coverage 65 -> 67 of ~70 (additive; integration in T8 makes
+the substitute pass active).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 4: substituteDeserialize module (1 commit)
+
+**Files:**
+- Create: `packages/ergoscript/src/eval/_substitute-deserialize.ts`
+
+**Source:** `ergotree-ir/src/mir/expr.rs:431-496` — `has_deserialize` + `substitute_deserialize`.
+
+Implement two exported functions:
+
+1. `treeHasDeserialize(tree: ErgoTree): boolean` — scans `tree.body` for any `DeserializeContext` or `DeserializeRegister` node. O(n) bottom-up traversal; early-return on first match.
+2. `substituteDeserialize(body: Expr, tree: ErgoTree, ctx: EvalContext): Expr` — bottom-up rewrite returning a NEW Expr (immutable; doesn't mutate inputs).
+
+**Source-mapping invariants (mirror sigma-rust):**
+
+- **Order:** bottom-up (children rewritten before parent), matching `try_rewrite_bu` (`mir/expr.rs:397-408`).
+- **Substituted Expr's interior is NOT re-walked.** A nested Deserialize* survives untouched.
+- **Inner-Expr parse:** `parseExpr(reader, [], [], new Map(), ctx.treeVersion ?? tree.header.version)`. ConstantPlaceholder in inner bytes fails parse per `constant_placeholder.rs:14-24` (verified).
+- **Type-check:** `sTypeEquals(exprTpe(parsed), e.tpe)`. Mismatch → `'deserialize-tpe-mismatch'`. Runs on BOTH register-decoded inner AND default-fallback.
+- **DeserializeRegister with register absent + default null:** LEAVE node unchanged (return `body` without rewriting; eval-time defensive throw catches).
+- **No reader-at-EOF assertion on inner parse:** trailing bytes silently ignored.
+- **No cost charged** by `substituteDeserialize` itself.
+
+**Failure modes:**
+
+| Condition | Throw |
+|---|---|
+| `ctx.extension === undefined` (DC arm) | `EvalError('...', 'context-field-missing')` (reuse) |
+| `ctx.selfBox === undefined` (DR arm with register-read needed) | `EvalError('...', 'context-field-missing')` (reuse) |
+| `ctx.extension.values[id]` undefined | `EvalError('...', 'deserialize-context-key-not-found')` |
+| entry.tpe !== `SColl<SByte>` or value not Coll[Byte] | `EvalError('...', 'deserialize-input-not-byte-array')` |
+| inner Expr bytes malformed | `EvalError('${wire-error-message}', 'deserialize-parse-failed')` |
+| `exprTpe(parsed) !== e.tpe` (or default) | `EvalError('...', 'deserialize-tpe-mismatch')` |
+
+- [ ] **Step 1: Implement the module**
+
+Sketch (full impl in T4 work):
+
+```ts
+// File: packages/ergoscript/src/eval/_substitute-deserialize.ts
+
+import type { ErgoTree, Expr, SType } from '../mir/types'
+import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
+import { ByteReader } from '@ergots/scorex'
+import { parseExpr } from '../wire/parse'
+import { exprTpe } from '../mir/expr-tpe'
+import { sTypeEquals } from '../mir/stype-helpers'
+import { collByteToUint8Array } from './_byte-coll'
+
+export function treeHasDeserialize(tree: ErgoTree): boolean {
+  return hasDeserializeWalk(tree.body)
+}
+
+function hasDeserializeWalk(e: Expr): boolean {
+  if (e.tag === 'DeserializeContext' || e.tag === 'DeserializeRegister') return true
+  // Walk children of every Expr variant; early-return on match.
+  // Implementation: mirror the structure of mir/expr-tpe.ts's switch.
+  // ...
+  return false
+}
+
+export function substituteDeserialize(
+  body: Expr,
+  tree: ErgoTree,
+  ctx: EvalContext,
+): Expr {
+  return rewriteBottomUp(body, tree, ctx)
+}
+
+function rewriteBottomUp(e: Expr, tree: ErgoTree, ctx: EvalContext): Expr {
+  // 1. Recurse into children first (immutable rewrite).
+  // 2. If e is DeserializeContext / DeserializeRegister, attempt substitution:
+  //    - decode bytes
+  //    - parse inner Expr
+  //    - type-check
+  //    - return parsed (substituted)
+  //    - OR return e unchanged (DR with register absent + default null)
+  // 3. Else, return e (possibly with rewritten children).
+  // ...
+}
+
+function substituteDeserializeContext(
+  e: DeserializeContext,
+  tree: ErgoTree,
+  ctx: EvalContext,
+): Expr {
+  if (ctx.extension === undefined) {
+    throw new EvalError('DeserializeContext: ctx.extension undefined', 'context-field-missing')
+  }
+  const entry = ctx.extension.values[e.id]
+  if (entry === undefined) {
+    throw new EvalError(`DeserializeContext: extension.values[${e.id}] not found`, 'deserialize-context-key-not-found')
+  }
+  // Expect entry.tpe === SColl<SByte>
+  if (entry.tpe.tag !== 'SColl' || entry.tpe.elem.tag !== 'SByte') {
+    throw new EvalError(`DeserializeContext: extension.values[${e.id}].tpe must be Coll[Byte], got ${entry.tpe.tag}`, 'deserialize-input-not-byte-array')
+  }
+  const bytes = collByteToUint8Array(entry.value, 'DeserializeContext', 'deserialize-input-not-byte-array')
+  const reader = new ByteReader(bytes)
+  let parsed: Expr
+  try {
+    parsed = parseExpr(reader, [], [], new Map(), ctx.treeVersion ?? tree.header.version)
+  } catch (err) {
+    throw new EvalError(`DeserializeContext: inner Expr parse failed — ${(err as Error).message}`, 'deserialize-parse-failed')
+  }
+  const parsedTpe = exprTpe(parsed)
+  if (!sTypeEquals(parsedTpe, e.tpe)) {
+    throw new EvalError(`DeserializeContext: inner Expr tpe mismatch (expected ${e.tpe.tag}, got ${parsedTpe.tag})`, 'deserialize-tpe-mismatch')
+  }
+  return parsed
+}
+
+function substituteDeserializeRegister(
+  e: DeserializeRegister,
+  tree: ErgoTree,
+  ctx: EvalContext,
+): Expr {
+  // 1. Read register from ctx.selfBox; expect Coll[Byte].
+  // 2. If register absent and default null: return e unchanged (eval-time defensive throw catches).
+  // 3. If register present: parse inner Expr; tpe-check.
+  // 4. If register absent and default present: tpe-check default; return default.
+  // ...
+}
+```
+
+The walker bodies (`hasDeserializeWalk`, `rewriteBottomUp`) need switch coverage for every Expr variant. Use the existing `mir/expr-tpe.ts` switch as a structural template — both walk every Expr variant's children.
+
+- [ ] **Step 2: Verify (REQUIRED)**
+
+```bash
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json     # CLEAN
+cd packages/ergoscript && npx vitest run                   # all 3142 still pass (module not yet imported elsewhere)
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/_substitute-deserialize.ts
+git commit -m "$(cat <<'EOF'
+feat(ergoscript): substituteDeserialize module (T4 of 2i-c)
+
+Implements treeHasDeserialize + substituteDeserialize per sigma-rust
+mir/expr.rs:431-496. Bottom-up tree rewrite that splices inner Exprs in
+place of DeserializeContext / DeserializeRegister nodes. Not yet
+integrated into evaluate / evaluateWith — T8 wires the integration.
+
+Per spec:
+- Order: bottom-up; does NOT re-walk substituted children.
+- Inner-Expr parser: parseExpr(r, [], [], new Map(), treeVersion).
+  ConstantPlaceholder in inner bytes fails parse (verified against
+  constant_placeholder.rs:14-24).
+- Tpe check on both register-decoded inner AND default-fallback.
+- DeserializeRegister with register absent + default null LEAVES node;
+  defensive eval-time throw catches (per expr.rs:478-481).
+- No cost charged; no reader-at-EOF assertion.
+
+5 EvalError codes are reachable from this module (all added in T2).
+Module is exported but not yet called from evaluate / evaluateWith;
+T8 wires the integration after the T5 refactor of tryTrivialReduce.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 5: tryTrivialReduce refactor — extract tryTrivialReduceExpr (1 commit)
+
+**Files:**
+- Modify: `packages/ergoscript/src/eval/evaluate.ts`
+
+**Source:** current `tryTrivialReduce(tree, ctx)` at `evaluate.ts:29-49`.
+
+Mechanical refactor: extract the body's branch logic into `tryTrivialReduceExpr(body, ctx)`. The existing `tryTrivialReduce(tree, ctx)` becomes a one-line wrapper:
+
+```ts
+function tryTrivialReduceExpr(body: Expr, ctx: EvalContext): SValue | null {
+  if (body.tag === 'Const' && body.tpe.tag === 'SSigmaProp') {
+    ctx.addCost(50)
+    return body.value
+  }
+  if (body.tag === 'ConstPlaceholder' && body.tpe.tag === 'SSigmaProp') {
+    const constants = ctx.constants
+    if (constants !== undefined && body.id < constants.length) {
+      const resolved = constants[body.id]
+      if (resolved !== undefined && resolved.kind === 'SigmaProp') {
+        ctx.addCost(50)
+        return resolved
+      }
+    }
+  }
+  return null
+}
+
+function tryTrivialReduce(tree: ErgoTree, ctx: EvalContext): SValue | null {
+  return tryTrivialReduceExpr(tree.body, ctx)
+}
+```
+
+**No behavior change.** All 3142 ergoscript tests still pass. This refactor exists solely to allow T8's substitute integration to call `tryTrivialReduceExpr(rewrittenBody, ctx)` directly without synthesizing a fake ErgoTree.
+
+- [ ] **Step 1: Extract**
+
+Read `evaluate.ts` carefully (per OVERRIDES rule #7); apply the extraction.
+
+- [ ] **Step 2: Verify (REQUIRED)**
+
+```bash
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json     # CLEAN
+cd packages/ergoscript && npx vitest run                   # ALL 3142 PASS — no behavior change
+cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts  # jsdom too
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/evaluate.ts
+git commit -m "$(cat <<'EOF'
+refactor(ergoscript): extract tryTrivialReduceExpr from tryTrivialReduce (T5 of 2i-c)
+
+Mechanical extraction of the body-branch logic into tryTrivialReduceExpr(body, ctx).
+tryTrivialReduce(tree, ctx) becomes a one-line wrapper delegating to the new
+helper.
+
+No behavior change. All 3142 ergoscript tests pass under both node and jsdom.
+
+Existence rationale: T8's substitute-pre-pass integration needs to call
+tryTrivialReduceExpr on the SUBSTITUTED body directly, not the original
+tree.body. This refactor unblocks that.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 6: DeserializeContext oracle fixtures (1 commit)
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/deserialize_context.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` (`pub mod deserialize_context;`)
+- Modify: `fixture-gen/src/main.rs` — append generate-and-write block
+- Create: `packages/ergoscript/test/fixtures/eval/deserialize-context.json`
+
+**Source:** `ergotree-interpreter/src/eval/deserialize_context.rs` (the test cases in this file ARE the spec for the fixtures we need).
+
+**Fixture-gen entry point:** use `try_eval_with_deserialize::<T>` (NOT `try_eval_out`). The former runs `substitute_deserialize` before eval; the latter does not.
+
+**8 scenarios:**
+
+| Name | Inner expr | Outer arm tpe | Extension setup | Expected |
+|---|---|---|---|---|
+| `dc_bool_true` | `Const(SBoolean, true)` | SBoolean | `{ 1: <Coll[Byte] of sigma_serialize(true.into())> }` | value=`true`, cost=<from oracle> |
+| `dc_height_eq_compare` | `BinOp(NEq, Height, 1i32)` | SBoolean | as above | value=oracle, cost=oracle |
+| `dc_v3_unsigned_bigint` | `Const(SUnsignedBigInt, 0)` | SUnsignedBigInt | as above, V3 tree | value=0, cost=oracle |
+| `dc_const_sigmaprop_inner` | `Const(SSigmaProp, ProveDlog(g))` | SSigmaProp | as above | value=sigmaprop, cost=50 (P2PK short-circuit on substituted body) |
+| `dc_throw_key_not_found` | n/a | SBoolean | empty extension | throw `'deserialize-context-key-not-found'` |
+| `dc_throw_wrong_input_type` | n/a | SBoolean | `{ 1: 1i32 }` (not Coll[Byte]) | throw `'deserialize-input-not-byte-array'` |
+| `dc_throw_parse_failed` | n/a | SBoolean | `{ 1: <malformed Expr bytes, e.g. [0xff, 0xff]> }` | throw `'deserialize-parse-failed'` |
+| `dc_throw_tpe_mismatch` | `Const(SInt, 5)` | SBoolean | `{ 1: <Coll[Byte] of sigma_serialize(5i32.into())> }` | throw `'deserialize-tpe-mismatch'` |
+| `dc_throw_recursive` | `DeserializeContext{id=1, tpe=SBoolean}` | SBoolean | `{ 1: <sigma_serialize(DeserializeContext{id=1, tpe=SBoolean})> }` | throw `'deserialize-not-substituted'` OR `'cost-limit-exceeded'` (either acceptable per spec confidence note) |
+
+`dc_const_sigmaprop_inner` is the **P2PK 50-cost short-circuit canary** — validates that `tryTrivialReduceExpr` fires on the SUBSTITUTED body. Without T5 refactor + T8 integration, this fixture would fail.
 
 - [ ] **Step 1: Write fixture-gen module**
 
-The fixture captures the `EvalError::Misc` shape, not a value. Use `try_eval_out` and assert it returns an `Err`; capture the error message in the JSON oracle.
-
 ```rust
-//! SigmaPropIsProven arm — captures the structural-throw shape.
+//! DeserializeContext arm.
 //!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25
-//!   Always returns Err(EvalError::Misc("SigmaPropIsProven has no interpreter eval..."))
-//!   regardless of input. _env and _ctx are unused.
+//! Sigma-rust ref: ergotree-interpreter/src/eval/deserialize_context.rs (tests)
+//!                 ergotree-ir/src/mir/expr.rs:442-496 (substitute_deserialize)
+//!                 ergotree-interpreter/src/eval.rs:203-250 (dispatch)
 
-// Build a tree with body = SigmaPropIsProven(Const(SSigmaProp, ProveDlog(generator)))
-// (the input doesn't matter since it's never evaluated; we just need a syntactically valid tree).
-//
-// Expected JSON shape: { "name": "...", "tree_bytes_hex": "...", "opts_json": {},
-//                       "expected_error": "SigmaPropIsProven has no interpreter eval" }
-//
-// Single scenario: sigma_prop_is_proven_const_sigma_prop_input
+// Scenarios (8 — see PLAN.md task 6 table for layout).
+// Each emits either { tree_bytes_hex, ctx_ext_json, expected_value, expected_cost }
+// or { tree_bytes_hex, ctx_ext_json, expected_error, expected_error_code }.
+
+// Use try_eval_with_deserialize::<T> as the oracle for value+cost.
+// Use try_eval_out for dc_throw_recursive if it actually throws via cost-limit
+// (sigma-rust's behavior is is_err() — code path TBD at implementation).
 ```
 
-Helper modification: Add an `expected_error: Option<String>` field to the common fixture type if not already present (mirrors 2i-a's throw-fixture pattern). Alternatively use a separate `ThrowFixture` struct.
-
-- [ ] **Step 2: Regenerate + commit fixture**
+- [ ] **Step 2: Regenerate + commit**
 
 ```bash
 cd fixture-gen
 cargo run --release
 cd ..
-git diff packages/ergoscript/test/fixtures/eval/sigma-prop-is-proven.json
-git add fixture-gen/src/cmds/ergoscript/eval/sigma_prop_is_proven.rs \
+git diff packages/ergoscript/test/fixtures/eval/deserialize-context.json    # inspect
+
+git add fixture-gen/src/cmds/ergoscript/eval/deserialize_context.rs \
         fixture-gen/src/cmds/ergoscript/eval/mod.rs \
         fixture-gen/src/main.rs \
-        packages/ergoscript/test/fixtures/eval/sigma-prop-is-proven.json
+        packages/ergoscript/test/fixtures/eval/deserialize-context.json
 git commit -m "$(cat <<'EOF'
-test(fixture-gen): SigmaPropIsProven throw-shape fixture
+test(fixture-gen): DeserializeContext oracle fixtures (8 scenarios)
 
-Captures sigma-rust's EvalError::Misc throw shape. The arm has no value-side
-output — try_eval_out returns an Err result; we serialize the error message
-to JSON as the oracle.
+8 scenarios spanning happy path (bool, BinOp, V3 UnsignedBigInt, P2PK
+short-circuit canary), 4 throw paths (key-not-found, wrong-input-type,
+parse-failed, tpe-mismatch), and the recursive-Deserialize test.
+
+dc_const_sigmaprop_inner is the load-bearing P2PK 50-cost short-circuit
+canary — validates that tryTrivialReduceExpr fires on the substituted
+body, mirroring sigma-rust eval.rs:213.
+
+Oracle: try_eval_with_deserialize (runs substitute pass before eval).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 3: RED — write TS oracle test against the fixture**
+---
 
-Create `packages/ergoscript/test/eval/sigma-prop-is-proven.test.ts`. The test loads the fixture, parses the tree, calls `evaluate`, asserts:
-1. It throws `EvalError`.
-2. `.code === 'sigma-prop-is-proven-no-eval'`.
-3. `.message` substring-matches the fixture's `expected_error`.
+## Task 7: DeserializeContext RED test (1 commit)
+
+**Files:**
+- Create: `packages/ergoscript/test/eval/deserialize-context.test.ts`
+
+The test loads the fixture and asserts each entry's expected value/cost (success) OR expected throw code (failure). Mirrors the 2i-b template (e.g., `multiply-group.test.ts`).
+
+**Current state when T7 lands:** substituteDeserialize module exists (T4) but isn't called from `evaluate` (T8 not landed). Defensive throws (T3) ARE active. So every entry's eval reaches the Deserialize* arm's `'deserialize-not-substituted'` throw. **Expected: every success-path test FAILS with `'deserialize-not-substituted'`; throw-path tests for codes other than `'deserialize-not-substituted'` also fail.**
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { evaluate } from '../../src/index.js'
-import { parseTree } from '../../src/wire/parse-tree.js'
-import { EvalError } from '../../src/eval/eval-context.js'
-import { hexToBytes } from '../helpers.js'
-import fixture from '../fixtures/eval/sigma-prop-is-proven.json'
+import { evaluate } from '../../src/index'
+import { parseTree } from '../../src/wire/parse-tree'
+import { EvalError } from '../../src/eval/eval-context'
+import { hexToBytes } from '../helpers'
+import fixture from '../fixtures/eval/deserialize-context.json'
 
-describe('SigmaPropIsProven eval', () => {
+describe('DeserializeContext eval', () => {
   for (const entry of fixture.entries) {
     it(entry.name, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
-      expect(() => evaluate(tree, {})).toThrow(EvalError)
-      try { evaluate(tree, {}) } catch (e) {
-        expect((e as EvalError).code).toBe('sigma-prop-is-proven-no-eval')
-        expect((e as Error).message).toContain('SigmaPropIsProven has no interpreter eval')
+      const opts = buildOptsFromFixture(entry)  // builds opts.extension from entry.ctx_ext_json
+      if (entry.expected_error !== undefined) {
+        expect(() => evaluate(tree, opts)).toThrow(EvalError)
+        try { evaluate(tree, opts) } catch (e) {
+          expect((e as EvalError).code).toBe(entry.expected_error_code)
+          expect((e as Error).message).toContain(entry.expected_error)
+        }
+      } else {
+        const result = evaluate(tree, opts)
+        expect(svalueEquals(result, entry.expected_value)).toBe(true)
+        // Cost check via evaluateWith if needed for jitCost inspection.
       }
     })
   }
 })
 ```
 
-Run test → should FAIL with `'not-implemented-yet'` because the arm isn't wired yet.
+- [ ] **Step 1: Implement** (build a small `buildOptsFromFixture` helper if not already present from earlier phases)
+
+- [ ] **Step 2: Run — expect RED**
 
 ```bash
-cd packages/ergoscript && npx vitest run test/eval/sigma-prop-is-proven.test.ts
+cd packages/ergoscript && npx vitest run test/eval/deserialize-context.test.ts
+# Expected: most/all tests FAIL with 'deserialize-not-substituted' or other codes
 ```
 
-Commit:
+- [ ] **Step 3: Commit**
 
 ```bash
-git add packages/ergoscript/test/eval/sigma-prop-is-proven.test.ts
+git add packages/ergoscript/test/eval/deserialize-context.test.ts
 git commit -m "$(cat <<'EOF'
-test(ergoscript): RED — SigmaPropIsProven oracle test (no handler yet)
+test(ergoscript): RED — DeserializeContext oracle test (T7 of 2i-c)
 
-Test fails with 'not-implemented-yet' until T2's GREEN step wires the handler.
+Loads 8-scenario fixture and asserts value+cost or expected throw. Currently
+fails because T8 (substitute integration in evaluate/evaluateWith) has not
+landed — every entry's evaluate() hits the defensive 'deserialize-not-
+substituted' throw before substitute pass runs.
+
+T8 lands the integration; this test turns GREEN.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
-
-- [ ] **Step 4: GREEN — implement handler + wire into eval.ts**
-
-Create `packages/ergoscript/src/eval/sigma-prop-is-proven.ts`:
-
-```ts
-/**
- * SigmaPropIsProven eval arm — structural throw (no eval, no cost).
- *
- * Source: ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25
- *
- * Op-code 95 is reserved in the IR for byte-match parity with Scala
- * sigmastate, whose typer rewrites `prop.isProven` to a SigmaPropIsProven
- * node. The AOT graph-IR rewrite removes the node before evaluation; the
- * bytecode interpreter therefore receives a node that always throws.
- *
- * Sigma-rust's eval is `(_env, _ctx) → Err(Misc(...))` — both args
- * underscored, no read of `self.input`, no cost charged. We mirror.
- */
-import type { SigmaPropIsProven } from '../mir/types.js'
-import type { Env } from './env.js'
-import type { EvalContext } from './eval-context.js'
-import { EvalError } from './eval-context.js'
-
-export function evalSigmaPropIsProven(
-  _e: SigmaPropIsProven,
-  _env: Env,
-  _ctx: EvalContext,
-): never {
-  throw new EvalError(
-    'SigmaPropIsProven has no interpreter eval (frontend-only — Scala graph-IR rewrites elide it; sigma-rust mirrors as a structural throw)',
-    'sigma-prop-is-proven-no-eval',
-  )
-}
-```
-
-Modify `packages/ergoscript/src/eval/eval-context.ts` — add `'sigma-prop-is-proven-no-eval'` to the `EvalErrorCode` union.
-
-Modify `packages/ergoscript/src/eval/eval.ts` — add the switch case:
-
-```ts
-import { evalSigmaPropIsProven } from './sigma-prop-is-proven.js'
-// ...
-case 'SigmaPropIsProven': return evalSigmaPropIsProven(e, env, ctx)
-```
-
-**Verification commands** (REQUIRED — OVERRIDES rule #6):
-
-```bash
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json                          # CLEAN
-cd packages/ergoscript && npx vitest run test/eval/sigma-prop-is-proven.test.ts  # PASS
-cd packages/ergoscript && npx vitest run                                        # all ergoscript pass
-cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts      # jsdom pass
-```
-
-Commit:
-
-```bash
-git add packages/ergoscript/src/eval/sigma-prop-is-proven.ts \
-        packages/ergoscript/src/eval/eval-context.ts \
-        packages/ergoscript/src/eval/eval.ts
-git commit -m "$(cat <<'EOF'
-feat(ergoscript): SigmaPropIsProven eval arm (frontend-only structural throw)
-
-Wires opcode 95 — Scala typer's `prop.isProven` lowering. AOT graph-IR
-rewrite elides the node before evaluation; sigma-rust mirrors as a
-structural throw. We mirror in TS.
-
-NO eval of e.input, NO cost charged. New EvalErrorCode
-'sigma-prop-is-proven-no-eval' (55 → 56 codes; eval arm coverage 60 → 61).
-
-Layer C1 oracle fixture validates the throw shape.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
-**Step 5 SKIPPED — no mutation testing.** The arm has no input bytes to mutate.
 
 ---
 
-## Task 3: `MultiplyGroup` — Pattern A, Fixed(40), 2 GroupElement inputs (4 commits)
+## Task 8: substitute integration in evaluate / evaluateWith — GREEN moment (1 commit)
 
 **Files:**
-- Create: `fixture-gen/src/cmds/ergoscript/eval/multiply_group.rs`
-- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs` + `fixture-gen/src/main.rs`
-- Create: `packages/ergoscript/test/fixtures/eval/multiply-group.json`
-- Create: `packages/ergoscript/src/eval/multiply-group.ts`
-- Modify: `packages/ergoscript/src/eval/eval.ts`
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (add `'group-op-input-not-group-element'`)
-- Create: `packages/ergoscript/test/eval/multiply-group.test.ts`
-- Create: `packages/ergoscript/test/eval-mutation/multiply-group.test.ts`
+- Modify: `packages/ergoscript/src/eval/evaluate.ts`
 
-**Source:** `ergotree-interpreter/src/eval/multiply_group.rs:9-29` + `ergo-chain-types/src/ec_point.rs:74-80` (Mul<&EcPoint> = ProjectivePoint::add).
+Wire `substituteDeserialize` into `evaluate()` and `evaluateWith()`:
 
-**Cost pattern:** A `Fixed(40)` — charge BEFORE eval-children.
+```ts
+export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
+  const ctx = makeContext({
+    ...opts,
+    constants: opts.constants ?? tree.constants,
+    treeVersion: opts.treeVersion ?? tree.header.version,
+  })
+  if (treeHasDeserialize(tree)) {
+    const rewrittenBody = substituteDeserialize(tree.body, tree, ctx)
+    return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
+  }
+  return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
+}
 
-**6 fixtures:** gen+gen, gen+identity, identity+identity, random+random, asymmetric (point + its inverse), 2 throw cases (non-GroupElement left, non-GroupElement right).
-
-- [ ] **Step 1: Write fixture-gen module**
-
-```rust
-//! MultiplyGroup arm.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/multiply_group.rs:9-29
-//!   ctx.add_jit_cost(40)?;
-//!   let left_v = self.left.eval(env, ctx)?;
-//!   let right_v = self.right.eval(env, ctx)?;
-//!   match (&left_v, &right_v) {
-//!       (Value::GroupElement(l), Value::GroupElement(r)) => Ok(((**l) * r).into()),
-//!       _ => Err(EvalError::UnexpectedValue(...)),
-//!   }
-//!
-//! Note: `(**l) * r` dispatches to Mul<&EcPoint> at ec_point.rs:74-80, which
-//! is point ADDITION on the curve (multiplicative-notation group).
-//!
-//! Cost ordering: Pattern A — BEFORE eval-child.
-
-// Scenarios (6):
-// - mg_gen_gen          : g + g   (point doubling)
-// - mg_gen_identity     : g + 0   = g
-// - mg_identity_identity: 0 + 0   = 0
-// - mg_random_random    : random P + random Q (force_any_val each)
-// - mg_asymmetric       : g + (-g) = 0  (additive inverse)
+export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
+  if (treeHasDeserialize(tree)) {
+    const rewrittenBody = substituteDeserialize(tree.body, tree, ctx)
+    return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
+  }
+  return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
+}
 ```
 
-Build the trees, evaluate via `try_eval_out`, capture value + cost. Throw-path fixtures are constructed synthetically (non-GroupElement input via direct AST manipulation) and assert `try_eval_out` returns `Err`.
+- [ ] **Step 1: Apply edit**
 
-- [ ] **Step 2: Regenerate + commit fixture**
+- [ ] **Step 2: Verify (REQUIRED — this is the GREEN moment)**
 
 ```bash
-cd fixture-gen && cargo run --release && cd ..
-git diff packages/ergoscript/test/fixtures/eval/multiply-group.json
-git add fixture-gen/ packages/ergoscript/test/fixtures/eval/multiply-group.json
+npx tsc --noEmit -p packages/ergoscript/tsconfig.json                      # CLEAN
+cd packages/ergoscript && npx vitest run test/eval/deserialize-context.test.ts  # PASS (T7 RED becomes GREEN)
+cd packages/ergoscript && npx vitest run                                    # ALL 3142+~40 PASS
+cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts  # jsdom too
+```
+
+**If any test other than the T7 fixture passes/fails unexpectedly:** STOP and investigate. The substitute pass should be invisible to trees without Deserialize* nodes (gated by `treeHasDeserialize`).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/ergoscript/src/eval/evaluate.ts
 git commit -m "$(cat <<'EOF'
-test(fixture-gen): MultiplyGroup oracle fixtures (6 scenarios)
+feat(ergoscript): substitute-pre-pass integration in evaluate (T8 of 2i-c)
 
-Pattern A Fixed(40). Group "multiply" = curve addition under multiplicative
-notation (ec_point.rs:74-80 Mul<&EcPoint> = ProjectivePoint::add).
+Wires substituteDeserialize into evaluate() and evaluateWith(). When
+treeHasDeserialize(tree) returns true, the substitute pass runs as a
+bottom-up rewrite before tryTrivialReduceExpr + evalExpr. Trees without
+Deserialize* nodes skip the pass (gated by treeHasDeserialize).
 
-Scenarios: gen+gen (point doubling), gen+identity, identity+identity,
-random+random, asymmetric (g + -g = identity), non-GroupElement inputs (left+right throw paths).
+Mirrors sigma-rust eval.rs:203-250. Architectural divergence (deliberate,
+cost-equivalent): we keep ctx.constants populated for all paths;
+sigma-rust uses tree.proposition() to eagerly substitute placeholders.
+tryTrivialReduceExpr already handles both Const(SSigmaProp) and
+ConstPlaceholder(SSigmaProp) via ctx.constants lookup — same observable
+cost+value output as sigma-rust's substitute path.
+
+T7 DeserializeContext RED test now GREEN. P2PK 50-cost short-circuit
+on substituted SigmaProp body validated via dc_const_sigmaprop_inner.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 3: RED — write TS oracle test**
+---
 
-`packages/ergoscript/test/eval/multiply-group.test.ts` — same pattern as the 2i-a oracle tests. Load fixture, parse tree, evaluate, assert value bytes + cost integer.
+## Task 9: DeserializeContext mutation tests (1 commit)
 
-Run test → should FAIL with `'not-implemented-yet'`.
+**Files:**
+- Create: `packages/ergoscript/test/eval-mutation/deserialize-context.test.ts`
 
-Commit:
+Use the existing mutation-test harness from phase 2h-e. Mutate:
+- Outer tree bytes (e.g., the SType byte inside DeserializeContext.tpe)
+- Inner Expr bytes (in extension.values[id])
+- The id byte itself
 
-```
-test(ergoscript): RED — MultiplyGroup oracle test (no handler yet)
-```
+Target ≥ 90% kill rate.
 
-- [ ] **Step 4: GREEN — implement handler + wire**
-
-```ts
-/**
- * MultiplyGroup eval arm — Pattern A, Fixed(40).
- *
- * Source: ergotree-interpreter/src/eval/multiply_group.rs:9-29
- *         ergo-chain-types/src/ec_point.rs:74-80 (Mul<&EcPoint> = ProjectivePoint::add)
- *
- * Group operation under multiplicative notation: `left * right` on EcPoint
- * dispatches to point ADDITION. We use `pointAdd` (thin wrap of @noble/curves
- * Point.add) to match exactly.
- */
-import type { MultiplyGroup } from '../mir/types.js'
-import type { Env } from './env.js'
-import type { EvalContext } from './eval-context.js'
-import { EvalError } from './eval-context.js'
-import { evalExpr } from './eval.js'
-import { decodePoint, encodePoint, pointAdd } from '../crypto/secp256k1.js'
-
-export function evalMultiplyGroup(e: MultiplyGroup, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(40)
-  const leftV = evalExpr(e.left, env, ctx)
-  const rightV = evalExpr(e.right, env, ctx)
-  if (leftV.kind !== 'GroupElement') {
-    throw new EvalError(
-      `MultiplyGroup: expected GroupElement left input, got '${leftV.kind}'`,
-      'group-op-input-not-group-element',
-    )
-  }
-  if (rightV.kind !== 'GroupElement') {
-    throw new EvalError(
-      `MultiplyGroup: expected GroupElement right input, got '${rightV.kind}'`,
-      'group-op-input-not-group-element',
-    )
-  }
-  const left = decodePoint(leftV.value)
-  const right = decodePoint(rightV.value)
-  const result = pointAdd(left, right)
-  return { kind: 'GroupElement', value: encodePoint(result) }
-}
-```
-
-Modify `eval-context.ts` to add `'group-op-input-not-group-element'`. Modify `eval.ts` to add the case.
-
-**Verification commands** (REQUIRED):
+- [ ] **Step 1: Implement**
+- [ ] **Step 2: Run; target ≥ 90% kill rate**
+- [ ] **Step 3: Commit**
 
 ```bash
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json                            # CLEAN
-cd packages/ergoscript && npx vitest run test/eval/multiply-group.test.ts        # PASS
-cd packages/ergoscript && npx vitest run                                          # all ergoscript pass
+git commit -m "test(ergoscript): DeserializeContext mutation testing (Layer C3.a)"
+```
+
+---
+
+## Task 10: DeserializeRegister oracle fixtures (1 commit)
+
+**Files:**
+- Create: `fixture-gen/src/cmds/ergoscript/eval/deserialize_register.rs`
+- Modify: `fixture-gen/src/cmds/ergoscript/eval/mod.rs`, `fixture-gen/src/main.rs`
+- Create: `packages/ergoscript/test/fixtures/eval/deserialize-register.json`
+
+**8 scenarios** mirroring the spec's test plan:
+
+| Name | Setup | Expected |
+|---|---|---|
+| `dr_r4_bool_neq` | R4 = sigma_serialize(BinOp(NEq, Height, 1i32)); arm tpe=SBoolean | success |
+| `dr_r5_default_int` | R5 absent; default=Const(SInt, 1); arm tpe=SInt | value=1 |
+| `dr_throw_no_register_no_default` | R5 absent; default null; arm tpe=SBoolean | throw `'deserialize-not-substituted'` (use `try_eval_out`, not `try_eval_with_deserialize`) |
+| `dr_throw_register_wrong_type` | R4 = Const(SInt, 1) (not Coll[Byte]); arm tpe=SBoolean | throw `'deserialize-input-not-byte-array'` |
+| `dr_throw_default_wrong_type` | R5 absent; default=Const(SBoolean, true); arm tpe=SInt | throw `'deserialize-tpe-mismatch'` |
+| `dr_throw_inner_wrong_type` | R4 = sigma_serialize(Const(SInt, 1)); arm tpe=SBoolean | throw `'deserialize-tpe-mismatch'` |
+| `dr_throw_parse_failed` | R4 = malformed Expr bytes (e.g. [0xff, 0xff]); arm tpe=SBoolean | throw `'deserialize-parse-failed'` |
+| `dr_default_used_when_register_absent` | R5 absent; default=BinOp(NEq, Height, 0i32); arm tpe=SBoolean | value=true (or false depending on Height) |
+
+- [ ] **Step 1: Write fixture-gen module**
+- [ ] **Step 2: Regenerate + commit**
+
+```bash
+git commit -m "test(fixture-gen): DeserializeRegister oracle fixtures (8 scenarios)"
+```
+
+---
+
+## Task 11: DeserializeRegister oracle test — PASSES immediately (1 commit)
+
+**Files:**
+- Create: `packages/ergoscript/test/eval/deserialize-register.test.ts`
+
+By T11, the architecture (T2-T8) handles both arms identically. The DeserializeRegister test should PASS on first run — no RED step.
+
+- [ ] **Step 1: Implement** (parallel shape to T7)
+- [ ] **Step 2: Verify (REQUIRED)**
+
+```bash
+cd packages/ergoscript && npx vitest run test/eval/deserialize-register.test.ts  # PASS on first run
+cd packages/ergoscript && npx vitest run                                          # ALL pass
 cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts        # jsdom pass
 ```
 
-Commit:
+- [ ] **Step 3: Commit**
 
-```
-feat(ergoscript): MultiplyGroup eval arm (Pattern A Fixed(40))
-```
-
-- [ ] **Step 5: Mutation testing (Layer C3.a)**
-
-Create `packages/ergoscript/test/eval-mutation/multiply-group.test.ts`. Use the existing harness from phase 2h-e. Target ≥ 90% kill rate. Mutate the 33-byte SEC1 GroupElement bytes — most mutations should trip `decodePoint` (off-curve check) or produce a different point (byte-equal kill).
-
-Commit:
-
-```
-test(ergoscript): MultiplyGroup mutation testing (Layer C3.a)
+```bash
+git commit -m "test(ergoscript): DeserializeRegister oracle test (T11 of 2i-c)"
 ```
 
 ---
 
-## Task 4: `Exponentiate` — Pattern A, Fixed(900), GroupElement base + BigInt exponent (4 commits)
+## Task 12: DeserializeRegister mutation tests (1 commit)
 
 **Files:**
-- Same shape as T3: fixture-gen module + JSON + handler + test + mutation test
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (add `'predef-input-not-bigint'`)
+- Create: `packages/ergoscript/test/eval-mutation/deserialize-register.test.ts`
 
-**Source:** `ergotree-interpreter/src/eval/exponentiate.rs:13-33` + `ergo-chain-types/src/ec_point.rs:111-119` (identity short-circuit).
+Target ≥ 90% kill rate.
 
-**Cost pattern:** A `Fixed(900)` — charge BEFORE eval-children.
-
-**CRITICAL — explicit identity-base guard required.** Per spec Risk Hotspot 4: `@noble/curves@2.2.0` `Point.multiply` does NOT short-circuit on `Point.ZERO`. Our handler must guard explicitly.
-
-**9 fixtures:** gen^1, gen^0, gen^k random, identity^k (validates the guard), gen^-1, gen^(n-1), gen^n (≡ identity), gen^(2^255 - 1) i256 max, gen^(-2^255) i256 min, plus 2 throw cases.
-
-- [ ] **Step 1: Write fixture-gen module**
-
-```rust
-//! Exponentiate arm.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/exponentiate.rs:13-33
-//!   ctx.add_jit_cost(900)?;
-//!   let left_v = self.left.eval(env, ctx)?.try_extract_into()?;
-//!   let right_v = self.right.eval(env, ctx)?.try_extract_into()?;
-//!   exponentiate(left_v, right_v)
-//!
-//! Then ec_point::exponentiate at ec_point.rs:111-119:
-//!   if !is_identity(base) { EcPoint(base.0 * exponent) } else { *base }
-//!
-//! Pattern A — cost BEFORE eval-children. Identity-base short-circuits.
-
-// Scenarios (9):
-// - exp_gen_1            : g^1   = g
-// - exp_gen_0            : g^0   = identity
-// - exp_gen_random       : g^k random in-range (via force_any_val)
-// - exp_identity_k       : identity^k = identity (validates TS guard)
-// - exp_gen_minus_1      : g^-1  = -g (curve inverse)
-// - exp_gen_n_minus_1    : g^(n-1) = -g (same as above; oracle equality validates)
-// - exp_gen_n            : g^n   = identity (mod n reduction → 0 → identity)
-// - exp_gen_i256_max     : g^(2^255 - 1) — largest positive i256
-// - exp_gen_i256_min     : g^(-2^255)    — most negative i256
-// - throw_non_grp_base   : (synthetic) base = SLong instead of GroupElement
-// - throw_non_bigint_exp : (synthetic) exponent = SInt instead of BigInt256
-```
-
-- [ ] **Step 2: Regenerate + commit fixture**
-
-```
-test(fixture-gen): Exponentiate oracle fixtures (9 scenarios + 2 throws)
-```
-
-- [ ] **Step 3: RED**
-
-```
-test(ergoscript): RED — Exponentiate oracle test (no handler yet)
-```
-
-- [ ] **Step 4: GREEN — implement handler with REQUIRED identity-base guard**
-
-```ts
-/**
- * Exponentiate eval arm — Pattern A, Fixed(900).
- *
- * Source: ergotree-interpreter/src/eval/exponentiate.rs:13-33
- *         ergo-chain-types/src/ec_point.rs:111-119 (identity-base short-circuit)
- *         ergotree-ir/src/sigma_protocol/dlog_group.rs:60-64 (bigint256_to_scalar = mod n)
- *
- * **CRITICAL identity-base guard.** Per spec Risk Hotspot 4: @noble/curves@2.2.0
- * Point.multiply (weierstrass.ts:1067) does NOT short-circuit on Point.ZERO.
- * Only multiplyUnsafe (line 1103) does. Our pointMul calls Point.multiply.
- * So pointMul(Point.ZERO, k) executes wNAF on identity → UB / off-curve.
- * Sigma-rust short-circuits identity bases explicitly. We must mirror.
- */
-import type { Exponentiate } from '../mir/types.js'
-import type { Env } from './env.js'
-import type { EvalContext } from './eval-context.js'
-import { EvalError } from './eval-context.js'
-import { evalExpr } from './eval.js'
-import { decodePoint, encodePoint, pointMul } from '../crypto/secp256k1.js'
-
-export function evalExponentiate(e: Exponentiate, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(900)
-  const leftV = evalExpr(e.left, env, ctx)
-  const rightV = evalExpr(e.right, env, ctx)
-  if (leftV.kind !== 'GroupElement') {
-    throw new EvalError(
-      `Exponentiate: expected GroupElement base, got '${leftV.kind}'`,
-      'group-op-input-not-group-element',
-    )
-  }
-  if (rightV.kind !== 'BigInt') {
-    throw new EvalError(
-      `Exponentiate: expected BigInt exponent, got '${rightV.kind}'`,
-      'predef-input-not-bigint',
-    )
-  }
-  const base = decodePoint(leftV.value)
-  // Mirror sigma-rust's `if !is_identity(base) { ... } else { *base }` short-circuit.
-  // REQUIRED — @noble/curves Point.multiply does not handle identity bases.
-  if (base.is0()) {
-    return { kind: 'GroupElement', value: new Uint8Array(33) }  // identity (Ergo: 33 zero bytes)
-  }
-  const result = pointMul(base, rightV.value)  // pointMul reduces mod n internally
-  return { kind: 'GroupElement', value: encodePoint(result) }
-}
-```
-
-**Verification:** the `exp_identity_k` fixture exercises the guard. Oracle expects 33 zero bytes; TS handler returns 33 zero bytes via the guard.
-
-```
-feat(ergoscript): Exponentiate eval arm (Pattern A Fixed(900) + identity-base guard)
-```
-
-- [ ] **Step 5: Mutation testing**
-
-Mutate 33-byte GroupElement bytes and BigInt bytes. Target ≥ 90% kill rate.
-
-```
-test(ergoscript): Exponentiate mutation testing (Layer C3.a)
+```bash
+git commit -m "test(ergoscript): DeserializeRegister mutation testing (Layer C3.a)"
 ```
 
 ---
 
-## Task 5: `CreateAvlTree` — 4-input constructor, no inline cost (4 commits)
+## Task 13: facts/ergoscript-eval.md sweep (1 commit)
 
 **Files:**
-- Same shape as T3/T4
-- Modify: `packages/ergoscript/src/eval/eval-context.ts` (add `'create-avl-tree-shape-mismatch'`)
-- May modify: `packages/ergoscript/src/eval/_byte-coll.ts` if `collByteToUint8Array` needs the `'create-avl-tree-shape-mismatch'` override (use default `'predef-input-not-byte-array'` for digest non-Coll case)
+- Modify: `facts/ergoscript-eval.md` — add Phase 2i-c changelog entry.
+- Modify: `facts/ergoscript.md` (meta hub) — update Coverage summary table.
 
-**Source:** `ergotree-interpreter/src/eval/create_avl_tree.rs:15-41` + `ergotree-ir/src/mir/avl_tree_data.rs::AvlTreeFlags::parse` (canonicalizes to 3 bits).
-
-**Cost pattern:** None inline — children-only cost.
-
-**CRITICAL — AvlTreeFlags canonicalization (`flagsV.value & 0x07`).** Per spec Risk Hotspot 5b: `AvlTreeFlags::parse` strips reserved bits 3..7. TS handler must apply `& 0x07` to match the sigma-rust in-memory AvlTreeData (oracle equality target). The wire-parse path (2h-b) preserves all 8 bits — different path, different behavior, both correct.
-
-**Keylength bit-cast (`>>> 0`).** Per spec Risk Hotspot 5: sigma-rust does `i32 as u32`, a bit-cast. TS `>>> 0` matches.
-
-**11 fixtures:** 3 happy (flags-off+None, flags-on+Some(5), mid-flags+Some(0)) + 4 edge (valueLength=2^31-1, negative-keyLength, large-keyLength, flags=0xFF→0x07) + 4 throw (digest wrong-length, non-Byte flags, non-Coll digest, non-Int keyLength).
-
-- [ ] **Step 1: Write fixture-gen module**
-
-```rust
-//! CreateAvlTree arm.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/create_avl_tree.rs:15-41
-//!   No add_jit_cost call — children-only.
-//!   Eval order: flags → digest → keyLength → optional valueLength.
-//!   AvlTreeFlags::parse canonicalizes to bits 0..2 (mir/avl_tree_data.rs).
-//!   ADDigest::try_from enforces length === 33.
-//!
-//! Pattern: none inline.
-//! Output: Value::AvlTree(Box<AvlTreeData>).
-
-// Scenarios (11):
-// Happy:
-//   cat_flags_0_no_vlen        : flags=0, digest=mid, keyLength=32, valueLength=None
-//   cat_flags_7_vlen_5         : flags=7, digest=mid, keyLength=32, valueLength=Some(5)
-//   cat_flags_3_vlen_0         : flags=3, digest=mid, keyLength=32, valueLength=Some(0)
-// Edge:
-//   cat_valuelen_i32_max       : flags=1, valueLength=Some(i32::MAX)
-//   cat_negative_keylength     : flags=0, keyLength=i32::MIN  (bit-cast → huge u32)
-//   cat_large_keylength        : flags=0, keyLength=2147483647 (i32::MAX → u32 2147483647)
-//   cat_flags_FF_canonicalize  : flags=0xFFu8 as i8 (= -1) → AvlTreeFlags(0x07) ★
-// Throw:
-//   cat_throw_digest_32bytes   : digest=32-byte (instead of 33) → EvalError::AvlTree
-//   cat_throw_non_byte_flags   : (synthetic) flags=SInt
-//   cat_throw_non_coll_digest  : (synthetic) digest=SInt
-//   cat_throw_non_int_keylength: (synthetic) keyLength=SLong
-```
-
-★ The `cat_flags_FF_canonicalize` fixture is the canary against a regression dropping the `& 0x07` mask. Oracle's expected `tree_flags` is 0x07 for input 0xFF.
-
-- [ ] **Step 2-5: regenerate fixture → RED → GREEN → mutation tests**
-
-Handler skeleton matches the spec's pseudocode (§"Per-arm handler design"). Wire into eval.ts.
-
-```
-test(fixture-gen): CreateAvlTree oracle fixtures (11 scenarios)
-test(ergoscript): RED — CreateAvlTree oracle test (no handler yet)
-feat(ergoscript): CreateAvlTree eval arm (no inline cost; flags canonicalized)
-test(ergoscript): CreateAvlTree mutation testing (Layer C3.a)
-```
-
-**Verification:** the `cat_flags_FF_canonicalize` fixture is consensus-critical — its presence asserts the `& 0x07` mask. If the handler accidentally uses `& 0xff`, this single test fails.
-
----
-
-## Task 6: `TreeLookup` — thin wrap over verifyAvlLookup, no inline cost (4 commits)
-
-**Files:**
-- Same shape as T5
-- May reuse existing `_avltree-adapter.ts::avlTreeDataToConfig`
-
-**Source:** `ergotree-interpreter/src/eval/tree_lookup.rs:20-65`.
-
-**Cost pattern:** None inline.
-
-**Double-null semantic:** per spec Risk Hotspot 6 — `verifyAvlLookup` returns:
-- `null` → proof construct failure → TS throws `'avl-tree-proof-failed'`
-- `{ value: null }` → key absent → TS returns `Option None`
-- `{ value: Uint8Array }` → key found → TS returns `Option Some<Coll[Byte]>`
-
-**7 fixtures:** 3 happy (key-found at low key, key-absent in 10-leaf, single-leaf-tree found) + 1 edge (key-found at boundary high key in balanced-10) + 3 throw (malformed-proof, wrong-digest, non-AvlTree receiver).
-
-- [ ] **Step 1: Write fixture-gen module**
-
-```rust
-//! TreeLookup arm.
-//!
-//! Sigma-rust ref: ergotree-interpreter/src/eval/tree_lookup.rs:20-65
-//!   No add_jit_cost — children-only.
-//!   Eval order: tree → key → proof → BatchAVLVerifier::new → perform_one_operation(Lookup).
-//!
-//! Returns Value::Opt:
-//!   Ok(opt) → Option (None or Some(Coll[Byte]))
-//!   Err(_)  → EvalError::AvlTree("Tree proof is incorrect ...")
-//!
-//! Use BatchAVLProver in fixture-gen (mirrors create_avl_tree.rs:65-93 pattern)
-//! to build the source-of-truth pre-state tree + proof.
-
-// Scenarios (7):
-// - tl_found_in_10_leaf_low_key       : Insert keys 0..10, lookup key=2 → Some(...)
-// - tl_absent_in_10_leaf              : Insert keys 0..10, lookup key=100 → None
-// - tl_single_leaf_found              : Insert one entry, lookup that key
-// - tl_found_in_10_leaf_boundary_key  : Insert keys 0..10, lookup key=9 → Some(...)
-// - tl_throw_malformed_proof          : Insert keys 0..10, mutate proof bytes → throws
-// - tl_throw_wrong_digest             : Insert keys 0..10, modify starting_digest → throws
-// - tl_throw_non_avl_receiver         : (synthetic) tree=SInt → throws
-```
-
-- [ ] **Step 2-5: regenerate fixture → RED → GREEN → mutation tests**
-
-Handler matches spec pseudocode. Wire into eval.ts. No new error codes — reuses `'avl-tree-obj-not-avl-tree'` + `'predef-input-not-byte-array'` + `'avl-tree-proof-failed'`.
-
-```
-test(fixture-gen): TreeLookup oracle fixtures (7 scenarios)
-test(ergoscript): RED — TreeLookup oracle test (no handler yet)
-feat(ergoscript): TreeLookup eval arm (no inline cost; thin verifyAvlLookup wrap)
-test(ergoscript): TreeLookup mutation testing (Layer C3.a)
-```
-
----
-
-## Task 7: facts/ergoscript-eval.md sweep (1 commit)
-
-**Files:**
-- Modify: `/home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
-- Modify: `/home/mwaddip/projects/ergots/facts/ergoscript.md` (meta hub coverage table)
-
-**Changes:**
-
-1. Add 2i-b changelog entry under "Scope (per-phase changelog)":
+Add 2i-c changelog entry under "Scope (per-phase changelog)":
 
 ```markdown
-**Phase 2i-b — Curve + AVL + sigma-trivial predefs** (additive):
+**Phase 2i-c — Deserialize family** (additive):
 
-- 5 new eval arms wired (coverage 60 → 65 of ~70 `Expr` arms):
-  - `SigmaPropIsProven` — structural throw, no eval, no cost. Mirrors sigma-rust frontend-only-throw pattern.
-  - `MultiplyGroup` — Pattern A Fixed(40). Group operation under multiplicative notation = point addition on curve. Reuses existing `pointAdd` adapter.
-  - `Exponentiate` — Pattern A Fixed(900). Scalar multiplication. **REQUIRES explicit identity-base guard** — @noble/curves@2.2.0 `Point.multiply` does not short-circuit `Point.ZERO`.
-  - `CreateAvlTree` — no inline cost, children-only. 4-input constructor. **AvlTreeFlags canonicalized to bits 0..2** (`flagsV.value & 0x07`) mirroring sigma-rust `AvlTreeFlags::parse → new`. KeyLength bit-cast `>>> 0` (matches sigma-rust `i32 as u32`).
-  - `TreeLookup` — no inline cost, children-only + verifier delegation. Thin wrap over `@ergots/avltree`'s `verifyAvlLookup`. Double-null semantic: outer null = throw, inner null = Option None.
-- 4 new `EvalError` codes (55 → 59):
-  - `'sigma-prop-is-proven-no-eval'` (T2 — frontend-only structural throw)
-  - `'group-op-input-not-group-element'` (T3 + T4 — shared by MultiplyGroup and Exponentiate)
-  - `'predef-input-not-bigint'` (T4 — Exponentiate's BigInt exponent)
-  - `'create-avl-tree-shape-mismatch'` (T5 — compact code covering flags/keyLength/valueLength type errors)
+- 2 new eval arms wired (coverage 65 → 67 of ~70 Expr arms): `DeserializeContext`, `DeserializeRegister`.
+- Architecture: substitute-pre-pass mirroring sigma-rust eval.rs:203-250 + mir/expr.rs:442-496. `substituteDeserialize` runs as a bottom-up rewrite before `tryTrivialReduceExpr` + `evalExpr`. The Deserialize* eval arms are defensive throws (`'deserialize-not-substituted'`).
+- 5 new EvalError codes (59 → 64):
+  - `'deserialize-context-key-not-found'`
+  - `'deserialize-input-not-byte-array'`
+  - `'deserialize-parse-failed'`
+  - `'deserialize-tpe-mismatch'`
+  - `'deserialize-not-substituted'`
 - 0 new method-handler-registry entries (44 unchanged).
-- Two pre-existing TS-from-sigma-rust divergences acknowledged (neither introduced by 2i-b):
-  - DecodePoint identity convention (also affects MultiplyGroup and Exponentiate base decode).
-  - `key_length` bit-cast: sigma-rust silently accepts negative-i32 → huge-u32 keyLength; TS mirrors.
+- Architectural divergence from sigma-rust (deliberate, cost-equivalent): we keep `ctx.constants` populated for all paths and rely on `tryTrivialReduceExpr` handling both `Const` and `ConstPlaceholder`; sigma-rust uses `tree.proposition()` to eagerly substitute placeholders before the substitute pass. Identical cost+value output.
+- New runtime dependency: none.
 
-**Phase 2i-b COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 59. Eval arm coverage: 65 of ~70. Ergoscript test count: ~3180. Total monorepo: ~3758.
+**Phase 2i-c COMPLETE.** Method handler registry: 44. EvalError codes: 64. Eval arm coverage: 67 of ~70. Ergoscript test count: ~3200+. Total monorepo: ~3780+.
 ```
 
-2. Update the `EvalError` taxonomy section with the 4 new codes (one section per arm or grouped under "Phase 2i-b codes"):
+Update `facts/ergoscript.md` Coverage summary table:
+- "Evaluator: 65 of ~70" → "67 of ~70"
+- "59 EvalError codes" → "64 EvalError codes"
+- Test count: 3142 → ~3200+ (update once final count is known after T11)
 
-```markdown
-### Phase 2i-b codes (curve + AVL + sigma-trivial predefs)
-
-- **`'sigma-prop-is-proven-no-eval'`** — `SigmaPropIsProven` arm always throws structurally. No `e.input` evaluation, no cost charged. Mirrors sigma-rust `sigma_prop_is_proven.rs:22-24` `Misc("SigmaPropIsProven has no interpreter eval...")`.
-- **`'group-op-input-not-group-element'`** — `MultiplyGroup` (both operands) and `Exponentiate` (base) when input `kind !== 'GroupElement'`. Distinct from `'sigma-prop-input-not-group-element'` (2g-medium) which is for sigma-prop creation arms.
-- **`'predef-input-not-bigint'`** — `Exponentiate` arm when exponent `kind !== 'BigInt'`. Future arms in the `ModQ` family (phase 2i-d) will reuse.
-- **`'create-avl-tree-shape-mismatch'`** — `CreateAvlTree` arm. Compact code covering 3 throw paths: non-Byte flags, non-Int keyLength, non-Int valueLength. `.message` carries the specific field name.
-```
-
-3. Update the Coverage summary table in `facts/ergoscript.md` (meta hub):
-   - "Evaluator: 60 of ~70" → "65 of ~70"
-   - Test count: 2922 + 156 + 245 + 177 = 3500 → 3074 + 156 + 245 + 177 = 3652 → ~3180 + 156 + 245 + 177 = ~3758
-   - EvalError codes: 48 → 59 (was 55 post-2i-a, now 59 post-2i-b)
-
-- [ ] **Step 1: Apply edits to both facts files**
-
+- [ ] **Step 1: Apply edits**
 - [ ] **Step 2: Commit**
 
 ```bash
-git add facts/ergoscript-eval.md facts/ergoscript.md
-git commit -m "$(cat <<'EOF'
-docs(ergoscript): facts sweep for phase 2i-b (60->65 arms, +4 EvalError codes)
-
-Per-phase changelog entry for 2i-b. Adds 5 new arms: SigmaPropIsProven,
-MultiplyGroup, Exponentiate, CreateAvlTree, TreeLookup. Adds 4 new EvalError
-codes. Method-handler registry unchanged at 44. Documents 2 pre-existing
-TS-from-sigma-rust divergences (DecodePoint identity convention; keyLength
-bit-cast).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
+git commit -m "docs(ergoscript): facts sweep for phase 2i-c (65->67 arms, +5 EvalError codes)"
 ```
 
 ---
 
-## Task 8: README + SESSION_CONTEXT + HANDOFF_PROMPT sweep + push (1 commit + push)
+## Task 14: README + SESSION_CONTEXT + HANDOFF_PROMPT sweep + push (1 commit + push)
 
 **Files:**
-- Modify: `README.md` (Packages table — ergoscript row test counts, eval arm coverage, recent-phase line)
-- Modify: `SESSION_CONTEXT.md` (overwrite with phase 2i-b summary; mirror 2i-a structure)
-- Modify: `HANDOFF_PROMPT.md` (next-phase queue: 2i-c becomes the natural next step)
+- Modify: `README.md` — Packages table ergoscript row (eval arm coverage, recent-phase line).
+- Modify: `SESSION_CONTEXT.md` — overwrite with phase 2i-c summary.
+- Modify: `HANDOFF_PROMPT.md` — next-phase queue (2i-d becomes the natural next step).
 
-- [ ] **Step 1: Apply edits to all three files**
+- [ ] **Step 1: Apply edits**
 
-- [ ] **Step 2: Verify final state (REQUIRED — OVERRIDES rule #6)**
+- [ ] **Step 2: Final verification (REQUIRED — OVERRIDES rule #6)**
 
 ```bash
 # TypeScript clean per-package
@@ -733,10 +870,10 @@ npx tsc --noEmit -p packages/ergoscript/tsconfig.json                      # CLE
 node_modules/.bin/vitest run packages/                                      # all pass
 
 # All tests pass under jsdom (cross-runtime)
-cd packages/scorex && npx vitest run --config vitest.browser.config.ts     # PASS
-cd packages/nipopow && npx vitest run --config vitest.browser.config.ts    # PASS
-cd packages/avltree && npx vitest run --config vitest.browser.config.ts    # PASS
-cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts # PASS
+cd packages/scorex && npx vitest run --config vitest.browser.config.ts
+cd packages/nipopow && npx vitest run --config vitest.browser.config.ts
+cd packages/avltree && npx vitest run --config vitest.browser.config.ts
+cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts
 
 # Fixture determinism
 cd fixture-gen && cargo run --release                                       # zero diff after re-run
@@ -749,13 +886,13 @@ git status                                                                  # CL
 ```bash
 git add README.md SESSION_CONTEXT.md HANDOFF_PROMPT.md
 git commit -m "$(cat <<'EOF'
-docs: refresh README + SESSION_CONTEXT + HANDOFF_PROMPT for phase 2i-b
+docs: refresh README + SESSION_CONTEXT + HANDOFF_PROMPT for phase 2i-c
 
-Phase 2i-b COMPLETE. 5 new eval arms (SigmaPropIsProven, MultiplyGroup,
-Exponentiate, CreateAvlTree, TreeLookup). Eval arm coverage 60 → 65 of ~70.
-EvalError codes 55 → 59. Method-handler registry unchanged at 44. Total
-tests ~3758. Next phase: 2i-c (DeserializeContext + DeserializeRegister
-— recursive-eval architectural lift).
+Phase 2i-c COMPLETE. 2 new eval arms (DeserializeContext, DeserializeRegister)
+via substitute-pre-pass architecture. Eval arm coverage 65 -> 67 of ~70.
+EvalError codes 59 -> 64. Method-handler registry unchanged at 44. Total
+tests ~3780+. Next phase: 2i-d (long-tail parse-rejecting / deprecated arms:
+OpTrue/OpFalse/UnitConstant, Select1-5, ModQ family, CollShift/CollRotate).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -772,24 +909,22 @@ git push origin master
 
 ## Risk hotspots (carried from spec)
 
-1. **Identity-point arithmetic** — explicit guard in `Exponentiate`; oracle fixture `exp_identity_k` validates.
-2. **BigInt256 → scalar reduction** — `pointMul`'s internal mod-n reduction matches sigma-rust's `bigint256_to_scalar`. Oracle fixtures cover negative exponents, exact i256 bounds, exponents ≡ 0 mod n.
-3. **DecodePoint adapter divergence** — pre-existing, inherited from 2i-a; not introduced by 2i-b. No follow-up in this slice.
-4. **`pointMul(Point.ZERO, k)` UB** — addressed via explicit guard in `evalExponentiate` (verified against @noble/curves source — line 1067 has no short-circuit).
-5. **`CreateAvlTree` keyLength bit-cast** — `>>> 0` matches `i32 as u32`. Oracle fixture for negative keyLength validates.
-5b. **`CreateAvlTree` flags canonicalization** — `& 0x07` mirrors `AvlTreeFlags::parse → new` stripping bits 3..7. Oracle fixture `cat_flags_FF_canonicalize` is the canary.
-6. **`TreeLookup` double-null** — outer null = throw, inner null = Option None. Fixture matrix distinguishes both.
-7. **`SigmaPropIsProven` fixture-gen** — captures `{ "expected_error": "..." }` shape; TS test branches on error-field presence.
-
----
+1. **Substitution pass cost-charging.** `substituteDeserialize` must NOT call `ctx.addCost`. Oracle fixtures assert cost-integer equality — any rogue charge trips immediately.
+2. **Inner-Expr parsing with empty constants.** RESOLVED in spec — reject at parse per `constant_placeholder.rs:14-24`. Use `parseExpr(r, [], [], new Map(), treeVersion)`.
+3. **`tree.has_deserialize()` traversal correctness.** O(n) walker with early-return on first match. Unit-test against a tree WITHOUT Deserialize nodes to assert false (no false positives on un-related tags).
+4. **Tree-version threading.** Inner Expr parsed under `ctx.treeVersion ?? tree.header.version`. V<3 trees with V3-only inner-Expr arms fail at parse via `with_tree_version` semantics in our parser.
+5. **Recursive Deserialize.** Inner Expr containing another Deserialize* trips either `'deserialize-not-substituted'` (defensive throw, T3) or `'cost-limit-exceeded'` (deeper recursion). Both acceptable; fixture `dc_throw_recursive` validates.
+6. **Default-Expr type-check.** Sigma-rust applies the tpe-check post-`.or(default.as_deref().cloned())` (`expr.rs:486-491`). Implementation must apply check to BOTH register-decoded inner AND default-fallback. Fixture `dr_throw_default_wrong_type` validates.
+7. **P2PK 50-JitCost short-circuit on substituted body.** Fixture `dc_const_sigmaprop_inner` validates cost-integer === 50.
+8. **`set_deserialize` flag.** RESOLVED — marker only per `sigma_byte_reader.rs:138-144`.
 
 ## Expected outcome
 
-- Eval-arm coverage: 60 → 65
-- EvalError codes: 55 → 59 (+4)
-- Method-handler registry: 44 (unchanged)
-- Ergoscript test count: 3074 → ~3180
-- Total monorepo tests: 3652 → ~3758
-- Commits: ~22 (T1=1, T2=3, T3-T6=4 each, T7=1, T8=1)
+- Eval-arm coverage: 65 → **67**
+- EvalError codes: 59 → **64** (+5)
+- Method-handler registry: **44** (unchanged)
+- Ergoscript test count: 3142 → **~3200–3220** (+60–80)
+- Total monorepo tests: 3720 → **~3780–3800**
+- Commits: ~14 (T1=1, T2=1, T3=1, T4=1, T5=1, T6=1, T7=1, T8=1, T9=1, T10=1, T11=1, T12=1, T13=1, T14=1)
 - Working tree clean modulo gitignored `audit20260519/`
 - Origin pushed
