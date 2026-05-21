@@ -15,7 +15,18 @@ export {
   AddressDecodeError
 } from './address'
 export type { Network, AddressType } from './address'
-export type { ErgoTree, TreeHeader, SType, SValue, Expr } from './mir/types'
+export type { ErgoTree, TreeHeader, SType, SValue, Expr, ErgoBox } from './mir/types'
+
+// Wire-layer SValue parser/serializer surface — exposed for downstream
+// packages that need to parse canonical box / register bytes outside the
+// ErgoTree envelope (e.g. the `tools/mainnet-validate` harness reading
+// per-output `ErgoBox::sigma_serialize` bytes from the shim, and per-input
+// ContextExtension Constant bytes). The function shape matches the facts/
+// contract: `parseSValue(tpe, treeVersion, r)` / `serializeSValue(tpe, v,
+// treeVersion, w)`. Once the package publishes, these will likely move
+// behind a `/wire` subpath export (see facts/ergoscript-wire.md note).
+export { parseSValue, SValueParseError } from './wire/parse-svalue'
+export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
 
 // v0.2.0 (phase 2b) — evaluator surface
 export { evaluate, evaluateWith } from './eval/evaluate'

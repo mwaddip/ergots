@@ -45,6 +45,12 @@ import {
     verifyAutolykosV2,
     AutolykosV1NotSupportedError,
 } from '@ergots/scorex';
+import {
+    parseTree,
+    serializeTree,
+    parseSValue,
+    type SValue,
+} from '@ergots/ergoscript';
 
 import type { BlockBundle } from './protocol.js';
 import { HarnessError } from './errors.js';
@@ -207,6 +213,171 @@ export function validateHeader(bundle: BlockBundle, state: WalkerState): void {
     state.rollingHeaders.unshift(header);
     state.rollingHeaders = state.rollingHeaders.slice(0, 10);
     state.lastHeader = header;
+}
+
+/**
+ * Output round-trip validation pass (PLAN.md T9).
+ *
+ * For every output box across every transaction in the block:
+ *   1. `parseSValue({tag:'SBox'}, treeVersion, reader)` against the canonical
+ *      box bytes (the shim emits these via `ErgoBox::sigma_serialize`).
+ *   2. Extract `.ergoTreeBytes` from the parsed `ErgoBox`.
+ *   3. `parseTree(ergoTreeBytes)` → `ErgoTree`.
+ *   4. `serializeTree(tree)` must be byte-identical to the extracted bytes.
+ *
+ * On the first failure the function throws a `HarnessError` carrying
+ * `phase: 'output-roundtrip'`, code = the specific structural reason, and
+ * `location = { txIndex, outputIndex }`. The walk loop (T11) catches and
+ * writes the error-report sidecar.
+ *
+ * # `treeVersionFn` injection
+ *
+ * `parseSValue` takes a `treeVersion` parameter (added in phase 2h-c.1 for
+ * SHeader V3-gating; threads through every nested SValue parser, including
+ * SBox register-value parsing). For an output box, the relevant tree-version
+ * is the box's *own* ErgoTree's version (bits 0..2 of its header byte).
+ *
+ * The PLAN signature accepts a function rather than inlining the lookup so
+ * that callers can swap the strategy: T11's `main.ts` passes a function
+ * that locates the ErgoTree section within the canonical box bytes and
+ * reads its header byte. The function is invoked once per output box.
+ *
+ * The function MUST be deterministic and side-effect-free; it MUST return a
+ * value in `0..7`. If it throws, `validateOutputRoundtrips` wraps the error
+ * as a `HarnessError` with code `'tree-version-derivation-failed'`.
+ *
+ * Halt-on-first-failure: the loop exits on the first byte-roundtrip
+ * mismatch. No state mutation occurs in this pass — output round-trip is
+ * a pure validation of the bundle's wire shape.
+ */
+export function validateOutputRoundtrips(
+    bundle: BlockBundle,
+    treeVersionFn: (boxBytes: Uint8Array) => number,
+): void {
+    for (let txIndex = 0; txIndex < bundle.transactions.length; txIndex++) {
+        const tx = bundle.transactions[txIndex]!;
+        for (let outputIndex = 0; outputIndex < tx.outputs.length; outputIndex++) {
+            const boxBytes = tx.outputs[outputIndex]!;
+
+            // Step 1a: derive treeVersion via the injected function.
+            // Per Rule #5, we surface a tree-version-derivation failure as a
+            // distinct code so the operator can tell it apart from a real
+            // wire-shape mismatch (the function being wrong is a harness-side
+            // bug; the bytes being wrong is a shim/chain disagreement).
+            let treeVersion: number;
+            try {
+                treeVersion = treeVersionFn(boxBytes);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'tree-version-derivation-failed',
+                    `treeVersionFn threw at tx ${txIndex}, output ${outputIndex}: ${message}`,
+                    { txIndex, outputIndex },
+                );
+            }
+            if (
+                !Number.isInteger(treeVersion) ||
+                treeVersion < 0 ||
+                treeVersion > 7
+            ) {
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'tree-version-derivation-failed',
+                    `treeVersionFn returned out-of-range value ${String(treeVersion)} at tx ${txIndex}, output ${outputIndex} (expected 0..7)`,
+                    { txIndex, outputIndex },
+                );
+            }
+
+            // Step 1b: parse the canonical box bytes as SValue(SBox, ...).
+            // parseSValue throws SValueParseError on malformed input; surface
+            // as a harness error tagged with the failure code so the report
+            // distinguishes structural from byte-equality failures.
+            //
+            // Per `facts/ergoscript-wire.md`, parseSValue does NOT enforce
+            // `isExhausted` — trailing-byte checks are the caller's
+            // responsibility. The shim's wire contract is that each output's
+            // `boxBytes` is exactly one `ErgoBox::sigma_serialize` payload;
+            // trailing bytes indicate corruption, so we explicitly check.
+            let sbox: SValue;
+            const reader = new ByteReader(boxBytes);
+            try {
+                sbox = parseSValue({ tag: 'SBox' }, treeVersion, reader);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'sbox-parse-failed',
+                    `parseSValue(SBox) failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
+                    { txIndex, outputIndex },
+                );
+            }
+            if (!reader.isExhausted) {
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'sbox-parse-failed',
+                    `${reader.remaining} trailing bytes after SBox at tx ${txIndex}, output ${outputIndex}`,
+                    { txIndex, outputIndex },
+                );
+            }
+
+            // Defensive: parseSValue returned the wrong SValue variant. The
+            // SType-driven dispatcher should never produce a non-Box result
+            // for a `{tag:'SBox'}` request, but a future refactor could
+            // silently break this invariant — pin it with an explicit check.
+            if (sbox.kind !== 'Box') {
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'sbox-parse-failed',
+                    `parseSValue(SBox) returned unexpected SValue.kind=${sbox.kind} at tx ${txIndex}, output ${outputIndex}`,
+                    { txIndex, outputIndex },
+                );
+            }
+
+            // Step 2: extract the box's internal ErgoTree bytes.
+            const ergoTreeBytes = sbox.value.ergoTreeBytes;
+
+            // Step 3: parse the ErgoTree. Failures here indicate either a
+            // malformed tree on-chain (shouldn't happen — the node accepted
+            // it) or a parser bug; either way it's worth surfacing.
+            let tree;
+            try {
+                tree = parseTree(ergoTreeBytes);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'tree-parse-failed',
+                    `parseTree failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
+                    { txIndex, outputIndex },
+                );
+            }
+
+            // Step 4: serialize and byte-compare. The headline check — any
+            // disagreement here is a real validation finding (parser drops
+            // info, serializer reorders, version-gating mishandles a flag).
+            let reSerialized: Uint8Array;
+            try {
+                reSerialized = serializeTree(tree);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'tree-serialize-failed',
+                    `serializeTree failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
+                    { txIndex, outputIndex },
+                );
+            }
+            if (!bytesEqual(reSerialized, ergoTreeBytes)) {
+                throw new HarnessError(
+                    'output-roundtrip',
+                    'byte-roundtrip-mismatch',
+                    `serializeTree(parseTree(ergoTreeBytes)) !== ergoTreeBytes at tx ${txIndex}, output ${outputIndex}`,
+                    { txIndex, outputIndex },
+                );
+            }
+        }
+    }
 }
 
 /**

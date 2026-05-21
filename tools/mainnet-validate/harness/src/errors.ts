@@ -29,9 +29,18 @@
  *
  * Subsequent tasks (T9-T10) extend this with phase-specific codes:
  *
- *   - 'byte-roundtrip-mismatch'   (output-roundtrip phase, T9)
- *   - 'evaluate-mismatch'         (evaluate phase, T10) — exact set TBD
- *   - 'verify-signature-failed'   (verify-signature phase, T10) — exact set TBD
+ *   - 'byte-roundtrip-mismatch'        (output-roundtrip phase, T9)
+ *     — serializeTree(parseTree(ergoTreeBytes)) !== ergoTreeBytes
+ *   - 'tree-version-derivation-failed' (output-roundtrip phase, T9)
+ *     — treeVersionFn threw / returned an out-of-range value
+ *   - 'sbox-parse-failed'              (output-roundtrip phase, T9)
+ *     — parseSValue(SBox, ...) threw / returned non-Box kind
+ *   - 'tree-parse-failed'              (output-roundtrip phase, T9)
+ *     — parseTree threw on extracted ergoTreeBytes
+ *   - 'tree-serialize-failed'          (output-roundtrip phase, T9)
+ *     — serializeTree threw on the parsed tree
+ *   - 'evaluate-mismatch'              (evaluate phase, T10) — exact set TBD
+ *   - 'verify-signature-failed'        (verify-signature phase, T10) — exact set TBD
  *
  * The union is NOT typed at the class level because each phase's catch
  * site only needs to dispatch on `code` against its own known values; an
