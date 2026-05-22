@@ -89,61 +89,55 @@ export class ErgoTreeSerializeError extends Error {
 }
 
 /**
- * Parse an ErgoTree from a byte slice. Throws {@link ErgoTreeParseError} on
- * envelope-level malformations (empty input, oversized input, malformed
- * header, constant-count overflow). Body-parse failures surface as
- * `ExprParseError` from the body parser; the envelope does not wrap them.
+ * Parse an ErgoTree's header + body from the current cursor position of the
+ * provided reader. Leaves the cursor at the byte AFTER the body. Does NOT
+ * enforce trailing-byte exhaustion on the outer reader — that's the caller's
+ * job (`parseTree(bytes)` requires zero outer-trailing; `parseSValue(SBox)`
+ * expects the cursor to land on `creation_height` next).
  *
- * The reader is left at the position immediately after the body — sigma-rust
- * tolerates trailing bytes silently (`parse_tree_extra_bytes` test), and
- * so do we when `hasSize` bounded the inner reader. For non-`hasSize`
- * trees, trailing bytes are caller-observable via the consumed-prefix
- * accounting.
+ * Mirrors sigma-rust's `ErgoTree::sigma_parse` at `ergo_tree.rs:410-453`:
+ * the non-hasSize branch reads constants (if segregated) + body Expr from
+ * the SHARED reader. Body Expr is self-delimiting via the opcode grammar.
+ * For the hasSize branch we still allocate a bounded inner buffer (mirroring
+ * sigma-rust's `Cursor::new(&mut buf[..])` pattern) so the body parser
+ * cannot escape the declared size.
+ *
+ * Used by:
+ *   - `parseTree(bytes)`, which wraps with size cap + outer-exhaustion check.
+ *   - `parseSValue(SBox)` (`parse-svalue.ts`), which captures the consumed
+ *     byte range as the box's `ergoTreeBytes` field.
  */
-export function parseTree(bytes: Uint8Array): ErgoTree {
-  if (bytes.length === 0) {
-    throw new ErgoTreeParseError('empty ErgoTree bytes', 'empty')
-  }
-  if (bytes.length > MAX_TREE_SIZE) {
-    throw new ErgoTreeParseError(
-      `ErgoTree size ${bytes.length} exceeds ${MAX_TREE_SIZE} byte cap`,
-      'oversized'
-    )
-  }
-
-  const outer = new ByteReader(bytes)
+export function parseTreeFromReader(outer: ByteReader): ErgoTree {
   const rawHeader = outer.readU8()
   const header: TreeHeader = {
     // `rawHeader & 0x07` always yields 0..7, so the narrow type is safe.
     version: (rawHeader & VERSION_MASK) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
     hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
     constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
-    rawHeader
+    rawHeader,
   }
 
   // When `hasSize` is set, sigma-rust reads exactly `tree_size_bytes` into
   // an intermediate buffer and parses constants + body from that bounded
   // inner reader. We mirror that to (a) match the wire semantics
   // byte-for-byte and (b) bound memory against an adversarial size field.
+  //
+  // When `hasSize` is clear, we share the outer reader directly — sigma-rust
+  // does the same at `ergo_tree.rs:436-451`. The body Expr grammar is
+  // self-delimiting, so the cursor lands at the body's end after parseExpr
+  // returns.
   let inner: ByteReader
   if (header.hasSize) {
     const bodyByteLength = outer.readVlqU()
     if (bodyByteLength > outer.remaining) {
       throw new ErgoTreeParseError(
         `declared body size ${bodyByteLength} exceeds remaining bytes ${outer.remaining}`,
-        'body-size-overflow'
+        'body-size-overflow',
       )
     }
-    // `subarray` is a view (no copy); ByteReader doesn't mutate.
     inner = new ByteReader(outer.readBytes(bodyByteLength))
   } else {
-    // No declared size: inner reader is the rest of the outer stream.
-    // Construct a fresh reader over the remaining bytes so the body
-    // parser sees positions relative to its own slice (mirrors sigma-rust
-    // where the same `r` is used directly in the non-hasSize branch — the
-    // position semantics are equivalent for our purposes since no caller
-    // observes intermediate positions).
-    inner = new ByteReader(outer.readBytes(outer.remaining))
+    inner = outer
   }
 
   const constantTypes: SType[] = []
@@ -153,7 +147,7 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
     if (count > MAX_CONSTANTS_COUNT) {
       throw new ErgoTreeParseError(
         `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
-        'too-many-constants'
+        'too-many-constants',
       )
     }
     for (let i = 0; i < count; i++) {
@@ -165,20 +159,16 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
 
   const body = parseExpr(inner, constantTypes, constants, new Map(), header.version)
 
-  // Audit ERG-02: facts/ergoscript-wire.md declares byte-identical round-trip
-  // as a postcondition. Pre-fix parseTree silently consumed trailing bytes
-  // (sigma-rust's behavior); the round-trip then dropped them. Tighten to
-  // require full exhaustion of both inner (body region) and outer (envelope)
-  // readers.
-  if (!inner.isExhausted) {
+  // hasSize-bounded: enforce that the inner buffer is fully consumed (no
+  // trailing bytes inside the declared body region). Audit ERG-02.
+  //
+  // Non-hasSize: NO exhaustion check here — the outer caller decides
+  // whether more bytes are expected after the tree. `parseTree(bytes)`
+  // enforces zero-outer-trailing in its wrapper; `parseSValue(SBox)`
+  // continues reading `creation_height` next.
+  if (header.hasSize && !inner.isExhausted) {
     throw new ErgoTreeParseError(
       `${inner.remaining} trailing bytes after body in declared tree-body region`,
-      'trailing-bytes',
-    )
-  }
-  if (!outer.isExhausted) {
-    throw new ErgoTreeParseError(
-      `${outer.remaining} trailing bytes after ErgoTree envelope`,
       'trailing-bytes',
     )
   }
@@ -187,8 +177,41 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
     header,
     constantTypes,
     constants,
-    body
+    body,
   }
+}
+
+/**
+ * Parse an ErgoTree from a byte slice. Throws {@link ErgoTreeParseError} on
+ * envelope-level malformations (empty input, oversized input, malformed
+ * header, constant-count overflow, trailing bytes). Body-parse failures
+ * surface as `ExprParseError` from the body parser; the envelope does not
+ * wrap them.
+ *
+ * Thin wrapper over {@link parseTreeFromReader}: this entry point adds the
+ * empty/size-cap envelope check and enforces that no bytes remain after
+ * the parsed body. Callers operating on a shared reader (e.g.
+ * `parseSValue(SBox)`) should use `parseTreeFromReader` directly.
+ */
+export function parseTree(bytes: Uint8Array): ErgoTree {
+  if (bytes.length === 0) {
+    throw new ErgoTreeParseError('empty ErgoTree bytes', 'empty')
+  }
+  if (bytes.length > MAX_TREE_SIZE) {
+    throw new ErgoTreeParseError(
+      `ErgoTree size ${bytes.length} exceeds ${MAX_TREE_SIZE} byte cap`,
+      'oversized',
+    )
+  }
+  const outer = new ByteReader(bytes)
+  const tree = parseTreeFromReader(outer)
+  if (!outer.isExhausted) {
+    throw new ErgoTreeParseError(
+      `${outer.remaining} trailing bytes after ErgoTree envelope`,
+      'trailing-bytes',
+    )
+  }
+  return tree
 }
 
 /**

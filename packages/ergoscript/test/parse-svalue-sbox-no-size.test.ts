@@ -26,7 +26,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parseSValue, SValueParseError } from '../src/wire/parse-svalue'
+import { parseSValue } from '../src/wire/parse-svalue'
 import { serializeSValue } from '../src/wire/serialize-svalue'
 import { parseTree, serializeTree } from '../src/wire/ergo-tree'
 import { ByteReader, ByteWriter } from '@ergots/scorex'

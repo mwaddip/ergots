@@ -65,6 +65,7 @@ import type { SType, SValue } from '../mir/types'
 import { ByteReader, parseHeader } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSType } from './parse-stype'
+import { parseTreeFromReader } from './ergo-tree'
 
 export class SValueParseError extends Error {
   constructor(
@@ -254,12 +255,15 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       // tx_id + index for full ErgoBox):
       //
       //   value           — VLQ u64 (BoxValue wraps u64; plain VLQ, NOT ZigZag)
-      //   ergo_tree_bytes — self-delimiting: read header byte, if hasSize (bit 3)
-      //                     read VLQ body size then that many body bytes; raw
-      //                     bytes stored (no further parse — caller may call
-      //                     parseTree(ergoTreeBytes) separately). !hasSize trees
-      //                     require full body parse to bound the read; we error
-      //                     for those since all real boxes use v1+ (hasSize=true).
+      //   ergo_tree_bytes — self-delimiting via ErgoTree header. Sigma-rust
+      //                     calls `ErgoTree::sigma_parse(r)` on the shared
+      //                     reader (chain/ergo_box.rs:350). We mirror via
+      //                     `parseTreeFromReader` which handles both
+      //                     hasSize=true (size-prefixed body) and
+      //                     hasSize=false (body grammar self-delimits) as
+      //                     of phase 2j-pre fix-1. The captured byte range
+      //                     is stored verbatim on the SBox; downstream
+      //                     callers may re-parse via parseTree(bytes).
       //   creation_height — VLQ u32 (`put_u32`)
       //   tokens_count    — raw u8 (`put_u8`, NOT VLQ), capped at 122
       //   per-token       — 32-byte TokenId (raw) + VLQ u64 amount (`put_u64`)
@@ -272,22 +276,15 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       const value = r.readVlqBigInt()
 
       // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
+      // Sigma-rust calls `ErgoTree::sigma_parse(r)` on the shared reader
+      // at `chain/ergo_box.rs:350`. We mirror via `parseTreeFromReader`
+      // which handles both `hasSize=true` (size-prefixed bounded body)
+      // and `hasSize=false` (body grammar self-delimits) on the shared
+      // reader. The returned ErgoTree value is discarded here — the SBox
+      // only needs the raw bytes; downstream callers re-parse via the
+      // public `parseTree` if they want structural access.
       const treeStart = r.position
-      const headerByte = r.readU8()
-      const hasSize = (headerByte & 0x08) !== 0
-      if (!hasSize) {
-        // v0 trees with no hasSize flag cannot be safely extracted from a
-        // surrounding byte stream without fully parsing the body. All real
-        // on-chain boxes use v1+ (hasSize=true). Reject to avoid cursor
-        // desynchronisation.
-        throw new SValueParseError(
-          `SBox ergoTree header 0x${headerByte.toString(16).padStart(2, '0')} has hasSize=false; ` +
-            'cannot bound ergoTree read without full body parse',
-          'sbox-ergo-tree-no-size'
-        )
-      }
-      const bodySize = r.readVlqU()
-      r.readBytes(bodySize) // consume body bytes (cursor advances)
+      parseTreeFromReader(r)
       const ergoTreeBytes = r.slice(treeStart, r.position).slice()
 
       // --- creation_height (VLQ u32) ---
