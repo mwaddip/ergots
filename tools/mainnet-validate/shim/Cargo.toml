@@ -63,6 +63,17 @@ serde = { version = "1", features = ["derive"] }
 anyhow = "1"
 
 [dev-dependencies]
+# Cost-oracle unit tests (phase 2j-a/T3) construct synthetic PreHeader /
+# Header / Transaction / ErgoBox fixtures via sigma-rust's proptest-arbitrary
+# helpers. Enabling `arbitrary` on the relevant crates as dev-deps (not
+# production deps) keeps the shim binary lean — proptest impls only
+# compile in for `cargo test`.
+proptest = "1"
+sigma-test-util = { path = "../../../external/sigma-rust/sigma-test-util" }
+ergo-chain-types = { path = "../../../external/sigma-rust/ergo-chain-types", features = ["arbitrary"] }
+ergotree-ir = { path = "../../../external/sigma-rust/ergotree-ir", features = ["arbitrary"] }
+ergo-lib = { path = "../../../external/sigma-rust/ergo-lib", features = ["arbitrary"] }
+
 # Isolated tempdirs for sidecar unit tests. Matches enr-store's dev-dep
 # pin so the resolver doesn't pull a duplicate version.
 tempfile = "3"
