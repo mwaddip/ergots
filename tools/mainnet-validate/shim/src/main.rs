@@ -456,6 +456,26 @@ fn startup_check(store: &RedbModifierStore) -> Result<StartupOutcome> {
     Ok(StartupOutcome::Ok)
 }
 
+/// Expected genesis-box ids per network (defensive assertion target).
+///
+/// Mainnet — source: `ergo-node-rust/src/main.rs:3092-3096`
+/// (`mainnet_genesis_boxes_produce_correct_digest` test). Emission box
+/// at index 0, no_premine at 1, founders at 2.
+const EXPECTED_MAINNET_BOX_IDS: [&str; 3] = [
+    "b69575e11c5c43400bfead5976ee0d6245a1168396b2e2a4f384691f275d501c", // emission
+    "b8ce8cfe331e5eadfb0783bdc375c94413433f65e1e45857d71550d42e4d83bd", // no_premine
+    "5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda", // founders
+];
+
+/// Testnet — source: `external/sigma-rust/ergo-lib/src/chain/genesis.rs:
+/// 241-269`. Emission + founders ids are identical to mainnet (the 3
+/// boxes differ only in no_premine's R4-R8 register payloads).
+const EXPECTED_TESTNET_BOX_IDS: [&str; 3] = [
+    "b69575e11c5c43400bfead5976ee0d6245a1168396b2e2a4f384691f275d501c", // emission (same)
+    "3bfaf76c824df668822dfce71abaf688d0281f91c3ac2a271f92fa28c3efaac7", // no_premine
+    "5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda", // founders (same)
+];
+
 /// Construct the 3 Ergo genesis-state boxes (emission, no_premine,
 /// founders) for the given network and return `(box_id, sigma_serialize
 /// _bytes)` pairs ready for `UtxoIndex::open_or_create`'s `genesis_seed`.
@@ -465,6 +485,11 @@ fn startup_check(store: &RedbModifierStore) -> Result<StartupOutcome> {
 /// `MonetarySettings::default()`, the copied `FOUNDERS_PKS` constant
 /// (2-of-3 threshold), and the network-specific no-premine proof
 /// strings. Per spec Decision 1 + 4.
+///
+/// After construction, the function asserts each computed box id matches
+/// the hard-coded expected list per Decision 6. A mismatch fails fast at
+/// startup, guarding against silent drift if `MonetarySettings::default()`
+/// or `FOUNDERS_PKS` were to change upstream.
 fn build_genesis_seed(network: Network) -> Result<Vec<([u8; 32], Vec<u8>)>> {
     let settings = MonetarySettings::default();
 
@@ -487,7 +512,7 @@ fn build_genesis_seed(network: Network) -> Result<Vec<([u8; 32], Vec<u8>)>> {
     )
     .context("ergo_lib::chain::genesis::genesis_boxes")?;
 
-    [emission, no_premine, founders]
+    let seed: Vec<([u8; 32], Vec<u8>)> = [emission, no_premine, founders]
         .into_iter()
         .map(|b| -> Result<([u8; 32], Vec<u8>)> {
             let id: [u8; 32] = b.box_id().as_ref().try_into().unwrap();
@@ -496,7 +521,32 @@ fn build_genesis_seed(network: Network) -> Result<Vec<([u8; 32], Vec<u8>)>> {
                 .context("ErgoBox::sigma_serialize_bytes")?;
             Ok((id, bytes))
         })
-        .collect()
+        .collect::<Result<_>>()?;
+
+    // Decision 6: defensive expected-id assertion. Catches silent drift
+    // in MonetarySettings::default() / FOUNDERS_PKS / proof strings that
+    // would otherwise produce different box ids without surfacing as a
+    // bug until a missing-utxo halt much later in the walk.
+    let expected = match network {
+        Network::Mainnet => &EXPECTED_MAINNET_BOX_IDS,
+        Network::Testnet => &EXPECTED_TESTNET_BOX_IDS,
+    };
+    for (i, (id, _)) in seed.iter().enumerate() {
+        let actual_hex: String = id.iter().map(|b| format!("{b:02x}")).collect();
+        if actual_hex != expected[i] {
+            return Err(anyhow!(
+                "genesis box id mismatch at index {i} for {network:?}: \
+                 expected {}, got {actual_hex}. This means the constructed \
+                 box differs from the chain's recorded id — likely due to \
+                 upstream changes in MonetarySettings::default() or the \
+                 FOUNDERS_PKS constant. Re-check shim/src/genesis_constants.rs \
+                 against ergo-node-rust/src/main.rs:33-57.",
+                expected[i]
+            ));
+        }
+    }
+
+    Ok(seed)
 }
 
 /// Minimal hex-string decoder. Avoids adding the `hex` crate just for
@@ -521,5 +571,41 @@ fn hex_nibble(c: u8) -> Result<u8> {
         b'a'..=b'f' => Ok(10 + c - b'a'),
         b'A'..=b'F' => Ok(10 + c - b'A'),
         _ => Err(anyhow!("non-hex char: 0x{c:02x}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Decision 6 — Network-specific box-id assertion.
+    /// Mirrors `ergo-node-rust/src/main.rs:3085-3104`'s
+    /// `mainnet_genesis_boxes_produce_correct_digest` test for mainnet,
+    /// and cross-checks against sigma-rust's own testnet test at
+    /// `external/sigma-rust/ergo-lib/src/chain/genesis.rs:241-269`.
+    #[test]
+    fn build_genesis_seed_mainnet_produces_expected_box_ids() {
+        let seed = build_genesis_seed(Network::Mainnet).expect("mainnet seed");
+        assert_eq!(seed.len(), 3, "expected 3 mainnet genesis boxes");
+        for (i, (id, _)) in seed.iter().enumerate() {
+            let hex: String = id.iter().map(|b| format!("{b:02x}")).collect();
+            assert_eq!(
+                hex, EXPECTED_MAINNET_BOX_IDS[i],
+                "mainnet box {i} id mismatch"
+            );
+        }
+    }
+
+    #[test]
+    fn build_genesis_seed_testnet_produces_expected_box_ids() {
+        let seed = build_genesis_seed(Network::Testnet).expect("testnet seed");
+        assert_eq!(seed.len(), 3, "expected 3 testnet genesis boxes");
+        for (i, (id, _)) in seed.iter().enumerate() {
+            let hex: String = id.iter().map(|b| format!("{b:02x}")).collect();
+            assert_eq!(
+                hex, EXPECTED_TESTNET_BOX_IDS[i],
+                "testnet box {i} id mismatch"
+            );
+        }
     }
 }
