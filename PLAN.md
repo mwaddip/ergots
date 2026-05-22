@@ -1130,7 +1130,7 @@ EOF
 
 - [ ] **Step 1: Halt path test**
 
-Run the harness against a non-existent --store-path → shim fails → harness writes error-report → assert error-report.json structure.
+Run the harness against a non-existent --store-path → shim fails → harness exits 1 with `ShimError` on stderr. NOTE: per `halt-path.test.ts`, startup-halts do NOT write `error-report.json` (the failure is in the startup arm at `main.ts:118-189`, before the per-block `tryValidateBlock` catch arm that writes the sidecar at `main.ts:443-452`). Mid-walk halts DO write the sidecar — both behaviors are pinned by the two test cases.
 
 - [ ] **Step 2: Resume path test**
 

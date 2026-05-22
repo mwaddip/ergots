@@ -10,7 +10,7 @@ The harness is a developer tool, not a published surface. It is the loom on whic
 
 - A locally running (or fully synced + stopped) `ergo-node-rust` **full-archive** node, with both Headers and BlockTransactions present from genesis. Nodes started with `utxo_bootstrap = true` leave a gap from genesis to the snapshot height and the shim's startup check will refuse to proceed — only `utxo_bootstrap = false` archives walk cleanly. (`blocks_to_keep = 0` is a peer-handshake flag and does NOT gate local storage; empirically verified during T2.)
 - Rust toolchain (stable). The shim crate sits OUTSIDE both the ergots and ergo-node-rust workspaces but path-deps into both; cargo resolves the graph transparently.
-- Node.js ≥ 20. The harness is ESM, uses `node:fs`/`node:child_process`, and depends on the four `@ergots/*` workspace packages via `file:` deps.
+- Node.js ≥ 20. The harness is ESM, uses `node:fs`/`node:child_process`, and depends on three `@ergots/*` workspace packages via `file:` deps (`scorex`, `ergoscript`, `avltree`; not `nipopow` — though the checkpoint records all four versions for mismatch detection, the nipopow package is read off-disk for its version string only).
 - Disk: the sidecar UTXO index grows to ~5 GB at mainnet tip; RAM during the walk runs ~1-3 GB.
 
 ## Build
