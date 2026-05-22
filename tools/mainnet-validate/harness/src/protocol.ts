@@ -321,7 +321,7 @@ class FrameBuffer {
  *
  * # Lifecycle
  *
- * 1. `await ShimClient.spawn(shimPath, storePath, sidecarPath)` — launches
+ * 1. `await ShimClient.spawn(shimPath, storePath, sidecarPath, network)` — launches
  *    the shim with the two store paths as argv. Stdin/stdout are piped;
  *    stderr is forwarded to the parent's stderr so shim diagnostics
  *    (e.g. startup banner, walker progress) are visible.
@@ -416,9 +416,21 @@ export class ShimClient {
         });
     }
 
-    /** Spawn the shim subprocess. Does NOT wait for any startup readiness signal — the first request will block on stdout. */
-    static spawn(shimPath: string, storePath: string, sidecarPath: string): ShimClient {
-        const proc = spawn(shimPath, [storePath, sidecarPath], {
+    /**
+     * Spawn the shim subprocess. Does NOT wait for any startup readiness
+     * signal — the first request will block on stdout.
+     *
+     * `network` selects which Ergo network's genesis-state boxes the shim
+     * seeds into the sidecar UTXO index (phase 2j-pre fix-2). The shim
+     * accepts `--network mainnet|testnet` as an interleaved CLI flag.
+     */
+    static spawn(
+        shimPath: string,
+        storePath: string,
+        sidecarPath: string,
+        network: 'mainnet' | 'testnet',
+    ): ShimClient {
+        const proc = spawn(shimPath, ['--network', network, storePath, sidecarPath], {
             stdio: ['pipe', 'pipe', 'pipe'],
         });
         return new ShimClient(proc);

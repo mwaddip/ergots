@@ -361,7 +361,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         return 2;
     }
 
-    const shim = ShimClient.spawn(args.shimPath, args.storePath, args.sidecarPath);
+    const shim = ShimClient.spawn(args.shimPath, args.storePath, args.sidecarPath, args.network);
     try {
         // Step 1: shim tip query — also the implicit "did the shim start up
         // and accept its argv" smoke check. A failure here is a setup bug,
