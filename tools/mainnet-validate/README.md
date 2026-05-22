@@ -106,7 +106,7 @@ The harness halts on the **first** divergence and writes a structured `error-rep
   "height": 3849,
   "phase": "output-roundtrip",          // see "phase classes" below
   "errorClass": "HarnessError",
-  "errorCode": "sbox-ergo-tree-no-size",
+  "errorCode": "byte-roundtrip-mismatch",
   "message": "...",
   "stack": "...",                       // diagnostic; safe to ignore
   "location": {
@@ -126,7 +126,7 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 | `phase` | Source | Typical `errorCode` values |
 |---|---|---|
 | `header` | `validate-block.ts` header pass | `byte-roundtrip-mismatch`, `autolykos-v2-verify-false`, `v1-header-after-v2-activation`, `parent-link-mismatch` |
-| `output-roundtrip` | `validate-block.ts` per-output pass | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-parse-failed`, `tree-serialize-failed`, `sbox-ergo-tree-no-size` |
+| `output-roundtrip` | `validate-block.ts` per-output pass | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-parse-failed`, `tree-serialize-failed` |
 | `evaluate` | `validate-tx.ts` evaluate pass | per-`EvalError` code (see `facts/ergoscript-eval.md`) |
 | `verify-signature` | `validate-tx.ts` verifier pass | per-`VerifyError` code (see `facts/ergoscript-sigma.md`) |
 | `shim` | shim process (stdout CBOR error frames) | `missing-block`, `missing-utxo`, `missing-data-utxo`, `store-race`, `unknown-command` (plus any anyhow chain on shim startup failure) |
@@ -168,17 +168,17 @@ cpulimit -l 50 -p $(pgrep -f 'node.*main.js') &
 
 The shim's redb access is the heaviest IO path; `ionice -c idle` is more effective at quieting the harness for a desktop session than `nice` alone.
 
-## Current status: 2j-pre
+## Current status: 2j-pre fix-1 in progress
 
-The harness machinery is complete. T12's Layer-3 smoke walk against a 25 GB bootstrap-data snapshot (mainnet tip 1,790,510 at the time) surfaced **two scope gaps** that block clean validation of any block — every smoke attempt halted before validating ≥ 1 block. Header pass succeeded at every halt; the failure was always in the next pass. The shim ↔ harness IPC, UTXO sidecar forward-walk, and header validation are confirmed against real mainnet data through up to 3,848 contiguous blocks.
+The harness machinery is complete. T12's Layer-3 smoke walk against a 25 GB bootstrap-data snapshot (mainnet tip 1,790,510 at the time) surfaced **two scope gaps** that blocked clean validation of any block. Fix-1 (this phase) addresses the first; fix-2 (separate spec) addresses the second.
 
-The two fix-list items become 2j proper's first work:
+Fix-list:
 
-1. **TS — `packages/ergoscript/src/wire/parse-svalue.ts:278-287`:** `parseSValue(SBox)` rejects v0 ErgoTrees with `hasSize=false` (header byte's bit-3 clear) with `errorCode: sbox-ergo-tree-no-size`. The existing comment at line 280-282 ("all real on-chain boxes use v1+") is wrong — ≥99% of mainnet boxes use v0 P2PK trees with no size prefix. Confirmed by halts at heights 1, 1000, and 3849. Fixing this requires either (a) full body parse via the wire-layer `parseTree` machinery, or (b) a length-determining body walker. This is the single largest scope item before any block can validate cleanly.
+1. **RESOLVED in phase 2j-pre fix-1** (2026-05-22) — `parseSValue(SBox)` now handles v0+hasSize=false ErgoTrees via the new `parseTreeFromReader` helper on the shared reader, mirroring sigma-rust's `chain/ergo_box.rs:350`. See `docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md`.
 
-2. **Shim — `tools/mainnet-validate/shim/src/block_walker.rs:535`:** at `ingest_block(3850)` the sidecar `MissingUtxo` for box `55274304…3c88aeda` reproduces deterministically across runs (T12 attempts 2 and 3 both halt there). The walker uses `ergo-lib`'s `out.box_id()` to key index inserts and `Transaction::sigma_parse` + `input.box_id` for lookups. Hypotheses: sigma-rust round-trip via `sigma_serialize_bytes` produces a different byte image than the on-chain box at insert time, OR a fork-replacement issue earlier in the chain left an orphan in the index. Triage path: dump `box_id` of every output at heights 3000-3849 from a Rust scan, compare to the box referenced by block 3850's first input.
+2. **STILL OPEN — `tools/mainnet-validate/shim/src/block_walker.rs:535`:** at `ingest_block(3850)` the sidecar `MissingUtxo` for box `55274304…3c88aeda` reproduces deterministically across runs (T12 attempts 2 and 3 both halt there). The walker uses `ergo-lib`'s `out.box_id()` to key index inserts and `Transaction::sigma_parse` + `input.box_id` for lookups. Hypotheses: sigma-rust round-trip via `sigma_serialize_bytes` produces a different byte image than the on-chain box at insert time, OR a fork-replacement issue earlier in the chain left an orphan in the index. Triage path: dump `box_id` of every output at heights 3000-3849 from a Rust scan, compare to the box referenced by block 3850's first input. Fix-2 spec TBD.
 
-Until these close, no smoke walk can demonstrate a clean ≥1-block validation. They are the front of 2j proper's fix-list.
+Beyond fix-1+fix-2, downstream halts surfaced during fix-1's Layer-3 smoke re-run feed 2j proper's calibration corpus as additional fix-list items.
 
 ## Known limits
 
