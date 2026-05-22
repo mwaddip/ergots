@@ -57,7 +57,31 @@ pub struct InputBundle {
     pub spent_box_bytes: Vec<u8>,
     pub signature_bytes: Vec<u8>,
     pub context_extension: Vec<ContextExtensionEntry>,
+    // Phase 2j-a additions. The shim computes sigma-rust's per-input cost
+    // via `cost_oracle::compute_oracle_cost` and emits the result here.
+    // The harness's validate-tx evaluate-pass compares `oracle_cost`
+    // against our `ctx.jitCost` and halts on mismatch via the
+    // `'evaluate-cost'` or `'evaluate-oracle-mismatch'` phase classes.
+    //
+    // `oracle_cost` is RAW JitCost (the accumulator value sigma-rust
+    // tracks on `Context::jit_cost`), NOT block cost (which would be
+    // `oracle_cost / 10`). Our TS `ctx.jitCost` mirrors raw JitCost, so
+    // direct equality comparison works.
+    //
+    // CBOR encoding is wire-additive (struct-as-map with named keys), so
+    // pre-2j-a harness builds reading new shim bundles would tolerate the
+    // new keys. PROTOCOL_VERSION bump (declared below) makes the schema
+    // mismatch detectable at startup rather than at first-block decode.
+    pub oracle_cost: u64,
+    pub oracle_succeeded: bool,
+    pub oracle_error: Option<String>,
 }
+
+/// Shim wire-protocol version. Bumped at phase 2j-a (v1 -> v2) when
+/// `InputBundle` gained the `oracle_*` fields. The shim emits this at
+/// startup; the harness rejects mismatched versions with a clear stderr
+/// message rather than crashing on missing-field at the first block.
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// Single (varId, serialized-Constant-bytes) pair from an input's
 /// `ContextExtension::values`. Kept as a separate struct so the CBOR
@@ -381,6 +405,9 @@ mod tests {
                             value_bytes: vec![0x05, 0xFE],
                         },
                     ],
+                    oracle_cost: 0,
+                    oracle_succeeded: false,
+                    oracle_error: None,
                 }],
                 outputs: vec![vec![0xAAu8; 100], vec![0xBBu8; 60]],
                 data_input_boxes: vec![vec![0xCCu8; 80]],
@@ -421,6 +448,59 @@ mod tests {
         assert_eq!(
             parsed.error.message,
             "no canonical header at height 999999"
+        );
+    }
+
+    /// Phase 2j-a: InputBundle carrying oracle_cost (success path) survives
+    /// the CBOR round-trip. Asserts the new oracle_* fields encode and
+    /// decode byte-equal.
+    #[test]
+    fn input_bundle_with_oracle_cost_roundtrips() {
+        let original = InputBundle {
+            box_id: [0x11u8; 32],
+            spent_box_bytes: vec![0xde, 0xad, 0xbe, 0xef],
+            signature_bytes: vec![0xca, 0xfe],
+            context_extension: vec![],
+            oracle_cost: 12_345_u64,
+            oracle_succeeded: true,
+            oracle_error: None,
+        };
+
+        let mut buf = Vec::new();
+        ciborium::ser::into_writer(&original, &mut buf).expect("encode");
+        let decoded: InputBundle = ciborium::de::from_reader(&buf[..]).expect("decode");
+
+        assert_eq!(decoded, original);
+        assert_eq!(decoded.oracle_cost, 12_345_u64);
+        assert!(decoded.oracle_succeeded);
+        assert!(decoded.oracle_error.is_none());
+    }
+
+    /// Phase 2j-a: InputBundle carrying oracle_error (failure path) survives
+    /// the CBOR round-trip. Exercises Option<String> encoding for the
+    /// error_msg case where sigma-rust's reduce_to_crypto threw.
+    #[test]
+    fn input_bundle_with_oracle_error_roundtrips() {
+        let original = InputBundle {
+            box_id: [0x22u8; 32],
+            spent_box_bytes: vec![],
+            signature_bytes: vec![],
+            context_extension: vec![],
+            oracle_cost: 42_u64,
+            oracle_succeeded: false,
+            oracle_error: Some("simulated reduce_to_crypto error".to_string()),
+        };
+
+        let mut buf = Vec::new();
+        ciborium::ser::into_writer(&original, &mut buf).expect("encode");
+        let decoded: InputBundle = ciborium::de::from_reader(&buf[..]).expect("decode");
+
+        assert_eq!(decoded, original);
+        assert_eq!(decoded.oracle_cost, 42_u64);
+        assert!(!decoded.oracle_succeeded);
+        assert_eq!(
+            decoded.oracle_error.as_deref(),
+            Some("simulated reduce_to_crypto error")
         );
     }
 }

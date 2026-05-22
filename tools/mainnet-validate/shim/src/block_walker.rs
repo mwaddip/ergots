@@ -548,6 +548,15 @@ fn walk_transaction(
             spent_box_bytes,
             signature_bytes,
             context_extension,
+            // Phase 2j-a T4: stub the new oracle_* fields with sentinel
+            // values. T5 wires the real cost_oracle::compute_oracle_cost
+            // invocation here. Until T5 lands, harness comparisons against
+            // these stubs would always fail — but the harness's new
+            // cost-diff logic also isn't wired until T7, so the stubs are
+            // harmless in the intermediate state.
+            oracle_cost: 0,
+            oracle_succeeded: false,
+            oracle_error: Some("cost-oracle not yet wired (T5 pending)".to_string()),
         });
     }
 
