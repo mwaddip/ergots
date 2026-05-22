@@ -48,6 +48,7 @@
 //! Decisions 3, 6, 7, 8, 11.
 
 mod block_walker;
+mod genesis_constants;
 mod protocol;
 mod utxo_index;
 
