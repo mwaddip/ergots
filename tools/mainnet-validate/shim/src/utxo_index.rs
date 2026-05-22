@@ -380,6 +380,65 @@ mod tests {
     }
 
     #[test]
+    fn open_or_create_seeds_genesis_boxes_on_fresh_init() {
+        let (_dir, path) = fresh_path();
+        let hash = [0x11u8; 32];
+
+        // 3 synthetic seed entries. The actual genesis box ids/bytes don't
+        // matter for THIS test — we're verifying the seeding mechanism, not
+        // box-id derivation (that's covered by the network-id assertion test).
+        let seed_entries: Vec<([u8; 32], Vec<u8>)> = (0..3)
+            .map(|i| {
+                let mut id = [0u8; 32];
+                id[0] = i as u8;
+                (id, vec![0xFF; 50 + i as usize])
+            })
+            .collect();
+
+        let idx = UtxoIndex::open_or_create(&path, &hash, &seed_entries).expect("open");
+
+        // All 3 seeded boxes are queryable.
+        for (id, expected_bytes) in &seed_entries {
+            let got = idx.get(id).expect("get seed").expect("seed present");
+            assert_eq!(got, *expected_bytes);
+        }
+
+        // indexed_up_to_height is still 0 (seeding doesn't advance the marker).
+        assert_eq!(idx.indexed_up_to_height().expect("marker"), 0);
+    }
+
+    #[test]
+    fn open_or_create_re_seeds_on_rebuild() {
+        let (_dir, path) = fresh_path();
+
+        let seed_entries: Vec<([u8; 32], Vec<u8>)> = vec![
+            ([0xAAu8; 32], vec![1, 2, 3]),
+            ([0xBBu8; 32], vec![4, 5, 6]),
+            ([0xCCu8; 32], vec![7, 8, 9]),
+        ];
+
+        // First open with hash_a — seeds 3 boxes.
+        {
+            let idx = UtxoIndex::open_or_create(&path, &[0xA1u8; 32], &seed_entries)
+                .expect("first open");
+            assert_eq!(idx.get(&[0xAAu8; 32]).expect("get"), Some(vec![1, 2, 3]));
+        }
+
+        // Reopen with DIFFERENT hash — triggers rebuild. Seeds must re-apply.
+        let idx = UtxoIndex::open_or_create(&path, &[0xA2u8; 32], &seed_entries)
+            .expect("rebuild reopen");
+        for (id, bytes) in &seed_entries {
+            assert_eq!(
+                idx.get(id).expect("get post-rebuild").as_ref(),
+                Some(bytes),
+                "seed entry {:?} should re-apply on rebuild",
+                &id[..4]
+            );
+        }
+        assert_eq!(idx.indexed_up_to_height().expect("marker post-rebuild"), 0);
+    }
+
+    #[test]
     fn hash_mismatch_triggers_rebuild() {
         let (_dir, path) = fresh_path();
         let hash_a = [0x01u8; 32];
