@@ -508,35 +508,31 @@ fn walk_transaction(
         outputs.push(box_bytes);
     }
 
-    // Inputs: at genesis there's nothing to remove (synthetic emission
-    // box lives outside the index). Off-genesis, each input MUST resolve
-    // to an index entry — a miss is a `missing-utxo` consensus violation.
+    // Inputs: each input MUST resolve to an index entry — a miss is a
+    // `missing-utxo` consensus violation. Per phase 2j-pre fix-2 the
+    // sidecar is now seeded with the 3 Ergo genesis-state boxes
+    // (emission, no_premine, founders) at init time, so the previous
+    // GENESIS_HEIGHT input-skip special-case (fix-1 era) is obsolete:
+    // at height 1, the emission spend resolves cleanly via the standard
+    // walker path.
     let mut input_bundles = Vec::with_capacity(tx.inputs.len());
     for (in_idx, input) in tx.inputs.iter().enumerate() {
         let box_id_arr: [u8; 32] = input.box_id.as_ref().try_into()
             .expect("BoxId is always 32 bytes");
 
-        let spent_box_bytes = if height == GENESIS_HEIGHT {
-            // Genesis: skip lookup-and-remove. Emit an empty spent-box
-            // payload so the harness sees a stable shape; downstream
-            // passes (T9 round-trip / T10 verify) should be skipping
-            // genesis inputs anyway (no real spent box exists).
-            Vec::new()
-        } else {
-            index
-                .remove(&box_id_arr)
-                .with_context(|| {
-                    format!(
-                        "UtxoIndex remove for tx #{tx_idx} input #{in_idx} \
-                         (box_id {}) at height {height}",
-                        hex_short(&box_id_arr)
-                    )
-                })?
-                .ok_or(WalkerError::MissingUtxo {
-                    box_id: box_id_arr,
-                    height,
-                })?
-        };
+        let spent_box_bytes = index
+            .remove(&box_id_arr)
+            .with_context(|| {
+                format!(
+                    "UtxoIndex remove for tx #{tx_idx} input #{in_idx} \
+                     (box_id {}) at height {height}",
+                    hex_short(&box_id_arr)
+                )
+            })?
+            .ok_or(WalkerError::MissingUtxo {
+                box_id: box_id_arr,
+                height,
+            })?;
 
         let signature_bytes = input.spending_proof.proof.clone().to_bytes();
         let context_extension =
@@ -903,64 +899,97 @@ mod tests {
     /// Integration test: a synthetic genesis-height block survives the
     /// full `ingest_block` walk path end-to-end.
     ///
-    /// Construction recipe (option (a) from the T5 quality-review
-    /// rubric):
-    /// 1. Build one P2PK `ErgoBoxCandidate` (value = SAFE_USER_MIN,
-    ///    pubkey = secp256k1 generator point, additional_registers
-    ///    empty).
-    /// 2. Wrap it in a single-input `Transaction`. The input box_id
-    ///    is `[0x00; 32]` — at genesis, `ingest_block` SKIPS the
-    ///    UTXO-index lookup-and-remove for inputs (per
-    ///    `GENESIS_HEIGHT` special-case), so the input doesn't need
-    ///    to correspond to any pre-existing index entry. This is the
-    ///    whole reason genesis is the cheap-to-test height.
-    /// 3. Serialize the tx via `Transaction::sigma_serialize_bytes`.
-    /// 4. Hand-craft a v2 Ergo `Header` with `transaction_root =
-    ///    blake2b256(tx_bytes)` (technically the wire format uses a
-    ///    merkle root, but `ingest_block` just READS the field —
-    ///    nothing here checks tx_root vs. txs) and
-    ///    `extension_root = blake2b256(empty_extension_bytes)`.
-    /// 5. Serialize the Header via `scorex_serialize`.
-    /// 6. Write everything into a temp `RedbModifierStore`:
-    ///    - `put_header` for type 101 with the header bytes.
-    ///    - `put` for type 102 (BlockTransactions) with
-    ///      [header_id || tx_count_vlq=1 || tx_bytes].
-    ///    - `put` for type 108 (Extension) with [header_id ||
-    ///      field_count_vlq=0].
-    /// 7. Open a sidecar `UtxoIndex` in another temp file.
-    /// 8. Call `ingest_block(GENESIS_HEIGHT, &store, &sidecar)`.
-    /// 9. Assert the returned `BlockBundle` has the right shape:
-    ///    - height = 1
-    ///    - block_id matches what we derived for the header
-    ///    - one transaction with the right tx_id, one input with
-    ///      empty `spent_box_bytes` (genesis skip), and one output
-    ///      with the box bytes we serialized
-    ///    - the sidecar boxes table contains the output's
-    ///      sigma_serialize bytes under its box_id (i.e. INSERT
+    /// Construction recipe (revised for phase 2j-pre fix-2):
+    /// 1. Construct the 3 Ergo mainnet genesis-state boxes via
+    ///    `ergo_lib::chain::genesis::genesis_boxes(...)` with
+    ///    `MonetarySettings::default()` + the FOUNDERS_PKS / mainnet
+    ///    no-premine proof strings from `genesis_constants.rs`.
+    /// 2. Build a P2PK output box (value = SAFE_USER_MIN, pubkey =
+    ///    secp256k1 generator point).
+    /// 3. Build a single-input `Transaction` whose input box_id is
+    ///    the EMISSION box's id (the canonical id sigma-rust derives
+    ///    via blake2b256(sigma_serialize_bytes)). The walker no
+    ///    longer special-cases GENESIS_HEIGHT (per spec Decision 3);
+    ///    the input MUST resolve to an entry in the seeded sidecar.
+    /// 4. Serialize tx + header; write into temp store.
+    /// 5. Open sidecar seeded with the 3 genesis boxes (matches the
+    ///    production flow that main.rs now wires via T5a).
+    /// 6. Call `ingest_block(GENESIS_HEIGHT, &store, &sidecar)`.
+    /// 7. Assertions:
+    ///    - bundle shape (height, block_id, parent_id, header_bytes).
+    ///    - one transaction with one input whose `spent_box_bytes`
+    ///      equals the seeded emission box's sigma_serialize_bytes
+    ///      (REMOVE captured the seeded bytes).
+    ///    - one output INSERTed into the sidecar.
+    ///    - the emission box is no longer in the sidecar (REMOVE
     ///      happened).
+    ///    - the OTHER two genesis-state boxes (no_premine, founders)
+    ///      are still in the sidecar (untouched by this block).
     ///
-    /// We deliberately keep the construction at GENESIS because the
-    /// alternative — a non-genesis block referencing a prior output
-    /// — would require building a valid `parent_id` chain (two
-    /// stored headers, both passing `read_header_at`). The genesis
-    /// path covers exactly the behaviour the quality review flagged
-    /// as untested: a real walk through `parse_and_walk_transactions`
-    /// that actually mutates the sidecar.
+    /// This rewrites the previous version which used
+    /// `BoxId::zero()` as input + asserted `spent_box_bytes.is_empty()`.
+    /// That version relied on the GENESIS_HEIGHT input-skip
+    /// special-case removed in T7 of the fix-2 plan.
     #[test]
     fn ingest_block_walks_synthetic_genesis_block_end_to_end() {
+        use crate::genesis_constants::{FOUNDERS_PKS, MAINNET_NO_PREMINE_PROOFS};
+        use ergo_lib::chain::emission::MonetarySettings;
+        use ergo_lib::chain::genesis;
         use ergo_lib::chain::transaction::input::Input;
         use ergo_lib::chain::transaction::prover_result::ProverResult;
         use ergo_lib::ergo_chain_types::{
-            blake2b256_hash, ec_point, AutolykosSolution, BlockId, Digest, Digest32, Header,
-            Votes,
+            blake2b256_hash, ec_point, AutolykosSolution, BlockId, Digest, Digest32, EcPoint,
+            Header, Votes,
         };
         use ergo_lib::ergotree_interpreter::sigma_protocol::prover::ProofBytes;
+        use ergo_lib::ergotree_ir::sigma_protocol::sigma_boolean::ProveDlog;
         use ergotree_ir::chain::context_extension::ContextExtension;
         use ergotree_ir::chain::ergo_box::box_value::BoxValue;
         use ergotree_ir::chain::ergo_box::{BoxId, ErgoBoxCandidate, NonMandatoryRegisters};
         use ergotree_ir::ergo_tree::ErgoTree;
         use sigma_ser::vlq_encode::WriteSigmaVlqExt;
         use tempfile::TempDir;
+
+        // ----- Step 0: build the 3 Ergo genesis-state boxes (mainnet) -----
+        let settings = MonetarySettings::default();
+        // Hex-decode founder pubkeys (verbatim copy of main.rs:hex_decode logic).
+        fn hex_decode(s: &str) -> Vec<u8> {
+            let mut out = Vec::with_capacity(s.len() / 2);
+            for chunk in s.as_bytes().chunks(2) {
+                let hi = (chunk[0] as char).to_digit(16).unwrap() as u8;
+                let lo = (chunk[1] as char).to_digit(16).unwrap() as u8;
+                out.push((hi << 4) | lo);
+            }
+            out
+        }
+        let founders_pks: Vec<ProveDlog> = FOUNDERS_PKS
+            .iter()
+            .map(|s| {
+                let bytes = hex_decode(s);
+                let point = EcPoint::sigma_parse_bytes(&bytes).expect("EcPoint parse");
+                ProveDlog::new(point)
+            })
+            .collect();
+        let (emission_box, no_premine_box, founders_box) = genesis::genesis_boxes(
+            &settings,
+            &founders_pks,
+            2,
+            MAINNET_NO_PREMINE_PROOFS,
+        )
+        .expect("genesis_boxes");
+
+        let emission_id: [u8; 32] = emission_box.box_id().as_ref().try_into().unwrap();
+        let emission_bytes = emission_box.sigma_serialize_bytes().expect("emission ser");
+        let no_premine_id: [u8; 32] = no_premine_box.box_id().as_ref().try_into().unwrap();
+        let no_premine_bytes = no_premine_box.sigma_serialize_bytes().expect("np ser");
+        let founders_id: [u8; 32] = founders_box.box_id().as_ref().try_into().unwrap();
+        let founders_bytes = founders_box.sigma_serialize_bytes().expect("founders ser");
+
+        let genesis_seed: Vec<([u8; 32], Vec<u8>)> = vec![
+            (emission_id, emission_bytes.clone()),
+            (no_premine_id, no_premine_bytes.clone()),
+            (founders_id, founders_bytes.clone()),
+        ];
 
         // ----- Step 1: build the P2PK output box. -----
         // Minimal valid ergo_tree (no constant segregation header
@@ -993,11 +1022,12 @@ mod tests {
         };
 
         // ----- Step 2: build the transaction. -----
-        // The input box_id is irrelevant at genesis (no lookup) but
-        // must be 32 bytes. Use zeros — we can later assert this
-        // sentinel made it into `bundle.transactions[0].inputs[0].box_id`.
+        // The input spends the seeded emission box. After T7 (genesis
+        // special-case removal) the walker REMOVEs this entry from the
+        // sidecar via standard semantics; the lookup MUST find it.
+        let emission_box_id_typed: BoxId = Digest::from(emission_id).into();
         let input = Input::new(
-            BoxId::zero(),
+            emission_box_id_typed.clone(),
             ProverResult {
                 proof: ProofBytes::Empty,
                 extension: ContextExtension::empty(),
@@ -1107,11 +1137,14 @@ mod tests {
             .put(EXTENSION_TYPE_ID, &ext_id, GENESIS_HEIGHT, &ext_payload)
             .expect("put extension");
 
-        // ----- Step 7: open a sidecar at a fresh path. -----
+        // ----- Step 7: open a sidecar SEEDED with the 3 genesis boxes. -----
+        // This mirrors what main.rs:154 does in production via T5a.
+        // Without the seed, the walker's REMOVE of the emission box at
+        // step 8 would miss with WalkerError::MissingUtxo.
         let sidecar_dir = TempDir::new().expect("sidecar tempdir");
         let sidecar_path = sidecar_dir.path().join("utxo-index.redb");
-        let sidecar = UtxoIndex::open_or_create(&sidecar_path, &header_id, &[])
-            .expect("open sidecar");
+        let sidecar = UtxoIndex::open_or_create(&sidecar_path, &header_id, &genesis_seed)
+            .expect("open sidecar with genesis seed");
 
         // ----- Step 8: invoke ingest_block end-to-end. -----
         let bundle = ingest_block(GENESIS_HEIGHT, &store, &sidecar).expect("ingest_block");
@@ -1126,12 +1159,31 @@ mod tests {
         assert_eq!(tx_bundle.tx_id, tx.id().0.0, "tx_id matches sigma-rust id()");
         assert_eq!(tx_bundle.inputs.len(), 1, "one input");
         assert_eq!(
-            tx_bundle.inputs[0].box_id, [0u8; 32],
-            "input box_id is the sentinel we put in"
+            tx_bundle.inputs[0].box_id, emission_id,
+            "input box_id is the emission box id from the seed"
         );
-        assert!(
-            tx_bundle.inputs[0].spent_box_bytes.is_empty(),
-            "genesis input has empty spent_box_bytes (lookup skipped)"
+        assert_eq!(
+            tx_bundle.inputs[0].spent_box_bytes, emission_bytes,
+            "input spent_box_bytes matches the seeded emission box (REMOVE captured it)"
+        );
+
+        // The other 2 genesis boxes (no_premine, founders) were
+        // untouched by this synthetic block; they remain in the sidecar.
+        assert_eq!(
+            sidecar.get(&no_premine_id).expect("get no_premine"),
+            Some(no_premine_bytes),
+            "no_premine still in sidecar"
+        );
+        assert_eq!(
+            sidecar.get(&founders_id).expect("get founders"),
+            Some(founders_bytes),
+            "founders still in sidecar"
+        );
+        // Emission box is gone (REMOVE happened).
+        assert_eq!(
+            sidecar.get(&emission_id).expect("get emission"),
+            None,
+            "emission box removed by the walker"
         );
         assert_eq!(tx_bundle.outputs.len(), 1, "one output");
         // The output bytes the walker captured must match what
