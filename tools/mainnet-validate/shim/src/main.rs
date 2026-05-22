@@ -56,9 +56,15 @@ use std::io::{self, BufRead};
 use std::path::Path;
 use std::process::ExitCode;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use enr_store::{ModifierStore, RedbModifierStore};
+use ergo_lib::chain::emission::MonetarySettings;
+use ergo_lib::chain::genesis;
+use ergo_lib::ergo_chain_types::EcPoint;
+use ergo_lib::ergotree_ir::serialization::SigmaSerializable;
+use ergo_lib::ergotree_ir::sigma_protocol::sigma_boolean::ProveDlog;
 
+use crate::genesis_constants::{Network, FOUNDERS_PKS};
 use crate::protocol::TipHeightResponse;
 use crate::utxo_index::UtxoIndex;
 
@@ -120,9 +126,33 @@ impl<E: Into<anyhow::Error>> From<E> for StartupOrIoError {
 
 fn run() -> Result<(), StartupOrIoError> {
     let args: Vec<String> = std::env::args().collect();
-    let usage = "usage: ergots-mainnet-validate-shim <modifiers.redb path> <sidecar.redb path>";
-    let store_path = args.get(1).context(usage)?;
-    let sidecar_path = args.get(2).context(usage)?;
+    let usage = "usage: ergots-mainnet-validate-shim \
+                 [--network mainnet|testnet] <modifiers.redb path> <sidecar.redb path>";
+
+    // Parse --network (optional, default mainnet) interleaved with positional
+    // args. Strip the flag pair and treat the rest as positional.
+    let mut network = Network::Mainnet;
+    let mut positional: Vec<&String> = Vec::with_capacity(2);
+    let mut i = 1usize;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--network" => {
+                let value = args
+                    .get(i + 1)
+                    .context("--network requires a value (mainnet|testnet)")?;
+                network = Network::from_str(value).ok_or_else(|| {
+                    anyhow!("--network value must be 'mainnet' or 'testnet', got: {value}")
+                })?;
+                i += 2;
+            }
+            _ => {
+                positional.push(&args[i]);
+                i += 1;
+            }
+        }
+    }
+    let store_path = positional.first().copied().context(usage)?;
+    let sidecar_path = positional.get(1).copied().context(usage)?;
 
     let store = RedbModifierStore::new(Path::new(store_path))
         .with_context(|| format!("opening modifier store at {store_path}"))?;
@@ -151,11 +181,24 @@ fn run() -> Result<(), StartupOrIoError> {
              net against future refactors of startup_check",
         )?;
 
-    // Pass empty seed for now — T5a will compute the real 3-box seed and
-    // pass it here. This keeps T4 (signature change) functionally
-    // equivalent to today's behavior; behavior change lands in T5a.
-    let sidecar = UtxoIndex::open_or_create(Path::new(sidecar_path), &source_store_hash, &[])
-        .with_context(|| format!("opening sidecar UTXO index at {sidecar_path}"))?;
+    // Compute the 3 genesis-state boxes (emission, no_premine, founders)
+    // for this network. These boxes exist outside any block transaction on
+    // the canonical chain; without seeding them, block-tx inputs at h>1
+    // that reference them would miss in the UTXO index. See spec
+    // docs/specs/2026-05-22-mainnet-validate-fix-2-genesis-box-seeding-design.md.
+    let genesis_seed = build_genesis_seed(network)
+        .context("constructing genesis-state box seed for sidecar")?;
+    eprintln!(
+        "shim: network={network:?}, computed {} genesis box(es) for sidecar seeding",
+        genesis_seed.len()
+    );
+
+    let sidecar = UtxoIndex::open_or_create(
+        Path::new(sidecar_path),
+        &source_store_hash,
+        &genesis_seed,
+    )
+    .with_context(|| format!("opening sidecar UTXO index at {sidecar_path}"))?;
     let indexed_height = sidecar
         .indexed_up_to_height()
         .context("reading sidecar indexed_up_to_height marker")?;
@@ -411,4 +454,72 @@ fn startup_check(store: &RedbModifierStore) -> Result<StartupOutcome> {
     }
 
     Ok(StartupOutcome::Ok)
+}
+
+/// Construct the 3 Ergo genesis-state boxes (emission, no_premine,
+/// founders) for the given network and return `(box_id, sigma_serialize
+/// _bytes)` pairs ready for `UtxoIndex::open_or_create`'s `genesis_seed`.
+///
+/// Mirrors `ergo-node-rust/src/main.rs:81-114` (`build_genesis_boxes`)
+/// exactly — same call to `ergo_lib::chain::genesis::genesis_boxes` with
+/// `MonetarySettings::default()`, the copied `FOUNDERS_PKS` constant
+/// (2-of-3 threshold), and the network-specific no-premine proof
+/// strings. Per spec Decision 1 + 4.
+fn build_genesis_seed(network: Network) -> Result<Vec<([u8; 32], Vec<u8>)>> {
+    let settings = MonetarySettings::default();
+
+    let founders_pks: Vec<ProveDlog> = FOUNDERS_PKS
+        .iter()
+        .map(|hex_str| -> Result<ProveDlog> {
+            let bytes = hex_decode(hex_str)
+                .with_context(|| format!("decoding founder pk hex {hex_str}"))?;
+            let point = EcPoint::sigma_parse_bytes(&bytes)
+                .with_context(|| format!("parsing founder pk EcPoint from {hex_str}"))?;
+            Ok(ProveDlog::new(point))
+        })
+        .collect::<Result<_>>()?;
+
+    let (emission, no_premine, founders) = genesis::genesis_boxes(
+        &settings,
+        &founders_pks,
+        2, // 2-of-3 threshold (per ergo-node-rust main.rs:101)
+        network.no_premine_proofs(),
+    )
+    .context("ergo_lib::chain::genesis::genesis_boxes")?;
+
+    [emission, no_premine, founders]
+        .into_iter()
+        .map(|b| -> Result<([u8; 32], Vec<u8>)> {
+            let id: [u8; 32] = b.box_id().as_ref().try_into().unwrap();
+            let bytes = b
+                .sigma_serialize_bytes()
+                .context("ErgoBox::sigma_serialize_bytes")?;
+            Ok((id, bytes))
+        })
+        .collect()
+}
+
+/// Minimal hex-string decoder. Avoids adding the `hex` crate just for
+/// 3 hard-coded constants. Accepts lowercase or uppercase; rejects
+/// odd-length or non-hex chars.
+fn hex_decode(s: &str) -> Result<Vec<u8>> {
+    if s.len() % 2 != 0 {
+        return Err(anyhow!("hex string has odd length: {}", s.len()));
+    }
+    let mut out = Vec::with_capacity(s.len() / 2);
+    for chunk in s.as_bytes().chunks(2) {
+        let hi = hex_nibble(chunk[0])?;
+        let lo = hex_nibble(chunk[1])?;
+        out.push((hi << 4) | lo);
+    }
+    Ok(out)
+}
+
+fn hex_nibble(c: u8) -> Result<u8> {
+    match c {
+        b'0'..=b'9' => Ok(c - b'0'),
+        b'a'..=b'f' => Ok(10 + c - b'a'),
+        b'A'..=b'F' => Ok(10 + c - b'A'),
+        _ => Err(anyhow!("non-hex char: 0x{c:02x}")),
+    }
 }
