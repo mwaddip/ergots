@@ -1,10 +1,8 @@
 /**
- * Integration test: harness halt path (Layer 4 of the mainnet-validate
- * spec).
+ * Integration test: harness halt path + clean-walk path (Layer 4 of the
+ * mainnet-validate spec).
  *
- * Two scenarios are exercised here as separate `it(...)` cases because
- * the harness writes different sidecars depending on WHEN the failure
- * fires:
+ * Two scenarios are exercised here as separate `it(...)` cases:
  *
  *   1. **Startup halt** — the shim's initial `GET_TIP_HEIGHT` call fails
  *      (here: the shim is pointed at a fresh empty redb path it
@@ -16,18 +14,22 @@
  *      reserved for per-block fetch / validation failures with a known
  *      height, not for setup failures with no height context.
  *
- *   2. **Mid-walk halt** — a per-block failure that fires inside the
- *      walk loop (post-startup), exercising the catch arm at `main.ts`
- *      line 443-452 which writes `error-report.json` with phase,
- *      errorClass, errorCode, location, and a bundle excerpt, then
- *      returns exit code 1. After phase 2j-pre fix-1 (sbox-ergo-tree-no-size
- *      RESOLVED 2026-05-22), the previous-per-block library halt at h=1
- *      is gone; heights 1..3849 now validate cleanly. The next stable
- *      halt site is the shim walker bug at h=3850 (fix-list item 2,
- *      separate spec): phase 'shim', errorCode 'missing-utxo'. We
- *      assert against that halt site here. When fix-2 lands and the
- *      shim halt vanishes too, this test will need to either migrate
- *      to the next stable halt or switch to deliberate fault injection.
+ *   2. **Clean tip-reach** — a short walk against the real bootstrap-data
+ *      snapshot that completes without halting. After phase 2j-pre fix-3
+ *      (Or/Xor/Atleast exprTpe arms RESOLVED 2026-05-22), the harness
+ *      walks heights 1..10000 cleanly (per the fix-3 Layer-3 smoke
+ *      findings). The test caps `--max-height` at 50 to keep CI under
+ *      1s; verifies exit code 0, `tipReachedAt` set in the checkpoint,
+ *      error-report absent. This locks in the post-fix-3 clean-walk
+ *      behaviour as the positive counterpart of scenario 1.
+ *
+ *      The "mid-walk halt" snapshot that this slot used to hold (fix-1's
+ *      h=1 sbox halt; fix-2's h=3850 shim halt; fix-2 T9's h=3850
+ *      evaluate halt) has been retired — fix-3's smoke advances past
+ *      h=10000 without halting. When 2j proper's deeper smokes surface
+ *      a stable halt site somewhere ≥ h=10000, a future test can pin
+ *      against it; until then, "clean tip-reach to a small height" is
+ *      the cleanest signal.
  *
  * Both tests are subprocess-spawn integration tests against the built
  * `dist/main.js`. The real-data test skips when the 25 GB fixture is
@@ -41,16 +43,6 @@
  * later this exact substring may change; we assert structurally (exit
  * code, presence of `ShimError`, no error-report) rather than on the
  * exact prose.
- *
- * # Why we DO assert on the specific `errorCode` for scenario (2)
- *
- * The shim halt at h=3850 is deterministic — the walker's UTXO index
- * fails to surface box `55274304…3c88aeda` reliably across runs. The
- * snapshot pins the specific phase / errorCode so a future regression
- * that REGRESSES behind today's halt (e.g., a re-introduction of the
- * sbox-ergo-tree-no-size halt at h=1) would surface as a meaningful
- * test diff. When fix-2 (shim walker) lands and unblocks h=3850, this
- * test's premise will need to migrate.
  */
 
 import { describe, expect, it, afterEach } from 'vitest';
@@ -116,30 +108,24 @@ describe('halt path (Layer 4)', () => {
         expect(existsSync(checkpointPath)).toBe(false);
     });
 
-    it('mid-walk halt: evaluate exprTpe Atleast at h=3850 → exit 1, error-report.json written with phase + code', async () => {
+    it('clean tip-reach: short walk against bootstrap-data → exit 0, tipReachedAt set, no error-report', async () => {
         const skipReason = checkRealDataPrereqs();
         if (skipReason !== null) {
-            console.warn(`SKIP halt-path mid-walk case: ${skipReason}`);
+            console.warn(`SKIP halt-path clean-walk case: ${skipReason}`);
             return;
         }
 
-        scratch = makeScratchDir('halt-validation');
+        scratch = makeScratchDir('halt-clean-walk');
         const sidecarPath = join(scratch.path, 'sidecar.redb');
         const checkpointPath = join(scratch.path, 'checkpoint.json');
         const errorReportPath = join(scratch.path, 'error-report.json');
 
-        // Walk genesis through the known halt at h=3850. Per the 2j-pre
-        // fix-2 Layer 3 smoke (T8), this walk validates heights 1..3849
-        // cleanly in ~27.5s then halts at h=3850 with the evaluate phase
-        // hitting the `Atleast` exprTpe gap on the foundation 2-of-3
-        // multisig script (the tx that spends the seeded founders box).
-        // Vitest timeout bumped to 90_000 ms.
-        //
-        // Note: prior to fix-2 the halt was in the SHIM phase
-        // (missing-utxo on the founders box). Fix-2's seeding moved the
-        // halt to the EVALUATE phase. When the next library fix (Atleast
-        // exprTpe arm) lands, the halt will move again — this snapshot
-        // catches the regression-direction signal.
+        // Post-fix-3, the harness walks heights 1..10000 cleanly against
+        // the bootstrap-data snapshot (per 2026-05-22-fix-3-smoke.md).
+        // We cap --max-height at 50 to keep the test under 1s while
+        // still exercising the full clean-walk path: genesis seeding,
+        // per-block validation, checkpoint advance, tipReachedAt write,
+        // error-report-deletion-on-success.
         const run = await runHarness(
             [
                 '--store-path', DEFAULT_FIXTURE_STORE,
@@ -147,52 +133,33 @@ describe('halt path (Layer 4)', () => {
                 '--sidecar-path', sidecarPath,
                 '--checkpoint-path', checkpointPath,
                 '--error-report-path', errorReportPath,
-                '--max-height', '3850',
+                '--max-height', '50',
             ],
-            60_000, // 60s — the walk to h=3850 takes ~28-32s; default 28s is too tight.
+            30_000,
         );
 
-        expect(run.exitCode).toBe(1);
-        // stdout announces the walk range; stderr carries the halt diag.
-        expect(run.stdout).toMatch(/Walking 1\.\.3850/);
-        expect(run.stderr).toMatch(/halt at height 3850/);
+        expect(run.exitCode).toBe(0);
+        expect(run.stdout).toMatch(/Walking 1\.\.50/);
+        expect(run.stdout).toMatch(/Tip reached at height 50/);
 
-        // error-report.json must be present and structurally well-formed.
-        expect(existsSync(errorReportPath)).toBe(true);
-        const reportRaw = readFileSync(errorReportPath, 'utf8');
-        const report = JSON.parse(reportRaw) as ErrorReport;
+        // Clean tip-reach: no error-report.
+        expect(existsSync(errorReportPath)).toBe(false);
 
-        // Required top-level fields per `error-report.ts` `ErrorReport` shape.
-        expect(report.height).toBe(3850);
-        expect(typeof report.timestamp).toBe('string');
-        expect(report.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-        expect(typeof report.phase).toBe('string');
-        expect(typeof report.errorClass).toBe('string');
-        expect(typeof report.message).toBe('string');
-        expect(report.message.length).toBeGreaterThan(0);
-
-        // Post-fix-2 halt point: EVALUATE phase on tx#2 input#0
-        // (foundation 2-of-3 multisig with Atleast). If this changes —
-        // either because the next library fix lands or a regression
-        // surfaces a different halt earlier in the walk — the snapshot
-        // below will fail loudly.
-        expect(report.phase).toBe('evaluate');
-        expect(report.errorClass).toBe('HarnessError');
-        expect(report.errorCode).toBe('evaluate-threw');
-        // The evaluate-phase halt fires AFTER the bundle is fetched, so
-        // location carries per-tx detail.
-        expect(report.location.txIndex).toBe(2);
-        expect(report.location.inputIndex).toBe(0);
-        // The spent box is the founders genesis box (fix-2's success
-        // marker — the seeded box was REMOVEd from the sidecar, then
-        // its multisig script tripped Atleast in expr-tpe).
-        expect(report.location.spentBoxId).toBe(
-            '5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda',
-        );
-
-        // Checkpoint reflects the LAST successfully-validated block.
+        // Checkpoint: lastValidatedHeight advanced; tipReachedAt set.
         expect(existsSync(checkpointPath)).toBe(true);
-        const cp = JSON.parse(readFileSync(checkpointPath, 'utf8')) as { lastValidatedHeight: number };
-        expect(cp.lastValidatedHeight).toBe(3849);
-    }, 90_000);
+        const cp = JSON.parse(readFileSync(checkpointPath, 'utf8')) as {
+            lastValidatedHeight: number;
+            tipReachedAt?: string;
+            stats: { totalBlocks: number; totalTxs: number; totalBoxesValidated: number };
+        };
+        expect(cp.lastValidatedHeight).toBe(50);
+        expect(typeof cp.tipReachedAt).toBe('string');
+        expect(cp.tipReachedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+        // Stats sanity: 50 blocks should have at least 50 txs and at
+        // least 100 boxes (each block has a coinbase tx producing
+        // emission + reward outputs).
+        expect(cp.stats.totalBlocks).toBe(50);
+        expect(cp.stats.totalTxs).toBeGreaterThanOrEqual(50);
+        expect(cp.stats.totalBoxesValidated).toBeGreaterThanOrEqual(100);
+    }, 30_000);
 });
