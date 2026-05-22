@@ -63,6 +63,29 @@ const SYNTHETIC_SBOX_V0_NO_SIZE = new Uint8Array([
   0x00, // index VLQ u16 = 0
 ])
 
+// Real mainnet box captured from the bootstrap-data snapshot at h=1, tx 0,
+// output 0 (273 bytes). The ErgoTree header byte (byte 9, after the multi-byte
+// VLQ value prefix) is 0x10 — version=0, hasSize=false, constantSegregation=true.
+// Captured via tools/mainnet-validate/harness/scripts/dump-output.mjs against
+// /tmp/ergots-2j-pre-smoke-data/modifiers.redb on 2026-05-22.
+const MAINNET_H1_TX0_OUT0_HEX =
+  '80b481d1cbe1f6a501101004020e36100204a00b08cd0279be667ef9dcbbac55a062' +
+  '95ce870b07029bfcdb2dce28d959f2815b16f81798ea02d192a39a8cc7a701730073' +
+  '0110010204020404040004c0fd4f05808c82f5f6030580b8c9e5ae040580f882ad16' +
+  '040204c0944004c0f407040004000580f882ad16d19683030191a38cc7a701968302' +
+  '0193c2b2a57300007473017302830108cdeeac93a38cc7b2a573030001978302019683' +
+  '040193b1a5730493c2a7c2b2a573050093958fa3730673079973089c73097e9a730a' +
+  '9d99a3730b730c0599c1a7c1b2a5730d00938cc7b2a5730e0001a390c1a7730f0100' +
+  '004c6282be413c6e300a530618b37790be5f286ded758accc2aebd41554a1be30800'
+
+function hexToBytes(hex: string): Uint8Array {
+  const result = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < hex.length; i += 2) {
+    result[i / 2] = parseInt(hex.slice(i, i + 2), 16)
+  }
+  return result
+}
+
 describe('SBox v0+hasSize=false parse (phase 2j-pre fix-1)', () => {
   it('parses v0+hasSize=false P2PK SBox without throwing', () => {
     const r = new ByteReader(SYNTHETIC_SBOX_V0_NO_SIZE)
@@ -99,5 +122,40 @@ describe('SBox v0+hasSize=false parse (phase 2j-pre fix-1)', () => {
     expect(tree.header.hasSize).toBe(false)
     expect(tree.header.constantSegregation).toBe(false)
     expect(serializeTree(tree)).toEqual(P2PK_TREE_V0_NO_SIZE)
+  })
+
+  // ────────────────────────────────────────────────────────────────────
+  // Layer 2 — real-mainnet fixture
+  // ────────────────────────────────────────────────────────────────────
+
+  it('parses real mainnet v0+hasSize=false+segregation SBox (h=1 tx 0 out 0)', () => {
+    const bytes = hexToBytes(MAINNET_H1_TX0_OUT0_HEX)
+    const r = new ByteReader(bytes)
+    const sbox = parseSValue({ tag: 'SBox' }, 0, r)
+    expect(sbox.kind).toBe('Box')
+    expect(r.isExhausted).toBe(true)  // exact consumption — no leftover
+  })
+
+  it('real mainnet SBox round-trips byte-equal', () => {
+    const bytes = hexToBytes(MAINNET_H1_TX0_OUT0_HEX)
+    const r = new ByteReader(bytes)
+    const sbox = parseSValue({ tag: 'SBox' }, 0, r)
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SBox' }, sbox, 0, w)
+    expect(w.toBytes()).toEqual(bytes)
+  })
+
+  it('real mainnet ErgoTree header is 0x10 (v0+segregation+!hasSize)', () => {
+    const bytes = hexToBytes(MAINNET_H1_TX0_OUT0_HEX)
+    const r = new ByteReader(bytes)
+    const sbox = parseSValue({ tag: 'SBox' }, 0, r)
+    if (sbox.kind !== 'Box') throw new Error(`expected Box, got ${sbox.kind}`)
+    // Confirm via parseTree on the captured tree bytes — this slice should
+    // round-trip and report the expected header flags.
+    const tree = parseTree(sbox.value.ergoTreeBytes)
+    expect(tree.header.rawHeader).toBe(0x10)
+    expect(tree.header.version).toBe(0)
+    expect(tree.header.hasSize).toBe(false)
+    expect(tree.header.constantSegregation).toBe(true)
   })
 })
