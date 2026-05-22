@@ -204,6 +204,7 @@ fn run() -> Result<(), StartupOrIoError> {
         .indexed_up_to_height()
         .context("reading sidecar indexed_up_to_height marker")?;
     eprintln!("sidecar opened at height {indexed_height}");
+    eprintln!("shim: protocol_version={}", protocol::PROTOCOL_VERSION);
 
     stdin_loop(&store, &sidecar)?;
     Ok(())

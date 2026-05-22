@@ -313,6 +313,7 @@ pub fn ingest_block(
         &header_id,
         height,
         index,
+        &header_bytes,
     )
     .map_err(|e| match e {
         // Preserve typed missing-utxo / missing-data-utxo variants;
@@ -391,6 +392,7 @@ fn parse_and_walk_transactions(
     expected_header_id: &[u8; 32],
     height: u32,
     index: &UtxoIndex,
+    header_bytes: &[u8],
 ) -> Result<Vec<TxBundle>, WalkerError> {
     if data.len() < 33 {
         return Err(WalkerError::Other(anyhow!(
@@ -440,7 +442,7 @@ fn parse_and_walk_transactions(
         let tx = Transaction::sigma_parse(&mut reader)
             .with_context(|| format!("Transaction::sigma_parse #{tx_idx} at height {height}"))?;
         let tx_id_for_ctx = tx.id();
-        let bundle = walk_transaction(&tx, height, tx_idx, index).map_err(|e| match e {
+        let bundle = walk_transaction(&tx, height, tx_idx, index, header_bytes).map_err(|e| match e {
             // Same preservation pattern as in `ingest_block`: only
             // wrap the generic branch with tx-index context. The
             // typed MissingUtxo / MissingDataUtxo variants already
@@ -470,6 +472,7 @@ fn walk_transaction(
     height: u32,
     tx_idx: usize,
     index: &UtxoIndex,
+    header_bytes: &[u8],
 ) -> Result<TxBundle, WalkerError> {
     // TxId(pub Digest32) and Digest32 = Digest<32>(pub [u8; 32]) — the
     // outer field is public, so `tx.id().0.0` is the [u8; 32]. We do not
@@ -548,15 +551,11 @@ fn walk_transaction(
             spent_box_bytes,
             signature_bytes,
             context_extension,
-            // Phase 2j-a T4: stub the new oracle_* fields with sentinel
-            // values. T5 wires the real cost_oracle::compute_oracle_cost
-            // invocation here. Until T5 lands, harness comparisons against
-            // these stubs would always fail — but the harness's new
-            // cost-diff logic also isn't wired until T7, so the stubs are
-            // harmless in the intermediate state.
+            // Filled in after the data-inputs loop completes, when we
+            // have all parsed boxes available for TransactionContext.
             oracle_cost: 0,
             oracle_succeeded: false,
-            oracle_error: Some("cost-oracle not yet wired (T5 pending)".to_string()),
+            oracle_error: None,
         });
     }
 
@@ -583,6 +582,87 @@ fn walk_transaction(
                 height,
             })?;
         data_input_boxes.push(box_bytes);
+    }
+
+    // Phase 2j-a T5: compute sigma-rust's per-input oracle cost for the
+    // entire transaction's inputs and populate the oracle_* fields on
+    // each InputBundle. Done as a second pass because TransactionContext
+    // construction requires all input + data-input boxes parsed into
+    // ErgoBox up-front. We deliberately use Parameters::default() and an
+    // empty rolling-headers window here — the shim doesn't yet maintain
+    // per-block state across the walk loop. For typical mainnet inputs
+    // (P2PK and similar trivial trees), default Parameters and stub
+    // headers don't affect the cost charged (the trivial-prop short-circuit
+    // doesn't read context). Inputs that read CONTEXT.headers or rely on
+    // tight cost-limit semantics may show spurious mismatches in the
+    // first T9 smoke; surfacing those is the point of the TDD loop.
+    let boxes_to_spend: Vec<ergotree_ir::chain::ergo_box::ErgoBox> = input_bundles
+        .iter()
+        .enumerate()
+        .map(|(i, ib)| {
+            ergotree_ir::serialization::SigmaSerializable::sigma_parse_bytes(&ib.spent_box_bytes)
+                .with_context(|| {
+                    format!(
+                        "ErgoBox::sigma_parse_bytes for tx #{tx_idx} input #{i} at height {height}"
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let data_boxes: Vec<ergotree_ir::chain::ergo_box::ErgoBox> = data_input_boxes
+        .iter()
+        .enumerate()
+        .map(|(i, b)| {
+            ergotree_ir::serialization::SigmaSerializable::sigma_parse_bytes(b)
+                .with_context(|| {
+                    format!(
+                        "ErgoBox::sigma_parse_bytes for tx #{tx_idx} data_input #{i} at height {height}"
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let tx_ctx = match ergo_lib::wallet::tx_context::TransactionContext::new(
+        tx.clone(),
+        boxes_to_spend,
+        data_boxes,
+    ) {
+        Ok(c) => Some(c),
+        Err(e) => {
+            // TransactionContext construction can fail if e.g. input box
+            // count exceeds the bounded-vec limit. Mark all inputs as
+            // oracle-failed with the construct error captured.
+            let msg = format!("TransactionContext::new failed: {e}");
+            for ib in input_bundles.iter_mut() {
+                ib.oracle_succeeded = false;
+                ib.oracle_error = Some(msg.clone());
+            }
+            None
+        }
+    };
+
+    if let Some(tx_ctx) = tx_ctx {
+        match crate::cost_oracle::build_state_context(
+            header_bytes,
+            &[],
+            ergo_lib::chain::parameters::Parameters::default(),
+        ) {
+            Ok(state_ctx) => {
+                for (i, ib) in input_bundles.iter_mut().enumerate() {
+                    let result =
+                        crate::cost_oracle::compute_oracle_cost(&tx_ctx, &state_ctx, i);
+                    ib.oracle_cost = result.cost;
+                    ib.oracle_succeeded = result.is_ok;
+                    ib.oracle_error = result.error_msg;
+                }
+            }
+            Err(e) => {
+                let msg = format!("build_state_context failed: {e}");
+                for ib in input_bundles.iter_mut() {
+                    ib.oracle_succeeded = false;
+                    ib.oracle_error = Some(msg.clone());
+                }
+            }
+        }
     }
 
     Ok(TxBundle {
