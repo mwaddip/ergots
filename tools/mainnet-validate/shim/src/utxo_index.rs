@@ -63,14 +63,28 @@ impl UtxoIndex {
     /// `source_store_hash` argument is compared against the value
     /// persisted in `meta::source_store_hash` (if any):
     ///
-    /// - No prior value (fresh sidecar): write `source_store_hash` and
-    ///   initialize `indexed_up_to_height` to 0.
-    /// - Matching value: keep the existing index as-is.
+    /// - No prior value (fresh sidecar): write `source_store_hash`,
+    ///   initialize `indexed_up_to_height` to 0, AND insert each
+    ///   `genesis_seed` entry into the `boxes` table.
+    /// - Matching value: keep the existing index as-is (genesis_seed
+    ///   ignored — the prior init seeded already).
     /// - Mismatching value: log a warning to stderr, drop the `boxes`
     ///   table (auto-rebuild from scratch per spec Open item #4),
-    ///   reset `indexed_up_to_height` to 0, and overwrite
-    ///   `source_store_hash` with the new value.
-    pub fn open_or_create(path: &Path, source_store_hash: &[u8; 32]) -> Result<Self> {
+    ///   reset `indexed_up_to_height` to 0, overwrite
+    ///   `source_store_hash`, AND re-insert each `genesis_seed` entry.
+    ///
+    /// `genesis_seed` is `&[(box_id_32, box_bytes)]`. For Ergo this is
+    /// the 3 genesis-state boxes (emission, no_premine, founders)
+    /// constructed via `ergo_lib::chain::genesis::genesis_boxes(...)`.
+    /// See `docs/specs/2026-05-22-mainnet-validate-fix-2-genesis-box-
+    /// seeding-design.md` Decision 1 for the rationale; the seed exists
+    /// outside any block transaction on the canonical chain, so without
+    /// it block-tx inputs at h>1 that reference these boxes miss.
+    pub fn open_or_create(
+        path: &Path,
+        source_store_hash: &[u8; 32],
+        genesis_seed: &[([u8; 32], Vec<u8>)],
+    ) -> Result<Self> {
         let db = Database::create(path)
             .with_context(|| format!("opening sidecar redb at {}", path.display()))?;
 
@@ -156,6 +170,25 @@ impl UtxoIndex {
                     let zero: [u8; 4] = 0u32.to_le_bytes();
                     meta.insert(META_KEY_INDEXED_UP_TO_HEIGHT, zero.as_slice())
                         .context("initializing meta::indexed_up_to_height")?;
+                }
+            }
+            // Seed genesis-state boxes on fresh-init OR rebuild. redb's
+            // open_table auto-creates the table after delete_table within
+            // the same write_txn (reviewer M3); the inserts work cleanly
+            // in both paths.
+            if needs_meta_write && !genesis_seed.is_empty() {
+                let mut boxes = write_txn
+                    .open_table(BOXES_TABLE)
+                    .context("opening boxes table for genesis seed insert")?;
+                for (box_id, box_bytes) in genesis_seed {
+                    boxes
+                        .insert(box_id.as_slice(), box_bytes.as_slice())
+                        .with_context(|| {
+                            format!(
+                                "inserting genesis-seed box {:02x?}",
+                                &box_id[..4]
+                            )
+                        })?;
                 }
             }
             write_txn
@@ -313,7 +346,7 @@ mod tests {
     fn round_trip_insert_get_remove() {
         let (_dir, path) = fresh_path();
         let hash = [0xAAu8; 32];
-        let idx = UtxoIndex::open_or_create(&path, &hash).expect("open");
+        let idx = UtxoIndex::open_or_create(&path, &hash, &[]).expect("open");
 
         let box_id = [0x11u8; 32];
         let box_bytes = vec![0x01, 0x02, 0x03, 0x04];
@@ -340,7 +373,7 @@ mod tests {
     fn indexed_up_to_height_persists() {
         let (_dir, path) = fresh_path();
         let hash = [0xBBu8; 32];
-        let idx = UtxoIndex::open_or_create(&path, &hash).expect("open");
+        let idx = UtxoIndex::open_or_create(&path, &hash, &[]).expect("open");
 
         // Fresh DB defaults to 0.
         assert_eq!(idx.indexed_up_to_height().expect("read initial"), 0);
@@ -362,7 +395,7 @@ mod tests {
 
         // First open: write marker + insert one box.
         {
-            let idx = UtxoIndex::open_or_create(&path, &hash).expect("first open");
+            let idx = UtxoIndex::open_or_create(&path, &hash, &[]).expect("first open");
             idx.set_indexed_up_to_height(100).expect("set height");
             idx.insert(&[0x33u8; 32], &[0xDEu8, 0xAD, 0xBE, 0xEF])
                 .expect("insert");
@@ -370,7 +403,7 @@ mod tests {
 
         // Reopen with same hash: marker + box survive.
         {
-            let idx = UtxoIndex::open_or_create(&path, &hash).expect("reopen");
+            let idx = UtxoIndex::open_or_create(&path, &hash, &[]).expect("reopen");
             assert_eq!(idx.indexed_up_to_height().expect("read marker"), 100);
             assert_eq!(
                 idx.get(&[0x33u8; 32]).expect("read box"),
@@ -446,7 +479,7 @@ mod tests {
 
         // First open with hash_a: insert a box, advance the marker.
         {
-            let idx = UtxoIndex::open_or_create(&path, &hash_a).expect("first open");
+            let idx = UtxoIndex::open_or_create(&path, &hash_a, &[]).expect("first open");
             idx.insert(&[0x77u8; 32], &[0xFEu8, 0xED, 0xFA, 0xCE])
                 .expect("insert pre-rebuild");
             idx.set_indexed_up_to_height(500)
@@ -457,7 +490,7 @@ mod tests {
         // (The warning to stderr is logged but not asserted on — stderr
         // capture would require an extra harness.)
         {
-            let idx = UtxoIndex::open_or_create(&path, &hash_b).expect("reopen with new hash");
+            let idx = UtxoIndex::open_or_create(&path, &hash_b, &[]).expect("reopen with new hash");
             assert_eq!(
                 idx.get(&[0x77u8; 32]).expect("read box post-rebuild"),
                 None,
@@ -473,7 +506,7 @@ mod tests {
         // Reopen again with hash_b: nothing more to rebuild; state from
         // the previous reopen persists (still empty, marker still 0).
         {
-            let idx = UtxoIndex::open_or_create(&path, &hash_b).expect("third open");
+            let idx = UtxoIndex::open_or_create(&path, &hash_b, &[]).expect("third open");
             assert_eq!(idx.get(&[0x77u8; 32]).expect("re-read"), None);
             assert_eq!(idx.indexed_up_to_height().expect("re-read marker"), 0);
         }

@@ -1110,7 +1110,7 @@ mod tests {
         // ----- Step 7: open a sidecar at a fresh path. -----
         let sidecar_dir = TempDir::new().expect("sidecar tempdir");
         let sidecar_path = sidecar_dir.path().join("utxo-index.redb");
-        let sidecar = UtxoIndex::open_or_create(&sidecar_path, &header_id)
+        let sidecar = UtxoIndex::open_or_create(&sidecar_path, &header_id, &[])
             .expect("open sidecar");
 
         // ----- Step 8: invoke ingest_block end-to-end. -----

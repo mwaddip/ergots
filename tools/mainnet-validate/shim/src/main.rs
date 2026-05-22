@@ -151,7 +151,10 @@ fn run() -> Result<(), StartupOrIoError> {
              net against future refactors of startup_check",
         )?;
 
-    let sidecar = UtxoIndex::open_or_create(Path::new(sidecar_path), &source_store_hash)
+    // Pass empty seed for now — T5a will compute the real 3-box seed and
+    // pass it here. This keeps T4 (signature change) functionally
+    // equivalent to today's behavior; behavior change lands in T5a.
+    let sidecar = UtxoIndex::open_or_create(Path::new(sidecar_path), &source_store_hash, &[])
         .with_context(|| format!("opening sidecar UTXO index at {sidecar_path}"))?;
     let indexed_height = sidecar
         .indexed_up_to_height()
