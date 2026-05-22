@@ -4,12 +4,14 @@
  *
  * The spec's Layer 6 ideal is "harness walks every block from start to
  * `--max-height M`, then sets `checkpoint.tipReachedAt` and deletes any
- * stale `error-report.json`" (`main.ts` lines 460-466). That code path
- * fires ONLY after the for-loop completes — which requires at least one
- * successful `validateBlock` call. Per the T12 fix-list, the v0-tree
- * library cannot validate any block yet (`sbox-ergo-tree-no-size` halts
- * at output 0 of every block's first tx). Until that fix lands, the
- * full-walk tip-reach branch is unreachable in an integration test.
+ * stale `error-report.json`" (`main.ts` lines 460-466). After phase
+ * 2j-pre fix-1 (sbox-ergo-tree-no-size RESOLVED 2026-05-22), the
+ * v0-tree halt at h=1 is gone; the harness now validates heights
+ * 1..3849 cleanly before hitting the shim walker bug at h=3850
+ * (fix-list item 2, separate spec). Until fix-2 lands, the full-walk
+ * tip-reach branch is reachable for SHORT walks below h=3850 — see
+ * the second `it(...)` below for the "Nothing to do" branch that
+ * doesn't require any block-validation success.
  *
  * What we CAN test deterministically today:
  *   - The "Nothing to do" branch at `main.ts` lines 386-393, which is the

@@ -22,20 +22,25 @@
  *      semantics — the sidecar marker monotone-advances, so re-asking
  *      the rolling-window range on a second run emits `past-indexed`).
  *
- * The "walks 1 more block" sub-assertion in the spec is BLOCKED until
- * either:
- *   - the v0-tree library lands (`sbox-ergo-tree-no-size` fix), or
- *   - we ship a mocked-shim unit suite for the walk loop.
- *
- * Both are tracked in the 2j proper plan / T12 fix-list.
+ * After phase 2j-pre fix-1 (sbox-ergo-tree-no-size RESOLVED 2026-05-22),
+ * the library halt at h=1 is gone. A "walks 1 more block" sub-assertion
+ * could now be wired against the bootstrap-data fixture for heights
+ * below 3850 (where the shim walker bug halts). The current test file
+ * tests resume-math + forward-only sidecar collision behavior, both
+ * deterministic; adding a "walks 1 more block" assertion is a clean
+ * extension for a future T8b once T8's halt-path test confirms stable
+ * post-fix-1 behavior.
  *
  * # Why we don't compare the on-disk checkpoint contents post-run
  *
  * `writeCheckpoint` only fires after a SUCCESSFUL block validation
- * (`main.ts` line 455). Today's halt at block N means the checkpoint
- * file is never touched by the harness — its contents stay exactly what
- * we pre-wrote. Asserting that doesn't add signal beyond what the resume-
- * math stdout assertions already prove.
+ * (`main.ts` line 455). The current tests use scenarios that halt
+ * BEFORE writing the checkpoint (forward-only sidecar collision; bad
+ * shim-path), so the checkpoint stays exactly what we pre-wrote.
+ * Asserting that doesn't add signal beyond what the resume-math stdout
+ * assertions already prove. Post-fix-1, scenarios that walk past
+ * h>0 successfully WILL touch the checkpoint — a future test
+ * extension could assert on the updated state.
  */
 
 import { describe, expect, it, afterEach } from 'vitest';
@@ -118,17 +123,19 @@ describe('resume path (Layer 5)', () => {
             '--max-height', '105',
         ]);
 
-        // The walk halts on the v0-tree limitation at the first block it
-        // tries to validate (block 101 per the resume math). Exit 1 +
-        // halt diag on stderr.
-        expect(run.exitCode).toBe(1);
+        // After phase 2j-pre fix-1, heights 101..105 validate cleanly
+        // (the previous sbox-ergo-tree-no-size halt at the first walked
+        // block is RESOLVED). The walk reaches the tip cap and exits 0
+        // with checkpoint advanced.
+        expect(run.exitCode).toBe(0);
         expect(run.stdout).toMatch(/Walking 101\.\.105/);
-        expect(run.stderr).toMatch(/halt at height 101/);
-        // Checkpoint never overwritten (no successful block).
+        expect(run.stdout).toMatch(/Tip reached at height 105/);
+        // Checkpoint advanced through the walk to lastValidatedHeight=105.
         const cpAfter = JSON.parse(readFileSync(checkpointPath, 'utf8')) as Checkpoint;
-        expect(cpAfter.lastValidatedHeight).toBe(100);
-        // Error report MUST exist (validation halt branch wrote it).
-        expect(existsSync(errorReportPath)).toBe(true);
+        expect(cpAfter.lastValidatedHeight).toBe(105);
+        expect(typeof cpAfter.tipReachedAt).toBe('string');
+        // No error report (tip-reached path deletes any stale sidecar).
+        expect(existsSync(errorReportPath)).toBe(false);
     }, 60_000);
 
     it('--start-height overrides checkpoint.lastValidatedHeight', async () => {
@@ -157,9 +164,12 @@ describe('resume path (Layer 5)', () => {
             '--max-height', '55',
         ]);
 
-        expect(run.exitCode).toBe(1);
+        // After fix-1, heights 50..55 validate cleanly. The CLI override
+        // is verified via the stdout's "Walking 50..55" announcement —
+        // the override took precedence over the checkpoint's 101.
+        expect(run.exitCode).toBe(0);
         expect(run.stdout).toMatch(/Walking 50\.\.55/);
-        expect(run.stderr).toMatch(/halt at height 50/);
+        expect(run.stdout).toMatch(/Tip reached at height 55/);
     }, 60_000);
 
     it('back-to-back runs against the same sidecar collide via the forward-only walker (documents real semantics)', async () => {
@@ -183,30 +193,32 @@ describe('resume path (Layer 5)', () => {
             '--sidecar-path', sidecarPath,
             '--checkpoint-path', checkpointPath,
             '--error-report-path', errorReportPath,
-            '--max-height', '205',
         ];
 
-        const run1 = await runHarness(baseArgs);
+        const run1 = await runHarness([...baseArgs, '--max-height', '205']);
         // First run: the harness reads the checkpoint (lastValidatedHeight=
         // 200), computes startHeight=201, then `rebuildWalkerState` fetches
         // headers from heights 191..200 to repopulate the rolling window.
         // Each header fetch via `GET_BLOCK` advances the shim's forward
         // walker, which builds the sidecar UTXO index for heights up to
-        // and including the requested block. After run1, the sidecar's
-        // `indexed_up_to_height` has advanced past 200.
-        expect(run1.exitCode).toBe(1);
+        // and including the requested block. After fix-1 (2026-05-22),
+        // the walk through 201..205 completes cleanly; the sidecar's
+        // `indexed_up_to_height` advances to 205.
+        expect(run1.exitCode).toBe(0);
         expect(run1.stdout).toMatch(/Walking 201\.\.205/);
-        expect(run1.stderr).toMatch(/halt at height 201/);
+        expect(run1.stdout).toMatch(/Tip reached at height 205/);
 
-        // Second run with the SAME on-disk artifacts. The checkpoint still
-        // says 200 (validation halts never overwrite the checkpoint), so
-        // `rebuildWalkerState` again asks for headers from 191..200. But
-        // the sidecar has now advanced past those heights, and the shim's
-        // forward-only walker emits `past-indexed` for any GET_BLOCK at or
-        // below its current marker (`shim/src/block_walker.rs`, T5 fix-list
-        // documented this as expected behavior — the sidecar is monotone
-        // and re-walks are not supported).
-        const run2 = await runHarness(baseArgs);
+        // Second run with the SAME on-disk artifacts but a higher
+        // --max-height so the harness wants to walk further. The
+        // checkpoint now says 205 (advanced through run1); startHeight
+        // becomes 206. `rebuildWalkerState` asks for headers from
+        // 196..205 to repopulate the rolling window. But the sidecar is
+        // already at 205, so the shim's forward-only walker emits
+        // `past-indexed` for any GET_BLOCK at or below its current
+        // marker (`shim/src/block_walker.rs`, T5 documented this as
+        // expected behavior — the sidecar is monotone and re-walks are
+        // not supported).
+        const run2 = await runHarness([...baseArgs, '--max-height', '210']);
         expect(run2.exitCode).toBe(1);
         expect(run2.stderr).toContain('past-indexed');
         // The second run halts BEFORE reaching the for-loop's "Walking
@@ -216,5 +228,5 @@ describe('resume path (Layer 5)', () => {
         // and exits via the stderr path. No error-report (no specific
         // height context for the failure).
         expect(run2.stdout).not.toMatch(/Walking/);
-    }, 90_000);
+    }, 120_000);
 });

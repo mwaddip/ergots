@@ -16,15 +16,18 @@
  *      reserved for per-block fetch / validation failures with a known
  *      height, not for setup failures with no height context.
  *
- *   2. **Validation halt** — a real per-block validation failure mid-walk.
- *      Against the 25 GB mainnet copy, every block currently halts at
- *      output index 0 of the first transaction because the v0-tree
- *      library does not support `hasSize=false` (the
- *      `sbox-ergo-tree-no-size` fix-list item from T12). This is the
- *      exact halt path the harness was designed for: the catch arm at
- *      `main.ts` line 443-452 writes `error-report.json` with phase,
+ *   2. **Mid-walk halt** — a per-block failure that fires inside the
+ *      walk loop (post-startup), exercising the catch arm at `main.ts`
+ *      line 443-452 which writes `error-report.json` with phase,
  *      errorClass, errorCode, location, and a bundle excerpt, then
- *      returns exit code 1.
+ *      returns exit code 1. After phase 2j-pre fix-1 (sbox-ergo-tree-no-size
+ *      RESOLVED 2026-05-22), the previous-per-block library halt at h=1
+ *      is gone; heights 1..3849 now validate cleanly. The next stable
+ *      halt site is the shim walker bug at h=3850 (fix-list item 2,
+ *      separate spec): phase 'shim', errorCode 'missing-utxo'. We
+ *      assert against that halt site here. When fix-2 lands and the
+ *      shim halt vanishes too, this test will need to either migrate
+ *      to the next stable halt or switch to deliberate fault injection.
  *
  * Both tests are subprocess-spawn integration tests against the built
  * `dist/main.js`. The real-data test skips when the 25 GB fixture is
@@ -39,15 +42,15 @@
  * code, presence of `ShimError`, no error-report) rather than on the
  * exact prose.
  *
- * # Why we don't assert on the specific `errorCode` for scenario (2)
+ * # Why we DO assert on the specific `errorCode` for scenario (2)
  *
- * Once the v0-tree fix-list item lands, the validation halt will move
- * past output-roundtrip into evaluate or verify-signature (or vanish
- * entirely once enough scope ships). We assert structurally that an
- * error-report was written with the expected top-level shape, then
- * snapshot the specific phase / code so a future regression that
- * REGRESSES behind today's halt point would surface as a meaningful
- * test diff.
+ * The shim halt at h=3850 is deterministic — the walker's UTXO index
+ * fails to surface box `55274304…3c88aeda` reliably across runs. The
+ * snapshot pins the specific phase / errorCode so a future regression
+ * that REGRESSES behind today's halt (e.g., a re-introduction of the
+ * sbox-ergo-tree-no-size halt at h=1) would surface as a meaningful
+ * test diff. When fix-2 (shim walker) lands and unblocks h=3850, this
+ * test's premise will need to migrate.
  */
 
 import { describe, expect, it, afterEach } from 'vitest';
@@ -113,10 +116,10 @@ describe('halt path (Layer 4)', () => {
         expect(existsSync(checkpointPath)).toBe(false);
     });
 
-    it('validation halt: per-block failure mid-walk → exit 1, error-report.json written with phase + code + location + bundleExcerpt', async () => {
+    it('mid-walk halt: shim missing-utxo at h=3850 → exit 1, error-report.json written with phase + code', async () => {
         const skipReason = checkRealDataPrereqs();
         if (skipReason !== null) {
-            console.warn(`SKIP halt-path validation case: ${skipReason}`);
+            console.warn(`SKIP halt-path mid-walk case: ${skipReason}`);
             return;
         }
 
@@ -125,19 +128,24 @@ describe('halt path (Layer 4)', () => {
         const checkpointPath = join(scratch.path, 'checkpoint.json');
         const errorReportPath = join(scratch.path, 'error-report.json');
 
+        // Walk genesis through the known shim halt at h=3850. Per the
+        // 2j-pre fix-1 Layer 3 smoke (T7), this walk validates heights
+        // 1..3849 cleanly in ~27.5s then halts at h=3850 with the shim
+        // walker's missing-utxo error. Vitest timeout bumped to 90_000
+        // ms to accommodate the walk plus startup + sidecar build.
         const run = await runHarness([
             '--store-path', DEFAULT_FIXTURE_STORE,
             '--shim-path', SHIM_BINARY,
             '--sidecar-path', sidecarPath,
             '--checkpoint-path', checkpointPath,
             '--error-report-path', errorReportPath,
-            '--max-height', '1',
+            '--max-height', '3850',
         ]);
 
         expect(run.exitCode).toBe(1);
         // stdout announces the walk range; stderr carries the halt diag.
-        expect(run.stdout).toMatch(/Walking 1\.\.1/);
-        expect(run.stderr).toMatch(/halt at height 1 \(validation failed\)/);
+        expect(run.stdout).toMatch(/Walking 1\.\.3850/);
+        expect(run.stderr).toMatch(/halt at height 3850/);
 
         // error-report.json must be present and structurally well-formed.
         expect(existsSync(errorReportPath)).toBe(true);
@@ -145,7 +153,7 @@ describe('halt path (Layer 4)', () => {
         const report = JSON.parse(reportRaw) as ErrorReport;
 
         // Required top-level fields per `error-report.ts` `ErrorReport` shape.
-        expect(report.height).toBe(1);
+        expect(report.height).toBe(3850);
         expect(typeof report.timestamp).toBe('string');
         expect(report.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
         expect(typeof report.phase).toBe('string');
@@ -153,22 +161,21 @@ describe('halt path (Layer 4)', () => {
         expect(typeof report.message).toBe('string');
         expect(report.message.length).toBeGreaterThan(0);
 
-        // Today's halt point (the `sbox-ergo-tree-no-size` v0-tree library
-        // gap) lives in the output-roundtrip phase. If this changes —
-        // either because we move past it or REGRESS behind it — the snapshot
-        // below will fail loudly, which is the desired signal.
-        expect(report.phase).toBe('output-roundtrip');
-        expect(report.errorClass).toBe('HarnessError');
-        expect(report.errorCode).toBe('sbox-parse-failed');
-        // Location precision matches the validator's per-output throw site.
-        expect(report.location.txIndex).toBe(0);
-        expect(report.location.outputIndex).toBe(0);
+        // The fix-2 halt point lives in the shim phase (the walker's UTXO
+        // index missing-utxo bug at h=3850). If this changes — either
+        // because fix-2 lands or a regression surfaces a different halt
+        // earlier in the walk — the snapshot below will fail loudly.
+        expect(report.phase).toBe('shim');
+        expect(report.errorClass).toBe('ShimError');
+        expect(report.errorCode).toBe('missing-utxo');
+        // The shim halt fires BEFORE the harness gets a bundle, so the
+        // bundleExcerpt and location are absent (location is `{}` per
+        // error-report.ts when no per-block context is available).
+        expect(Object.keys(report.location).length).toBe(0);
 
-        // Bundle excerpt: header bytes (hex) are always populated when the
-        // shim returned a bundle (validation halts run AFTER the fetch).
-        expect(typeof report.bundleExcerpt.headerHex).toBe('string');
-        expect(report.bundleExcerpt.headerHex!.length).toBeGreaterThan(0);
-        // Header hex must be even-length (whole bytes only).
-        expect(report.bundleExcerpt.headerHex!.length % 2).toBe(0);
-    }, 30_000);
+        // Checkpoint reflects the LAST successfully-validated block.
+        expect(existsSync(checkpointPath)).toBe(true);
+        const cp = JSON.parse(readFileSync(checkpointPath, 'utf8')) as { lastValidatedHeight: number };
+        expect(cp.lastValidatedHeight).toBe(3849);
+    }, 90_000);
 });
