@@ -116,7 +116,7 @@ describe('halt path (Layer 4)', () => {
         expect(existsSync(checkpointPath)).toBe(false);
     });
 
-    it('mid-walk halt: shim missing-utxo at h=3850 → exit 1, error-report.json written with phase + code', async () => {
+    it('mid-walk halt: evaluate exprTpe Atleast at h=3850 → exit 1, error-report.json written with phase + code', async () => {
         const skipReason = checkRealDataPrereqs();
         if (skipReason !== null) {
             console.warn(`SKIP halt-path mid-walk case: ${skipReason}`);
@@ -128,19 +128,29 @@ describe('halt path (Layer 4)', () => {
         const checkpointPath = join(scratch.path, 'checkpoint.json');
         const errorReportPath = join(scratch.path, 'error-report.json');
 
-        // Walk genesis through the known shim halt at h=3850. Per the
-        // 2j-pre fix-1 Layer 3 smoke (T7), this walk validates heights
-        // 1..3849 cleanly in ~27.5s then halts at h=3850 with the shim
-        // walker's missing-utxo error. Vitest timeout bumped to 90_000
-        // ms to accommodate the walk plus startup + sidecar build.
-        const run = await runHarness([
-            '--store-path', DEFAULT_FIXTURE_STORE,
-            '--shim-path', SHIM_BINARY,
-            '--sidecar-path', sidecarPath,
-            '--checkpoint-path', checkpointPath,
-            '--error-report-path', errorReportPath,
-            '--max-height', '3850',
-        ]);
+        // Walk genesis through the known halt at h=3850. Per the 2j-pre
+        // fix-2 Layer 3 smoke (T8), this walk validates heights 1..3849
+        // cleanly in ~27.5s then halts at h=3850 with the evaluate phase
+        // hitting the `Atleast` exprTpe gap on the foundation 2-of-3
+        // multisig script (the tx that spends the seeded founders box).
+        // Vitest timeout bumped to 90_000 ms.
+        //
+        // Note: prior to fix-2 the halt was in the SHIM phase
+        // (missing-utxo on the founders box). Fix-2's seeding moved the
+        // halt to the EVALUATE phase. When the next library fix (Atleast
+        // exprTpe arm) lands, the halt will move again — this snapshot
+        // catches the regression-direction signal.
+        const run = await runHarness(
+            [
+                '--store-path', DEFAULT_FIXTURE_STORE,
+                '--shim-path', SHIM_BINARY,
+                '--sidecar-path', sidecarPath,
+                '--checkpoint-path', checkpointPath,
+                '--error-report-path', errorReportPath,
+                '--max-height', '3850',
+            ],
+            60_000, // 60s — the walk to h=3850 takes ~28-32s; default 28s is too tight.
+        );
 
         expect(run.exitCode).toBe(1);
         // stdout announces the walk range; stderr carries the halt diag.
@@ -161,17 +171,24 @@ describe('halt path (Layer 4)', () => {
         expect(typeof report.message).toBe('string');
         expect(report.message.length).toBeGreaterThan(0);
 
-        // The fix-2 halt point lives in the shim phase (the walker's UTXO
-        // index missing-utxo bug at h=3850). If this changes — either
-        // because fix-2 lands or a regression surfaces a different halt
-        // earlier in the walk — the snapshot below will fail loudly.
-        expect(report.phase).toBe('shim');
-        expect(report.errorClass).toBe('ShimError');
-        expect(report.errorCode).toBe('missing-utxo');
-        // The shim halt fires BEFORE the harness gets a bundle, so the
-        // bundleExcerpt and location are absent (location is `{}` per
-        // error-report.ts when no per-block context is available).
-        expect(Object.keys(report.location).length).toBe(0);
+        // Post-fix-2 halt point: EVALUATE phase on tx#2 input#0
+        // (foundation 2-of-3 multisig with Atleast). If this changes —
+        // either because the next library fix lands or a regression
+        // surfaces a different halt earlier in the walk — the snapshot
+        // below will fail loudly.
+        expect(report.phase).toBe('evaluate');
+        expect(report.errorClass).toBe('HarnessError');
+        expect(report.errorCode).toBe('evaluate-threw');
+        // The evaluate-phase halt fires AFTER the bundle is fetched, so
+        // location carries per-tx detail.
+        expect(report.location.txIndex).toBe(2);
+        expect(report.location.inputIndex).toBe(0);
+        // The spent box is the founders genesis box (fix-2's success
+        // marker — the seeded box was REMOVEd from the sidecar, then
+        // its multisig script tripped Atleast in expr-tpe).
+        expect(report.location.spentBoxId).toBe(
+            '5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda',
+        );
 
         // Checkpoint reflects the LAST successfully-validated block.
         expect(existsSync(checkpointPath)).toBe(true);
