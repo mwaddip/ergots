@@ -1,78 +1,74 @@
-# Phase 2j-pre fix-1 — `sbox-ergo-tree-no-size` rejection Implementation Plan
+# Phase 2j-pre fix-2 — Genesis-box seeding Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **CRITICAL — pass to every implementer subagent verbatim:** [OVERRIDES rule #6 — verification commands must pass before claiming any task done; #2 — confidence < 95% on crypto/cost-path → halt and declare (this fix is NOT a crypto/cost-path phase, but the rule stays in the preamble); #5 — root-cause mandate, no band-aids; #7 — re-read files before editing after 10+ messages; #8 — read→edit→read, max 3 edits between verify reads; #10 — truncation suspicion on grep results]. Per `[[feedback-subagent-explicit-rules]]`, this preamble is load-bearing.
+> **CRITICAL — pass to every implementer subagent verbatim:** [OVERRIDES rule #6 — verification commands must pass before claiming any task done; #2 — confidence < 95% on crypto/cost-path → halt and declare (this fix is NOT crypto/cost-path, but the rule stays); #5 — root-cause mandate, no band-aids; #7 — re-read files before editing after 10+ messages; #8 — read→edit→read, max 3 edits between verify reads; #10 — truncation suspicion on grep results]. Per `[[feedback-subagent-explicit-rules]]`, this preamble is load-bearing.
 
-**Spec:** `docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md` (v2, reviewer-pass applied)
+**Spec:** `docs/specs/2026-05-22-mainnet-validate-fix-2-genesis-box-seeding-design.md` (v2, reviewer pass applied)
 
-**Goal:** Replace the unconditional rejection at `packages/ergoscript/src/wire/parse-svalue.ts:278-287` (`SValueParseError 'sbox-ergo-tree-no-size'`) with a shared-reader body parse that mirrors sigma-rust's `ErgoTree::sigma_parse` at `ergo_tree.rs:410-453`. The fix unblocks the harness's output-roundtrip pass against the ~99% of mainnet boxes that use v0+hasSize=false ErgoTrees.
+**Goal:** Seed the shim's UTXO sidecar with Ergo's 3 genesis-state boxes (emission, no_premine, founders) at initialization. The missing founders-box seeding is the deterministic cause of the `missing-utxo at h=3850` halt that blocks fix-1's smoke from walking further.
 
-**Architecture (one-paragraph summary):** Extract `parseTreeFromReader(r: ByteReader): ErgoTree` from the existing `parseTree(bytes)` body. Make `parseTree(bytes)` a thin wrapper that constructs a `ByteReader`, calls the helper, then enforces outer-envelope exhaustion. Update `parseSValue(SBox)` to call `parseTreeFromReader` directly on the shared reader (capturing the consumed bytes via `r.slice(treeStart, r.position)` for the SBox's `ergoTreeBytes` field). Remove the now-unreachable `'sbox-ergo-tree-no-size'` code from the error class + facts taxonomy + docs cascade (13 occurrences across 9 files per spec Decision 3). Rebuild `dist/`. Layer 3 smoke re-run to verify the halt site advances; harness integration-test snapshots refreshed to match the new halt point.
+**Architecture (one-paragraph summary):** Copy 3 const blocks (FOUNDERS_PKS + 2 NO_PREMINE_PROOFS arrays) from `ergo-node-rust/src/main.rs:33-57` into a new `shim/src/genesis_constants.rs` with SOURCE comments. Extend `UtxoIndex::open_or_create` with a `genesis_seed` arg; insert the 3 boxes into the boxes table during the same write_txn that initializes meta. In `shim/src/main.rs`, add a `--network mainnet|testnet` CLI flag (default mainnet), compute the 3 genesis boxes via `ergo_lib::chain::genesis::genesis_boxes(...)`, pass the seed to `open_or_create`. Add a defensive hard-coded expected-id assertion (per `ergo-node-rust/src/main.rs:3092-3096` for mainnet + `external/sigma-rust/ergo-lib/src/chain/genesis.rs:241-269` for testnet). On the harness side, extend `ShimClient.spawn` from 3-arg to 4-arg accepting network; update the single call site at `harness/src/main.ts:364`. Remove the `GENESIS_HEIGHT` input-skip special-case at `shim/src/block_walker.rs:519-524` AND rewrite the `ingest_block_walks_synthetic_genesis_block_end_to_end` test (lines 911-1158) to use real seeded boxes. Verify via Layer 3 smoke from a FRESH sidecar (delete existing one first).
 
 **Invariants:**
-- Zero new public-API additions; `parseTree(bytes)` signature unchanged.
-- `parseSValue(SBox)` accepts v0+hasSize=false trees; previously-accepted v1+hasSize=true continues to work byte-for-byte identically.
-- Serialize side unchanged (writes captured `ergoTreeBytes` verbatim per `serialize-svalue.ts`).
-- Package tests stay at 3772 + any new tests added by T2/T4 (Layer 1 and Layer 2 fixtures); cross-runtime jsdom continues to pass.
+- Library behavior unchanged: no `@ergots/*` package changes; package tests stay at 3201 (ergoscript) + 156 (avltree) + 245 (nipopow) + 177 (scorex) = 3779.
+- Shim's wire protocol unchanged (CBOR over stdin/stdout).
+- Harness validation passes unchanged (header / output-roundtrip / evaluate / verifySignature).
+- Existing shim tests continue to pass (with updated call-site signatures + the one explicit test rewrite at T7).
 
 ---
 
 ## Task ordering
 
 ```
-T1   PLAN.md committed (this document; overwrites 2j-pre plan)
-T2   Layer 1 RED — synthetic v0+hasSize=false P2PK SBox fixture +
-     4 failing tests in test/parse-svalue-sbox-no-size.test.ts.
-T3   GREEN — extract parseTreeFromReader from parseTree;
-     update parseSValue(SBox) to call it. Verify: tsc + vitest
-     (node + jsdom) clean across the ergoscript package.
-T4   Layer 2 — real-mainnet v0+hasSize=false fixture captured from
-     bootstrap-data snapshot (transcribed from smoke-log halt
-     diagnostics OR re-run smoke at low height to capture). Add
-     test that exercises the captured bytes.
-T5   Remove 'sbox-ergo-tree-no-size' throw site + facts entry +
-     propagate removal through README.md (tools/mainnet-validate/),
-     PLAN.md historical reference (this file's section won't matter
-     after T1 commits — but spec's cascade table flags PLAN.md from
-     the OLD 2j-pre plan; that's already overwritten by T1 so just
-     verify no remaining hits), HANDOFF_PROMPT.md, SESSION_CONTEXT.md.
-     Final repo-wide grep returns zero hits.
-T6   Rebuild dist: cd packages/ergoscript && npm run build.
-     Verify the refreshed dist/index.js no longer contains the
-     literal "sbox-ergo-tree-no-size".
-T7   Layer 3 smoke re-run against the bootstrap-data snapshot.
-     Document the new halt site (phase + errorCode + height) in a
-     brief findings note appended to HANDOFF_PROMPT.md's fix-list
-     OR captured as the seed for the next focused-fix spec.
-T8   Refresh harness integration-test snapshots in
-     tools/mainnet-validate/harness/test/integration/{halt-path,
-     tip-reach-path,resume-path}.test.ts to reflect T7's observed
-     halt site (or replace with shape-only assertions if halts
-     scatter across heights).
-T9   SESSION_CONTEXT.md + HANDOFF_PROMPT.md + project_ergots_direction
-     memory refresh + push to origin/master.
+T1   PLAN.md committed (this document; overwrites fix-1 plan)
+T2   Copy ergo-node-rust constants into shim/src/genesis_constants.rs;
+     add Network enum (mainnet|testnet). Verify cargo build.
+T3   Layer 1 RED — Unit test for UtxoIndex::open_or_create with
+     genesis_seed arg. Test fails (no seeding implementation).
+T4   GREEN — Implement UtxoIndex::open_or_create seeding; update 4
+     existing utxo_index test call sites with &[]. Verify cargo
+     test passes.
+T5a  Shim-side: --network CLI flag parsing in main.rs; thread
+     through to UtxoIndex::open_or_create; compute genesis_seed
+     via ergo_lib::chain::genesis::genesis_boxes(). Verify cargo
+     build + test.
+T5b  Harness-side: extend ShimClient.spawn signature to 4-arg
+     accepting network; update single call site at main.ts:364;
+     update any harness tests. Verify npm test + npm run build.
+T6   Layer 2 — Network-specific box-id assertion in shim startup;
+     hard-coded expected ids per network. Verify cargo test.
+T7   Remove GENESIS_HEIGHT special-case at block_walker.rs:519-524.
+     CRITICAL sub-step: rewrite ingest_block_walks_synthetic_genesis_
+     block_end_to_end (block_walker.rs:911-1158) to use real seeded
+     boxes. Verify cargo test --release passes.
+T8   Re-run Layer 3 smoke from a FRESH sidecar (delete existing one).
+     Document new halt site or clean tip-reach in
+     tools/mainnet-validate/findings/2026-05-22-fix-2-smoke.md.
+T9   Refresh harness integration tests for the new halt site
+     (analogous to fix-1 T8). Verify npm test.
+T10  SESSION_CONTEXT + HANDOFF + memory refresh + push.
 ```
 
-Total: 9 commits (T1 plus T2-T9).
+Total: ~11 commits (T1 + T2 + T3 + T4 + T5a + T5b + T6 + T7 + T8 + T9 + T10).
 
 ---
 
 ## Task 1: Commit PLAN.md
 
 **Files:**
-- Create: `/home/mwaddip/projects/ergots/PLAN.md` (this file, overwrites 2j-pre plan)
+- Create: `/home/mwaddip/projects/ergots/PLAN.md` (this file, overwrites fix-1 plan)
 
 - [ ] **Step 1: Stage and commit**
 
 ```bash
 git add PLAN.md
 git commit -m "$(cat <<'EOF'
-docs(plan): overwrite PLAN.md with phase 2j-pre fix-1 execution plan
+docs(plan): overwrite PLAN.md with phase 2j-pre fix-2 execution plan
 
 Per HANDOFF_PROMPT.md convention: PLAN.md is the in-flight phase's task
 list, overwritten at each phase boundary. Spec at
-docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md
+docs/specs/2026-05-22-mainnet-validate-fix-2-genesis-box-seeding-design.md
 (v2, reviewer pass applied).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
@@ -80,131 +76,97 @@ EOF
 )"
 ```
 
-- [ ] **Step 2: Verification**
-
-```bash
-git log --oneline -3   # confirm: PLAN commit + spec commit + 2e86757 (2j-pre tip)
-```
-
 ---
 
-## Task 2: Layer 1 RED — synthetic v0+hasSize=false fixture + failing tests
+## Task 2: Copy ergo-node-rust constants + Network enum
 
 **Files:**
-- Create: `packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts`
+- Create: `tools/mainnet-validate/shim/src/genesis_constants.rs`
+- Edit: `tools/mainnet-validate/shim/src/main.rs` (add `mod genesis_constants;`)
 
-**Fixture (hand-constructed):**
+**Contents of new `genesis_constants.rs`:**
 
-The canonical v0+hasSize=false P2PK ErgoTree is 36 bytes:
-- byte 0: `0x00` — header (version=0, hasSize=false, no segregation)
-- byte 1: `0x08` — SType code for SSigmaProp
-- byte 2: `0xcd` — `ProveDlog::OP_CODE` (sigma-rust `serialization/sigmaboolean.rs:50`)
-- bytes 3-35: 33 deterministic test bytes (e.g., `0x02` + 32 bytes of `0xaa`) — compressed secp256k1 EcPoint shape; doesn't need to be a real curve point for parse-only tests.
+```rust
+//! Genesis-state box construction constants.
+//!
+//! These are COPIED from ergo-node-rust/src/main.rs (lines as cited in
+//! each block's SOURCE comment). The constants live in the binary crate
+//! there, not exposed via lib.rs — path-dep is impossible. Copying with
+//! source citations is the only viable path; lifecycle is low (constants
+//! change only at chain-genesis-rewrite events, never on production).
+//!
+//! Decision 6's box-id assertion at shim startup catches any drift loudly.
 
-The full SBox byte layout (matching `parse-svalue.ts:271-318` and `serialize-svalue.ts`):
-- value (VLQ u64, e.g., `0x80 0x01` = 128 nanoERG)
-- ergo_tree_bytes (the 36-byte P2PK above)
-- creation_height (VLQ u32, e.g., `0x01` = 1)
-- tokens_count (raw u8, `0x00` = no tokens)
-- additional_regs (raw u8, `0x00` = no R4-R9)
-- transaction_id (32 raw bytes, e.g., 32 bytes of `0xbb`)
-- index (VLQ u16, e.g., `0x00` = 0)
+/// Testnet no-premine proof strings (ergo-node-rust/src/main.rs:33-39).
+// SOURCE: ergo-node-rust/src/main.rs:33-39
+pub const TESTNET_NO_PREMINE_PROOFS: &[&str] = &[
+    // ... copy verbatim ...
+];
 
-Total SBox bytes: 2 (value) + 36 (tree) + 1 (height) + 1 (token count) + 1 (reg count) + 32 (txid) + 1 (index) = 74 bytes.
+/// Mainnet no-premine proof strings (ergo-node-rust/src/main.rs:43-49).
+// SOURCE: ergo-node-rust/src/main.rs:43-49
+pub const MAINNET_NO_PREMINE_PROOFS: &[&str] = &[
+    // ... copy verbatim ...
+];
 
-- [ ] **Step 1: Construct the fixture**
+/// Foundation multisig public keys (ergo-node-rust/src/main.rs:53-57).
+// SOURCE: ergo-node-rust/src/main.rs:53-57
+pub const FOUNDERS_PKS: &[&str] = &[
+    // ... copy verbatim ...
+];
 
-Inline hex constant in the test file. Use a helper to assemble:
+/// Network selection for genesis-box seeding. Self-contained 2-variant
+/// enum so we don't pull in enr-p2p just for the type.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Network {
+    Mainnet,
+    Testnet,
+}
 
-```ts
-const P2PK_TREE = new Uint8Array([
-  0x00,                     // header: v0, !hasSize, !segregation
-  0x08, 0xcd,               // SSigmaProp + ProveDlog opcode
-  0x02, ...new Array(32).fill(0xaa),  // 33-byte EcPoint (test data)
-])
-
-const SYNTHETIC_SBOX = new Uint8Array([
-  0x80, 0x01,                          // value VLQ u64 = 128
-  ...P2PK_TREE,                        // ergo_tree (36 bytes)
-  0x01,                                // creation_height VLQ u32 = 1
-  0x00,                                // tokens_count u8 = 0
-  0x00,                                // additional_regs u8 = 0
-  ...new Array(32).fill(0xbb),         // transaction_id (32 bytes)
-  0x00,                                // index VLQ u16 = 0
-])
-// length: 74 bytes total
+impl Network {
+    pub fn no_premine_proofs(&self) -> &'static [&'static str] {
+        match self {
+            Network::Mainnet => MAINNET_NO_PREMINE_PROOFS,
+            Network::Testnet => TESTNET_NO_PREMINE_PROOFS,
+        }
+    }
+}
 ```
 
-- [ ] **Step 2: Write 4 failing tests**
+- [ ] **Step 1: Read ergo-node-rust/src/main.rs:33-57**
 
-```ts
-import { describe, it, expect } from 'vitest'
-import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { parseSValue, serializeSValue, SValueParseError } from '../src/wire/parse-svalue'
-// (or wherever the public re-exports point — confirm import paths
-// from the ergoscript test/ existing patterns)
-import { parseTree, serializeTree } from '../src/wire/ergo-tree'
+To get the exact const definitions.
 
-describe('SBox v0+hasSize=false parse (phase 2j-pre fix-1)', () => {
-  it('parses v0+hasSize=false P2PK SBox without throwing', () => {
-    const r = new ByteReader(SYNTHETIC_SBOX)
-    const sbox = parseSValue({ tag: 'SBox' }, 0, r)
-    expect(sbox.kind).toBe('Box')
-  })
+- [ ] **Step 2: Create genesis_constants.rs with the verbatim copies**
 
-  it('round-trips byte-equal', () => {
-    const r = new ByteReader(SYNTHETIC_SBOX)
-    const sbox = parseSValue({ tag: 'SBox' }, 0, r)
-    const w = new ByteWriter()
-    serializeSValue({ tag: 'SBox' }, sbox, 0, w)
-    expect(w.toBytes()).toEqual(SYNTHETIC_SBOX)
-  })
+- [ ] **Step 3: Wire the module in main.rs**
 
-  it('ergoTreeBytes captures exactly the tree bytes', () => {
-    const r = new ByteReader(SYNTHETIC_SBOX)
-    const sbox = parseSValue({ tag: 'SBox' }, 0, r) as any  // narrow as needed
-    expect(sbox.value.ergoTree).toEqual(P2PK_TREE)
-  })
+Add `mod genesis_constants;` near the top of `main.rs` alongside the existing `mod` lines.
 
-  it('public-API parseTree handles the same v0+hasSize=false bytes', () => {
-    const tree = parseTree(P2PK_TREE)
-    expect(tree.header.version).toBe(0)
-    expect(tree.header.hasSize).toBe(false)
-    expect(serializeTree(tree)).toEqual(P2PK_TREE)
-  })
-})
-```
-
-- [ ] **Step 3: Run the failing tests — confirm they fail with the expected error**
+- [ ] **Step 4: Verify cargo build**
 
 ```bash
-cd /home/mwaddip/projects/ergots
-node_modules/.bin/vitest run packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts
+cargo build --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml
 ```
 
-Expected: tests 1, 2, 3 throw `SValueParseError('sbox-ergo-tree-no-size')`. Test 4 should ALREADY pass — the `parseTree(bytes)` public function handles hasSize=false internally; this test pins the parity.
-
-If test 4 fails: investigate before touching anything else — that's an unknown the spec didn't anticipate.
-
-- [ ] **Step 4: Stage + commit**
+- [ ] **Step 5: Stage + commit**
 
 ```bash
-git add packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts
+git add tools/mainnet-validate/shim/src/genesis_constants.rs \
+        tools/mainnet-validate/shim/src/main.rs
 git commit -m "$(cat <<'EOF'
-test(2j-pre/fix-1): RED — failing test for v0+hasSize=false SBox parse (T2)
+feat(2j-pre/fix-2): copy ergo-node-rust genesis constants into shim (T2)
 
-Adds packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts with 4
-tests exercising parseSValue(SBox) against a hand-constructed 74-byte
-SBox containing a canonical 36-byte P2PK ErgoTree (header 0x00, body
-0x08 0xcd <33-byte test EcPoint>).
+New shim/src/genesis_constants.rs contains verbatim copies of:
+- TESTNET_NO_PREMINE_PROOFS (SOURCE: ergo-node-rust/src/main.rs:33-39)
+- MAINNET_NO_PREMINE_PROOFS (SOURCE: ergo-node-rust/src/main.rs:43-49)
+- FOUNDERS_PKS (SOURCE: ergo-node-rust/src/main.rs:53-57)
 
-3 of 4 tests fail with SValueParseError('sbox-ergo-tree-no-size') —
-the rejection at parse-svalue.ts:278-287 that this phase removes.
-Test 4 (public parseTree handles the same bytes) passes today and
-locks in parity post-refactor.
+Plus a self-contained Network enum (2 variants) so we don't pull enr-p2p
+just for the type. Path-dep was impossible — these constants live in
+the binary crate's src/main.rs, not in src/lib.rs.
 
-Per spec docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md
-§Layer 1. TDD discipline per CLAUDE.md.
+T2 of 10.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -213,192 +175,176 @@ EOF
 
 ---
 
-## Task 3: GREEN — extract `parseTreeFromReader` + update `parseSValue(SBox)`
+## Task 3: Layer 1 RED — failing test for UtxoIndex genesis seeding
 
 **Files:**
-- Edit: `packages/ergoscript/src/wire/ergo-tree.ts` — extract `parseTreeFromReader`, refactor `parseTree(bytes)` to delegate.
-- Edit: `packages/ergoscript/src/wire/parse-svalue.ts` — replace the throw at lines 278-287 with a call to `parseTreeFromReader`.
+- Edit: `tools/mainnet-validate/shim/src/utxo_index.rs` (add to existing test module)
 
-- [ ] **Step 1: Re-read both files in full**
+**Failing test to add:**
 
-Per OVERRIDES rule #8 — read before edit. Both files are < 500 lines; one Read each.
+```rust
+#[test]
+fn open_or_create_seeds_genesis_boxes_on_fresh_init() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let path = tempdir.path().join("test.redb");
+    let source_hash = [0x11u8; 32];
 
-- [ ] **Step 2: Add `parseTreeFromReader` in `ergo-tree.ts`**
+    // 3 synthetic seed entries. The actual genesis box ids/bytes don't
+    // matter for THIS test — we're verifying the seeding mechanism, not
+    // the box-id derivation (that's Layer 2).
+    let seed_entries: Vec<([u8; 32], Vec<u8>)> = (0..3)
+        .map(|i| {
+            let mut id = [0u8; 32];
+            id[0] = i as u8;
+            let bytes = vec![0xff; 50 + i as usize];  // distinguishable lengths
+            (id, bytes)
+        })
+        .collect();
 
-Insert before `parseTree(bytes)`. The new helper contains all the logic currently inside `parseTree(bytes)` except: (a) the `bytes.length` size cap + empty checks, (b) the `outer.isExhausted` trailing-bytes check at the very end. Critically: for the `!hasSize` branch, the helper sets `inner = outer` (shares the reader) instead of constructing a fresh ByteReader over `outer.remaining`.
+    let index = UtxoIndex::open_or_create(&path, &source_hash, &seed_entries).unwrap();
 
-```ts
-/**
- * Parse an ErgoTree's header + body from the current cursor position of
- * the provided reader. Leaves the cursor at the byte AFTER the body. Does
- * NOT enforce trailing-byte exhaustion on the outer reader — that's the
- * caller's job.
- *
- * Mirrors sigma-rust's ErgoTree::sigma_parse at ergo_tree.rs:410-453:
- * non-hasSize branch reads constants (if segregated) + body Expr from the
- * SHARED reader. Body Expr is self-delimiting via the opcode grammar.
- *
- * Used by:
- *   - parseTree(bytes), which wraps with size cap + outer exhaustion check.
- *   - parseSValue(SBox), which captures the consumed byte range as the
- *     box's ergoTreeBytes field.
- */
-export function parseTreeFromReader(outer: ByteReader): ErgoTree {
-  const rawHeader = outer.readU8()
-  const header: TreeHeader = {
-    version: (rawHeader & VERSION_MASK) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
-    hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
-    constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
-    rawHeader,
-  }
-
-  let inner: ByteReader
-  if (header.hasSize) {
-    const bodyByteLength = outer.readVlqU()
-    if (bodyByteLength > outer.remaining) {
-      throw new ErgoTreeParseError(
-        `declared body size ${bodyByteLength} exceeds remaining bytes ${outer.remaining}`,
-        'body-size-overflow',
-      )
+    // All 3 seeded boxes are queryable.
+    for (id, expected_bytes) in &seed_entries {
+        let got = index.get(id).unwrap().unwrap();
+        assert_eq!(got, *expected_bytes);
     }
-    inner = new ByteReader(outer.readBytes(bodyByteLength))
-  } else {
-    // Share the outer reader. The body Expr grammar is self-delimiting;
-    // the cursor lands at the body's end after parseExpr returns. Sigma-rust
-    // does the same at ergo_tree.rs:436-451.
-    inner = outer
-  }
 
-  const constantTypes: SType[] = []
-  const constants: SValue[] = []
-  if (header.constantSegregation) {
-    const count = inner.readVlqU()
-    if (count > MAX_CONSTANTS_COUNT) {
-      throw new ErgoTreeParseError(
-        `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
-        'too-many-constants',
-      )
+    // indexed_up_to_height is still 0 (seeding doesn't advance the marker).
+    assert_eq!(index.indexed_up_to_height().unwrap(), 0);
+}
+
+#[test]
+fn open_or_create_re_seeds_on_rebuild() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let path = tempdir.path().join("test.redb");
+
+    let seed_entries: Vec<([u8; 32], Vec<u8>)> = vec![
+        ([0xaa; 32], vec![1, 2, 3]),
+        ([0xbb; 32], vec![4, 5, 6]),
+        ([0xcc; 32], vec![7, 8, 9]),
+    ];
+
+    // First open with hash_v1 — seeds 3 boxes.
+    {
+        let index = UtxoIndex::open_or_create(&path, &[0xa1; 32], &seed_entries).unwrap();
+        assert_eq!(index.get(&[0xaa; 32]).unwrap().unwrap(), vec![1, 2, 3]);
     }
-    for (let i = 0; i < count; i++) {
-      const tpe = parseSType(inner)
-      constantTypes.push(tpe)
-      constants.push(parseSValue(tpe, header.version, inner))
+
+    // Re-open with a DIFFERENT hash — triggers rebuild. Seeds must re-apply.
+    let index = UtxoIndex::open_or_create(&path, &[0xa2; 32], &seed_entries).unwrap();
+    for (id, bytes) in &seed_entries {
+        assert_eq!(index.get(id).unwrap().unwrap(), *bytes);
     }
-  }
-
-  const body = parseExpr(inner, constantTypes, constants, new Map(), header.version)
-
-  // hasSize-bounded: enforce that the inner buffer is exhausted (no trailing
-  // bytes inside the declared body region).
-  if (header.hasSize && !inner.isExhausted) {
-    throw new ErgoTreeParseError(
-      `${inner.remaining} trailing bytes after body in declared tree-body region`,
-      'trailing-bytes',
-    )
-  }
-  // Non-hasSize: NO exhaustion check here. The outer caller decides whether
-  // more bytes are expected after the tree (e.g., parseSValue(SBox) expects
-  // creation_height next; parseTree(bytes) expects nothing).
-
-  return { header, constantTypes, constants, body }
+    assert_eq!(index.indexed_up_to_height().unwrap(), 0);
 }
 ```
 
-- [ ] **Step 3: Refactor `parseTree(bytes)` to be a thin wrapper**
+- [ ] **Step 1: Add the failing tests to the existing `mod tests` block in utxo_index.rs**
 
-Replace the entire current body of `parseTree(bytes)` with:
-
-```ts
-export function parseTree(bytes: Uint8Array): ErgoTree {
-  if (bytes.length === 0) {
-    throw new ErgoTreeParseError('empty ErgoTree bytes', 'empty')
-  }
-  if (bytes.length > MAX_TREE_SIZE) {
-    throw new ErgoTreeParseError(
-      `ErgoTree size ${bytes.length} exceeds ${MAX_TREE_SIZE} byte cap`,
-      'oversized',
-    )
-  }
-  const outer = new ByteReader(bytes)
-  const tree = parseTreeFromReader(outer)
-  if (!outer.isExhausted) {
-    throw new ErgoTreeParseError(
-      `${outer.remaining} trailing bytes after ErgoTree envelope`,
-      'trailing-bytes',
-    )
-  }
-  return tree
-}
-```
-
-- [ ] **Step 4: Update `parseSValue(SBox)` in `parse-svalue.ts`**
-
-Replace lines 274-291 (the current `treeStart`/`headerByte`/`hasSize`/throw/`bodySize`/`readBytes` block) with:
-
-```ts
-// --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
-// Sigma-rust calls ErgoTree::sigma_parse(r) here at
-// chain/ergo_box.rs:350; we mirror via parseTreeFromReader which
-// handles both hasSize=true and hasSize=false on the shared reader.
-const treeStart = r.position
-parseTreeFromReader(r)  // advances r past the body; return value unused
-const ergoTreeBytes = r.slice(treeStart, r.position).slice()  // defensive copy
-```
-
-Update the comment block at lines 257-269 (the SBox field documentation comment) to remove the "all real boxes use v1+" claim. New comment:
-
-```ts
-//   ergo_tree_bytes — self-delimiting via ErgoTree header.
-//                     Sigma-rust calls ErgoTree::sigma_parse(r) on the
-//                     shared reader; we mirror via parseTreeFromReader.
-//                     Both hasSize=true (size-prefixed body) and
-//                     hasSize=false (body grammar self-delimits) are
-//                     supported as of phase 2j-pre fix-1.
-```
-
-Add the import: `import { parseTreeFromReader } from './ergo-tree'`. Note: the reverse import `ergo-tree.ts → parse-svalue.ts` (for `parseSValue`-on-constants) already exists. The new direction makes the cycle bidirectional. ESM-tolerable per spec Decision 4 (both sides use values only in function bodies).
-
-- [ ] **Step 5: Verify per OVERRIDES rule #6**
+- [ ] **Step 2: Run the tests; confirm they fail with compile errors (`open_or_create` doesn't accept 3rd arg)**
 
 ```bash
-# Typecheck — must be CLEAN
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json
-
-# Run all ergoscript tests under node
-node_modules/.bin/vitest run packages/ergoscript
-
-# Run all ergoscript tests under jsdom (cross-runtime)
-cd packages/ergoscript && npx vitest run --config vitest.browser.config.ts
-cd /home/mwaddip/projects/ergots
+cargo test --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml 2>&1 | tail -20
 ```
 
-Expected: all tests pass, including the 4 new tests from T2. If any pre-existing test fails, investigate before claiming GREEN — the spec asserts behavior preservation; a failure means the refactor changed something.
+- [ ] **Step 3: Stage + commit (RED commit — test file changes only)**
+
+```bash
+git add tools/mainnet-validate/shim/src/utxo_index.rs
+git commit -m "$(cat <<'EOF'
+test(2j-pre/fix-2): RED — failing tests for UtxoIndex genesis seeding (T3)
+
+Adds 2 failing tests to utxo_index.rs::tests:
+- open_or_create_seeds_genesis_boxes_on_fresh_init: 3 synthetic seed
+  entries pass through to open_or_create; all 3 queryable post-init.
+- open_or_create_re_seeds_on_rebuild: hash mismatch triggers rebuild;
+  seeds must re-apply.
+
+Both fail with compile errors today — open_or_create doesn't accept
+a genesis_seed arg yet. T4's GREEN step adds it.
+
+T3 of 10.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 4: GREEN — implement UtxoIndex seeding
+
+**Files:**
+- Edit: `tools/mainnet-validate/shim/src/utxo_index.rs`
+
+**Changes:**
+
+1. **Extend `open_or_create` signature:**
+
+```rust
+pub fn open_or_create(
+    path: &Path,
+    source_store_hash: &[u8; 32],
+    genesis_seed: &[([u8; 32], Vec<u8>)],
+) -> Result<Self> {
+```
+
+2. **In the FRESH-INIT path** (when no prior source_store_hash exists), insert the seed entries inside the same write_txn that writes meta. Per reviewer M3, redb's `WriteTransaction::open_table(BOXES_TABLE)` auto-creates the table; insert each `(box_id, bytes)` after that.
+
+3. **In the REBUILD path** (when source_store_hash mismatches), after `delete_table(BOXES_TABLE)` + meta reset, also insert the seed entries (re-opening BOXES_TABLE in the same write_txn auto-creates it).
+
+4. **In the MATCHING path** (existing sidecar with matching hash), do NOT re-seed — the existing data already contains the seeds from a prior init.
+
+**Update existing test call sites** (reviewer M2 enumeration):
+- `round_trip_insert_get_remove` — pass `&[]` for genesis_seed.
+- `indexed_up_to_height_persists` — pass `&[]`.
+- `marker_survives_reopen` — pass `&[]`.
+- `hash_mismatch_triggers_rebuild` — pass `&[]`.
+
+- [ ] **Step 1: Re-read utxo_index.rs (OVERRIDES rule #8)**
+
+```bash
+# utxo_index.rs is ~400 lines; one Read.
+```
+
+- [ ] **Step 2: Edit open_or_create signature + implementation**
+
+- [ ] **Step 3: Update the 4 existing test call sites with `&[]` for genesis_seed**
+
+- [ ] **Step 4: Run all utxo_index tests**
+
+```bash
+cargo test --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml utxo_index 2>&1 | tail -15
+```
+
+Expected: all tests pass (including the 2 new ones from T3).
+
+- [ ] **Step 5: Run ALL shim tests to ensure no other call sites were missed**
+
+```bash
+cargo test --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml 2>&1 | tail -15
+```
+
+Expected: any other `open_or_create` call sites in non-utxo_index tests (e.g., block_walker tests) also need `&[]`. Update if needed.
 
 - [ ] **Step 6: Stage + commit**
 
 ```bash
-git add packages/ergoscript/src/wire/ergo-tree.ts \
-        packages/ergoscript/src/wire/parse-svalue.ts
+git add tools/mainnet-validate/shim/src/utxo_index.rs \
+        tools/mainnet-validate/shim/src/block_walker.rs  # if any tests there updated
 git commit -m "$(cat <<'EOF'
-feat(2j-pre/fix-1): support v0+hasSize=false SBoxes via shared-reader body parse (T3)
+feat(2j-pre/fix-2): UtxoIndex::open_or_create accepts genesis_seed (T4)
 
-Extracts parseTreeFromReader from parseTree in wire/ergo-tree.ts; the
-new helper parses an ErgoTree's header + body from the current cursor
-position of a shared ByteReader, leaving the cursor at the byte after
-the body. parseTree(bytes) becomes a thin wrapper that adds size cap
-and outer-envelope exhaustion checks.
+Extends open_or_create with a third arg `genesis_seed: &[([u8; 32], Vec<u8>)]`.
+Both the fresh-init path AND the rebuild path insert each seed entry
+into the boxes table during the same write_txn that writes meta. redb's
+WriteTransaction::open_table auto-creates BOXES_TABLE after the
+delete_table call in the rebuild path; insertion fits cleanly.
 
-parseSValue(SBox) at wire/parse-svalue.ts now calls parseTreeFromReader
-on the shared reader, mirroring sigma-rust's chain/ergo_box.rs:350
-which calls ErgoTree::sigma_parse(r) directly. v0+hasSize=false trees
-(~99% of mainnet boxes) now parse cleanly; previously this case threw
-SValueParseError('sbox-ergo-tree-no-size').
+Updates the 4 existing utxo_index test call sites + any other call sites
+in shim tests to pass &[]. The 2 RED tests from T3 turn GREEN.
 
-The 4 RED tests from T2 turn GREEN. Pre-existing 3194 ergoscript tests
-unchanged. Cross-runtime jsdom unchanged.
-
-Per spec docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md
-§Decisions 1, 2, 4. T3 of 9.
+T4 of 10.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -407,178 +353,105 @@ EOF
 
 ---
 
-## Task 4: Layer 2 — real-mainnet v0+hasSize=false fixture
-
-**Goal:** capture a real on-chain box from the bootstrap-data snapshot and add a parse + round-trip test using its bytes. Validates that the fix handles real mainnet data, not just hand-crafted P2PK.
+## Task 5a: Shim-side — --network CLI flag + compute genesis_seed
 
 **Files:**
-- Edit: `packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts` — append the Layer 2 test.
-- (Optional) Create: `packages/ergoscript/test/fixtures/mainnet-sbox-h1-out0.hex` — if storing the fixture as a file vs. inline hex.
+- Edit: `tools/mainnet-validate/shim/src/main.rs`
 
-- [ ] **Step 1: Capture a real mainnet SBox**
+**Changes:**
 
-Two options:
+1. Add `--network mainnet|testnet` flag parsing (default mainnet).
+2. Compute the 3 genesis boxes via `ergo_lib::chain::genesis::genesis_boxes(MonetarySettings::default(), &founders_pks, 2, &network.no_premine_proofs())`.
+3. Pass the resulting `Vec<([u8; 32], Vec<u8>)>` to `UtxoIndex::open_or_create`.
 
-**Option A — Use the existing smoke walk logs.** The T12 smoke runs surfaced halt diagnostics with the failing box's bytes. If `error-report.json` from a prior run captured the `bundleExcerpt.spentBoxHex` or similar (re-read `tools/mainnet-validate/harness/src/error-report.ts` to confirm what's captured), transcribe those bytes.
+**Argv parser:** the shim currently uses positional args 1 (store_path) and 2 (sidecar_path). Add flag handling that accepts `--network mainnet` or `--network testnet` interleaved with positional args. Simplest: process all args looking for `--network <value>` first; consume those two; the remaining positional args are store_path + sidecar_path.
 
-**Option B — Re-run a tiny smoke walk to capture.** From the bootstrap-data snapshot at `/tmp/ergots-2j-pre-smoke-data/modifiers.redb` (created during 2j-pre T12; may have been cleaned up):
+**Genesis-box construction (per spec Decision 1 + ergo-node-rust/src/main.rs:81-114):**
+
+```rust
+fn build_genesis_seed(network: Network) -> Result<Vec<([u8; 32], Vec<u8>)>> {
+    use ergo_lib::chain::genesis::genesis_boxes;
+    use ergo_lib::ergotree_ir::chain::ergo_box::MonetarySettings;
+    use ergo_lib::ergotree_ir::sigma_protocol::dlog_group::EcPoint;
+    use ergo_lib::ergotree_ir::sigma_protocol::sigma_boolean::ProveDlog;
+
+    let settings = MonetarySettings::default();
+    let founders_pks: Vec<ProveDlog> = FOUNDERS_PKS
+        .iter()
+        .map(|hex_str| {
+            let bytes = hex::decode(hex_str).expect("invalid founder pk hex");
+            let point = EcPoint::sigma_parse_bytes(&bytes).expect("invalid EC point");
+            ProveDlog::new(point)
+        })
+        .collect();
+    let proof_strings = network.no_premine_proofs();
+    let (emission, no_premine, founders) = genesis_boxes(
+        &settings,
+        &founders_pks,
+        2,  // 2-of-3 threshold
+        proof_strings,
+    )?;
+    [emission, no_premine, founders]
+        .into_iter()
+        .map(|b| {
+            let id: [u8; 32] = b.box_id().as_ref().try_into().unwrap();
+            let bytes = b.sigma_serialize_bytes()?;
+            Ok((id, bytes))
+        })
+        .collect::<Result<_>>()
+}
+```
+
+(Adjust imports / paths to match what's actually available.)
+
+- [ ] **Step 1: Read shim/src/main.rs to find the argv parsing site**
+
+- [ ] **Step 2: Add --network parsing + Network enum import**
+
+- [ ] **Step 3: Add `hex` crate dep to shim/Cargo.toml** (used by build_genesis_seed)
+
+```toml
+hex = "0.4"
+```
+
+- [ ] **Step 4: Implement build_genesis_seed + wire it into UtxoIndex::open_or_create call**
+
+- [ ] **Step 5: Verify**
 
 ```bash
-# If the snapshot still exists; otherwise re-create per
-# tools/mainnet-validate/README.md §"Snapshot the live store":
-ls /tmp/ergots-2j-pre-smoke-data/modifiers.redb
-
-# Build the shim if not already built:
-cd tools/mainnet-validate/shim && cargo build --release
-cd /home/mwaddip/projects/ergots
-
-# Use a small ad-hoc script (TypeScript or Rust) that drives the shim's
-# GET_BLOCK 1 command, parses the BlockBundle, and dumps the first output
-# box's bytes (BlockBundle.transactions[0].outputs[0]) to stdout as hex.
-# The shim returns box bytes per its CBOR protocol; harness/src/protocol.ts
-# defines the TS shape.
+cargo build --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml 2>&1 | tail -5
+cargo test --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml 2>&1 | tail -10
 ```
 
-The cleanest path is Option A if the bytes are recoverable from existing artifacts; Option B otherwise.
-
-- [ ] **Step 2: Add the captured fixture to the test file**
-
-```ts
-// At the bottom of test/parse-svalue-sbox-no-size.test.ts:
-
-const MAINNET_H1_OUT0_BYTES = new Uint8Array([
-  // <transcribed real-mainnet bytes from Step 1>
-])
-
-it('parses real mainnet v0+hasSize=false SBox (h=1 out 0)', () => {
-  const r = new ByteReader(MAINNET_H1_OUT0_BYTES)
-  const sbox = parseSValue({ tag: 'SBox' }, 0, r) as any
-  expect(sbox.kind).toBe('Box')
-  expect(r.isExhausted).toBe(true)  // exact consumption
-})
-
-it('real mainnet SBox round-trips byte-equal', () => {
-  const r = new ByteReader(MAINNET_H1_OUT0_BYTES)
-  const sbox = parseSValue({ tag: 'SBox' }, 0, r)
-  const w = new ByteWriter()
-  serializeSValue({ tag: 'SBox' }, sbox, 0, w)
-  expect(w.toBytes()).toEqual(MAINNET_H1_OUT0_BYTES)
-})
-```
-
-- [ ] **Step 3: Verify**
+- [ ] **Step 6: Smoke-test the shim binary**
 
 ```bash
-node_modules/.bin/vitest run packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts
+echo "GET_TIP_HEIGHT" | /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/target/release/ergots-mainnet-validate-shim \
+  --network mainnet \
+  /tmp/ergots-2j-pre-smoke-data/modifiers.redb \
+  /tmp/t5a-fix2-sidecar.redb 2>&1 | head -10
 ```
 
-Expected: both new tests pass. If the round-trip fails byte-equal, the parser is dropping or reordering some byte — investigate before proceeding.
-
-- [ ] **Step 4: Stage + commit**
-
-```bash
-git add packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts
-git commit -m "$(cat <<'EOF'
-test(2j-pre/fix-1): real-mainnet v0+hasSize=false SBox fixture + round-trip (T4)
-
-Captures a real on-chain v0+hasSize=false SBox from the bootstrap-data
-snapshot (height 1, output 0; transcribed from {smoke artifact location})
-and asserts parse + byte-equal round-trip. Confirms the fix handles real
-mainnet data, not just hand-crafted P2PK.
-
-Per spec docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md
-§Layer 2. T4 of 9.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 5: Remove `'sbox-ergo-tree-no-size'` code + docs cascade
-
-**Files (per spec Decision 3's cascade table):**
-- Edit: `packages/ergoscript/src/wire/parse-svalue.ts` — already updated by T3 (throw site removed). Verify the literal string `'sbox-ergo-tree-no-size'` no longer appears.
-- Edit: `facts/ergoscript-wire.md:176` — remove `'sbox-ergo-tree-no-size'` from the `SValueParseError` codes enumeration. Add a one-line changelog note in §"Phase 2j-pre fix-1" (new subsection) explaining the removal.
-- Edit: `tools/mainnet-validate/README.md` — three references at lines 109 (JSON example), 129 (error-class table), 177 (fix-list narrative). The fix-list narrative at line 177 needs to either be removed (item resolved) or rewritten to say "RESOLVED in fix-1, see {spec}."
-- Edit: `HANDOFF_PROMPT.md:35` — fix-list item 1 narrative. Either remove (resolved) or mark RESOLVED.
-- Edit: `SESSION_CONTEXT.md:48,112` — fix-list summary. Same treatment as HANDOFF_PROMPT.
-
-**Note on PLAN.md:** the spec's cascade table lists `PLAN.md:1075-1079`. That refers to the OLD 2j-pre PLAN; T1 of THIS plan overwrote PLAN.md entirely, so the lines are gone. Verify via grep that no current `PLAN.md` reference exists.
-
-- [ ] **Step 1: Repo-wide grep — capture starting state**
-
-```bash
-grep -rn "sbox-ergo-tree-no-size" \
-  --include="*.ts" --include="*.md" --include="*.json" --include="*.js" \
-  /home/mwaddip/projects/ergots/ \
-  | grep -v "dist/" | grep -v "node_modules/"
-```
-
-Expected occurrence count: ≤ 13 minus the throw site removed in T3 (so ≤ 12). The `dist/` exclusion is deliberate — T6 rebuilds it separately. Document the actual count for the commit message.
-
-- [ ] **Step 2: Remove from `facts/ergoscript-wire.md:176`**
-
-Locate the `'sbox-ergo-tree-no-size'` entry in the `SValueParseError` codes line; remove only that entry. Verify the surrounding code list still reads naturally (commas, formatting).
-
-Add a new subsection (or extend an existing changelog section) — likely after the phase 2h-c.1 SHeader updates section — titled "## Phase 2j-pre fix-1 wire updates" with:
-
-> `parseSValue(SBox)` at `parse-svalue.ts` now handles v0+hasSize=false ErgoTrees by delegating to a shared-reader body parse (`parseTreeFromReader` in `ergo-tree.ts`), mirroring sigma-rust's `chain/ergo_box.rs:350` calling `ErgoTree::sigma_parse(r)`. The previously-thrown `SValueParseError('sbox-ergo-tree-no-size')` code is removed; v0+hasSize=false (~99% of mainnet boxes) is now supported.
-
-- [ ] **Step 3: Update `tools/mainnet-validate/README.md`**
-
-For line 109 (JSON example with `"errorCode": "sbox-ergo-tree-no-size"`) — replace with a more representative example (e.g., one of the validation phases that's STILL possible to halt at, like `output-roundtrip` with `byte-roundtrip-mismatch`).
-
-For line 129 (error-class table) — remove the `sbox-ergo-tree-no-size` row.
-
-For line 177 (fix-list narrative) — mark item 1 RESOLVED with a pointer to the spec OR remove the entire fix-list item-1 narrative paragraph (rewrite the surrounding section).
-
-- [ ] **Step 4: Update `HANDOFF_PROMPT.md` and `SESSION_CONTEXT.md`**
-
-Defer the substantial rewrite to T9 (final docs sweep). For T5: lightweight edit — change "top priority" wording to "RESOLVED" or strike through. T9 will fully refresh.
-
-- [ ] **Step 5: Final repo-wide grep — verify zero hits (excluding dist/)**
-
-```bash
-grep -rn "sbox-ergo-tree-no-size" \
-  --include="*.ts" --include="*.md" --include="*.json" --include="*.js" \
-  /home/mwaddip/projects/ergots/ \
-  | grep -v "dist/" | grep -v "node_modules/"
-```
-
-Expected: zero hits. If any remain, investigate. Per OVERRIDES rule #10, if grep returns suspiciously few results, re-narrow and re-confirm.
-
-- [ ] **Step 6: Verify per OVERRIDES rule #6**
-
-```bash
-npx tsc --noEmit -p packages/ergoscript/tsconfig.json
-node_modules/.bin/vitest run packages/ergoscript
-```
-
-Expected: clean. The removed code is unused; type/test should be unaffected.
+Expected: shim accepts the flag, opens the store, seeds the 3 boxes, responds with tip.
 
 - [ ] **Step 7: Stage + commit**
 
 ```bash
-git add facts/ergoscript-wire.md tools/mainnet-validate/README.md \
-        HANDOFF_PROMPT.md SESSION_CONTEXT.md packages/ergoscript/src/wire/parse-svalue.ts
+git add tools/mainnet-validate/shim/src/main.rs tools/mainnet-validate/shim/Cargo.toml
 git commit -m "$(cat <<'EOF'
-docs(2j-pre/fix-1): remove 'sbox-ergo-tree-no-size' from taxonomy + docs cascade (T5)
+feat(2j-pre/fix-2): shim --network flag + genesis-box seeding (T5a)
 
-The code became unreachable after T3's parse-svalue.ts refactor. Removes:
-- facts/ergoscript-wire.md SValueParseError codes enumeration (line 176)
-- tools/mainnet-validate/README.md error-class table + fix-list narrative
-- HANDOFF_PROMPT.md + SESSION_CONTEXT.md fix-list item 1 references
+Adds --network mainnet|testnet flag parsing to shim/src/main.rs
+(default mainnet). At startup, the shim now computes the 3 Ergo
+genesis-state boxes via ergo_lib::chain::genesis::genesis_boxes()
++ the copied FOUNDERS_PKS/NO_PREMINE_PROOFS constants from
+genesis_constants.rs, and passes them as genesis_seed to
+UtxoIndex::open_or_create.
 
-Adds a §"Phase 2j-pre fix-1 wire updates" subsection in
-facts/ergoscript-wire.md documenting the change.
+Mirrors ergo-node-rust src/main.rs:81-114 build_genesis_boxes pattern
+exactly. Adds hex = "0.4" as a direct dep (for founder pk parsing).
 
-Repo-wide grep "sbox-ergo-tree-no-size" returns zero hits outside
-packages/ergoscript/dist/ (T6 rebuilds dist separately).
-
-Per spec docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md
-§Decision 3 cascade table. T5 of 9.
+T5a of 10.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -587,49 +460,135 @@ EOF
 
 ---
 
-## Task 6: Rebuild `dist/`
+## Task 5b: Harness-side — ShimClient.spawn signature
 
 **Files:**
-- Refresh: `packages/ergoscript/dist/index.js` (and any other compiled artifacts).
+- Edit: `tools/mainnet-validate/harness/src/protocol.ts` (ShimClient.spawn)
+- Edit: `tools/mainnet-validate/harness/src/main.ts` (single call site)
+- Edit: any harness test that spawns ShimClient
 
-- [ ] **Step 1: Run the build**
+**Changes:**
+
+1. `ShimClient.spawn(shimPath, storePath, sidecarPath, network)` — extend to 4 args.
+2. Inside spawn, prepend `['--network', network]` to the subprocess args:
+
+```ts
+const proc = spawn(shimPath, ['--network', network, storePath, sidecarPath], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+});
+```
+
+3. Update `harness/src/main.ts:364` call site to pass `args.network`.
+4. Update any harness tests (e.g., `_helpers.ts` if it has a `runHarness` that internally spawns).
+
+- [ ] **Step 1: Read protocol.ts spawn implementation**
+
+- [ ] **Step 2: Extend signature + subprocess args**
+
+- [ ] **Step 3: Update main.ts:364 call site**
+
+- [ ] **Step 4: Grep for any other ShimClient.spawn call sites**
 
 ```bash
-cd /home/mwaddip/projects/ergots/packages/ergoscript
-npm run build
+grep -rn "ShimClient.spawn\|ShimClient\.spawn" /home/mwaddip/projects/ergots/tools/mainnet-validate/harness/ --include="*.ts" 2>&1
+```
+
+Update each.
+
+- [ ] **Step 5: Verify**
+
+```bash
+cd /home/mwaddip/projects/ergots/tools/mainnet-validate/harness && npm test 2>&1 | tail -10
+cd /home/mwaddip/projects/ergots/tools/mainnet-validate/harness && npm run build 2>&1 | tail -5
 cd /home/mwaddip/projects/ergots
 ```
 
-- [ ] **Step 2: Verify the rebuild removed the stale code**
+Expected: all 74 harness tests pass; dist/ rebuilt.
+
+- [ ] **Step 6: Stage + commit**
 
 ```bash
-grep "sbox-ergo-tree-no-size" packages/ergoscript/dist/index.js
+git add tools/mainnet-validate/harness/src/protocol.ts \
+        tools/mainnet-validate/harness/src/main.ts
+git commit -m "$(cat <<'EOF'
+feat(2j-pre/fix-2): ShimClient.spawn accepts network (T5b)
+
+Extends ShimClient.spawn from 3-arg (shimPath, storePath, sidecarPath)
+to 4-arg (... + network). Inside spawn, prepends ['--network', network]
+to the subprocess args, matching the shim's new flag parser from T5a.
+
+Updates the single call site at main.ts:364 to pass args.network (which
+was already read from CLI per cli.ts:36-37). Updates any harness test
+that spawns ShimClient directly.
+
+T5b of 10.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
 
-Expected: no hits. If still present, the build didn't pick up the new source — investigate the build config.
+---
 
-- [ ] **Step 3: Verify dist artifacts are git-tracked**
+## Task 6: Layer 2 — Network-specific box-id assertion test
+
+**Files:**
+- Edit: `tools/mainnet-validate/shim/src/main.rs` (add assertion at startup OR test module)
+
+**Two flavors of the check:**
+
+1. **Startup-time assertion (production runtime):** after `build_genesis_seed(network)` returns, assert each computed box_id matches the network's expected list. Fail fast with a clear error if any mismatch.
+
+2. **Test (separate verification):** a `#[test]` that calls `build_genesis_seed(Network::Mainnet)` + `build_genesis_seed(Network::Testnet)` and asserts both produce the expected 3-id triple.
+
+**Expected IDs (per spec Decision 6):**
+
+```rust
+const MAINNET_EXPECTED_IDS: [&str; 3] = [
+    "b69575e11c5c43400bfead5976ee0d6245a1168396b2e2a4f384691f275d501c",  // emission
+    "b8ce8cfe331e5eadfb0783bdc375c94413433f65e1e45857d71550d42e4d83bd",  // no_premine
+    "5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda",  // founders
+];
+
+const TESTNET_EXPECTED_IDS: [&str; 3] = [
+    "b69575e11c5c43400bfead5976ee0d6245a1168396b2e2a4f384691f275d501c",  // emission (same)
+    "3bfaf76c824df668822dfce71abaf688d0281f91c3ac2a271f92fa28c3efaac7",  // no_premine
+    "5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda",  // founders (same)
+];
+```
+
+- [ ] **Step 1: Add the expected-ids constants + startup-time assertion to main.rs**
+
+- [ ] **Step 2: Add the test that exercises both networks**
+
+- [ ] **Step 3: Verify**
 
 ```bash
-git status packages/ergoscript/dist/
+cargo test --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml 2>&1 | tail -10
 ```
 
-If `dist/` is gitignored or untracked, that's a separate decision — but per `ls packages/ergoscript/dist/` showing existing committed files, it IS tracked. Stage the diff.
+Expected: all tests pass, including the new network-id assertions.
 
 - [ ] **Step 4: Stage + commit**
 
 ```bash
-git add packages/ergoscript/dist/
+git add tools/mainnet-validate/shim/src/main.rs
 git commit -m "$(cat <<'EOF'
-build(2j-pre/fix-1): rebuild packages/ergoscript/dist (T6)
+feat(2j-pre/fix-2): network-specific box-id defensive assertion (T6)
 
-npm run build refreshes dist/index.js to remove the dead
-'sbox-ergo-tree-no-size' literal and pick up the parseTreeFromReader
-extraction. Required before T7's Layer 3 smoke walk — the harness
-resolves @ergots/ergoscript via the workspace's file: dep, which
-resolves to dist/index.js per package.json's "main" field.
+Adds startup-time + test-time assertions that the 3 computed genesis
+box ids match the network's expected hard-coded list:
 
-Per spec §Decision 5. T6 of 9.
+- Mainnet expected: per ergo-node-rust src/main.rs:3092-3096
+  (mainnet_genesis_boxes_produce_correct_digest test).
+- Testnet expected: per external/sigma-rust/ergo-lib/src/chain/
+  genesis.rs:241-269 (existing sigma-rust testnet test).
+
+Emission + founders ids are identical across networks; only no_premine
+differs. The assertion catches future drift in MonetarySettings::default()
+or FOUNDERS_PKS that would silently produce different ids.
+
+T6 of 10.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -638,193 +597,228 @@ EOF
 
 ---
 
-## Task 7: Layer 3 smoke re-run
+## Task 7: Remove GENESIS_HEIGHT special-case + rewrite synthetic test
 
-**Goal:** verify the harness advances past the previous halt site at h=1 / h=1000 / h=3849. Capture the new halt site (phase + errorCode + height) for downstream fix-list seeding.
+**Files:**
+- Edit: `tools/mainnet-validate/shim/src/block_walker.rs`
 
-- [ ] **Step 1: Confirm bootstrap-data snapshot is available**
+**Changes:**
 
-```bash
-ls /tmp/ergots-2j-pre-smoke-data/modifiers.redb
+1. **Remove the special-case at lines 519-524:**
+
+```rust
+// BEFORE:
+let spent_box_bytes = if height == GENESIS_HEIGHT {
+    Vec::new()  // skip lookup at genesis
+} else {
+    index.remove(&box_id_arr)?.ok_or(WalkerError::MissingUtxo { ... })?
+};
+
+// AFTER:
+let spent_box_bytes = index.remove(&box_id_arr)?
+    .ok_or(WalkerError::MissingUtxo {
+        box_id: box_id_arr,
+        height,
+    })?;
 ```
 
-If absent: re-create per `tools/mainnet-validate/README.md §"Snapshot the live store"`. This requires `sudo` access; if not available in the session, document the gap and skip Layer 3 (the unit tests in T2/T4 already validate the fix mechanics).
+2. **Rewrite the test at lines 949-1158:** `ingest_block_walks_synthetic_genesis_block_end_to_end`. Per reviewer C2:
+   - (a) Seed the 3 real genesis boxes into the test sidecar BEFORE calling `ingest_block`.
+   - (b) Replace the synthetic `BoxId::zero()` input with the real seeded emission box id + serialized bytes.
+   - (c) Remove the `spent_box_bytes.is_empty()` assertion at line 1132 — lookup now succeeds with the real emission box bytes.
 
-- [ ] **Step 2: Run smoke walk from height 1**
+The test should construct a synthetic h=1 block whose first tx spends the emission box and produces a new emission-shaped output. The test verifies:
+   - `ingest_block(1, ...)` returns successfully.
+   - The returned BlockBundle's tx[0].inputs[0].spent_box_bytes equals the seeded emission box bytes.
+   - The sidecar no longer contains the original emission box id (REMOVE succeeded).
+   - The sidecar contains the new emission-shaped output.
+
+- [ ] **Step 1: Re-read block_walker.rs (OVERRIDES rule #8)**
+
+This is the largest single file (~1200 lines); read in chunks.
+
+- [ ] **Step 2: Remove the GENESIS_HEIGHT special-case**
+
+The `GENESIS_HEIGHT` constant might still be referenced elsewhere (e.g., genesis-block tx-id checks). Keep the constant but remove its use in walk_transaction's input loop.
+
+- [ ] **Step 3: Rewrite the synthetic genesis test**
+
+Use `build_genesis_seed(Network::Mainnet)` to produce real seed bytes; pass them to `UtxoIndex::open_or_create`. Construct the synthetic h=1 input referencing the emission box id (not `BoxId::zero()`).
+
+- [ ] **Step 4: Verify**
 
 ```bash
-# Build shim if not already (cargo build --release in shim/):
-ls tools/mainnet-validate/shim/target/release/ergots-mainnet-validate-shim || \
-  (cd tools/mainnet-validate/shim && cargo build --release && cd /home/mwaddip/projects/ergots)
+cargo test --release --manifest-path /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/Cargo.toml 2>&1 | tail -15
+```
 
-# Build harness if not already:
-ls tools/mainnet-validate/harness/dist/main.js || \
-  (cd tools/mainnet-validate/harness && npm install && npm run build && cd /home/mwaddip/projects/ergots)
+Expected: ALL shim tests pass, including the rewritten synthetic genesis test.
 
-# Run with fresh checkpoint + sidecar paths to avoid cross-attempt state:
-rm -f /tmp/t7-fix1-sidecar.redb /tmp/t7-fix1-checkpoint.json /tmp/t7-fix1-error-report.json
-node tools/mainnet-validate/harness/dist/main.js \
+- [ ] **Step 5: Stage + commit**
+
+```bash
+git add tools/mainnet-validate/shim/src/block_walker.rs
+git commit -m "$(cat <<'EOF'
+refactor(2j-pre/fix-2): remove GENESIS_HEIGHT special-case + rewrite synthetic test (T7)
+
+With T4-T6's genesis-box seeding in place, the input-lookup skip at
+height==1 (block_walker.rs:519-524) is no longer needed. The genesis
+emission box IS in the sidecar at startup; h=1's emission spend
+resolves via the standard walker semantics.
+
+Removes the special-case. Rewrites ingest_block_walks_synthetic_genesis_
+block_end_to_end (lines 911-1158) to:
+- Seed the 3 real genesis boxes before ingest_block (was: empty sidecar)
+- Replace BoxId::zero() input with the real emission box id
+- Drop the spent_box_bytes.is_empty() assertion (lookup now succeeds)
+
+Per reviewer-pass C2: the test was the only consumer of the special-case;
+bundling its rewrite with the removal keeps the change atomic.
+
+T7 of 10.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 8: Re-run Layer 3 smoke from FRESH sidecar
+
+**Goal:** confirm the harness walks past h=3850 cleanly after seeding (no more founders missing-utxo). Document new halt site or clean tip-reach.
+
+- [ ] **Step 1: Delete existing T7 sidecar + checkpoint**
+
+Per reviewer M5: the existing sidecar from fix-1 T7 has h=1..3849 already inserted via the empty-init path; reusing it would skip the new seeding logic entirely.
+
+```bash
+rm -f /tmp/t8-fix2-sidecar.redb /tmp/t8-fix2-checkpoint.json /tmp/t8-fix2-error-report.json
+```
+
+- [ ] **Step 2: Confirm shim + harness are built**
+
+```bash
+ls /home/mwaddip/projects/ergots/tools/mainnet-validate/shim/target/release/ergots-mainnet-validate-shim
+ls /home/mwaddip/projects/ergots/tools/mainnet-validate/harness/dist/main.js
+```
+
+- [ ] **Step 3: Run smoke from h=1**
+
+```bash
+timeout 600 node /home/mwaddip/projects/ergots/tools/mainnet-validate/harness/dist/main.js \
+  --network mainnet \
   --store-path /tmp/ergots-2j-pre-smoke-data/modifiers.redb \
-  --sidecar-path /tmp/t7-fix1-sidecar.redb \
-  --checkpoint-path /tmp/t7-fix1-checkpoint.json \
-  --error-report-path /tmp/t7-fix1-error-report.json \
+  --sidecar-path /tmp/t8-fix2-sidecar.redb \
+  --checkpoint-path /tmp/t8-fix2-checkpoint.json \
+  --error-report-path /tmp/t8-fix2-error-report.json \
   --start-height 1 \
-  --max-height 5 \
-  --sleep-ms 0
+  --max-height 10000 \
+  --sleep-ms 0 2>&1 | tail -15
 ```
 
-- [ ] **Step 3: Interpret outcome**
+(Adjust `--max-height` based on the prior smoke's timing: 3849 blocks took ~28s, so 10000 ≈ 73s. Beyond h=3850, walk time may scale differently as blocks become denser.)
 
-Three possibilities:
+- [ ] **Step 4: Interpret outcome**
 
-**A. Validates ≥ 1 block end-to-end** (stretch outcome — see spec §Layer 3). Capture height(s) validated; document briefly.
+Three outcomes:
+- **A.** Walks to `--max-height` cleanly → stretch outcome; tip-reached + clean checkpoint.
+- **B.** Halts at h>3850 with a NEW phase/errorCode → next fix-list item for 2j proper.
+- **C.** Halts at h=3850 with `missing-utxo` again → fix didn't work; debug.
 
-**B. Halts at a NEW phase/errorCode** (probable). Read `/tmp/t7-fix1-error-report.json`. Capture: `phase`, `errorClass`, `errorCode`, `height`, brief `location`. This becomes a new fix-list item for 2j proper.
+(C) shouldn't happen if T2-T7 land correctly, but if it does: check that the seeding actually ran (look at shim startup stderr), check that the seeded founders box id matches `5527430474b673...`, and re-examine.
 
-**C. Halts at the SAME phase/errorCode as before** (`output-roundtrip` / `sbox-parse-failed`). Unexpected — the fix didn't take effect. Most likely cause: dist not rebuilt (re-check T6). Less likely: the fix has a regression. Investigate.
-
-- [ ] **Step 4: Optionally try other start heights**
-
-If time permits, sample additional heights to confirm consistency:
+- [ ] **Step 5: Write findings to a new file**
 
 ```bash
-node tools/mainnet-validate/harness/dist/main.js \
-  --store-path /tmp/ergots-2j-pre-smoke-data/modifiers.redb \
-  --sidecar-path /tmp/t7-fix1-sidecar-h1000.redb \
-  --checkpoint-path /tmp/t7-fix1-checkpoint-h1000.json \
-  --error-report-path /tmp/t7-fix1-error-report-h1000.json \
-  --start-height 1000 \
-  --max-height 1004 \
-  --sleep-ms 0
+# Path: tools/mainnet-validate/findings/2026-05-22-fix-2-smoke.md
+# Contents per spec §Layer 3 + the actual outcome.
 ```
 
-- [ ] **Step 5: Record findings**
-
-The PLAN-level findings note goes in the commit message + a paragraph appended to T9's HANDOFF_PROMPT.md update. For T7's commit:
+- [ ] **Step 6: Stage + commit**
 
 ```bash
-# No source files changed in T7 — this is a verification task. Commit a
-# small findings file or annotate the commit message with the outcome.
-# If no files to add: skip the commit and embed findings in T8/T9's
-# commit messages.
-```
-
-Recommended: write a brief findings note to a new file `tools/mainnet-validate/findings/2026-05-22-fix-1-smoke.md` (create the directory) capturing the smoke outcome. Then commit:
-
-```bash
-mkdir -p tools/mainnet-validate/findings
-# write the findings file (see Step 6 for content template)
-git add tools/mainnet-validate/findings/2026-05-22-fix-1-smoke.md
+git add tools/mainnet-validate/findings/2026-05-22-fix-2-smoke.md
 git commit -m "$(cat <<'EOF'
-test(2j-pre/fix-1): Layer 3 smoke re-run findings — halt advances (T7)
+test(2j-pre/fix-2): Layer 3 smoke from fresh sidecar confirms seeding (T8)
 
-After T3 + T6, the harness {validates h=1..N cleanly | halts at h=N
-in phase X with errorCode Y}. Previous halt at h=1 in output-roundtrip
-with sbox-parse-failed is resolved.
+After T2-T7, re-ran smoke from a FRESH sidecar (deleted prior fix-1
+sidecar to force a from-h=1 walk that exercises the new seed path).
 
-{Brief paragraph on new halt site for next fix-list item if applicable.}
+Outcome: {validates h=1..N | halts at h=N phase X errorCode Y}.
 
-Per spec §Layer 3. T7 of 9.
+Per reviewer M5: fresh sidecar required to actually test the seed
+path; a populated sidecar from fix-1 would skip the new code path
+entirely (already has h=1..3849 boxes from empty-init walk).
+
+Findings recorded in tools/mainnet-validate/findings/2026-05-22-fix-2-smoke.md.
+
+T8 of 10.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 6: Findings file template**
-
-```markdown
-# 2j-pre fix-1 Layer 3 smoke findings (2026-05-22)
-
-## Pre-fix state (from 2j-pre T12)
-
-Every smoke attempt halted at output-roundtrip in tx 0 output 0
-with errorCode `sbox-parse-failed` (underlying `sbox-ergo-tree-no-size`).
-
-## Post-fix state
-
-| Attempt | start | max | Validated up to | Halt phase | Halt errorCode | Halt height |
-|---|---|---|---|---|---|---|
-| 1 | 1 | 5 | {n} | {phase} | {code} | {h} |
-| 2 (optional) | 1000 | 1004 | ... | ... | ... | ... |
-
-## Next fix-list item (handed to 2j proper)
-
-{Brief description of the new halt site, in the same format as the
-2j-pre fix-list items at HANDOFF_PROMPT.md.}
-```
-
 ---
 
-## Task 8: Refresh harness integration-test snapshots
+## Task 9: Refresh harness integration tests for new halt site
 
 **Files:**
 - Edit: `tools/mainnet-validate/harness/test/integration/halt-path.test.ts`
 - Edit: `tools/mainnet-validate/harness/test/integration/tip-reach-path.test.ts`
-- Edit: `tools/mainnet-validate/harness/test/integration/resume-path.test.ts` (per spec Decision 6; review for narrative-only changes)
+- Edit: `tools/mainnet-validate/harness/test/integration/resume-path.test.ts` (if affected)
 
-**Strategy depends on T7 outcome:**
+**Strategy depends on T8's outcome:**
 
-- If T7 surfaced a single deterministic new halt (option B above): refresh the snapshots to pin the new halt phase/errorCode/height.
-- If halts scatter across heights (multiple bugs surface across the walk): replace strict pinning with shape-only assertions (e.g., `expect(report.height).toBeGreaterThan(0); expect(report.phase).toBeOneOf(['output-roundtrip', 'evaluate', 'verify-signature'])`).
-- If T7 stretch-outcomes (option A — validates cleanly): the halt-path test's premise is broken; it should be re-purposed to use a deliberate fault injection (e.g., a temporarily-broken library function via a test-mode flag) per spec Decision 6's mitigation.
+- **If T8 outcome A (clean tip-reach to 10000):** halt-path test's premise breaks again. Restructure to use a deliberate fault injection (e.g., a corrupted store-path) — OR pin to a known stable halt point further down the chain (which would require a new --max-height much higher; slow).
+- **If T8 outcome B (new halt at h=N):** update halt-path's --max-height + assertions to pin the new halt site.
+- **If T8 outcome C (still h=3850):** fix didn't land correctly — debug and re-run T2-T7 as needed before T9.
 
-- [ ] **Step 1: Re-read each test file**
-
-Per OVERRIDES rule #8 — read before edit. Each integration test is ~200 lines.
+- [ ] **Step 1: Re-read the 3 integration tests**
 
 - [ ] **Step 2: Update halt-path.test.ts**
 
-Find the assertion currently at line 160-162 (`report.errorCode === 'sbox-parse-failed'`). Update per T7 outcome.
+If T8 outcome A: the test needs deliberate fault injection. Options:
+- Point at a corrupted store-path → fires shim startup-fail. But that's the existing startup-halt scenario.
+- Use a deliberately broken --max-height combination → no halt.
+- Replace strict halt-site assertions with shape-only (`expect(report).toMatchObject({ height: expect.any(Number), phase: expect.any(String) })`) + an outcome-detection branch.
 
-If new halt site is e.g. `phase: 'evaluate'` with `errorCode: 'method-not-implemented'` at h=1, the assertion becomes:
-
-```ts
-expect(report.phase).toBe('evaluate')
-expect(report.errorCode).toBe('method-not-implemented')
-expect(report.height).toBe(1)
-```
-
-If halts scatter, use shape-only:
-
-```ts
-expect(['output-roundtrip', 'evaluate', 'verify-signature']).toContain(report.phase)
-expect(report.height).toBeGreaterThanOrEqual(1)
-```
+If T8 outcome B: bump --max-height to the new halt + update assertions.
 
 - [ ] **Step 3: Update tip-reach-path.test.ts**
 
-Same treatment as halt-path. The current line 185 assertion `stillThere.errorCode === 'sbox-parse-failed'` updates analogously.
+The tip-reach test pinned h=999 with sbox-parse-failed (stale planted value). After fix-1 + fix-2, that planted value is no longer realistic. Update to use a current halt code or keep the planted-value pattern but with a realistic code.
 
 - [ ] **Step 4: Update resume-path.test.ts**
 
-If T7 indicated that resume now CAN walk further (where it previously halted at h=1 unconditionally), update the test to assert the new resumed-walk behavior. Otherwise leave the test mostly as-is and only update narrative comments.
+The resume-path test was rewritten in fix-1 T8 to expect clean walks at h=101..105 and h=50..55. Those still work post-fix-2. The "back-to-back forward-walker collision" test at h=200..205 may also still work.
 
-- [ ] **Step 5: Run integration tests**
+Likely: minimal narrative-comment update to reflect fix-2 status.
+
+- [ ] **Step 5: Verify**
 
 ```bash
-cd tools/mainnet-validate/harness && npm test
+cd /home/mwaddip/projects/ergots/tools/mainnet-validate/harness && npm test 2>&1 | tail -10
 cd /home/mwaddip/projects/ergots
 ```
 
-Expected: all three integration tests pass against the new halt site.
+Expected: all 74 harness tests pass.
 
 - [ ] **Step 6: Stage + commit**
 
 ```bash
 git add tools/mainnet-validate/harness/test/integration/
 git commit -m "$(cat <<'EOF'
-test(2j-pre/fix-1): refresh harness integration-test snapshots (T8)
+test(2j-pre/fix-2): refresh harness integration tests for new halt site (T9)
 
-Updates halt-path.test.ts + tip-reach-path.test.ts + resume-path.test.ts
-to reflect the new halt site observed in T7 ({new phase}/{new errorCode}
-at h={new height}). The previous snapshots pinned the now-resolved
-sbox-parse-failed halt; without this refresh the tests would fail
-against the post-fix-1 harness.
+After fix-2 lands, the previously-pinned h=3850 shim halt (from fix-1
+T8) is gone. Updates the 3 integration tests in
+tools/mainnet-validate/harness/test/integration/ to reflect the new
+halt site observed in T8 ({outcome description}).
 
-{If shape-only assertions used instead: brief reason.}
+{Per-test summary of changes.}
 
-Per spec §Decision 6. T8 of 9.
+T9 of 10.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -833,45 +827,34 @@ EOF
 
 ---
 
-## Task 9: SESSION_CONTEXT + HANDOFF + memory refresh + push
+## Task 10: SESSION_CONTEXT + HANDOFF + memory refresh + push
 
 **Files:**
-- Edit: `SESSION_CONTEXT.md` — refresh to post-fix-1 state.
-- Edit: `HANDOFF_PROMPT.md` — refresh to point at fix-2 (shim walker bug) OR direct 2j proper if fix-2 is folded in.
-- Edit: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md` — append fix-1 closure + new halt site if surfaced.
+- Edit: `SESSION_CONTEXT.md` (gitignored, local-only)
+- Edit: `HANDOFF_PROMPT.md` (gitignored, local-only)
+- Edit: `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`
 
-- [ ] **Step 1: SESSION_CONTEXT.md sweep**
+- [ ] **Step 1: SESSION_CONTEXT.md refresh**
 
 Update to reflect:
-- Phase 2j-pre fix-1 COMPLETE.
-- Commit count this session.
-- Test counts (3194 + N new tests, where N is from T2 + T4).
-- Fix-list item 1 RESOLVED; fix-list item 2 (shim walker) STILL OPEN; new halt-site item N+1 captured (if T7 surfaced one).
+- Phase 2j-pre fix-2 COMPLETE.
+- Commit count this session (11 expected).
+- Test counts (unchanged from fix-1 baseline modulo any new shim tests in T3/T4/T6).
+- Fix-list item 2 RESOLVED; next item (if surfaced in T8) noted.
 
 - [ ] **Step 2: HANDOFF_PROMPT.md refresh**
 
 Update §"Phase 2j-pre fix-list":
-- Strike item 1 with RESOLVED in commit {sha} (T3 of fix-1 plan).
-- Keep item 2 as next.
-- Add new item N+1 if T7 surfaced one — same format (file path + error code + reproducer).
+- Strike item 2 with RESOLVED in commit {sha} (T7 of fix-2 plan).
+- Add new item N+1 if T8 surfaced one.
 
-Update §"Phase plan status" to add `✅ Phase 2j-pre fix-1` entry between 2j-pre and 2j proper.
+Update §"Phase plan status" to add `✅ Phase 2j-pre fix-2` entry.
 
-- [ ] **Step 3: facts/ sweep**
+- [ ] **Step 3: Memory refresh**
 
-Verify facts files reflect:
-- `facts/ergoscript.md` — error-model overview shouldn't need changes (taxonomy is in `ergoscript-wire.md`).
-- `facts/ergoscript-wire.md` — already updated in T5.
+Update `project_ergots_direction.md` with fix-2 closure + updated commit table.
 
-- [ ] **Step 4: Memory refresh**
-
-Append to `~/.claude/projects/-home-mwaddip-projects-ergots/memory/project_ergots_direction.md`:
-- Date 2026-05-22.
-- Fix-1 closure summary.
-- Updated phase status.
-- Updated commit-table.
-
-- [ ] **Step 5: Push**
+- [ ] **Step 4: Push**
 
 ```bash
 git push origin master
@@ -879,55 +862,31 @@ git push origin master
 
 Per OVERRIDES + project convention: never `--force`, never `--no-verify`.
 
-- [ ] **Step 6: Final verification**
+- [ ] **Step 5: Final verification**
 
 ```bash
 git status                          # CLEAN modulo audit20260519/
-git log --oneline -12               # confirm: PLAN + 7 task commits + spec
-ls packages/ergoscript/test/parse-svalue-sbox-no-size.test.ts
-```
-
-- [ ] **Step 7: Stage + commit (final docs only — push happens above)**
-
-```bash
-git add SESSION_CONTEXT.md HANDOFF_PROMPT.md
-git commit -m "$(cat <<'EOF'
-docs(2j-pre/fix-1): SESSION_CONTEXT + HANDOFF_PROMPT refresh + memory (T9)
-
-Marks 2j-pre fix-1 COMPLETE. Fix-list item 1 (sbox-ergo-tree-no-size)
-RESOLVED in commit {T3 sha}. Fix-list item 2 (shim walker missing-utxo
-at h=3850) STILL OPEN — next focused-fix spec.
-
-{If T7 surfaced new halt: brief item-N+1 paragraph.}
-
-T9 of 9.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-
-git push origin master
+git log --oneline -13               # confirm: PLAN + 10 task commits + spec
 ```
 
 ---
 
 ## Done criteria for this phase
 
-- All 9 tasks committed.
+- All 10 tasks committed (11 commits total with T5 split).
 - `git status` clean modulo `audit20260519/`.
 - `origin/master` aligned with local `master`.
-- `npx tsc --noEmit -p packages/ergoscript/tsconfig.json` CLEAN.
-- `node_modules/.bin/vitest run packages/ergoscript` — all pass including new T2/T4 tests.
-- Cross-runtime jsdom pass.
-- `grep "sbox-ergo-tree-no-size"` returns zero hits across the entire repo (including refreshed `dist/`).
-- `packages/ergoscript/dist/` rebuilt; reflects post-fix source.
-- Layer 3 smoke ran AND results documented in commit + findings file.
-- Harness integration-test snapshots refreshed; `npm test` in `tools/mainnet-validate/harness/` passes.
-- SESSION_CONTEXT.md + HANDOFF_PROMPT.md reflect post-fix-1 state.
+- `cargo build --release` clean in `tools/mainnet-validate/shim/`.
+- `cargo test --release` clean in `tools/mainnet-validate/shim/`.
+- `npm test` clean in `tools/mainnet-validate/harness/`.
+- `npm run build` produces refreshed `dist/`.
+- Layer 3 smoke from a FRESH sidecar walks past h=3850 (no more founders missing-utxo); findings recorded.
+- Harness integration tests refreshed for the new halt site.
+- SESSION_CONTEXT.md + HANDOFF_PROMPT.md reflect post-fix-2 state.
 - `project_ergots_direction` memory refreshed.
 
 **Done criteria explicitly NOT in scope:**
-- Fixing the shim walker bug at `block_walker.rs:535` (fix-list item 2; separate focused spec).
-- Walking the chain to tip cleanly (2j proper).
-- Implementing every method handler the chain demands (2j proper).
-- Closing every cost-related divergence (2j proper).
+- Validating the chain's actual GenesisStateDigest matches the seeded boxes (defensive check is hard-coded id assertion only).
+- Continuous-mode harness (still single-walk-and-exit).
+- 2j proper (cost calibration).
+- Any downstream halt that fix-2 surfaces — those become new focused-fix items.
