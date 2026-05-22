@@ -236,8 +236,21 @@ export function exprTpe(e: Expr): SType {
       return { tag: 'SGroupElement' }
     case 'And':
       // sigma-rust `mir/and.rs::And::tpe`: SBoolean (AND-reduction of a
-      // Coll[Boolean]). Same for Or, Atleast (covered as needed).
+      // Coll[Boolean]).
       return { tag: 'SBoolean' }
+    case 'Or':
+      // sigma-rust `mir/or.rs::Or::tpe`: SBoolean (OR-reduction of a
+      // Coll[Boolean]).
+      return { tag: 'SBoolean' }
+    case 'Xor':
+      // sigma-rust `mir/xor.rs::Xor::tpe`: SColl[SByte] (bytewise XOR
+      // of two byte collections).
+      return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'Atleast':
+      // sigma-rust `mir/atleast.rs::Atleast::tpe` (lines 49-51):
+      // SSigmaProp (threshold composition over Coll[SigmaProp] — used
+      // by Ergo's foundation 2-of-3 multisig at h=3850 mainnet).
+      return { tag: 'SSigmaProp' }
     case 'LongToByteArray':
       // sigma-rust `mir/long_to_byte_array.rs::LongToByteArray::tpe`:
       // SColl[SByte] (8 big-endian bytes of an i64).
