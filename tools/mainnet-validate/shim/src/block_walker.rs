@@ -122,12 +122,12 @@ impl WalkerError {
             WalkerError::MissingUtxo { box_id, height } => format!(
                 "tx input at height {height} references box {} which is \
                  not in the UTXO index",
-                hex_short(box_id)
+                hex_full(box_id)
             ),
             WalkerError::MissingDataUtxo { box_id, height } => format!(
                 "tx data-input at height {height} references box {} which \
                  is not in the UTXO index",
-                hex_short(box_id)
+                hex_full(box_id)
             ),
             WalkerError::StoreRace { height, detail } => format!(
                 "store-race at height {height}: {detail}"
@@ -711,6 +711,17 @@ fn hex_short(id: &[u8; 32]) -> String {
         "{:02x}{:02x}{:02x}{:02x}...{:02x}{:02x}{:02x}{:02x}",
         lo[0], lo[1], lo[2], lo[3], hi[0], hi[1], hi[2], hi[3]
     )
+}
+
+/// Render all 32 bytes as a 64-char lowercase hex string. Used for
+/// `MissingUtxo` / `MissingDataUtxo` error messages where a downstream
+/// triage step needs the exact box_id to look up a producer.
+fn hex_full(id: &[u8; 32]) -> String {
+    let mut s = String::with_capacity(64);
+    for b in id {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
 }
 
 #[cfg(test)]
