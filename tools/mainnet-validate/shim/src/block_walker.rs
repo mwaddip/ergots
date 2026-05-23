@@ -511,6 +511,46 @@ fn walk_transaction(
         outputs.push(box_bytes);
     }
 
+    // Data inputs MUST be looked up BEFORE inputs are removed. Per Ergo
+    // consensus, a tx's data-inputs and inputs are evaluated against the
+    // same pre-tx UTXO snapshot — both must exist when the spending
+    // scripts run. Mainnet has at least one canonical tx (h=204570 tx#1)
+    // where the same box id appears in BOTH `tx.inputs` AND
+    // `tx.data_inputs`; processing inputs first would `remove` the box
+    // before the data-input `get`, surfacing as a spurious
+    // `missing-data-utxo` halt. Discovered during 2j-b T7 first loop
+    // run; see commit prefix `fix(2j-b/shim-tx-order):`.
+    //
+    // The current implementation is lookup-only for data-inputs (no
+    // remove), so the order between data-inputs and outputs (above) is
+    // irrelevant — only the data-inputs-before-inputs ordering matters
+    // for consensus correctness.
+    //
+    // At genesis we still attempt the lookup but expect zero data-inputs
+    // (the canonical genesis tx has none); a non-empty data-input list
+    // at h=1 with a missing index entry is a chain anomaly worth
+    // surfacing.
+    let data_inputs_iter = tx.data_inputs.as_ref().map(|di| di.as_vec().as_slice()).unwrap_or(&[]);
+    let mut data_input_boxes = Vec::with_capacity(data_inputs_iter.len());
+    for (di_idx, data_input) in data_inputs_iter.iter().enumerate() {
+        let box_id_arr: [u8; 32] = data_input.box_id.as_ref().try_into()
+            .expect("BoxId is always 32 bytes");
+        let box_bytes = index
+            .get(&box_id_arr)
+            .with_context(|| {
+                format!(
+                    "UtxoIndex get for tx #{tx_idx} data_input #{di_idx} \
+                     (box_id {}) at height {height}",
+                    hex_short(&box_id_arr)
+                )
+            })?
+            .ok_or(WalkerError::MissingDataUtxo {
+                box_id: box_id_arr,
+                height,
+            })?;
+        data_input_boxes.push(box_bytes);
+    }
+
     // Inputs: each input MUST resolve to an index entry — a miss is a
     // `missing-utxo` consensus violation. Per phase 2j-pre fix-2 the
     // sidecar is now seeded with the 3 Ergo genesis-state boxes
@@ -551,37 +591,12 @@ fn walk_transaction(
             spent_box_bytes,
             signature_bytes,
             context_extension,
-            // Filled in after the data-inputs loop completes, when we
-            // have all parsed boxes available for TransactionContext.
+            // Filled in after the input loop completes, when we have all
+            // parsed boxes available for TransactionContext.
             oracle_cost: 0,
             oracle_succeeded: false,
             oracle_error: None,
         });
-    }
-
-    // Data inputs: lookup only, no remove. At genesis we still attempt
-    // the lookup but expect zero data-inputs (the canonical genesis tx
-    // has none); a non-empty data-input list at h=1 with a missing
-    // index entry is a chain anomaly worth surfacing.
-    let data_inputs_iter = tx.data_inputs.as_ref().map(|di| di.as_vec().as_slice()).unwrap_or(&[]);
-    let mut data_input_boxes = Vec::with_capacity(data_inputs_iter.len());
-    for (di_idx, data_input) in data_inputs_iter.iter().enumerate() {
-        let box_id_arr: [u8; 32] = data_input.box_id.as_ref().try_into()
-            .expect("BoxId is always 32 bytes");
-        let box_bytes = index
-            .get(&box_id_arr)
-            .with_context(|| {
-                format!(
-                    "UtxoIndex get for tx #{tx_idx} data_input #{di_idx} \
-                     (box_id {}) at height {height}",
-                    hex_short(&box_id_arr)
-                )
-            })?
-            .ok_or(WalkerError::MissingDataUtxo {
-                box_id: box_id_arr,
-                height,
-            })?;
-        data_input_boxes.push(box_bytes);
     }
 
     // Phase 2j-a T5: compute sigma-rust's per-input oracle cost for the
