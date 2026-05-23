@@ -127,7 +127,9 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 |---|---|---|
 | `header` | `validate-block.ts` header pass | `byte-roundtrip-mismatch`, `autolykos-v2-verify-false`, `v1-header-after-v2-activation`, `parent-link-mismatch` |
 | `output-roundtrip` | `validate-block.ts` per-output pass | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-parse-failed`, `tree-serialize-failed` |
-| `evaluate` | `validate-tx.ts` evaluate pass | per-`EvalError` code (see `facts/ergoscript-eval.md`) |
+| `evaluate` | `validate-tx.ts` evaluate pass (both-error case for 2j-a) | per-`EvalError` code (see `facts/ergoscript-eval.md`) |
+| `evaluate-cost` | `validate-tx.ts` cost-equivalence sub-step (phase 2j-a) | `cost-drift` (oracle cost ≠ ours), `cost-overflow` (oracleCost > MAX_SAFE_INTEGER) |
+| `evaluate-oracle-mismatch` | `validate-tx.ts` cost-equivalence sub-step (phase 2j-a) | `ours-succeeded-oracle-errored`, `ours-errored-oracle-succeeded` |
 | `verify-signature` | `validate-tx.ts` verifier pass | per-`VerifyError` code (see `facts/ergoscript-sigma.md`) |
 | `shim` | shim process (stdout CBOR error frames) | `missing-block`, `missing-utxo`, `missing-data-utxo`, `store-race`, `unknown-command` (plus any anyhow chain on shim startup failure) |
 
@@ -142,7 +144,10 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 2. If `phase: shim` with `errorCode: missing-utxo`: a tx input pointed at a box not in the sidecar. Either the sidecar diverged from the source store (rare — rebuild by deleting `--sidecar-path` and re-running) OR there's a real shim-side accounting bug (see Current status §2 below).
 3. If `phase: shim` with `errorCode: missing-block`: the shim's `best_header_at(h)` returned None mid-walk. Suggests the source store has a hole in BEST_CHAIN at that height — unexpected on a clean snapshot.
 4. If `phase: header`/`output-roundtrip`/`evaluate`/`verify-signature`: the divergence is in the `@ergots/*` library. Cross-reference the `errorCode` against the per-package facts file; reproduce by feeding the `bundleExcerpt.headerHex` (and the indexed `location`) into a unit fixture.
-5. Resume by re-running the same `node dist/main.js ...` invocation **after fixing the library bug** (or deciding the divergence is expected and adjusting test expectations). The harness reads the checkpoint and starts at `lastValidatedHeight + 1`. If you want to re-validate from a specific height instead, pass `--start-height N` — this treats the run as fresh and zeroes the in-memory stats counter (but the checkpoint file on disk is overwritten on the next successful block).
+5. If `phase: evaluate-cost` with `errorCode: cost-drift`: our TS evaluator and sigma-rust agree the input succeeded but disagree on cost. The `evaluateCost.{expected, actual, delta}` payload tells you the magnitude + direction (positive `delta` ⇒ ours undercharged, negative ⇒ ours overcharged). Reproduce by extracting `(ergoTreeHex, spentBoxId, ...)` from `location` into a per-arm fixture under `packages/ergoscript/test/eval/`; source-read the relevant sigma-rust arms for the actual charge.
+6. If `phase: evaluate-cost` with `errorCode: cost-overflow`: oracle cost exceeded `Number.MAX_SAFE_INTEGER` (defensive guard; not expected on mainnet). Indicates an integration bug, not a chain divergence.
+7. If `phase: evaluate-oracle-mismatch`: our eval and sigma-rust disagree on success/failure. `errorCode: ours-succeeded-oracle-errored` means we accept a tree sigma-rust rejects; `errorCode: ours-errored-oracle-succeeded` means we reject a tree sigma-rust accepts. The `oracleError` / `ourError` / `ourEvaluateCost` fields tell you what each side did. Both directions are bugs in the library; reproduce as in step 5.
+8. Resume by re-running the same `node dist/main.js ...` invocation **after fixing the library bug** (or deciding the divergence is expected and adjusting test expectations). The harness reads the checkpoint and starts at `lastValidatedHeight + 1`. If you want to re-validate from a specific height instead, pass `--start-height N` — this treats the run as fresh and zeroes the in-memory stats counter (but the checkpoint file on disk is overwritten on the next successful block).
 
 ### Resume semantics edge cases
 
@@ -168,21 +173,30 @@ cpulimit -l 50 -p $(pgrep -f 'node.*main.js') &
 
 The shim's redb access is the heaviest IO path; `ionice -c idle` is more effective at quieting the harness for a desktop session than `nice` alone.
 
-## Current status: 2j-pre fix-1 in progress
+## Current status: 2j-a cost-oracle wiring complete; 2j-b first fix pending
 
-The harness machinery is complete. T12's Layer-3 smoke walk against a 25 GB bootstrap-data snapshot (mainnet tip 1,790,510 at the time) surfaced **two scope gaps** that blocked clean validation of any block. Fix-1 (this phase) addresses the first; fix-2 (separate spec) addresses the second.
+Fix-1 (sbox-no-size), fix-2 (genesis-box seeding), fix-3 (Or/Xor/Atleast
+exprTpe), and **phase 2j-a (cost-equivalence oracle wiring)** are all
+resolved. The harness now routes sigma-rust's per-input cost (oracle)
+alongside our TS `ctx.jitCost` and halts on the first cost-drift or
+oracle-mismatch divergence at the new phase classes documented above.
 
 Fix-list:
 
-1. **RESOLVED in phase 2j-pre fix-1** (2026-05-22) — `parseSValue(SBox)` now handles v0+hasSize=false ErgoTrees via the new `parseTreeFromReader` helper on the shared reader, mirroring sigma-rust's `chain/ergo_box.rs:350`. See `docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md`.
+1. **RESOLVED in phase 2j-pre fix-1** (2026-05-22) — `parseSValue(SBox)` now handles v0+hasSize=false ErgoTrees. See `docs/specs/2026-05-22-ergoscript-2j-pre-fix-1-sbox-no-size-design.md`.
+2. **RESOLVED in phase 2j-pre fix-2** (2026-05-22) — genesis-box seeding in shim sidecar. See `docs/specs/2026-05-22-ergoscript-2j-pre-fix-2-genesis-box-seeding-design.md`.
+3. **RESOLVED in phase 2j-pre fix-3** (2026-05-22) — Or/Xor/Atleast exprTpe arms. See `docs/specs/2026-05-22-ergoscript-2j-pre-fix-3-atleast-exprtpe-design.md`.
+4. **RESOLVED in phase 2j-a** (2026-05-23) — cost-equivalence oracle wiring (shim emits sigma-rust per-input cost; harness compares against our `ctx.jitCost` with halt-on-first-divergence). See `docs/specs/2026-05-22-ergoscript-2j-a-cost-oracle-design.md`. Layer-5 validation smoke walked clean to h=1000; surfaced first cost-drift at h=3850 (delta 24, ours undercharged) — that's 2j-b's input data. See `tools/mainnet-validate/findings/2026-05-23-2j-a-validation-smoke.md`.
 
-2. **STILL OPEN — `tools/mainnet-validate/shim/src/block_walker.rs:535`:** at `ingest_block(3850)` the sidecar `MissingUtxo` for box `55274304…3c88aeda` reproduces deterministically across runs (T12 attempts 2 and 3 both halt there). The walker uses `ergo-lib`'s `out.box_id()` to key index inserts and `Transaction::sigma_parse` + `input.box_id` for lookups. Hypotheses: sigma-rust round-trip via `sigma_serialize_bytes` produces a different byte image than the on-chain box at insert time, OR a fork-replacement issue earlier in the chain left an orphan in the index. Triage path: dump `box_id` of every output at heights 3000-3849 from a Rust scan, compare to the box referenced by block 3850's first input. Fix-2 spec TBD.
-
-Beyond fix-1+fix-2, downstream halts surfaced during fix-1's Layer-3 smoke re-run feed 2j proper's calibration corpus as additional fix-list items.
+**Next: 2j-b (focused fix for h=3850 cost-drift)** — per-arm fixture
+test against the surfaced site, source-read of the relevant sigma-rust
+arms, GREEN with calibration patch. Subsequent fixes (2j-c, 2j-d, ...)
+surface organically through deeper smoke walks per the TDD-loop pattern
+2j-a established.
 
 ## Known limits
 
-- **No cost-integer exactness vs sigma-rust.** The harness exercises `evaluate` and `verifySignature` but does NOT compare the cost integers each `evaluate` accumulates against sigma-rust's `try_eval_out` oracle outputs on real mainnet workloads. Per-arm unit tests already enforce cost-integer equality at the arm level (see `packages/ergoscript/test/`); calibrating the Layer-C3 real-context distribution is phase 2j proper.
+- **Cost-equivalence smoke depth.** 2j-a's smoke walked cleanly through h=1000 and surfaced the first cost-drift at h=3850 (validated; the wiring works). Walking past h=3850 requires the 2j-b fix (per-arm cost calibration); 2j-b/c/... iterate forward depth-by-depth.
 - **No continuous mode.** The harness exits when it reaches `--max-height` (or the shim's reported tip at startup). It does NOT poll for new blocks. Re-running the invocation picks up from the checkpoint and walks any new blocks the snapshot has gained since the last run.
 - **No TypeScript transaction parser yet.** The shim parses `Transaction::sigma_parse` via sigma-rust and ships the parsed bundle over CBOR. A pure-TS transaction parser is out of scope for 2j; the harness consumes the shim's parsed form directly.
 - **No retries, no skip-and-continue, no per-block parallelism.** Halt-on-first-failure is the contract; aggregating divergences would defeat the differential-validator design.
