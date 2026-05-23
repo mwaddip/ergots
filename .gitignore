@@ -25,3 +25,9 @@ HANDOFF_PROMPT.md
 # `integration/ergots` branch, owned by this project's fixture-gen toolchain.
 # Worktrees are pinned to specific branches and shouldn't enter ergots' git.
 external/
+
+# Local-only bootstrap-data snapshot for the mainnet-validate harness
+# (per-developer; not committed; populated by `cp -a /var/lib/ergo-node/data
+# ./bootstrap-data` after stopping the local ergo-node service). ~25 GB;
+# gitignored so the working tree stays clean when the snapshot is present.
+bootstrap-data/
