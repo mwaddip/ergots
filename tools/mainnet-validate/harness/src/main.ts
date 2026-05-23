@@ -435,9 +435,20 @@ export async function main(argv: readonly string[]): Promise<number> {
         process.stdout.write(
             `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network})\n`,
         );
+        // Heartbeat startup line — load-bearing for the 2j-b orchestrator's
+        // tip-reach disambiguation: the `tip=` value here is what the loop
+        // compares `checkpoint.lastValidatedHeight` against on harness exit 0.
+        process.stdout.write(
+            `[heartbeat] starting at h=${startHeight} (tip=${tipHeight})\n`,
+        );
 
         // Step 7: per-block walk.
         let currentBundle: BlockBundle | undefined;
+        // Heartbeat-tracking state (per main() invocation, not module-level).
+        let hbLastHeight = startHeight;
+        let hbLastWallMs = Date.now();
+        const HB_BLOCK_CADENCE = 100;
+        const MILESTONE_INTERVAL = 100000;
         for (let h = startHeight; h <= endHeight; h++) {
             if (args.sleepMs > 0) {
                 await sleep(args.sleepMs);
@@ -447,9 +458,13 @@ export async function main(argv: readonly string[]): Promise<number> {
             try {
                 currentBundle = await shim.getBlock(h);
             } catch (err) {
-                writeErrorReport(args.errorReportPath, classifyError(err, h, undefined));
+                const report = classifyError(err, h, undefined);
+                writeErrorReport(args.errorReportPath, report);
                 process.stderr.write(
                     `halt at height ${h} (shim fetch failed): ${err instanceof Error ? err.message : String(err)}\n`,
+                );
+                process.stdout.write(
+                    `[heartbeat] halt at h=${h} — phase=${report.phase} errorCode=${report.errorCode ?? '<none>'}\n`,
                 );
                 return 1;
             }
@@ -458,12 +473,13 @@ export async function main(argv: readonly string[]): Promise<number> {
             try {
                 validateBlock(currentBundle, walkerState, deriveTreeVersionFromBoxBytes);
             } catch (err) {
-                writeErrorReport(
-                    args.errorReportPath,
-                    classifyError(err, h, currentBundle),
-                );
+                const report = classifyError(err, h, currentBundle);
+                writeErrorReport(args.errorReportPath, report);
                 process.stderr.write(
                     `halt at height ${h} (validation failed): ${err instanceof Error ? err.message : String(err)}\n`,
+                );
+                process.stdout.write(
+                    `[heartbeat] halt at h=${h} — phase=${report.phase} errorCode=${report.errorCode ?? '<none>'}\n`,
                 );
                 return 1;
             }
@@ -471,6 +487,31 @@ export async function main(argv: readonly string[]): Promise<number> {
             // 7c: update + persist checkpoint.
             updateCheckpointStats(checkpoint, currentBundle);
             writeCheckpoint(args.checkpointPath, checkpoint);
+
+            // 7d: heartbeat cadence — per HB_BLOCK_CADENCE successful blocks.
+            if (h - hbLastHeight >= HB_BLOCK_CADENCE) {
+                const now = Date.now();
+                const blockSpan = h - hbLastHeight;
+                const avgMsPerBlk = Math.round((now - hbLastWallMs) / blockSpan);
+                const epoch = Math.floor(h / 1024);
+                process.stdout.write(
+                    `[heartbeat] h=${h} (epoch ${epoch}) — txs=${checkpoint.stats.totalTxs} boxes=${checkpoint.stats.totalBoxesValidated} spends=${checkpoint.stats.totalSpendsValidated} — avg=${avgMsPerBlk}ms/blk\n`,
+                );
+                hbLastHeight = h;
+                hbLastWallMs = now;
+            }
+
+            // 7e: 100k-block milestone heartbeat (orchestrator schedules full
+            // rewalk after this). Fires exactly once per crossing.
+            if (
+                Math.floor(h / MILESTONE_INTERVAL) >
+                Math.floor((h - 1) / MILESTONE_INTERVAL) &&
+                h >= MILESTONE_INTERVAL
+            ) {
+                process.stdout.write(
+                    `[heartbeat] crossed h=${h} milestone — orchestrator will schedule full rewalk next iteration\n`,
+                );
+            }
         }
 
         // Step 8: tip-reached bookkeeping.
@@ -480,6 +521,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         // successful walk has now superseded.
         deleteErrorReport(args.errorReportPath);
         process.stdout.write(`Tip reached at height ${endHeight}.\n`);
+        process.stdout.write(`[heartbeat] tip reached at h=${endHeight}\n`);
         return 0;
     } catch (err) {
         // Anything that escaped the per-block try blocks: setup failures
