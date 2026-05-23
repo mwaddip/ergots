@@ -110,8 +110,8 @@
     },
     "smokeResult": {
       "walkedFromHeight": 1,
-      "walkedToHeight": 3850,
-      "outcome": "halt"
+      "walkedToHeight": 50000,
+      "outcome": "max-height"
     }
   }
 ]
