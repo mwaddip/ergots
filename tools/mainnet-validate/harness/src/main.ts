@@ -223,6 +223,23 @@ export function classifyError(
         if (err.stack !== undefined) {
             out.stack = err.stack;
         }
+        // Phase 2j-a structured payload — flatten the HarnessError's
+        // cost-equivalence fields into the top-level ErrorReport keys
+        // per spec lines 146-177. Only `evaluate-cost` and
+        // `evaluate-oracle-mismatch` halts populate these; everything
+        // else leaves them `undefined`.
+        if (err.evaluateCost !== undefined) {
+            out.evaluateCost = err.evaluateCost;
+        }
+        if (err.oracleError !== undefined) {
+            out.oracleError = err.oracleError;
+        }
+        if (err.ourError !== undefined) {
+            out.ourError = err.ourError;
+        }
+        if (err.ourEvaluateCost !== undefined) {
+            out.ourEvaluateCost = err.ourEvaluateCost;
+        }
         return out;
     }
 

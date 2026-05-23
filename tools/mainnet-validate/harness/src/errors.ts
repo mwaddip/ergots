@@ -42,6 +42,20 @@
  *   - 'evaluate-mismatch'              (evaluate phase, T10) — exact set TBD
  *   - 'verify-signature-failed'        (verify-signature phase, T10) — exact set TBD
  *
+ * Phase 2j-a adds the cost-equivalence sub-step with two new phases:
+ *
+ *   - 'evaluate-cost'                  — both eval'd; cost-comparison sub-step
+ *       codes:
+ *         'cost-drift'    — oracle cost ≠ ours cost
+ *         'cost-overflow' — oracle cost > Number.MAX_SAFE_INTEGER
+ *   - 'evaluate-oracle-mismatch'       — eval success/failure disagreement
+ *       codes:
+ *         'ours-succeeded-oracle-errored' — our eval OK, oracle errored
+ *         'ours-errored-oracle-succeeded' — our eval errored, oracle OK
+ *
+ * These phases carry structured payload via `HarnessErrorOptions`
+ * (see below).
+ *
  * The union is NOT typed at the class level because each phase's catch
  * site only needs to dispatch on `code` against its own known values; an
  * exhaustive union would couple T8 to all future tasks.

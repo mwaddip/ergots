@@ -127,6 +127,57 @@ describe('classifyError', () => {
         expect(report.errorClass).toBe('Error');
         expect(report.message).toBe('something string-y');
     });
+
+    it('flattens HarnessError 2j-a payload fields into ErrorReport top-level keys', () => {
+        // cost-drift (evaluate-cost phase)
+        const driftErr = new HarnessError(
+            'evaluate-cost',
+            'cost-drift',
+            'cost-drift: oracle 999 vs ours 50 (delta 949)',
+            { txIndex: 0, inputIndex: 0 },
+            { evaluateCost: { expected: 999, actual: 50, delta: 949 } },
+        );
+        const driftReport = classifyError(driftErr, 1, undefined);
+        expect(driftReport.phase).toBe('evaluate-cost');
+        expect(driftReport.errorCode).toBe('cost-drift');
+        expect(driftReport.evaluateCost).toEqual({ expected: 999, actual: 50, delta: 949 });
+        expect(driftReport.oracleError).toBeUndefined();
+        expect(driftReport.ourError).toBeUndefined();
+        expect(driftReport.ourEvaluateCost).toBeUndefined();
+
+        // ours-succeeded-oracle-errored (evaluate-oracle-mismatch phase)
+        const mismatchErr = new HarnessError(
+            'evaluate-oracle-mismatch',
+            'ours-succeeded-oracle-errored',
+            'oracle errored but our eval succeeded',
+            { txIndex: 0, inputIndex: 0 },
+            {
+                ourError: null,
+                oracleError: 'simulated oracle eval error',
+                ourEvaluateCost: 50,
+            },
+        );
+        const mismatchReport = classifyError(mismatchErr, 1, undefined);
+        expect(mismatchReport.phase).toBe('evaluate-oracle-mismatch');
+        expect(mismatchReport.errorCode).toBe('ours-succeeded-oracle-errored');
+        expect(mismatchReport.oracleError).toBe('simulated oracle eval error');
+        expect(mismatchReport.ourError).toBeNull();
+        expect(mismatchReport.ourEvaluateCost).toBe(50);
+        expect(mismatchReport.evaluateCost).toBeUndefined();
+
+        // Non-2j-a HarnessError leaves all 4 fields undefined.
+        const plainErr = new HarnessError(
+            'evaluate',
+            'verifier-false',
+            'verifier returned false',
+            { txIndex: 0, inputIndex: 1 },
+        );
+        const plainReport = classifyError(plainErr, 1, undefined);
+        expect(plainReport.evaluateCost).toBeUndefined();
+        expect(plainReport.oracleError).toBeUndefined();
+        expect(plainReport.ourError).toBeUndefined();
+        expect(plainReport.ourEvaluateCost).toBeUndefined();
+    });
 });
 
 describe('updateCheckpointStats', () => {
