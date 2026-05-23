@@ -1,27 +1,31 @@
 /**
- * Substitution pre-pass for `DeserializeContext` and `DeserializeRegister`.
+ * Substitution pre-passes for `ConstantPlaceholder`, `DeserializeContext`,
+ * and `DeserializeRegister`.
  *
  * Mirrors sigma-rust:
  *   - `Expr::has_deserialize`        (ergotree-ir/src/mir/expr.rs:431-438)
  *   - `Expr::substitute_deserialize` (ergotree-ir/src/mir/expr.rs:442-496)
+ *   - `Expr::substitute_constants`   (ergotree-ir/src/mir/expr.rs:498-514)
  *   - `Expr::rewrite_bu_inner`       (ergotree-ir/src/mir/expr.rs:397-408)
  *   - `Traversable for Expr`         (ergotree-ir/src/mir/expr.rs:531-678)
  *
- * Bottom-up rewrite that locates every `DeserializeContext` /
- * `DeserializeRegister` node and rewrites it with the inner `Expr` parsed
- * from the runtime context (context-extension entries for DC; self-box
- * registers for DR). The substitution pass is purely a tree transform: it
- * charges no cost and may not recurse into substituted children (a nested
- * Deserialize* in the parsed inner Expr stays unsubstituted; the
- * defensive eval-time throw `'deserialize-not-substituted'` catches it on
- * the next dispatch step).
+ * Bottom-up rewrites that locate every target node in the tree and replace
+ * it with a substituted Expr. The walks are purely tree transforms: they
+ * charge no cost and may not recurse into substituted children.
  *
- * The module exports exactly two functions:
+ * The module exports three functions:
  *  - {@link treeHasDeserialize}    — O(n) early-return scan.
- *  - {@link substituteDeserialize} — bottom-up immutable rewrite.
- *
- * This module is type-checked but NOT yet imported by `evaluate.ts` /
- * `evaluateWith` — T8 wires the integration. Phase 2i-c task T4.
+ *  - {@link substituteDeserialize} — bottom-up immutable rewrite of DC/DR.
+ *  - {@link substituteConstants}   — bottom-up immutable rewrite of CP→Const,
+ *    mirroring `tree.proposition()` (`ergo_tree.rs:248-258` calls
+ *    `substitute_constants` when `header.is_constant_segregation()`). Used
+ *    by `evaluate.ts:dispatchTreeBody` BEFORE `substituteDeserialize` on the
+ *    deserialize path, so the post-substituted body charges
+ *    `Const = Fixed(5)` per ex-placeholder (matching sigma-rust
+ *    `eval/expr.rs:21-23`) instead of the lazy `ConstPlaceholder = Fixed(1)`
+ *    path that ran before phase 2j-b/iter-1. See findings note
+ *    `tools/mainnet-validate/findings/2026-05-23-2j-a-validation-smoke.md`
+ *    for the h=3850 cost-drift halt that surfaced this 4-per-CP gap.
  */
 
 import type {
@@ -54,7 +58,9 @@ import type {
   SigmaAnd,
   SigmaOr,
   Slice,
+  SType,
   SubstConstants,
+  SValue,
   Tuple,
   TreeLookup,
   Upcast,
@@ -287,6 +293,67 @@ function substituteDeserializeRegister(
   // evaluation". The defensive eval-time throw 'deserialize-not-substituted'
   // (wired in T3) catches this on the next dispatch step.
   return e
+}
+
+// ---------------------------------------------------------------------------
+// substituteConstants — bottom-up immutable rewrite of CP → Const.
+//
+// Mirrors sigma-rust `Expr::substitute_constants`
+// (ergotree-ir/src/mir/expr.rs:498-514). Used by `tree.proposition()`
+// (ergotree-ir/src/ergo_tree.rs:248-258) when the tree header has
+// `is_constant_segregation()` set. The substitute walks the body
+// bottom-up; every `ConstPlaceholder(id)` is replaced with
+// `Const(constantTypes[id], constants[id])`. The walk does NOT recurse
+// into substituted children — a `Const` produced by substitution is a leaf
+// and `mapChildren` returns it unchanged on the next traversal step.
+//
+// Error: if a placeholder's id is out of range (`id >= constants.length`),
+// throw `EvalError('const-placeholder-id-out-of-range')` — same code as the
+// eval-time `ConstPlaceholder` arm (`eval/const-placeholder.ts:53`). This
+// keeps the error taxonomy consistent across the substitute path and the
+// (now-unused-by-the-deserialize-branch) lazy-resolution path.
+// ---------------------------------------------------------------------------
+
+export function substituteConstants(
+  body: Expr,
+  constants: SValue[],
+  constantTypes: SType[],
+): Expr {
+  return rewriteConstantsBottomUp(body, constants, constantTypes)
+}
+
+/**
+ * Bottom-up recursive rewrite. Children are rewritten BEFORE the parent is
+ * considered for substitution — matching `rewrite_bu_inner`
+ * (`mir/expr.rs:397-408`). After rewriting children, if the current node is
+ * `ConstPlaceholder`, replace it with `Const(constantTypes[id], constants[id])`.
+ */
+function rewriteConstantsBottomUp(
+  e: Expr,
+  constants: SValue[],
+  constantTypes: SType[],
+): Expr {
+  // 1. Recurse into children first (bottom-up).
+  const eWithRewrittenChildren = mapChildren(e, (child) =>
+    rewriteConstantsBottomUp(child, constants, constantTypes),
+  )
+
+  // 2. Apply substitution at this node (only if ConstPlaceholder).
+  if (eWithRewrittenChildren.tag === 'ConstPlaceholder') {
+    const id = eWithRewrittenChildren.id
+    if (id >= constants.length) {
+      throw new EvalError(
+        `ConstPlaceholder(${id}): id out of range (constants.length=${constants.length})`,
+        'const-placeholder-id-out-of-range',
+      )
+    }
+    return {
+      tag: 'Const',
+      tpe: constantTypes[id]!,
+      value: constants[id]!,
+    }
+  }
+  return eWithRewrittenChildren
 }
 
 // ---------------------------------------------------------------------------

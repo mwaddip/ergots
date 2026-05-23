@@ -13,7 +13,11 @@ import { Env } from './env'
 import { evalExpr } from './eval'
 import { makeContext } from './eval-context'
 import type { EvalContext, EvalOpts } from './eval-context'
-import { substituteDeserialize, treeHasDeserialize } from './_substitute-deserialize'
+import {
+  substituteConstants,
+  substituteDeserialize,
+  treeHasDeserialize,
+} from './_substitute-deserialize'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -82,21 +86,36 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  *   if tree.has_deserialize() { substitute_then_eval } else { straight_eval }
  *
  * Both branches end with `tryTrivialReduce ?? evalExpr`. The substitute path
- * runs `substituteDeserialize` as a bottom-up pre-eval rewrite, then dispatches
- * on the REWRITTEN body (so the P2PK 50-cost short-circuit can fire on a
+ * runs `substituteConstants` (when the tree is segregated) and then
+ * `substituteDeserialize` as bottom-up pre-eval rewrites, then dispatches on
+ * the REWRITTEN body (so the P2PK 50-cost short-circuit can fire on a
  * substituted `Const(SSigmaProp)` body — see fixture `dc_const_sigmaprop_inner`).
  *
- * Architectural divergence from sigma-rust (deliberate, cost-equivalent): we
- * keep `ctx.constants` populated for all paths and rely on
- * `tryTrivialReduceExpr` handling both `Const(SSigmaProp)` and
- * `ConstPlaceholder(SSigmaProp)` via ctx.constants lookup; sigma-rust's
- * substitute path uses `tree.proposition()` to eagerly substitute placeholders.
- * Same observable cost-integer and value output (verified by
- * `dc_const_sigmaprop_inner` cost === 50).
+ * Order matches sigma-rust `eval.rs:206-207`:
+ *
+ *   let expr = tree.proposition()?;          // substitute_constants if segregated
+ *   let expr = expr.substitute_deserialize(ctx)?;
+ *
+ * The CP→Const rewrite MUST run before the Deserialize* rewrite so that every
+ * `ConstPlaceholder` reaching `evalExpr` charges `Const = Fixed(5)` (matching
+ * sigma-rust `eval/expr.rs:21-23`) instead of the lazy `ConstantPlaceholder
+ * = Fixed(1)` path (`eval/expr.rs:52-53`). Pre-2j-b/iter-1 this code ran only
+ * `substituteDeserialize` and relied on `ctx.constants` lookup at eval-time,
+ * which produced a -4 per-CP undercharge surfaced at h=3850 in the 2j-a
+ * Layer-5 smoke (oracle 434 vs ours 410 — see
+ * `tools/mainnet-validate/findings/2026-05-23-2j-a-validation-smoke.md`).
+ *
+ * Non-deserialize path stays on lazy resolution via `ctx.constants`: that
+ * path's `ConstPlaceholder` arm IS the sigma-rust `with_constants(...)`
+ * branch (`eval.rs:259-261`), which intentionally charges 1 per CP. Only the
+ * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
 function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
   if (treeHasDeserialize(tree)) {
-    const rewrittenBody = substituteDeserialize(tree.body, tree, ctx)
+    const constSubstituted = tree.header.constantSegregation
+      ? substituteConstants(tree.body, tree.constants, tree.constantTypes)
+      : tree.body
+    const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
