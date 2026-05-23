@@ -42,6 +42,17 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { Decoder } from 'cbor-x';
 
 /**
+ * Wire-protocol version the shim is expected to emit. Bumped at phase 2j-a
+ * (InputBundle gained `oracle_cost` / `oracle_succeeded` / `oracle_error`).
+ *
+ * The shim sets its own `PROTOCOL_VERSION` constant in `shim/src/protocol.rs`;
+ * any mismatch indicates the shim binary on disk doesn't match this harness
+ * build. The handshake hook that compares the two values lands in a later
+ * task — this constant is the single source of truth for the comparison.
+ */
+export const EXPECTED_SHIM_PROTOCOL_VERSION = 2;
+
+/**
  * Stable error codes emitted by the shim on the wire.
  *
  * Sourced from grep of `write_err(` calls across `shim/src/main.rs` +
@@ -76,7 +87,15 @@ export interface ContextExtensionEntry {
     valueBytes: Uint8Array;
 }
 
-/** Per-input bundle. See Source Mapping note on `boxId` diagnostic role. */
+/**
+ * Per-input bundle. See Source Mapping note on `boxId` diagnostic role.
+ *
+ * Phase 2j-a added the `oracle*` fields. The shim invokes sigma-rust's
+ * `reduce_to_crypto(tree, ctx)` on each input and reads
+ * `ctx.jit_cost_value()` directly (NOT `ReductionResult.cost`, which is
+ * `jit_cost / 10`). The harness's cost-diff sub-step in `validate-tx.ts`
+ * compares `oracleCost` against our TS evaluator's `ctx.jitCost`.
+ */
 export interface InputBundle {
     /**
      * 32 bytes; the canonical id of the input box. Diagnostic only — the
@@ -87,6 +106,22 @@ export interface InputBundle {
     spentBoxBytes: Uint8Array;
     signatureBytes: Uint8Array;
     contextExtension: ContextExtensionEntry[];
+    /**
+     * sigma-rust `ctx.jit_cost_value()` after `reduce_to_crypto` returned.
+     * `bigint` because the wire type is `u64`; cost-diff narrows to
+     * `number` via a `Number.MAX_SAFE_INTEGER` overflow guard. cbor-x
+     * decodes small u64 values as `number` and large ones as `bigint`;
+     * the re-key layer normalizes both into `bigint`.
+     */
+    oracleCost: bigint;
+    /** Whether the oracle's `reduce_to_crypto` call returned Ok. */
+    oracleSucceeded: boolean;
+    /**
+     * Formatted error message (display-form of sigma-rust's `EvalError` /
+     * `SigmaParsingError` / etc.) if `oracleSucceeded` is false; null
+     * otherwise.
+     */
+    oracleError: string | null;
 }
 
 /** Per-transaction bundle. */
@@ -255,6 +290,42 @@ function reKeyInputBundle(raw: unknown, path: string): InputBundle {
             `${path}.context_extension: expected array, got ${typeof ctxRaw}`,
         );
     }
+    // cbor-x decodes u64 values <= MAX_SAFE_INTEGER as `number` and larger
+    // values as `bigint`. Normalize to bigint here so the downstream cost-
+    // diff layer has a single type to compare against.
+    const oracleCostRaw = r['oracle_cost'];
+    let oracleCost: bigint;
+    if (typeof oracleCostRaw === 'bigint') {
+        oracleCost = oracleCostRaw;
+    } else if (typeof oracleCostRaw === 'number') {
+        if (!Number.isInteger(oracleCostRaw) || oracleCostRaw < 0) {
+            throw new TypeError(
+                `${path}.oracle_cost: expected non-negative integer or bigint, got ${String(oracleCostRaw)}`,
+            );
+        }
+        oracleCost = BigInt(oracleCostRaw);
+    } else {
+        throw new TypeError(
+            `${path}.oracle_cost: expected number or bigint, got ${typeof oracleCostRaw}`,
+        );
+    }
+    const oracleSucceededRaw = r['oracle_succeeded'];
+    if (typeof oracleSucceededRaw !== 'boolean') {
+        throw new TypeError(
+            `${path}.oracle_succeeded: expected boolean, got ${typeof oracleSucceededRaw}`,
+        );
+    }
+    const oracleErrorRaw = r['oracle_error'];
+    let oracleError: string | null;
+    if (oracleErrorRaw === null || oracleErrorRaw === undefined) {
+        oracleError = null;
+    } else if (typeof oracleErrorRaw === 'string') {
+        oracleError = oracleErrorRaw;
+    } else {
+        throw new TypeError(
+            `${path}.oracle_error: expected string or null, got ${typeof oracleErrorRaw}`,
+        );
+    }
     return {
         boxId: toByteArray(r['box_id'], `${path}.box_id`),
         spentBoxBytes: toByteArray(r['spent_box_bytes'], `${path}.spent_box_bytes`),
@@ -262,6 +333,9 @@ function reKeyInputBundle(raw: unknown, path: string): InputBundle {
         contextExtension: ctxRaw.map((entry, i) =>
             reKeyContextExtensionEntry(entry, `${path}.context_extension[${i}]`),
         ),
+        oracleCost,
+        oracleSucceeded: oracleSucceededRaw,
+        oracleError,
     };
 }
 

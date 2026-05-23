@@ -25,15 +25,62 @@ import { writeFileSync, unlinkSync, renameSync } from 'node:fs';
 /**
  * Which validation phase produced the error. Closed union per spec; adding
  * a phase requires updating both this type and the writer call sites.
+ *
+ * Phase 2j-a added `'evaluate-cost'` and `'evaluate-oracle-mismatch'`, the
+ * cost-equivalence sub-step of the evaluate pass. See `EvaluateCostPayload`
+ * and `EvaluateOracleMismatchPayload`.
  */
 export type ErrorPhase =
     | 'header'
     | 'output-roundtrip'
     | 'evaluate'
     | 'verify-signature'
-    | 'shim';
+    | 'shim'
+    | 'evaluate-cost'
+    | 'evaluate-oracle-mismatch';
 
-/** Structured halt record. Shape from PLAN.md T7 (unchanged). */
+/**
+ * Payload for phase `'evaluate-cost'` (both oracle and our TS evaluator
+ * succeeded but disagree on cost). `expected` is the oracle's
+ * `ctx.jit_cost_value()`; `actual` is our `ctx.jitCost`; `delta` is
+ * `expected - actual` so the sign indicates which side undercharged.
+ *
+ * Stored as `number` (not `bigint`) because the cost-diff sub-step has
+ * already narrowed the oracle's u64 via a `Number.MAX_SAFE_INTEGER`
+ * overflow guard, and JSON has no bigint type — keeping `number` here
+ * matches the disk shape directly.
+ */
+export interface EvaluateCostPayload {
+    expected: number;
+    actual: number;
+    delta: number;
+}
+
+/**
+ * Payload for phase `'evaluate-oracle-mismatch'` (oracle and our TS
+ * evaluator disagree on eval success/failure). `code` carries which side
+ * errored; `oracleError` / `ourError` are the formatted error messages
+ * from each side (null on the side that succeeded); `ourEvaluateCost` is
+ * our `ctx.jitCost` at the throw point, present only when
+ * `code === 'ours-errored-oracle-succeeded'`.
+ *
+ * This is the HarnessError payload shape. The disk shape in `ErrorReport`
+ * flattens these fields: `code` maps to `ErrorReport.errorCode`; the
+ * remaining fields appear as top-level keys (`oracleError`, `ourError`,
+ * `ourEvaluateCost`) per the 2j-a JSON schema.
+ */
+export interface EvaluateOracleMismatchPayload {
+    code: 'ours-succeeded-oracle-errored' | 'ours-errored-oracle-succeeded';
+    oracleError: string | null;
+    ourError: string | null;
+    ourEvaluateCost: number | null;
+}
+
+/**
+ * Structured halt record. Shape from PLAN.md T7 plus the 2j-a additions
+ * for the cost-equivalence sub-step (see `evaluateCost`, `oracleError`,
+ * `ourError`, `ourEvaluateCost`).
+ */
 export interface ErrorReport {
     /** ISO 8601 timestamp of the halt. */
     timestamp: string;
@@ -61,6 +108,30 @@ export interface ErrorReport {
         spentBoxId?: string;
         ergoTreeHex?: string;
     };
+    /**
+     * Present when `phase === 'evaluate-cost'`. The cost-drift payload
+     * captured at the point of disagreement between sigma-rust's oracle
+     * and our TS evaluator (after both succeeded).
+     */
+    evaluateCost?: EvaluateCostPayload;
+    /**
+     * Present when `phase === 'evaluate-oracle-mismatch'`. The formatted
+     * error from sigma-rust's oracle (null if the oracle succeeded and
+     * our side errored).
+     */
+    oracleError?: string | null;
+    /**
+     * Present when `phase === 'evaluate-oracle-mismatch'`. The formatted
+     * error from our TS evaluator (null if our side succeeded and the
+     * oracle errored).
+     */
+    ourError?: string | null;
+    /**
+     * Present when `phase === 'evaluate-oracle-mismatch'` and `errorCode`
+     * is `'ours-errored-oracle-succeeded'`. Our `ctx.jitCost` at the
+     * throw point — partial cost accumulated up to the error.
+     */
+    ourEvaluateCost?: number | null;
     /**
      * Hex excerpts of the relevant wire bytes for offline reproduction.
      * The harness intentionally does NOT embed the full BlockBundle — that
