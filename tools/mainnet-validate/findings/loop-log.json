@@ -109,9 +109,9 @@
       }
     },
     "smokeResult": {
-      "walkedFromHeight": 3850,
-      "walkedToHeight": null,
-      "outcome": "pending"
+      "walkedFromHeight": 1,
+      "walkedToHeight": 3850,
+      "outcome": "halt"
     }
   }
 ]

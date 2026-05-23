@@ -31,6 +31,9 @@ npm run build
 
 The shim binary lands at `tools/mainnet-validate/shim/target/release/ergots-mainnet-validate-shim`. The harness entry point lands at `tools/mainnet-validate/harness/dist/main.js`.
 
+> **Dist-rebuild gotcha** (load-bearing for both manual walks and the 2j-b autonomous loop):
+> the harness imports `@ergots/*` packages through their `package.json` `exports → "./dist/index.js"` field, so source changes to `packages/*/src/` are **invisible** to the harness until that package's dist is rebuilt. Vitest runs against `src/` directly and will pass — but the harness will continue running pre-fix code. Before any walk that depends on a recent `packages/*/src/` change, run `cd packages/<pkg> && npm run build`. The 2j-b fix-apply prompt enforces this for autonomous-loop iterations; manual operators must do it themselves. Empirical demonstration: iter-2 of the 2j-b first loop run reproduced iter-1's halt verbatim because `packages/ergoscript/dist/` was stale.
+
 `cargo test` in `shim/` (22 tests) and `npm test` in `harness/` (74 tests) cover the wire protocol, the UTXO sidecar, the walk loop, and all four validation passes. Both should pass cleanly before any walk attempt.
 
 ## Run

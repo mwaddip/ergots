@@ -125,16 +125,42 @@ commit message prefix.
    ```
    If non-clean: return FAILURE with `failureReason: "tsc-failed"` and
    `failureLog: <tsc output>`.
-8. **If the patch touched harness-affecting code** (rare for cost-drift;
+8. **Rebuild dists for every touched `@ergots/*` workspace package.**
+   The harness imports `@ergots/*` packages through their `package.json`
+   `exports → "./dist/index.js"` field — Node's module resolver honours
+   `exports` and loads the bundled dist, not `src/`. **Source changes
+   are invisible to the harness until the package is rebuilt.** Vitest
+   runs against `src/` and will pass; the harness will continue running
+   pre-fix code and reproduce the same halt — confirmed empirically on
+   iter-2 of the 2j-b first loop run.
+
+   For every workspace package under `packages/*/` whose `src/` was
+   touched by this fix, run:
+   ```bash
+   cd packages/<pkg> && npm run build
+   ```
+   For `@ergots/ergoscript` specifically (the most common case):
+   ```bash
+   cd packages/ergoscript && npm run build
+   ```
+   Then **verify the dist contains the new code** by grepping for the
+   new symbol, helper, or behavior pattern:
+   ```bash
+   grep -n '<distinctive-new-string>' packages/<pkg>/dist/index.js
+   ```
+   Failure (`npm run build` non-zero, OR the grep returns nothing) →
+   FAILURE return with `failureReason: "package-dist-build-failed"` and
+   `failureLog: <build output>`.
+9. **If the patch touched harness-affecting code** (rare for cost-drift;
    common for arm-coverage fixes):
    ```bash
    cd tools/mainnet-validate/harness && npm test && npx tsc --noEmit && npm run build
    ```
    Failure → FAILURE return with `failureReason: "harness-build-failed"`.
-9. **If the divergence note in `facts/ergoscript-eval.md` becomes stale
-   because of this fix**, update the relevant section. This is part of the
-   commit when applicable.
-10. **Commit:**
+10. **If the divergence note in `facts/ergoscript-eval.md` becomes stale
+    because of this fix**, update the relevant section. This is part of
+    the commit when applicable.
+11. **Commit:**
     ```bash
     git add <only changed files>
     git commit -m "loop(2j-b/iter-{{ITER_N}}): <short summary>
@@ -146,7 +172,7 @@ commit message prefix.
 
     Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
     ```
-11. **Return FixOutput JSON** in the schema below.
+12. **Return FixOutput JSON** in the schema below.
 
 ## OVERRIDES echo-back
 
@@ -200,6 +226,8 @@ Or on FAILURE:
 - `npm test` breaks pre-existing tests post-fix (any test count drop or
   any new failure).
 - `npx tsc --noEmit` fails post-fix.
+- `npm run build` of a touched `@ergots/*` workspace package fails OR the
+  rebuilt dist does not contain the new code (grep verification fails).
 - Harness build/test fails after a harness-affecting change.
 - You discover mid-implementation that diagnosis is incomplete or wrong.
 - A fix that "works" but bypasses OVERRIDES rule #5 (e.g., upstream guard
