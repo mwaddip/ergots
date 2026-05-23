@@ -248,6 +248,10 @@ fn stdin_loop(store: &RedbModifierStore, sidecar: &UtxoIndex) -> Result<()> {
                 handle_get_block(store, sidecar, &mut stdout, height)
                     .with_context(|| format!("handling GET_BLOCK {height}"))?;
             }
+            Ok(protocol::Request::GetHeader { height }) => {
+                handle_get_header(store, &mut stdout, height)
+                    .with_context(|| format!("handling GET_HEADER {height}"))?;
+            }
             Err(msg) => {
                 protocol::write_err(&mut stdout, "unknown-command", &msg)
                     .context("writing unknown-command error")?;
@@ -412,6 +416,64 @@ fn handle_get_block(
     );
 
     protocol::write_ok(stdout, &bundle).context("writing GET_BLOCK response")?;
+    Ok(())
+}
+
+/// Handle a single GET_HEADER <height> request: return just the canonical
+/// header bytes for the requested height. **Does NOT touch the sidecar
+/// and does NOT enforce the forward-walker constraint** — this verb is
+/// header-only and safe to call for any height in BEST_CHAIN.
+///
+/// Added at PROTOCOL_VERSION 3 (phase 2j-b-resume) so the harness can
+/// rebuild its rolling-window WalkerState from any startHeight > 1 on
+/// resume from a checkpoint. The corresponding GET_BLOCK call would
+/// fail with `past-indexed` once the sidecar has advanced past the
+/// requested height. Spec:
+/// `docs/specs/2026-05-23-ergoscript-2j-b-resume-shim-fix-design.md`.
+///
+/// Error codes emitted on the wire (consumed by the harness):
+/// - `missing-block`: `best_header_at(h)` returned None (past tip, or a
+///   BEST_CHAIN hole). Mirrors GET_BLOCK's missing-block semantics.
+/// - `store-race`: `best_header_at` returned Some but `read_header_at`
+///   returned None — concurrent store mutation between the two reads.
+///   Same recovery as GET_BLOCK's store-race: retry once the writer
+///   settles.
+fn handle_get_header(
+    store: &RedbModifierStore,
+    stdout: &mut impl io::Write,
+    height: u32,
+) -> Result<()> {
+    let target_header_id = store
+        .best_header_at(height)
+        .with_context(|| format!("best_header_at({height})"))?;
+    if target_header_id.is_none() {
+        let msg = format!(
+            "no canonical header at height {height}; possibly past tip"
+        );
+        protocol::write_err(stdout, "missing-block", &msg)
+            .context("writing missing-block error")?;
+        return Ok(());
+    }
+    let header_bytes = store
+        .read_header_at(height)
+        .with_context(|| format!("read_header_at({height}) for GET_HEADER"))?;
+    let header_bytes = match header_bytes {
+        Some(b) => b,
+        None => {
+            let msg = format!(
+                "best_header_at({height}) returned Some but read_header_at({height}) returned None — \
+                 likely concurrent store mutation between the two reads. Retry the call once the \
+                 writer settles."
+            );
+            protocol::write_err(stdout, "store-race", &msg)
+                .context("writing store-race error")?;
+            return Ok(());
+        }
+    };
+    let response = protocol::HeaderResponse {
+        header_bytes,
+    };
+    protocol::write_ok(stdout, &response).context("writing GET_HEADER response")?;
     Ok(())
 }
 

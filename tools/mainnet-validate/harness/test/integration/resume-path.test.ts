@@ -17,10 +17,13 @@
  *      the checkpoint up and used it.
  *   2. The `--start-height` override: pass `--start-height N+10` and
  *      observe the override taking precedence over the checkpoint.
- *   3. The forward-only sidecar's collision behavior on a back-to-back
- *      re-run with an unadvanced checkpoint (the harness's documented
- *      semantics — the sidecar marker monotone-advances, so re-asking
- *      the rolling-window range on a second run emits `past-indexed`).
+ *   3. The clean-resume back-to-back path: run once advancing the
+ *      sidecar's `indexed_up_to_height`, then run again with a higher
+ *      `--max-height`. As of phase 2j-b-resume (PROTOCOL_VERSION 3),
+ *      `rebuildWalkerState` uses the new `GET_HEADER` verb so the rolling
+ *      window can be repopulated from any past height regardless of
+ *      sidecar state; both runs exit 0 and the checkpoint
+ *      monotonically advances.
  *
  * After phase 2j-pre fix-1 (sbox-ergo-tree-no-size RESOLVED 2026-05-22),
  * the library halt at h=1 is gone. A "walks 1 more block" sub-assertion
@@ -172,14 +175,14 @@ describe('resume path (Layer 5)', () => {
         expect(run.stdout).toMatch(/Tip reached at height 55/);
     }, 60_000);
 
-    it('back-to-back runs against the same sidecar collide via the forward-only walker (documents real semantics)', async () => {
+    it('back-to-back runs against the same sidecar resume cleanly via the GET_HEADER verb', async () => {
         const skipReason = checkRealDataPrereqs();
         if (skipReason !== null) {
-            console.warn(`SKIP resume-path forward-walker case: ${skipReason}`);
+            console.warn(`SKIP resume-path back-to-back case: ${skipReason}`);
             return;
         }
 
-        scratch = makeScratchDir('resume-fwd-walker');
+        scratch = makeScratchDir('resume-back-to-back');
         const sidecarPath = join(scratch.path, 'sidecar.redb');
         const checkpointPath = join(scratch.path, 'checkpoint.json');
         const errorReportPath = join(scratch.path, 'error-report.json');
@@ -198,35 +201,29 @@ describe('resume path (Layer 5)', () => {
         const run1 = await runHarness([...baseArgs, '--max-height', '205']);
         // First run: the harness reads the checkpoint (lastValidatedHeight=
         // 200), computes startHeight=201, then `rebuildWalkerState` fetches
-        // headers from heights 191..200 to repopulate the rolling window.
-        // Each header fetch via `GET_BLOCK` advances the shim's forward
-        // walker, which builds the sidecar UTXO index for heights up to
-        // and including the requested block. After fix-1 (2026-05-22),
-        // the walk through 201..205 completes cleanly; the sidecar's
+        // headers from heights 191..200 via the new `GET_HEADER` verb. The
+        // walk through 201..205 completes cleanly; the sidecar's
         // `indexed_up_to_height` advances to 205.
         expect(run1.exitCode).toBe(0);
         expect(run1.stdout).toMatch(/Walking 201\.\.205/);
         expect(run1.stdout).toMatch(/Tip reached at height 205/);
 
         // Second run with the SAME on-disk artifacts but a higher
-        // --max-height so the harness wants to walk further. The
-        // checkpoint now says 205 (advanced through run1); startHeight
-        // becomes 206. `rebuildWalkerState` asks for headers from
-        // 196..205 to repopulate the rolling window. But the sidecar is
-        // already at 205, so the shim's forward-only walker emits
-        // `past-indexed` for any GET_BLOCK at or below its current
-        // marker (`shim/src/block_walker.rs`, T5 documented this as
-        // expected behavior — the sidecar is monotone and re-walks are
-        // not supported).
+        // --max-height. The checkpoint now says 205 (advanced through
+        // run1); startHeight becomes 206. `rebuildWalkerState` asks for
+        // headers from 196..205 to repopulate the rolling window. Pre-2j-b-
+        // resume, this would have failed with `past-indexed` because
+        // GET_BLOCK enforces the forward-walker constraint. Now
+        // `rebuildWalkerState` uses GET_HEADER, which bypasses that
+        // constraint — header bytes come straight from the store via
+        // `read_header_at`. The second run walks 206..210 cleanly, advancing
+        // the sidecar to 210 and the checkpoint to lastValidatedHeight=210.
         const run2 = await runHarness([...baseArgs, '--max-height', '210']);
-        expect(run2.exitCode).toBe(1);
-        expect(run2.stderr).toContain('past-indexed');
-        // The second run halts BEFORE reaching the for-loop's "Walking
-        // X..Y" stdout line because the failure surfaces from
-        // `rebuildWalkerState` (called between checkpoint read and the
-        // walk loop), which throws straight to `main`'s outer catch arm
-        // and exits via the stderr path. No error-report (no specific
-        // height context for the failure).
-        expect(run2.stdout).not.toMatch(/Walking/);
+        expect(run2.exitCode).toBe(0);
+        expect(run2.stdout).toMatch(/Walking 206\.\.210/);
+        expect(run2.stdout).toMatch(/Tip reached at height 210/);
+        expect(run2.stderr).not.toContain('past-indexed');
+        const cpAfter = JSON.parse(readFileSync(checkpointPath, 'utf8')) as Checkpoint;
+        expect(cpAfter.lastValidatedHeight).toBe(210);
     }, 120_000);
 });

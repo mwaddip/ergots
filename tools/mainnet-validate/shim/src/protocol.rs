@@ -23,6 +23,13 @@ pub enum Request {
     GetTipHeight,
     /// `GET_BLOCK <u32>\n` — returns a BlockBundle for the given height.
     GetBlock { height: u32 },
+    /// `GET_HEADER <u32>\n` — returns just the canonical header bytes for
+    /// the given height. Bypasses the forward-walker constraint that
+    /// `GetBlock` enforces; serves any height that exists in BEST_CHAIN.
+    /// Added at PROTOCOL_VERSION 3 to unblock the 2j-b autonomous fix
+    /// loop's resume-from-checkpoint path (see
+    /// `docs/specs/2026-05-23-ergoscript-2j-b-resume-shim-fix-design.md`).
+    GetHeader { height: u32 },
 }
 
 /// Per-input bundle. Each entry pairs the input (by box_id) with the
@@ -78,10 +85,13 @@ pub struct InputBundle {
 }
 
 /// Shim wire-protocol version. Bumped at phase 2j-a (v1 -> v2) when
-/// `InputBundle` gained the `oracle_*` fields. The shim emits this at
-/// startup; the harness rejects mismatched versions with a clear stderr
-/// message rather than crashing on missing-field at the first block.
-pub const PROTOCOL_VERSION: u32 = 2;
+/// `InputBundle` gained the `oracle_*` fields, and at phase 2j-b-resume
+/// (v2 -> v3) when the `GET_HEADER` verb was added so the harness can
+/// rebuild rolling-window state on resume without hitting the forward-
+/// walker constraint. The shim emits this at startup; the harness's
+/// EXPECTED_SHIM_PROTOCOL_VERSION tracks it for handshake validation
+/// (the comparison hook is still carry-forward as of 2j-b-resume).
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// Single (varId, serialized-Constant-bytes) pair from an input's
 /// `ContextExtension::values`. Kept as a separate struct so the CBOR
@@ -183,6 +193,12 @@ pub fn parse_request(line: &str) -> Result<Request, String> {
             .map_err(|e| format!("GET_BLOCK: invalid u32 height \"{rest}\": {e}"))?;
         return Ok(Request::GetBlock { height });
     }
+    if let Some(rest) = line.strip_prefix("GET_HEADER ") {
+        let height: u32 = rest
+            .parse()
+            .map_err(|e| format!("GET_HEADER: invalid u32 height \"{rest}\": {e}"))?;
+        return Ok(Request::GetHeader { height });
+    }
     Err(format!("unknown command: \"{line}\""))
 }
 
@@ -202,6 +218,17 @@ struct OkBody<T: Serialize> {
 #[derive(Serialize)]
 pub struct TipHeightResponse {
     pub tip: u32,
+}
+
+/// Response payload for `GET_HEADER`. Wrapped by `write_ok` so the emitted
+/// CBOR is `{"ok": true, "data": {"header_bytes": [u8]}}`. The bytes are
+/// the result of `RedbModifierStore::read_header_at(height)` — the canonical
+/// header serialization at the requested height. The harness parses these
+/// via the existing scorex `parseHeader` helper, the same code path
+/// `validateBlock` already uses to parse `BlockBundle.headerBytes`.
+#[derive(Serialize)]
+pub struct HeaderResponse {
+    pub header_bytes: Vec<u8>,
 }
 
 /// Top-level error body — `{"ok": false, "error": {"code", "message"}}`.
@@ -275,12 +302,31 @@ mod tests {
     }
 
     #[test]
+    fn parse_get_header() {
+        assert_eq!(
+            parse_request("GET_HEADER 49991\n"),
+            Ok(Request::GetHeader { height: 49991 })
+        );
+        assert_eq!(
+            parse_request("GET_HEADER 0"),
+            Ok(Request::GetHeader { height: 0 })
+        );
+        assert_eq!(
+            parse_request("GET_HEADER 4294967295\n"),
+            Ok(Request::GetHeader { height: u32::MAX })
+        );
+    }
+
+    #[test]
     fn parse_unknown_command_rejected() {
         assert!(parse_request("FOO\n").is_err());
         assert!(parse_request("").is_err());
         assert!(parse_request("GET_BLOCK\n").is_err()); // missing arg
         assert!(parse_request("GET_BLOCK abc\n").is_err()); // non-u32
         assert!(parse_request("GET_BLOCK -1\n").is_err()); // negative
+        assert!(parse_request("GET_HEADER\n").is_err()); // missing arg
+        assert!(parse_request("GET_HEADER abc\n").is_err()); // non-u32
+        assert!(parse_request("GET_HEADER -1\n").is_err()); // negative
     }
 
     #[test]

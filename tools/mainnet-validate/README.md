@@ -34,7 +34,7 @@ The shim binary lands at `tools/mainnet-validate/shim/target/release/ergots-main
 > **Dist-rebuild gotcha** (load-bearing for both manual walks and the 2j-b autonomous loop):
 > the harness imports `@ergots/*` packages through their `package.json` `exports → "./dist/index.js"` field, so source changes to `packages/*/src/` are **invisible** to the harness until that package's dist is rebuilt. Vitest runs against `src/` directly and will pass — but the harness will continue running pre-fix code. Before any walk that depends on a recent `packages/*/src/` change, run `cd packages/<pkg> && npm run build`. The 2j-b fix-apply prompt enforces this for autonomous-loop iterations; manual operators must do it themselves. Empirical demonstration: iter-2 of the 2j-b first loop run reproduced iter-1's halt verbatim because `packages/ergoscript/dist/` was stale.
 
-`cargo test` in `shim/` (22 tests) and `npm test` in `harness/` (74 tests) cover the wire protocol, the UTXO sidecar, the walk loop, and all four validation passes. Both should pass cleanly before any walk attempt.
+`cargo test` in `shim/` (34 tests post-2j-b-resume) and `npm test` in `harness/` (99 tests post-2j-b) cover the wire protocol, the UTXO sidecar, the walk loop, and all four validation passes. Both should pass cleanly before any walk attempt.
 
 ## Run
 
@@ -203,7 +203,7 @@ surface organically through deeper smoke walks per the TDD-loop pattern
 - **No continuous mode.** The harness exits when it reaches `--max-height` (or the shim's reported tip at startup). It does NOT poll for new blocks. Re-running the invocation picks up from the checkpoint and walks any new blocks the snapshot has gained since the last run.
 - **No TypeScript transaction parser yet.** The shim parses `Transaction::sigma_parse` via sigma-rust and ships the parsed bundle over CBOR. A pure-TS transaction parser is out of scope for 2j; the harness consumes the shim's parsed form directly.
 - **No retries, no skip-and-continue, no per-block parallelism.** Halt-on-first-failure is the contract; aggregating divergences would defeat the differential-validator design.
-- **`GET_HEADER` shortcut not implemented.** Resume-time walker-state rebuild deserializes full `BlockBundle`s (hundreds of KB each on recent blocks) to extract just the `headerBytes`. Correct but slow on resume; a future optimisation could add a `GET_HEADER` shim verb.
+- **`GET_HEADER` shim verb shipped** (phase 2j-b-resume, PROTOCOL_VERSION 3). Resume-time walker-state rebuild now uses a header-only verb that bypasses the forward-walker constraint, so resume from any checkpoint (clean tip-reach OR mid-walk halt) works without rewalk. Closes the original "shortcut not implemented" carry-forward. See `docs/specs/2026-05-23-ergoscript-2j-b-resume-shim-fix-design.md`.
 
 ## References
 

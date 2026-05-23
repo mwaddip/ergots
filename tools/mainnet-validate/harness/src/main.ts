@@ -170,10 +170,17 @@ export async function rebuildWalkerState(
 
     // Fetch oldest-first so we can simply reverse() at the end. Sequential
     // by necessity — `ShimClient` rejects concurrent requests.
+    //
+    // Uses `getHeader` (not `getBlock`) so resume from a checkpoint with
+    // `startHeight > 1` works even after the sidecar has advanced past
+    // the requested heights — `GET_BLOCK` would refuse with `past-indexed`
+    // for h <= sidecar.indexed_up_to_height. Added at PROTOCOL_VERSION 3
+    // (phase 2j-b-resume); see
+    // `docs/specs/2026-05-23-ergoscript-2j-b-resume-shim-fix-design.md`.
     const ascending: Header[] = [];
     for (let h = firstHeight; h <= lastHeight; h++) {
-        const bundle = await shim.getBlock(h);
-        const header = parseHeader(new ByteReader(bundle.headerBytes));
+        const headerData = await shim.getHeader(h);
+        const header = parseHeader(new ByteReader(headerData.headerBytes));
         ascending.push(header);
     }
 

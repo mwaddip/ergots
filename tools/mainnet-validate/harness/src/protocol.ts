@@ -43,14 +43,17 @@ import { Decoder } from 'cbor-x';
 
 /**
  * Wire-protocol version the shim is expected to emit. Bumped at phase 2j-a
- * (InputBundle gained `oracle_cost` / `oracle_succeeded` / `oracle_error`).
+ * (InputBundle gained `oracle_cost` / `oracle_succeeded` / `oracle_error`)
+ * and at phase 2j-b-resume (added the `GET_HEADER` verb so the harness can
+ * rebuild rolling-window state on resume from h > 1 without hitting the
+ * shim's forward-walker constraint).
  *
  * The shim sets its own `PROTOCOL_VERSION` constant in `shim/src/protocol.rs`;
  * any mismatch indicates the shim binary on disk doesn't match this harness
  * build. The handshake hook that compares the two values lands in a later
  * task — this constant is the single source of truth for the comparison.
  */
-export const EXPECTED_SHIM_PROTOCOL_VERSION = 2;
+export const EXPECTED_SHIM_PROTOCOL_VERSION = 3;
 
 /**
  * Stable error codes emitted by the shim on the wire.
@@ -79,6 +82,17 @@ export type ShimResponse<T> =
 /** `GET_TIP_HEIGHT` payload. Mirrors `TipHeightResponse { tip: u32 }`. */
 export interface TipHeightData {
     tip: number;
+}
+
+/**
+ * `GET_HEADER` payload. Mirrors `HeaderResponse { header_bytes: Vec<u8> }`.
+ * The bytes are canonical header serialization (the same shape
+ * `BlockBundle.headerBytes` carries, but for an arbitrary past height —
+ * bypassing the shim's forward-walker constraint that gates `GET_BLOCK`).
+ * Added at PROTOCOL_VERSION 3 (phase 2j-b-resume).
+ */
+export interface HeaderData {
+    headerBytes: Uint8Array;
 }
 
 /** Single `(varId, serialized-Constant-bytes)` pair from a tx input's ContextExtension. */
@@ -244,6 +258,22 @@ function reKeyBlockBundle(raw: unknown): BlockBundle {
         headerBytes: toByteArray(r['header_bytes'], 'header_bytes'),
         transactions,
         parameters,
+    };
+}
+
+/**
+ * Re-key + validate the raw cbor-x output for `GET_HEADER`'s response.
+ * The wire shape is `{header_bytes: [u8]}`; we project to camelCase
+ * `{headerBytes: Uint8Array}` so callers don't need to know the snake_case
+ * boundary. Throws on shape divergence.
+ */
+function reKeyHeaderData(raw: unknown): HeaderData {
+    if (raw === null || typeof raw !== 'object') {
+        throw new TypeError(`HeaderData: expected object, got ${typeof raw}`);
+    }
+    const r = raw as Record<string, unknown>;
+    return {
+        headerBytes: toByteArray(r['header_bytes'], 'header_bytes'),
     };
 }
 
@@ -581,6 +611,24 @@ export class ShimClient {
         }
         const data = await this.request<unknown>(`GET_BLOCK ${height}\n`);
         return reKeyBlockBundle(data);
+    }
+
+    /**
+     * `GET_HEADER <height>` — returns just the canonical header bytes for
+     * the given height. Bypasses the shim's forward-walker constraint
+     * (which gates `GET_BLOCK` with `past-indexed`); safe to call for any
+     * height that exists in BEST_CHAIN regardless of `sidecar.indexed_up_to_height`.
+     *
+     * Used by `rebuildWalkerState` to fetch the 10 prior headers on resume
+     * from a checkpoint with `startHeight > 1`. Added at PROTOCOL_VERSION 3
+     * (phase 2j-b-resume).
+     */
+    async getHeader(height: number): Promise<HeaderData> {
+        if (!Number.isInteger(height) || height < 0) {
+            throw new TypeError(`getHeader: height must be a non-negative integer, got ${height}`);
+        }
+        const data = await this.request<unknown>(`GET_HEADER ${height}\n`);
+        return reKeyHeaderData(data);
     }
 
     /** Send SIGTERM and await exit. Safe to call multiple times. */
