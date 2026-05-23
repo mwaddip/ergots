@@ -32,20 +32,24 @@ The last 5 loop-log entries (for context — pattern detection / continuity):
 {{RECENT_LOG_ENTRIES}}
 ```
 
-## Relevant project facts
+## Relevant project facts (read as needed via the Read tool)
 
-Evaluator-surface contract (cost-pattern guidance, error taxonomy, per-arm
-coverage, treeVersion gating, the substitute-pre-pass architecture):
+- **Evaluator-surface contract** — cost-pattern guidance (Pattern A vs
+  Pattern B), error taxonomy (~64 EvalError codes), per-arm coverage,
+  treeVersion gating, the substitute-pre-pass architecture:
+  `/home/mwaddip/projects/ergots/facts/ergoscript-eval.md`
+- **Cross-cutting `@ergots/ergoscript` contract** — where to find what
+  across the wire / eval / sigma slices:
+  `/home/mwaddip/projects/ergots/facts/ergoscript.md`
+- **Wire slice** (if your diagnosis touches parsing/serialization):
+  `/home/mwaddip/projects/ergots/facts/ergoscript-wire.md`
+- **Sigma slice** (if your diagnosis touches sigma-protocol verification):
+  `/home/mwaddip/projects/ergots/facts/ergoscript-sigma.md`
+- **AVL slice** (if your diagnosis touches AVL+ membership proofs):
+  `/home/mwaddip/projects/ergots/facts/avltree.md`
 
-```markdown
-{{FACTS_ERGOSCRIPT_EVAL}}
-```
-
-Cross-cutting `@ergots/ergoscript` contract (where to find what):
-
-```markdown
-{{FACTS_ERGOSCRIPT}}
-```
+Read whichever slices are relevant to the failing arm. Do NOT preemptively
+read all five — that wastes context.
 
 ## Source paths (read these as needed)
 

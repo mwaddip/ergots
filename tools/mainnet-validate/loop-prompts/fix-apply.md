@@ -64,6 +64,15 @@ self-report dishonesty).
 This is the per-iteration counter; use it as the `iter-N` literal in your
 commit message prefix.
 
+## Relevant project facts (read as needed via the Read tool)
+
+- `/home/mwaddip/projects/ergots/facts/ergoscript-eval.md` — evaluator
+  surface contract (cost patterns, EvalError taxonomy, per-arm coverage)
+- `/home/mwaddip/projects/ergots/facts/ergoscript.md` — cross-cutting
+  package contract
+- `/home/mwaddip/projects/ergots/CLAUDE.md` — project conventions
+  (browser-clean ESM, TDD discipline, byte-equality testing strategy)
+
 ## Repo conventions (browser-first, TDD, ESM)
 
 - Pure TypeScript, browser-clean, no `Buffer`, no `node:*` in
