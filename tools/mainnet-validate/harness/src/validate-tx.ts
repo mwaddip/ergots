@@ -1,5 +1,6 @@
 /**
- * Per-transaction validation pass (PLAN.md T10).
+ * Per-transaction validation pass (PLAN.md T10; cost-equivalence sub-step
+ * added in phase 2j-a T7).
  *
  * For each tx input the harness:
  *   1. Parses the spent box bytes via `parseSValue({tag:'SBox'}, ...)`.
@@ -8,9 +9,22 @@
  *      `{tpe, value}` map entries (each blob is `SType || SValue`).
  *   4. Builds an `EvalContext` carrying chain state (height, self-box,
  *      inputs/outputs/data-inputs, pre-header, headers, extension,
- *      jitCostLimit, treeVersion).
- *   5. Invokes `evaluate(tree, opts)`; the result must be a `SigmaProp`.
- *   6. Invokes `verifySignature(sigmaProp, signingMessage, signatureBytes)`;
+ *      jitCostLimit, treeVersion, constants).
+ *   5. Invokes `evaluateWith(tree, ctx)` — we hold `ctx` so we can read
+ *      `ctx.jitCost` post-eval. `evaluateWith` does NOT auto-default
+ *      `ctx.constants` from `tree.constants`; the harness sets both
+ *      `treeVersion` and `constants` explicitly when building `ctx`.
+ *   6. Phase 2j-a cost-equivalence sub-step (tri-modal):
+ *      - both succeeded + costs equal → continue
+ *      - both succeeded + costs differ → halt `'evaluate-cost' / 'cost-drift'`
+ *      - our OK + oracle err → halt `'evaluate-oracle-mismatch' /
+ *        'ours-succeeded-oracle-errored'`
+ *      - our err + oracle OK → halt `'evaluate-oracle-mismatch' /
+ *        'ours-errored-oracle-succeeded'`
+ *      - both err → existing `'evaluate'` phase wrapping (lenient err/err
+ *        cross-comparison; tighter check is 2j-a carry-forward).
+ *   7. The result must be a `SigmaProp`; non-SigmaProp result halts.
+ *   8. Invokes `verifySignature(sigmaProp, signingMessage, signatureBytes)`;
  *      a `false` (or `VerifyError`) halts validation.
  *
  * On any failure it throws a `HarnessError` carrying `phase` + `code` +
@@ -103,7 +117,8 @@ import {
     parseSValue,
     parseSType,
     parseTree,
-    evaluate,
+    evaluateWith,
+    makeContext,
     verifySignature,
     EvalError,
     VerifyError,
@@ -429,6 +444,24 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 /**
+ * Format a thrown value from our TS evaluator into a human-readable string
+ * for the phase-2j-a `oracle-mismatch` payload's `ourError` field.
+ *
+ * `EvalError` gets the `EvalError[code]: message` form so the stable code
+ * is visible alongside the human message — matters because the cost-diff
+ * sub-step's mismatched-direction tests grep on `err.code`.
+ */
+function formatOurError(err: unknown): string {
+    if (err instanceof EvalError) {
+        return `EvalError[${err.code}]: ${err.message}`;
+    }
+    if (err instanceof Error) {
+        return `${err.constructor.name}: ${err.message}`;
+    }
+    return String(err);
+}
+
+/**
  * Validate every input of one transaction. See module doc for the
  * full algorithm + the source-read citations.
  *
@@ -442,10 +475,15 @@ function bytesToHex(bytes: Uint8Array): string {
  *   - `'data-input-box-parse-failed'`
  *   - `'tree-parse-failed'`
  *   - `'context-extension-parse-failed'`
- *   - `'evaluate-threw'` (any non-EvalError throw)
+ *   - `'evaluate-threw'` (any non-EvalError throw + both-error case)
  *   - `'evaluate-not-implemented'` (`EvalError.code === 'not-implemented-yet'`
- *      or any of the `'*-method-not-implemented'` codes)
- *   - `'evaluate-eval-error'` (any other `EvalError`)
+ *      or any of the `'*-method-not-implemented'` codes; both-error case)
+ *   - `'evaluate-eval-error'` (any other `EvalError`; both-error case)
+ *   - `'cost-overflow'` (phase `'evaluate-cost'`; oracleCost exceeded
+ *      `Number.MAX_SAFE_INTEGER`)
+ *   - `'cost-drift'` (phase `'evaluate-cost'`; both eval'd, costs differ)
+ *   - `'ours-errored-oracle-succeeded'` (phase `'evaluate-oracle-mismatch'`)
+ *   - `'ours-succeeded-oracle-errored'` (phase `'evaluate-oracle-mismatch'`)
  *   - `'non-sigmaprop-result'`
  *   - `'verifier-threw'` (VerifyError from verifier setup / parse)
  *   - `'verifier-false'` (verifier returned `false`)
@@ -540,23 +578,78 @@ export function validateTx(
             inputIndex,
         );
 
-        // 5c — evaluate. The evaluator auto-derives treeVersion +
-        // constants from `tree` per `evaluate()` semantics
-        // (`packages/ergoscript/src/eval/evaluate.ts:64-71`).
+        // 5c — Cost-overflow guard (phase 2j-a). `oracleCost` arrives
+        // as bigint (u64 source); we narrow to number for the cost-diff
+        // comparison. Mainnet costs are far below `MAX_SAFE_INTEGER`;
+        // overflowing values surface as a structured halt rather than a
+        // silent precision loss.
+        const oracleCostBig = input.oracleCost;
+        if (oracleCostBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+            throw new HarnessError(
+                'evaluate-cost',
+                'cost-overflow',
+                `oracleCost ${oracleCostBig} exceeds MAX_SAFE_INTEGER at tx ${txIndex}, input ${inputIndex}`,
+                {
+                    txIndex,
+                    inputIndex,
+                    spentBoxId: bytesToHex(input.boxId),
+                    ergoTreeHex: bytesToHex(ergoTreeBytes),
+                },
+            );
+        }
+        const oracleCost = Number(oracleCostBig);
+
+        // 5d — evaluate via `evaluateWith(tree, ctx)` so the caller
+        // holds `ctx` and can read `ctx.jitCost` post-eval for the
+        // cost-diff sub-step. Per `facts/ergoscript-eval.md:256`,
+        // `evaluateWith` does NOT auto-default `ctx.constants` from
+        // `tree.constants`, so we set both `treeVersion` and `constants`
+        // explicitly here (matching what `evaluate(tree, opts)` would
+        // have done internally).
+        const ctx = makeContext({
+            height: block.height,
+            selfBox,
+            inputs: inputBoxes,
+            outputs: outputBoxes,
+            dataInputs: dataInputBoxes,
+            preHeader,
+            headers,
+            extension,
+            jitCostLimit,
+            treeVersion,
+            constants: tree.constants,
+        });
+        const location = {
+            txIndex,
+            inputIndex,
+            spentBoxId: bytesToHex(input.boxId),
+            ergoTreeHex: bytesToHex(ergoTreeBytes),
+        };
         let result: SValue;
         try {
-            result = evaluate(tree, {
-                height: block.height,
-                selfBox,
-                inputs: inputBoxes,
-                outputs: outputBoxes,
-                dataInputs: dataInputBoxes,
-                preHeader,
-                headers,
-                extension,
-                jitCostLimit,
-            });
+            result = evaluateWith(tree, ctx);
         } catch (err) {
+            const ourErrorMsg = formatOurError(err);
+            // Phase 2j-a: if oracle succeeded but we threw, surface
+            // 'ours-errored-oracle-succeeded'. `ctx.jitCost` holds the
+            // partial cost up to (and including) the throw point per
+            // `facts/ergoscript-eval.md:258`.
+            if (input.oracleSucceeded) {
+                throw new HarnessError(
+                    'evaluate-oracle-mismatch',
+                    'ours-errored-oracle-succeeded',
+                    `our eval threw [${ourErrorMsg}] but oracle succeeded (cost ${oracleCost}) at tx ${txIndex}, input ${inputIndex}`,
+                    location,
+                    {
+                        ourError: ourErrorMsg,
+                        oracleError: null,
+                        ourEvaluateCost: ctx.jitCost,
+                    },
+                );
+            }
+            // Both errored → existing 'evaluate' phase wrapping (lenient
+            // err/err cross-comparison; tighter oracle-vs-ours error-code
+            // equivalence is a 2j-a carry-forward).
             if (err instanceof EvalError) {
                 // Distinguish "library coverage gap" from "tree did
                 // something wrong" — operators triaging a not-yet-impl
@@ -569,29 +662,51 @@ export function validateTx(
                     'evaluate',
                     isNotImpl ? 'evaluate-not-implemented' : 'evaluate-eval-error',
                     `evaluate threw EvalError[${err.code}] at tx ${txIndex}, input ${inputIndex}: ${err.message}`,
-                    {
-                        txIndex,
-                        inputIndex,
-                        spentBoxId: bytesToHex(input.boxId),
-                        ergoTreeHex: bytesToHex(ergoTreeBytes),
-                    },
+                    location,
                 );
             }
-            const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
                 'evaluate',
                 'evaluate-threw',
-                `evaluate threw non-EvalError at tx ${txIndex}, input ${inputIndex}: ${message}`,
+                `evaluate threw non-EvalError at tx ${txIndex}, input ${inputIndex}: ${ourErrorMsg}`,
+                location,
+            );
+        }
+
+        // 5e — our eval succeeded. Phase 2j-a: if oracle errored,
+        // surface 'ours-succeeded-oracle-errored'.
+        if (!input.oracleSucceeded) {
+            throw new HarnessError(
+                'evaluate-oracle-mismatch',
+                'ours-succeeded-oracle-errored',
+                `oracle errored [${input.oracleError ?? '<no message>'}] but our eval succeeded (cost ${ctx.jitCost}) at tx ${txIndex}, input ${inputIndex}`,
+                location,
                 {
-                    txIndex,
-                    inputIndex,
-                    spentBoxId: bytesToHex(input.boxId),
-                    ergoTreeHex: bytesToHex(ergoTreeBytes),
+                    ourError: null,
+                    oracleError: input.oracleError,
+                    ourEvaluateCost: ctx.jitCost,
                 },
             );
         }
 
-        // 5d — result must be SigmaProp. Any other kind means the
+        // 5f — both eval'd OK. Cost-diff.
+        if (ctx.jitCost !== oracleCost) {
+            throw new HarnessError(
+                'evaluate-cost',
+                'cost-drift',
+                `cost-drift: oracle ${oracleCost} vs ours ${ctx.jitCost} (delta ${oracleCost - ctx.jitCost}) at tx ${txIndex}, input ${inputIndex}`,
+                location,
+                {
+                    evaluateCost: {
+                        expected: oracleCost,
+                        actual: ctx.jitCost,
+                        delta: oracleCost - ctx.jitCost,
+                    },
+                },
+            );
+        }
+
+        // 5g — result must be SigmaProp. Any other kind means the
         // tree didn't reduce to a spending condition; halt.
         if (result.kind !== 'SigmaProp') {
             throw new HarnessError(
@@ -607,7 +722,7 @@ export function validateTx(
             );
         }
 
-        // 5e — verifier.
+        // 5h — verifier.
         let verified: boolean;
         try {
             verified = verifySignature(

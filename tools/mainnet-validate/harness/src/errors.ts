@@ -47,13 +47,45 @@
  * exhaustive union would couple T8 to all future tasks.
  */
 
-import type { ErrorPhase, ErrorReport } from './error-report.js';
+import type {
+    ErrorPhase,
+    ErrorReport,
+    EvaluateCostPayload,
+} from './error-report.js';
+
+/**
+ * Optional structured payload for the phase-2j-a cost-equivalence phases
+ * (`'evaluate-cost'` and `'evaluate-oracle-mismatch'`). Fields map 1:1 to
+ * the corresponding top-level `ErrorReport` keys so the writer can forward
+ * them without re-structuring.
+ *
+ *   - `evaluateCost`     — set when `code === 'cost-drift'`
+ *   - `oracleError`      — set when `code === 'ours-succeeded-oracle-errored'`
+ *   - `ourError`         — set when `code === 'ours-errored-oracle-succeeded'`
+ *   - `ourEvaluateCost`  — set whenever we have a partial cost to report
+ *                          (oracle-mismatch in either direction)
+ */
+export interface HarnessErrorOptions {
+    evaluateCost?: EvaluateCostPayload;
+    oracleError?: string | null;
+    ourError?: string | null;
+    ourEvaluateCost?: number | null;
+}
 
 /**
  * Thrown by any validation primitive when a check fails. The walk loop
  * (T11) catches this and converts it to an `ErrorReport` for the sidecar.
  */
 export class HarnessError extends Error {
+    /** See `HarnessErrorOptions`; only set for the cost-equivalence phases. */
+    public readonly evaluateCost?: EvaluateCostPayload;
+    /** See `HarnessErrorOptions`; only set for cost-equivalence phases. */
+    public readonly oracleError?: string | null;
+    /** See `HarnessErrorOptions`; only set for cost-equivalence phases. */
+    public readonly ourError?: string | null;
+    /** See `HarnessErrorOptions`; only set for cost-equivalence phases. */
+    public readonly ourEvaluateCost?: number | null;
+
     constructor(
         /** Which validation phase emitted this error. */
         public readonly phase: ErrorPhase,
@@ -66,8 +98,17 @@ export class HarnessError extends Error {
          * evaluate/verify-signature phases populate txIndex/inputIndex.
          */
         public readonly location?: Partial<ErrorReport['location']>,
+        /**
+         * Structured payload for phase-2j-a cost-equivalence errors. Other
+         * phases leave this undefined.
+         */
+        options?: HarnessErrorOptions,
     ) {
         super(message);
         this.name = 'HarnessError';
+        this.evaluateCost = options?.evaluateCost;
+        this.oracleError = options?.oracleError;
+        this.ourError = options?.ourError;
+        this.ourEvaluateCost = options?.ourEvaluateCost;
     }
 }

@@ -175,17 +175,30 @@ function makeState(rolling: Header[]): WalkerState {
     };
 }
 
-/** Build an input bundle wrapping the supplied spent-box + signature. */
+/**
+ * Build an input bundle wrapping the supplied spent-box + signature.
+ *
+ * Oracle defaults (`oracleCost: 50n`, `oracleSucceeded: true`,
+ * `oracleError: null`) match a bare P2PK eval (50 = EVAL_SIGMA_PROP_CONSTANT
+ * short-circuit cost). Existing tests that use plain P2PK inputs see the
+ * cost-diff sub-step pass through without throwing.
+ */
 function makeInput(opts: {
     spentBoxBytes: Uint8Array;
     signatureBytes: Uint8Array;
     contextExtension?: ContextExtensionEntry[];
+    oracleCost?: bigint;
+    oracleSucceeded?: boolean;
+    oracleError?: string | null;
 }): InputBundle {
     return {
         boxId: new Uint8Array(32),
         spentBoxBytes: opts.spentBoxBytes,
         signatureBytes: opts.signatureBytes,
         contextExtension: opts.contextExtension ?? [],
+        oracleCost: opts.oracleCost ?? 50n,
+        oracleSucceeded: opts.oracleSucceeded ?? true,
+        oracleError: opts.oracleError ?? null,
     };
 }
 
@@ -203,15 +216,19 @@ function makeTx(
     };
 }
 
-/** Wrap a tx into a BlockBundle. */
-function makeBundle(tx: TxBundle, height = 100): BlockBundle {
+/** Wrap a tx into a BlockBundle. `maxBlockCost` defaults to 1M (sigma-rust default). */
+function makeBundle(
+    tx: TxBundle,
+    height = 100,
+    maxBlockCost = 1_000_000,
+): BlockBundle {
     return {
         height,
         blockId: new Uint8Array(32),
         parentId: new Uint8Array(32),
         headerBytes: new Uint8Array(0),
         transactions: [tx],
-        parameters: { maxBlockCost: 1_000_000 },
+        parameters: { maxBlockCost },
     };
 }
 
@@ -412,10 +429,17 @@ describe('validateTx — non-SigmaProp result', () => {
         // 0x01 0x01 — SType byte 0x01 = SBoolean (inline Const), value
         // byte 0x01 = true. Evaluates to {kind:'Boolean', value:true},
         // which is NOT SigmaProp → harness halts with non-sigmaprop-result.
+        // `evalConst` charges 5 (Fixed(5)); we set oracleCost: 5n so the
+        // phase-2j-a cost-diff sub-step passes through and the SigmaProp
+        // kind check fires as the test asserts.
         const boolErgoTree = new Uint8Array([0x08, 0x02, 0x01, 0x01]);
         const sbox = sboxBytes(boolErgoTree);
         const tx = makeTx([
-            makeInput({ spentBoxBytes: sbox, signatureBytes: SIGNATURE_BYTES }),
+            makeInput({
+                spentBoxBytes: sbox,
+                signatureBytes: SIGNATURE_BYTES,
+                oracleCost: 5n,
+            }),
         ]);
         const block = makeBundle(tx);
         const state = makeState([fakeHeader(100), fakeHeader(99)]);
@@ -460,5 +484,155 @@ describe('validateBlock orchestrator', () => {
         expect(captured).toBeInstanceOf(HarnessError);
         const he = captured as HarnessError;
         expect(he.phase).toBe('header');
+    });
+});
+
+// ─── Phase 2j-a cost-equivalence (T7) ────────────────────────────────────
+
+describe('validateTx — cost-equivalence sub-step (phase 2j-a)', () => {
+    /**
+     * Tests below all use a bare P2PK tree (cost 50 = `EVAL_SIGMA_PROP_CONSTANT`
+     * short-circuit). Oracle inputs are synthesized to exercise the
+     * tri-modal diff:
+     *
+     *   1. cost matches               → no throw
+     *   2. cost mismatch              → 'evaluate-cost' / 'cost-drift'
+     *   3. ours OK, oracle errored    → 'evaluate-oracle-mismatch' /
+     *                                    'ours-succeeded-oracle-errored'
+     *   4. ours errored, oracle OK    → 'evaluate-oracle-mismatch' /
+     *                                    'ours-errored-oracle-succeeded'
+     *   5. oracleCost > MAX_SAFE_INT  → 'evaluate-cost' / 'cost-overflow'
+     */
+
+    const ergoTree = p2pkErgoTreeBytes(PK_BYTES);
+    const sbox = sboxBytes(ergoTree);
+
+    it('cost matches (P2PK 50 vs oracleCost 50n) → no throw', () => {
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sbox,
+                signatureBytes: SIGNATURE_BYTES,
+                oracleCost: 50n,
+                oracleSucceeded: true,
+                oracleError: null,
+            }),
+        ]);
+        const block = makeBundle(tx);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        expect(() => validateTx(tx, block, state, 0)).not.toThrow();
+    });
+
+    it('cost mismatch (oracleCost 999n vs ours 50) → throws cost-drift', () => {
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sbox,
+                signatureBytes: SIGNATURE_BYTES,
+                oracleCost: 999n,
+                oracleSucceeded: true,
+                oracleError: null,
+            }),
+        ]);
+        const block = makeBundle(tx);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        let captured: unknown = null;
+        try {
+            validateTx(tx, block, state, 0);
+        } catch (e) {
+            captured = e;
+        }
+        expect(captured).toBeInstanceOf(HarnessError);
+        const he = captured as HarnessError;
+        expect(he.phase).toBe('evaluate-cost');
+        expect(he.code).toBe('cost-drift');
+        expect(he.evaluateCost).toEqual({ expected: 999, actual: 50, delta: 949 });
+        expect(he.location?.txIndex).toBe(0);
+        expect(he.location?.inputIndex).toBe(0);
+    });
+
+    it('ours OK, oracle errored → throws ours-succeeded-oracle-errored', () => {
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sbox,
+                signatureBytes: SIGNATURE_BYTES,
+                oracleCost: 0n,
+                oracleSucceeded: false,
+                oracleError: 'simulated oracle eval error',
+            }),
+        ]);
+        const block = makeBundle(tx);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        let captured: unknown = null;
+        try {
+            validateTx(tx, block, state, 0);
+        } catch (e) {
+            captured = e;
+        }
+        expect(captured).toBeInstanceOf(HarnessError);
+        const he = captured as HarnessError;
+        expect(he.phase).toBe('evaluate-oracle-mismatch');
+        expect(he.code).toBe('ours-succeeded-oracle-errored');
+        expect(he.oracleError).toBe('simulated oracle eval error');
+        expect(he.ourError).toBeNull();
+        expect(he.ourEvaluateCost).toBe(50);
+    });
+
+    it('ours errored (jitCostLimit=1 trips), oracle OK → throws ours-errored-oracle-succeeded', () => {
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sbox,
+                signatureBytes: SIGNATURE_BYTES,
+                oracleCost: 100n,
+                oracleSucceeded: true,
+                oracleError: null,
+            }),
+        ]);
+        // jitCostLimit=1 forces our evaluator to trip 'cost-limit-exceeded'
+        // on the P2PK 50-cost short-circuit charge.
+        const block = makeBundle(tx, 100, 1);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        let captured: unknown = null;
+        try {
+            validateTx(tx, block, state, 0);
+        } catch (e) {
+            captured = e;
+        }
+        expect(captured).toBeInstanceOf(HarnessError);
+        const he = captured as HarnessError;
+        expect(he.phase).toBe('evaluate-oracle-mismatch');
+        expect(he.code).toBe('ours-errored-oracle-succeeded');
+        expect(he.oracleError).toBeNull();
+        expect(he.ourError).toMatch(/cost-limit-exceeded/);
+        // ctx.jitCost is post-add per facts/ergoscript-eval.md addCost
+        // semantics: 50 was added before the limit check fired.
+        expect(he.ourEvaluateCost).toBe(50);
+    });
+
+    it('oracleCost > MAX_SAFE_INTEGER → throws cost-overflow', () => {
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sbox,
+                signatureBytes: SIGNATURE_BYTES,
+                oracleCost: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+                oracleSucceeded: true,
+                oracleError: null,
+            }),
+        ]);
+        const block = makeBundle(tx);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        let captured: unknown = null;
+        try {
+            validateTx(tx, block, state, 0);
+        } catch (e) {
+            captured = e;
+        }
+        expect(captured).toBeInstanceOf(HarnessError);
+        const he = captured as HarnessError;
+        expect(he.phase).toBe('evaluate-cost');
+        expect(he.code).toBe('cost-overflow');
     });
 });

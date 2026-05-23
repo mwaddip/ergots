@@ -59,8 +59,6 @@ import {
     type ScratchDir,
 } from './_helpers.js';
 
-import type { ErrorReport } from '../../src/error-report.js';
-
 describe('halt path (Layer 4)', () => {
     let scratch: ScratchDir | null = null;
     afterEach(() => {
