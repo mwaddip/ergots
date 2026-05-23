@@ -27,6 +27,14 @@
  * subprocess + checkpoint advance + tip-reach paths are covered by the
  * existing `halt-path.test.ts` and the T9 Layer-5 smoke.
  *
+ * # What this test does NOT cover
+ *
+ * The actual `main.ts:458-468` routing (`try { validateBlock(...) } catch
+ * { classifyError + writeErrorReport }`) is exercised here only by manual
+ * invocation. End-to-end "harness halt → on-disk JSON" through subprocess
+ * + ShimClient is verified by the T9 Layer-5 smoke against real mainnet
+ * data; if main.ts is wired wrong for the 2j-a phases, T9 catches it.
+ *
  * # Helpers
  *
  * Inlined from `test/validate-tx.test.ts` (P2PK ergo-tree + SBox + state
@@ -228,8 +236,11 @@ describe('cost-equivalence halt path (Layer 4 — phase 2j-a, direct invocation)
             delta: 949,
         });
 
-        // Location identifies the per-input site.
+        // Location identifies the per-input site. `txId` was added in
+        // T8-review-fix so operators triaging halts see the tx hex
+        // directly (spec §location, error-report.ts:101).
         expect(report.location.txIndex).toBe(0);
+        expect(report.location.txId).toMatch(/^[0-9a-f]+$/);
         expect(report.location.inputIndex).toBe(0);
         expect(report.location.spentBoxId).toMatch(/^[0-9a-f]+$/);
         expect(report.location.ergoTreeHex).toMatch(/^[0-9a-f]+$/);
@@ -265,6 +276,7 @@ describe('cost-equivalence halt path (Layer 4 — phase 2j-a, direct invocation)
         expect(report.evaluateCost).toBeUndefined();
 
         expect(report.location.txIndex).toBe(0);
+        expect(report.location.txId).toMatch(/^[0-9a-f]+$/);
         expect(report.location.inputIndex).toBe(0);
         expect(report.bundleExcerpt.headerHex).toBe('abcdef1234');
     });

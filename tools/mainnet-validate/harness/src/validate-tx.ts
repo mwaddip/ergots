@@ -550,6 +550,16 @@ export function validateTx(
         const selfBox = inputBoxes[inputIndex]!;
         const ergoTreeBytes = inputErgoTreeBytes[inputIndex]!;
         const treeVersion = inputTreeVersions[inputIndex]!;
+        // Per-input `location` payload reused by every halt site below.
+        // Centralised so adding new location fields (e.g., `txId` in
+        // phase 2j-a per spec §location) lands in one spot.
+        const location = {
+            txIndex,
+            txId: bytesToHex(tx.txId),
+            inputIndex,
+            spentBoxId: bytesToHex(input.boxId),
+            ergoTreeHex: bytesToHex(ergoTreeBytes),
+        };
 
         // 5a — parse ErgoTree.
         let tree;
@@ -561,12 +571,7 @@ export function validateTx(
                 'evaluate',
                 'tree-parse-failed',
                 `parseTree failed at tx ${txIndex}, input ${inputIndex}: ${message}`,
-                {
-                    txIndex,
-                    inputIndex,
-                    spentBoxId: bytesToHex(input.boxId),
-                    ergoTreeHex: bytesToHex(ergoTreeBytes),
-                },
+                location,
             );
         }
 
@@ -589,12 +594,7 @@ export function validateTx(
                 'evaluate-cost',
                 'cost-overflow',
                 `oracleCost ${oracleCostBig} exceeds MAX_SAFE_INTEGER at tx ${txIndex}, input ${inputIndex}`,
-                {
-                    txIndex,
-                    inputIndex,
-                    spentBoxId: bytesToHex(input.boxId),
-                    ergoTreeHex: bytesToHex(ergoTreeBytes),
-                },
+                location,
             );
         }
         const oracleCost = Number(oracleCostBig);
@@ -619,12 +619,6 @@ export function validateTx(
             treeVersion,
             constants: tree.constants,
         });
-        const location = {
-            txIndex,
-            inputIndex,
-            spentBoxId: bytesToHex(input.boxId),
-            ergoTreeHex: bytesToHex(ergoTreeBytes),
-        };
         let result: SValue;
         try {
             result = evaluateWith(tree, ctx);
@@ -713,12 +707,7 @@ export function validateTx(
                 'evaluate',
                 'non-sigmaprop-result',
                 `evaluate returned SValue.kind=${result.kind} at tx ${txIndex}, input ${inputIndex}; expected SigmaProp`,
-                {
-                    txIndex,
-                    inputIndex,
-                    spentBoxId: bytesToHex(input.boxId),
-                    ergoTreeHex: bytesToHex(ergoTreeBytes),
-                },
+                location,
             );
         }
 
@@ -736,12 +725,7 @@ export function validateTx(
                     'verify-signature',
                     'verifier-threw',
                     `verifySignature threw VerifyError[${err.code}] at tx ${txIndex}, input ${inputIndex}: ${err.message}`,
-                    {
-                        txIndex,
-                        inputIndex,
-                        spentBoxId: bytesToHex(input.boxId),
-                        ergoTreeHex: bytesToHex(ergoTreeBytes),
-                    },
+                    location,
                 );
             }
             const message = err instanceof Error ? err.message : String(err);
@@ -749,12 +733,7 @@ export function validateTx(
                 'verify-signature',
                 'verifier-threw',
                 `verifySignature threw non-VerifyError at tx ${txIndex}, input ${inputIndex}: ${message}`,
-                {
-                    txIndex,
-                    inputIndex,
-                    spentBoxId: bytesToHex(input.boxId),
-                    ergoTreeHex: bytesToHex(ergoTreeBytes),
-                },
+                location,
             );
         }
         if (!verified) {
@@ -762,12 +741,7 @@ export function validateTx(
                 'verify-signature',
                 'verifier-false',
                 `verifySignature returned false at tx ${txIndex}, input ${inputIndex}`,
-                {
-                    txIndex,
-                    inputIndex,
-                    spentBoxId: bytesToHex(input.boxId),
-                    ergoTreeHex: bytesToHex(ergoTreeBytes),
-                },
+                location,
             );
         }
     }
