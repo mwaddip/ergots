@@ -22,7 +22,7 @@ describe('IndexerClient', () => {
             res.statusCode = 404; res.end(JSON.stringify({ error: 'box-not-found', boxId: id }));
         });
         await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-        baseUrl = `http://127.0.0.1:${(server.address() as any).port}/api/v1`;
+        baseUrl = `http://127.0.0.1:${(server.address() as any).port}`;
     });
 
     afterAll(() => new Promise<void>((r) => server.close(() => r())));

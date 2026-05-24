@@ -18,9 +18,10 @@
  *
  * # IndexerClient URL convention
  *
- * IndexerClient constructs paths as `${baseUrl}/boxes/${boxId}/bytes`.
- * We pass `--indexer-url http://127.0.0.1:${port}/api/v1` so the mock
- * receives `/api/v1/boxes/{id}/bytes`, matching the route pattern below.
+ * IndexerClient internally appends `/api/v1` to the base URL passed by
+ * the caller. We pass `--indexer-url http://127.0.0.1:${port}` (bare
+ * host+port), and the client constructs `${port}/api/v1/boxes/{id}/bytes`,
+ * matching the route pattern below.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer, Server } from 'node:http';
@@ -123,7 +124,7 @@ describe('mock-REST walk h=2..h=10', () => {
         const errorReport = join(tmpDir, 'error-report.json');
         const code = await main([
             '--node-url', `http://127.0.0.1:${port}`,
-            '--indexer-url', `http://127.0.0.1:${port}/api/v1`,
+            '--indexer-url', `http://127.0.0.1:${port}`,
             '--checkpoint-path', checkpoint,
             '--error-report-path', errorReport,
             '--start-height', '2',
