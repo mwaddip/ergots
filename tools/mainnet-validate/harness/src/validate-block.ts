@@ -52,7 +52,7 @@ import {
     type SValue,
 } from '@ergots/ergoscript';
 
-import type { BlockBundle } from './protocol.js';
+import type { BlockBundle } from './bundle-types.js';
 import { HarnessError } from './errors.js';
 import { validateTx } from './validate-tx.js';
 

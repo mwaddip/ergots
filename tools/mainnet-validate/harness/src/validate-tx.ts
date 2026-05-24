@@ -131,7 +131,7 @@ import type {
     SValue,
 } from '@ergots/ergoscript';
 
-import type { BlockBundle, TxBundle, InputBundle } from './protocol.js';
+import type { BlockBundle, TxBundle, InputBundle } from './bundle-types.js';
 import { HarnessError } from './errors.js';
 import type { WalkerState } from './validate-block.js';
 
