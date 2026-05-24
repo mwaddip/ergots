@@ -334,14 +334,16 @@ export function updateCheckpointStats(
  * (`startHeight = checkpoint.lastValidatedHeight + 1`) round-trips
  * correctly on a subsequent invocation without `--start-height`.
  */
-function createInitialCheckpoint(args: CliArgs, startHeight: number, tipHeight: number): Checkpoint {
+function createInitialCheckpoint(_args: CliArgs, startHeight: number, tipHeight: number): Checkpoint {
     const now = new Date().toISOString();
     return {
         lastValidatedHeight: startHeight - 1,
         tipHeightAtStart: tipHeight,
         lastValidatedAt: now,
-        shimPath: args.shimPath,
-        storePath: args.storePath,
+        // TODO(2j-rest): replace with _args.nodeUrl / _args.indexerUrl once
+        // cli.ts and main.ts are fully ported to the REST architecture.
+        nodeUrl: 'shim://local',
+        indexerUrl: 'shim://local',
         libraryVersions: currentLibraryVersions(),
         stats: {
             totalBlocks: 0,

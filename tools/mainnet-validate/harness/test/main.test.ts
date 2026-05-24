@@ -61,8 +61,8 @@ function makeCheckpoint(): Checkpoint {
         lastValidatedHeight: 99,
         tipHeightAtStart: 1_000_000,
         lastValidatedAt: '2026-05-22T11:00:00.000Z',
-        shimPath: '/shim',
-        storePath: '/store.redb',
+        nodeUrl: 'shim://local',
+        indexerUrl: 'shim://local',
         libraryVersions: {
             scorex: '0.1.0',
             nipopow: '0.2.0',

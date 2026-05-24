@@ -23,7 +23,7 @@ import { readFileSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-/** Persisted progress record. Shape comes from PLAN.md T7 (unchanged). */
+/** Persisted progress record. Shape updated in 2j-rest (T9): shimPath/storePath → nodeUrl/indexerUrl. */
 export interface Checkpoint {
     /** Height of the most recent block that fully validated. Resume at +1. */
     lastValidatedHeight: number;
@@ -31,10 +31,10 @@ export interface Checkpoint {
     tipHeightAtStart: number;
     /** ISO 8601 timestamp of the last successful block. */
     lastValidatedAt: string;
-    /** Path to the shim binary used by this run (for restart correlation). */
-    shimPath: string;
-    /** Path to the modifier store passed to the shim. */
-    storePath: string;
+    /** URL of the ergo-node REST surface used by this run. */
+    nodeUrl: string;
+    /** URL of the indexer REST surface used by this run. */
+    indexerUrl: string;
     /** Versions of the four @ergots/* packages in use; used for mismatch detection. */
     libraryVersions: {
         scorex: string;
@@ -168,11 +168,23 @@ function validateCheckpoint(raw: unknown, sourcePath: string): Checkpoint {
     }
     const r = raw as Record<string, unknown>;
 
+    // REJECT pre-REST checkpoints (per spec §8): shimPath/storePath presence
+    // indicates this checkpoint was written by the pre-REST harness. Loud
+    // failure is correct — silent warn-and-continue would risk stale-resume
+    // from a wrong state. Per [[feedback-correctness-over-effort]].
+    if ('shimPath' in r || 'storePath' in r) {
+        throw new Error(
+            `${ctx}: pre-REST checkpoint detected (shimPath/storePath fields present). ` +
+            `This harness is the REST-based 2j-rest architecture. Delete the checkpoint ` +
+            `file or pass --start-height to start fresh.`,
+        );
+    }
+
     const lastValidatedHeight = requireInt(r['lastValidatedHeight'], `${ctx}.lastValidatedHeight`);
     const tipHeightAtStart = requireInt(r['tipHeightAtStart'], `${ctx}.tipHeightAtStart`);
     const lastValidatedAt = requireString(r['lastValidatedAt'], `${ctx}.lastValidatedAt`);
-    const shimPath = requireString(r['shimPath'], `${ctx}.shimPath`);
-    const storePath = requireString(r['storePath'], `${ctx}.storePath`);
+    const nodeUrl = requireString(r['nodeUrl'], `${ctx}.nodeUrl`);
+    const indexerUrl = requireString(r['indexerUrl'], `${ctx}.indexerUrl`);
 
     const libVersionsRaw = r['libraryVersions'];
     if (libVersionsRaw === null || typeof libVersionsRaw !== 'object') {
@@ -201,13 +213,8 @@ function validateCheckpoint(raw: unknown, sourcePath: string): Checkpoint {
     };
 
     const out: Checkpoint = {
-        lastValidatedHeight,
-        tipHeightAtStart,
-        lastValidatedAt,
-        shimPath,
-        storePath,
-        libraryVersions,
-        stats,
+        lastValidatedHeight, tipHeightAtStart, lastValidatedAt,
+        nodeUrl, indexerUrl, libraryVersions, stats,
     };
     const tipReachedRaw = r['tipReachedAt'];
     if (tipReachedRaw !== undefined) {

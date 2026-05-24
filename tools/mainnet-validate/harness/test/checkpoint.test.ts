@@ -27,8 +27,8 @@ function makeSampleCheckpoint(): Checkpoint {
         lastValidatedHeight: 1234,
         tipHeightAtStart: 1790510,
         lastValidatedAt: '2026-05-22T12:00:00.000Z',
-        shimPath: '/abs/path/to/shim',
-        storePath: '/abs/path/to/store.redb',
+        nodeUrl: 'http://127.0.0.1:9053',
+        indexerUrl: 'http://127.0.0.1:8080',
         libraryVersions: {
             scorex: '0.1.0',
             nipopow: '0.2.0',
@@ -117,6 +117,19 @@ describe('checkpoint', () => {
         };
         writeFileSync(path, JSON.stringify(bad), 'utf8');
         expect(() => readCheckpoint(path)).toThrow(/libraryVersions/);
+    });
+
+    it('rejects pre-REST checkpoint (shimPath/storePath fields present)', () => {
+        writeFileSync(path, JSON.stringify({
+            lastValidatedHeight: 100,
+            tipHeightAtStart: 200,
+            lastValidatedAt: '2026-05-23T00:00:00.000Z',
+            shimPath: '/some/path/shim',
+            storePath: '/some/path/modifiers.redb',
+            libraryVersions: { scorex: '0.2.0', nipopow: '0.2.1', avltree: '0.2.0', ergoscript: '0.3.0' },
+            stats: { totalBlocks: 100, totalTxs: 100, totalBoxesValidated: 200, totalSpendsValidated: 100, startedAt: '2026-05-23T00:00:00.000Z', elapsedMs: 1000 },
+        }), 'utf8');
+        expect(() => readCheckpoint(path)).toThrow(/pre-REST checkpoint/);
     });
 });
 

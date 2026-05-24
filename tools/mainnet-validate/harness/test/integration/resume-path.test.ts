@@ -73,8 +73,8 @@ function buildCheckpoint(lastValidatedHeight: number): Checkpoint {
         lastValidatedHeight,
         tipHeightAtStart: 1_790_510,
         lastValidatedAt: '2026-05-21T00:00:00.000Z',
-        shimPath: '/placeholder/shim',
-        storePath: '/placeholder/store',
+        nodeUrl: 'shim://local',
+        indexerUrl: 'shim://local',
         libraryVersions: {
             scorex: '0.0.0-t13-fixture',
             nipopow: '0.0.0-t13-fixture',
