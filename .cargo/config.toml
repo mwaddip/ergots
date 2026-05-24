@@ -1,0 +1,20 @@
+# Cargo path overrides for the ergots project.
+#
+# `ergo_avltree_rust`: ergotree-interpreter (in external/sigma-rust on the
+# integration/ergots branch) consumes an `Arc<dyn Fn>` Resolver API that
+# only exists in the local fork at ~/projects/ergo_avltree_rust/, NOT in
+# crates.io's published `ergo_avltree_rust = "0.1.1"`. Without this
+# override, cargo builds invoked inside sigma-rust's workspace (notably
+# `wasm-pack build` on bindings/ergo-lib-wasm/) fail with E0308 across
+# ergotree-interpreter/src/eval/savltree.rs.
+#
+# This config lives at the ergots-root level so cargo finds it when
+# walking up from any subdir (including external/sigma-rust/bindings/...).
+# Per cargo docs, `.cargo/config.toml` is searched from CWD upward; the
+# path-override applies workspace-wide for invocations under this tree.
+#
+# This avoids modifying sigma-rust's workspace Cargo.toml (project-
+# boundary discipline: keep upstream-fork touches minimal). Mirrors the
+# `[patch.crates-io]` blocks that already exist in
+# tools/mainnet-validate/fixture-gen/Cargo.toml (ergots-side).
+paths = ["/home/mwaddip/projects/ergo_avltree_rust"]

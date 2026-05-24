@@ -38,7 +38,7 @@ import {
     Parameters,
     PreHeader,
     Transaction,
-    _test_only_parameters_new,
+    parameters_new,
     compute_tx_oracle_costs,
 } from 'ergo-lib-wasm-nodejs';
 
@@ -296,10 +296,10 @@ function ergoBoxesFromBytesList(
 /**
  * Build a `Parameters` object with a custom `max_block_cost`. The WASM
  * `Parameters` class only exposes `default_parameters()` as a
- * production constructor; for full field control we use
- * `_test_only_parameters_new` (added by sigma-rust commit 643749b9 for
- * the cost-oracle smoke tests). Field order matches its signature
- * (verified against `cost_oracle.rs:327-348`):
+ * production constructor; for full field control we use `parameters_new`
+ * (added by sigma-rust commit 643749b9 as a production gap-filler — NOT
+ * feature-gated). Field order matches its signature (verified against
+ * `cost_oracle.rs:327-348`):
  *   1. block_version       — kept at 1
  *   2. storage_fee_factor  — kept at default-ish 1
  *   3. min_value_per_byte  — 360 (mainnet default)
@@ -312,13 +312,12 @@ function ergoBoxesFromBytesList(
  *
  * NOTE (binding gap): only `max_block_cost` feeds the oracle's
  * `jit_cost_limit` derivation, so zeroing the per-component costs is
- * benign for cost-oracle parity. A proper production `Parameters`
- * builder that takes all 9 fields cleanly (without the `_test_only_`
- * prefix) is a follow-up — current design surface for this binding is
- * "fine for cost oracle, not for tx-validation."
+ * benign for cost-oracle parity. A future cleanup could rename
+ * `parameters_new` to fit a wider production Parameters builder
+ * convention if the WASM bindings grow other tx-validation entry points.
  */
 function buildParameters(maxBlockCost: number): Parameters {
-    return _test_only_parameters_new(
+    return parameters_new(
         1, // block_version
         1, // storage_fee_factor
         360, // min_value_per_byte
