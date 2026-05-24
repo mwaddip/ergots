@@ -14,8 +14,7 @@ import {
     updateCheckpointStats,
 } from '../src/main.js';
 import { HarnessError } from '../src/errors.js';
-import { ShimError } from '../src/protocol.js';
-import type { BlockBundle } from '../src/protocol.js';
+import type { BlockBundle } from '../src/bundle-types.js';
 import type { Checkpoint } from '../src/checkpoint.js';
 
 function makeBundle(): BlockBundle {
@@ -100,22 +99,10 @@ describe('classifyError', () => {
         expect(report.bundleExcerpt.headerHex).toBe('abcdef');
     });
 
-    it('reports a ShimError with phase=shim and the shim error code', () => {
-        const err = new ShimError('missing-block', 'no such block at 100');
-        const bundle = makeBundle();
-        const report = classifyError(err, 100, bundle);
-        expect(report.phase).toBe('shim');
-        expect(report.errorClass).toBe('ShimError');
-        expect(report.errorCode).toBe('missing-block');
-        expect(report.message).toContain('missing-block');
-        expect(report.location).toEqual({});
-        expect(report.bundleExcerpt.headerHex).toBe('abcdef');
-    });
-
-    it('falls back to phase=shim for a generic Error', () => {
+    it('falls back to phase=node-rest for a generic Error', () => {
         const err = new TypeError('weird unexpected thing');
         const report = classifyError(err, 100, undefined);
-        expect(report.phase).toBe('shim');
+        expect(report.phase).toBe('node-rest');
         expect(report.errorClass).toBe('TypeError');
         expect(report.errorCode).toBeUndefined();
         expect(report.message).toBe('weird unexpected thing');
@@ -124,7 +111,7 @@ describe('classifyError', () => {
 
     it('handles a non-Error throw (string) without crashing', () => {
         const report = classifyError('something string-y', 100, undefined);
-        expect(report.phase).toBe('shim');
+        expect(report.phase).toBe('node-rest');
         expect(report.errorClass).toBe('Error');
         expect(report.message).toBe('something string-y');
     });

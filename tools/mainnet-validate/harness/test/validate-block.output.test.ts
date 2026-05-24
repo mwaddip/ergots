@@ -34,7 +34,7 @@ import {
     validateOutputRoundtrips,
 } from '../src/validate-block.js';
 import { HarnessError } from '../src/errors.js';
-import type { BlockBundle, TxBundle } from '../src/protocol.js';
+import type { BlockBundle, TxBundle } from '../src/bundle-types.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 

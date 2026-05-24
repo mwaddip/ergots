@@ -42,7 +42,7 @@ import {
     type WalkerState,
 } from '../src/validate-block.js';
 import { HarnessError } from '../src/errors.js';
-import type { BlockBundle } from '../src/protocol.js';
+import type { BlockBundle } from '../src/bundle-types.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 

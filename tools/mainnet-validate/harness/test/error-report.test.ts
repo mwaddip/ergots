@@ -72,13 +72,15 @@ describe('error-report', () => {
         expect(raw.split('\n').length).toBeGreaterThan(5);
     });
 
-    it('writes cleanly for all 7 phase values', () => {
+    it('writes cleanly for all 8 phase values', () => {
         const phases: ErrorPhase[] = [
             'header',
             'output-roundtrip',
             'evaluate',
             'verify-signature',
-            'shim',
+            'node-rest',
+            'indexer-rest',
+            'wasm-oracle',
             'evaluate-cost',
             'evaluate-oracle-mismatch',
         ];

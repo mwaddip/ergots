@@ -61,7 +61,7 @@ import type {
     TxBundle,
     InputBundle,
     ContextExtensionEntry,
-} from '../src/protocol.js';
+} from '../src/bundle-types.js';
 import type { Header } from '@ergots/scorex';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
