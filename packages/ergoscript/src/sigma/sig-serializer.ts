@@ -6,10 +6,17 @@
  * tree walk.
  *
  * Per-leaf format (sigma-rust `sig_serializer.rs:148-172`):
- *   ProveDlog:     [24-byte challenge if required] + [32-byte z scalar]
- *   ProveDhTuple:  [24-byte challenge if required] + [32-byte z scalar]
+ *   ProveDlog:     [24-byte challenge if required] + [up to 32-byte z scalar]
+ *   ProveDhTuple:  [24-byte challenge if required] + [up to 32-byte z scalar]
  *
  * Top-level always has the 24-byte challenge (`sig_serializer.rs:143`).
+ *
+ * **Scalar leniency:** sigma-rust's `read_scalar` (sig_serializer.rs:250-255)
+ * reads UP TO GROUP_SIZE (32) bytes and right-shifts them into a zero-filled
+ * 32-byte buffer (left-pads with zeros). Prover-side optimisations strip
+ * leading zero bytes from small-magnitude z scalars, so on-wire proofs are
+ * variable-length (a 24+31=55-byte P2PK signature surfaces at mainnet
+ * h=220541). `readScalarBytes` mirrors this — it never throws on underrun.
  *
  * Conjecture handling (Cand inherits parent; Cor XORs; Cthreshold
  * polynomial) is NOT in 2g-medium — deferred to 2g-combinators.
@@ -33,8 +40,26 @@ export class ProofBytesReader {
     return this.readN(CHALLENGE_BYTES)
   }
 
+  /**
+   * Read a z scalar — UP TO `SCALAR_BYTES` (32). Mirrors sigma-rust
+   * `read_scalar` (sig_serializer.rs:250-255):
+   *
+   *   let mut scalar_bytes = [0; GROUP_SIZE];
+   *   let bytes_read = r.read(&mut scalar_bytes)?;
+   *   scalar_bytes.rotate_right(GROUP_SIZE - bytes_read);
+   *
+   * If fewer than 32 bytes remain we read everything available and left-pad
+   * the result with zeros (prover stripped leading zero bytes). Always
+   * returns exactly `SCALAR_BYTES` bytes; never throws.
+   */
   readScalarBytes(): Uint8Array {
-    return this.readN(SCALAR_BYTES)
+    const buf = new Uint8Array(SCALAR_BYTES)
+    const available = Math.min(this.remaining(), SCALAR_BYTES)
+    if (available > 0) {
+      buf.set(this.bytes.subarray(this.pos, this.pos + available), SCALAR_BYTES - available)
+      this.pos += available
+    }
+    return buf
   }
 
   /**

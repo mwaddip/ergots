@@ -483,13 +483,32 @@ pub fn generate_reject() -> Result<CthresholdRejectFixture> {
     // 2-of-3 Cthreshold: root(24) || poly((3-2)*24=24) || 3 z's (3*32=96) = 144 bytes.
     debug_assert_eq!(sig.len(), 144, "Cthreshold 2-of-3 sig should be 144 bytes");
 
-    // 1. Truncated.
+    // 1. Truncated below the polynomial-read minimum (root 24 + poly 24 = 48).
+    //    Polynomial read is strict (sig_serializer.rs:222-224 `read_exact`);
+    //    sigma-rust throws SigParsingError::CthresholdCoeffRead. Our verifier
+    //    surfaces this as VerifyError code 'truncated-signature'.
     entries.push(CthresholdRejectEntry {
         name: "ct-truncated-sig".to_string(),
         sigma_boolean_json: sigma_boolean_to_json(&sb),
         message_hex: hex::encode(&msg),
-        signature_hex: hex::encode(&sig[..50]),
+        signature_hex: hex::encode(&sig[..30]),
         expected_outcome: "truncated-signature".to_string(),
+    });
+
+    // 1b. Truncated in the scalar area (root 24 + poly 24 + partial z's).
+    //     Scalar reads are LENIENT (sig_serializer.rs:250-255 `read_scalar`
+    //     reads up to GROUP_SIZE and left-pads with zeros — prover-side
+    //     leading-zero stripping is on-wire). Parse succeeds; recovered
+    //     z's are near-zero so the Fiat-Shamir recomputation diverges from
+    //     the root challenge and verification returns false. Mirrors the
+    //     class of mainnet proof that surfaced at h=220541 (a 55-byte P2PK
+    //     signature where the prover stripped one leading zero from z).
+    entries.push(CthresholdRejectEntry {
+        name: "ct-truncated-scalars".to_string(),
+        sigma_boolean_json: sigma_boolean_to_json(&sb),
+        message_hex: hex::encode(&msg),
+        signature_hex: hex::encode(&sig[..50]),
+        expected_outcome: "returns-false".to_string(),
     });
 
     // 2. Empty.

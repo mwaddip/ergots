@@ -34,14 +34,59 @@ describe('ProofBytesReader', () => {
     catch (e: any) { expect(e.code).toBe('truncated-signature') }
   })
 
-  it('throws truncated-signature when scalar bytes missing', () => {
-    const reader = new ProofBytesReader(new Uint8Array(30))
-    reader.readChallenge()  // succeeds (24 bytes)
-    expect(() => reader.readScalarBytes()).toThrow(VerifyError)
-    const reader2 = new ProofBytesReader(new Uint8Array(30))
-    reader2.readChallenge()
-    try { reader2.readScalarBytes() }
-    catch (e: any) { expect(e.code).toBe('truncated-signature') }
+  it('left-pads a short scalar (31 bytes) with one leading zero (sigma-rust read_scalar parity)', () => {
+    // 55-byte proof: 24-byte challenge + 31-byte scalar.
+    // Mirrors mainnet h=220541 tx1 input0 (P2PK Schnorr where the prover
+    // emitted a 31-byte z because the leading byte was zero — sigma-rust's
+    // read_scalar at sig_serializer.rs:250-255 accepts via right-shift into
+    // a zero-filled GROUP_SIZE buffer).
+    const proof = new Uint8Array(55)
+    for (let i = 0; i < 24; i++) proof[i] = 0xa0 + i  // challenge filler
+    for (let i = 0; i < 31; i++) proof[24 + i] = 0xb1 + i  // 31-byte scalar tail
+    const reader = new ProofBytesReader(proof)
+    reader.readChallenge()
+    const scalar = reader.readScalarBytes()
+    expect(scalar.length).toBe(32)
+    expect(scalar[0]).toBe(0)            // left-padded
+    expect(scalar[1]).toBe(0xb1)         // original byte 0 moved to position 1
+    expect(scalar[31]).toBe(0xb1 + 30)   // original byte 30 ended at position 31
+    expect(reader.remaining()).toBe(0)
+  })
+
+  it('left-pads a very short scalar (6 bytes) with 26 leading zeros', () => {
+    // 30-byte buffer: 24 challenge + 6 scalar bytes. After my fix this no
+    // longer throws — it returns a 32-byte zero-padded scalar (sigma-rust
+    // parity). Previous behavior asserted a throw, which was wrong vs the
+    // reference. See [[reference-source-first-discipline]].
+    const proof = new Uint8Array(30)
+    for (let i = 0; i < 6; i++) proof[24 + i] = 0xc0 + i
+    const reader = new ProofBytesReader(proof)
+    reader.readChallenge()
+    const scalar = reader.readScalarBytes()
+    expect(scalar.length).toBe(32)
+    for (let i = 0; i < 26; i++) expect(scalar[i]).toBe(0)
+    expect(scalar[26]).toBe(0xc0)
+    expect(scalar[31]).toBe(0xc0 + 5)
+    expect(reader.remaining()).toBe(0)
+  })
+
+  it('returns a 32-byte zero scalar when no scalar bytes remain (sigma-rust read returning 0)', () => {
+    const reader = new ProofBytesReader(new Uint8Array(24))
+    reader.readChallenge()  // consumes all 24
+    const scalar = reader.readScalarBytes()
+    expect(scalar.length).toBe(32)
+    for (let i = 0; i < 32; i++) expect(scalar[i]).toBe(0)
+  })
+
+  it('still reads exactly 32 bytes when at least 32 remain', () => {
+    const proof = new Uint8Array(64)
+    for (let i = 0; i < 32; i++) proof[i] = 0xd0 + i
+    const reader = new ProofBytesReader(proof)
+    const scalar = reader.readScalarBytes()
+    expect(scalar.length).toBe(32)
+    expect(scalar[0]).toBe(0xd0)
+    expect(scalar[31]).toBe(0xd0 + 31)
+    expect(reader.remaining()).toBe(32)  // does NOT over-read
   })
 
   it('throws empty-signature on zero-length input via readProofBytes guard', () => {

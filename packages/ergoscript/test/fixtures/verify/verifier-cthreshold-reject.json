@@ -22,8 +22,32 @@
         "tag": "Cthreshold"
       },
       "message_hex": "626173656c696e652d6374",
-      "signature_hex": "51e00977d66766e2bd44e1ef03ee02557d859c62dbc3af6f49e6755327d3c6f7462382c3d342c58a297374d40c5290adace5",
+      "signature_hex": "51e00977d66766e2bd44e1ef03ee02557d859c62dbc3af6f49e6755327d3",
       "expected_outcome": "truncated-signature"
+    },
+    {
+      "name": "ct-truncated-scalars",
+      "sigma_boolean_json": {
+        "items": [
+          {
+            "h": "024aae59dd27b906c775199cea634548ffe274b3269153125b21ace7f3a7f1831b",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "022e50c364f7930e55559a0f420398458b58ba910f0d4c9278076539dcc5f558b2",
+            "tag": "ProveDlog"
+          },
+          {
+            "h": "0374de0a65584f033fe8bd833dd9ecbd039fa9c71a5804ae19c7d92aef2e8f3dde",
+            "tag": "ProveDlog"
+          }
+        ],
+        "k": 2,
+        "tag": "Cthreshold"
+      },
+      "message_hex": "626173656c696e652d6374",
+      "signature_hex": "51e00977d66766e2bd44e1ef03ee02557d859c62dbc3af6f49e6755327d3c6f7462382c3d342c58a297374d40c5290adace5",
+      "expected_outcome": "returns-false"
     },
     {
       "name": "ct-empty-sig",
