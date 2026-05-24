@@ -1,7 +1,7 @@
 /**
  * CLI argument parser for the mainnet-validate harness.
  *
- * Hand-rolled flag parser — the harness has 9 flags total, no positional
+ * Hand-rolled flag parser — the harness has 8 flags total, no positional
  * args, no sub-commands; pulling in `commander`/`yargs` for that surface
  * is unjustified weight and a transitive-WASM-audit liability.
  *
@@ -23,21 +23,19 @@
 
 /** Parsed CLI flags. See class-doc above for default semantics. */
 export interface CliArgs {
-    /** Required: path to the modifiers.redb store (or a copy). */
-    storePath: string;
-    /** Path to the compiled shim binary. Default points to the standard build location. */
-    shimPath: string;
-    /** Path to the harness's UTXO sidecar redb (created by shim if absent). */
-    sidecarPath: string;
+    /** ergo-node REST base URL (e.g. http://localhost:9052). */
+    nodeUrl: string;
+    /** Indexer REST base URL (e.g. http://localhost:9054). */
+    indexerUrl: string;
     /** Path to the checkpoint JSON; presence on disk drives resume. */
     checkpointPath: string;
     /** Path to the error-report JSON sidecar; deleted on tip-reached. */
     errorReportPath: string;
-    /** Which Ergo network the store represents. */
+    /** Which Ergo network the node represents. */
     network: 'mainnet' | 'testnet';
     /** Override checkpoint's resume height. Unset = resume from checkpoint or start at 1. */
     startHeight?: number;
-    /** Cap on the walk's end height. Unset = walk to the shim's reported tip. */
+    /** Cap on the walk's end height. Unset = walk to the node's reported tip. */
     maxHeight?: number;
     /** Sleep between blocks in ms. 0 = no rate limit. */
     sleepMs: number;
@@ -48,8 +46,8 @@ export interface CliArgs {
  * suite can assert exact-defaults without duplicating the literals.
  */
 export const CLI_DEFAULTS = {
-    shimPath: './tools/mainnet-validate/shim/target/release/ergots-mainnet-validate-shim',
-    sidecarPath: './tools/mainnet-validate/utxo-index.redb',
+    nodeUrl: 'http://localhost:9052',
+    indexerUrl: 'http://localhost:9054',
     checkpointPath: './tools/mainnet-validate/checkpoint.json',
     errorReportPath: './tools/mainnet-validate/error-report.json',
     network: 'mainnet' as const,
@@ -60,7 +58,6 @@ export const CLI_DEFAULTS = {
  * Parse the harness's CLI argv (sliced — caller passes `process.argv.slice(2)`).
  *
  * Throws `Error` on:
- *   - Missing required flag (`--store-path`).
  *   - Flag without a value (`--start-height` at end of argv).
  *   - Unknown flag.
  *   - Non-integer / out-of-range numeric value (`--start-height abc`,
@@ -70,9 +67,8 @@ export const CLI_DEFAULTS = {
  * Returns a fully-populated `CliArgs` (defaults applied) on success.
  */
 export function parseCliArgs(argv: readonly string[]): CliArgs {
-    let storePath: string | undefined;
-    let shimPath: string | undefined;
-    let sidecarPath: string | undefined;
+    let nodeUrl: string | undefined;
+    let indexerUrl: string | undefined;
     let checkpointPath: string | undefined;
     let errorReportPath: string | undefined;
     let network: 'mainnet' | 'testnet' | undefined;
@@ -101,16 +97,12 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
             return n;
         };
         switch (flag) {
-            case '--store-path':
-                storePath = requireValue();
+            case '--node-url':
+                nodeUrl = requireValue();
                 i++;
                 break;
-            case '--shim-path':
-                shimPath = requireValue();
-                i++;
-                break;
-            case '--sidecar-path':
-                sidecarPath = requireValue();
+            case '--indexer-url':
+                indexerUrl = requireValue();
                 i++;
                 break;
             case '--checkpoint-path':
@@ -149,14 +141,9 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
         }
     }
 
-    if (storePath === undefined) {
-        throw new Error('--store-path is required');
-    }
-
     const out: CliArgs = {
-        storePath,
-        shimPath: shimPath ?? CLI_DEFAULTS.shimPath,
-        sidecarPath: sidecarPath ?? CLI_DEFAULTS.sidecarPath,
+        nodeUrl: nodeUrl ?? CLI_DEFAULTS.nodeUrl,
+        indexerUrl: indexerUrl ?? CLI_DEFAULTS.indexerUrl,
         checkpointPath: checkpointPath ?? CLI_DEFAULTS.checkpointPath,
         errorReportPath: errorReportPath ?? CLI_DEFAULTS.errorReportPath,
         network: network ?? CLI_DEFAULTS.network,
@@ -172,18 +159,15 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
 }
 
 /** Human-readable usage string. Used by main.ts on argv-parse failure. */
-export const USAGE = `usage: node dist/main.js --store-path <path> [options]
-
-required:
-  --store-path PATH             path to ergo-node modifiers.redb (or copy)
+export const USAGE = `usage: node dist/main.js [options]
 
 options:
-  --shim-path PATH              shim binary (default: ${CLI_DEFAULTS.shimPath})
-  --sidecar-path PATH           harness UTXO sidecar (default: ${CLI_DEFAULTS.sidecarPath})
+  --node-url URL                ergo-node REST (default: ${CLI_DEFAULTS.nodeUrl})
+  --indexer-url URL             indexer REST (default: ${CLI_DEFAULTS.indexerUrl})
   --checkpoint-path PATH        checkpoint JSON (default: ${CLI_DEFAULTS.checkpointPath})
   --error-report-path PATH      error report JSON (default: ${CLI_DEFAULTS.errorReportPath})
   --network mainnet|testnet     network identifier (default: ${CLI_DEFAULTS.network})
-  --start-height N              override checkpoint's resume height
+  --start-height N              override checkpoint's resume height (min 2 for v1)
   --max-height M                cap on end height (default: tip)
   --sleep-ms N                  ms to sleep between blocks (default: ${CLI_DEFAULTS.sleepMs})
 `;

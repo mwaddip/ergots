@@ -387,7 +387,9 @@ export async function main(argv: readonly string[]): Promise<number> {
         return 2;
     }
 
-    const shim = ShimClient.spawn(args.shimPath, args.storePath, args.sidecarPath, args.network);
+    // TODO(2j-rest): ShimClient replaced by REST clients in T11/T12.
+    // Placeholder args satisfy the type until ShimClient is removed.
+    const shim = ShimClient.spawn('', '', '', args.network);
     try {
         // Step 1: shim tip query — also the implicit "did the shim start up
         // and accept its argv" smoke check. A failure here is a setup bug,
