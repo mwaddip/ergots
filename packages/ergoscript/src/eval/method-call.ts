@@ -247,6 +247,25 @@ function registerHandlers(): void {
     return { kind: 'Long', value: obj.value.timestamp }
   } })
 
+  // SPreHeader.minerPk (PropertyCall, typeId=105, methodId=6)
+  // Source: ergotree-interpreter/src/eval/spreheader.rs:38-42 — MINER_PK_EVAL_FN
+  // Descriptor: ergotree-ir/src/types/spreheader.rs:79-84 — returns SGroupElement.
+  // Pattern A cost 10 (charged before obj check). Returns the raw 33-byte
+  // SEC1-compressed secp256k1 miner pubkey as SGroupElement — NOT serialized
+  // to Coll[Byte] (cf. SContext.minerPubKey at 101:10, which calls
+  // sigma_serialize_bytes). Our PreHeader.minerPk is already a 33-byte
+  // Uint8Array (mir/types.ts:184), exactly the SValue.GroupElement encoding.
+  HANDLERS.set(handlerKey(105, 6), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.minerPk expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'GroupElement', value: obj.value.minerPk }
+  } })
+
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
   // Source: ergotree-interpreter/src/eval/scoll.rs:21-50 — INDEX_OF_EVAL_FN
   // Pattern B cost: addPerItemCost(20, 10, 2, n) AFTER extracting Coll, BEFORE search.
