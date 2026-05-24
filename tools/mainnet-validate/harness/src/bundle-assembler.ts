@@ -25,6 +25,7 @@
 import type { NodeClient } from './rest/node-client.js';
 import type { IndexerClient } from './rest/indexer-client.js';
 import type { WasmCostOracle } from './wasm-oracle.js';
+import { stringifyLossless } from './rest/json-bigint.js';
 import type {
     BlockBundle, TxBundle, InputBundle, BlockParameters, ContextExtensionEntry,
 } from './bundle-types.js';
@@ -110,7 +111,7 @@ export class BundleAssembler {
             const dataInputBoxesBytes = tx.dataInputs.map((d) => boxBytesById.get(d.boxId)!);
             const outputBoxesBytes = tx.outputs.map((o) => boxBytesById.get(o.boxId)!);
             const oracleResults = this.oracle.computeTxOracleCosts({
-                txJson: JSON.stringify(tx),
+                txJson: stringifyLossless(tx),
                 spentBoxesBytes,
                 dataInputBoxesBytes,
                 headerJson,

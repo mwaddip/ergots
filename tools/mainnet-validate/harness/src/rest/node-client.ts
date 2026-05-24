@@ -20,6 +20,7 @@ import {
     type InfoResponse, type HeaderIdsAtHeightResponse,
     type BlockResponse, type ValidationFragmentsResponse,
 } from './types.js';
+import { parseLossless } from './json-bigint.js';
 
 export type NodeRestErrorCode =
     | 'block-not-found' | 'block-pruned' | 'fragments-not-available'
@@ -93,7 +94,7 @@ export class NodeClient {
                 } finally {
                     clearTimeout(t);
                 }
-                if (res.status >= 200 && res.status < 300) return await res.json();
+                if (res.status >= 200 && res.status < 300) return parseLossless(await res.text());
                 const o = overrides[res.status];
                 if (o) throw o();
                 if (res.status === 410) throw new NodeRestError('block-pruned', `${op}: 410`, 410);

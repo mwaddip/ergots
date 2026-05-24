@@ -14,13 +14,15 @@
     "smoke": "node dist/main.js --node-url http://localhost:9052 --indexer-url http://localhost:9054 --start-height 2 --max-height 10000"
   },
   "dependencies": {
-    "@ergots/scorex": "file:../../../packages/scorex",
-    "@ergots/ergoscript": "file:../../../packages/ergoscript",
     "@ergots/avltree": "file:../../../packages/avltree",
+    "@ergots/ergoscript": "file:../../../packages/ergoscript",
+    "@ergots/scorex": "file:../../../packages/scorex",
     "cbor-x": "^1.6.4",
-    "ergo-lib-wasm-nodejs": "file:../../../external/sigma-rust/bindings/ergo-lib-wasm/pkg-nodejs"
+    "ergo-lib-wasm-nodejs": "file:../../../external/sigma-rust/bindings/ergo-lib-wasm/pkg-nodejs",
+    "json-bigint": "^1.0.0"
   },
   "devDependencies": {
+    "@types/json-bigint": "^1.0.4",
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

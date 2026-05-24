@@ -28,6 +28,7 @@
 
 import { Agent, fetch as undiciFetch } from 'undici';
 import { blake2b } from '@noble/hashes/blake2.js';
+import { parseLossless } from './json-bigint.js';
 import { parseBoxBytesResponse } from './types.js';
 
 /**
@@ -152,7 +153,7 @@ export class IndexerClient {
                 } finally {
                     clearTimeout(t);
                 }
-                if (res.status >= 200 && res.status < 300) return await res.json();
+                if (res.status >= 200 && res.status < 300) return parseLossless(await res.text());
                 const o = overrides[res.status];
                 if (o) throw o();
                 if (res.status >= 500) {
