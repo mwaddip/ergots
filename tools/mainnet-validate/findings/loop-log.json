@@ -367,5 +367,89 @@
       "walkedToHeight": 228632,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 5,
+    "timestamp": "2026-05-24T22:39:59.233Z",
+    "halt": {
+      "height": 342964,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 1,
+        "inputIndex": 2
+      }
+    },
+    "diagnosis": {
+      "rootCause": "SContext.selfBoxIndex (typeId=101, methodId=8) not in HANDLERS. Sigma-rust SELF_BOX_INDEX_EVAL_FN at scontext.rs:33-57 charges Pattern A cost 20, then gates on activated_script_version (= preHeader.version - 1 saturating, per context.rs:66-68). Pre-V2 returns -1 unconditionally (JVM bug #603 compat — global fix in v5.x; gate is BLOCK-level not tree-level per ergo-node-rust feedback_tree_version_gate.md). V2+ walks inputs to find selfBox by reference equality. First exercised on mainnet at this exact block h=342,964 (where sigma-rust originally diverged from JVM).",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/eval/scontext.rs",
+          "line": 33,
+          "snippet": "pub(crate) static SELF_BOX_INDEX_EVAL_FN: EvalFn = ..."
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/scontext.rs",
+          "line": 47,
+          "snippet": "if ctx.activated_script_version() < ErgoTreeVersion::V2 { return Ok(Value::Int(-1)); }"
+        },
+        {
+          "path": "ergotree-ir/src/chain/context.rs",
+          "line": 66,
+          "snippet": "ErgoTreeVersion::from(self.pre_header.version.saturating_sub(1))"
+        },
+        {
+          "path": "ergotree-ir/src/types/scontext.rs",
+          "line": 124,
+          "snippet": "SELF_BOX_INDEX_PROPERTY_METHOD_ID: MethodId = MethodId(8);"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 234,
+          "snippet": "gap between handlerKey(101, 10) minerPubKey and SPreHeader.timestamp — selfBoxIndex was missing"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Register handlerKey(101, 8). Pattern A cost 20. Compute activatedVersion = Math.max(0, preHeader.version - 1); pre-V2 → SInt(-1); V2+ → inputs.indexOf(selfBox). Reference equality works because validate-tx.ts sets selfBox = inputBoxes[inputIndex].",
+        "affectedArm": "scontext-self-box-index",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/method-call.ts",
+          "packages/ergoscript/test/eval/scontext-self-box-index.test.ts",
+          "facts/ergoscript-eval.md"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/scontext-self-box-index.test.ts",
+        "inputDescription": "8 tests: V2+ real-index, pre-V2 returns -1 (versions 0/1/2), Pattern A non-Context throw, missing preHeader, missing selfBox/inputs on V2+, selfBox not in inputs on V2+",
+        "expectedValue": "SInt(index) or SInt(-1) per gate",
+        "expectedCost": 20
+      },
+      "confidence": 96,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #2, #5, #6, #7, #8, #10 (in-session orchestrator per user direction)",
+        "Confidence boosted from ~85% to ~96% by reading ergo-node-rust memories: feedback_tree_version_gate.md (explicit gate rule) + project_block342964_validation.md (exact block + sigma-rust v0.2.0 history)"
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session by orchestrator (rules #2, #5, #6, #7, #8 explicitly applied; source-read sigma-rust + EvalContext + harness wiring before edit; tsc+npm test+build all clean before commit)",
+      "testCountBefore": 3216,
+      "testCountAfter": 3224,
+      "commitSha": "baec410",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/method-call.ts",
+        "packages/ergoscript/test/eval/scontext-self-box-index.test.ts",
+        "facts/ergoscript-eval.md"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/scontext-self-box-index.test.ts"
+    },
+    "smokeResult": {
+      "walkedFromHeight": 228636,
+      "walkedToHeight": 342963,
+      "outcome": "halt"
+    }
   }
 ]
