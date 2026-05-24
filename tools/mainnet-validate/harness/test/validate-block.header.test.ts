@@ -80,6 +80,7 @@ function makeBundle(headerBytes: Uint8Array, height: number): BlockBundle {
         blockId: new Uint8Array(32),
         parentId: new Uint8Array(32),
         headerBytes,
+        headerJson: '',
         transactions: [],
         parameters: null,
     };

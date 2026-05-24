@@ -95,72 +95,25 @@ export interface HeaderData {
     headerBytes: Uint8Array;
 }
 
-/** Single `(varId, serialized-Constant-bytes)` pair from a tx input's ContextExtension. */
-export interface ContextExtensionEntry {
-    varId: number;
-    valueBytes: Uint8Array;
-}
-
-/**
- * Per-input bundle. See Source Mapping note on `boxId` diagnostic role.
- *
- * Phase 2j-a added the `oracle*` fields. The shim invokes sigma-rust's
- * `reduce_to_crypto(tree, ctx)` on each input and reads
- * `ctx.jit_cost_value()` directly (NOT `ReductionResult.cost`, which is
- * `jit_cost / 10`). The harness's cost-diff sub-step in `validate-tx.ts`
- * compares `oracleCost` against our TS evaluator's `ctx.jitCost`.
- */
-export interface InputBundle {
-    /**
-     * 32 bytes; the canonical id of the input box. Diagnostic only — the
-     * harness MUST recompute this from `spentBoxBytes` via blake2b256 and
-     * reject on mismatch. Authoritative signing source is `spentBoxBytes`.
-     */
-    boxId: Uint8Array;
-    spentBoxBytes: Uint8Array;
-    signatureBytes: Uint8Array;
-    contextExtension: ContextExtensionEntry[];
-    /**
-     * sigma-rust `ctx.jit_cost_value()` after `reduce_to_crypto` returned.
-     * `bigint` because the wire type is `u64`; cost-diff narrows to
-     * `number` via a `Number.MAX_SAFE_INTEGER` overflow guard. cbor-x
-     * decodes small u64 values as `number` and large ones as `bigint`;
-     * the re-key layer normalizes both into `bigint`.
-     */
-    oracleCost: bigint;
-    /** Whether the oracle's `reduce_to_crypto` call returned Ok. */
-    oracleSucceeded: boolean;
-    /**
-     * Formatted error message (display-form of sigma-rust's `EvalError` /
-     * `SigmaParsingError` / etc.) if `oracleSucceeded` is false; null
-     * otherwise.
-     */
-    oracleError: string | null;
-}
-
-/** Per-transaction bundle. */
-export interface TxBundle {
-    txId: Uint8Array;
-    signingMessage: Uint8Array;
-    inputs: InputBundle[];
-    outputs: Uint8Array[];
-    dataInputBoxes: Uint8Array[];
-}
-
-/** Block-level voting/parameters snapshot extracted from the Extension section. */
-export interface BlockParameters {
-    maxBlockCost: number;
-}
-
-/** Per-block bundle emitted by `GET_BLOCK`. */
-export interface BlockBundle {
-    height: number;
-    blockId: Uint8Array;
-    parentId: Uint8Array;
-    headerBytes: Uint8Array;
-    transactions: TxBundle[];
-    parameters: BlockParameters | null;
-}
+// Bundle types have moved to bundle-types.ts as part of the 2j-rest
+// refactor (the REST-based BundleAssembler is now the single producer
+// of BlockBundle). protocol.ts is scheduled for removal in Task 13;
+// these re-exports keep legacy test files compiling against the same
+// shape during the transition.
+import type {
+    ContextExtensionEntry,
+    InputBundle,
+    TxBundle,
+    BlockParameters,
+    BlockBundle,
+} from './bundle-types.js';
+export type {
+    ContextExtensionEntry,
+    InputBundle,
+    TxBundle,
+    BlockParameters,
+    BlockBundle,
+};
 
 /**
  * Structured error raised when the shim replies with `{ok: false, ...}`.
@@ -256,6 +209,11 @@ function reKeyBlockBundle(raw: unknown): BlockBundle {
         blockId: toByteArray(r['block_id'], 'block_id'),
         parentId: toByteArray(r['parent_id'], 'parent_id'),
         headerBytes: toByteArray(r['header_bytes'], 'header_bytes'),
+        // headerJson is a 2j-rest field carried by the REST BundleAssembler
+        // but not by the legacy CBOR shim protocol. Empty placeholder kept
+        // here for type-shape symmetry; protocol.ts is scheduled for
+        // removal in Task 13 (this whole code path goes away).
+        headerJson: '',
         transactions,
         parameters,
     };

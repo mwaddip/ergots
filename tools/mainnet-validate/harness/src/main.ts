@@ -1,15 +1,22 @@
 /**
- * Mainnet-validate harness entry point (PLAN.md T11).
+ * Mainnet-validate harness entry point (PLAN-2j-rest.md T12).
  *
- * Spawns the shim, walks the chain from a resume height to a stop
- * height, runs `validateBlock` on every block, persists a checkpoint
- * after each success, writes a structured error report and exits 1 on
- * the first failure.
+ * Orchestrates a per-block validation walk against an ergo-node REST
+ * surface + an indexer REST surface, with a WASM cost-oracle for
+ * cost-equivalence comparisons. Reuses the validation pipeline
+ * (validateBlock + validate-tx) verbatim from the pre-REST architecture;
+ * only the data-fetch path is replaced.
  *
- * The walk loop is straight-line per PLAN.md T11 — no retries, no
- * skip-and-continue, no per-block parallelism. The harness is a
- * differential validator (Layers 1-7 of PLAN.md): any failure is
- * load-bearing and the operator must triage before resuming.
+ * Per-block flow:
+ *   1. assembler.assemble(h, rollingHeadersJson) — composes a
+ *      BlockBundle from node REST fragments + indexer-served box bytes
+ *      + WASM cost-oracle results.
+ *   2. validateBlock(bundle, walkerState, treeVersionFn) — runs the
+ *      header / output-roundtrip / evaluate / verify-signature passes.
+ *   3. Update + persist checkpoint; advance the rolling-headers window.
+ *
+ * The walk loop is straight-line — no retries, no skip-and-continue,
+ * no per-block parallelism. Halt on the first failure.
  *
  * # On the `treeVersionFn` we inject into `validateBlock`
  *
@@ -22,15 +29,30 @@
  * to the operator via the wrapping `HarnessError` machinery in
  * `validateOutputRoundtrips`.
  *
- * # Why the walker-state rebuild fetches headers via `getBlock`
+ * # Rolling-headers JSON propagation
  *
- * The shim exposes `GET_BLOCK` (returns full BlockBundle including tx
- * data) but no `GET_HEADER`-only fast path. For resume of the rolling
- * 10-window we deserialise the full bundle and discard everything but
- * `headerBytes`. This is slow (~bundled txs of recent mainnet blocks
- * carry hundreds of KB each) but correct, and resume is a one-time
- * cost per harness invocation. A `GET_HEADER` shortcut is noted in
- * T14's README as a possible future optimisation.
+ * The WASM oracle's `computeTxOracleCosts` takes
+ * `rollingHeadersJson: string[]` — up to 10 newest-first preceding-
+ * header JSON strings. The main loop maintains this rolling array as
+ * the walk progresses, sourcing each new entry from
+ * `currentBundle.headerJson` (populated by BundleAssembler from the
+ * node's `/blocks/{id}.header` JSON).
+ *
+ * On resume from a mid-chain checkpoint, the rolling-headers-JSON array
+ * starts empty. The first ~10 blocks of the walk have a shorter window
+ * than ideal, but the WASM oracle pads the rolling collection with the
+ * current header when short (matches the prior shim's defensive
+ * pattern in `cost_oracle.rs:194-200`), so cost-oracle results remain
+ * sound. After 10 blocks the window is full and accurate.
+ *
+ * # Why the walker-state rebuild fetches headers via node REST
+ *
+ * For resume from h > 1 we deserialise headers via NodeClient's
+ * `/blocks/{id}/validation-fragments` endpoint, which returns the
+ * canonical Scorex `headerBytes` (the same shape parsed by
+ * `parseHeader`). We deliberately do NOT walk via getBlock — that
+ * would re-fetch all the tx data we don't need for header
+ * reconstruction.
  *
  * # Why we DON'T pad walker state with synthetic headers
  *
@@ -38,15 +60,15 @@
  * (mirrors sigma-rust at height 1). For a resume mid-chain we always
  * have a full preceding window, so the skip branch is only relevant
  * to the genesis range (`startHeight ∈ {0, 1}` — extremely rare for
- * smoke tests).
+ * smoke tests, and the default startHeight is 2 per spec §2).
  */
 
 import { parseCliArgs, USAGE, type CliArgs } from './cli.js';
-import {
-    ShimClient,
-    ShimError,
-    type BlockBundle,
-} from './protocol.js';
+import { NodeClient, NodeRestError } from './rest/node-client.js';
+import { IndexerClient, IndexerRestError } from './rest/indexer-client.js';
+import { WasmCostOracle, WasmCostOracleError } from './wasm-oracle.js';
+import { BundleAssembler } from './bundle-assembler.js';
+import type { BlockBundle } from './bundle-types.js';
 import {
     readCheckpoint,
     writeCheckpoint,
@@ -126,28 +148,39 @@ function versionsMatch(
     );
 }
 
+/** Hex-decode helper for header-id strings returned by the node REST API. */
+function hexDecode(s: string): Uint8Array {
+    const out = new Uint8Array(s.length / 2);
+    for (let i = 0; i < out.length; i++) {
+        out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
+}
+
 /**
  * Resume helper: fetch the 10 headers immediately preceding `startHeight`
  * and assemble a `WalkerState` ready for `validateBlock(startHeight)`.
  *
  * Behaviour:
- *   - If `startHeight <= 1`: return a fresh-empty `WalkerState`. There
- *     is no preceding history at the genesis edge; `validateHeader`'s
- *     parent-link check skips when `lastHeader === null` (PLAN T8 step
- *     5: "Skipped at the first block in this run").
- *   - Otherwise: fetch headers from `max(0, startHeight - 10)` up to
- *     `startHeight - 1` via `shim.getBlock`. Each bundle's
- *     `headerBytes` is parsed into a `Header`. The resulting list is
- *     reversed to most-recent-first (the walker-state convention).
+ *   - If `startHeight <= 2`: return a fresh-empty `WalkerState`. The
+ *     default startHeight is 2 per spec §2 (h=1 deferred), so this is
+ *     the common fresh-run case. `validateHeader`'s parent-link check
+ *     skips when `lastHeader === null`.
+ *   - Otherwise: fetch headers from `max(2, startHeight - 10)` up to
+ *     `startHeight - 1` via the node REST API. For each height, look
+ *     up the canonical header id via `getHeaderIdsAtHeight`, then read
+ *     the Scorex-encoded header bytes from
+ *     `getValidationFragments(headerId).headerBytes`. The resulting
+ *     list is reversed to most-recent-first (the walker-state
+ *     convention).
  *
- * Throws if any shim call fails; the caller (`main`) is responsible for
+ * Throws if any node call fails; the caller (`main`) is responsible for
  * surfacing the failure to the operator. We deliberately do NOT write
  * an error-report here — resume failures are operational (wrong
- * --store-path, shim binary missing, stale checkpoint) rather than
- * chain-validation findings.
+ * --node-url, node not running) rather than chain-validation findings.
  */
 export async function rebuildWalkerState(
-    shim: ShimClient,
+    node: NodeClient,
     startHeight: number,
     network: 'mainnet' | 'testnet',
 ): Promise<WalkerState> {
@@ -156,7 +189,7 @@ export async function rebuildWalkerState(
             ? V2_ACTIVATION_HEIGHT_MAINNET
             : V2_ACTIVATION_HEIGHT_TESTNET;
 
-    if (startHeight <= 1) {
+    if (startHeight <= 2) {
         return {
             lastHeader: null,
             rollingHeaders: [],
@@ -165,22 +198,22 @@ export async function rebuildWalkerState(
         };
     }
 
-    const firstHeight = Math.max(1, startHeight - ROLLING_WINDOW_SIZE);
+    const firstHeight = Math.max(2, startHeight - ROLLING_WINDOW_SIZE);
     const lastHeight = startHeight - 1;
 
     // Fetch oldest-first so we can simply reverse() at the end. Sequential
-    // by necessity — `ShimClient` rejects concurrent requests.
-    //
-    // Uses `getHeader` (not `getBlock`) so resume from a checkpoint with
-    // `startHeight > 1` works even after the sidecar has advanced past
-    // the requested heights — `GET_BLOCK` would refuse with `past-indexed`
-    // for h <= sidecar.indexed_up_to_height. Added at PROTOCOL_VERSION 3
-    // (phase 2j-b-resume); see
-    // `docs/specs/2026-05-23-ergoscript-2j-b-resume-shim-fix-design.md`.
+    // by necessity — keep-alive amortizes connection cost, and resume is
+    // a one-time cost per harness invocation.
     const ascending: Header[] = [];
     for (let h = firstHeight; h <= lastHeight; h++) {
-        const headerData = await shim.getHeader(h);
-        const header = parseHeader(new ByteReader(headerData.headerBytes));
+        const ids = await node.getHeaderIdsAtHeight(h);
+        if (ids.length === 0) {
+            throw new Error(`no header at height ${h} during walker-state rebuild`);
+        }
+        const headerId = ids[0]!;
+        const fragments = await node.getValidationFragments(headerId);
+        const headerBytes = hexDecode(fragments.headerBytes);
+        const header = parseHeader(new ByteReader(headerBytes));
         ascending.push(header);
     }
 
@@ -198,11 +231,11 @@ export async function rebuildWalkerState(
 }
 
 /**
- * Build an `ErrorReport` from an exception caught around `shim.getBlock`
- * or `validateBlock`. Discriminates on instanceof to produce the most
- * informative `phase` + `errorCode` available.
+ * Build an `ErrorReport` from an exception caught around
+ * `assembler.assemble` or `validateBlock`. Discriminates on instanceof
+ * to produce the most informative `phase` + `errorCode` available.
  *
- * `bundle` may be `undefined` when the shim call itself failed (no
+ * `bundle` may be `undefined` when the assembler call itself failed (no
  * bundle to excerpt). In that case `bundleExcerpt` is left empty.
  */
 export function classifyError(
@@ -250,11 +283,45 @@ export function classifyError(
         return out;
     }
 
-    if (err instanceof ShimError) {
+    if (err instanceof NodeRestError) {
         const out: ErrorReport = {
             timestamp,
             height,
-            phase: 'shim',
+            phase: 'node-rest',
+            errorClass: err.name,
+            errorCode: err.code,
+            message: err.message,
+            location: {},
+            bundleExcerpt,
+        };
+        if (err.stack !== undefined) {
+            out.stack = err.stack;
+        }
+        return out;
+    }
+
+    if (err instanceof IndexerRestError) {
+        const out: ErrorReport = {
+            timestamp,
+            height,
+            phase: 'indexer-rest',
+            errorClass: err.name,
+            errorCode: err.code,
+            message: err.message,
+            location: {},
+            bundleExcerpt,
+        };
+        if (err.stack !== undefined) {
+            out.stack = err.stack;
+        }
+        return out;
+    }
+
+    if (err instanceof WasmCostOracleError) {
+        const out: ErrorReport = {
+            timestamp,
+            height,
+            phase: 'wasm-oracle',
             errorClass: err.name,
             errorCode: err.code,
             message: err.message,
@@ -268,9 +335,10 @@ export function classifyError(
     }
 
     // Generic fallback — anything else (TypeError from re-key layer,
-    // unhandled assertion, Node EAGAIN on stdin write, etc.) is bucketed
-    // as `phase: 'shim'` since by elimination it surfaced from below the
-    // validation layer.
+    // unhandled assertion, etc.) is bucketed as `phase: 'node-rest'` by
+    // elimination: assemble() drives all three of node REST + indexer
+    // REST + WASM oracle, and a non-classed throw most likely surfaced
+    // from one of those paths.
     const errorClass = err instanceof Error ? err.constructor.name : 'Error';
     const message =
         err instanceof Error
@@ -281,7 +349,7 @@ export function classifyError(
     const out: ErrorReport = {
         timestamp,
         height,
-        phase: 'shim',
+        phase: 'node-rest',
         errorClass,
         message,
         location: {},
@@ -334,16 +402,14 @@ export function updateCheckpointStats(
  * (`startHeight = checkpoint.lastValidatedHeight + 1`) round-trips
  * correctly on a subsequent invocation without `--start-height`.
  */
-function createInitialCheckpoint(_args: CliArgs, startHeight: number, tipHeight: number): Checkpoint {
+function createInitialCheckpoint(args: CliArgs, startHeight: number, tipHeight: number): Checkpoint {
     const now = new Date().toISOString();
     return {
         lastValidatedHeight: startHeight - 1,
         tipHeightAtStart: tipHeight,
         lastValidatedAt: now,
-        // TODO(2j-rest): replace with _args.nodeUrl / _args.indexerUrl once
-        // cli.ts and main.ts are fully ported to the REST architecture.
-        nodeUrl: 'shim://local',
-        indexerUrl: 'shim://local',
+        nodeUrl: args.nodeUrl,
+        indexerUrl: args.indexerUrl,
         libraryVersions: currentLibraryVersions(),
         stats: {
             totalBlocks: 0,
@@ -387,14 +453,29 @@ export async function main(argv: readonly string[]): Promise<number> {
         return 2;
     }
 
-    // TODO(2j-rest): ShimClient replaced by REST clients in T11/T12.
-    // Placeholder args satisfy the type until ShimClient is removed.
-    const shim = ShimClient.spawn('', '', '', args.network);
+    // Instantiate the data-fetch clients + WASM oracle eagerly (per spec
+    // §3.3 — pay the WASM init cost up front, not on the first block).
+    const node = new NodeClient(args.nodeUrl);
+    const indexer = new IndexerClient(args.indexerUrl);
+    let oracle: WasmCostOracle;
     try {
-        // Step 1: shim tip query — also the implicit "did the shim start up
-        // and accept its argv" smoke check. A failure here is a setup bug,
-        // not a chain validation finding.
-        const tipHeight = await shim.getTipHeight();
+        oracle = await WasmCostOracle.init();
+    } catch (err) {
+        process.stderr.write(
+            `error initializing WASM oracle: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+        await node.close();
+        await indexer.close();
+        return 1;
+    }
+    const assembler = new BundleAssembler(node, indexer, oracle);
+
+    try {
+        // Step 1: node tip query — also the implicit "did /info respond"
+        // smoke check. A failure here is a setup bug (wrong URL, node
+        // down), not a chain validation finding.
+        const info = await node.getInfo();
+        const tipHeight = info.fullHeight;
 
         // Step 2: load (or initialise) checkpoint.
         const existingCheckpoint = readCheckpoint(args.checkpointPath);
@@ -406,7 +487,10 @@ export async function main(argv: readonly string[]): Promise<number> {
         } else if (existingCheckpoint !== null) {
             startHeight = existingCheckpoint.lastValidatedHeight + 1;
         } else {
-            startHeight = 1;
+            // Default startHeight is 2 per spec §2 (h=1 deferred to a
+            // follow-up — genesis-block fetch requires special-case
+            // handling in BundleAssembler that's out of scope for v1).
+            startHeight = 2;
         }
         const requestedEnd = args.maxHeight ?? tipHeight;
         const endHeight = Math.min(requestedEnd, tipHeight);
@@ -441,7 +525,13 @@ export async function main(argv: readonly string[]): Promise<number> {
                 : createInitialCheckpoint(args, startHeight, tipHeight);
 
         // Step 6: rebuild the rolling-window walker state.
-        const walkerState = await rebuildWalkerState(shim, startHeight, args.network);
+        const walkerState = await rebuildWalkerState(node, startHeight, args.network);
+
+        // Rolling-headers JSON window for the WASM oracle. Initialized
+        // empty; accumulates from currentBundle.headerJson after each
+        // successful block. See module docstring "Rolling-headers JSON
+        // propagation" for the trade-off rationale.
+        let rollingHeadersJson: string[] = [];
 
         process.stdout.write(
             `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network})\n`,
@@ -465,14 +555,14 @@ export async function main(argv: readonly string[]): Promise<number> {
                 await sleep(args.sleepMs);
             }
 
-            // 7a: fetch from shim.
+            // 7a: assemble bundle (node REST + indexer REST + WASM oracle).
             try {
-                currentBundle = await shim.getBlock(h);
+                currentBundle = await assembler.assemble(h, rollingHeadersJson);
             } catch (err) {
                 const report = classifyError(err, h, undefined);
                 writeErrorReport(args.errorReportPath, report);
                 process.stderr.write(
-                    `halt at height ${h} (shim fetch failed): ${err instanceof Error ? err.message : String(err)}\n`,
+                    `halt at height ${h} (REST/oracle): ${err instanceof Error ? err.message : String(err)}\n`,
                 );
                 process.stdout.write(
                     `[heartbeat] halt at h=${h} — phase=${report.phase} errorCode=${report.errorCode ?? '<none>'}\n`,
@@ -487,7 +577,7 @@ export async function main(argv: readonly string[]): Promise<number> {
                 const report = classifyError(err, h, currentBundle);
                 writeErrorReport(args.errorReportPath, report);
                 process.stderr.write(
-                    `halt at height ${h} (validation failed): ${err instanceof Error ? err.message : String(err)}\n`,
+                    `halt at height ${h} (validation): ${err instanceof Error ? err.message : String(err)}\n`,
                 );
                 process.stdout.write(
                     `[heartbeat] halt at h=${h} — phase=${report.phase} errorCode=${report.errorCode ?? '<none>'}\n`,
@@ -495,11 +585,18 @@ export async function main(argv: readonly string[]): Promise<number> {
                 return 1;
             }
 
-            // 7c: update + persist checkpoint.
+            // 7c: advance the rolling-headers-JSON window for the next
+            // block's WASM oracle call. Newest-first; cap at 10.
+            rollingHeadersJson.unshift(currentBundle.headerJson);
+            if (rollingHeadersJson.length > ROLLING_WINDOW_SIZE) {
+                rollingHeadersJson = rollingHeadersJson.slice(0, ROLLING_WINDOW_SIZE);
+            }
+
+            // 7d: update + persist checkpoint.
             updateCheckpointStats(checkpoint, currentBundle);
             writeCheckpoint(args.checkpointPath, checkpoint);
 
-            // 7d: heartbeat cadence — per HB_BLOCK_CADENCE successful blocks.
+            // 7e: heartbeat cadence — per HB_BLOCK_CADENCE successful blocks.
             if (h - hbLastHeight >= HB_BLOCK_CADENCE) {
                 const now = Date.now();
                 const blockSpan = h - hbLastHeight;
@@ -512,7 +609,7 @@ export async function main(argv: readonly string[]): Promise<number> {
                 hbLastWallMs = now;
             }
 
-            // 7e: 100k-block milestone heartbeat (orchestrator schedules full
+            // 7f: 100k-block milestone heartbeat (orchestrator schedules full
             // rewalk after this). Fires exactly once per crossing.
             if (
                 Math.floor(h / MILESTONE_INTERVAL) >
@@ -546,7 +643,8 @@ export async function main(argv: readonly string[]): Promise<number> {
         }
         return 1;
     } finally {
-        await shim.close();
+        await node.close();
+        await indexer.close();
     }
 }
 

@@ -24,6 +24,7 @@ function makeBundle(): BlockBundle {
         blockId: new Uint8Array(32),
         parentId: new Uint8Array(32),
         headerBytes: Uint8Array.from([0xab, 0xcd, 0xef]),
+        headerJson: '',
         transactions: [
             {
                 txId: new Uint8Array(32),

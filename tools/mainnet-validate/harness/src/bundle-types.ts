@@ -39,6 +39,10 @@ export interface BlockBundle {
     blockId: Uint8Array;
     parentId: Uint8Array;
     headerBytes: Uint8Array;
+    /** JSON-string form of the block's header (from /blocks/{id}.header).
+     *  Needed by the walk loop to feed forward into next block's
+     *  WasmCostOracle.computeTxOracleCosts rolling-headers window. */
+    headerJson: string;
     transactions: TxBundle[];
     parameters: BlockParameters | null;
 }

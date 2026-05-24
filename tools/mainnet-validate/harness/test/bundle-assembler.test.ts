@@ -35,6 +35,8 @@ describe('BundleAssembler', () => {
         expect(bundle.transactions.length).toBe(1);
         expect(bundle.transactions[0]!.inputs[0]!.oracleCost).toBe(50n);
         expect(bundle.parameters?.maxBlockCost).toBe(1_000_000);
+        expect(bundle.headerJson).toBeTypeOf('string');
+        expect(JSON.parse(bundle.headerJson).height).toBe(2);
         expect(indexer.getBoxBytes).toHaveBeenCalledWith('cc'.repeat(32));
         expect(indexer.getBoxBytes).toHaveBeenCalledWith('dd'.repeat(32));
     });

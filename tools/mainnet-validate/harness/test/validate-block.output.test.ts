@@ -102,6 +102,7 @@ function makeBundle(transactions: TxBundle[]): BlockBundle {
         blockId: new Uint8Array(32),
         parentId: new Uint8Array(32),
         headerBytes: new Uint8Array(0),
+        headerJson: '',
         transactions,
         parameters: null,
     };

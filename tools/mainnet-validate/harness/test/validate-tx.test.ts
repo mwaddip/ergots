@@ -227,6 +227,7 @@ function makeBundle(
         blockId: new Uint8Array(32),
         parentId: new Uint8Array(32),
         headerBytes: new Uint8Array(0),
+        headerJson: '',
         transactions: [tx],
         parameters: { maxBlockCost },
     };
@@ -470,6 +471,7 @@ describe('validateBlock orchestrator', () => {
             blockId: new Uint8Array(32),
             parentId: new Uint8Array(32),
             headerBytes: new Uint8Array(0),
+            headerJson: '',
             transactions: [tx],
             parameters: { maxBlockCost: 1_000_000 },
         };

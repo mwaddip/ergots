@@ -143,6 +143,7 @@ export class BundleAssembler {
             blockId: hexDecode(headerId),
             parentId: hexDecode(block.header.parentId),
             headerBytes,
+            headerJson,
             transactions,
             parameters,
         };

@@ -170,6 +170,7 @@ function makeBundle(tx: TxBundle, height = 100, maxBlockCost = 1_000_000): Block
         parentId: new Uint8Array(32),
         // Non-empty so `bundleExcerpt.headerHex` lands a recognisable value.
         headerBytes: new Uint8Array([0xab, 0xcd, 0xef, 0x12, 0x34]),
+        headerJson: '',
         transactions: [tx],
         parameters: { maxBlockCost },
     };
