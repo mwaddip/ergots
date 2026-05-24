@@ -113,5 +113,89 @@
       "walkedToHeight": 50000,
       "outcome": "max-height"
     }
+  },
+  {
+    "iteration": 2,
+    "timestamp": "2026-05-24T19:12:04.240Z",
+    "halt": {
+      "height": 208788,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 1,
+        "txId": "67190c748c950cb4ea126d7680b322f1781093d23e2cda172c190c63c9939c94",
+        "inputIndex": 0,
+        "spentBoxId": "f28c526414e059cc0e0b139bfab508ed83a4e087452bc96fbbd5cc8942cb91e9",
+        "ergoTreeHex": "1006070355e3409b35892e2b916a6362a93f742d06ce1726e2eaa688738b34b652d1142a04000580b3d5879004040204040402d801d6017300eb02d1eded93eedb650afe720193c1b2a57301007302d801d602b1a5ec9372027303ed937202730493c2b2a5730500c2a7cd7201"
+      }
+    },
+    "diagnosis": {
+      "rootCause": "SContext.minerPubKey (typeId=101, methodId=10) not in our HANDLERS registry. Sigma-rust evaluates via MINER_PUBKEY_EVAL_FN at ergotree-interpreter/src/eval/scontext.rs:101-115 (Pattern A cost 20, returns Coll[Byte] of ctx.preHeader.minerPk.sigma_serialize_bytes — 33-byte SEC1-compressed pubkey).",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/eval/scontext.rs",
+          "line": 101,
+          "snippet": "pub(crate) static MINER_PUBKEY_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, _args| {"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/scontext.rs",
+          "line": 102,
+          "snippet": "ctx.add_jit_cost(20)?;"
+        },
+        {
+          "path": "ergotree-ir/src/types/scontext.rs",
+          "line": 151,
+          "snippet": "pub const MINER_PUBKEY_PROPERTY_METHOD_ID: MethodId = MethodId(10);"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 178,
+          "snippet": "// SContext.dataInputs (PropertyCall, typeId=101, methodId=1) -- existing typeId=101 entries gap at methodId=10"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Add evalSContextMinerPubKey handler; register at handlerKey(101, 10) in method-call.ts. Pattern A cost 20. Reuse context-obj-not-context shape-check code.",
+        "affectedArm": "scontext-miner-pubkey",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/scontext.ts",
+          "packages/ergoscript/src/eval/method-call.ts",
+          "facts/ergoscript-eval.md",
+          "packages/ergoscript/test/eval/scontext-miner-pubkey.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/scontext-miner-pubkey.test.ts",
+        "inputDescription": "PropertyCall(Context, minerPubKey); known 33-byte SEC1-compressed pubkey on a synthetic PreHeader",
+        "expectedValue": "Coll[Byte] of length 33 matching sigma_serialize_bytes of the constructed pubkey",
+        "expectedCost": 20
+      },
+      "confidence": 99,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #5, #6, #7, #8, #10 (echoed in handoff to parallel session)",
+        "Fix-apply deferred to parallel session per [[feedback-missing-arms-parallel-sessions]] (arm-coverage class)"
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied by parallel session per HANDOFF_SCONTEXT_MINER_PUBKEY.md preamble (rules #2, #5, #6, #7, #8 cited explicitly)",
+      "testCountBefore": 3206,
+      "testCountAfter": 3209,
+      "commitSha": "aba4fe99d33ffdb4ca52f47257572d975c7c2d1c",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/scontext.ts",
+        "packages/ergoscript/src/eval/method-call.ts",
+        "facts/ergoscript-eval.md",
+        "packages/ergoscript/test/eval/scontext-miner-pubkey.test.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/scontext-miner-pubkey.test.ts"
+    },
+    "smokeResult": {
+      "walkedFromHeight": 10001,
+      "walkedToHeight": 208790,
+      "outcome": "halt"
+    }
   }
 ]
