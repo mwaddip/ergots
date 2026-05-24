@@ -35,7 +35,9 @@ export type ErrorPhase =
     | 'output-roundtrip'
     | 'evaluate'
     | 'verify-signature'
-    | 'shim'
+    | 'node-rest'      // replaces 'shim' for node REST errors
+    | 'indexer-rest'   // replaces 'shim' for indexer REST errors
+    | 'wasm-oracle'    // replaces 'shim' for WASM oracle errors
     | 'evaluate-cost'
     | 'evaluate-oracle-mismatch';
 
