@@ -197,5 +197,86 @@
       "walkedToHeight": 208790,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 3,
+    "timestamp": "2026-05-24T19:57:23.676Z",
+    "halt": {
+      "height": 220541,
+      "phase": "verify-signature",
+      "errorCode": "verifier-threw",
+      "location": {
+        "txIndex": 1,
+        "txId": "9f4d40607a561c14a504c96919362f150fca3337ab43219d9a683f1617b74b0a",
+        "inputIndex": 0,
+        "spentBoxId": "3b0065d3ec18aecf7951b5fd26c3344731fe7625fcb223b46480c2951cfaa4fc",
+        "ergoTreeHex": "0008cd02f40ee9cecf47e36a18645e5a3cff677772d74ee2792912173aa406fa9a8a2ef4"
+      }
+    },
+    "diagnosis": {
+      "rootCause": "ProofBytesReader.readScalarBytes used strict readN(32), throwing truncated-signature on 31-byte z. Sigma-rust read_scalar at sig_serializer.rs:250-255 is lenient: reads UP TO GROUP_SIZE (32) bytes and right-shifts into a zero-filled buffer (left-pads with zeros). Prover-side leading-zero stripping is on-wire; this P2PK proof had 24+31=55 bytes because z had a leading zero stripped.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/sigma_protocol/sig_serializer.rs",
+          "line": 250,
+          "snippet": "fn read_scalar<R: SigmaByteRead>(r: &mut R) -> Result<Wscalar, SigmaSerializationError>"
+        },
+        {
+          "path": "ergotree-interpreter/src/sigma_protocol/sig_serializer.rs",
+          "line": 253,
+          "snippet": "scalar_bytes.rotate_right(super::GROUP_SIZE - bytes_read);"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/sigma/sig-serializer.ts",
+          "line": 36,
+          "snippet": "readScalarBytes(): Uint8Array { return this.readN(SCALAR_BYTES) }  // strict — bug"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Make ProofBytesReader.readScalarBytes lenient: allocate 32-byte zero buffer; read up to remaining bytes into the tail of the buffer (left-pad); never throw. Challenge and Cthreshold polynomial reads remain strict (match sigma-rust read_exact). Fixture ct-truncated-sig was miscalibrated for the strict reader; updated to sig[..30] (genuinely fails polynomial read) and added ct-truncated-scalars (sig[..50], returns-false) for lenient-scalar coverage.",
+        "affectedArm": "sig-serializer",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/sigma/sig-serializer.ts",
+          "packages/ergoscript/test/sigma/sig-serializer.test.ts",
+          "fixture-gen/src/cmds/ergoscript/verify/verifier_cthreshold.rs",
+          "packages/ergoscript/test/fixtures/verify/verifier-cthreshold-reject.json",
+          "facts/ergoscript-sigma.md"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/sigma/sig-serializer.test.ts",
+        "inputDescription": "24-byte challenge + 31-byte scalar (h=220541 P2PK shape); also 6-byte scalar; also 0-byte scalar; also 32-byte scalar (no over-read)",
+        "expectedValue": "32-byte zero-padded scalars for short inputs; original bytes for full inputs",
+        "expectedCost": 0
+      },
+      "confidence": 99,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #5, #6, #7, #8, #10 (in-session orchestrator; not a subagent dispatch)",
+        "Fix-apply done in-session per user direction (\"fix here is okay\"); harness fixes class — Schnorr-scalar deserializer leniency mirrors sigma-rust source-cited algorithm"
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session by orchestrator (in-session direction from user; rules #2, #5, #6, #7, #8 explicitly cited in commit message body)",
+      "testCountBefore": 3209,
+      "testCountAfter": 3213,
+      "commitSha": "3b939dbe87fa4220cb6cc6da9b9c4be67466cfd1",
+      "filesChanged": [
+        "packages/ergoscript/src/sigma/sig-serializer.ts",
+        "packages/ergoscript/test/sigma/sig-serializer.test.ts",
+        "fixture-gen/src/cmds/ergoscript/verify/verifier_cthreshold.rs",
+        "packages/ergoscript/test/fixtures/verify/verifier-cthreshold-reject.json",
+        "facts/ergoscript-sigma.md"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/sigma/sig-serializer.test.ts"
+    },
+    "smokeResult": {
+      "walkedFromHeight": 209641,
+      "walkedToHeight": 220540,
+      "outcome": "halt"
+    }
   }
 ]
