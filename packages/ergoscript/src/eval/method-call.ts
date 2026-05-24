@@ -233,6 +233,63 @@ function registerHandlers(): void {
     return bytesToCollByteSValue(ctx.preHeader.minerPk)
   } })
 
+  // SContext.selfBoxIndex (PropertyCall, typeId=101, methodId=8)
+  // Source: ergotree-interpreter/src/eval/scontext.rs:33-57 — SELF_BOX_INDEX_EVAL_FN
+  // Descriptor: ergotree-ir/src/types/scontext.rs:124 — returns SInt.
+  // Pattern A cost 20 (charged before obj check). Returns 0-based index of
+  // ctx.selfBox in ctx.inputs, OR -1 for blocks with activated_script_version < V2.
+  //
+  // Activated-script-version gate (JVM bug #603 compat): the JVM's pre-v5
+  // selfBoxIndex used reference-equality `eq` instead of value-equality `==`
+  // in CostingDataContext.scala, always returning -1. The bug was fixed
+  // globally in v5.x — ALL scripts in v5+ blocks get the correct index.
+  // Gate is on BLOCK version, not tree version (see ergo-node-rust memory
+  // feedback_tree_version_gate.md — session 22b broke block 942,664 by
+  // gating on tree_version). sigma-rust derives activated_script_version
+  // as `preHeader.version - 1` (saturating); see chain/context.rs:66-68.
+  //
+  // First exercised on mainnet at block 342,964 — the same block where
+  // sigma-rust originally diverged from JVM (fixed in their v0.2.0).
+  //
+  // Box equality: validate-tx.ts sets `ctx.selfBox = inputBoxes[inputIndex]`
+  // (same object reference as the corresponding entry in `ctx.inputs`), so
+  // `inputs.indexOf(selfBox)` (reference equality) gives the right index.
+  HANDLERS.set(handlerKey(101, 8), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(20)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.selfBoxIndex expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context'
+      )
+    }
+    if (ctx.preHeader === undefined) {
+      throw new EvalError(
+        `SContext.selfBoxIndex: ctx.preHeader is undefined`,
+        'context-field-missing'
+      )
+    }
+    // activated_script_version = saturating_sub(preHeader.version, 1).
+    const activatedVersion = Math.max(0, (ctx.preHeader.version | 0) - 1)
+    if (activatedVersion < 2) {
+      return { kind: 'Int', value: -1 }
+    }
+    if (ctx.selfBox === undefined || ctx.inputs === undefined) {
+      throw new EvalError(
+        `SContext.selfBoxIndex: ctx.${ctx.selfBox === undefined ? 'selfBox' : 'inputs'} is undefined`,
+        'context-field-missing'
+      )
+    }
+    const idx = ctx.inputs.indexOf(ctx.selfBox)
+    if (idx === -1) {
+      throw new EvalError(
+        `SContext.selfBoxIndex: ctx.selfBox not found in ctx.inputs (` +
+          `${ctx.inputs.length} inputs) — chain invariant violated`,
+        'context-field-missing'
+      )
+    }
+    return { kind: 'Int', value: idx }
+  } })
+
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
   // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
   // Pattern A cost 10 (charged before obj check). Returns Long.

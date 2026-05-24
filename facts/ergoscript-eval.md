@@ -544,6 +544,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 44 | `SColl.flatMap` | 12:15 | `addPerItemCost(60,10,8,n)` | B | `Coll[OV]` (lambda HOF + concat); body-restriction `'lambda-not-callable'` if body is MethodCall with non-empty args; two R3 divergences from sigma-rust on lambda static typing (see Phase 2h-f changelog below) | `eval/scoll.rs:52-136` |
 | 45 | `SContext.minerPubKey` | 101:10 | 20 | A | `Coll[Byte]` (33 SEC1-compressed `ctx.preHeader.minerPk`); throws `'context-field-missing'` if undefined | `eval/scontext.rs:101-115` |
 | 46 | `SPreHeader.minerPk` | 105:6 | 10 | A | `GroupElement` (raw 33-byte `obj.value.minerPk`; NOT sigma-serialized — contrast row 45 which does) | `eval/spreheader.rs:38-42` |
+| 47 | `SContext.selfBoxIndex` | 101:8 | 20 | A | `Int` — 0-based index of `ctx.selfBox` in `ctx.inputs` via reference equality; **gated by `activated_script_version = saturating_sub(preHeader.version, 1)`** — pre-V2 blocks return -1 unconditionally (JVM bug #603 compat; the JVM ref-eq bug was fixed globally in v5.x, so the gate is BLOCK-level not tree-level — `[[feedback-tree-version-gate]]`). Throws `'context-field-missing'` for missing preHeader, missing selfBox/inputs on V2+, or selfBox-not-in-inputs (chain-invariant violation). First exercised on mainnet at h=342,964 — same block where sigma-rust originally diverged from JVM (fixed in their v0.2.0) | `eval/scontext.rs:33-57` |
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 
