@@ -96,8 +96,9 @@ export class WasmCostOracle {
 
     /**
      * Initialize the WASM oracle. Idempotent. Verifies the binding exposes
-     * compute_tx_oracle_costs (the function added by sigma-rust commit
-     * 643749b9 / renamed in 6c66bf2a).
+     * compute_tx_oracle_costs (added by sigma-rust commit 643749b9; the
+     * test-helper renames in 6c66bf2a only affected the `_test_only_*`
+     * helpers, not this production function).
      */
     static async init(): Promise<WasmCostOracle> {
         if (typeof compute_tx_oracle_costs !== 'function') {
@@ -192,7 +193,10 @@ export class WasmCostOracle {
                 stateCtx,
             );
 
-            // Map WASM results → TS plain objects (freeing as we go).
+            // Map WASM results → TS plain objects. Push each result handle
+            // into `owned[]` BEFORE the overflow check so the finally block
+            // frees it even if a mid-loop throw aborts. (Without this, a
+            // jit-cost-overflow at index i would leak handles for i+1..N-1.)
             const out: OracleInputResult[] = [];
             for (let i = 0; i < wasmResults.length; i++) {
                 const r = wasmResults[i];
@@ -204,6 +208,7 @@ export class WasmCostOracle {
                         `compute_tx_oracle_costs returned undefined at index ${i}`,
                     );
                 }
+                owned.push(r);
                 const cost = r.cost(); // bigint (u64)
                 if (cost > BigInt(Number.MAX_SAFE_INTEGER)) {
                     throw new WasmCostOracleError(
@@ -216,7 +221,6 @@ export class WasmCostOracle {
                     oracleSucceeded: r.is_ok(),
                     oracleError: r.error_msg() ?? null,
                 });
-                r.free();
             }
             return out;
         } catch (err) {
@@ -224,15 +228,16 @@ export class WasmCostOracle {
             const message = err instanceof Error ? err.message : String(err);
             throw new WasmCostOracleError('wasm-call-threw', message);
         } finally {
-            // Free every WASM-owned object to prevent leak. wasm-bindgen
-            // `.free()` is idempotent — calling on an already-freed
-            // handle is a no-op (the JS wrapper nulls the inner pointer
-            // on first call), so the try/catch below is belt-and-braces.
+            // Free every WASM-owned object to prevent leak. The try/catch
+            // tolerates either wasm-bindgen's idempotent free pattern (JS
+            // wrapper nulls the inner pointer on first call) OR a throw on
+            // double-free if the binding doesn't implement the no-op path.
+            // Behavior is safe either way; we don't depend on which.
             for (const o of owned) {
                 try {
                     o.free();
                 } catch {
-                    /* idempotent */
+                    /* idempotent or double-free; either way no recovery */
                 }
             }
         }
