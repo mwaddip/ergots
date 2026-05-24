@@ -3,10 +3,11 @@ import { BundleAssembler } from '../src/bundle-assembler.js';
 
 describe('BundleAssembler', () => {
     it('assembles BlockBundle from node + indexer + oracle mocks', async () => {
+        const mockHeaderRawJson = JSON.stringify({ id: 'aa'.repeat(32), height: 2, parentId: '00'.repeat(32), version: 1 });
         const node = {
             getHeaderIdsAtHeight: vi.fn().mockResolvedValue(['aa'.repeat(32)]),
             getBlock: vi.fn().mockResolvedValue({
-                header: { id: 'aa'.repeat(32), height: 2, parentId: '00'.repeat(32), version: 1 },
+                header: { id: 'aa'.repeat(32), height: 2, parentId: '00'.repeat(32), version: 1, rawJson: mockHeaderRawJson },
                 blockTransactions: {
                     transactions: [{
                         id: 'bb'.repeat(32),

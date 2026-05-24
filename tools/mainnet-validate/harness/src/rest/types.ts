@@ -23,6 +23,15 @@ export interface HeaderJson {
     height: number;
     parentId: string;
     version: number;
+    /**
+     * Full node-response header JSON string, preserved verbatim from the
+     * /blocks/{id} response body. Required by WasmCostOracle.computeTxOracleCosts
+     * (BlockHeader.from_json expects the complete header including adProofsRoot,
+     * transactionsRoot, stateRoot, extensionHash, powSolutions, votes, nBits,
+     * timestamp, unparsedBytes). Only the 4 typed fields above are validated by
+     * parseBlockResponse; the rest are passed through opaquely to the WASM layer.
+     */
+    rawJson: string;
 }
 
 export interface InputJson {
@@ -135,6 +144,10 @@ export function parseBlockResponse(raw: unknown): BlockResponse {
             height: asInt(h['height'], '/blocks/{id}.header.height'),
             parentId: asString(h['parentId'], '/blocks/{id}.header.parentId'),
             version: asInt(h['version'], '/blocks/{id}.header.version'),
+            // Preserve the full raw header JSON for WasmCostOracle.
+            // JSON.stringify round-trip normalises the object (removes undefined,
+            // converts bigints to strings) but preserves all other fields verbatim.
+            rawJson: JSON.stringify(o['header']),
         },
         blockTransactions: {
             transactions: txs.map((tx, i) =>

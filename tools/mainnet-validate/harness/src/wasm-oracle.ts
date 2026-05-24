@@ -142,23 +142,39 @@ export class WasmCostOracle {
             owned.push(dataInputsColl);
 
             // Build state context.
-            const currentHeader = BlockHeader.from_json(args.headerJson);
-            owned.push(currentHeader);
-            const preHeader = PreHeader.from_block_header(currentHeader);
-            owned.push(preHeader);
+            //
+            // # Ownership note: PreHeader.from_block_header CONSUMES its arg
+            //
+            // `PreHeader.from_block_header(b)` calls `b.__destroy_into_raw()`
+            // in the generated JS (see pkg-nodejs/ergo_lib_wasm.js line ~3682),
+            // which sets `b.__wbg_ptr = 0`. This is a MOVE, not a borrow. After
+            // the call, the JS BlockHeader object is unusable (null pointer).
+            //
+            // `new BlockHeaders(b)` and `blockHeaders.add(b)` do NOT consume —
+            // they read `b.__wbg_ptr` without destroying it (Rust side calls
+            // `b.clone()` internally). So the order here is:
+            //   1. Parse ONE header for the rolling window (used by BlockHeaders)
+            //   2. Build and pad the rolling window; construct BlockHeaders
+            //   3. Parse a SECOND copy of the header for PreHeader (consumed)
+            //
+            // Parsing twice costs ~1 ms per block — negligible. The alternative
+            // (clone via BlockHeaders.get(0)) creates a new Rust reference but
+            // the returned BlockHeader is then also WASM-owned and must be freed,
+            // making the ownership graph more complex. Double-parse is cleaner.
 
-            // Build rolling window padded to 10 (matches sigma-rust's
-            // [Header; 10] requirement; see `block_header.rs:125-139`).
-            // Pad with current header when short — defensive; harness
-            // only invokes oracle when walker state is full anyway, but
-            // matches shim's cost_oracle.rs:194-200 pattern.
+            // Step A: rolling window for BlockHeaders (not consumed, ptr stays valid)
             const rollingHeaders: BlockHeader[] = [];
             for (const hj of args.rollingHeadersJson) {
                 const h = BlockHeader.from_json(hj);
                 owned.push(h);
                 rollingHeaders.push(h);
             }
-            while (rollingHeaders.length < 10) rollingHeaders.push(currentHeader);
+            // Pad to 10 with fresh header instances (each needs its own ptr).
+            while (rollingHeaders.length < 10) {
+                const padHeader = BlockHeader.from_json(args.headerJson);
+                owned.push(padHeader);
+                rollingHeaders.push(padHeader);
+            }
 
             const firstHeader = rollingHeaders[0];
             if (firstHeader === undefined) {
@@ -175,6 +191,16 @@ export class WasmCostOracle {
                 const h = rollingHeaders[i];
                 if (h !== undefined) blockHeaders.add(h);
             }
+
+            // Step B: current header for PreHeader (consumed by from_block_header)
+            const currentHeader = BlockHeader.from_json(args.headerJson);
+            // Do NOT push currentHeader into owned — PreHeader.from_block_header
+            // consumes it (destroys its internal WASM pointer via __destroy_into_raw).
+            // Pushing a freed object into owned would cause a double-free in the
+            // finally block. The Rust side allocates a new PreHeader from the
+            // header's data, so no memory is leaked.
+            const preHeader = PreHeader.from_block_header(currentHeader);
+            owned.push(preHeader);
 
             const parameters =
                 args.parameters !== null

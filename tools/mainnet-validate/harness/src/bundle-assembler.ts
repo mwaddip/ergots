@@ -96,7 +96,12 @@ export class BundleAssembler {
         for (let i = 0; i < boxIds.length; i++) boxBytesById.set(boxIds[i]!, fetched[i]!);
 
         const headerBytes = hexDecode(fragments.headerBytes);
-        const headerJson = JSON.stringify(block.header);
+        // Use the full raw node header JSON (block.header.rawJson), NOT
+        // JSON.stringify(block.header). The latter would only include the 4
+        // typed fields on HeaderJson and strip adProofsRoot, transactionsRoot,
+        // stateRoot, extensionHash, powSolutions, votes, nBits, timestamp, and
+        // unparsedBytes — all of which BlockHeader.from_json (WASM) requires.
+        const headerJson = block.header.rawJson;
         const transactions: TxBundle[] = [];
         for (let txi = 0; txi < block.blockTransactions.transactions.length; txi++) {
             const tx = block.blockTransactions.transactions[txi]!;
