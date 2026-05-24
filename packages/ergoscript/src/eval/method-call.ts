@@ -209,6 +209,30 @@ function registerHandlers(): void {
     return { kind: 'PreHeader', value: ctx.preHeader }
   } })
 
+  // SContext.minerPubKey (PropertyCall, typeId=101, methodId=10)
+  // Source: ergotree-interpreter/src/eval/scontext.rs:101-115 — MINER_PUBKEY_EVAL_FN
+  // Descriptor: ergotree-ir/src/types/scontext.rs:151-164 — returns SColl(SByte).
+  // Pattern A cost 20 (charged before obj check). Returns the 33-byte
+  // SEC1-compressed secp256k1 miner pubkey as Coll[Byte] — our PreHeader.minerPk
+  // is already stored in that form (mir/types.ts:184), byte-equivalent to
+  // sigma-rust's `EcPoint::sigma_serialize_bytes()`.
+  HANDLERS.set(handlerKey(101, 10), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(20)
+    if (obj.kind !== 'Context') {
+      throw new EvalError(
+        `SContext.minerPubKey expects a Context obj; got '${obj.kind}'`,
+        'context-obj-not-context'
+      )
+    }
+    if (ctx.preHeader === undefined) {
+      throw new EvalError(
+        `SContext.minerPubKey: ctx.preHeader is undefined`,
+        'context-field-missing'
+      )
+    }
+    return bytesToCollByteSValue(ctx.preHeader.minerPk)
+  } })
+
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
   // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
   // Pattern A cost 10 (charged before obj check). Returns Long.
