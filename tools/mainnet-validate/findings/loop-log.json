@@ -278,5 +278,94 @@
       "walkedToHeight": 220540,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 4,
+    "timestamp": "2026-05-24T20:32:17.113Z",
+    "halt": {
+      "height": 228633,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 2,
+        "inputIndex": 1
+      }
+    },
+    "diagnosis": {
+      "rootCause": "SPreHeader.minerPk (typeId=105, methodId=6) not in HANDLERS registry. Sigma-rust MINER_PK_EVAL_FN at spreheader.rs:38-42 charges Pattern A cost 10 then returns Arc::new(*preheader.miner_pk).into() — raw EcPoint as SGroupElement, NOT sigma-serialized to Coll[Byte]. Distinct from iter-2 SContext.minerPubKey (101:10) which DOES serialize.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 38,
+          "snippet": "pub(crate) static MINER_PK_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, _args| {"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 39,
+          "snippet": "ctx.add_jit_cost(10)?;"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 41,
+          "snippet": "Ok(Arc::new(*preheader.miner_pk).into())"
+        },
+        {
+          "path": "ergotree-ir/src/types/spreheader.rs",
+          "line": 28,
+          "snippet": "pub const MINER_PK_METHOD_ID: MethodId = MethodId(6);"
+        },
+        {
+          "path": "ergotree-ir/src/serialization/types.rs",
+          "line": 49,
+          "snippet": "SPRE_HEADER = 105,"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 239,
+          "snippet": "HANDLERS.set(handlerKey(105, 3), ... // SPreHeader.timestamp — gap at methodId=6"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Register handlerKey(105, 6) for SPreHeader.minerPk. Pattern A cost 10. Return SGroupElement with the raw 33-byte SEC1-compressed bytes from obj.value.minerPk (referential equality with input bytes; no serialize/parse roundtrip).",
+        "affectedArm": "spreheader-miner-pk",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/method-call.ts",
+          "facts/ergoscript-eval.md",
+          "packages/ergoscript/test/eval/spreheader-miner-pk.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/spreheader-miner-pk.test.ts",
+        "inputDescription": "PropertyCall(PreHeader, minerPk); 33-byte SEC1-compressed pubkey carried by synthetic PreHeader",
+        "expectedValue": "SGroupElement with .value === input minerPk bytes (referential)",
+        "expectedCost": 10
+      },
+      "confidence": 99,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #2, #5, #6, #7, #8, #10 (cited explicitly in handoff preamble to parallel session)",
+        "Fix-apply deferred to parallel session per [[feedback-missing-arms-parallel-sessions]] (arm-coverage class)"
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied by parallel session per HANDOFF_SPREHEADER_MINER_PK.md (rules #2, #5, #6, #7, #8 cited in preamble + verified via TDD red→green + dist-grep verification)",
+      "testCountBefore": 3213,
+      "testCountAfter": 3216,
+      "commitSha": "2767270a27c039b34495d50d8969751d07898b54",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/method-call.ts",
+        "facts/ergoscript-eval.md",
+        "packages/ergoscript/test/eval/spreheader-miner-pk.test.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/spreheader-miner-pk.test.ts"
+    },
+    "smokeResult": {
+      "walkedFromHeight": 220546,
+      "walkedToHeight": 228632,
+      "outcome": "halt"
+    }
   }
 ]
