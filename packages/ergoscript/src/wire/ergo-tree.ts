@@ -182,6 +182,93 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
 }
 
 /**
+ * Consume an ErgoTree from the reader's current position, advancing the
+ * cursor PAST the tree bytes without returning the parsed structure.
+ *
+ * For `hasSize=true` trees, this MIRRORS sigma-rust's
+ * `ErgoTree::Unparsed { tree_bytes, error }` fallback at
+ * `ergo_tree.rs:425-433`: the body region is skipped without attempting to
+ * parse it. Mainnet contains boxes whose ergoTree body fails strict parse
+ * (e.g., non-SSigmaProp root, malformed opcodes) — sigma-rust keeps these
+ * as Unparsed and accepts the box as byte-valid; the script is just
+ * permanently unevaluable (a "burn" box).
+ *
+ * For `hasSize=false` trees, the body grammar self-delimits, so we MUST
+ * parse to find where it ends — there is no skip-without-parse path.
+ * Parse failures propagate (sigma-rust also throws here; no Unparsed
+ * fallback for non-sized trees per `ergo_tree.rs:436-451`).
+ *
+ * Used by `parseSValue(SBox)` which captures `ergoTreeBytes` as a raw
+ * slice and discards the structured tree. First surfaced: mainnet
+ * h=545,684 tx 1 output 0 with header `0xcd` (version=5, hasSize=true,
+ * reserved bits 5-7 set) and 9-byte tree — the body `02 1a 8e 6f 59 fd 4a`
+ * tripped our strict trailing-bytes check; sigma-rust would have produced
+ * a non-SSigmaProp root and wrapped Unparsed.
+ */
+export function consumeTreeFromReader(outer: ByteReader): void {
+  const rawHeader = outer.readU8()
+  const hasSize = (rawHeader & HAS_SIZE_FLAG) !== 0
+
+  if (hasSize) {
+    const bodyByteLength = outer.readVlqU()
+    if (bodyByteLength > outer.remaining) {
+      throw new ErgoTreeParseError(
+        `declared body size ${bodyByteLength} exceeds remaining bytes ${outer.remaining}`,
+        'body-size-overflow',
+      )
+    }
+    // Skip past body region without attempting to parse — sigma-rust
+    // Unparsed-equivalent. The body bytes are captured separately by the
+    // caller (via `r.slice(treeStart, r.position)`).
+    outer.readBytes(bodyByteLength)
+    return
+  }
+
+  // hasSize=false: must parse to find body end. Rewind to header position
+  // is not supported by ByteReader, so we delegate to a helper that takes
+  // a pre-read header byte.
+  parseTreeBodyAfterHeader(outer, rawHeader)
+}
+
+/**
+ * Parse the constants + body region of a `hasSize=false` tree given the
+ * already-read header byte. Used only by `consumeTreeFromReader`'s
+ * non-sized path — for the sized path, the body is skipped without
+ * structural parse.
+ *
+ * Returns nothing; the caller (`consumeTreeFromReader`) discards the
+ * parsed tree.
+ */
+function parseTreeBodyAfterHeader(outer: ByteReader, rawHeader: number): void {
+  const header: TreeHeader = {
+    version: (rawHeader & VERSION_MASK) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
+    hasSize: false,
+    constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
+    rawHeader,
+  }
+
+  const constantTypes: SType[] = []
+  const constants: SValue[] = []
+  if (header.constantSegregation) {
+    const count = outer.readVlqU()
+    if (count > MAX_CONSTANTS_COUNT) {
+      throw new ErgoTreeParseError(
+        `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
+        'too-many-constants',
+      )
+    }
+    for (let i = 0; i < count; i++) {
+      const tpe = parseSType(outer)
+      constantTypes.push(tpe)
+      constants.push(parseSValue(tpe, header.version, outer))
+    }
+  }
+
+  // Body grammar self-delimits via the opcode dispatcher.
+  parseExpr(outer, constantTypes, constants, new Map(), header.version)
+}
+
+/**
  * Parse an ErgoTree from a byte slice. Throws {@link ErgoTreeParseError} on
  * envelope-level malformations (empty input, oversized input, malformed
  * header, constant-count overflow, trailing bytes). Body-parse failures

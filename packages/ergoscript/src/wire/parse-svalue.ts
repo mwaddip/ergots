@@ -65,7 +65,7 @@ import type { SType, SValue } from '../mir/types'
 import { ByteReader, parseHeader } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSType } from './parse-stype'
-import { parseTreeFromReader } from './ergo-tree'
+import { consumeTreeFromReader } from './ergo-tree'
 
 export class SValueParseError extends Error {
   constructor(
@@ -283,8 +283,14 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       // reader. The returned ErgoTree value is discarded here — the SBox
       // only needs the raw bytes; downstream callers re-parse via the
       // public `parseTree` if they want structural access.
+      // Use the lenient consumer: for `hasSize=true` trees, the body is
+      // skipped without attempting to parse — sigma-rust similarly wraps
+      // such trees as `ErgoTree::Unparsed { tree_bytes, error }` and
+      // accepts the box as byte-valid (mainnet "burn" boxes; first
+      // surfaced at h=545,684). For `hasSize=false` trees, strict parse
+      // is still required since the body grammar self-delimits.
       const treeStart = r.position
-      parseTreeFromReader(r)
+      consumeTreeFromReader(r)
       const ergoTreeBytes = r.slice(treeStart, r.position).slice()
 
       // --- creation_height (VLQ u32) ---

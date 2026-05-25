@@ -341,10 +341,31 @@ export function validateOutputRoundtrips(
             // Step 3: parse the ErgoTree. Failures here indicate either a
             // malformed tree on-chain (shouldn't happen — the node accepted
             // it) or a parser bug; either way it's worth surfacing.
+            //
+            // Exception: sigma-rust wraps `hasSize=true` trees whose body
+            // fails strict parse as `ErgoTree::Unparsed { tree_bytes,
+            // error }` (ergo_tree.rs:425-433). The box is still byte-valid
+            // — sigma-rust just stores the opaque bytes and the script is
+            // permanently unevaluable (a "burn" box). For such trees, our
+            // structural parseTree throws, but the round-trip semantics
+            // become trivial identity (we never re-encode structurally;
+            // the stored bytes ARE the canonical form). Detect the case
+            // via the header byte's hasSize flag and skip the
+            // serialize-check; the indexer's hash-verify already
+            // guaranteed `ergoTreeBytes` matches the canonical box bytes.
+            // First surfaced: mainnet h=545,684 tx 1 output 0.
             let tree;
             try {
                 tree = parseTree(ergoTreeBytes);
             } catch (err) {
+                if (
+                    ergoTreeBytes.length > 0 &&
+                    (ergoTreeBytes[0]! & 0x08) !== 0
+                ) {
+                    // hasSize=true: sigma-rust-Unparsed-equivalent. Bytes are
+                    // canonical (indexer-hash-verified); round-trip is identity.
+                    continue;
+                }
                 const message = err instanceof Error ? err.message : String(err);
                 throw new HarnessError(
                     'output-roundtrip',
