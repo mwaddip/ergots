@@ -66,11 +66,11 @@ export class BundleAssembler {
     /**
      * Assemble a BlockBundle for height `h`.
      *
-     * `rollingHeadersJson` is the up-to-10-newest-first preceding-header
-     * JSON strings (from prior `assemble` calls). On first block they may
-     * be empty; WASM oracle's padding handles that.
+     * `rollingHeaderBytes` is the up-to-10-newest-first preceding-header
+     * scorex bytes (from prior `assemble` calls). On first block they
+     * may be empty; WASM oracle's padding handles that.
      */
-    async assemble(height: number, rollingHeadersJson: string[]): Promise<BlockBundle> {
+    async assemble(height: number, rollingHeaderBytes: Uint8Array[]): Promise<BlockBundle> {
         const ids = await this.node.getHeaderIdsAtHeight(height);
         if (ids.length === 0) throw new Error(`/blocks/at/${height} returned empty`);
         const headerId = ids[0]!;
@@ -114,8 +114,8 @@ export class BundleAssembler {
                 txJson: stringifyLossless(tx),
                 spentBoxesBytes,
                 dataInputBoxesBytes,
-                headerJson,
-                rollingHeadersJson,
+                headerBytes,
+                rollingHeaderBytes,
                 parameters: fragments.parameters,
             });
             const inputs: InputBundle[] = tx.inputs.map((i, ii) => {

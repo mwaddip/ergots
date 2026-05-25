@@ -527,11 +527,14 @@ export async function main(argv: readonly string[]): Promise<number> {
         // Step 6: rebuild the rolling-window walker state.
         const walkerState = await rebuildWalkerState(node, startHeight, args.network);
 
-        // Rolling-headers JSON window for the WASM oracle. Initialized
-        // empty; accumulates from currentBundle.headerJson after each
-        // successful block. See module docstring "Rolling-headers JSON
-        // propagation" for the trade-off rationale.
-        let rollingHeadersJson: string[] = [];
+        // Rolling-headers BYTES window for the WASM oracle. Initialized
+        // empty; accumulates from currentBundle.headerBytes after each
+        // successful block. Bytes (not JSON) because
+        // `BlockHeader::from_json` cannot parse Autolykos v2+ headers
+        // (null `powSolutions.d`/`w`); the binary path via
+        // `sigma_parse_bytes` handles every chain version. Switched
+        // 2026-05-25 to unblock the walker at h=417,792 (v1→v2 activation).
+        let rollingHeaderBytes: Uint8Array[] = [];
 
         process.stdout.write(
             `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network})\n`,
@@ -557,7 +560,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 
             // 7a: assemble bundle (node REST + indexer REST + WASM oracle).
             try {
-                currentBundle = await assembler.assemble(h, rollingHeadersJson);
+                currentBundle = await assembler.assemble(h, rollingHeaderBytes);
             } catch (err) {
                 const report = classifyError(err, h, undefined);
                 writeErrorReport(args.errorReportPath, report);
@@ -585,11 +588,11 @@ export async function main(argv: readonly string[]): Promise<number> {
                 return 1;
             }
 
-            // 7c: advance the rolling-headers-JSON window for the next
+            // 7c: advance the rolling-headers-BYTES window for the next
             // block's WASM oracle call. Newest-first; cap at 10.
-            rollingHeadersJson.unshift(currentBundle.headerJson);
-            if (rollingHeadersJson.length > ROLLING_WINDOW_SIZE) {
-                rollingHeadersJson = rollingHeadersJson.slice(0, ROLLING_WINDOW_SIZE);
+            rollingHeaderBytes.unshift(currentBundle.headerBytes);
+            if (rollingHeaderBytes.length > ROLLING_WINDOW_SIZE) {
+                rollingHeaderBytes = rollingHeaderBytes.slice(0, ROLLING_WINDOW_SIZE);
             }
 
             // 7d: update + persist checkpoint.

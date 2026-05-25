@@ -57,17 +57,22 @@ export interface ComputeTxOracleArgs {
     /** Per-data-input box bytes, in tx order. */
     dataInputBoxesBytes: Uint8Array[];
     /**
-     * Current block header as a JSON string (the same object the node
-     * returns under `/blocks/{id}.header` or `/blocks/at/{h}.header`).
+     * Current block header as canonical scorex-serialized bytes (the
+     * same wire representation the chain validator hashes). Pulled from
+     * the node's `/blocks/{id}/validation-fragments` response. Replaces
+     * the previous `headerJson` field because `BlockHeader::from_json`
+     * cannot parse Autolykos v2+ headers (their `powSolutions.d`/`w`
+     * fields are `null` and `DeserializeBigIntFrom` has no `Null`
+     * variant) — surfaced at mainnet h=417,792.
      */
-    headerJson: string;
+    headerBytes: Uint8Array;
     /**
-     * Up to 10 newest-first preceding headers as JSON strings. The
-     * WASM `BlockHeaders` collection requires exactly 10 entries; we
-     * pad with the current header when short (matches the shim's
-     * `cost_oracle.rs:194-200` defensive pattern).
+     * Up to 10 newest-first preceding headers as canonical scorex bytes.
+     * The WASM `BlockHeaders` collection requires exactly 10 entries; we
+     * pad with the current header when short (matches the previous
+     * defensive pattern; bytes-equivalent to the prior JSON-based path).
      */
-    rollingHeadersJson: string[];
+    rollingHeaderBytes: Uint8Array[];
     /** Block parameters; null when extension parse failed (use sigma-rust default). */
     parameters: { maxBlockCost: number } | null;
 }
@@ -118,8 +123,8 @@ export class WasmCostOracle {
      *   - txJson: JSON.stringify of the tx from /blocks/{id}'s blockTransactions.transactions[]
      *   - spentBoxesBytes: canonical ErgoBox::sigma_serialize bytes per input, index-aligned with tx.inputs
      *   - dataInputBoxesBytes: canonical bytes per data input
-     *   - headerJson: current header JSON (as returned by the node REST API)
-     *   - rollingHeadersJson: up to 10 preceding headers (newest-first) as JSON strings
+     *   - headerBytes: current header canonical scorex bytes (from /blocks/{id}/validation-fragments)
+     *   - rollingHeaderBytes: up to 10 preceding headers (newest-first) as canonical scorex bytes
      *   - parameters: from /blocks/{id}/validation-fragments; null on extension parse fail
      *
      * Returns per-input results index-aligned with tx.inputs. oracleCost is
@@ -164,14 +169,14 @@ export class WasmCostOracle {
 
             // Step A: rolling window for BlockHeaders (not consumed, ptr stays valid)
             const rollingHeaders: BlockHeader[] = [];
-            for (const hj of args.rollingHeadersJson) {
-                const h = BlockHeader.from_json(hj);
+            for (const hb of args.rollingHeaderBytes) {
+                const h = BlockHeader.sigma_parse_bytes(hb);
                 owned.push(h);
                 rollingHeaders.push(h);
             }
             // Pad to 10 with fresh header instances (each needs its own ptr).
             while (rollingHeaders.length < 10) {
-                const padHeader = BlockHeader.from_json(args.headerJson);
+                const padHeader = BlockHeader.sigma_parse_bytes(args.headerBytes);
                 owned.push(padHeader);
                 rollingHeaders.push(padHeader);
             }
@@ -193,7 +198,7 @@ export class WasmCostOracle {
             }
 
             // Step B: current header for PreHeader (consumed by from_block_header)
-            const currentHeader = BlockHeader.from_json(args.headerJson);
+            const currentHeader = BlockHeader.sigma_parse_bytes(args.headerBytes);
             // Do NOT push currentHeader into owned — PreHeader.from_block_header
             // consumes it (destroys its internal WASM pointer via __destroy_into_raw).
             // Pushing a freed object into owned would cause a double-free in the
