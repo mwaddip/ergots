@@ -725,5 +725,136 @@
       "walkedToHeight": 545683,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 9,
+    "timestamp": "2026-05-25T23:16:57.041Z",
+    "halt": {
+      "height": 670557,
+      "phase": "evaluate-cost",
+      "errorCode": "cost-drift",
+      "location": {
+        "txIndex": 1,
+        "inputIndex": 0
+      },
+      "evaluateCost": {
+        "expected": 238,
+        "actual": 186,
+        "delta": 52
+      }
+    },
+    "diagnosis": {
+      "rootCause": "TS BinOp.Arith.Modulo arm used raw JS BigInt `%` (Rust-style truncate-toward-zero, signed remainder) for the `BigInt` kind, instead of mirroring sigma-rust's `BigInt256::checked_rem` JVM-mod semantics at `external/sigma-rust/ergotree-ir/src/bigint256.rs:207-222` which normalizes negative remainders to non-negative by adding the divisor (matching `java.math.BigInteger.mod()`). At h=670,557 the script `byteArrayToBigInt(dataInputs(0).id.slice(0, 15)) % 5 == 2 && SELF.creationInfo._1 >= 2661188` produced a negative BigInt dividend in our TS (because the first 15 bytes of the dataInput's id form a signed-negative BE BigInt). Our `%` yielded a value in [-4, 0], never `2`, so the EQ returned false and BinAnd short-circuited — skipping the GE/SelectField/ExtractCreationInfo/ValUse/ConstPlaceholder right-subtree. Sigma-rust's modulo yielded the JVM-mod value in [0, 4], matched `2`, evaluated the right subtree and charged 52 more JIT (= 20 GE + 10 SelectField + 16 ExtractCreationInfo + 5 ValUse + 1 ConstPlaceholder). h=670,557 is HISTORICALLY the BigInt-modulo divergence block — sigma-rust PR #857 fixed the *result* divergence; this iter-9 fix is the *cost-side* counterpart for our TS.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-ir/src/bigint256.rs",
+          "line": 207,
+          "snippet": "impl CheckedRem for BigInt256 {"
+        },
+        {
+          "path": "ergotree-ir/src/bigint256.rs",
+          "line": 210,
+          "snippet": "if v.is_negative() { return None; }  // Scala BigInt rejects negative divisor"
+        },
+        {
+          "path": "ergotree-ir/src/bigint256.rs",
+          "line": 213,
+          "snippet": "// Use mathematical modulo (always non-negative for positive divisor), matching JVM BigInteger.mod() semantics."
+        },
+        {
+          "path": "ergotree-ir/src/bigint256.rs",
+          "line": 216,
+          "snippet": "let rem = self.0.checked_rem(v.0)?;"
+        },
+        {
+          "path": "ergotree-ir/src/bigint256.rs",
+          "line": 217,
+          "snippet": "if rem.is_negative() { Some(Self(rem + v.0)) } else { Some(Self(rem)) }"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bin_op.rs",
+          "line": 198,
+          "snippet": "ArithOp::Multiply | ArithOp::Divide | ArithOp::Modulo => { ctx.add_jit_cost(if is_bigint { 25 } else { 15 })?; }"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/expr.rs",
+          "line": 53,
+          "snippet": "ctx.add_jit_cost(1)?; // ConstantPlaceholder = Fixed(1)"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/val_use.rs",
+          "line": 15,
+          "snippet": "_ctx.add_jit_cost(5)?; // ValUse = Fixed(5)"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/select_field.rs",
+          "line": 15,
+          "snippet": "ctx.add_jit_cost(10)?; // SelectField = Fixed(10)"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/extract_creation_info.rs",
+          "line": 15,
+          "snippet": "ctx.add_jit_cost(16)?; // ExtractCreationInfo = Fixed(16)"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bin_op.rs",
+          "line": 210,
+          "snippet": "_ => { ctx.add_jit_cost(20)?; } // LT, LE, GT, GE = Fixed(20)"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/bin-op/arith.ts",
+          "line": 166,
+          "snippet": "result = a % b  // raw JS BigInt %: Rust-truncate semantics, can be negative — should normalize for kind === BigInt"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/bin-op/arith.ts",
+          "line": 161,
+          "snippet": "// JS BigInt `%` matches Rust signed checked_rem ... For BigInt, the fixture oracle drives correctness.  ← assumption invalidated by mainnet at h=670,557"
+        }
+      ],
+      "proposedFix": {
+        "summary": "In packages/ergoscript/src/eval/bin-op/arith.ts Modulo case, branch on `kind === 'BigInt'`: (1) reject `b < 0n` with EvalError 'arith-divide-by-zero' (sigma-rust returns None for negative divisor; Scala BigInt rule); (2) compute `rem = a % b`; if `rem < 0n` set `result = rem + b`. Native-int Modulo (Byte/Short/Int/Long) keeps raw `a % b` (sigma-rust uses Rust-stdlib `checked_rem` for those, matching JS `%`). No cost change (BigInt Modulo cost stays 25, Pattern A). Mirror at bigint256.rs:207-222.",
+        "affectedArm": "arith",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/bin-op/arith.ts",
+          "packages/ergoscript/test/eval/bin-op-arith-jvm-mod-bigint.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/bin-op-arith-jvm-mod-bigint.test.ts",
+        "inputDescription": "5 BigInt cases + 1 Long regression: (1) BigInt(-7) % BigInt(3) → BigInt(2) (mathematical mod, not Rust -1); (2) BigInt(-1) % BigInt(5) → BigInt(4); (3) BigInt(7) % BigInt(3) → BigInt(1) (positive dividend unchanged); (4) BigInt(0) % BigInt(5) → BigInt(0); (5) BigInt(any) % BigInt(-3) → throws arith-divide-by-zero (negative divisor rejected per Scala BigInt). Each asserts ctx.jitCost == 25 (Pattern A). Long(-7) % Long(3) → Long(-1) stays Rust-style (sigma-rust matches for native ints).",
+        "expectedValue": "{ kind: BigInt, value: 2n } for case (1); { kind: BigInt, value: 4n } for case (2); etc.",
+        "expectedCost": 25
+      },
+      "confidence": 99,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (info-gather + fix-apply subagent dispatches, full canonical pipeline per loop-prompts/{info-gather,fix-apply}.md)",
+        "Confidence 99 (not 100) because dataInput[0].id at h=670,557 not directly in surfaced bundleExcerpt — confirmed by structural argument (first 15 BE bytes of a 32-byte id are sign-negative when byte[0] >= 0x80, ~50% of random ids). Numerical fingerprint (52 = 20+10+16+5+1, right-of-BinAnd subtree) and historical memory project_block342964_validation.md noting THIS block is the BigInt-mod divergence block jointly raise confidence above 95 asymmetric bar."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied via canonical subagent pipeline (info-gather + fix-apply); both echoed back #1-#10. Orchestrator independently re-verified testCountAfter (3257 ✓) and dist contains result = rem < 0n ? rem + b : rem at dist/index.js:4183. Walker smoke h=670,557..670,560 passed, no error-report.json, checkpoint advanced to 670560.",
+      "testCountBefore": 3251,
+      "testCountAfter": 3257,
+      "commitSha": "8c63cba",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/bin-op/arith.ts",
+        "packages/ergoscript/test/eval/bin-op-arith-jvm-mod-bigint.test.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/bin-op-arith-jvm-mod-bigint.test.ts",
+      "diffStat": {
+        "added": 147,
+        "removed": 6
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 545690,
+      "walkedToHeight": 670556,
+      "outcome": "halt"
+    }
   }
 ]
