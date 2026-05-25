@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @ergots/scorex && npm run build -w @ergots/avltree && npm run build -w @ergots/nipopow && npm run build -w @ergots/ergoscript",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "fixtures": "cd fixture-gen && cargo run --release"
