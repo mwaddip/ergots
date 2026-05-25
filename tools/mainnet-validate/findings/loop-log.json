@@ -634,5 +634,96 @@
       "walkedToHeight": 448657,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 8,
+    "timestamp": "2026-05-25T13:34:30.140Z",
+    "halt": {
+      "height": 545684,
+      "phase": "output-roundtrip",
+      "errorCode": "sbox-parse-failed",
+      "location": {
+        "txIndex": 1,
+        "outputIndex": 0
+      }
+    },
+    "diagnosis": {
+      "rootCause": "parseSValue(SBox) inner parseTreeFromReader threw `trailing-bytes` on a 9-byte hasSize=true tree (header 0xcd) whose body cannot be parsed as a valid SSigmaProp Expr. Sigma-rust ErgoTree::sigma_parse at ergo_tree.rs:410-453 has an Unparsed fallback (ergo_tree.rs:425-433): for hasSize=true trees where body parse fails (RootTpeError or any other), wraps as ErgoTree::Unparsed { tree_bytes, error } and accepts the box as byte-valid. Mainnet has burn boxes with such opaque trees.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-ir/src/ergo_tree.rs",
+          "line": 120,
+          "snippet": "enum ErgoTree { Unparsed { tree_bytes: Vec<u8>, error: ErgoTreeError }, Parsed(ParsedErgoTree) }"
+        },
+        {
+          "path": "ergotree-ir/src/ergo_tree.rs",
+          "line": 425,
+          "snippet": "Err(error) => { ... Ok(ErgoTree::Unparsed { tree_bytes: bytes, error }) }  // only for hasSize=true"
+        },
+        {
+          "path": "ergotree-ir/src/ergo_tree.rs",
+          "line": 173,
+          "snippet": "if root.tpe() != SType::SSigmaProp { return Err(ErgoTreeError::RootTpeError(root.tpe())); }"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/wire/ergo-tree.ts",
+          "line": 169,
+          "snippet": "if (header.hasSize && !inner.isExhausted) { throw new ErgoTreeParseError(`${inner.remaining} trailing bytes ...`, trailing-bytes) }"
+        },
+        {
+          "path": "packages/ergoscript/src/wire/parse-svalue.ts",
+          "line": 287,
+          "snippet": "parseTreeFromReader(r)  // pre-fix: strict; threw on unparseable trees"
+        },
+        {
+          "path": "tools/mainnet-validate/harness/src/validate-block.ts",
+          "line": 346,
+          "snippet": "tree = parseTree(ergoTreeBytes)  // secondary strict parse during output round-trip"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Three-part: (1) wire/ergo-tree.ts adds consumeTreeFromReader that skips hasSize=true body bytes without parsing (mirrors sigma-rust Unparsed); (2) wire/parse-svalue.ts SBox arm swaps strict parseTreeFromReader for consumeTreeFromReader (result was discarded anyway); (3) harness validate-block.ts catches parseTree exceptions on hasSize trees during output-roundtrip and skips serialize-check (round-trip on opaque bytes is trivial identity).",
+        "affectedArm": "ergo-tree-unparsed-fallback",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/wire/ergo-tree.ts",
+          "packages/ergoscript/src/wire/parse-svalue.ts",
+          "packages/ergoscript/test/wire/consume-tree.test.ts",
+          "tools/mainnet-validate/harness/src/validate-block.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/wire/consume-tree.test.ts",
+        "inputDescription": "6 tests: h=545,684 mainnet-shape tree skipped via consumeTreeFromReader; strict parseTreeFromReader still throws (no regression); body-size-overflow still throws even via lenient path; well-formed hasSize=true P2PK round-trip; hasSize=false delegates to strict parse; hasSize=false unparseable still throws",
+        "expectedValue": "consumeTreeFromReader advances cursor past tree bytes; hasSize=true unparseable does not throw; hasSize=false unparseable still throws (sigma-rust parity)",
+        "expectedCost": 0
+      },
+      "confidence": 95,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #2, #5, #6, #7, #8, #10 (in-session orchestrator with full source-read post the iter-7 calibration)",
+        "Wire-layer fix asymmetry intentional: lenient for hasSize trees only (sigma-rust parity); hasSize=false stays strict"
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session (rules #2: source-read sigma-rust ergo_tree.rs:120-126 + 410-453 confirmed Unparsed fallback shape and hasSize asymmetry; #5: mirror sigma-rust semantics not band-aid; #6: tsc + npm test + npm run build clean both packages + walker smoke h=545,684..545,690; #7+#8: read-edit-read across the 4 files)",
+      "testCountBefore": 3245,
+      "testCountAfter": 3251,
+      "commitSha": "2c069e0",
+      "filesChanged": [
+        "packages/ergoscript/src/wire/ergo-tree.ts",
+        "packages/ergoscript/src/wire/parse-svalue.ts",
+        "packages/ergoscript/test/wire/consume-tree.test.ts",
+        "tools/mainnet-validate/harness/src/validate-block.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/wire/consume-tree.test.ts"
+    },
+    "smokeResult": {
+      "walkedFromHeight": 448665,
+      "walkedToHeight": 545683,
+      "outcome": "halt"
+    }
   }
 ]
