@@ -21,7 +21,9 @@
  * No envelope cost for Eq/NEq — sigma-rust bin_op.rs:205 leaves the match arm
  * empty; all cost is delegated to eq_with_cost in data_value_comparer.rs.
  */
-import type { BinOp, SValue, RelationOp, SType } from '../../mir/types'
+import type { BinOp, SValue, RelationOp, SType, ErgoBox, AvlTreeData, PreHeader } from '../../mir/types'
+import type { Header } from '@ergots/scorex'
+import { sTypeEquals as sTypeEqualsHelper } from '../../mir/stype-helpers'
 import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
@@ -65,6 +67,147 @@ const EQ_OPTION_COST = 4
  *  Note: sigma-rust comment "Charged first, before the length-mismatch
  *  short-circuit so the dispatch itself is always paid for" (line 107). */
 const COLL_MATCH_TYPE_COST = 1
+
+/**
+ * Per-type equality costs for the composite kinds. Mirrors sigma-rust
+ * `ergotree-interpreter/src/eval/data_value_comparer.rs` constants
+ * (declared at top of the module): each underlying type derives
+ * `PartialEq` and the comparer arm charges its constant once then does
+ * `Ok(lv == rv)`.
+ */
+const EQ_BOX_COST = 6
+const EQ_AVL_TREE_COST = 6
+const EQ_PREHEADER_COST = 4
+const EQ_HEADER_COST = 6
+
+/** Byte-by-byte Uint8Array equality. Pure helper. */
+function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+/**
+ * Positional Vec<Token>-style equality. Mainnet stores tokens in deterministic
+ * order (sigma-rust `BoxTokens: BoundedVec<Token, 1, 255>`); we mirror the
+ * positional PartialEq.
+ */
+function tokensEqual(a: ErgoBox['tokens'], b: ErgoBox['tokens']): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (!bytesEq(a[i]!.id, b[i]!.id)) return false
+    if (a[i]!.amount !== b[i]!.amount) return false
+  }
+  return true
+}
+
+/**
+ * NonMandatoryRegisters equality. Sigma-rust's `NonMandatoryRegisters` is
+ * `Vec<RegisterValue>` (positional); mainnet always stores registers
+ * contiguously from R4 in ascending key order, so iterating R4..R9 and
+ * checking presence + value + tpe equality at each slot is logically
+ * equivalent to the underlying Vec PartialEq.
+ *
+ * tpe equality is checked because sigma-rust's RegisterValue is a Constant
+ * (tpe + bytes); two registers with the same SValue shape but different
+ * declared STypes are NOT structurally equal in sigma-rust.
+ */
+function registersEqual(a: ErgoBox['registers'], b: ErgoBox['registers']): boolean {
+  for (let k = 4; k <= 9; k++) {
+    const ra = a[k]
+    const rb = b[k]
+    if (ra === undefined && rb === undefined) continue
+    if (ra === undefined || rb === undefined) return false
+    if (!sTypeEqualsHelper(ra.tpe, rb.tpe)) return false
+    if (!primitiveValueEqual(ra.value, rb.value)) return false
+  }
+  return true
+}
+
+/**
+ * Structural ErgoBox equality. Sigma-rust derives PartialEq on the struct
+ * (`chain/ergo_box.rs`); we compare each field. `box_id` is skipped: it's a
+ * cached blake2b256 of the sigma-serialized bytes, so equal-other-fields
+ * boxes have equal box_ids by construction.
+ */
+function boxEqual(a: ErgoBox, b: ErgoBox): boolean {
+  if (a.value !== b.value) return false
+  if (!bytesEq(a.ergoTreeBytes, b.ergoTreeBytes)) return false
+  if (!tokensEqual(a.tokens, b.tokens)) return false
+  if (!registersEqual(a.registers, b.registers)) return false
+  if (a.creationHeight !== b.creationHeight) return false
+  if (!bytesEq(a.txId, b.txId)) return false
+  if (a.index !== b.index) return false
+  return true
+}
+
+/**
+ * Structural AvlTreeData equality (sigma-rust `mir/avl_tree_data.rs`
+ * derived PartialEq). `valueLengthOpt: number | null` — `null === null`
+ * for the None case; numeric `===` otherwise.
+ */
+function avlTreeEqual(a: AvlTreeData, b: AvlTreeData): boolean {
+  if (!bytesEq(a.digest, b.digest)) return false
+  if (a.treeFlags !== b.treeFlags) return false
+  if (a.keyLength !== b.keyLength) return false
+  if (a.valueLengthOpt !== b.valueLengthOpt) return false
+  return true
+}
+
+/**
+ * AutolykosSolution equality (sigma-rust `ergo-chain-types/src/header.rs`).
+ * `powOnetimePk: Uint8Array | null` (v1-only field) — null-vs-null match,
+ * bytes-equal otherwise. `powDistance: bigint | null` — bigint `===`
+ * compares value-equal; null cases handled identically.
+ */
+function autolykosSolutionEqual(
+  a: Header['autolykosSolution'],
+  b: Header['autolykosSolution']
+): boolean {
+  if (!bytesEq(a.minerPk, b.minerPk)) return false
+  if ((a.powOnetimePk === null) !== (b.powOnetimePk === null)) return false
+  if (a.powOnetimePk !== null && b.powOnetimePk !== null) {
+    if (!bytesEq(a.powOnetimePk, b.powOnetimePk)) return false
+  }
+  if (!bytesEq(a.nonce, b.nonce)) return false
+  if (a.powDistance !== b.powDistance) return false
+  return true
+}
+
+/** Structural PreHeader equality (sigma-rust `ergo-chain-types/src/preheader.rs`). */
+function preHeaderEqual(a: PreHeader, b: PreHeader): boolean {
+  if (a.version !== b.version) return false
+  if (!bytesEq(a.parentId, b.parentId)) return false
+  if (a.timestamp !== b.timestamp) return false
+  if (a.nBits !== b.nBits) return false
+  if (a.height !== b.height) return false
+  if (!bytesEq(a.minerPk, b.minerPk)) return false
+  if (!bytesEq(a.votes, b.votes)) return false
+  return true
+}
+
+/**
+ * Structural Header equality (sigma-rust `ergo-chain-types/src/header.rs`
+ * derived PartialEq across all 13 fields). `id` IS included (sigma-rust
+ * compares it; it's a stored cache of the hash, but comparing it costs
+ * little and matches the derive(PartialEq) field-by-field shape).
+ */
+function headerEqual(a: Header, b: Header): boolean {
+  if (a.version !== b.version) return false
+  if (!bytesEq(a.id, b.id)) return false
+  if (!bytesEq(a.parentId, b.parentId)) return false
+  if (!bytesEq(a.adProofsRoot, b.adProofsRoot)) return false
+  if (!bytesEq(a.stateRoot, b.stateRoot)) return false
+  if (!bytesEq(a.transactionRoot, b.transactionRoot)) return false
+  if (a.timestamp !== b.timestamp) return false
+  if (a.nBits !== b.nBits) return false
+  if (a.height !== b.height) return false
+  if (!bytesEq(a.extensionRoot, b.extensionRoot)) return false
+  if (!autolykosSolutionEqual(a.autolykosSolution, b.autolykosSolution)) return false
+  if (!bytesEq(a.votes, b.votes)) return false
+  if (!bytesEq(a.unparsedBytes, b.unparsedBytes)) return false
+  return true
+}
 
 /**
  * Per-item collection equality cost parameters (base, perChunk, chunkSize),
@@ -326,15 +469,26 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return true
     }
 
-    // Box, AvlTree, PreHeader, Header: not equality-comparable via BinOp in v0 ErgoScript.
-    case 'Box':
-    case 'AvlTree':
-    case 'PreHeader':
-    case 'Header':
-      throw new EvalError(
-        `BinOp.Relation.Eq: ${a.kind} equality not yet implemented in this slice`,
-        'not-implemented-yet'
-      )
+    // Box / AvlTree / PreHeader / Header — structural equality via field-by-field
+    // compare, mirroring Rust derive(PartialEq) on each underlying type. Per-type
+    // cost charged once before the recursive walk (data_value_comparer.rs:73-128).
+    // First mainnet trigger: h=448,658 tx 1 input 0 (Coll[Box] equality).
+    case 'Box': {
+      ctx.addCost(EQ_BOX_COST)
+      return boxEqual(a.value, (b as typeof a).value)
+    }
+    case 'AvlTree': {
+      ctx.addCost(EQ_AVL_TREE_COST)
+      return avlTreeEqual(a.value, (b as typeof a).value)
+    }
+    case 'PreHeader': {
+      ctx.addCost(EQ_PREHEADER_COST)
+      return preHeaderEqual(a.value, (b as typeof a).value)
+    }
+    case 'Header': {
+      ctx.addCost(EQ_HEADER_COST)
+      return headerEqual(a.value, (b as typeof a).value)
+    }
 
     default: {
       const _exhaust: never = a
@@ -417,14 +571,18 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Context': return true
     // Global: unit variant, always equal (same catch-all arm as Context in sigma-rust).
     case 'Global': return true
+    // Box / AvlTree / PreHeader / Header inside Coll — same structural compare
+    // as the top-level sValueEquals arms, but WITHOUT cost charging (sigma-rust's
+    // Coll PartialEq is a single bulk-cost charge above, with element compare
+    // via PartialEq not eq_with_cost). Mirrors the iter-7 fix shape.
     case 'Box':
+      return boxEqual(a.value, (b as typeof a).value)
     case 'AvlTree':
+      return avlTreeEqual(a.value, (b as typeof a).value)
     case 'PreHeader':
+      return preHeaderEqual(a.value, (b as typeof a).value)
     case 'Header':
-      throw new EvalError(
-        `sValueEquals inner Coll: ${a.kind} equality not yet implemented`,
-        'not-implemented-yet'
-      )
+      return headerEqual(a.value, (b as typeof a).value)
     default: {
       const _exhaust: never = a
       throw new Error(`primitiveValueEqual: unreachable kind ${JSON.stringify(_exhaust)}`)
