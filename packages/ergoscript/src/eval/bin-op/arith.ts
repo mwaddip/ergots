@@ -158,12 +158,29 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
           'arith-divide-by-zero',
         )
       }
-      // JS BigInt `%` matches Rust's signed checked_rem semantics for the
-      // cases in our fixture corpus (positive/negative dividends with
-      // non-zero divisors). Max/Min cannot overflow; Modulo cannot overflow
-      // for non-BigInt256 types (result is always in [-(|b|-1), |b|-1]).
-      // For BigInt, the fixture oracle drives correctness.
-      result = a % b
+      // Per-type dispatch (sigma-rust bin_op.rs:328-336):
+      //   Byte/Short/Int/Long → Rust-stdlib `checked_rem` (truncate-toward-zero
+      //     signed remainder). JS BigInt `%` matches: result is always in
+      //     [-(|b|-1), |b|-1], so checkRange for native int kinds is safe.
+      //   BigInt → BigInt256::checked_rem normalizes to JVM-mod semantics
+      //     (bigint256.rs:207-222): negative divisor rejected (Scala BigInt
+      //     rule), and a negative Rust remainder gets `+ b` added to land in
+      //     [0, |b|-1] matching `java.math.BigInteger.mod()`. Mainnet h=670,557
+      //     exercised the negative-dividend path; raw `%` mis-evaluated a
+      //     `byteArrayToBigInt(...) % 5 == 2` BinAnd guard, skipping the right
+      //     subtree and undercharging by 52 JIT. Fixed in 2j-b iter-9.
+      if (kind === 'BigInt') {
+        if (b < 0n) {
+          throw new EvalError(
+            `BinOp.Arith.Modulo: BigInt modulo with negative divisor (Scala BigInt semantics: rejected)`,
+            'arith-divide-by-zero',
+          )
+        }
+        const rem = a % b
+        result = rem < 0n ? rem + b : rem
+      } else {
+        result = a % b
+      }
       checkRange(result, kind, 'arith-overflow')
       break
 
