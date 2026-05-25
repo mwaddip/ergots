@@ -537,5 +537,102 @@
       "walkedToHeight": 417791,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 7,
+    "timestamp": "2026-05-25T09:44:46.812Z",
+    "halt": {
+      "height": 448658,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 1,
+        "inputIndex": 0
+      }
+    },
+    "diagnosis": {
+      "rootCause": "sValueEquals + primitiveValueEqual threw not-implemented-yet for Box/AvlTree/PreHeader/Header. Sigma-rust handles these in data_value_comparer.rs:73-128 via Ok(lv == rv) — Rust derive(PartialEq) on each type does field-by-field structural compare with per-type cost (EQ_BOX_COST=6, EQ_AVL_TREE_COST=6, EQ_PREHEADER_COST=4, EQ_HEADER_COST=6). Mainnet h=448,658 is the first block to exercise Coll[Box] equality.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/eval/data_value_comparer.rs",
+          "line": 73,
+          "snippet": "(Value::CBox(_), Value::CBox(_)) => { ctx.add_jit_cost(EQ_BOX_COST)?; Ok(lv == rv) }"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/data_value_comparer.rs",
+          "line": 15,
+          "snippet": "const EQ_BOX_COST: u64 = 6; const EQ_AVL_TREE_COST: u64 = 6; const EQ_PREHEADER_COST: u64 = 4; const EQ_HEADER_COST: u64 = 6;"
+        },
+        {
+          "path": "ergotree-ir/src/chain/ergo_box.rs",
+          "line": 0,
+          "snippet": "#[derive(PartialEq, Eq, Debug, Clone)] pub struct ErgoBox { ... }"
+        },
+        {
+          "path": "ergotree-ir/src/mir/avl_tree_data.rs",
+          "line": 0,
+          "snippet": "#[derive(PartialEq, Eq, Debug, Clone)] pub struct AvlTreeData { ... }"
+        },
+        {
+          "path": "ergo-chain-types/src/preheader.rs",
+          "line": 0,
+          "snippet": "#[derive(PartialEq, Eq, Debug, Clone)] pub struct PreHeader { ... }"
+        },
+        {
+          "path": "ergo-chain-types/src/header.rs",
+          "line": 0,
+          "snippet": "#[derive(PartialEq, Eq, Debug, Clone)] pub struct Header { ... }"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/bin-op/relation.ts",
+          "line": 329,
+          "snippet": "// pre-fix: case Box/AvlTree/PreHeader/Header → throw not-implemented-yet"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/bin-op/relation.ts",
+          "line": 420,
+          "snippet": "// pre-fix: same throw in primitiveValueEqual inner-Coll path"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Add 4 structural-equality helpers (boxEqual, avlTreeEqual, preHeaderEqual, headerEqual) with autolykosSolutionEqual subhelper. Wire into sValueEquals (with per-type cost charge) and into primitiveValueEqual (no cost; mirror sigma-rust Coll PartialEq semantics). Register equality iterates R4..R9 with sparse-Record-equivalent-to-positional-Vec semantics. tokens compared positionally. box_id skipped (derived from other fields).",
+        "affectedArm": "sValueEquals-composite",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/bin-op/relation.ts",
+          "packages/ergoscript/test/eval/bin-op-relation-composite-equality.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/bin-op-relation-composite-equality.test.ts",
+        "inputDescription": "21 tests: per-type equal/differ-by-field cases for all 4 types; AutolykosSolution null/Option/bigint edge cases; Coll[Box] regression for the iter-7 mainnet pattern",
+        "expectedValue": "sValueEquals returns true for equal pairs (with correct per-type cost charged) and false for any field mismatch; no more not-implemented-yet throws",
+        "expectedCost": 6
+      },
+      "confidence": 96,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #2, #5, #6, #7, #8, #10 (in-session orchestrator after morning user direction \"do source read then we decide\")",
+        "Confidence boost from ~92% (pre-source-read) → ~96% (post): source-read of all 4 derive(PartialEq) struct fields + cost constants resolved per-field semantics. Calibration lesson saved at [[feedback-source-read-is-diagnosis]] — overnight stop was unnecessary caution."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session by orchestrator (rules #2: source-read pushed confidence to 96%; #5: structural per-field compare not band-aid; #6: tsc + npm test + npm run build clean + walker smoke at h=448,658..448,665; #7+#8: read-edit-read cycle on relation.ts)",
+      "testCountBefore": 3224,
+      "testCountAfter": 3245,
+      "commitSha": "74d542c",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/bin-op/relation.ts",
+        "packages/ergoscript/test/eval/bin-op-relation-composite-equality.test.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/bin-op-relation-composite-equality.test.ts"
+    },
+    "smokeResult": {
+      "walkedFromHeight": 417800,
+      "walkedToHeight": 448657,
+      "outcome": "halt"
+    }
   }
 ]
