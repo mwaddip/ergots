@@ -179,11 +179,26 @@ function hexDecode(s: string): Uint8Array {
  * an error-report here — resume failures are operational (wrong
  * --node-url, node not running) rather than chain-validation findings.
  */
+export interface RebuildResult {
+    state: WalkerState;
+    /**
+     * Newest-first bytes of the same up-to-10 preceding headers stored in
+     * `state.rollingHeaders`. Used to seed the WASM oracle's
+     * `rollingHeaderBytes` so its `ctx.headers` matches what our evaluator
+     * sees via `walkerState.rollingHeaders`. Without this seeding (and
+     * starting `rollingHeaderBytes = []`), the oracle's `compute_tx_oracle_costs`
+     * pads with the current block header × 10, producing divergent
+     * `Context.headers` and silent cost-drift on any script that reads
+     * `CONTEXT.headers(i)` for `i >= 1`. Found at h=680,341 iter-12.
+     */
+    initialRollingHeaderBytes: Uint8Array[];
+}
+
 export async function rebuildWalkerState(
     node: NodeClient,
     startHeight: number,
     network: 'mainnet' | 'testnet',
-): Promise<WalkerState> {
+): Promise<RebuildResult> {
     const v2ActivationHeight =
         network === 'mainnet'
             ? V2_ACTIVATION_HEIGHT_MAINNET
@@ -191,10 +206,13 @@ export async function rebuildWalkerState(
 
     if (startHeight <= 2) {
         return {
-            lastHeader: null,
-            rollingHeaders: [],
-            network,
-            v2ActivationHeight,
+            state: {
+                lastHeader: null,
+                rollingHeaders: [],
+                network,
+                v2ActivationHeight,
+            },
+            initialRollingHeaderBytes: [],
         };
     }
 
@@ -205,6 +223,7 @@ export async function rebuildWalkerState(
     // by necessity — keep-alive amortizes connection cost, and resume is
     // a one-time cost per harness invocation.
     const ascending: Header[] = [];
+    const ascendingBytes: Uint8Array[] = [];
     for (let h = firstHeight; h <= lastHeight; h++) {
         const ids = await node.getHeaderIdsAtHeight(h);
         if (ids.length === 0) {
@@ -215,18 +234,23 @@ export async function rebuildWalkerState(
         const headerBytes = hexDecode(fragments.headerBytes);
         const header = parseHeader(new ByteReader(headerBytes));
         ascending.push(header);
+        ascendingBytes.push(headerBytes);
     }
 
     // WalkerState convention: rollingHeaders is most-recent-first
     // (index 0 = lastHeader). Reverse the ascending fetch order.
     const rollingHeaders = ascending.slice().reverse();
+    const initialRollingHeaderBytes = ascendingBytes.slice().reverse();
     const lastHeader = rollingHeaders[0] ?? null;
 
     return {
-        lastHeader,
-        rollingHeaders,
-        network,
-        v2ActivationHeight,
+        state: {
+            lastHeader,
+            rollingHeaders,
+            network,
+            v2ActivationHeight,
+        },
+        initialRollingHeaderBytes,
     };
 }
 
@@ -525,16 +549,20 @@ export async function main(argv: readonly string[]): Promise<number> {
                 : createInitialCheckpoint(args, startHeight, tipHeight);
 
         // Step 6: rebuild the rolling-window walker state.
-        const walkerState = await rebuildWalkerState(node, startHeight, args.network);
+        const { state: walkerState, initialRollingHeaderBytes } =
+            await rebuildWalkerState(node, startHeight, args.network);
 
-        // Rolling-headers BYTES window for the WASM oracle. Initialized
-        // empty; accumulates from currentBundle.headerBytes after each
-        // successful block. Bytes (not JSON) because
-        // `BlockHeader::from_json` cannot parse Autolykos v2+ headers
-        // (null `powSolutions.d`/`w`); the binary path via
-        // `sigma_parse_bytes` handles every chain version. Switched
-        // 2026-05-25 to unblock the walker at h=417,792 (v1→v2 activation).
-        let rollingHeaderBytes: Uint8Array[] = [];
+        // Rolling-headers BYTES window for the WASM oracle. Seeded from
+        // `initialRollingHeaderBytes` (the bytes of the same headers stored
+        // in `walkerState.rollingHeaders`) so the oracle's `ctx.headers`
+        // matches our evaluator's view. Pre-iter-12 this was initialized
+        // empty; the oracle padded with the current block header × 10,
+        // producing divergent `Context.headers` and a silent cost-drift
+        // on any script reading `CONTEXT.headers(i)` for `i >= 1`. Bytes
+        // (not JSON) because `BlockHeader::from_json` cannot parse
+        // Autolykos v2+ headers (null `powSolutions.d`/`w`); the binary
+        // path via `sigma_parse_bytes` handles every chain version.
+        let rollingHeaderBytes: Uint8Array[] = initialRollingHeaderBytes.slice();
 
         process.stdout.write(
             `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network})\n`,
