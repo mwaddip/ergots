@@ -1171,5 +1171,106 @@
       "walkedToHeight": 680340,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 13,
+    "timestamp": "2026-05-26T08:57:25.923Z",
+    "halt": {
+      "height": 680692,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 10,
+        "inputIndex": 0
+      }
+    },
+    "diagnosis": {
+      "rootCause": "Pre-v2 ErgoTree compat path missing in our evalBoolToSigmaProp. Sigma-rust bool_to_sigma.rs:32-36 implements JVM v4.x compatibility: when ctx.tree_version() < ErgoTreeVersion::V2 and the input is already a SigmaProp, return it unchanged (Value::SigmaProp(sp)). The gate is on the SCRIPT's ErgoTree header version (treeVersion derived from spent box's ergoTreeBytes[0] & 0x07), NOT the block's activated version. Mainnet h=680,692 tx 5fe235558... spends a v0 tree `10010101d1d17300` = BoolToSigmaProp(BoolToSigmaProp(Const(SBoolean, true))) where the outer BoolToSigmaProp receives a SigmaProp from the inner one — sigma-rust passes it through (cost 31), we strict-checked and threw bin-op-not-boolean. Sigma-rust comment explicitly names THIS tx/block as the canonical example, and pins behavior with eval_v0_tree_passes_sigmaprop_through + eval_v2_tree_rejects_sigmaprop tests.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/eval/bool_to_sigma.rs",
+          "line": 19,
+          "snippet": "ctx.add_jit_cost(15)?; // BoolToSigmaProp = Fixed(15)"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bool_to_sigma.rs",
+          "line": 32,
+          "snippet": "if ctx.tree_version() < ErgoTreeVersion::V2 {"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bool_to_sigma.rs",
+          "line": 33,
+          "snippet": "if let Value::SigmaProp(sp) = input_v { return Ok(Value::SigmaProp(sp)); }"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bool_to_sigma.rs",
+          "line": 23,
+          "snippet": "// JVM v4.x compatibility: pre-v2 ErgoTree scripts (versions V0/V1) accepted a SigmaProp input to BoolToSigmaProp and passed it through unchanged. Mainnet contains historical transactions with sigmaProp(sigmaProp(...)) (e.g. tx 5fe235558... at block 680,692, address Fo6oijFP2JM87ac7w) that rely on this. The gate is on the SCRIPT s ErgoTree header version, not the blocks activated version."
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bool_to_sigma.rs",
+          "line": 73,
+          "snippet": "eval_v0_tree_passes_sigmaprop_through — sigma-rust test pinning v0 BoolToSigmaProp(SigmaProp) → passthrough"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/bool_to_sigma.rs",
+          "line": 91,
+          "snippet": "eval_v2_tree_rejects_sigmaprop — sigma-rust test pinning v2 BoolToSigmaProp(SigmaProp) → strict-bool-extract error"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/bool-to-sigma-prop.ts",
+          "line": 41,
+          "snippet": "if (input.kind !== 'Boolean') throw new EvalError(...) — pre-fix: strict Boolean check rejected SigmaProp"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/bool-to-sigma-prop.ts",
+          "line": 19,
+          "snippet": "// Note: sigma-rust has a pre-v2 ErgoTree compat path ... In phase 2c we implement the v2+ strict path only ... The compat path requires tree-version context (phase 2e) and is deferred."
+        }
+      ],
+      "proposedFix": {
+        "summary": "Add `if ((ctx.treeVersion ?? 0) < 2 && input.kind === 'SigmaProp') return input` before the existing Boolean strict-check in evalBoolToSigmaProp. Matches sigma-rust bool_to_sigma.rs:32-36 exactly. No cost-charging change (Pattern A 15 still charged unconditionally before the compat check and before eval-child). +7 tests covering v0/v1 SigmaProp(true)/(false) pass-through + v2/v3 SigmaProp rejection + v0 Boolean still produces TrivialProp.",
+        "affectedArm": "bool-to-sigma-prop",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/bool-to-sigma-prop.ts",
+          "packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts",
+        "inputDescription": "7 new tests: (1) v0 SigmaProp(true) input passes through unchanged with cost 20 (5 Const + 15 BoolToSigmaProp); (2) v0 SigmaProp(false) same; (3) v1 SigmaProp(true) pass-through; (4) v1 SigmaProp(false) pass-through; (5) v2 SigmaProp input rejected as bin-op-not-boolean; (6) v3 same rejection; (7) v0 Boolean(true) still produces TrivialProp(true) (compat path is opt-in, no regression for non-SigmaProp inputs).",
+        "expectedValue": "{ kind: SigmaProp, value: { tag: TrivialProp, value: <bool> } } — input passed through unchanged for v<2; error for v>=2",
+        "expectedCost": 20
+      },
+      "confidence": 100,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (in-session orchestrator at ≥95% confidence per overnight autonomy rules; sigma-rust source explicitly names THIS exact tx/block in the impl comment + has dedicated pass/reject tests for both tree-version branches).",
+        "Pre-fix deferral note in our impl explicitly cited \"The compat path requires tree-version context (phase 2e) and is deferred\" — 2e shipped treeVersion threading; the deferral was already closeable."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session (rules #2: source-cited at sigma-rust bool_to_sigma.rs:32-36 with named mainnet tx in comment; #5: gated pass-through at the diagnosed site, not band-aid; #6: tsc + npm test 3272/3272 + npm run build clean + walker smoke h=680,692..680,700 passed; #7+#8: read-edit-read on bool-to-sigma-prop.ts + the test file).",
+      "testCountBefore": 3265,
+      "testCountAfter": 3272,
+      "commitSha": "e1d0699",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/bool-to-sigma-prop.ts",
+        "packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/bool-to-sigma-prop.test.ts",
+      "diffStat": {
+        "added": 90,
+        "removed": 15
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 680351,
+      "walkedToHeight": 680691,
+      "outcome": "halt"
+    }
   }
 ]
