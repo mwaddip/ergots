@@ -38,6 +38,7 @@ import {
     Parameters,
     PreHeader,
     Transaction,
+    UnsignedTransaction,
     parameters_new,
     compute_tx_oracle_costs,
 } from 'ergo-lib-wasm-nodejs';
@@ -88,6 +89,68 @@ export class WasmCostOracleError extends Error {
 }
 
 /**
+ * Parse a signed-transaction JSON into a sigma-rust `Transaction` without
+ * triggering the tx_id round-trip check in `Transaction.from_json`. Mainnet
+ * contains valid txs whose ErgoTrees don't byte-stably round-trip through
+ * sigma-rust (e.g. header byte 0x10 — segregated constants with hasSize);
+ * `from_json` rejects these with `InvalidTxId` even though the chain
+ * validator accepted them.
+ *
+ * Strategy: split the signed JSON into an unsigned shape + per-input proofs,
+ * parse via `UnsignedTransaction.from_json` (no tx_id field on
+ * `UnsignedTransactionJson` per `chain/json/transaction.rs:30-42`, so no
+ * check), then re-assemble via `Transaction.from_unsigned_tx(unsigned,
+ * proofs)`.
+ *
+ * Iter-14 closure (h=693,479 tx 1). Source pinned by ergo-node-rust memory
+ * `feedback_indexer_json_direct.md` which catalogued the same block as
+ * triggering a sigma-rust crashloop on the JSON path.
+ */
+interface SignedInputJson {
+    boxId: string;
+    spendingProof: {
+        proofBytes: string;
+        extension: Record<string, string>;
+    };
+}
+
+interface SignedTxJson {
+    id?: string;
+    inputs: SignedInputJson[];
+    dataInputs: { boxId: string }[];
+    outputs: unknown[];
+    size?: number;
+}
+
+function parseTxBypassingIdCheck(txJson: string): Transaction {
+    const signed = JSON.parse(txJson) as SignedTxJson;
+    const proofs: Uint8Array[] = signed.inputs.map((inp) => {
+        const hex = inp.spendingProof.proofBytes;
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < bytes.length; i++) {
+            bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+        }
+        return bytes;
+    });
+    const unsignedJson = {
+        inputs: signed.inputs.map((inp) => ({
+            boxId: inp.boxId,
+            extension: inp.spendingProof.extension,
+        })),
+        dataInputs: signed.dataInputs,
+        outputs: signed.outputs,
+    };
+    const unsigned = UnsignedTransaction.from_json(JSON.stringify(unsignedJson));
+    try {
+        return Transaction.from_unsigned_tx(unsigned, proofs);
+    } finally {
+        // `from_unsigned_tx` consumes the unsigned tx (the WASM wrapper
+        // calls `__destroy_into_raw` on it). Calling .free() here would
+        // double-free; the consumption is the cleanup.
+    }
+}
+
+/**
  * Tracked WASM objects must expose `.free()` per the wasm-bindgen
  * generated typings; using a narrow interface keeps the cleanup loop
  * typed end-to-end.
@@ -134,7 +197,22 @@ export class WasmCostOracle {
     computeTxOracleCosts(args: ComputeTxOracleArgs): OracleInputResult[] {
         const owned: WasmFreeable[] = [];
         try {
-            const tx = Transaction.from_json(args.txJson);
+            // Parse via UnsignedTransaction + from_unsigned_tx instead of
+            // Transaction.from_json. Sigma-rust's signed-tx JSON deserializer
+            // re-serializes the parsed inputs/outputs and rejects when the
+            // recomputed tx_id != the JSON's tx_id. For some ErgoTrees
+            // (e.g. header byte 0x10 — segregated constants with hasSize)
+            // the parse+serialize cycle is NOT byte-stable, so a chain-valid
+            // tx hits InvalidTxId. Mainnet h=693,479 tx 1 was crashlooping
+            // ergo-node-rust until the indexer parsed JSON directly
+            // (`[[reference-ergo-node-rust-memory-dir-cross-ref]]` —
+            // `feedback_indexer_json_direct.md`). The unsigned path constructs
+            // a `Transaction` via `from_unsigned_tx(unsigned, proofs)`, which
+            // builds a TxId from the unsigned bytes plus proofs — no JSON
+            // tx_id validation. UnsignedTransactionJson lacks the tx_id field
+            // entirely (chain/json/transaction.rs:30-42), so there's no check
+            // to fail.
+            const tx = parseTxBypassingIdCheck(args.txJson);
             owned.push(tx);
 
             // Build the spent-boxes collection. `ErgoBoxes` has no
