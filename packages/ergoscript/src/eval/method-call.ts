@@ -290,6 +290,23 @@ function registerHandlers(): void {
     return { kind: 'Int', value: idx }
   } })
 
+  // SPreHeader.parentId (PropertyCall, typeId=105, methodId=2)
+  // Source: ergotree-interpreter/src/eval/spreheader.rs:14-18 — PARENT_ID_EVAL_FN
+  // Descriptor: ergotree-ir/src/types/spreheader.rs:20,53-58 — returns SColl(SByte).
+  // Pattern A cost 10 (charged before obj check). Returns the 32-byte
+  // parentId as Coll[Byte] — contrast with SPreHeader.minerPk (105:6) which
+  // returns SGroupElement of a raw 33-byte pubkey.
+  HANDLERS.set(handlerKey(105, 2), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.parentId expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return bytesToCollByteSValue(obj.value.parentId)
+  } })
+
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
   // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
   // Pattern A cost 10 (charged before obj check). Returns Long.
