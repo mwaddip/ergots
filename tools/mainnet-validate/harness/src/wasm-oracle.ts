@@ -42,6 +42,7 @@ import {
     parameters_new,
     compute_tx_oracle_costs,
 } from 'ergo-lib-wasm-nodejs';
+import { parseLossless, stringifyLossless } from './rest/json-bigint.js';
 
 export interface OracleInputResult {
     /** Raw JitCost = ctx.jit_cost_value(). NOT ReductionResult.cost. */
@@ -123,7 +124,16 @@ interface SignedTxJson {
 }
 
 function parseTxBypassingIdCheck(txJson: string): Transaction {
-    const signed = JSON.parse(txJson) as SignedTxJson;
+    // CRITICAL: use parseLossless (BigInt-preserving) instead of JSON.parse.
+    // Token amounts > 2^53 (e.g. 9223371996546264297 at mainnet h=693,479
+    // tx 2 OUTPUTS[0]) lose precision through JS Number, producing wrong
+    // amounts in the WASM oracle (off by hundreds). Discovered iter-15 via
+    // ValDef sentinel trace showing sigma-rust computed v10=297 while we
+    // computed v10=0; root cause was this JSON precision loss, not a
+    // sigma-rust or evaluator bug. stringifyLossless on the rebuilt
+    // unsigned JSON serialises BigInts back as JSON integer literals,
+    // which sigma-rust's serde_json parses as i64 with full precision.
+    const signed = parseLossless(txJson) as SignedTxJson;
     const proofs: Uint8Array[] = signed.inputs.map((inp) => {
         const hex = inp.spendingProof.proofBytes;
         const bytes = new Uint8Array(hex.length / 2);
@@ -140,7 +150,7 @@ function parseTxBypassingIdCheck(txJson: string): Transaction {
         dataInputs: signed.dataInputs,
         outputs: signed.outputs,
     };
-    const unsigned = UnsignedTransaction.from_json(JSON.stringify(unsignedJson));
+    const unsigned = UnsignedTransaction.from_json(stringifyLossless(unsignedJson));
     try {
         return Transaction.from_unsigned_tx(unsigned, proofs);
     } finally {
