@@ -850,6 +850,7 @@ export type SValue =
   | { kind: 'Tuple'; items: SValue[] }
   | { kind: 'Option'; elem: SType; value: SValue | null }
   | { kind: 'Lambda'; closure: Closure }
+  | { kind: 'String'; value: string }                // iter-17 (h=766,915 tx 15 output 1)
 
 // ---------------------------------------------------------------------------
 // ErgoTree envelope.

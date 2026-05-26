@@ -408,11 +408,25 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
     // one of these, the fixture itself must be deferred to the appropriate
     // later phase.
     // ---------------------------------------------------------------------
+    case 'SString': {
+      // Sigma-rust serialization/data.rs:134-139:
+      //   let len = r.get_u32()?;    // VLQ-encoded u32 (sigma-ser vlq_encode.rs:78)
+      //   let mut buf = vec![0; len as usize];
+      //   r.read_exact(&mut buf)?;
+      //   Literal::String(String::from_utf8_lossy(&buf).into())
+      // Harness needs SString parsing for output-roundtrip on boxes whose
+      // registers carry SString values (mainnet first surfaces this at
+      // h=766,915 tx 15 output 1; iter-17 closes the phase-2a deferral).
+      const len = r.readVlqU()
+      const bytes = r.readBytes(len)
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+      return { kind: 'String', value: decoded }
+    }
+
     case 'SPreHeader':
     case 'SContext':
     case 'SGlobal':
     case 'SAny':
-    case 'SString':
     case 'SFunc':
     case 'STypeVar':
       throw new SValueParseError(

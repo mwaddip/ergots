@@ -490,6 +490,14 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return headerEqual(a.value, (b as typeof a).value)
     }
 
+    case 'String': {
+      // SString equality is primitive (JS string compare). Iter-17 added
+      // SValue.String for output-roundtrip parity; mainnet rarely exercises
+      // String-equality at eval time, but it must compile and behave correctly.
+      ctx.addCost(EQ_PRIM_COST)
+      return a.value === (b as typeof a).value
+    }
+
     default: {
       const _exhaust: never = a
       throw new Error(`sValueEquals: unreachable kind ${JSON.stringify(_exhaust)}`)
@@ -583,6 +591,8 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
       return preHeaderEqual(a.value, (b as typeof a).value)
     case 'Header':
       return headerEqual(a.value, (b as typeof a).value)
+    case 'String':
+      return a.value === (b as typeof a).value
     default: {
       const _exhaust: never = a
       throw new Error(`primitiveValueEqual: unreachable kind ${JSON.stringify(_exhaust)}`)

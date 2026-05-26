@@ -422,11 +422,11 @@ describe('SValue deferred-kind errors', () => {
     // SBox is implemented in phase 2f (see test/wire/sbox-roundtrip.test.ts)
     // SAvlTree is implemented in phase 2h-b (see test/wire/svalue-savltree.test.ts)
     // SHeader is implemented in phase 2h-c.1 (V3-gated; see test/wire/svalue-sheader-v3-parse.test.ts)
+    // SString implemented in iter-17 (h=766,915 tx 15 output 1); see SString roundtrip test below
     { tag: 'SPreHeader' },
     { tag: 'SContext' },
     { tag: 'SGlobal' },
     { tag: 'SAny' },
-    { tag: 'SString' },
     { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SInt' }, tpeParams: [] },
     { tag: 'STypeVar', name: 'T' },
   ]
@@ -440,6 +440,21 @@ describe('SValue deferred-kind errors', () => {
         expect(e).toBeInstanceOf(SValueParseError)
         expect((e as SValueParseError).code).toBe('not-implemented-phase-2a')
       }
+    })
+  }
+
+  // Iter-17: SString parse + serialize (VLQ length + UTF-8 bytes). Roundtrip
+  // covers ASCII, empty, multi-byte UTF-8, and longer strings. Mainnet first
+  // surfaced this at h=766,915 tx 15 output 1.
+  for (const sample of ['', 'hello', 'Ergo', '🦀 hello 中文', 'x'.repeat(300)]) {
+    it(`SString roundtrip: '${sample.slice(0, 20)}'`, () => {
+      const w = new ByteWriter()
+      serializeSValue({ tag: 'SString' }, { kind: 'String', value: sample }, 0, w)
+      const bytes = w.toBytes()
+      const r = new ByteReader(bytes)
+      const parsed = parseSValue({ tag: 'SString' }, 0, r)
+      expect(parsed).toEqual({ kind: 'String', value: sample })
+      expect(r.isExhausted).toBe(true)
     })
   }
 

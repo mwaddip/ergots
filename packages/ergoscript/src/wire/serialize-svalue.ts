@@ -457,11 +457,25 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
     // Deferred kinds: same set as parseSValue's deferred arms. No inline
     // `Const(_)` of these types appears in phase 2a corpora.
     // ---------------------------------------------------------------------
+    case 'SString': {
+      // Inverse of parseSValue SString. Mirrors sigma-rust data.rs + sigma-ser
+      // vlq_encode.rs:78 — `put_u32` is VLQ-encoded, not fixed-width.
+      if (v.kind !== 'String') {
+        throw new SValueSerializeError(
+          `serializeSValue SString: expected kind 'String', got '${v.kind}'`,
+          'kind-mismatch'
+        )
+      }
+      const bytes = new TextEncoder().encode(v.value)
+      w.writeVlqU(bytes.length)
+      w.writeBytes(bytes)
+      return
+    }
+
     case 'SPreHeader':
     case 'SContext':
     case 'SGlobal':
     case 'SAny':
-    case 'SString':
     case 'SFunc':
     case 'STypeVar':
       throw new SValueSerializeError(
