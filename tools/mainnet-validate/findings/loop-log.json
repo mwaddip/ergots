@@ -1519,5 +1519,107 @@
       "walkedToHeight": 727603,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 17,
+    "timestamp": "2026-05-26T19:32:22.323Z",
+    "halt": {
+      "height": 766915,
+      "phase": "output-roundtrip",
+      "errorCode": "sbox-parse-failed",
+      "location": {
+        "txIndex": 15,
+        "outputIndex": 1
+      }
+    },
+    "diagnosis": {
+      "rootCause": "Output box at h=766,915 tx 15 output 1 has a register whose SValue is SString. Our wire-format layer deferred SString in phase 2a (no fixture corpus exercised it), throwing 'not-implemented-phase-2a' on parseSValue. Sigma-rust serialization/data.rs:134-139 implements SString as VLQ-length-prefixed UTF-8: `r.get_u32() (VLQ via sigma-ser vlq_encode.rs:78) → vec![0; len] → read_exact → String::from_utf8_lossy`. Mainnet's first SString-bearing box surfaces this long-deferred edge.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-ir/src/serialization/data.rs",
+          "line": 134,
+          "snippet": "SString => { let len = r.get_u32()?; let mut buf = vec![0; len as usize]; r.read_exact(&mut buf)?; Literal::String(String::from_utf8_lossy(&buf).into()) }"
+        },
+        {
+          "path": "sigma-ser/src/vlq_encode.rs",
+          "line": 78,
+          "snippet": "fn put_u32(&mut self, v: u32) -> io::Result<()> { Self::put_u64(self, v as u64) } — VLQ-encoded, NOT fixed-width"
+        },
+        {
+          "path": "ergotree-ir/src/types/stype.rs",
+          "line": 69,
+          "snippet": "SString,  // SType variant"
+        },
+        {
+          "path": "ergotree-ir/src/serialization/types.rs",
+          "line": 145,
+          "snippet": "SType::SString => TypeCode::SSTRING"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/wire/parse-svalue.ts",
+          "line": 415,
+          "snippet": "case SString → throw not-implemented-phase-2a — pre-fix"
+        },
+        {
+          "path": "packages/ergoscript/src/wire/serialize-svalue.ts",
+          "line": 464,
+          "snippet": "case SString → throw not-implemented-phase-2a — pre-fix"
+        },
+        {
+          "path": "packages/ergoscript/src/mir/types.ts",
+          "line": 852,
+          "snippet": "// SValue union missing String variant pre-fix"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Add SValue.String variant (`{kind:String, value:string}`). parseSValue SString: readVlqU length, readBytes, TextDecoder utf-8. serializeSValue SString: TextEncoder utf-8, writeVlqU length, writeBytes. Add String case to relation.ts sValueEquals (top-level + Coll-inner). +4 SString-roundtrip test cases covering empty/ASCII/multi-byte UTF-8/300-char.",
+        "affectedArm": "svalue-sstring",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/mir/types.ts",
+          "packages/ergoscript/src/wire/parse-svalue.ts",
+          "packages/ergoscript/src/wire/serialize-svalue.ts",
+          "packages/ergoscript/src/eval/bin-op/relation.ts",
+          "packages/ergoscript/test/svalue.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/svalue.test.ts (SString roundtrip cases)",
+        "inputDescription": "5 SString roundtrip cases: empty string, ASCII \"hello\", \"Ergo\", multi-byte UTF-8 \"🦀 hello 中文\", 300-char \"x\".repeat(300). serialize → parse → compare.",
+        "expectedValue": "Roundtrip preserves the string exactly. Reader exhausted after parse.",
+        "expectedCost": 0
+      },
+      "confidence": 100,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (in-session orchestrator; sigma-rust source explicit + simple, deferral was a known TODO acknowledged by user \"not implemented, been a while\").",
+        "Initial mis-read: assumed sigma-rust `get_u32()` was fixed 4-byte BE; sigma-ser vlq_encode.rs:78 clarified it is VLQ-encoded. Caught by tsc + smoke walking (would also have caught via the test failure pre-commit)."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session: #2 (source-cited via sigma-rust data.rs + vlq_encode.rs; user-acknowledged \"been a while\"); #5 (close the deferral at the parse/serialize site, not band-aid skip); #6 (tsc clean + 3271→3276 tests + dist build + walker smoke h=766,915..766,920 exit 0); #7+#8 (read-edit-read on the 5 touched files; +4 roundtrip test cases for confidence).",
+      "testCountBefore": 3272,
+      "testCountAfter": 3276,
+      "commitSha": "ac07126",
+      "filesChanged": [
+        "packages/ergoscript/src/mir/types.ts",
+        "packages/ergoscript/src/wire/parse-svalue.ts",
+        "packages/ergoscript/src/wire/serialize-svalue.ts",
+        "packages/ergoscript/src/eval/bin-op/relation.ts",
+        "packages/ergoscript/test/svalue.test.ts"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/svalue.test.ts (SString roundtrip cases)",
+      "diffStat": {
+        "added": 57,
+        "removed": 3
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 727611,
+      "walkedToHeight": 766914,
+      "outcome": "halt"
+    }
   }
 ]
