@@ -953,5 +953,108 @@
       "walkedToHeight": 679336,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 11,
+    "timestamp": "2026-05-26T02:31:03.026Z",
+    "halt": {
+      "height": 679837,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 1,
+        "inputIndex": 0
+      }
+    },
+    "diagnosis": {
+      "rootCause": "Missing handler for SPreHeader.height (typeId=105, methodId=5). sigma-rust HEIGHT_METHOD_ID=MethodId(5) at ergotree-ir/src/types/spreheader.rs:26 returns SType::SInt (property def at lines 73-77). HEIGHT_EVAL_FN at ergotree-interpreter/src/eval/spreheader.rs:32-36 charges Pattern A cost 10 then returns preheader.height as i32. Our method-call.ts had handlers for (105,2) parentId [iter-10], (105,3) timestamp, (105,6) minerPk [iter-4] — gap at methodId=5. Third sequential SPreHeader missing-arm in the loop.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-ir/src/types/spreheader.rs",
+          "line": 26,
+          "snippet": "pub const HEIGHT_METHOD_ID: MethodId = MethodId(5);"
+        },
+        {
+          "path": "ergotree-ir/src/types/spreheader.rs",
+          "line": 76,
+          "snippet": "property(\"height\", SType::SInt, HEIGHT_METHOD_ID);"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 32,
+          "snippet": "pub(crate) static HEIGHT_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, _args| {"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 33,
+          "snippet": "ctx.add_jit_cost(10)?;"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 35,
+          "snippet": "Ok((preheader.height as i32).into())"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 293,
+          "snippet": "HANDLERS.set(handlerKey(105, 2), ...) // SPreHeader.parentId — iter-10 template"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 310,
+          "snippet": "HANDLERS.set(handlerKey(105, 3), ...) // SPreHeader.timestamp — sibling Pattern A cost 10"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 324,
+          "snippet": "HANDLERS.set(handlerKey(105, 6), ...) // SPreHeader.minerPk — iter-4 precedent; gap at methodId=5"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Add HANDLERS.set(handlerKey(105, 5), ...) for SPreHeader.height in method-call.ts. Pattern A ctx.addCost(10) before obj check; return { kind: 'Int', value: obj.value.height }. Insert between handlers 105:3 (timestamp) and 105:6 (minerPk) to preserve ascending methodId order. Mirror iter-10 parentId + iter-4 minerPk precedents. Update facts/ergoscript-eval.md registry.",
+        "affectedArm": "spreheader-height",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/method-call.ts",
+          "facts/ergoscript-eval.md",
+          "packages/ergoscript/test/eval/spreheader-height.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/spreheader-height.test.ts",
+        "inputDescription": "PropertyCall(PreHeader, height); synthetic PreHeader with known height (e.g. 679837). Pattern A cost charged before obj check. Successful eval returns { kind: Int, value: <height> } with ctx.jitCost +10. Non-PreHeader obj throws method-not-implemented (sibling pattern).",
+        "expectedValue": "{ kind: Int, value: <preHeader.height> }",
+        "expectedCost": 10
+      },
+      "confidence": 100,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (info-gather + fix-apply canonical subagent pipeline; overnight autonomy mode at ≥95% confidence + no-sigma-rust-patches rule).",
+        "NOTE: 3rd sequential SPreHeader missing-arm (iter-4 minerPk, iter-10 parentId, iter-11 height). Still-missing: methodId=1 (version), 4 (nBits), 7 (votes). Sigma-rust has all of them. Continuing per-iter per loop discipline; user may want to batch-route the remaining 3 when awake."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied via canonical subagent pipeline (info-gather + fix-apply); both echoed back #1-#10. Orchestrator verified: commit 40acac2 landed; testCountAfter=3265; dist contains handlerKey(105, 5) at line 6620; walker smoke h=679,837..679,840 passed; checkpoint advanced to 679840.",
+      "testCountBefore": 3261,
+      "testCountAfter": 3265,
+      "commitSha": "40acac2",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/method-call.ts",
+        "packages/ergoscript/test/eval/spreheader-height.test.ts",
+        "facts/ergoscript-eval.md"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/spreheader-height.test.ts",
+      "diffStat": {
+        "added": 161,
+        "removed": 2
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 679341,
+      "walkedToHeight": 679836,
+      "outcome": "halt"
+    }
   }
 ]
