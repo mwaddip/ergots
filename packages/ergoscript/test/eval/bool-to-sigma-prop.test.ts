@@ -27,7 +27,7 @@ import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
-import type { BoolToSigmaProp } from '../../src/mir/types'
+import type { BoolToSigmaProp, SValue } from '../../src/mir/types'
 import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -85,5 +85,69 @@ describe('BoolToSigmaProp arm — non-Boolean operand', () => {
     const ctx = makeContext()
     const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
     expect(err.code).toBe('bin-op-not-boolean')
+  })
+})
+
+describe('BoolToSigmaProp arm — pre-v2 ErgoTree SigmaProp pass-through (iter-13)', () => {
+  // Sigma-rust ref: bool_to_sigma.rs:32-36 — JVM v4.x compat.
+  // Mainnet h=680,692 tx 5fe235558... spent a v0 tree `10010101d1d17300` =
+  // BoolToSigmaProp(BoolToSigmaProp(Const(SBoolean, true))). The outer
+  // BoolToSigmaProp receives a SigmaProp from the inner one; pre-v2 trees
+  // pass it through, v2+ trees reject.
+
+  const trueSigmaProp: SValue = {
+    kind: 'SigmaProp',
+    value: { tag: 'TrivialProp', value: true },
+  }
+  const falseSigmaProp: SValue = {
+    kind: 'SigmaProp',
+    value: { tag: 'TrivialProp', value: false },
+  }
+
+  function buildExpr(value: SValue) {
+    return {
+      tag: 'BoolToSigmaProp' as const,
+      input: { tag: 'Const' as const, tpe: { tag: 'SSigmaProp' as const }, value },
+    }
+  }
+
+  for (const treeVersion of [0, 1] as const) {
+    it(`v${treeVersion} tree: SigmaProp(true) input passes through unchanged with cost 15`, () => {
+      const ctx = makeContext({ treeVersion })
+      const result = evalExpr(buildExpr(trueSigmaProp), Env.empty(), ctx)
+      expect(result).toEqual(trueSigmaProp)
+      expect(ctx.jitCost).toBe(20) // Const(5) + BoolToSigmaProp(15)
+    })
+
+    it(`v${treeVersion} tree: SigmaProp(false) input passes through unchanged with cost 15`, () => {
+      const ctx = makeContext({ treeVersion })
+      const result = evalExpr(buildExpr(falseSigmaProp), Env.empty(), ctx)
+      expect(result).toEqual(falseSigmaProp)
+      expect(ctx.jitCost).toBe(20)
+    })
+  }
+
+  for (const treeVersion of [2, 3] as const) {
+    it(`v${treeVersion} tree: SigmaProp input is rejected (strict bool extraction)`, () => {
+      const ctx = makeContext({ treeVersion })
+      const err = captureEvalError(() =>
+        evalExpr(buildExpr(trueSigmaProp), Env.empty(), ctx)
+      )
+      expect(err.code).toBe('bin-op-not-boolean')
+    })
+  }
+
+  it('v0 tree: Boolean(true) input still produces TrivialProp(true) (compat path is opt-in)', () => {
+    const ctx = makeContext({ treeVersion: 0 })
+    const result = evalExpr(
+      {
+        tag: 'BoolToSigmaProp',
+        input: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } },
+      },
+      Env.empty(),
+      ctx,
+    )
+    expect(result).toEqual(trueSigmaProp)
+    expect(ctx.jitCost).toBe(20) // Const(5) + BoolToSigmaProp(15)
   })
 })
