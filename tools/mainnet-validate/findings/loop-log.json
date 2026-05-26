@@ -1272,5 +1272,88 @@
       "walkedToHeight": 680691,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 14,
+    "timestamp": "2026-05-26T10:29:40.997Z",
+    "halt": {
+      "height": 693479,
+      "phase": "wasm-oracle",
+      "errorCode": "wasm-call-threw",
+      "location": {
+        "txIndex": 1
+      }
+    },
+    "diagnosis": {
+      "rootCause": "Sigma-rust's Transaction.from_json re-serializes parsed inputs/outputs and rejects when recomputed tx_id != JSON tx_id (ergo-lib/src/chain/json/transaction.rs:92-108 — `if tx.tx_id == tx_json.tx_id { Ok(tx) } else { Err(InvalidTxId) }`). For ErgoTrees that don't byte-stably round-trip through sigma-rust's parse+serialize (e.g. header byte 0x10 — segregated constants with hasSize), chain-valid txs hit InvalidTxId. h=693,479 tx 1 (id c8520befd345ff40fcf244b44ffe8cea29c8b116b174cfaf4f2a521604d531a4) has such an ErgoTree; sigma-rust's reserialization computes id 2666cbbbdcce38b1a4326cf2aa82566d815c4608c9a78e68b16be19dd88340e9. ergo-node-rust caught the same crashloop on the same block in session 27 (memory feedback_indexer_json_direct.md) and worked around it by having its indexer parse JSON directly. Found via user-explicit rule: grep rust-node memory FIRST when iter halt is not missing-arm or obvious-easy-fix.",
+      "sigmaRustCites": [
+        {
+          "path": "ergo-lib/src/chain/json/transaction.rs",
+          "line": 92,
+          "snippet": "impl TryFrom<TransactionJson> for Transaction { fn try_from(tx_json: TransactionJson) -> Result<Self, Self::Error> { ... if tx.tx_id == tx_json.tx_id { Ok(tx) } else { Err(InvalidTxId) } } }"
+        },
+        {
+          "path": "ergo-lib/src/chain/json/transaction.rs",
+          "line": 30,
+          "snippet": "pub struct UnsignedTransactionJson { inputs, data_inputs, outputs }  // NO tx_id field → no check"
+        },
+        {
+          "path": "bindings/ergo-lib-wasm/src/transaction.rs",
+          "line": 219,
+          "snippet": "pub fn from_unsigned_tx(unsigned_tx: UnsignedTransaction, proofs: Vec<Uint8Array>) -> Result<Transaction, JsValue>"
+        },
+        {
+          "path": "ergo-lib/src/chain/transaction/input.rs",
+          "line": 26,
+          "snippet": "pub struct UnsignedInput { #[serde(rename = \"boxId\")] pub box_id: BoxId, #[serde(rename = \"extension\")] pub extension: ContextExtension }"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "tools/mainnet-validate/harness/src/wasm-oracle.ts",
+          "line": 137,
+          "snippet": "const tx = Transaction.from_json(args.txJson)  // pre-fix: triggers sigma-rust JSON tx_id check"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Replace `Transaction.from_json(txJson)` with a helper `parseTxBypassingIdCheck(txJson)` that: (1) splits the signed JSON into an unsigned shape (drops `id`, `size`; per-input lifts `extension` from `spendingProof.extension` to top-level + collects `proofBytes` hex as Uint8Array); (2) parses via `UnsignedTransaction.from_json(unsignedJson)` (no tx_id check — UnsignedTransactionJson has no tx_id field per chain/json/transaction.rs:30-42); (3) reassembles via `Transaction.from_unsigned_tx(unsigned, proofs)`. Source-cite ergo-node-rust feedback_indexer_json_direct.md.",
+        "affectedArm": "harness-wasm-oracle-tx-from-unsigned",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "tools/mainnet-validate/harness/src/wasm-oracle.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "Empirical: walker smoke at h=693,479 — pre-fix throws wasm-call-threw on tx 1; post-fix proceeds to tx 2 with a separate cost-drift (handled as iter-15).",
+        "inputDescription": "h=693,479 tx 1 (id c8520bef...); ergoTreeHex starts with 0x10 (segregated constants, hasSize), parses but doesn't byte-stably re-serialize",
+        "expectedValue": "sigma-rust Transaction constructed without InvalidTxId throw",
+        "expectedCost": 0
+      },
+      "confidence": 100,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (in-session orchestrator, ≥95 via rust-node memory cross-reference; rust-node already catalogued this exact block + the bypass-via-direct-JSON-parsing pattern).",
+        "iter-14 is the SECOND harness-side bug (after iter-12 rolling-headers init), and the first to surface a sigma-rust LIBRARY limitation (parse+serialize non-roundtrip-stable) rather than a sigma-rust semantic divergence from JVM. Sigma-rust would need its from_json deserializer to either accept the JSON tx_id verbatim or to use parse-only-no-recompute semantics — but the user rule forbids sigma-rust patches, so we work around in our caller."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session by orchestrator: #2 (rust-node memory shortcut yielded ≥95 immediately); #5 (root-cause workaround at the call site; the JSON check itself is sigma-rust-internal and not patchable per user rule); #6 (tsc + npm test 120 passing / 1 skipped clean + smoke at h=693,479 confirmed tx 1 no longer throws); #7+#8 (read-edit-read on wasm-oracle.ts).",
+      "testCountBefore": 120,
+      "testCountAfter": 120,
+      "commitSha": "23387c6",
+      "filesChanged": [
+        "tools/mainnet-validate/harness/src/wasm-oracle.ts"
+      ],
+      "regressionTestPath": "Walker smoke h=693,479 (tx 1 no longer throws wasm-call-threw)",
+      "diffStat": {
+        "added": 79,
+        "removed": 1
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 680701,
+      "walkedToHeight": 693478,
+      "outcome": "halt"
+    }
   }
 ]
