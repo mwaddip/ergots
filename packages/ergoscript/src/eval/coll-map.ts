@@ -133,8 +133,18 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     const bodyEnv = env.extend(argId, item)
     // Eval body (sigma-rust coll_map.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // Result-type check: if outElemTpe is known, verify itemRes matches.
-    if (outElemTpe !== null) {
+    // Result-type check: if outElemTpe is known AND not SAny, verify itemRes matches.
+    // SAny is the "any type" placeholder used when the mapper's static return
+    // type isn't constrainable (e.g. polymorphic lambdas, mappers whose result
+    // type can't be inferred without a substitution). Sigma-rust treats SAny
+    // as accepting any concrete runtime type, so we mirror that by skipping
+    // the per-item check in that case (matches the doc-comment policy at the
+    // top of this file: "When outElemTpe is not derivable (mapper is not
+    // FuncValue or has SAny type), the per-item type check is skipped").
+    // Iter-16 closure: mainnet h=727,604 tx 11 input 0 has a Map whose mapper
+    // statically returns SAny but runtime yields SLong; pre-fix this halted
+    // with 'lambda-result-type-mismatch'.
+    if (outElemTpe !== null && outElemTpe.tag !== 'SAny') {
       const itemTpe = inferSType(itemRes)
       if (!sTypeEquals(itemTpe, outElemTpe)) {
         throw new EvalError(
