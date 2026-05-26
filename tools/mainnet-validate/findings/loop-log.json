@@ -856,5 +856,102 @@
       "walkedToHeight": 670556,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 10,
+    "timestamp": "2026-05-26T02:18:46.635Z",
+    "halt": {
+      "height": 679337,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 3,
+        "inputIndex": 0
+      }
+    },
+    "diagnosis": {
+      "rootCause": "Missing handler for SPreHeader.parentId (typeId=105, methodId=2). sigma-rust registers PARENT_ID_METHOD_ID=MethodId(2) at ergotree-ir/src/types/spreheader.rs:20 returning SColl(SByte) (line 57), with PARENT_ID_EVAL_FN at ergotree-interpreter/src/eval/spreheader.rs:14-18 charging Pattern A cost 10 then returning preheader.parent_id as Coll[Byte]. Our packages/ergoscript/src/eval/method-call.ts registers handlerKey(105, 3) timestamp and handlerKey(105, 6) minerPk but had no entry for handlerKey(105, 2). Iter-4 SPreHeader.minerPk precedent (commit 2767270) provides the template.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-ir/src/types/spreheader.rs",
+          "line": 20,
+          "snippet": "pub const PARENT_ID_METHOD_ID: MethodId = MethodId(2);"
+        },
+        {
+          "path": "ergotree-ir/src/types/spreheader.rs",
+          "line": 57,
+          "snippet": "property(\"parentId\", SColl(SByte.into()), PARENT_ID_METHOD_ID);"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 14,
+          "snippet": "pub(crate) static PARENT_ID_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, _args| {"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 15,
+          "snippet": "ctx.add_jit_cost(10)?;"
+        },
+        {
+          "path": "ergotree-interpreter/src/eval/spreheader.rs",
+          "line": 17,
+          "snippet": "Ok(Into::<Vec<i8>>::into(preheader.parent_id).into())"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 296,
+          "snippet": "HANDLERS.set(handlerKey(105, 3), ... )  // SPreHeader.timestamp"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/method-call.ts",
+          "line": 315,
+          "snippet": "HANDLERS.set(handlerKey(105, 6), ... )  // SPreHeader.minerPk — gap at methodId=2 between these two entries"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Register handlerKey(105, 2) for SPreHeader.parentId in method-call.ts. Pattern A cost 10 (charged before obj check, mirroring 105:3 and 105:6 handlers). Return SType=SColl(SByte); value=bytesToCollByteSValue(obj.value.parentId). Add regression test mirroring iter-4 spreheader-miner-pk precedent. Update facts/ergoscript-eval.md method-handler registry section.",
+        "affectedArm": "spreheader-parent-id",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/method-call.ts",
+          "facts/ergoscript-eval.md",
+          "packages/ergoscript/test/eval/spreheader-parent-id.test.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "packages/ergoscript/test/eval/spreheader-parent-id.test.ts",
+        "inputDescription": "PropertyCall(PreHeader, parentId); synthetic PreHeader with known 32-byte Uint8Array parentId. Pattern A cost-charged-before-obj-check (test with non-PreHeader obj to confirm cost charged first then throws). Successful eval returns SValue.kind=Coll, elementType=SByte, items.length=32. Missing PreHeader on context throws appropriate error.",
+        "expectedValue": "Coll[Byte] of length 32 matching preHeader.parentId",
+        "expectedCost": 10
+      },
+      "confidence": 100,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (info-gather + fix-apply canonical subagent pipeline; overnight autonomy mode with user explicit ≥95% confidence + no-sigma-rust-patches rule. Sigma-rust HAS the arm; only our TS missing.)"
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied via canonical subagent pipeline (info-gather + fix-apply); both echoed back #1-#10. Orchestrator independently verified: commit 88bb2f3 landed; testCountAfter=3261; dist contains HANDLERS.set(handlerKey(105, 2), ...) at line 6598 with bytesToCollByteSValue(obj.value.parentId); walker smoke h=679,337..679,340 passed, checkpoint advanced to 679340.",
+      "testCountBefore": 3257,
+      "testCountAfter": 3261,
+      "commitSha": "88bb2f3",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/method-call.ts",
+        "packages/ergoscript/test/eval/spreheader-parent-id.test.ts",
+        "facts/ergoscript-eval.md"
+      ],
+      "regressionTestPath": "packages/ergoscript/test/eval/spreheader-parent-id.test.ts",
+      "diffStat": {
+        "added": 188,
+        "removed": 2
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 670561,
+      "walkedToHeight": 679336,
+      "outcome": "halt"
+    }
   }
 ]
