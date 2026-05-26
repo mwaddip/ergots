@@ -321,6 +321,22 @@ function registerHandlers(): void {
     return { kind: 'Long', value: obj.value.timestamp }
   } })
 
+  // SPreHeader.height (PropertyCall, typeId=105, methodId=5)
+  // Source: ergotree-interpreter/src/eval/spreheader.rs:32-36 — HEIGHT_EVAL_FN
+  // Descriptor: ergotree-ir/src/types/spreheader.rs:26,73-77 — returns SType::SInt.
+  // Pattern A cost 10 (charged before obj check). Returns height as Int (i32).
+  // PreHeader.height in mir/types.ts:182 is already a JS number — fits i32.
+  HANDLERS.set(handlerKey(105, 5), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.height expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'Int', value: obj.value.height }
+  } })
+
   // SPreHeader.minerPk (PropertyCall, typeId=105, methodId=6)
   // Source: ergotree-interpreter/src/eval/spreheader.rs:38-42 — MINER_PK_EVAL_FN
   // Descriptor: ergotree-ir/src/types/spreheader.rs:79-84 — returns SGroupElement.
