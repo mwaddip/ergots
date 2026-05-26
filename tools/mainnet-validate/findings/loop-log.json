@@ -1445,5 +1445,79 @@
       "walkedToHeight": 693478,
       "outcome": "halt"
     }
+  },
+  {
+    "iteration": 16,
+    "timestamp": "2026-05-26T15:57:41.492Z",
+    "halt": {
+      "height": 727604,
+      "phase": "evaluate-oracle-mismatch",
+      "errorCode": "ours-errored-oracle-succeeded",
+      "location": {
+        "txIndex": 11,
+        "inputIndex": 0
+      }
+    },
+    "diagnosis": {
+      "rootCause": "evalMap's per-item return-type check at coll-map.ts:137 fired unconditionally when outElemTpe was non-null, even when outElemTpe.tag === 'SAny'. SAny is the any-type placeholder used when the mapper's static return type can't be constrained (polymorphic lambdas, mappers whose result type requires substitution). Sigma-rust treats SAny as accepting any concrete runtime type; our impl strict-checked and threw 'lambda-result-type-mismatch'. The file's own doc-comment already documented the intended behavior: 'When outElemTpe is not derivable (mapper is not FuncValue or has SAny type), the per-item type check is skipped' — but the gate missed the SAny case. Mainnet h=727,604 tx 11 input 0 has a Map whose mapper statically returns SAny but runtime yields SLong.",
+      "sigmaRustCites": [
+        {
+          "path": "ergotree-interpreter/src/eval/coll_map.rs",
+          "line": 73,
+          "snippet": "iter().map(|item| mapper_call(item)).collect() — no per-item type check; CollKind::from_collection accepts any concrete type when out_elem_tpe is unconstrained"
+        }
+      ],
+      "ourCodeCites": [
+        {
+          "path": "packages/ergoscript/src/eval/coll-map.ts",
+          "line": 137,
+          "snippet": "if (outElemTpe !== null) { ... throw new EvalError(`Map: lambda body returned type ${...} but mapper declared return type ${...}`, lambda-result-type-mismatch) }  // pre-fix: missed the SAny case"
+        },
+        {
+          "path": "packages/ergoscript/src/eval/coll-map.ts",
+          "line": 44,
+          "snippet": "// When outElemTpe is not derivable (mapper is not FuncValue or has SAny type), the per-item type check is skipped — doc-comment policy that the gate did not implement"
+        }
+      ],
+      "proposedFix": {
+        "summary": "Gate the per-item type check on `outElemTpe !== null && outElemTpe.tag !== 'SAny'`. Matches the doc-comment policy and sigma-rust's behavior. No cost change.",
+        "affectedArm": "coll-map",
+        "expectedCostDelta": 0,
+        "filesToTouch": [
+          "packages/ergoscript/src/eval/coll-map.ts"
+        ]
+      },
+      "redFixtureSpec": {
+        "fixturePath": "Walker smoke at h=727,604..727,610 (empirical). Synthetic unit test attempted but required manual MIR construction with closure argId binding that the FuncValue eval path normally sets up — skipped as out of scope; walker smoke is the regression check.",
+        "inputDescription": "h=727,604 tx 11 input 0 spentBox `ec1212b9...` with a Map whose mapper statically returns SAny but runtime yields SLong.",
+        "expectedValue": "Map eval succeeds; no `lambda-result-type-mismatch` throw.",
+        "expectedCost": 1335
+      },
+      "confidence": 100,
+      "uncertaintySources": [
+        "OVERRIDES rules received: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10 (in-session orchestrator; the bug was a one-line gate miss flagged by the file's own doc-comment, so source-read confidence is high).",
+        "Synthetic unit test for the SAny pass-through path was attempted but blocked by manual-MIR closure argId binding (not normally exposed when MIR is built by parseTree from wire bytes); walker smoke at h=727,604..727,610 is the empirical regression — confirmed exit 0, no error-report."
+      ]
+    },
+    "fix": {
+      "outcome": "SUCCESS",
+      "overridesEcho": "OVERRIDES rules applied in-session: #2 (source-cited via the file's own doc-comment + sigma-rust coll_map.rs:73-82); #5 (gate change at the diagnosed site, not band-aid); #6 (tsc + npm test 3272 clean + walker smoke h=727,604..727,610 passed exit 0); #7+#8 (read-edit-read on coll-map.ts).",
+      "testCountBefore": 3272,
+      "testCountAfter": 3272,
+      "commitSha": "30938d4",
+      "filesChanged": [
+        "packages/ergoscript/src/eval/coll-map.ts"
+      ],
+      "regressionTestPath": "Walker smoke h=727,604..727,610",
+      "diffStat": {
+        "added": 12,
+        "removed": 2
+      }
+    },
+    "smokeResult": {
+      "walkedFromHeight": 693485,
+      "walkedToHeight": 727603,
+      "outcome": "halt"
+    }
   }
 ]
