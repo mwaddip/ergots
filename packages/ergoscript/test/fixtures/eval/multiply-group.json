@@ -35,11 +35,11 @@
       "expected_error_code": null
     },
     {
-      "name": "mg_random_random",
-      "tree_bytes_hex": "00a007000000000000000000000000000000000000000000000000000000000000000000070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "name": "mg_distinct_points",
+      "tree_bytes_hex": "00a00702c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee50702f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
       "opts_json": {},
       "expected_value_json": {
-        "bytes_hex": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "bytes_hex": "022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
         "kind": "GroupElement"
       },
       "expected_cost": 50,

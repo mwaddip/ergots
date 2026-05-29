@@ -262,6 +262,10 @@ fn main() -> anyhow::Result<()> {
     let scoll_zip_fixture = cmds::ergoscript::eval::scoll_zip::generate()?;
     write_ergoscript_json("eval/scoll-zip.json", &scoll_zip_fixture)?;
 
+    // Campaign iter-28: SColl.patch handler (MethodCall typeId=12, methodId=19).
+    let coll_patch_fixture = cmds::ergoscript::eval::coll_patch::generate()?;
+    write_ergoscript_json("eval/coll-patch.json", &coll_patch_fixture)?;
+
     // Phase 2g.6 Task 6: SContext.preHeader handler (PropertyCall typeId=101, methodId=3).
     let scontext_pre_header_fixture = cmds::ergoscript::eval::scontext_pre_header::generate()?;
     write_ergoscript_json("eval/scontext-pre-header.json", &scontext_pre_header_fixture)?;

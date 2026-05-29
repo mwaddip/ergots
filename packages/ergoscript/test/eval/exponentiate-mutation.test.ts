@@ -32,16 +32,15 @@
  *     is a correctness feature, not a defect. Per-entry kill rate stays
  *     near ~55%; the aggregate across other entries swamps it.
  *
- *   - exp_identity_k : base = identity (33 zero bytes). The base.is0()
- *     guard short-circuits regardless of exponent — but the GUARD itself
- *     depends on the 33 zero bytes decoding to identity. Flipping any base
- *     byte forces decodePoint into the non-identity path; @noble/curves
- *     rejects most byte patterns as off-curve (kill via throw). Tag-only
- *     flips (0x02/0x03) at byte 0 to non-zero values get decoded as a
- *     valid point → no longer identity → result is k·P ≠ identity (kill).
- *     Mutating the exponent bytes is value-invisible while the base is
- *     still identity (both yield identity) — these mutations may survive,
- *     but the BigInt region is small relative to base region.
+ *   - exp_identity_k : base = identity (0x00-lead, 33 zero bytes), exponent k.
+ *     identity^k = identity for ANY k, so the op is value-invisible to BOTH
+ *     base and exponent mutations — there is nothing to kill. Post-iter-24 the
+ *     base decode is sigma-rust-faithful (0x00-lead ⇒ identity, bytes 1..32
+ *     never inspected; ec_point.rs:139-151), so base-byte flips in 1..32 also
+ *     survive (consensus no-op) — the prior note's "off-curve throw → kill"
+ *     reasoning was the old strict adapter, falsified by h=1,111,884. EXCLUDED
+ *     from the per-entry threshold (like exp_gen_0); the iter-24 identity-base
+ *     skip additionally drops its base region from counting.
  *
  * Skipped fixtures:
  *   - error entries (no success-path baseline; explicitly filtered).
@@ -243,7 +242,7 @@ describe('Exponentiate mutation testing (Layer C3.a)', () => {
   // Fixtures whose mathematical structure makes per-entry threshold
   // unachievable; they still contribute to the aggregate (which is the real
   // safety net). See top-of-file note for `exp_gen_0`.
-  const PER_ENTRY_EXEMPT = new Set<string>(['exp_gen_0'])
+  const PER_ENTRY_EXEMPT = new Set<string>(['exp_gen_0', 'exp_identity_k'])
 
   for (const entry of entries) {
     it(`${entry.name}: >=${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate on input-byte mutations`, () => {
@@ -266,19 +265,28 @@ describe('Exponentiate mutation testing (Layer C3.a)', () => {
         )
       }
       const grpEnd = grpStart + grpBytes!.length
-      const grpResult = runMutationLoop({
-        treeBytes,
-        region: { start: grpStart, end: grpEnd },
-        optsJson: entry.opts_json,
-      })
-      // eslint-disable-next-line no-console
-      console.log(
-        `[mutation] exponentiate.${entry.name}#base: killed=${grpResult.killed} ` +
-          `total=${grpResult.total} rate=${grpResult.rate.toFixed(3)} ` +
-          `inputLen=${grpBytes!.length} inputStart=${grpStart}`,
-      )
-      entryKilled += grpResult.killed
-      entryTotal += grpResult.total
+      // iter-24: a 0x00-lead (identity) base — sigma-rust never inspects bytes
+      // 1..32 (ec_point.rs:139-151), so mutating them is a consensus no-op, not
+      // a detectable kill. Skip the kill-rate for an identity base; the BigInt
+      // exponent region below still enforces sensitivity, as do non-identity bases.
+      if (grpBytes![0] === 0x00) {
+        // eslint-disable-next-line no-console
+        console.log(`[mutation] exponentiate.${entry.name}#base: SKIPPED (identity base, iter-24)`)
+      } else {
+        const grpResult = runMutationLoop({
+          treeBytes,
+          region: { start: grpStart, end: grpEnd },
+          optsJson: entry.opts_json,
+        })
+        // eslint-disable-next-line no-console
+        console.log(
+          `[mutation] exponentiate.${entry.name}#base: killed=${grpResult.killed} ` +
+            `total=${grpResult.total} rate=${grpResult.rate.toFixed(3)} ` +
+            `inputLen=${grpBytes!.length} inputStart=${grpStart}`,
+        )
+        entryKilled += grpResult.killed
+        entryTotal += grpResult.total
+      }
 
       // Mutate the BigInt exponent region. Search starts AFTER the
       // GroupElement payload to disambiguate when patterns coincide (e.g.

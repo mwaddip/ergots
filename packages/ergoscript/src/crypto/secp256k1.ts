@@ -48,49 +48,45 @@ export const basePoint: Point = secp256k1.Point.BASE
  */
 export const groupOrder: bigint = secp256k1.Point.Fn.ORDER
 
-function isZero33(bytes: Uint8Array): boolean {
-  if (bytes.length !== POINT_BYTES) return false
-  for (let i = 0; i < POINT_BYTES; i++) if (bytes[i] !== 0) return false
-  return true
-}
-
 /**
- * Decode a 33-byte SEC1 compressed point. The Ergo convention: 33 zero bytes
- * decodes to the identity (point-at-infinity).
+ * Decode an EC point from bytes, byte-for-byte faithful to sigma-rust's
+ * `EcPoint::scorex_parse` (`ergo-chain-types/src/ec_point.rs:139-151`):
  *
- * **Deliberate divergence from sigma-rust (documented strict-reject):**
- * sigma-rust's `ec_point.rs:139-151` dispatches on `buf[0] != 0` alone —
- * ANY 33-byte payload whose first byte is `0x00` is silently treated as
- * identity, regardless of the remaining 32 bytes. Our adapter requires
- * ALL 33 bytes to be zero (`isZero33`) and rejects malformed
- * `[0x00, non-zero...]` inputs as invalid SEC1.
+ * ```rust
+ * let mut buf = [0; 33];
+ * r.read_exact(&mut buf[..])?;     // needs ≥ 33 bytes; trailing ignored
+ * if buf[0] != 0 { PublicKey::from_sec1_bytes(&buf) }   // strict SEC1
+ * else { Ok(EcPoint(ProjectivePoint::IDENTITY)) }       // buf[0]==0 ⇒ identity
+ * ```
  *
- * **Why strict-reject is correct:** the divergence is unreachable on
- * well-formed inputs because sigma-rust's serializer at
- * `ec_point.rs:127-136` always emits identity as exactly 33 zero bytes
- * (`is_identity → write [0u8; 33]`). The only inputs that trigger the
- * divergence are hand-crafted MIR or hostile peer bytes. For hostile
- * inputs, strict-reject is a small additional safety margin: we don't
- * silently accept malformed-but-byte-zero-prefixed encodings.
+ * So a **leading `0x00` byte ⇒ the identity (point-at-infinity)**, and bytes
+ * 1..32 are NEVER inspected — NOT only the all-zero encoding. And the decoder
+ * reads exactly the first 33 bytes, **tolerating trailing bytes** (sigma-rust's
+ * `sigma_parse_bytes` wraps a cursor with no full-consumption check).
  *
- * Consumers (9 invocations across 4 files: verifier.ts ×5, decode-point.ts,
- * multiply-group.ts ×2, exponentiate.ts) carry a per-file pointer comment
- * back to this docstring rather than copy-pasting the rationale.
+ * Iter-24 (mainnet h=1,111,884, tx1/input0): `decodePoint(SELF.R4.slice(3, …))`
+ * fed 514 bytes whose 33-byte prefix leads with `0x00` (R4 is an embedded
+ * ErgoTree). sigma-rust returns identity; the prior strict adapter here
+ * (require exactly 33; identity only when ALL 33 bytes zero) threw and halted
+ * the validator. The earlier docstring marked this `[0x00, non-zero] ⇒ identity`
+ * case "production-unreachable" — h=1,111,884 falsified that, so we now mirror
+ * sigma-rust exactly. (Confirmed against pinned sigma-rust 3aa0832 by the
+ * ergo-node-rust session.)
  *
- * Throws on wrong length or invalid SEC1 encoding.
- *
- * Source: sigma-rust `ec_point.rs:127-151` (Ergo identity convention +
- *         divergence reference).
+ * Throws only when fewer than 33 bytes are available (mirrors `read_exact`) or
+ * when a non-`0x00`-lead payload fails SEC1 decode.
  */
 export function decodePoint(bytes: Uint8Array): Point {
-  if (bytes.length !== POINT_BYTES) {
-    throw new Error(`decodePoint: expected ${POINT_BYTES} bytes, got ${bytes.length}`)
+  if (bytes.length < POINT_BYTES) {
+    throw new Error(`decodePoint: expected >= ${POINT_BYTES} bytes, got ${bytes.length}`)
   }
-  if (isZero33(bytes)) {
-    // Ergo identity convention — return the curve identity (point-at-infinity).
+  // read_exact reads exactly 33 bytes; any trailing bytes are ignored.
+  const head = bytes.length === POINT_BYTES ? bytes : bytes.subarray(0, POINT_BYTES)
+  if (head[0] === 0x00) {
+    // sigma-rust: buf[0] == 0 ⇒ identity, regardless of bytes 1..32.
     return secp256k1.Point.ZERO
   }
-  return secp256k1.Point.fromBytes(bytes)
+  return secp256k1.Point.fromBytes(head)
 }
 
 /**

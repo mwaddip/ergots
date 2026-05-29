@@ -18,7 +18,7 @@
 //!   - mg_gen_gen               : g + g     (point doubling — non-trivial sanity)
 //!   - mg_gen_identity          : g + 0 = g
 //!   - mg_identity_identity     : 0 + 0 = 0
-//!   - mg_random_random         : random P + random Q (force_any_val deterministic)
+//!   - mg_distinct_points       : 2g + 3g = 5g (two distinct non-trivial points)
 //!   - mg_asymmetric            : g + (-g) = 0  (curve additive inverse)
 //!   - mg_inverse_then_doubling : 2g + (-g) = g (chain check)
 //!   - mg_throw_non_grp_left    : Const(SInt, 42) left input → group-op-input-not-group-element
@@ -147,13 +147,18 @@ pub fn generate() -> anyhow::Result<MultiplyGroupFixtureFile> {
     // 3. mg_identity_identity: 0 + 0 = 0
     entries.push(success_entry("mg_identity_identity", id, id)?);
 
-    // 4. mg_random_random: force_any_val for both
-    //    Note (from 2i-a memory): force_any_val::<EcPoint>() under the proptest seed
-    //    is deterministic. On the first call it tends to return generator; subsequent
-    //    calls return distinct points. We sample two independent values.
-    let rand_p = force_any_val::<EcPoint>();
-    let rand_q = force_any_val::<EcPoint>();
-    entries.push(success_entry("mg_random_random", rand_p, rand_q)?);
+    // 4. mg_distinct_points: 2g + 3g = 5g. Two DISTINCT non-trivial points (neither
+    //    generator nor identity) — the only entry exercising a non-trivial ×
+    //    non-trivial product, and a result (5g) no other entry produces.
+    //    Previously `mg_random_random` via two `force_any_val::<EcPoint>()` draws,
+    //    whose "deterministic under the proptest seed" comment was FALSE: the
+    //    strategy is entropy-seeded, so the operands (which collapsed to
+    //    {generator, identity}) came out in run-dependent ORDER — making
+    //    multiply-group.json non-deterministic across `cargo run`s (the hash
+    //    flipped every run) while duplicating mg_gen_identity. Explicit points
+    //    restore determinism AND add real coverage. (iter-24 follow-up.)
+    let three_g = g * &two_g; // g + 2g
+    entries.push(success_entry("mg_distinct_points", two_g, three_g)?);
 
     // 5. mg_asymmetric: g + (-g) = 0 (curve additive inverse → identity)
     entries.push(success_entry("mg_asymmetric", g, neg_g)?);

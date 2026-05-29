@@ -49,7 +49,9 @@ import { describe, expect, it } from 'vitest';
 import {
     validateTx,
     preHeaderFromHeader,
+    checkStorageRent,
 } from '../src/validate-tx.js';
+import type { ErgoBox, ContextExtension } from '@ergots/ergoscript';
 import {
     validateBlock,
     type WalkerState,
@@ -636,5 +638,114 @@ describe('validateTx — cost-equivalence sub-step (phase 2j-a)', () => {
         const he = captured as HarnessError;
         expect(he.phase).toBe('evaluate-cost');
         expect(he.code).toBe('cost-overflow');
+    });
+});
+
+// ─── Storage rent (iter-23) ─────────────────────────────────────────────
+// Ergo lets anyone spend a box older than STORAGE_PERIOD (1,051,200 blocks)
+// with an EMPTY proof — no signature, cost 0, no script eval. Mirrors
+// sigma-rust try_spend_storage_rent (validate-tx.ts step 5b-bis). First
+// mainnet occurrence: h=1,051,232 tx1/input0 (a genesis-era P2PK dust box).
+
+const STORAGE_PERIOD = 1_051_200;
+
+/** ctx-extension var 127 = SShort(idx): SType 0x03 + ZigZag-VLQ(idx). idx 0 → "0300". */
+function var127Short0(): ContextExtensionEntry {
+    return { varId: 127, valueBytes: hexToBytes('0300') };
+}
+
+describe('validateTx — storage rent (expired-box empty-proof spend)', () => {
+    const ergoTree = p2pkErgoTreeBytes(PK_BYTES);
+    const spentBox = sboxBytes(ergoTree); // creationHeight 0, value 1 (dust)
+
+    function rentTx(): TxBundle {
+        const input = makeInput({
+            spentBoxBytes: spentBox,
+            signatureBytes: new Uint8Array(0), // EMPTY proof
+            contextExtension: [var127Short0()],
+        });
+        // var-127 index 0 must resolve to an existing output.
+        return { ...makeTx([input]), outputs: [sboxBytes(ergoTree)] };
+    }
+
+    it('accepts an empty-proof spend of a box past STORAGE_PERIOD (dust case)', () => {
+        const tx = rentTx();
+        const h = STORAGE_PERIOD + 32; // box age = h - 0 ≥ STORAGE_PERIOD → eligible
+        const block = makeBundle(tx, h);
+        const state = makeState([fakeHeader(h), fakeHeader(h - 1)]);
+        // Storage-rent path → cost 0, no eval, no verify → must not throw.
+        expect(() => validateTx(tx, block, state, 0)).not.toThrow();
+    });
+
+    it('does NOT skip verification when the box is not yet rent-eligible (gate works)', () => {
+        // Same empty-proof box, but one block before eligibility → falls through
+        // to the normal eval+verify path, where the empty proof is correctly
+        // rejected. Proves the fix is gated on age, not a blanket empty-proof skip.
+        const tx = rentTx();
+        const h = STORAGE_PERIOD - 1; // age = h - 0 < STORAGE_PERIOD → NOT eligible
+        const block = makeBundle(tx, h);
+        const state = makeState([fakeHeader(h), fakeHeader(h - 1)]);
+        expect(() => validateTx(tx, block, state, 0)).toThrow(/empty-signature/);
+    });
+});
+
+describe('checkStorageRent (rule branches)', () => {
+    const tree = p2pkErgoTreeBytes(PK_BYTES);
+    const HEIGHT = STORAGE_PERIOD + 1;
+    const mkBox = (o: Partial<ErgoBox> = {}): ErgoBox => ({
+        value: 1000n,
+        ergoTreeBytes: tree,
+        registers: {},
+        tokens: [],
+        creationHeight: 0,
+        txId: new Uint8Array(32),
+        index: 0,
+        ...o,
+    });
+    const ext = (idx?: number): ContextExtension =>
+        idx === undefined
+            ? { values: {} }
+            : { values: { 127: { tpe: { tag: 'SShort' }, value: { kind: 'Short', value: idx } } } };
+
+    it('dust: value ≤ fee → true (no output/register checks)', () => {
+        // factor large → fee ≫ value → dust short-circuit.
+        expect(checkStorageRent(mkBox({ value: 1n }), HEIGHT, ext(0), [mkBox()], 0, 1_250_000)).toBe(true);
+    });
+
+    it('not eligible: age < STORAGE_PERIOD → false', () => {
+        expect(checkStorageRent(mkBox(), STORAGE_PERIOD - 1, ext(0), [mkBox()], 0, 1)).toBe(false);
+    });
+
+    it('missing ctx var 127 → false', () => {
+        expect(checkStorageRent(mkBox(), HEIGHT, ext(undefined), [mkBox()], 0, 1)).toBe(false);
+    });
+
+    it('non-dust: output recreates the box (height + value + registers) → true', () => {
+        // factor 1 → fee = boxLen (~tens); value 1000 > fee → non-dust path.
+        const self = mkBox({ value: 1000n });
+        const out = mkBox({ value: 1000n, creationHeight: HEIGHT });
+        expect(checkStorageRent(self, HEIGHT, ext(0), [out], 0, 1)).toBe(true);
+    });
+
+    it('non-dust: output value below value−fee → false', () => {
+        const self = mkBox({ value: 1000n });
+        const out = mkBox({ value: 1n, creationHeight: HEIGHT });
+        expect(checkStorageRent(self, HEIGHT, ext(0), [out], 0, 1)).toBe(false);
+    });
+
+    it('non-dust: output creationHeight ≠ spend height → false', () => {
+        const self = mkBox({ value: 1000n });
+        const out = mkBox({ value: 1000n, creationHeight: HEIGHT - 5 });
+        expect(checkStorageRent(self, HEIGHT, ext(0), [out], 0, 1)).toBe(false);
+    });
+
+    it('non-dust: a register not preserved → false', () => {
+        const self = mkBox({ value: 1000n });
+        const out = mkBox({
+            value: 1000n,
+            creationHeight: HEIGHT,
+            registers: { 4: { tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 5 } } },
+        });
+        expect(checkStorageRent(self, HEIGHT, ext(0), [out], 0, 1)).toBe(false);
     });
 });

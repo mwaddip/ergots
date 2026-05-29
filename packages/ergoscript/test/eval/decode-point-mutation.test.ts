@@ -78,11 +78,31 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixturePath = join(__dirname, '..', 'fixtures', 'eval', 'decode-point.json')
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf-8')) as FixtureFile
 
+/**
+ * iter-24: sigma-rust treats ANY 0x00-lead input as the identity and never
+ * inspects bytes 1..32 (`ec_point.rs:139-151`), so mutating those bytes is a
+ * consensus no-op — NOT a detectable kill. Kill-rate mutation testing is only
+ * meaningful for NON-identity points (e.g. `dp_generator`); identity-valued
+ * success entries are excluded from the loop.
+ */
+function isIdentityGroupElement(v: unknown): boolean {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    (v as { kind?: unknown }).kind === 'GroupElement' &&
+    typeof (v as { bytes_hex?: unknown }).bytes_hex === 'string' &&
+    /^0{66}$/.test((v as { bytes_hex: string }).bytes_hex)
+  )
+}
+
 describe('DecodePoint mutation testing (Layer C3.a)', () => {
   // Skip error entries (no success-path baseline). All remaining entries have
-  // exactly one inline Coll[Byte] in the body — `collIndex: 0`.
+  // exactly one inline Coll[Byte] in the body — `collIndex: 0`. Also skip
+  // identity (0x00-lead) inputs — see isIdentityGroupElement (iter-24).
   const entries = fixture.entries.filter(
-    (e) => e.expected_error_code === null || e.expected_error_code === undefined,
+    (e) =>
+      (e.expected_error_code === null || e.expected_error_code === undefined) &&
+      !isIdentityGroupElement(e.expected_value_json),
   )
   let aggKilled = 0
   let aggTotal = 0

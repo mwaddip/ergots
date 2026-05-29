@@ -113,10 +113,13 @@
 
 import type { Header } from '@ergots/scorex';
 import { ByteReader } from '@ergots/scorex';
+import { ByteWriter } from '@ergots/scorex';
 import {
     parseSValue,
     parseSType,
     parseTree,
+    serializeSType,
+    serializeSValue,
     evaluateWith,
     makeContext,
     verifySignature,
@@ -143,6 +146,111 @@ import type { WalkerState } from './validate-block.js';
  * we mirror sigma-rust's signing-path default).
  */
 const DEFAULT_MAX_BLOCK_COST = 1_000_000;
+
+/**
+ * JIT cost ÷ block cost. sigma-rust `ergotree-interpreter/src/eval/costs.rs`
+ * `JitCost`: "Values are in 10x scale relative to block costs. To convert to
+ * block cost: divide by 10." `maxBlockCost` is a block-cost parameter, so the
+ * raw-JIT cost limit the evaluator (and sigma-rust) enforce is
+ * `maxBlockCost × 10`. Verified empirically (iter-27): the oracle on default
+ * params (maxBlockCost 1,000,000) threw `CostLimitExceeded(10000000)`.
+ */
+const JIT_COST_PER_BLOCK_COST = 10;
+
+// --- Storage rent (expired-box / demurrage) ------------------------------
+// Ergo lets ANYONE spend a box older than STORAGE_PERIOD without satisfying
+// its guarding script (empty proof), paying a storage fee and naming the
+// fee/recreation output via context-extension var 127. Consensus runs this
+// FIRST (sigma-rust ergo-lib/src/chain/transaction/storage_rent.rs +
+// transaction.rs `verify_tx_input_proof`); on success the input is valid with
+// cost 0 and NO script evaluation or signature verification at all.
+//
+// Iter-23 (mainnet h=1,051,232): the first storage-rent collection in mainnet
+// history — genesis-era boxes (creationHeight 0) become rent-eligible at
+// exactly h=1,051,200, and miners sweep expired dust en masse from here on.
+// This is the general rule, not a per-box skip.
+const STORAGE_PERIOD = 1_051_200;
+const STORAGE_EXTENSION_INDEX = 127; // i8::MAX
+/** sigma-rust ergo-lib/src/chain/parameters.rs default StorageFeeFactor. */
+const DEFAULT_STORAGE_FEE_FACTOR = 1_250_000;
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+}
+
+/** Canonical serialized bytes of one R4..R9 register entry (for the
+ *  storage-rent register-preservation check). */
+function registerEntryBytes(
+    entry: { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined,
+    treeVersion: number,
+): Uint8Array | null {
+    if (entry === undefined) return null;
+    if (entry.opaqueBytes !== undefined) return entry.opaqueBytes;
+    const w = new ByteWriter();
+    serializeSType(entry.tpe, w);
+    serializeSValue(entry.tpe, entry.value, treeVersion, w);
+    return w.toBytes();
+}
+
+/** Serialized byte length of a box == its canonical on-wire length
+ *  (parse↔serialize is byte-identical for every box the harness handles). */
+function serializedBoxLen(box: ErgoBox, treeVersion: number): number {
+    const w = new ByteWriter();
+    serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: box }, treeVersion, w);
+    return w.toBytes().length;
+}
+
+/**
+ * Storage-rent spend check — mirrors sigma-rust
+ * `storage_rent.rs::check_storage_rent_conditions`. The caller must have
+ * already confirmed the spending proof is empty. Returns `true` iff the box is
+ * validly spendable via storage rent (consensus then assigns cost 0 and skips
+ * script evaluation + signature verification entirely).
+ */
+export function checkStorageRent(
+    selfBox: ErgoBox,
+    blockHeight: number,
+    extension: ContextExtension,
+    outputBoxes: readonly ErgoBox[],
+    treeVersion: number,
+    storageFeeFactor: number,
+): boolean {
+    if (blockHeight - selfBox.creationHeight < STORAGE_PERIOD) return false;
+    const idxEntry = extension.values[STORAGE_EXTENSION_INDEX];
+    if (idxEntry === undefined) return false;
+    const idxVal = idxEntry.value;
+    // sigma-rust `try_extract_into::<i16>()` — only an SShort extracts to i16.
+    if (idxVal.kind !== 'Short') return false;
+    const outputIdx = idxVal.value;
+    if (outputIdx < 0 || outputIdx >= outputBoxes.length) return false;
+    const out = outputBoxes[outputIdx]!;
+    const storageFee =
+        BigInt(serializedBoxLen(selfBox, treeVersion)) * BigInt(storageFeeFactor);
+    // Dust: box value ≤ storage fee → spendable with no further restrictions.
+    if (selfBox.value <= storageFee) return true;
+    // Else the output at the named index must recreate the box: same creation
+    // height as the spending block, value ≥ value−fee, and every register
+    // except R0 (value) and R3 (creation info) preserved — i.e. R1 (ergoTree),
+    // R2 (tokens), R4..R9 (additional registers).
+    if (out.creationHeight !== blockHeight) return false;
+    if (out.value < selfBox.value - storageFee) return false;
+    if (!bytesEqual(selfBox.ergoTreeBytes, out.ergoTreeBytes)) return false;
+    if (selfBox.tokens.length !== out.tokens.length) return false;
+    for (let i = 0; i < selfBox.tokens.length; i++) {
+        if (!bytesEqual(selfBox.tokens[i]!.id, out.tokens[i]!.id)) return false;
+        if (selfBox.tokens[i]!.amount !== out.tokens[i]!.amount) return false;
+    }
+    for (let id = 4; id <= 9; id++) {
+        const ab = registerEntryBytes(selfBox.registers[id], treeVersion);
+        const bb = registerEntryBytes(out.registers[id], treeVersion);
+        if (ab === null && bb === null) continue;
+        if (ab === null || bb === null) return false;
+        if (!bytesEqual(ab, bb)) return false;
+    }
+    return true;
+}
 
 /**
  * Field-project a parsed `Header` into a `PreHeader`. Mirrors
@@ -536,12 +644,15 @@ export function validateTx(
     // Step 3 — derive PreHeader from current block's header.
     const preHeader = preHeaderFromHeader(currentHeader);
 
-    // Step 4 — derive jitCostLimit (fall back to sigma-rust default
-    // when parameters parse was downgraded to null by the shim).
-    const jitCostLimit =
+    // Step 4 — derive jitCostLimit. block.parameters.maxBlockCost is the
+    // height-active value (bundle-assembler resolves it from the epoch boundary
+    // for non-boundary blocks). It is in BLOCK-cost units; the evaluator's
+    // raw-JIT limit is ×10 (sigma-rust JitCost is 10× block cost — iter-27).
+    const maxBlockCost =
         block.parameters !== null
             ? block.parameters.maxBlockCost
             : DEFAULT_MAX_BLOCK_COST;
+    const jitCostLimit = maxBlockCost * JIT_COST_PER_BLOCK_COST;
 
     // Step 5 — per-input loop: parse tree, build extension, evaluate,
     // verifySignature. First failure halts.
@@ -582,6 +693,32 @@ export function validateTx(
             txIndex,
             inputIndex,
         );
+
+        // 5b-bis — storage-rent (expired-box) spend. Tried FIRST, mirroring
+        // sigma-rust `try_spend_storage_rent`: only when the spending proof is
+        // empty, and on success the input is consensus-valid with cost 0 and
+        // NO script eval, signature verification, or oracle cost comparison
+        // (the oracle's reduce_to_crypto cost for such an input is a phantom
+        // consensus never charges — so we `continue` past steps 5c–5h).
+        // Non-empty proofs always fall through to the normal eval+verify path,
+        // which still correctly handles `TrivialProp(true)` empty proofs.
+        if (input.signatureBytes.length === 0) {
+            // block.parameters carries only maxBlockCost (and is null for
+            // historical blocks), so StorageFeeFactor uses the sigma-rust
+            // default — same posture as DEFAULT_MAX_BLOCK_COST above.
+            if (
+                checkStorageRent(
+                    selfBox,
+                    block.height,
+                    extension,
+                    outputBoxes,
+                    treeVersion,
+                    DEFAULT_STORAGE_FEE_FACTOR,
+                )
+            ) {
+                continue;
+            }
+        }
 
         // 5c — Cost-overflow guard (phase 2j-a). `oracleCost` arrives
         // as bigint (u64 source); we narrow to number for the cost-diff
@@ -655,8 +792,14 @@ export function validateTx(
                 throw new HarnessError(
                     'evaluate',
                     isNotImpl ? 'evaluate-not-implemented' : 'evaluate-eval-error',
-                    `evaluate threw EvalError[${err.code}] at tx ${txIndex}, input ${inputIndex}: ${err.message}`,
+                    `evaluate threw EvalError[${err.code}] at tx ${txIndex}, input ${inputIndex}: ${err.message}` +
+                        ` (oracle also errored: ${input.oracleError ?? '<no message>'}; our cost-at-throw ${ctx.jitCost}, oracle cost ${oracleCost})`,
                     location,
+                    {
+                        ourError: ourErrorMsg,
+                        oracleError: input.oracleError,
+                        ourEvaluateCost: ctx.jitCost,
+                    },
                 );
             }
             throw new HarnessError(

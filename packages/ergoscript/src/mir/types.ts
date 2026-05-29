@@ -78,8 +78,22 @@ export interface ErgoBox {
    * `ExtractRegisterAs`'s type-assertion: without the stored `tpe`, the type
    * cannot be reliably recovered for edge cases (empty `Coll`, `None`
    * `Option`) where the `SValue.kind` alone is ambiguous.
+   *
+   * `opaqueBytes` is set when the register was originally serialized as a
+   * Tuple Expr (OP_TUPLE = 0x86 = 134) on the wire rather than as a plain
+   * Constant. Sigma-rust's `RegisterValue` has two parsed variants:
+   * `Parsed(Constant)` (vast majority) and `ParsedTupleExpr(EvaluatedTuple)`
+   * (rare — the boxes use a Tuple Expr whose items are themselves Constants
+   * or nested Tuples). For byte-roundtrip parity, when a register parses as
+   * a Tuple Expr we (a) convert it into the equivalent STuple/Tup Constant
+   * for runtime consumption, and (b) preserve the original wire bytes here
+   * so the serializer can emit the Tuple-Expr form (NOT the STuple-Constant
+   * form, which uses a different SType byte and value layout).
    */
-  registers: Record<number, { tpe: SType; value: SValue } | undefined>
+  registers: Record<
+    number,
+    { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined
+  >
   /** Secondary tokens (id is 32-byte token-id, amount is u64 packed as bigint). */
   tokens: { id: Uint8Array; amount: bigint }[]
   /** Block height at which the box was created (Rust `u32`). */

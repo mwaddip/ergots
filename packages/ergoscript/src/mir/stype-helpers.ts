@@ -118,3 +118,79 @@ export function sTypeEquals(a: SType, b: SType): boolean {
     }
   }
 }
+
+/**
+ * SAny-tolerant structural type comparison: identical to {@link sTypeEquals}
+ * EXCEPT that `SAny` on either side matches any type — at any nesting depth.
+ *
+ * Why this exists: our phase-2a `exprTpe` emits `SAny` as a placeholder for
+ * types it can't statically resolve (notably MethodCall/PropertyCall return
+ * types — there's no SMethod return-type resolver yet). That `SAny` propagates
+ * through `ValDef`/`ValUse`/HOF result types and can land *nested* inside a
+ * composite — e.g. a mapper whose static return type is `STuple[Coll[SByte],
+ * SAny]` while the runtime value is the concrete `STuple[Coll[SByte], SLong]`.
+ *
+ * sigma-rust never has `SAny` here (it tracks concrete types), so its
+ * equivalent checks pass; treating `SAny` as a wildcard makes our eval-time
+ * type checks accept exactly what sigma-rust accepts, while still catching a
+ * genuine mismatch (which has concrete types on both sides and no `SAny`).
+ *
+ * This generalizes the top-level-only `SAny` skips added for Map (iter-16/19)
+ * and Append (iter-21): iter-22 (mainnet h=1,012,685) surfaced an `SAny` nested
+ * inside a tuple element, which a top-level `.tag === 'SAny'` guard misses.
+ *
+ * Mirrors `sTypeEquals`'s structure exactly; the only difference is the
+ * leading wildcard short-circuit applied at every recursion level.
+ */
+/**
+ * `true` when `t` contains an `SAny` anywhere — at the top level or nested
+ * inside a composite (`SColl`/`SOption`/`STuple`/`SFunc`). Used to decide
+ * whether a statically-derived type is fully concrete (and thus usable as a
+ * result/output type) or carries an unresolved-placeholder `SAny` that should
+ * be recovered from the concrete runtime value instead.
+ */
+export function hasSAny(t: SType): boolean {
+  switch (t.tag) {
+    case 'SAny':
+      return true
+    case 'SColl':
+    case 'SOption':
+      return hasSAny(t.elem)
+    case 'STuple':
+      return t.items.some(hasSAny)
+    case 'SFunc':
+      return t.args.some(hasSAny) || hasSAny(t.result)
+    default:
+      return false
+  }
+}
+
+export function sTypeEqualsModuloSAny(a: SType, b: SType): boolean {
+  // Wildcard: SAny (unresolved placeholder) matches anything, at any depth.
+  if (a.tag === 'SAny' || b.tag === 'SAny') return true
+  if (a.tag !== b.tag) return false
+  switch (a.tag) {
+    case 'SColl':
+      return sTypeEqualsModuloSAny(a.elem, (b as { tag: 'SColl'; elem: SType }).elem)
+    case 'SOption':
+      return sTypeEqualsModuloSAny(a.elem, (b as { tag: 'SOption'; elem: SType }).elem)
+    case 'STuple': {
+      const bi = (b as { tag: 'STuple'; items: SType[] }).items
+      if (a.items.length !== bi.length) return false
+      return a.items.every((item, i) => sTypeEqualsModuloSAny(item, bi[i]!))
+    }
+    case 'SFunc': {
+      const bf = b as { tag: 'SFunc'; args: SType[]; result: SType; tpeParams: STypeVar[] }
+      if (a.args.length !== bf.args.length) return false
+      if (!a.args.every((arg, i) => sTypeEqualsModuloSAny(arg, bf.args[i]!))) return false
+      if (!sTypeEqualsModuloSAny(a.result, bf.result)) return false
+      if (a.tpeParams.length !== bf.tpeParams.length) return false
+      return a.tpeParams.every((tp, i) => tp.name === bf.tpeParams[i]!.name)
+    }
+    case 'STypeVar':
+      return a.name === (b as { tag: 'STypeVar'; name: string }).name
+    // Primitives — tags already match (and neither is SAny, handled above).
+    default:
+      return true
+  }
+}

@@ -64,8 +64,71 @@
 import type { SType, SValue } from '../mir/types'
 import { ByteReader, parseHeader } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
-import { parseSType } from './parse-stype'
+import { parseSTypeWithFirstByte } from './parse-stype'
 import { consumeTreeFromReader } from './ergo-tree'
+
+// OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
+// (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
+// tag > LAST_CONSTANT_CODE → opcode-dispatched Expr.
+// LAST_CONSTANT_CODE = LAST_DATA_TYPE (111) + 1 = 112.
+const LAST_CONSTANT_CODE = 112
+// OP_TUPLE opcode value (sigma-rust `serialization/op_code.rs:184`):
+// `new_op_code(22)` = LAST_CONSTANT_CODE + 22 = 134 = 0x86.
+const OP_TUPLE = 134
+
+/**
+ * Parse a register-level Expr (sigma-rust calls `Expr::sigma_parse` here and
+ * then restricts the result to `Const` or `Tuple` in `register.rs:140-162`).
+ * Returns the equivalent Constant view (`tpe` + `value`) for runtime use;
+ * the caller is responsible for capturing the original wire bytes via
+ * `r.position` snapshots if byte-roundtrip is required.
+ *
+ * Mirrors sigma-rust's restriction: only `Expr::Const` and `Expr::Tuple` are
+ * legal as register values. A `Tuple` whose items aren't all Const-or-Tuple
+ * (per `tuple_to_constant`) is rejected. Everything else is rejected at the
+ * tag-dispatch step.
+ *
+ * Recursive: nested Tuples are accepted (a register can be `((1,2),3)`).
+ */
+function parseRegisterExprWithTag(
+  tag: number,
+  r: ByteReader,
+  treeVersion: number
+): { tpe: SType; value: SValue } {
+  if (tag <= LAST_CONSTANT_CODE) {
+    // Constant Expr: tag is the SType lead byte.
+    const tpe = parseSTypeWithFirstByte(tag, r)
+    const value = parseSValue(tpe, treeVersion, r)
+    return { tpe, value }
+  }
+  if (tag === OP_TUPLE) {
+    // Tuple Expr: 1-byte items count, then N nested Exprs.
+    const itemsCount = r.readU8()
+    if (itemsCount < 2) {
+      throw new SValueParseError(
+        `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
+        'sbox-register-tuple-arity'
+      )
+    }
+    const itemTpes: SType[] = []
+    const itemValues: SValue[] = []
+    for (let i = 0; i < itemsCount; i++) {
+      const itemTag = r.readU8()
+      const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
+      itemTpes.push(item.tpe)
+      itemValues.push(item.value)
+    }
+    return {
+      tpe: { tag: 'STuple', items: itemTpes },
+      value: { kind: 'Tuple', items: itemValues },
+    }
+  }
+  throw new SValueParseError(
+    `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
+      `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
+    'sbox-register-unsupported-expr'
+  )
+}
 
 export class SValueParseError extends Error {
   constructor(
@@ -319,14 +382,30 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
           'sbox-registers-out-of-range'
         )
       }
-      const registers: Record<number, { tpe: SType; value: SValue } | undefined> = {}
+      const registers: Record<
+        number,
+        { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined
+      > = {}
       for (let i = 0; i < regCount; i++) {
-        // Each register is serialized as a full Constant on the wire:
-        //   [SType byte(s)] [SValue bytes]
-        // This is exactly what parseSType + parseSValue reads.
-        const tpe = parseSType(r)
-        const regValue = parseSValue(tpe, treeVersion, r)
-        registers[4 + i] = { tpe, value: regValue }
+        // Each register is serialized as a full Expr on the wire (sigma-rust
+        // `register.rs:140` calls `Expr::sigma_parse(r)`), but the parsed
+        // result is restricted to Const or Tuple (line 142-162). Most
+        // mainnet registers ARE Constants (lead byte = SType byte ≤ 112).
+        // A handful (~one box at h=855,650 r/R8) use the Tuple-Expr form
+        // (lead byte 0x86) — recognized + preserved via opaqueBytes so the
+        // wire-form round-trips correctly even though our type system
+        // represents the value as a regular STuple Constant.
+        const startPos = r.position
+        const lead = r.readU8()
+        const parsed = parseRegisterExprWithTag(lead, r, treeVersion)
+        if (lead > LAST_CONSTANT_CODE) {
+          // Tuple-Expr (or future non-Const Expr) — capture original bytes
+          // for byte-identical serializer output.
+          const opaqueBytes = r.slice(startPos, r.position).slice()
+          registers[4 + i] = { tpe: parsed.tpe, value: parsed.value, opaqueBytes }
+        } else {
+          registers[4 + i] = { tpe: parsed.tpe, value: parsed.value }
+        }
       }
 
       // --- transaction_id (32 raw bytes) ---

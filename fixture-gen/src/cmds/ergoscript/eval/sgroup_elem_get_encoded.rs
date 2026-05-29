@@ -14,11 +14,11 @@
 //!   - identity: the Ergo identity-point (33 zero bytes per
 //!     ergo-chain-types/src/ec_point.rs:96-99).
 //!
-//! (No `arbitrary` scenario: `force_any_val::<EcPoint>()` is deterministic
-//! under the proptest seed and happens to produce the same bytes as
-//! `generator()` on the first call — would be redundant. Mirrors the
+//! (No `arbitrary` scenario: `force_any_val::<EcPoint>()` is entropy-seeded
+//! (`TestRunner::default()`) — NON-deterministic across runs — and a random
+//! point adds nothing over the explicit cases. Mirrors the
 //! `create_prove_dlog.rs` precedent of using explicit `generator()` +
-//! `identity()` only.)
+//! `identity()` only. See `multiply_group.rs::mg_distinct_points`.)
 
 use ergo_chain_types::ec_point::{generator, identity};
 use ergo_chain_types::EcPoint;

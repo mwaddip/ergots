@@ -99,8 +99,18 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion 
   w.writeU8(regKeys.length) // raw u8, NOT VLQ
   for (const k of regKeys) {
     const entry = box.registers[k]!
-    serializeSType(entry.tpe, w)
-    serializeSValue(entry.tpe, entry.value, treeVersion, w)
+    if (entry.opaqueBytes !== undefined) {
+      // Register was parsed as a Tuple Expr (or other non-Const Expr) on
+      // the wire — emit the captured bytes verbatim. Serializing via
+      // serializeSType + serializeSValue would produce the STuple/Tup
+      // Constant form, which has a different wire encoding (different
+      // SType tag byte + no item-level SType bytes) and would break
+      // byte-roundtrip parity with sigma-rust.
+      w.writeBytes(entry.opaqueBytes)
+    } else {
+      serializeSType(entry.tpe, w)
+      serializeSValue(entry.tpe, entry.value, treeVersion, w)
+    }
   }
 }
 

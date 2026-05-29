@@ -66,3 +66,67 @@ describe('exprTpe (phase 2j-pre fix-3 arms)', () => {
     expect(exprTpe(e)).toEqual({ tag: 'SSigmaProp' })
   })
 })
+
+/**
+ * GroupElement-arithmetic arms (MultiplyGroup, Exponentiate).
+ *
+ * Walker halt at mainnet h=1,140,116 tx#6 input 0: `ValDef(id=9)` rhs is a
+ * `MultiplyGroup`, which had no `exprTpe` arm → `parseTree` failed with
+ * "variant 'MultiplyGroup' not yet supported". `Exponentiate` is the identical
+ * gap at the same call site (both are GroupElement arithmetic → SGroupElement),
+ * so the class ships together.
+ *
+ * Sigma-rust source:
+ *   - mir/multiply_group.rs::MultiplyGroup::tpe → SGroupElement
+ *   - mir/exponentiate.rs::Exponentiate::tpe    → SGroupElement
+ *
+ * The arms don't recurse; the left/right sub-Exprs just need to be
+ * syntactically valid Expr nodes (reusing `constInt`).
+ */
+describe('exprTpe — GroupElement arithmetic arms', () => {
+  it('MultiplyGroup returns SGroupElement', () => {
+    const e: Expr = { tag: 'MultiplyGroup', left: constInt, right: constInt }
+    expect(exprTpe(e)).toEqual({ tag: 'SGroupElement' })
+  })
+
+  it('Exponentiate returns SGroupElement', () => {
+    const e: Expr = { tag: 'Exponentiate', left: constInt, right: constInt }
+    expect(exprTpe(e)).toEqual({ tag: 'SGroupElement' })
+  })
+})
+
+/**
+ * exprTpe coverage completion (walker h=1,140,116 tx#6).
+ *
+ * The halting contract's ValDef rhs's exercised a dozen Expr variants the lazy
+ * switch had no arms for. All result types verified against sigma-rust mir/*.rs.
+ * Fixed-type arms read only `.tag` (no recursion), so a tag-only stub is a
+ * sufficient input; BitInversion recurses (returns the operand type) so it
+ * gets a real rhs.
+ */
+describe('exprTpe — coverage completion arms', () => {
+  const stub = (tag: Expr['tag']): Expr => ({ tag }) as unknown as Expr
+  const cases: Array<[Expr['tag'], SType]> = [
+    ['CalcSha256', SCOLL_SBYTE],
+    ['CreateAvlTree', { tag: 'SAvlTree' }],
+    ['CreateProveDhTuple', SSIGMAPROP],
+    ['ExtractBytes', SCOLL_SBYTE],
+    ['SubstConstants', SCOLL_SBYTE],
+    ['TreeLookup', { tag: 'SOption', elem: SCOLL_SBYTE }],
+    ['XorOf', SBOOLEAN],
+    ['SigmaPropIsProven', SBOOLEAN],
+    ['Global', { tag: 'SGlobal' }],
+    ['Context', { tag: 'SContext' }],
+    ['ZkProofBlock', SBOOLEAN],
+  ]
+  for (const [tag, expected] of cases) {
+    it(`${tag} returns ${expected.tag}`, () => {
+      expect(exprTpe(stub(tag))).toEqual(expected)
+    })
+  }
+
+  it('BitInversion returns the operand type (recurses into input)', () => {
+    const e: Expr = { tag: 'BitInversion', input: constInt }
+    expect(exprTpe(e)).toEqual({ tag: 'SInt' })
+  })
+})

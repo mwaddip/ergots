@@ -232,6 +232,14 @@ const EQ_COLL_BOOLEAN_PER_ITEM: PerItemCost = { base: 15, perChunk: 2, chunkSize
 const EQ_COLL_BIGINT_PER_ITEM: PerItemCost = { base: 15, perChunk: 7, chunkSize: 5 }
 /** data_value_comparer.rs:37 `EQ_COLL_GROUP_ELEMENT_PER_ITEM: (u32, u32, u32) = (15, 5, 1)` */
 const EQ_COLL_GROUP_ELEMENT_PER_ITEM: PerItemCost = { base: 15, perChunk: 5, chunkSize: 1 }
+/** data_value_comparer.rs:38 `EQ_COLL_AVL_TREE_PER_ITEM: (u32, u32, u32) = (15, 5, 2)` */
+const EQ_COLL_AVL_TREE_PER_ITEM: PerItemCost = { base: 15, perChunk: 5, chunkSize: 2 }
+/** data_value_comparer.rs:39 `EQ_COLL_BOX_PER_ITEM: (u32, u32, u32) = (15, 5, 1)` */
+const EQ_COLL_BOX_PER_ITEM: PerItemCost = { base: 15, perChunk: 5, chunkSize: 1 }
+/** data_value_comparer.rs:40 `EQ_COLL_PREHEADER_PER_ITEM: (u32, u32, u32) = (15, 3, 1)` */
+const EQ_COLL_PREHEADER_PER_ITEM: PerItemCost = { base: 15, perChunk: 3, chunkSize: 1 }
+/** data_value_comparer.rs:41 `EQ_COLL_HEADER_PER_ITEM: (u32, u32, u32) = (15, 5, 1)` */
+const EQ_COLL_HEADER_PER_ITEM: PerItemCost = { base: 15, perChunk: 5, chunkSize: 1 }
 /** data_value_comparer.rs:42 `EQ_COLL_DEFAULT_PER_ITEM: (u32, u32, u32) = (10, 2, 1)` — for
  *  all other elem types (Tuple, Option, nested Coll, etc.). */
 const EQ_COLL_DEFAULT_PER_ITEM: PerItemCost = { base: 10, perChunk: 2, chunkSize: 1 }
@@ -257,11 +265,17 @@ function addPerItemJitCost(
  * Sigma-rust dispatches on `CollKind`:
  *  - `NativeColl(CollByte)` → EQ_COLL_BYTE_PER_ITEM
  *  - `WrappedColl { elem_tpe, .. }` → match on SType:
- *    SShort/SInt/SLong/SBoolean/SBigInt/SGroupElement → specific tuples
+ *    SShort/SInt/SLong/SBoolean/SBigInt/SGroupElement/SAvlTree/SBox/
+ *    SPreHeader/SHeader → specific tuples
  *    _ → EQ_COLL_DEFAULT_PER_ITEM
  *
  * In TS, Coll always carries an explicit `elem: SType`. SByte maps to the
  * NativeColl (byte-pack) path in Rust; we treat it the same as BYTE_PER_ITEM.
+ *
+ * Iter-20: the SAvlTree/SBox/SPreHeader/SHeader arms were originally missing
+ * (fell through to DEFAULT), causing a cost-drift on `Coll[SAvlTree]` equality
+ * at mainnet h=972,275. SUnsignedBigInt (v6) maps to BIGINT in sigma-rust but
+ * is not modelled here (pre-v6 trees only).
  */
 function collEqPerItemCost(elem: SType): PerItemCost {
   switch (elem.tag) {
@@ -272,6 +286,10 @@ function collEqPerItemCost(elem: SType): PerItemCost {
     case 'SBoolean':      return EQ_COLL_BOOLEAN_PER_ITEM
     case 'SBigInt':       return EQ_COLL_BIGINT_PER_ITEM
     case 'SGroupElement': return EQ_COLL_GROUP_ELEMENT_PER_ITEM
+    case 'SAvlTree':      return EQ_COLL_AVL_TREE_PER_ITEM
+    case 'SBox':          return EQ_COLL_BOX_PER_ITEM
+    case 'SPreHeader':    return EQ_COLL_PREHEADER_PER_ITEM
+    case 'SHeader':       return EQ_COLL_HEADER_PER_ITEM
     default:              return EQ_COLL_DEFAULT_PER_ITEM
   }
 }

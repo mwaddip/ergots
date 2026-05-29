@@ -492,6 +492,65 @@ function registerHandlers(): void {
     },
   })
 
+  // SColl.patch (MethodCall, typeId=12, methodId=19) — campaign iter-28
+  // Source: ergotree-interpreter/src/eval/scoll.rs:195-236 — PATCH_EVAL_FN
+  // Pattern A cost: addPerItemCost(30, 2, 10, n) on INPUT length n, charged
+  // BEFORE pulling args (after the obj-is-Coll check), matching sigma-rust.
+  // `from` and `replaced` are each INDEPENDENTLY clamped to >=0 via Math.max(0),
+  // then: result = input.slice(0, from) ++ patch ++ input.slice(from + replaced).
+  // JS slice saturates out-of-bounds exactly like Rust take/skip. Result elem
+  // type = input's elem type. This is NOT generic Scala IndexedSeq.patch:
+  // sigma-rust clamps `from` to 0 BEFORE the skip(from+replaced) (upstream fix
+  // fc88669e), so e.g. [1,2,3].patch(-1,[4,5],1) → [4,5,2,3], not [4,5,1,2,3].
+  // V0+ (no version gate — scoll.rs PATCH_METHOD min_version: V0).
+  HANDLERS.set(handlerKey(12, 19), { handler: (obj, args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.patch expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    const n = obj.items.length
+    ctx.addPerItemCost(30, 2, 10, n) // Pattern A; source: scoll.rs:204
+    if (args.length !== 3) {
+      throw new EvalError(
+        `SColl.patch expects 3 args; got ${args.length}`,
+        'method-not-implemented'
+      )
+    }
+    const [fromArg, patchArg, replacedArg] = args as [SValue, SValue, SValue]
+    if (fromArg.kind !== 'Int') {
+      throw new EvalError(
+        `SColl.patch expects 'from' to be Int; got '${fromArg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    if (replacedArg.kind !== 'Int') {
+      throw new EvalError(
+        `SColl.patch expects 'replaced' to be Int; got '${replacedArg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    if (patchArg.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.patch expects 'patch' to be a Coll; got '${patchArg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    // Independent clamp-to-0 (NOT clamped on the sum) — see doc-comment above.
+    const from = Math.max(0, fromArg.value)
+    const replaced = Math.max(0, replacedArg.value)
+    return {
+      kind: 'Coll',
+      elem: obj.elem,
+      items: [
+        ...obj.items.slice(0, from),
+        ...patchArg.items,
+        ...obj.items.slice(from + replaced),
+      ],
+    }
+  } })
+
   // ---------- SAvlTree Tier-1 (pure accessors) — phase 2h-b ----------
   // All 7 are Pattern A cost 15. Source: ergotree-interpreter/src/eval/savltree.rs:29-75.
   // Handler bodies live in ./savltree.ts; they expect `(obj, args, ctx)` —

@@ -32,6 +32,20 @@ import type {
 
 const BOX_FETCH_CONCURRENCY = 64;
 
+/**
+ * Mainnet voting-epoch length. `maxBlockCost` (and other votable parameters)
+ * is recorded in the extension only at boundary blocks whose height is a
+ * multiple of this, and is *inherited* by every block until the next boundary.
+ */
+const VOTING_EPOCH_LENGTH = 1024;
+
+/**
+ * sigma-rust `Parameters::default().max_block_cost()` — genesis value, used
+ * only as a last-resort fallback when no boundary ≤ height carries parameters
+ * (i.e. pre-first-vote). The forward walk (h ≫ 0) never hits this.
+ */
+const GENESIS_MAX_BLOCK_COST = 1_000_000;
+
 function hexDecode(s: string): Uint8Array {
     const out = new Uint8Array(s.length / 2);
     for (let i = 0; i < out.length; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
@@ -63,6 +77,46 @@ export class BundleAssembler {
         private readonly oracle: WasmCostOracle,
     ) {}
 
+    /** epoch-boundary height → active maxBlockCost (resolved once per epoch). */
+    private readonly maxBlockCostByEpoch = new Map<number, number>();
+
+    /**
+     * Resolve the *active* `maxBlockCost` for `height` (iter-26).
+     *
+     * `maxBlockCost` is a votable consensus parameter recorded only at
+     * voting-epoch boundary blocks and inherited between them, so non-boundary
+     * blocks carry `parameters: null`. We read the value from the last boundary
+     * ≤ height (which the node already serves), cached per epoch. This mirrors
+     * the node's state rather than re-deriving consensus — the only consensus
+     * constant assumed is the well-known epoch length. Walking back epoch-by-
+     * epoch is defensive; the computed boundary normally carries parameters.
+     */
+    private async resolveActiveMaxBlockCost(height: number): Promise<number> {
+        const target = Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH;
+        const cached = this.maxBlockCostByEpoch.get(target);
+        if (cached !== undefined) return cached;
+        for (let b = target; b >= 0; b -= VOTING_EPOCH_LENGTH) {
+            try {
+                const ids = await this.node.getHeaderIdsAtHeight(b);
+                if (ids.length > 0) {
+                    const frags = await this.node.getValidationFragments(ids[0]!);
+                    if (frags.parameters !== null) {
+                        this.maxBlockCostByEpoch.set(target, frags.parameters.maxBlockCost);
+                        return frags.parameters.maxBlockCost;
+                    }
+                }
+            } catch {
+                // Boundary block unavailable (e.g. genesis-epoch height 0
+                // doesn't exist, or a transient REST error) — treat as "no
+                // params here" and keep walking back; falls through to the
+                // genesis default if nothing ≤ height carries parameters.
+            }
+            if (b === 0) break;
+        }
+        this.maxBlockCostByEpoch.set(target, GENESIS_MAX_BLOCK_COST);
+        return GENESIS_MAX_BLOCK_COST;
+    }
+
     /**
      * Assemble a BlockBundle for height `h`.
      *
@@ -84,6 +138,23 @@ export class BundleAssembler {
                 `!= block transactions len=${block.blockTransactions.transactions.length}`,
             );
         }
+
+        // Resolve the *active* maxBlockCost for this height once — used for both
+        // the oracle's per-tx cost limit and the evaluator's jitCostLimit
+        // (iter-26). Recorded only at epoch boundaries and inherited between
+        // them, so non-boundary blocks (parameters === null) read the last
+        // boundary ≤ height; boundary blocks seed the per-epoch cache.
+        let activeMaxBlockCost: number;
+        if (fragments.parameters !== null) {
+            activeMaxBlockCost = fragments.parameters.maxBlockCost;
+            this.maxBlockCostByEpoch.set(
+                Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH,
+                activeMaxBlockCost,
+            );
+        } else {
+            activeMaxBlockCost = await this.resolveActiveMaxBlockCost(height);
+        }
+
         // Dedupe all box ids referenced in the block.
         const boxIdSet = new Set<string>();
         for (const tx of block.blockTransactions.transactions) {
@@ -116,7 +187,9 @@ export class BundleAssembler {
                 dataInputBoxesBytes,
                 headerBytes,
                 rollingHeaderBytes,
-                parameters: fragments.parameters,
+                // active value (not raw fragments.parameters, which is null off
+                // epoch boundaries) so the oracle's cost limit matches ours.
+                parameters: { maxBlockCost: activeMaxBlockCost },
             });
             const inputs: InputBundle[] = tx.inputs.map((i, ii) => {
                 const ctxExt: ContextExtensionEntry[] = Object.entries(i.spendingProof.extension).map(([varId, hex]) => ({
@@ -141,9 +214,7 @@ export class BundleAssembler {
                 dataInputBoxes: dataInputBoxesBytes,
             });
         }
-        const parameters: BlockParameters | null = fragments.parameters !== null
-            ? { maxBlockCost: fragments.parameters.maxBlockCost }
-            : null;
+        const parameters: BlockParameters = { maxBlockCost: activeMaxBlockCost };
         return {
             height,
             blockId: hexDecode(headerId),

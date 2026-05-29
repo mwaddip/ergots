@@ -234,6 +234,58 @@ export function exprTpe(e: Expr): SType {
       // sigma-rust `mir/decode_point.rs::DecodePoint::tpe`: SGroupElement
       // (parsed compressed-point bytes).
       return { tag: 'SGroupElement' }
+    case 'MultiplyGroup':
+      // sigma-rust `mir/multiply_group.rs::MultiplyGroup::tpe`: SGroupElement
+      // (group multiplication g·h of two GroupElements). Walker halt at
+      // mainnet h=1,140,116 tx#6 input 0 (ValDef rhs).
+      return { tag: 'SGroupElement' }
+    case 'Exponentiate':
+      // sigma-rust `mir/exponentiate.rs::Exponentiate::tpe`: SGroupElement
+      // (g^x: GroupElement base, BigInt exponent → GroupElement). Same class
+      // as MultiplyGroup; ships with it to pre-empt the identical halt.
+      return { tag: 'SGroupElement' }
+    // ── exprTpe coverage completion (walker h=1,140,116 tx#6 — a complex
+    // contract whose ValDef rhs's exercised many variants the lazy switch never
+    // got arms for). Every result type verified against sigma-rust mir/*.rs. ──
+    case 'CalcSha256':
+      // mir/calc_sha256.rs::CalcSha256::tpe → SColl[SByte] (32-byte digest).
+      return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'BitInversion':
+      // mir/bit_inversion.rs::BitInversion::tpe → input.post_eval_tpe()
+      // (bitwise NOT preserves the numeric operand type).
+      return exprTpe(e.input)
+    case 'CreateAvlTree':
+      // mir/create_avl_tree.rs::CreateAvlTree::tpe → SAvlTree.
+      return { tag: 'SAvlTree' }
+    case 'CreateProveDhTuple':
+      // mir/create_prove_dh_tuple.rs::CreateProveDhTuple::tpe → SSigmaProp.
+      return { tag: 'SSigmaProp' }
+    case 'ExtractBytes':
+      // mir/extract_bytes.rs::ExtractBytes::tpe → SColl[SByte] (SBox.bytes).
+      return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'SubstConstants':
+      // mir/subst_const.rs::SubstConstants::tpe → SColl[SByte] (ErgoTree bytes
+      // with constants substituted).
+      return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'TreeLookup':
+      // mir/tree_lookup.rs::TreeLookup::tpe → SOption[SColl[SByte]].
+      return { tag: 'SOption', elem: { tag: 'SColl', elem: { tag: 'SByte' } } }
+    case 'XorOf':
+      // mir/xor_of.rs::XorOf::tpe → SBoolean (XOR-reduction of a Coll[Boolean]).
+      return { tag: 'SBoolean' }
+    case 'SigmaPropIsProven':
+      // mir/sigma_prop_is_proven.rs::SigmaPropIsProven::tpe → SBoolean.
+      return { tag: 'SBoolean' }
+    case 'Global':
+      // sigma-rust mir/expr.rs:266 — Expr::Global → SGlobal.
+      return { tag: 'SGlobal' }
+    case 'Context':
+      // sigma-rust mir/expr.rs:267 — Expr::Context → SContext.
+      return { tag: 'SContext' }
+    case 'ZkProofBlock':
+      // mir/zk_proof.rs::ZkProofBlock::tpe → SBoolean (body is SSigmaProp, but
+      // the ZK-scope block's value type is SBoolean).
+      return { tag: 'SBoolean' }
     case 'And':
       // sigma-rust `mir/and.rs::And::tpe`: SBoolean (AND-reduction of a
       // Coll[Boolean]).

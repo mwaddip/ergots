@@ -12,7 +12,7 @@
  *                                     baseline)
  *
  * Expected behaviour by entry:
- *   - mg_gen_gen / mg_inverse_then_doubling / mg_random_random :
+ *   - mg_gen_gen / mg_inverse_then_doubling / mg_distinct_points :
  *     flipping bytes within either point input either yields an off-curve
  *     point (most flips → `decodePoint` throws → kill) or a valid different
  *     point (the sum bytes change → kill).
@@ -164,6 +164,17 @@ describe('MultiplyGroup mutation testing (Layer C3.a)', () => {
         }
         const end = start + pointBytes.length
         searchFrom = end // advance so the next iteration finds the NEXT occurrence
+        // iter-24: a 0x00-lead (identity) operand — sigma-rust's EcPoint decode
+        // never inspects bytes 1..32 (ec_point.rs:139-151), so mutating them is
+        // a consensus no-op, not a detectable kill. Exclude identity operands
+        // from the kill-rate; non-identity operands still enforce >=90%.
+        if (pointBytes[0] === 0x00) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[mutation] multiply_group.${entry.name}#${i}: SKIPPED (identity operand, iter-24)`,
+          )
+          continue
+        }
         const result = runMutationLoop({
           treeBytes,
           region: { start, end },

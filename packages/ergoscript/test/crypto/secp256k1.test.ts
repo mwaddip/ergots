@@ -118,9 +118,32 @@ describe('secp256k1 adapter', () => {
       expect(() => decodePoint(bytes)).toThrow()
     })
 
-    it('throws on wrong length', () => {
+    it('throws on fewer than 33 bytes (mirrors read_exact)', () => {
       expect(() => decodePoint(new Uint8Array(32))).toThrow()
-      expect(() => decodePoint(new Uint8Array(34))).toThrow()
+      expect(() => decodePoint(new Uint8Array(0))).toThrow()
+    })
+
+    // iter-24 (mainnet h=1,111,884): sigma-rust `EcPoint::scorex_parse` reads
+    // EXACTLY the first 33 bytes (read_exact) and tolerates trailing bytes,
+    // and treats ANY 0x00-lead input as the identity (bytes 1..32 never
+    // inspected). The prior strict adapter (require exactly 33; identity only
+    // when all-zero) threw on `decodePoint(SELF.R4[3..]=514B, lead 0x00)` and
+    // halted the validator. We now mirror sigma-rust exactly.
+    it('treats any 0x00-lead input as identity (bytes 1..32 ignored)', () => {
+      const b = new Uint8Array(33)
+      for (let i = 1; i < 33; i++) b[i] = 0xff // 0x00 lead, non-zero tail
+      expect(bytesEqual(encodePoint(decodePoint(b)), ZERO_33)).toBe(true)
+    })
+
+    it('tolerates trailing bytes (reads only the first 33)', () => {
+      const pt = encodePoint(pointMul(basePoint, 7n)) // valid 33-byte point
+      const withTrailing = new Uint8Array(pt.length + 481)
+      withTrailing.set(pt, 0) // 481 trailing bytes left zero
+      expect(bytesEqual(encodePoint(decodePoint(withTrailing)), pt)).toBe(true)
+      // The exact iter-24 shape: 0x00-lead + long non-point tail → identity.
+      const r4tail = new Uint8Array(514)
+      for (let i = 1; i < 514; i++) r4tail[i] = (i * 7) & 0xff
+      expect(bytesEqual(encodePoint(decodePoint(r4tail)), ZERO_33)).toBe(true)
     })
   })
 })

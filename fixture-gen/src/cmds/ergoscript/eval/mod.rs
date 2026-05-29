@@ -21,6 +21,7 @@ pub mod coll_filter;
 pub mod coll_forall;
 pub mod coll_fold;
 pub mod coll_map;
+pub mod coll_patch;
 pub mod coll_slice;
 pub mod collection;
 pub mod coll_size;

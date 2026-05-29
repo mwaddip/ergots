@@ -53,7 +53,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { exprTpe } from '../mir/expr-tpe'
-import { sTypeEquals } from '../mir/stype-helpers'
+import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_map.rs:72
@@ -91,10 +91,28 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   // from e.mapper when it is a FuncValue MIR node (i.e., e.mapper.args[0].tpe).
   // When mapper is not a FuncValue node (ValUse etc.), skip — the extractFuncValue guard
   // above already enforces callable-at-runtime.
+  //
+  // SAny tolerance: when the RUNTIME input collection's elem is SAny we skip the
+  // check rather than reject. SAny is our phase-2a placeholder for an element
+  // type we couldn't resolve statically (it flows from un-resolved MethodCall
+  // return types — see `exprTpe` — through ValDef/ValUse/Map-output). sigma-rust
+  // never has SAny here: it tracks concrete types, so its check (on the runtime
+  // coll's concrete elem_tpe) passes; rejecting on our lossy SAny is a false
+  // positive. Mirrors the existing SAny-tolerance in ByIndex/OptionGet/SelectField
+  // and the Map per-item result-type check below.
+  //
+  // Iter-19 (mainnet h=972,235 tx 5 input 0): an EMPTY collection produced by an
+  // earlier Map (whose mapper result was SAny) is sliced and fed here against a
+  // concrete `Coll[SByte]` mapper arg. With no items the type can't be recovered
+  // at runtime, so the check must tolerate SAny. A genuine mismatch always has
+  // concrete types on both sides and is still caught.
   let outElemTpe: SType | null = null
   if (e.mapper.tag === 'FuncValue' && e.mapper.args.length > 0) {
     const mapperInputTpe = e.mapper.args[0]!.tpe
-    if (!sTypeEquals(inputColl.elem, mapperInputTpe)) {
+    // SAny-tolerant (wildcard at any depth) — see stype-helpers
+    // sTypeEqualsModuloSAny. Generalizes the original top-level-only SAny skip
+    // to nested SAny (iter-22).
+    if (!sTypeEqualsModuloSAny(inputColl.elem, mapperInputTpe)) {
       throw new EvalError(
         `Map: input elem type ${JSON.stringify(inputColl.elem)} does not match mapper declared arg type ${JSON.stringify(mapperInputTpe)}`,
         'coll-elem-tpe-mismatch'
@@ -144,9 +162,13 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     // Iter-16 closure: mainnet h=727,604 tx 11 input 0 has a Map whose mapper
     // statically returns SAny but runtime yields SLong; pre-fix this halted
     // with 'lambda-result-type-mismatch'.
-    if (outElemTpe !== null && outElemTpe.tag !== 'SAny') {
+    // Result-type check, SAny-tolerant at any depth. Skips comparison against
+    // any SAny position (top-level OR nested, e.g. declared STuple[Coll[SByte],
+    // SAny] vs runtime STuple[Coll[SByte], SLong] — iter-22, h=1,012,685).
+    // A genuine mismatch (concrete vs concrete, no SAny) is still caught.
+    if (outElemTpe !== null) {
       const itemTpe = inferSType(itemRes)
-      if (!sTypeEquals(itemTpe, outElemTpe)) {
+      if (!sTypeEqualsModuloSAny(itemTpe, outElemTpe)) {
         throw new EvalError(
           `Map: lambda body returned type ${JSON.stringify(itemTpe)} but mapper declared return type ${JSON.stringify(outElemTpe)}`,
           'lambda-result-type-mismatch'
@@ -157,14 +179,36 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   }
 
   // 6. Determine output elem type for the result Coll.
-  // Prefer the statically-derived outElemTpe (= mapper_sfunc.t_range); fall back to
-  // inferring from the first runtime result item (non-empty) or input elem type (empty).
+  //
+  // Prefer the statically-derived outElemTpe (= mapper_sfunc.t_range). But when
+  // it is SAny we must NOT use it verbatim: SAny is the placeholder our
+  // phase-2a `exprTpe` emits for values whose static type isn't resolvable
+  // (notably MethodCall/PropertyCall return types — there is no SMethod
+  // return-type resolver yet). The RUNTIME items, however, are concretely
+  // typed, so for a non-empty output we recover the true elem type from the
+  // first item — exactly the type sigma-rust derives statically.
+  //
+  // Iter-19 (mainnet h=972,235 tx 5 input 0): a Map's mapper body was
+  // `Slice(getMany(...))`, statically SAny (getMany's return type isn't
+  // resolved) but runtime-concrete `Coll[Byte]`. Pre-fix, this Map emitted a
+  // `Coll[SAny]`; the result was sliced and fed to a second Map declaring a
+  // `Coll[SByte]` arg, whose runtime elem-type check then rejected
+  // SAny ≠ Coll[SByte]. Mirrors the iter-16 SAny-tolerance already applied to
+  // the per-item result-type check above.
+  //
+  // Empty-output behavior is unchanged: with no item to infer from we keep the
+  // static outElemTpe (incl. SAny, matching sigma-rust's empty Coll[SAny])
+  // when present, else fall back to the input elem type.
+  // Use the static outElemTpe only when it is FULLY concrete (no SAny at any
+  // depth). When it carries SAny — top-level or nested (iter-22) — recover the
+  // concrete elem from the first runtime item; for an empty output fall back to
+  // the static type (incl. its SAny) or the input elem.
   const outElem: SType =
-    outElemTpe !== null
+    outElemTpe !== null && !hasSAny(outElemTpe)
       ? outElemTpe
       : outItems.length > 0
         ? inferSType(outItems[0]!)
-        : inputColl.elem
+        : (outElemTpe ?? inputColl.elem)
 
   return { kind: 'Coll', elem: outElem, items: outItems }
 }

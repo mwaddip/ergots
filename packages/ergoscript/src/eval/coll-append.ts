@@ -20,7 +20,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems } from './_coll-helpers'
-import { sTypeEquals } from '../mir/stype-helpers'
+import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 
 // Cost source: sigma-rust eval/coll_append.rs:57
 //   ctx.add_per_item_jit_cost(20, 2, 100, n1+n2)?;
@@ -43,7 +43,21 @@ export function evalAppend(e: Append, env: Env, ctx: EvalContext): SValue {
   const inputColl = extractCollItems(inputVal)
   const col2Coll = extractCollItems(col2Val)
 
-  if (!sTypeEquals(inputColl.elem, col2Coll.elem)) {
+  // Elem-type equality check, mirroring sigma-rust coll_append.rs
+  // (`if input_elem_tpe != col2_elem_tpe { return Err }`). SAny tolerance:
+  // skip the check when either runtime elem is SAny — our phase-2a `exprTpe`
+  // emits SAny for values whose type isn't statically resolvable (notably
+  // un-resolved MethodCall returns, e.g. an empty collection from a getMany /
+  // Map chain). sigma-rust tracks concrete types here, so its check passes;
+  // rejecting on our lossy SAny is a false positive. Same principle as the
+  // Map input/output SAny tolerance (iter-19) and the SAny-tolerant
+  // ByIndex/OptionGet/SelectField arms.
+  //
+  // Iter-21 (mainnet h=974,407 tx 8 input 1): Append(Coll[Coll[SByte]],
+  // <SAny coll>) — one operand concrete, the other SAny — halted here pre-fix.
+  // SAny-tolerant (wildcard at any depth) — generalizes the original
+  // top-level-only skip to nested SAny, consistent with Map (iter-22).
+  if (!sTypeEqualsModuloSAny(inputColl.elem, col2Coll.elem)) {
     throw new EvalError(
       `Append: expected the same elem type, got ${JSON.stringify(inputColl.elem)} and ${JSON.stringify(col2Coll.elem)}`,
       'coll-elem-tpe-mismatch'
@@ -57,9 +71,17 @@ export function evalAppend(e: Append, env: Env, ctx: EvalContext): SValue {
     inputColl.items.length + col2Coll.items.length
   )
 
+  // Output elem: prefer the concrete side when the other is SAny, so the
+  // result doesn't propagate SAny forward. When input is concrete (the common
+  // case, and sigma-rust's `from_collection(input_elem_tpe, …)`), use it.
+  // Prefer the fully-concrete side for the output elem so SAny (top-level or
+  // nested) isn't propagated forward; default to input's elem (sigma-rust uses
+  // input_elem_tpe).
+  const outElem = hasSAny(inputColl.elem) ? col2Coll.elem : inputColl.elem
+
   return {
     kind: 'Coll',
-    elem: inputColl.elem,
+    elem: outElem,
     items: [...inputColl.items, ...col2Coll.items],
   }
 }

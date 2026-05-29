@@ -1,0 +1,506 @@
+{
+  "corpus": "eval_coll_patch",
+  "entries": [
+    {
+      "name": "patch_happy",
+      "tree_bytes_hex": "00dc0c131103020a0a030402110204060404",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_addition",
+      "tree_bytes_hex": "00dc0c1311040204080a0304041101060400",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          },
+          {
+            "kind": "Long",
+            "value": "4"
+          },
+          {
+            "kind": "Long",
+            "value": "5"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_subtraction",
+      "tree_bytes_hex": "00dc0c13110602040a0a080a0304041101060404",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          },
+          {
+            "kind": "Long",
+            "value": "4"
+          },
+          {
+            "kind": "Long",
+            "value": "5"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_from_zero",
+      "tree_bytes_hex": "00dc0c13110314283c0304001101c6010402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "99"
+          },
+          {
+            "kind": "Long",
+            "value": "20"
+          },
+          {
+            "kind": "Long",
+            "value": "30"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_empty_patch",
+      "tree_bytes_hex": "00dc0c13110314283c03040211000402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "10"
+          },
+          {
+            "kind": "Long",
+            "value": "30"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_oob_from_and_replaced",
+      "tree_bytes_hex": "00dc0c1311030204060304121102080a0412",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          },
+          {
+            "kind": "Long",
+            "value": "4"
+          },
+          {
+            "kind": "Long",
+            "value": "5"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_from_plus_replaced_gt_len",
+      "tree_bytes_hex": "00dc0c13110402040608030404110112040a",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "9"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_negative_from",
+      "tree_bytes_hex": "00dc0c1311030204060304011102080a0402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "4"
+          },
+          {
+            "kind": "Long",
+            "value": "5"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_negative_replaced",
+      "tree_bytes_hex": "00dc0c1311030204060304021101120409",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "9"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_both_negative",
+      "tree_bytes_hex": "00dc0c1311030204060304011102080a0401",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "4"
+          },
+          {
+            "kind": "Long",
+            "value": "5"
+          },
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_empty_input",
+      "tree_bytes_hex": "00dc0c13110003040011020e100400",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "7"
+          },
+          {
+            "kind": "Long",
+            "value": "8"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 54
+    },
+    {
+      "name": "patch_large_input",
+      "tree_bytes_hex": "00dc0c13110f00020406080a0c0e10121416181a1c03040a1101c8010406",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [
+          {
+            "kind": "Long",
+            "value": "0"
+          },
+          {
+            "kind": "Long",
+            "value": "1"
+          },
+          {
+            "kind": "Long",
+            "value": "2"
+          },
+          {
+            "kind": "Long",
+            "value": "3"
+          },
+          {
+            "kind": "Long",
+            "value": "4"
+          },
+          {
+            "kind": "Long",
+            "value": "100"
+          },
+          {
+            "kind": "Long",
+            "value": "8"
+          },
+          {
+            "kind": "Long",
+            "value": "9"
+          },
+          {
+            "kind": "Long",
+            "value": "10"
+          },
+          {
+            "kind": "Long",
+            "value": "11"
+          },
+          {
+            "kind": "Long",
+            "value": "12"
+          },
+          {
+            "kind": "Long",
+            "value": "13"
+          },
+          {
+            "kind": "Long",
+            "value": "14"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 58
+    },
+    {
+      "name": "patch_byte_happy",
+      "tree_bytes_hex": "00dc0c130e04010203040304020e01090404",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 1
+          },
+          {
+            "kind": "Byte",
+            "value": 9
+          },
+          {
+            "kind": "Byte",
+            "value": 4
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_byte_negative_from",
+      "tree_bytes_hex": "00dc0c130e030a141e0304030e01630402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 99
+          },
+          {
+            "kind": "Byte",
+            "value": 20
+          },
+          {
+            "kind": "Byte",
+            "value": 30
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 56
+    },
+    {
+      "name": "patch_collbyte_happy",
+      "tree_bytes_hex": "00dc0c1383030e0e0201020e01030e02040503040283010e0e0209090402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "elem": {
+            "tag": "SByte"
+          },
+          "tag": "SColl"
+        },
+        "items": [
+          {
+            "elem": {
+              "tag": "SByte"
+            },
+            "items": [
+              {
+                "kind": "Byte",
+                "value": 1
+              },
+              {
+                "kind": "Byte",
+                "value": 2
+              }
+            ],
+            "kind": "Coll"
+          },
+          {
+            "elem": {
+              "tag": "SByte"
+            },
+            "items": [
+              {
+                "kind": "Byte",
+                "value": 9
+              },
+              {
+                "kind": "Byte",
+                "value": 9
+              }
+            ],
+            "kind": "Coll"
+          },
+          {
+            "elem": {
+              "tag": "SByte"
+            },
+            "items": [
+              {
+                "kind": "Byte",
+                "value": 4
+              },
+              {
+                "kind": "Byte",
+                "value": 5
+              }
+            ],
+            "kind": "Coll"
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 106
+    }
+  ]
+}
