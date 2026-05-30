@@ -25,7 +25,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 20
+      "expected_cost": 35
     },
     {
       "name": "coll_exprs_int_3",

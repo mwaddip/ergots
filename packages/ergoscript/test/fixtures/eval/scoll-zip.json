@@ -20,7 +20,7 @@
         "items": [],
         "kind": "Coll"
       },
-      "expected_cost": 24
+      "expected_cost": 25
     },
     {
       "name": "equal_length",

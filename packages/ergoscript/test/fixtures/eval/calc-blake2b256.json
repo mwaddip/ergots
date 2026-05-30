@@ -141,7 +141,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 25,
+      "expected_cost": 32,
       "expected_error_code": null
     },
     {

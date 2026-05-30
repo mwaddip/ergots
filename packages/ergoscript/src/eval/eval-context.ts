@@ -105,7 +105,12 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
       }
     },
     addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void {
-      const chunks = Math.ceil(nItems / chunkSize)
+      // chunks mirrors Scala consensus PerItemCost.chunks = (n-1)/chunkSize + 1 with
+      // signed toward-zero division (sigma-rust chain/context.rs:108, commit f6b2dd7f).
+      // Identical to ceil(n/cs) for n>=1; differs only at n=0, where a chunkSize>=2
+      // element still costs one chunk (the JVM charges base+perChunk on an empty coll,
+      // chunkSize==1 charges base only). Math.trunc matches Rust i64 toward-zero division.
+      const chunks = Math.max(0, Math.trunc((nItems - 1) / chunkSize) + 1)
       ctx.addCost(base + chunks * perChunk)
     },
   }

@@ -317,7 +317,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 54
+      "expected_cost": 56
     },
     {
       "name": "patch_large_input",

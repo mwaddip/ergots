@@ -220,8 +220,8 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     // Documents the divergence: elem stays SAny because no iter refined it.
     expect((result as SValue & { kind: 'Coll' }).elem).toEqual({ tag: 'SAny' })
     expect((result as SValue & { kind: 'Coll' }).items.length).toBe(0)
-    // Empty input → outer cost = 60 (base) + 10 * ceil(0 / 8) = 60.
-    expect(ctx.jitCost).toBe(60)
+    // Empty input → outer cost = 60 (base) + 10 * 1 chunk = 70 (n=0 ⇒ 1 chunk, Scala PerItemCost).
+    expect(ctx.jitCost).toBe(70)
   })
 
   it('lambda-result-type-mismatch when itemRes is not a Coll (cost charged for outer, no per-iter)', () => {

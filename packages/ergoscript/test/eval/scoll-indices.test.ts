@@ -46,8 +46,8 @@ describe('SColl.indices handler (Layer C1)', () => {
     }
     const result = evalMethodCall(e, Env.empty(), ctx)
     expect(result).toEqual({ kind: 'Coll', elem: SINT, items: [] })
-    // Dispatcher 4 + Const arm 5 + handler base 20 + ceil(0/16)*2 = 0 → total 29
-    expect(ctx.jitCost).toBe(29)
+    // Dispatcher 4 + Const arm 5 + handler base 20 + n=0 ⇒ 1 chunk ×2 = 22 → total 31
+    expect(ctx.jitCost).toBe(31)
   })
 
   it('3-elem Coll → Coll[Int](0, 1, 2)', () => {

@@ -50,8 +50,8 @@ describe('SColl.zip handler (Layer C1)', () => {
       elem: { tag: 'STuple', items: [SLONG, SLONG] },
       items: [],
     })
-    // Dispatcher 4 + Const(obj) 5 + Const(arg) 5 + handler: base 10 + ceil(0/10)*1=0 → total 24
-    expect(ctx.jitCost).toBe(24)
+    // Dispatcher 4 + Const(obj) 5 + Const(arg) 5 + handler: base 10 + n=0 ⇒ 1 chunk ×1 = 11 → total 25
+    expect(ctx.jitCost).toBe(25)
   })
 
   it('equal-length zip → tuples of corresponding elements', () => {

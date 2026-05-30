@@ -80,8 +80,8 @@ describe('SColl.patch handler (iter-28)', () => {
     const ctx = makeContext({})
     const result = evalMethodCall(patchCall(longColl(), 0, longColl(7, 8), 0), Env.empty(), ctx)
     expect(result).toEqual(longColl(7, 8))
-    // dispatcher 4 + 4×Const 20 + handler 30 → 54
-    expect(ctx.jitCost).toBe(54)
+    // dispatcher 4 + 4×Const 20 + handler 32 (base 30 + n=0 ⇒ 1 chunk ×2) → 56
+    expect(ctx.jitCost).toBe(56)
   })
 
   it('saturates out-of-bounds from/replaced (take/skip semantics) and preserves elem type', () => {

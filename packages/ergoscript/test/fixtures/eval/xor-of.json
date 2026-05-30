@@ -11,7 +11,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 25,
+      "expected_cost": 30,
       "expected_error_code": null
     },
     {
@@ -24,7 +24,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 25,
+      "expected_cost": 30,
       "expected_error_code": null
     },
     {
@@ -37,7 +37,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 25,
+      "expected_cost": 30,
       "expected_error_code": null
     },
     {
@@ -50,7 +50,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 25,
+      "expected_cost": 30,
       "expected_error_code": null
     },
     {

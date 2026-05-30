@@ -85,7 +85,7 @@
         "items": [],
         "kind": "Coll"
       },
-      "expected_cost": 25,
+      "expected_cost": 27,
       "expected_error_code": null
     },
     {
@@ -210,7 +210,7 @@
         "items": [],
         "kind": "Coll"
       },
-      "expected_cost": 25,
+      "expected_cost": 27,
       "expected_error_code": null
     },
     {
@@ -224,7 +224,7 @@
         "items": [],
         "kind": "Coll"
       },
-      "expected_cost": 25,
+      "expected_cost": 27,
       "expected_error_code": null
     }
   ]

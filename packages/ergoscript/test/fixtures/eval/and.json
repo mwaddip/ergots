@@ -9,7 +9,7 @@
         "kind": "Boolean",
         "value": true
       },
-      "expected_cost": 15,
+      "expected_cost": 20,
       "expected_error_code": null
     },
     {

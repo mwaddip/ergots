@@ -246,15 +246,19 @@ const EQ_COLL_DEFAULT_PER_ITEM: PerItemCost = { base: 10, perChunk: 2, chunkSize
 
 /**
  * Mirror of `add_per_item_jit_cost(base, per_chunk, chunk_size, n_items)` from
- * ergotree-ir/src/chain/context.rs:89-99.
+ * ergotree-ir/src/chain/context.rs.
  *
- * Formula: base + ceil(n / chunkSize) * perChunk
+ * Formula: base + chunks(n) * perChunk, where chunks(n) mirrors Scala consensus
+ * PerItemCost.chunks = (n-1)/chunkSize + 1 with signed toward-zero division
+ * (sigma-rust commit f6b2dd7f). Equals ceil(n/cs) for n>=1; differs only at n=0,
+ * where a chunkSize>=2 element still costs one chunk. Must stay in lockstep with
+ * EvalContext.addPerItemCost (the shared primitive) — both are the same formula.
  */
 function addPerItemJitCost(
   { base, perChunk, chunkSize }: PerItemCost,
   n: number,
 ): number {
-  const chunks = Math.ceil(n / chunkSize)
+  const chunks = Math.max(0, Math.trunc((n - 1) / chunkSize) + 1)
   return base + chunks * perChunk
 }
 

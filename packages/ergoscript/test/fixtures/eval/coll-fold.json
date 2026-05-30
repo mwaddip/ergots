@@ -31,7 +31,7 @@
         "kind": "Int",
         "value": 42
       },
-      "expected_cost": 18,
+      "expected_cost": 19,
       "expected_error_code": null
     },
     {

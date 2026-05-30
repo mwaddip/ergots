@@ -492,7 +492,7 @@
         "kind": "Boolean",
         "value": true
       },
-      "expected_cost": 56,
+      "expected_cost": 58,
       "expected_error_code": null
     },
     {

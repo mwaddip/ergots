@@ -38,6 +38,12 @@ import { evalExpr } from './eval'
 export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(20)
   if (e.kind === 'BoolConstants') {
+    // Each boolean constant is a BooleanConstant = FixedCost(5) on the JVM
+    // (Constant.costKind, sigma `values.scala`). The `Exprs` arm below already
+    // pays this via each Const eval; the packed BoolConstants form converts bits
+    // directly without per-element eval, so charge 5*n here to match the JVM and
+    // the Exprs arm (total = 20 + 5n). sigma-rust collection.rs, commit ee4c3c3f.
+    ctx.addCost(5 * e.items.length)
     return {
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
