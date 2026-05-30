@@ -198,6 +198,34 @@
       "expected_value_json": null,
       "expected_cost": 0,
       "expected_error_code": "coll-input-not-coll"
+    },
+    {
+      "name": "coll_slice_neg_until",
+      "tree_bytes_hex": "00b411040204060804000401",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
+    },
+    {
+      "name": "coll_slice_neg_until_from_mid",
+      "tree_bytes_hex": "00b4110414283c5004020401",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "items": [],
+        "kind": "Coll"
+      },
+      "expected_cost": 25,
+      "expected_error_code": null
     }
   ]
 }

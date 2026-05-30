@@ -144,6 +144,15 @@ export const EXPECTED_SURVIVALS = new Set<string>([
   'coll-slice:coll_slice_empty_input:replaceLeafConst:1',
   // coll_slice_large_range: until constant is already at/beyond coll length; +1 still beyond.
   'coll-slice:coll_slice_large_range:replaceLeafConst:1',
+  // coll_slice_neg_until: [1,2,3,4][0..-1] → [] (negative until). Both bound consts
+  // survive a +1: from 0→1 leaves until still negative (empty); until -1→0 makes
+  // from>=until (empty). Site 0 = from, site 1 = until. (iter-30 regression fixture.)
+  'coll-slice:coll_slice_neg_until:replaceLeafConst:0',
+  'coll-slice:coll_slice_neg_until:replaceLeafConst:1',
+  // coll_slice_neg_until_from_mid: [10,20,30,40][1..-1] → [] (from in-range, neg until).
+  // from 1→2 leaves until negative (empty); until -1→0 makes from>=until (empty).
+  'coll-slice:coll_slice_neg_until_from_mid:replaceLeafConst:0',
+  'coll-slice:coll_slice_neg_until_from_mid:replaceLeafConst:1',
 
   // ── Category F: Commutative BinOp (O2 swapBinaryChildren) ───────────────
   // coll-map: mapper body is Add(ValUse, Const(1)); swap → Add(Const(1), ValUse) = same.

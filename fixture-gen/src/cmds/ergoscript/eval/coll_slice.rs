@@ -353,6 +353,61 @@ pub fn generate() -> anyhow::Result<CollSliceFixtureFile> {
         });
     }
 
+    // ── 11. coll_slice_neg_until ──────────────────────────────────────────────
+    // [1,2,3,4][0..-1] → [] (NEGATIVE until)
+    // n_items = max(0, -1-0) = 0 → cost 10 (same as any empty-range slice).
+    // sigma-rust intersection: range = from.max(0)=0 .. (until.min(len)=-1) as usize.
+    //   -1i32 as usize wraps to a huge index, so the range end exceeds len →
+    //   input_vec.get(range) returns None → empty coll (coll_slice.rs:36-41).
+    // iter-30 regression (mainnet h=1,520,814 tx12/in0): a naive JS
+    // Array.slice(from, negativeUntil) indexes from the END and returns a
+    // NON-empty slice, diverging from sigma-rust's usize-clamp→None→empty.
+    {
+        let coll: Expr = Expr::Const(vec![1i64, 2i64, 3i64, 4i64].into());
+        let from: Expr = Expr::Const(0i32.into());
+        let until: Expr = Expr::Const((-1i32).into());
+        let expr: Expr = Slice::new(coll, from, until)?.into();
+        let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+        let hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+        let ctx = force_any_val::<Context>();
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+
+        entries.push(CollSliceFixture {
+            name: "coll_slice_neg_until".into(),
+            tree_bytes_hex: hex,
+            opts_json: json!({}),
+            expected_value_json: value_to_json(&val),
+            expected_cost: ctx.jit_cost_value(),
+            expected_error_code: json!(null),
+        });
+    }
+
+    // ── 12. coll_slice_neg_until_from_mid ─────────────────────────────────────
+    // [10,20,30,40][1..-1] → [] (from in-range, NEGATIVE until)
+    // n_items = max(0, -1-1) = 0 → cost 10. sigma-rust: range = 1..<huge> → None → empty.
+    // Naive JS Array.slice(1, -1) would instead return [20,30] — the iter-30 bug.
+    {
+        let coll: Expr = Expr::Const(vec![10i64, 20i64, 30i64, 40i64].into());
+        let from: Expr = Expr::Const(1i32.into());
+        let until: Expr = Expr::Const((-1i32).into());
+        let expr: Expr = Slice::new(coll, from, until)?.into();
+        let tree = ErgoTree::new(ErgoTreeHeader::v0(false), &expr)?;
+        let hex = hex::encode(tree.sigma_serialize_bytes()?);
+
+        let ctx = force_any_val::<Context>();
+        let val: Value<'static> = try_eval_out(&tree.proposition()?, &ctx)?;
+
+        entries.push(CollSliceFixture {
+            name: "coll_slice_neg_until_from_mid".into(),
+            tree_bytes_hex: hex,
+            opts_json: json!({}),
+            expected_value_json: value_to_json(&val),
+            expected_cost: ctx.jit_cost_value(),
+            expected_error_code: json!(null),
+        });
+    }
+
     Ok(CollSliceFixtureFile {
         corpus: "eval_coll_slice",
         entries,

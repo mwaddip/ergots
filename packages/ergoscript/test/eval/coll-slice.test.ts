@@ -40,6 +40,14 @@
  *   8.  coll_slice_large_range     — [0..5][0..200] → [0..5]; cost > entries 6+7
  *   9.  coll_slice_bound_not_int   — Slice(Coll, Bool_from, Int_until) → 'coll-slice-bound-not-int'
  *   10. coll_slice_not_coll        — Slice(Const(Int,42), Int_from, Int_until) → 'coll-input-not-coll'
+ *   11. coll_slice_neg_until       — [1,2,3,4][0..-1] → [] (NEGATIVE until ⇒ empty; iter-30 regression)
+ *   12. coll_slice_neg_until_from_mid — [10,20,30,40][1..-1] → [] (from in-range, negative until ⇒ empty)
+ *
+ * iter-30 (mainnet h=1,520,814 tx12/in0): a negative `until` made `Array.slice(from, neg)`
+ * index from the END (non-empty), diverging from sigma-rust's `until.min(len) as usize` →
+ * out-of-bounds range → None → empty. Surfaced as a +30 cost-drift (two empty-Coll[Long]
+ * equalities sigma-rust saw as both-empty, our non-empty operand took the length-mismatch
+ * short-circuit). Fixed in coll-slice.ts via an explicit `clippedFrom >= clippedUntil` guard.
  */
 
 import { describe, it, expect } from 'vitest'
