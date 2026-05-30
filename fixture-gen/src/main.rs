@@ -266,6 +266,10 @@ fn main() -> anyhow::Result<()> {
     let coll_patch_fixture = cmds::ergoscript::eval::coll_patch::generate()?;
     write_ergoscript_json("eval/coll-patch.json", &coll_patch_fixture)?;
 
+    // Campaign iter-29: SOption.map handler (MethodCall typeId=36, methodId=7).
+    let soption_map_fixture = cmds::ergoscript::eval::soption_map::generate()?;
+    write_ergoscript_json("eval/soption-map.json", &soption_map_fixture)?;
+
     // Phase 2g.6 Task 6: SContext.preHeader handler (PropertyCall typeId=101, methodId=3).
     let scontext_pre_header_fixture = cmds::ergoscript::eval::scontext_pre_header::generate()?;
     write_ergoscript_json("eval/scontext-pre-header.json", &scontext_pre_header_fixture)?;

@@ -66,6 +66,7 @@ import {
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
+import { evalSOptionMap } from './soption-map'
 import {
   evalSHeaderId,
   evalSHeaderVersion,
@@ -550,6 +551,23 @@ function registerHandlers(): void {
       ],
     }
   } })
+
+  // SOption.map (MethodCall, typeId=36, methodId=7) — campaign iter-29
+  // Source: ergotree-interpreter/src/eval/soption.rs:13-60 — map_eval
+  // Fixed cost 20 (Pattern A, charged first inside the handler). Some(t)→Some(lambda(t)),
+  // None→None. Lambda HOF — forwards extra.env for env-extend during body eval
+  // (like flatMap). Handler body in ./soption-map.ts. V0+ (no version gate).
+  HANDLERS.set(handlerKey(36, 7), {
+    handler: (obj, args, ctx, _explicitTypeArgs, extra) => {
+      if (extra === undefined) {
+        throw new EvalError(
+          `SOption.map requires extra={mc, env}; got undefined (programming error)`,
+          'method-not-implemented'
+        )
+      }
+      return evalSOptionMap(obj, args, ctx, extra.env)
+    },
+  })
 
   // ---------- SAvlTree Tier-1 (pure accessors) — phase 2h-b ----------
   // All 7 are Pattern A cost 15. Source: ergotree-interpreter/src/eval/savltree.rs:29-75.

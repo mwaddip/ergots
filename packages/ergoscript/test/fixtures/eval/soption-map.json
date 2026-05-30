@@ -1,0 +1,79 @@
+{
+  "corpus": "eval_soption_map",
+  "entries": [
+    {
+      "name": "map_some_gt",
+      "tree_bytes_hex": "00dc2407c663c0843d09020101640001059e9c01000000000000000000000000000000000000000000000000000000000000000001040501d90101059172010500",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBoolean"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Boolean",
+          "value": true
+        }
+      },
+      "expected_cost": 114
+    },
+    {
+      "name": "map_none_gt",
+      "tree_bytes_hex": "00dc2407c663c0843d090201012a0000000000000000000000000000000000000000000000000000000000000000000000040501d90101059172010500",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SBoolean"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 84
+    },
+    {
+      "name": "map_some_plus_long",
+      "tree_bytes_hex": "00dc2407c663c0843d09020101640001050a000000000000000000000000000000000000000000000000000000000000000001040501d90101059a72010502",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SLong"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Long",
+          "value": "6"
+        }
+      },
+      "expected_cost": 109
+    },
+    {
+      "name": "map_some_plus_int",
+      "tree_bytes_hex": "00dc2407c663c0843d090201016400010406000000000000000000000000000000000000000000000000000000000000000001040401d90101049a72010402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": {
+          "kind": "Int",
+          "value": 4
+        }
+      },
+      "expected_cost": 109
+    },
+    {
+      "name": "map_none_int",
+      "tree_bytes_hex": "00dc2407c663c0843d090201012a0000000000000000000000000000000000000000000000000000000000000000000000040401d90101049a72010402",
+      "opts_json": {},
+      "expected_value_json": {
+        "elem": {
+          "tag": "SInt"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 84
+    }
+  ]
+}

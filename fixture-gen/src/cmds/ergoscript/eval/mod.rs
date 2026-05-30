@@ -77,6 +77,7 @@ pub mod negation;
 pub mod option_get;
 pub mod option_get_or_else;
 pub mod option_is_defined;
+pub mod soption_map;
 pub mod or;
 pub mod select_field;
 pub mod sigma_and;
