@@ -672,21 +672,9 @@ export function validateTx(
             ergoTreeHex: bytesToHex(ergoTreeBytes),
         };
 
-        // 5a — parse ErgoTree.
-        let tree;
-        try {
-            tree = parseTree(ergoTreeBytes);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            throw new HarnessError(
-                'evaluate',
-                'tree-parse-failed',
-                `parseTree failed at tx ${txIndex}, input ${inputIndex}: ${message}`,
-                location,
-            );
-        }
-
-        // 5b — build ContextExtension from per-input Constant blobs.
+        // 5a — build ContextExtension from per-input Constant blobs. Built
+        // BEFORE the storage-rent check + tree parse: it needs no parsed tree,
+        // and the storage-rent check (5b-bis) consumes it.
         const extension = buildContextExtension(
             input,
             treeVersion,
@@ -718,6 +706,27 @@ export function validateTx(
             ) {
                 continue;
             }
+        }
+
+        // 5b-ter — parse ErgoTree. Reached only for NON-storage-rent spends:
+        // a storage-rent spend (5b-bis above) is consensus-valid WITHOUT
+        // deserializing the proposition (it keys off creationHeight expiry +
+        // recreation rules over the raw ergoTreeBytes), so neither the JVM nor
+        // sigma-rust parse the tree for it — and neither must we. iter-31:
+        // box 551242f6… (h=1,596,890) had a version>activated junk tree
+        // (cd07021a8e6f59fd4a) swept via storage rent; parsing it before the
+        // storage-rent check wrongly halted the walker.
+        let tree;
+        try {
+            tree = parseTree(ergoTreeBytes);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            throw new HarnessError(
+                'evaluate',
+                'tree-parse-failed',
+                `parseTree failed at tx ${txIndex}, input ${inputIndex}: ${message}`,
+                location,
+            );
         }
 
         // 5c — Cost-overflow guard (phase 2j-a). `oracleCost` arrives
