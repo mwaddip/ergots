@@ -4,7 +4,7 @@ Mainnet validation harness for the `@ergots/*` library stack. Pure stop-on-error
 
 A single TypeScript binary (`harness/`) walks the chain block-by-block, fetching block data from the node REST at `:9052` and box bytes from the indexer REST at `:9054/api/v1`. It runs four validation passes per block (header / output round-trip / evaluate / verify-signature), plus a cost-equivalence pass comparing our `ctx.jitCost` against the WASM oracle's per-input cost. The harness halts on the first divergence — writing a structured `error-report.json` for triage.
 
-The harness is a developer tool, not a published surface. It is the loom on which 2j proper calibrates per-arm costs and closes the remaining sigma-rust divergences.
+The harness is a developer tool, not a published surface. It is the loom on which the `@ergots/ergoscript` evaluator was calibrated per-arm against the live chain — driving the iter-1..31 cost/semantics fixes plus the JVM-alignment lockstep, and ultimately validating h=2 → tip byte-for-byte against the sigma-rust cost oracle.
 
 ## Prerequisites
 
@@ -118,12 +118,12 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 
 1. Read `error-report.json`. The `phase` + `errorCode` pair is the dispatch axis.
 2. If `phase: node-rest` with `errorCode: block-not-found` or `block-pruned`: the node doesn't have the block or validation fragments at that height. Verify the node is running with full-archive storage and the `validation-fragments` endpoint is enabled.
-3. If `phase: indexer-rest` with `errorCode: box-not-found`: the indexer couldn't serve a box's bytes. This is expected only for the 3 genesis-state boxes (emission, no_premine, founders) — those have a hardcoded fallback in `IndexerClient`. Any other `box-not-found` indicates the indexer is not fully synced.
+3. If `phase: indexer-rest` with `errorCode: box-not-found` (or `indexer-internal-error`/500 on the box-bytes endpoint): the indexer couldn't serve a box's bytes. Expected for the 3 genesis-state boxes (emission, no_premine, founders) — those have a hardcoded fallback in `IndexerClient`. Otherwise the indexer genuinely cannot serve that box, in one of two ways: (a) it is not fully synced; or (b) the box belongs to a **legacy reorg-orphan gap** — a pre-v0.6.6 block the indexer indexed as an *orphan* (vs the canonical block at that height), so a box created intra-block on the canonical side was never indexed. Class (b) is **not** an `@ergots/*` bug — it is node/indexer data state, and the harness has no way to reconstruct the box (it keeps no UTXO/box→creating-block index, and box-by-id 404s on the node too). Fix is node-side: truncate the indexer below the affected height and re-index forward canonical. Capture the box id + height and route to the node/indexer maintainer. (Two occurred this campaign, both fixed by truncate+reindex: h≈1,767,449 and h≈1,781,017.)
 4. If `phase: header`/`output-roundtrip`/`evaluate`/`verify-signature`: the divergence is in the `@ergots/*` library. Cross-reference the `errorCode` against the per-package facts file; reproduce by feeding the `bundleExcerpt.headerHex` (and the indexed `location`) into a unit fixture.
 5. If `phase: evaluate-cost` with `errorCode: cost-drift`: our TS evaluator and sigma-rust agree the input succeeded but disagree on cost. The `evaluateCost.{expected, actual, delta}` payload tells you the magnitude + direction (positive `delta` ⇒ ours undercharged, negative ⇒ ours overcharged). Reproduce by extracting `(ergoTreeHex, spentBoxId, ...)` from `location` into a per-arm fixture under `packages/ergoscript/test/eval/`; source-read the relevant sigma-rust arms for the actual charge.
 6. If `phase: evaluate-cost` with `errorCode: cost-overflow`: oracle cost exceeded `Number.MAX_SAFE_INTEGER` (defensive guard; not expected on mainnet). Indicates an integration bug, not a chain divergence.
 7. If `phase: evaluate-oracle-mismatch`: our eval and sigma-rust disagree on success/failure. `errorCode: ours-succeeded-oracle-errored` means we accept a tree sigma-rust rejects; `errorCode: ours-errored-oracle-succeeded` means we reject a tree sigma-rust accepts. The `oracleError` / `ourError` / `ourEvaluateCost` fields tell you what each side did. Both directions are bugs in the library; reproduce as in step 5.
-8. If `phase: wasm-oracle` with `errorCode: wasm-call-threw`: the WASM oracle threw during cost evaluation. May indicate heap exhaustion near the ~6640-block limit — restart the process (checkpoint resumes) and re-run from the current height.
+8. If `phase: wasm-oracle` with `errorCode: wasm-call-threw`: the WASM oracle threw during cost evaluation. Usually WASM heap exhaustion (`memory access out of bounds`) — see Known limits; restart the process (checkpoint resumes) and re-run. The chunked restart loop absorbs this automatically.
 9. Resume by re-running the same `node dist/main.js ...` invocation **after fixing the library bug** (or deciding the divergence is expected and adjusting test expectations). The harness reads the checkpoint and starts at `lastValidatedHeight + 1`. If you want to re-validate from a specific height instead, pass `--start-height N` — this treats the run as fresh and zeroes the in-memory stats counter (but the checkpoint file on disk is overwritten on the next successful block).
 
 ### Resume semantics edge cases
@@ -134,7 +134,7 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 
 ## Tuning the rate limit
 
-Per-block work is dominated by sigma-protocol verification at high heights (mainnet's later blocks carry transactions with substantial `SigmaBoolean` walks), plus M parallel indexer box fetches (M = box-ref count per block). On a workstation, a 4-thread spike for ~50ms per block is typical. Two ways to throttle:
+Per-block work is dominated by sigma-protocol verification at high heights (mainnet's later blocks carry transactions with substantial `SigmaBoolean` walks), plus M parallel indexer box fetches (M = box-ref count per block). At depth the walk is **I/O-bound on node/indexer store reads** (disk, not CPU); observed sustained throughput is ~5–10 blocks/s on a workstation. Two ways to throttle:
 
 - **In-harness:** `--sleep-ms N` adds an `await sleep(N)` between blocks. Cheap; the timer fires inside the same event loop tick that just finished `validateBlock`, so it's a soft cap.
 - **OS-level:** For long unattended walks:
@@ -149,15 +149,23 @@ nice -n 19 ionice -c idle node tools/mainnet-validate/harness/dist/main.js \
 cpulimit -l 50 -p $(pgrep -f 'node.*main.js') &
 ```
 
-## Current status: 2j-rest complete
+## Current status: full mainnet walk complete — h=2 → tip
 
-The mainnet-validate harness is a pure-TypeScript REST client (per spec
+The harness has validated the mainnet chain from h=2 through to the **tip** (h=1,797,470 as
+of 2026-05-31) with **zero unhandled halts** — every tx-input's JIT cost compared
+byte-for-byte against the sigma-rust WASM oracle, alongside clean header /
+output-roundtrip / evaluate / verify-signature passes. Reaching tip without an unhandled
+divergence was the campaign goal. The walk surfaced and fixed 31 divergences (iters 1–31)
+plus the JVM-alignment lockstep — per-iter history in `findings/iter-*.md` and
+`findings/overnight-*.md`.
+
+It is a pure-TypeScript REST client (per spec
 `docs/specs/2026-05-24-ergoscript-2j-rest-design.md`):
 
 - Fetches block data from the node REST at `:9052` (validation-fragments endpoint) + indexer REST at `:9054/api/v1` (boxes/{id}/bytes endpoint).
 - Uses `ergo-lib-wasm-nodejs` (built locally from `external/sigma-rust/`) solely as the cost oracle; per-input `oracleCost = ctx.jit_cost_value()` post-`reduce_to_crypto`.
 - Hardcodes the 3 mainnet genesis-state boxes (emission, no_premine, founders) as a fallback in `IndexerClient` since the indexer cannot index them (they are not transaction outputs).
-- Smoke-passed h=2..10000 against the live node + indexer (2j-rest closing milestone).
+- Long walks run under a chunked restart loop (~125-block chunks under `nice`) that auto-respawns on WASM OOM + transient REST errors and halts on the first validation divergence.
 
 Per-block flow:
 1. `GET /blocks/at/{h}` (node) → headerId
@@ -169,7 +177,7 @@ Per-block flow:
 
 ## Known limits
 
-- **WASM memory growth.** A single Node.js process can validate ~6640 blocks before `compute_tx_oracle_costs` hits a `memory access out of bounds`. Fresh process restart resolves it; checkpoint resume continues from the next height. For long walks (>6640 blocks at a time), wrap the harness invocation in a restart loop — the checkpoint persists progress across restarts. Not a consensus bug; pure WASM heap exhaustion.
+- **WASM memory growth.** `compute_tx_oracle_costs` eventually hits `memory access out of bounds` from WASM heap fragmentation. The ceiling is **depth-dependent** — thousands of blocks on the sparse early chain, but only ~600–1,500 on dense later blocks (allocator state, not raw budget). Fresh process restart resolves it; checkpoint resume continues from the next height. The standard operating mode wraps the harness in a chunked restart loop (~125-block chunks) that respawns on OOM — the checkpoint persists progress across restarts. Not a consensus bug; pure WASM heap exhaustion.
 - **h=1 deferred.** Smoke walks start at h=2 by default. h=1 validation requires special-casing the 3 genesis-state boxes' creation context (they have no creating tx); see spec §11 for the follow-up.
 - **No continuous mode.** The harness exits when it reaches `--max-height` (or the node's reported tip at startup). It does NOT poll for new blocks. Re-running picks up from the checkpoint.
 - **No retries beyond the REST client's per-call retry policy** (3 attempts with 250/500/1000ms backoff, 30s timeout per call). A persistent REST failure halts the walk.
