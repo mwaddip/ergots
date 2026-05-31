@@ -6,7 +6,7 @@
  *   let func_v = self.func.eval(env, ctx)?;
  *   let args_v: Vec<Value> = self.args.iter().map(|a| a.eval(env, ctx)).collect()?;
  *   match func_v {
- *       Value::Lambda(fv) => { env.insert/remove dance; fv.body.eval(env, ctx) }
+ *       Value::Lambda(fv) => { per arg: add_jit_cost(5) + env.insert/remove dance; fv.body.eval(env, ctx) }
  *       _ => Err(EvalError::UnexpectedValue(...))
  *   }
  *
@@ -17,8 +17,9 @@
  *      throw 'apply-arity-mismatch' (BEFORE arg-eval; pure structural).
  *   4. Eval each arg expression in order.
  *   5. Build bodyEnv via immutable extend for each (closure.argIds[i],
- *      args[i]) pair. The TS Env is immutable per phase 2b — no
- *      save/restore needed.
+ *      args[i]) pair, charging ADD_TO_ENV_COST (5 JIT) per binding (mirrors
+ *      block-value.ts; sigma-rust apply.rs / block.rs:30). The TS Env is
+ *      immutable per phase 2b — no save/restore needed.
  *   6. Eval closure.body in bodyEnv. Return.
  *
  * Sigma-rust's mutable save/restore (apply.rs:30-46) is a borrow-checker
@@ -61,6 +62,7 @@ export function evalApply(e: Apply, env: Env, ctx: EvalContext): SValue {
   // env extended with arg bindings (not a definition-time captured env).
   let bodyEnv = env
   for (let i = 0; i < closure.argIds.length; i++) {
+    ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust apply.rs (mirrors block.rs:30 / block-value.ts:31)
     bodyEnv = bodyEnv.extend(closure.argIds[i]!, argValues[i]!)
   }
   return evalExpr(closure.body, bodyEnv, ctx)

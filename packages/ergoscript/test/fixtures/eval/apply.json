@@ -9,7 +9,7 @@
         "kind": "Int",
         "value": 42
       },
-      "expected_cost": 45,
+      "expected_cost": 50,
       "expected_error_code": null
     },
     {
@@ -20,7 +20,7 @@
         "kind": "Int",
         "value": 99
       },
-      "expected_cost": 45,
+      "expected_cost": 50,
       "expected_error_code": null
     },
     {
@@ -31,7 +31,7 @@
         "kind": "Int",
         "value": 42
       },
-      "expected_cost": 65,
+      "expected_cost": 70,
       "expected_error_code": null
     },
     {
@@ -42,7 +42,7 @@
         "kind": "Boolean",
         "value": true
       },
-      "expected_cost": 45,
+      "expected_cost": 50,
       "expected_error_code": null
     },
     {
@@ -53,7 +53,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 45,
+      "expected_cost": 50,
       "expected_error_code": null
     },
     {
@@ -64,7 +64,7 @@
         "kind": "Int",
         "value": 10
       },
-      "expected_cost": 50,
+      "expected_cost": 60,
       "expected_error_code": null
     },
     {
@@ -75,7 +75,7 @@
         "kind": "Int",
         "value": 20
       },
-      "expected_cost": 50,
+      "expected_cost": 60,
       "expected_error_code": null
     },
     {
@@ -86,7 +86,7 @@
         "kind": "Int",
         "value": 107
       },
-      "expected_cost": 77,
+      "expected_cost": 82,
       "expected_error_code": null
     },
     {
@@ -97,7 +97,7 @@
         "kind": "Int",
         "value": 42
       },
-      "expected_cost": 65,
+      "expected_cost": 70,
       "expected_error_code": null
     },
     {
