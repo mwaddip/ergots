@@ -26,11 +26,17 @@
 import { blake2b256 } from './crypto/blake2b256';
 import { ByteReader, ByteWriter } from '@ergots/scorex';
 import { ProofParseError } from './errors';
+import { bytesEqual } from './bytes';
 
 // Leaf prefix byte: 0 = leaf node
 const LEAF_PREFIX = 0x00;
 // Internal node prefix byte: 1 = internal node
 const INTERNAL_PREFIX = 0x01;
+
+// Wire sizes of the count-prefixed entries; used to reject declared counts that
+// cannot fit in the remaining bytes before looping (see parseBatchMerkleProof).
+const INDEX_ENTRY_BYTES = 36; // 4-byte big-endian index + 32-byte leaf hash
+const PROOF_ENTRY_BYTES = 33; // 32-byte sibling hash + 1-byte NodeSide
 
 // NodeSide mirrors sigma-rust's NodeSide enum
 export const NodeSide = {
@@ -80,6 +86,22 @@ function readU32BE(r: ByteReader, name: string): number {
 export function parseBatchMerkleProof(r: ByteReader): BatchMerkleProof {
   const indicesLen = readU32BE(r, 'indices_len');
   const proofsLen = readU32BE(r, 'proofs_len');
+
+  // Reject counts that cannot fit in the remaining bytes before allocating or
+  // looping. A valid proof carries exactly indicesLen*36 + proofsLen*33 body
+  // bytes, so this never rejects a well-formed proof; it just converts a deep
+  // read-exhaustion 'truncated' into an early, explicit 'oversized' — matching
+  // the MAX_* sanity-cap convention in proof.ts / popow-header.ts and mirroring
+  // the JVM reference, which splits the already-present buffer rather than
+  // pre-allocating from the untrusted counts.
+  const bodyBytes = indicesLen * INDEX_ENTRY_BYTES + proofsLen * PROOF_ENTRY_BYTES;
+  if (bodyBytes > r.remaining) {
+    throw new ProofParseError(
+      `batch merkle proof declares ${indicesLen} indices + ${proofsLen} proofs ` +
+        `(needs ${bodyBytes} bytes) but only ${r.remaining} remain`,
+      'oversized',
+    );
+  }
 
   const indices: BatchMerkleProofIndex[] = [];
   for (let i = 0; i < indicesLen; i++) {
@@ -343,45 +365,6 @@ function validateMultiproof(
 
 function pairEquals(a: [number, number], b: [number, number]): boolean {
   return a[0] === b[0] && a[1] === b[1];
-}
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
-/**
- * Verify a BatchMerkleProof against an expected Merkle root WITHOUT requiring
- * the leaves' decoded data. Walks up using the proof's stored `indices[i].hash`
- * + `proofs[]` and compares the reconstructed root to `expectedRoot`.
- *
- * Unlike `verifyBatchMerkleProof`, this does NOT recompute leaf hashes from
- * separately-supplied leaf data — the caller is responsible for any
- * orthogonal integrity check on the proof's stored hashes (e.g. set-membership
- * against an expected leaf-hash set).
- *
- * Used by `checkInterlinksProof` to anchor against `header.extensionRoot`
- * (the on-chain commitment), independent of the extension's full leaf layout.
- */
-export function verifyBatchMerkleProofWalkOnly(
-  proof: BatchMerkleProof,
-  expectedRoot: Uint8Array,
-): boolean {
-  if (proof.indices.length === 0 && proof.proofs.length === 0) {
-    // Empty proof matches the all-zeros root (sigma-rust convention).
-    return bytesEqual(expectedRoot, new Uint8Array(32));
-  }
-  const sorted = [...proof.indices].sort((a, b) => a.index - b.index);
-  const result = validateMultiproof(
-    sorted.map(e => e.index),
-    sorted.map(e => e.hash),
-    [...proof.proofs],
-  );
-  if (result === null || result.length !== 1) return false;
-  return bytesEqual(result[0]!, expectedRoot);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

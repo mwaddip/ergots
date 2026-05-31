@@ -26,11 +26,3 @@ import type { Context } from '../../mir/types'
 export function parseContext(): Context {
   return { tag: 'Context' }
 }
-
-/**
- * Serialize a `Context` payload. The dispatcher writes the OP_CONTEXT
- * opcode byte; this function writes nothing further (no payload).
- */
-export function serializeContext(): void {
-  // Intentionally empty: Context has no payload beyond its opcode.
-}

@@ -29,11 +29,3 @@ import type { Global } from '../../mir/types'
 export function parseGlobal(): Global {
   return { tag: 'Global' }
 }
-
-/**
- * Serialize a `Global` payload. The dispatcher writes the OP_GLOBAL
- * opcode byte; this function writes nothing further (no payload).
- */
-export function serializeGlobal(): void {
-  // Intentionally empty: Global has no payload beyond its opcode.
-}

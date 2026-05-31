@@ -52,6 +52,7 @@ import {
 import { hasValidConnections } from './connections.ts';
 import { checkInterlinksProof } from './verifier.ts';
 import { blake2b256 } from './crypto/blake2b256.ts';
+import { bytesEqual } from './bytes.ts';
 
 // secp256k1 curve order (constant — matches sigma-rust order_bigint())
 const ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
@@ -370,11 +371,3 @@ function asUnsignedByteArray(length: number, value: bigint): Uint8Array {
   return result;
 }
 
-/** Byte-equality for Uint8Array. Not timing-safe. */
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}

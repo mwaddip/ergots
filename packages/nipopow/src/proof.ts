@@ -33,10 +33,11 @@
  * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs lines 203-261.
  */
 
-import { ByteReader, ByteWriter, ReaderError, encodeVlqU, readVlqU32 } from '@ergots/scorex';
+import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex';
 import { parsePoPowHeader, serializePoPowHeader, type PoPowHeader } from './popow-header.ts';
 import { parseHeader, serializeHeader, type Header } from '@ergots/scorex';
 import { ProofParseError } from './errors.ts';
+import { writeVlqU32 } from './vlq-write.ts';
 
 export interface NipopowProof {
   m: number;
@@ -54,17 +55,6 @@ const MAX_PROOF_BYTES = 2_000_000;
 /** Upper bound matching sigma-rust MAX_NIPOPOW_PROOF_ELEMENTS = 20_000. */
 const MAX_ELEMENTS = 20_000;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Write a VLQ-encoded u32. */
-function writeVlqU32(w: ByteWriter, v: number): void {
-  if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) {
-    throw new Error(`writeVlqU32: value out of u32 range: ${v}`);
-  }
-  w.writeBytes(encodeVlqU(BigInt(v)));
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parse

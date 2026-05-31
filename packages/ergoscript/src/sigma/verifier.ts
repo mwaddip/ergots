@@ -31,8 +31,8 @@
  *
  * The verifier is permissive about trailing bytes in the signature: sigma-rust
  * accepts `proof || extra_bytes` as long as the prefix parses cleanly
- * (`verifier.rs:229-235` proptest). We mirror that — `assertConsumed` is NOT
- * called.
+ * (`verifier.rs:229-235` proptest). We mirror that — the proof-bytes reader is
+ * not asserted to be fully consumed.
  *
  * Sources:
  *   ergotree-interpreter/src/sigma_protocol/verifier.rs:91-125

@@ -1,4 +1,5 @@
-import { ByteReader, ReaderError } from './reader.ts';
+import { ByteReader } from './reader.ts';
+import { ReaderError } from './errors.ts';
 
 const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
 

@@ -1,11 +1,9 @@
 /**
  * Internal byte-array aliases. Document intent; the TS type is just Uint8Array.
- * Mirrors operation.rs's ADKey / ADValue / ADDigest type aliases.
+ * Mirrors operation.rs's ADKey / ADValue type aliases.
  */
 export type ADKey = Uint8Array
 export type ADValue = Uint8Array
-/** 33 bytes: 32-byte root label + 1-byte tree height. Verifier throws `invalid-starting-digest-length` if input is not exactly 33 bytes. */
-export type ADDigest = Uint8Array
 
 /** Public verifier-input config. Mirrors AVLTree's structural fields in ergo_avltree_rust. */
 export interface AvlTreeConfig {

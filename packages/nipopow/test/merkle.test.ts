@@ -7,6 +7,7 @@ import { parseBatchMerkleProof, serializeBatchMerkleProof, verifyBatchMerkleProo
 import type { BatchMerkleProof } from '../src/merkle';
 import { ByteReader } from '@ergots/scorex';
 import { hexToBytes, bytesToHex } from './helpers';
+import { ProofParseError } from '../src/errors';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -77,5 +78,38 @@ describe('BatchMerkleProof', () => {
       value: hexToBytes(v),
     }));
     expect(verifyBatchMerkleProof(proof, leaves, hexToBytes(c.root_hex))).toBe(false);
+  });
+
+  test('parseBatchMerkleProof rejects a count exceeding the available bytes (oversized, not deep-truncated)', () => {
+    // indices_len = 0x7FFFFFFF but only the 8-byte header is present. A valid
+    // proof carries indices_len*36 bytes; this payload cannot, so the parser
+    // must reject it up front as 'oversized' (matching the MAX_* convention in
+    // proof.ts / popow-header.ts) instead of discovering truncation deep in the
+    // read loop. Mirrors the JVM reference's buffer-bounded split.
+    const payload = new Uint8Array(8);
+    payload[0] = 0x7f; payload[1] = 0xff; payload[2] = 0xff; payload[3] = 0xff; // indices_len
+    // proofs_len stays 0 (bytes 4..7)
+    let caught: unknown;
+    try {
+      parseBatchMerkleProof(new ByteReader(payload));
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ProofParseError);
+    expect((caught as ProofParseError).code).toBe('oversized');
+  });
+
+  test('parseBatchMerkleProof rejects a proofs_len exceeding the available bytes', () => {
+    const payload = new Uint8Array(8);
+    // indices_len = 0 (bytes 0..3); proofs_len = 0x7FFFFFFF (bytes 4..7)
+    payload[4] = 0x7f; payload[5] = 0xff; payload[6] = 0xff; payload[7] = 0xff;
+    let caught: unknown;
+    try {
+      parseBatchMerkleProof(new ByteReader(payload));
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ProofParseError);
+    expect((caught as ProofParseError).code).toBe('oversized');
   });
 });

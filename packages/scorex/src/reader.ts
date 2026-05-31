@@ -21,8 +21,6 @@ const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
  */
 export const MAX_ARRAY_LENGTH = 1 << 24;
 
-export { ReaderError } from './errors.ts';
-
 export class ByteReader {
   private _position = 0;
 

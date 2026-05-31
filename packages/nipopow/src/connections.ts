@@ -40,6 +40,7 @@
 
 import type { NipopowProof } from './proof.ts';
 import type { PoPowHeader } from './popow-header.ts';
+import { bytesEqual } from './bytes.ts';
 
 // Ergo mainnet/testnet value of `chainSettings.useLastEpochs`.
 // sigma-rust ergo-nipopow/src/nipopow_algos.rs:22 — DEFAULT_USE_LAST_EPOCHS = 8.
@@ -121,11 +122,3 @@ function checkSuffixConnections(proof: NipopowProof): boolean {
   return true;
 }
 
-/** Early-exit byte equality for Uint8Array. Not timing-safe; do not use in crypto-sensitive contexts. */
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}

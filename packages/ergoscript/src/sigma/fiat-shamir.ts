@@ -65,6 +65,11 @@ export const FS_CONJ_AND = 0
 export const FS_CONJ_OR = 1
 export const FS_CONJ_THRESHOLD = 2
 
+/** Maximum non-negative value writable as a signed 16-bit big-endian length field (i16::MAX). */
+const I16_MAX = 0x7fff
+/** Maximum value of the Cthreshold `k` byte (u8::MAX). */
+const U8_MAX = 0xff
+
 /**
  * Wrap a SigmaBoolean in an ErgoTree(v0, constant-segregation=true) and
  * serialize. Used at every leaf during Fiat-Shamir tree construction.
@@ -191,10 +196,10 @@ export function writeFiatShamirLeaf(
   prop: Uint8Array,
   commitment: Uint8Array,
 ): void {
-  if (prop.length > 0x7fff) {
+  if (prop.length > I16_MAX) {
     throw new Error(`writeFiatShamirLeaf: prop length ${prop.length} exceeds i16 range`)
   }
-  if (commitment.length > 0x7fff) {
+  if (commitment.length > I16_MAX) {
     throw new Error(`writeFiatShamirLeaf: commitment length ${commitment.length} exceeds i16 range`)
   }
   builder.appendByte(FS_LEAF_PREFIX)
@@ -218,7 +223,7 @@ export function writeFiatShamirInternalHeader(
   conjectureType: typeof FS_CONJ_AND | typeof FS_CONJ_OR,
   childCount: number,
 ): void {
-  if (childCount > 0x7fff) {
+  if (childCount > I16_MAX) {
     throw new Error(`writeFiatShamirInternalHeader: childCount ${childCount} exceeds i16 range`)
   }
   builder.appendByte(FS_INTERNAL_NODE_PREFIX)
@@ -239,10 +244,10 @@ export function writeFiatShamirThresholdHeader(
   k: number,
   childCount: number,
 ): void {
-  if (k < 0 || k > 0xff) {
+  if (k < 0 || k > U8_MAX) {
     throw new Error(`writeFiatShamirThresholdHeader: k=${k} out of u8 range`)
   }
-  if (childCount > 0x7fff) {
+  if (childCount > I16_MAX) {
     throw new Error(`writeFiatShamirThresholdHeader: childCount ${childCount} exceeds i16 range`)
   }
   builder.appendByte(FS_INTERNAL_NODE_PREFIX)

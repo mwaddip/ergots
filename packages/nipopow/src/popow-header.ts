@@ -22,10 +22,11 @@
  *            PoPowHeader::scorex_parse.
  */
 
-import { ByteReader, ByteWriter, ReaderError, encodeVlqU, readVlqU32 } from '@ergots/scorex';
+import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex';
 import { parseHeader, serializeHeader, type Header } from '@ergots/scorex';
 import { parseBatchMerkleProof, serializeBatchMerkleProof, type BatchMerkleProof } from './merkle.ts';
 import { ProofParseError } from './errors.ts';
+import { writeVlqU32 } from './vlq-write.ts';
 
 export interface PoPowHeader {
   header: Header;
@@ -43,13 +44,6 @@ const MAX_HEADER_BYTES = 10_000;
 const MAX_INTERLINKS = 64;
 const MAX_PROOF_BYTES = 1_000_000;
 
-/** Write a VLQ-encoded u32 size/count field. */
-function writeVlqU32(w: ByteWriter, v: number): void {
-  if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) {
-    throw new Error(`writeVlqU32: out of range: ${v}`);
-  }
-  w.writeBytes(encodeVlqU(BigInt(v)));
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parse

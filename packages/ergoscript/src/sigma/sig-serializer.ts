@@ -85,16 +85,6 @@ export class ProofBytesReader {
     this.pos += n
     return slice
   }
-
-  /** Assert all bytes consumed (defense against trailing garbage; optional). */
-  assertConsumed(): void {
-    if (this.remaining() > 0) {
-      throw new VerifyError(
-        `truncated-signature: ${this.remaining()} trailing bytes`,
-        'truncated-signature'
-      )
-    }
-  }
 }
 
 /**

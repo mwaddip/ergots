@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { parseAutolykosSolution, serializeAutolykosSolution } from '../src/autolykos-solution.ts';
-import { ByteReader, ReaderError } from '../src/reader.ts';
+import { ByteReader } from '../src/reader.ts';
+import { ReaderError } from '../src/errors.ts';
 import { hexToBytes, bytesToHex } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
