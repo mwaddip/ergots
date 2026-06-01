@@ -28,7 +28,7 @@ import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
-import { isNumeric, valueToBigInt } from './_numeric'
+import { isNumeric, valueToBigInt, bigIntToValue, widerKind, upcastCost } from './_numeric'
 import { serializeSigmaBoolean } from '../../wire/sigma-boolean'
 import { ByteWriter } from '@ergots/scorex'
 
@@ -659,8 +659,27 @@ export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // No envelope cost — sigma-rust bin_op.rs:205 match arm is empty for Eq/NEq;
   // all JIT cost is charged INSIDE sValueEquals (mirrors data_value_comparer.rs).
   if (op === 'Eq' || op === 'NEq') {
-    const left = evalExpr(e.left, env, ctx)
-    const right = evalExpr(e.right, env, ctx)
+    let left = evalExpr(e.left, env, ctx)
+    let right = evalExpr(e.right, env, ctx)
+    // Mismatched-numeric equality: the JVM deserializer auto-upcasts the narrower
+    // operand to the wider for pre-V3 ErgoTree versions (equalityOp → applyUpcast,
+    // SigmaBuilder.scala:679-686,750-756), so e.g. EQ(Int 5, Long 5) compares as
+    // Long → true. Charge the one inserted Upcast and coerce both operands to the
+    // wider kind so sValueEquals sees same-kind values (and charges the wider eq
+    // rate: EQ_PRIM 3 / EQ_BIGINT 5; the already-wider operand round-trips
+    // unchanged). For V3+ the deserializer rejects this via its SameType check;
+    // ergots' V3+ residual (cross-kind → false) is the deferred mechanism #2.
+    if (
+      (ctx.treeVersion ?? 0) < 3 &&
+      isNumeric(left.kind) &&
+      isNumeric(right.kind) &&
+      left.kind !== right.kind
+    ) {
+      const wider = widerKind(left.kind, right.kind)
+      ctx.addCost(upcastCost(wider))
+      left = bigIntToValue(wider, valueToBigInt(left))
+      right = bigIntToValue(wider, valueToBigInt(right))
+    }
     const eq = sValueEquals(left, right, ctx)
     return { kind: 'Boolean', value: op === 'Eq' ? eq : !eq }
   }
@@ -686,10 +705,22 @@ export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     )
   }
   if (left.kind !== right.kind) {
-    throw new EvalError(
-      `BinOp.Relation.${op}: kind mismatch ${left.kind} vs ${right.kind}`,
-      'bin-op-kind-mismatch'
-    )
+    // Mismatched-numeric ordering. The JVM deserializer auto-upcasts the
+    // narrower operand to the wider — but ONLY for pre-V3 ErgoTree versions
+    // (DeserializationSigmaBuilder.applyUpcast, SigmaBuilder.scala:750-756,
+    // gated by ergoTreeVersion < 3; comparisonOp also runs a SameType check
+    // that rejects the raw mismatch at deserialize-time for V3+). Both operands
+    // are already known numeric here. For V3+ keep rejecting.
+    if ((ctx.treeVersion ?? 0) >= 3) {
+      throw new EvalError(
+        `BinOp.Relation.${op}: kind mismatch ${left.kind} vs ${right.kind}`,
+        'bin-op-kind-mismatch'
+      )
+    }
+    // pre-V3: charge the one inserted Upcast (10/30 by target). The comparison
+    // itself is width-independent (computed via bigint below), so the result is
+    // unchanged and RELATION_ORDERING_COST (fixed 20) does not vary with kind.
+    ctx.addCost(upcastCost(widerKind(left.kind, right.kind)))
   }
 
   const a = valueToBigInt(left)

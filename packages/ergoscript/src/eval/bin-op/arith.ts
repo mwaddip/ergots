@@ -47,6 +47,8 @@ import {
   valueToBigInt,
   bigIntToValue,
   checkRange,
+  widerKind,
+  upcastCost,
 } from './_numeric'
 
 // ---------------------------------------------------------------------------
@@ -105,16 +107,31 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     )
   }
 
-  // Both operands must share kind (sigma-rust's try_extract_into would fail
-  // with InvalidType; we surface as the typed 'bin-op-kind-mismatch').
+  // Operand kinds differ. The JVM deserializer auto-upcasts the narrower
+  // numeric operand to the wider so the op runs at the wider type — but ONLY
+  // for pre-V3 ErgoTree versions (DeserializationSigmaBuilder.applyUpcast,
+  // SigmaBuilder.scala:750-756, gated by ergoTreeVersion < 3). For V3+ the tree
+  // stays raw and the mismatch is rejected (arithOp has no SameType check, so
+  // JVM fails at eval — matching our throw). Both operands are already known
+  // numeric (checked above), so a differing kind here is mismatched-numeric.
+  let kind = lv.kind
   if (lv.kind !== rv.kind) {
-    throw new EvalError(
-      `BinOp.Arith.${op}: operand kind mismatch — left is '${lv.kind}', right is '${rv.kind}'`,
-      'bin-op-kind-mismatch',
-    )
+    if ((ctx.treeVersion ?? 0) >= 3) {
+      throw new EvalError(
+        `BinOp.Arith.${op}: operand kind mismatch — left is '${lv.kind}', right is '${rv.kind}'`,
+        'bin-op-kind-mismatch',
+      )
+    }
+    // pre-V3: mirror the inserted Upcast(narrower → wider). Tree stays RAW;
+    // coerce at eval. Charge the one Upcast node (10/30 by target), plus the
+    // arith-rate delta — Step 2 charged at lv.kind's rate, but the op now runs
+    // at the wider kind. Delta is 0 unless the wider is BigInt and lv was not
+    // (Plus/Minus 15→20, Mult/Div/Mod 15→25, Max/Min 5→10).
+    kind = widerKind(lv.kind, rv.kind)
+    ctx.addCost(upcastCost(kind))
+    ctx.addCost(arithCost(op, kind === 'BigInt') - arithCost(op, lv.kind === 'BigInt'))
   }
 
-  const kind = lv.kind
   const a = valueToBigInt(lv)
   const b = valueToBigInt(rv)
 

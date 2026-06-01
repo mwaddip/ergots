@@ -211,22 +211,6 @@
       "expected_error_code": null
     },
     {
-      "name": "lt_kind_mismatch_int_long",
-      "tree_bytes_hex": "008f04020504",
-      "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "bin-op-kind-mismatch"
-    },
-    {
-      "name": "ge_kind_mismatch_short_int",
-      "tree_bytes_hex": "009203020404",
-      "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "bin-op-kind-mismatch"
-    },
-    {
       "name": "lt_not_numeric_bool",
       "tree_bytes_hex": "008f8501",
       "opts_json": {},
@@ -548,28 +532,6 @@
         "value": true
       },
       "expected_cost": 60,
-      "expected_error_code": null
-    },
-    {
-      "name": "eq_cross_int_long",
-      "tree_bytes_hex": "0093040a050a",
-      "opts_json": {},
-      "expected_value_json": {
-        "kind": "Boolean",
-        "value": false
-      },
-      "expected_cost": 13,
-      "expected_error_code": null
-    },
-    {
-      "name": "eq_cross_byte_short",
-      "tree_bytes_hex": "009302010302",
-      "opts_json": {},
-      "expected_value_json": {
-        "kind": "Boolean",
-        "value": false
-      },
-      "expected_cost": 13,
       "expected_error_code": null
     }
   ]

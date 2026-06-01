@@ -60,13 +60,15 @@ import {
   bigIntToValue,
   isNumeric,
   valueToBigInt,
+  UPCAST_COST_BIGINT_TARGET,
+  UPCAST_COST_OTHER_TARGET,
   type NumericKind,
 } from './bin-op/_numeric'
 
 // Cost source: sigma-rust eval/upcast.rs:80 — inline literal
 //   ctx.add_jit_cost(if self.tpe == SType::SBigInt { 30 } else { 10 })?;
-const UPCAST_COST_BIGINT_TARGET = 30
-const UPCAST_COST_OTHER_TARGET = 10
+// Constants now live in _numeric.ts (single source, shared with the
+// mismatched-numeric coercion arms).
 
 function sTypeToNumericKind(t: SType): NumericKind {
   switch (t.tag) {

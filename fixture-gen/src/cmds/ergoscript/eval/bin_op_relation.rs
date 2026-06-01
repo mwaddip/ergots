@@ -263,25 +263,17 @@ pub fn generate() -> anyhow::Result<BinOpRelationFixtureFile> {
     )?);
 
     // -------------------------------------------------------------------------
-    // Error: kind mismatch — Int left, Long right for Lt.
-    // Sigma-rust's try_extract_into::<i32> on a Long Value returns EvalError::InvalidType.
-    // TS maps this to 'bin-op-kind-mismatch'.
+    // Mismatched-numeric ORDERING is NO LONGER a rejection here (pre-V3).
+    //
+    // The JVM deserializer auto-upcasts the narrower numeric operand for pre-V3
+    // ErgoTree versions (DeserializationSigmaBuilder.applyUpcast via comparisonOp,
+    // SigmaBuilder.scala:689-697,750-756), so e.g. Lt(Int, Long) v0 evaluates as a
+    // Long comparison. sigma-rust (this generator's reference) still rejects it and
+    // CANNOT produce the JVM-correct value/cost, so these moved to the ergots-side
+    // JVM-aligned test
+    // (packages/ergoscript/test/eval/bin-op-mismatched-numeric-coercion.test.ts).
+    // See docs/specs/2026-06-01-ergoscript-mismatched-numeric-coercion-design.md.
     // -------------------------------------------------------------------------
-    entries.push(error_entry(
-        "lt_kind_mismatch_int_long",
-        RelationOp::Lt,
-        Expr::Const(1i32.into()),
-        Expr::Const(2i64.into()),
-        "bin-op-kind-mismatch",
-    )?);
-
-    entries.push(error_entry(
-        "ge_kind_mismatch_short_int",
-        RelationOp::Ge,
-        Expr::Const(1i16.into()),
-        Expr::Const(2i32.into()),
-        "bin-op-kind-mismatch",
-    )?);
 
     // -------------------------------------------------------------------------
     // Error: non-numeric operand — Boolean + Boolean for Lt.
@@ -468,14 +460,15 @@ pub fn generate() -> anyhow::Result<BinOpRelationFixtureFile> {
     // SValues without going through the serialization round-trip.
     // Will be revisited when v3 ErgoTree support lands in a later phase.
 
-    // --- Cross-kind type mismatch (Int 5 vs Long 5) — sigma-rust returns false. ---
-    // Both values evaluate fine; eq_with_cost sees (Int, Long) → falls to `_`
-    // catch-all arm → EQ_PRIM_COST = 3. Result: false (different kinds).
-    // Total: 5 + 5 + 3 = 13. (Left Const + Right Const + prim_cost catch-all.)
-    entries.push(success_entry("eq_cross_int_long", RelationOp::Eq,
-        Expr::Const(5i32.into()), Expr::Const(5i64.into()))?);
-    entries.push(success_entry("eq_cross_byte_short", RelationOp::Eq,
-        Expr::Const(1i8.into()), Expr::Const(1i16.into()))?);
+    // --- Cross-kind numeric EQUALITY is JVM-coerced (pre-V3), not `false`. ---
+    // sigma-rust evaluates (Int, Long) cross-kind to `false` (eq_with_cost `_`
+    // catch-all, cost 13), but the JVM deserializer auto-upcasts the narrower
+    // operand for pre-V3 trees (equalityOp → applyUpcast, SigmaBuilder.scala:
+    // 679-686,750-756), so EQ(Int 5, Long 5) v0 compares as Long → `true`
+    // (cost 23). sigma-rust (this generator's reference) CANNOT produce the
+    // JVM-correct value/cost, so these moved to the ergots-side JVM-aligned test
+    // (packages/ergoscript/test/eval/bin-op-mismatched-numeric-coercion.test.ts).
+    // See docs/specs/2026-06-01-ergoscript-mismatched-numeric-coercion-design.md.
 
     Ok(BinOpRelationFixtureFile {
         corpus: "eval_bin_op_relation",

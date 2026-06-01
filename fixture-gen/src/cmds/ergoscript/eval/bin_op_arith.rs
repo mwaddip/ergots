@@ -379,22 +379,20 @@ pub fn generate() -> anyhow::Result<BinOpArithFixtureFile> {
     )?);
 
     // =========================================================================
-    // Kind-mismatch errors (Int left, Long right)
+    // Mismatched-numeric arith is NO LONGER a rejection here.
+    //
+    // The JVM deserializer auto-upcasts the narrower numeric operand for pre-V3
+    // ErgoTree versions (DeserializationSigmaBuilder.applyUpcast,
+    // SigmaBuilder.scala:750-756), so e.g. Plus(Int, Long) v0 evaluates as Long.
+    // sigma-rust (this generator's reference) still rejects it at eval and so
+    // CANNOT produce the JVM-correct value/cost — these cases therefore moved to
+    // the ergots-side JVM-aligned test
+    // (packages/ergoscript/test/eval/bin-op-mismatched-numeric-coercion.test.ts),
+    // to be re-blessed from the SANTA conformance vector when it lands. See
+    // docs/specs/2026-06-01-ergoscript-mismatched-numeric-coercion-design.md.
+    // (Bit ops are NOT in the upcast class — BitOp bypasses applyUpcast — so the
+    // bin_op_bit `bitand_n_int_long` rejection stays.)
     // =========================================================================
-    entries.push(error_entry(
-        "plus_kind_mismatch_int_long",
-        ArithOp::Plus,
-        Expr::Const(1i32.into()),
-        Expr::Const(2i64.into()),
-        "bin-op-kind-mismatch",
-    )?);
-    entries.push(error_entry(
-        "multiply_kind_mismatch_byte_short",
-        ArithOp::Multiply,
-        Expr::Const(1i8.into()),
-        Expr::Const(2i16.into()),
-        "bin-op-kind-mismatch",
-    )?);
 
     // =========================================================================
     // Non-numeric operand: Boolean Plus Boolean

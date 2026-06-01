@@ -324,22 +324,6 @@
       "expected_error_code": "arith-divide-by-zero"
     },
     {
-      "name": "plus_kind_mismatch_int_long",
-      "tree_bytes_hex": "009a04020504",
-      "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "bin-op-kind-mismatch"
-    },
-    {
-      "name": "multiply_kind_mismatch_byte_short",
-      "tree_bytes_hex": "009c02010304",
-      "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "bin-op-kind-mismatch"
-    },
-    {
       "name": "plus_not_numeric_bool",
       "tree_bytes_hex": "009a8501",
       "opts_json": {},

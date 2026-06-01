@@ -54,6 +54,43 @@ export function bigIntToValue(kind: NumericKind, n: bigint): SValue {
 }
 
 // ---------------------------------------------------------------------------
+// Mismatched-numeric coercion helpers (eval-time upcast).
+//
+// The JVM deserializer auto-upcasts the narrower operand of a mismatched-
+// numeric BinOp to the wider type, but only for pre-V3 ErgoTree versions
+// (DeserializationSigmaBuilder.applyUpcast, SigmaBuilder.scala:750-756). These
+// helpers let the arith / relation arms mirror that at eval-time (keeping the
+// tree RAW so byte-roundtrip holds). See
+// docs/specs/2026-06-01-ergoscript-mismatched-numeric-coercion-design.md.
+// ---------------------------------------------------------------------------
+
+/** Numeric width rank (Byte < Short < Int < Long < BigInt), matching JVM
+ *  SNumericType ordering used by `applyUpcast`'s `t1 max t2`. */
+const NUMERIC_WIDTH: Record<NumericKind, number> = {
+  Byte: 0,
+  Short: 1,
+  Int: 2,
+  Long: 3,
+  BigInt: 4,
+}
+
+/** The wider of two numeric kinds (= JVM `t1 max t2`). */
+export function widerKind(a: NumericKind, b: NumericKind): NumericKind {
+  return NUMERIC_WIDTH[a] >= NUMERIC_WIDTH[b] ? a : b
+}
+
+/** Upcast JIT cost literals. sigma-rust eval/upcast.rs:80 (inline literals):
+ *  `ctx.add_jit_cost(if self.tpe == SType::SBigInt { 30 } else { 10 })`.
+ *  Single source for both `eval/upcast.ts` and the coercion arms here. */
+export const UPCAST_COST_BIGINT_TARGET = 30
+export const UPCAST_COST_OTHER_TARGET = 10
+
+/** Upcast JIT cost by target kind: 30 for a BigInt target, else 10. */
+export function upcastCost(target: NumericKind): number {
+  return target === 'BigInt' ? UPCAST_COST_BIGINT_TARGET : UPCAST_COST_OTHER_TARGET
+}
+
+// ---------------------------------------------------------------------------
 // Signed range bounds per numeric kind.
 //   Byte:   [-2^7,   2^7  - 1]
 //   Short:  [-2^15,  2^15 - 1]
