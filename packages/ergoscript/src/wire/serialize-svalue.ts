@@ -57,6 +57,16 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion 
   w.writeBytes(box.ergoTreeBytes)
 
   // creation_height (VLQ u32)
+  if (
+    !Number.isInteger(box.creationHeight) ||
+    box.creationHeight < 0 ||
+    box.creationHeight > 0xffffffff
+  ) {
+    throw new SValueSerializeError(
+      `SBox creation_height ${box.creationHeight} out of u32 range`,
+      'sbox-creation-height-out-of-range'
+    )
+  }
   w.writeVlqU(box.creationHeight)
 
   // tokens (raw u8 count + per-token id + amount)

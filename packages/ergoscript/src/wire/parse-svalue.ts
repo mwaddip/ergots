@@ -62,7 +62,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { ByteReader, parseHeader } from '@ergots/scorex'
+import { ByteReader, parseHeader, readVlqU32 } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { consumeTreeFromReader } from './ergo-tree'
@@ -356,8 +356,15 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       consumeTreeFromReader(r)
       const ergoTreeBytes = r.slice(treeStart, r.position).slice()
 
-      // --- creation_height (VLQ u32) ---
+      // --- creation_height (VLQ u32; rejects > u32 to match sigma-rust
+      //     `r.get_u32()` at chain/ergo_box.rs:351) ---
       const creationHeight = r.readVlqU()
+      if (creationHeight > 0xffffffff) {
+        throw new SValueParseError(
+          `SBox creation_height ${creationHeight} out of u32 range`,
+          'sbox-creation-height-out-of-range'
+        )
+      }
 
       // --- tokens (raw u8 count + per-token 32-byte id + VLQ u64 amount) ---
       const tokenCount = r.readU8() // raw u8, NOT VLQ
@@ -411,8 +418,16 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       // --- transaction_id (32 raw bytes) ---
       const txId = r.readBytes(32).slice()
 
-      // --- index (VLQ u16 via sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE) ---
+      // --- index (VLQ u16 via sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE;
+      //     rejects > u16 to match sigma-rust `r.get_u16()` at
+      //     chain/ergo_box.rs:220, mirroring the serializer's own u16 cap) ---
       const index = r.readVlqU()
+      if (index > 0xffff) {
+        throw new SValueParseError(
+          `SBox index ${index} out of u16 range`,
+          'sbox-index-out-of-range'
+        )
+      }
 
       return {
         kind: 'Box',
@@ -443,8 +458,9 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       //                     and round-trip identically; we do NOT mask
       //                     them off because that would silently drop
       //                     bytes the wire fixed.
-      //   keyLength       — VLQ u32 (`r.get_u32()?` → readVlqU). Stored
-      //                     as JS number; valid range is `[0, 2^32 - 1]`.
+      //   keyLength       — VLQ u32 (`r.get_u32()?` → readVlqU32, which
+      //                     rejects values above `2^32 - 1`). Stored as JS
+      //                     number; mirrors the serializer's u32 cap.
       //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
       //                     (`serialization/serializable.rs:223-230`).
       //                     Read 1-byte tag: any non-zero tag means Some,
@@ -454,9 +470,9 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       //                     `0x01` for Some.
       const digest = r.readBytes(33).slice()
       const treeFlags = r.readU8()
-      const keyLength = r.readVlqU()
+      const keyLength = readVlqU32(r, 'SAvlTree.keyLength')
       const optTag = r.readU8()
-      const valueLengthOpt = optTag !== 0 ? r.readVlqU() : null
+      const valueLengthOpt = optTag !== 0 ? readVlqU32(r, 'SAvlTree.valueLengthOpt') : null
       return {
         kind: 'AvlTree',
         value: { digest, treeFlags, keyLength, valueLengthOpt },
@@ -496,7 +512,7 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       // Harness needs SString parsing for output-roundtrip on boxes whose
       // registers carry SString values (mainnet first surfaces this at
       // h=766,915 tx 15 output 1; iter-17 closes the phase-2a deferral).
-      const len = r.readVlqU()
+      const len = readVlqU32(r, 'SString.length')
       const bytes = r.readBytes(len)
       const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
       return { kind: 'String', value: decoded }

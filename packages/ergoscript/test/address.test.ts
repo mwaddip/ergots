@@ -210,6 +210,25 @@ describe('address — error cases', () => {
     }
   })
 
+  it('rejects an over-long address string before decoding (audit RED-ERG-ADDR-01)', () => {
+    // The longest decodable address is a max-size P2S (1 prefix + MAX_TREE_SIZE
+    // tree bytes + 4 checksum bytes) base58-encoded — well under 2,000,000
+    // chars. Anything longer decodes to > MAX_TREE_SIZE content, which parseTree
+    // rejects anyway, so the length guard short-circuits doomed input before the
+    // O(n^2) base58 decode. The leading invalid char is never examined (the
+    // length check precedes char validation); it only keeps this RED assertion
+    // fast — without the guard, base58Decode bails at char 0 instead of
+    // decoding the full 2M-char string.
+    const overLong = '!' + 'z'.repeat(2_000_000)
+    try {
+      ergoTreeFromAddress(overLong)
+      expect.fail('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(AddressDecodeError)
+      expect((e as AddressDecodeError).code).toBe('too-long')
+    }
+  })
+
   it('throws ErgoTreeParseError when a P2S address contains malformed tree bytes', async () => {
     // Construct a synthetic P2S address (prefix 0x03 = mainnet P2S)
     // whose content is a single 0x00 byte (a malformed ErgoTree — the

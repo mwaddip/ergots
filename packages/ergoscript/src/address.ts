@@ -46,6 +46,7 @@ import { blake2b256 } from './crypto/hashes'
 import {
   parseTree,
   serializeTree,
+  MAX_TREE_SIZE,
   ErgoTreeParseError,
   ErgoTreeSerializeError
 } from './wire/ergo-tree'
@@ -69,6 +70,20 @@ const TESTNET_P2S_PREFIX = 0x13
 
 const CHECKSUM_LENGTH = 4
 const MIN_ADDRESS_LENGTH = CHECKSUM_LENGTH + 2
+
+// Audit RED-ERG-ADDR-01: upper bound on a decodable address string, so an
+// attacker-controlled input can't drive the O(n^2) base58 decoder with
+// unbounded length. The longest legitimate address is a max-size P2S — 1
+// prefix byte + MAX_TREE_SIZE tree bytes + CHECKSUM_LENGTH checksum bytes —
+// base58-encoded (base58 expands by <= log(256)/log(58) ~ 1.366 chars/byte;
+// the +8 absorbs float rounding so a valid max-size address is never rejected).
+// Any longer string decodes to > MAX_TREE_SIZE content, which parseTree rejects
+// regardless, so the guard only short-circuits already-doomed input. (Decoding
+// a max-size address is still inherently O(n^2) — that is base58; user-facing
+// apps that never handle huge P2S scripts should apply a much smaller cap of
+// their own.)
+const MAX_ADDRESS_STRING_LENGTH =
+  Math.ceil(((1 + MAX_TREE_SIZE + CHECKSUM_LENGTH) * 8) / Math.log2(58)) + 8
 
 /**
  * Thrown for address-level decode/encode failures: bad base58 input,
@@ -176,6 +191,12 @@ export function addressFromErgoTree(tree: ErgoTree, network: Network): string {
  * a P2S address contains malformed tree bytes.
  */
 export function ergoTreeFromAddress(address: string): ErgoTree {
+  if (address.length > MAX_ADDRESS_STRING_LENGTH) {
+    throw new AddressDecodeError(
+      `address string length ${address.length} exceeds maximum ${MAX_ADDRESS_STRING_LENGTH}`,
+      'too-long'
+    )
+  }
   const decoded = base58Decode(address)
   if (decoded.length < MIN_ADDRESS_LENGTH) {
     throw new AddressDecodeError(
