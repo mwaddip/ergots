@@ -106,9 +106,19 @@ try {
 function verifyParsedProof(proof: NipopowProof, opts?: VerifyOptions): VerificationResult;
 ```
 
-Same checks as `verifyProof`, but operates on an already-parsed `NipopowProof`. Useful when the proof is held in memory (e.g. constructed programmatically, or being re-verified after a previous parse) and re-parsing isn't desired.
+Runs the same connection / interlinks-proof / height / optional-PoW checks as `verifyProof` on an already-parsed `NipopowProof`, skipping the parse step. Intended for proofs **produced by `parseProof`** (held in memory, or re-verified after a previous parse).
 
 - **Throws:** `ProofVerificationError` with the same codes as `verifyProof` (minus `'parse-failed'`, which doesn't apply here).
+
+> **Caveat (audit RED-NIP-01).** `verifyParsedProof` does NOT re-run the wire
+> parser's structural rejections. In particular, `parseProof` rejects a
+> `PoPowHeader` with empty `interlinks` (`'invalid-interlinks-empty'`), but
+> `verifyParsedProof` treats an empty-`interlinks` / empty-proof header as
+> vacuously valid — deliberately mirroring sigma-rust's
+> `check_interlinks_proof` short-circuit. If you hand-build `NipopowProof`
+> objects instead of obtaining them from `parseProof`, you are responsible for
+> enforcing the parser's invariants yourself (non-empty per-header
+> `interlinks`, 32-byte interlink entries, counts within parser bounds).
 
 ### `compareProofs(a, b)`
 
@@ -200,9 +210,9 @@ Wrap inner proof bytes in a code-91 envelope. Useful when relaying a proof to a 
 interface NipopowProof {
   m: number;              // > 0; min superchain length parameter
   k: number;              // > 0; suffix length parameter
-  prefix: PoPowHeader[];  // length >= 1; heights strictly increasing
-  suffixHead: PoPowHeader; // height > prefix[last].height
-  suffixTail: Header[];   // length == k - 1; strictly increasing from suffixHead.height + 1
+  prefix: PoPowHeader[];  // may be empty (sigma-rust sets no lower bound); heights strictly increasing
+  suffixHead: PoPowHeader; // always present; height > prefix[last].height when prefix is non-empty
+  suffixTail: Header[];   // explicit wire length, NOT enforced == k-1 ("anchor"-mode proofs carry 0); strictly increasing from suffixHead.height + 1
 }
 ```
 

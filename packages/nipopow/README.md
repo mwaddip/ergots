@@ -23,7 +23,11 @@ console.log(result.suffixTipHeight, 'headers in proof:', result.totalHeaders);
 // Or parse without verification:
 const proof = parseProof(proofBytesA);
 
-// Compare two proofs from different peers:
+// Compare two proofs from different peers to pick the better one.
+// compareProofs ranks structure + linkage only — it does NOT verify PoW.
+// Verify BOTH proofs before trusting the winner:
+verifyProof(proofBytesA);
+verifyProof(proofBytesB);
 const aIsBetter = compareProofs(proofBytesA, proofBytesB);
 ```
 

@@ -78,8 +78,9 @@ jobs:
 
       - name: npm pack dry-run (each publishable workspace)
         run: |
-          npm pack --dry-run --workspace @ergots/nipopow
+          npm pack --dry-run --workspace @ergots/scorex
           npm pack --dry-run --workspace @ergots/avltree
+          npm pack --dry-run --workspace @ergots/nipopow
           npm pack --dry-run --workspace @ergots/ergoscript
 
   audit:

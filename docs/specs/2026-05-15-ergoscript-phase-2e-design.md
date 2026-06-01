@@ -162,7 +162,14 @@ allocation).
 
 **`Apply`** (`mir/apply.rs`, `eval/apply.rs:12-56`). Input: `Expr.tag
 === 'Apply'` with `func: Expr` and `args: Expr[]`. Cost: `Fixed(30)` per
-`eval/apply.rs:18`. Charged BEFORE eval-func. Sequence:
+`eval/apply.rs:18`. Charged BEFORE eval-func.
+
+> **Amended post-phase-2j (commit `6171d32`):** `Apply` also charges
+> `ADD_TO_ENV_COST` (5) per lambda-arg binding (step 5 below) to match the
+> JVM's per-binding cost. The `Fixed(30)` above is the original 2e design;
+> `facts/ergoscript-eval.md` carries the current cost (JVM-alignment workstream).
+
+Sequence:
 
 1. Charge `Fixed(30)`.
 2. Eval `e.func` — must produce `SValue.kind === 'Lambda'`. Anything

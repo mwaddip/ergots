@@ -35,7 +35,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2e — lambdas + treeVersion + XorOf + V3 revisit** (additive):
 
-- 3 more arms wired: `FuncValue` (constructs Lambda SValue; Fixed(5) cost; lazy body), `Apply` (invokes Lambda; Fixed(30) cost; immutable env extend; arity check), `XorOf` (Coll[Boolean] XOR aggregator with V0/V1-vs-V2+ semantics drift; reuses `'coll-not-boolean'`).
+- 3 more arms wired: `FuncValue` (constructs Lambda SValue; Fixed(5) cost; lazy body), `Apply` (invokes Lambda; Fixed(30) cost + `ADD_TO_ENV_COST` (5) per lambda-arg binding [added post-2j for JVM alignment, commit `6171d32`]; immutable env extend; arity check), `XorOf` (Coll[Boolean] XOR aggregator with V0/V1-vs-V2+ semantics drift; reuses `'coll-not-boolean'`).
 - `EvalOpts` gains one optional field: `treeVersion?: number`. `evaluate(tree, opts)` auto-derives from `tree.header.version`. `evaluateWith(tree, ctx)` requires explicit setting. Arms reading `ctx.treeVersion` default to V0 (most-restrictive) on undefined.
 - Three new `EvalError` codes: `'tree-version-too-low'` (Upcast/Downcast V3 gating), `'apply-non-lambda'`, `'apply-arity-mismatch'`.
 - Behavior change on existing arms: Upcast (BigInt → BigInt no-op) and Downcast (any branch with BigInt source) now throw `'tree-version-too-low'` at `ctx.treeVersion < 3`, matching sigma-rust upstream.
