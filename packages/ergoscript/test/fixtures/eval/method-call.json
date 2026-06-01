@@ -593,7 +593,7 @@
         "kind": "Int",
         "value": 1
       },
-      "expected_cost": 59
+      "expected_cost": 55
     },
     {
       "name": "scoll_index_of_found_from_1",
@@ -603,7 +603,7 @@
         "kind": "Int",
         "value": 1
       },
-      "expected_cost": 59
+      "expected_cost": 52
     },
     {
       "name": "scoll_index_of_not_found_after_from",
@@ -613,7 +613,7 @@
         "kind": "Int",
         "value": -1
       },
-      "expected_cost": 59
+      "expected_cost": 52
     },
     {
       "name": "scoll_index_of_clamped_from_neg",
@@ -623,7 +623,7 @@
         "kind": "Int",
         "value": 1
       },
-      "expected_cost": 59
+      "expected_cost": 55
     },
     {
       "name": "scoll_index_of_not_found",
@@ -633,7 +633,7 @@
         "kind": "Int",
         "value": -1
       },
-      "expected_cost": 59
+      "expected_cost": 68
     }
   ]
 }

@@ -299,6 +299,25 @@ function collEqPerItemCost(elem: SType): PerItemCost {
 }
 
 /**
+ * Whether a Coll element type is a COA (CollOverArray) leaf — the types JVM
+ * `equalColls_Dispatch` (DataValueComparer.scala:201-238) bulk-compares via
+ * `equalCOA_Prim` (NO recursion). Everything else (Coll/Tuple/Option/SigmaProp —
+ * the `collEqPerItemCost` default arm) falls to JVM's generic `equalColls`, which
+ * RECURSES `equalDataValues` per element, charging the nested MatchType + per-item.
+ * The COA set is exactly the explicit (non-default) arms of `collEqPerItemCost`.
+ */
+function isCoaCollElem(elem: SType): boolean {
+  switch (elem.tag) {
+    case 'SByte': case 'SShort': case 'SInt': case 'SLong': case 'SBoolean':
+    case 'SBigInt': case 'SGroupElement': case 'SAvlTree': case 'SBox':
+    case 'SPreHeader': case 'SHeader':
+      return true
+    default:
+      return false
+  }
+}
+
+/**
  * Structural equality on SType. Same-tag check; for composite types
  * (SColl/SOption/STuple/SFunc) recurse on inner fields. STypeVar compares
  * on name.
@@ -433,14 +452,24 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       // (Rust PartialEq on CollKind). We mirror by checking element-wise.
       const perItemCost = collEqPerItemCost(ca.elem)
       ctx.addCost(addPerItemJitCost(perItemCost, n))
-      // Element-wise comparison (respects same semantics as PartialEq on CollKind).
+      // Element comparison. JVM `equalColls_Dispatch`: COA leaf-element colls are
+      // bulk-compared (equalCOA_Prim, no recursion — the per-item cost above is
+      // the whole charge); COMPOSITE-element colls (Coll/Tuple/Option/SigmaProp)
+      // RECURSE via equalDataValues per element, charging the nested MatchType +
+      // per-item. Our prior code bulk-compared ALL elements via the non-recursive
+      // primitiveValueEqual (mirroring sigma-rust's PartialEq) — under-charging
+      // nested colls/tuples by the inner recursion vs JVM. sigma-rust shares it.
+      // Routed to the sigma-rust session in santa §B4. JVM is canonical.
+      const recurseElems = !isCoaCollElem(ca.elem)
       for (let i = 0; i < n; i++) {
-        if (ca.items[i]!.kind !== cb.items[i]!.kind) return false
-        // Fast-path primitive equality without recursive cost charging — sigma-rust's
-        // Coll comparison uses PartialEq which does NOT recursively call eq_with_cost.
-        // The per-item cost is charged as a single bulk charge above; individual
-        // elements are compared via PartialEq, not eq_with_cost.
-        if (!primitiveValueEqual(ca.items[i]!, cb.items[i]!)) return false
+        if (recurseElems) {
+          // sValueEquals charges the nested MatchType + per-item (and short-
+          // circuits on inner length mismatch, matching JVM).
+          if (!sValueEquals(ca.items[i]!, cb.items[i]!, ctx)) return false
+        } else {
+          if (ca.items[i]!.kind !== cb.items[i]!.kind) return false
+          if (!primitiveValueEqual(ca.items[i]!, cb.items[i]!)) return false
+        }
       }
       return true
     }

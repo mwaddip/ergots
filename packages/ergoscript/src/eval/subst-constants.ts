@@ -1,7 +1,10 @@
 /**
  * SubstConstants arm — substitute constants in a serialized ErgoTree
- * (CONSENSUS-CRITICAL: output bytes go on-chain; a 1-byte divergence from
- * sigma-rust is a consensus failure).
+ * (CONSENSUS-CRITICAL: output bytes go on-chain; a 1-byte divergence from the
+ * JVM `sigma-state` reference is a consensus failure).
+ *
+ * ⚠ Out-of-range position handling DELIBERATELY diverges from sigma-rust to
+ * match the JVM (no-op, not an error — see step 7). JVM is canonical.
  *
  * Sigma-rust ref:
  *   ergotree-interpreter/src/eval/subst_const.rs:18-89  (top-level eval impl)
@@ -18,7 +21,7 @@
  *     ergo_tree = parseTree(script_bytes)                 // wire-layer error → 'subst-constants-error'
  *     ctx.addPerItemCost(100, 100, 1, ergo_tree.constants.length)   // Pattern B; template-sized
  *     for (ix, i) in positions.entries():
- *       if i < 0 || i >= ergo_tree.constants.length: throw 'subst-constants-error'
+ *       if i < 0 || i >= ergo_tree.constants.length: continue   // JVM no-op (getPositionsBackref:294), NOT a throw
  *       if newValues.elem !== ergo_tree.constantTypes[i]: throw 'subst-constants-error'  // structural sType-equality
  *       ergo_tree.constants[i] = new_constants[ix]        // defensive deep copy
  *     return Coll[Byte] of serializeTree(ergo_tree)
@@ -39,10 +42,11 @@
  * — verified end-to-end by the byte-equality canary in
  * `test/eval/subst-constants.test.ts`.
  *
- * Single compact error code: `'subst-constants-error'` covers all 7 throw
- * paths (per the 2g.5 compact-taxonomy decision). Externally callers
- * distinguish them via `error.message` text. The throw paths are enumerated
- * in `eval/errors.ts` under the `'subst-constants-error'` documentation.
+ * Single compact error code: `'subst-constants-error'` covers the remaining
+ * throw paths (per the 2g.5 compact-taxonomy decision); the out-of-range
+ * position path is now a no-op (JVM parity), not a throw. Externally callers
+ * distinguish the throws via `error.message` text. The throw paths are
+ * enumerated in `eval/errors.ts` under the `'subst-constants-error'` docs.
  *
  * Build-time type guards: `SubstConstants::new` in sigma-rust validates
  * `script_bytes : SColl(SByte)`, `positions : SColl(SInt)`, and
@@ -124,11 +128,15 @@ export function evalSubstConstants(
   const newConstants = [...tree.constants]
   for (let ix = 0; ix < positions.length; ix++) {
     const i = positions[ix]!
+    // JVM `ErgoTreeSerializer.getPositionsBackref` (ErgoTreeSerializer.scala:294)
+    // guards `0 <= pos && pos < nConstants`: any out-of-range position — negative
+    // OR too-large — is silently SKIPPED (no substitution, no error), so the
+    // template bytes pass through unchanged. sigma-rust `subst_const.rs:71-77`
+    // and our prior code both *errored* here — a divergence from JVM (SANTA v5
+    // substConstants #0/#2/#3/#6; routed to sigma-rust in
+    // `~/projects/santa/prompts/ergots-v5-divergences.md` §A2). JVM is canonical.
     if (i < 0 || i >= tree.constants.length) {
-      throw new EvalError(
-        `SubstConstants: positions[${ix}] = ${i} out of bounds (constants.length = ${tree.constants.length})`,
-        'subst-constants-error',
-      )
+      continue
     }
     // new_values.elem is the declared Coll element type; compare to the
     // original constant's stored SType. Mirrors sigma-rust ergo_tree.rs:51

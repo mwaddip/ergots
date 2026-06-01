@@ -25,7 +25,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 216,
+      "expected_cost": 226,
       "expected_error_code": null
     },
     {
@@ -56,7 +56,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 169,
+      "expected_cost": 179,
       "expected_error_code": null
     },
     {
@@ -105,7 +105,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 228,
+      "expected_cost": 238,
       "expected_error_code": null
     }
   ]

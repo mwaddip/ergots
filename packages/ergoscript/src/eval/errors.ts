@@ -452,7 +452,7 @@ export type EvalErrorCode =
   | 'decode-point-invalid'
   /**
    * `SubstConstants` (CONSENSUS-CRITICAL — output bytes go on-chain): any of
-   * the 7 throw paths in the substitute-constants arm collapse to this single
+   * the 6 throw paths in the substitute-constants arm collapse to this single
    * compact code per the 2g.5 compact-taxonomy decision. The throw paths are:
    *   - `script_bytes` evaluated to non-`Coll[Byte]` (defensive — build-time
    *     guard `SubstConstants::new` enforces `SColl(SByte)`).
@@ -462,12 +462,16 @@ export type EvalErrorCode =
    *     enforces `SColl(_)`).
    *   - `positions.length !== new_values.items.length`.
    *   - Bad template bytes (any wire-layer error from `parseTree`).
-   *   - `positions[ix]` out of `[0, template.constants.length)`.
    *   - Type mismatch: `new_values.elem` differs from `template.constantTypes[i]`.
+   * Out-of-range `positions[ix]` (negative OR >= constants.length) is NOT a
+   * throw — it is a silent no-op (JVM `getPositionsBackref` parity), so the
+   * template bytes pass through unchanged. See subst-constants.ts step 7.
    *
    * Distinguished by `error.message` text. Mirrors sigma-rust's mix of
    * `EvalError::Misc` (subst_const.rs:36-87) and `SetConstantError`
-   * (ergo_tree.rs:51-66) cases.
+   * (ergo_tree.rs:51-66) cases — EXCEPT the out-of-range position path, where
+   * sigma-rust still errors and we (like the JVM) no-op. See santa
+   * prompts/ergots-v5-divergences.md §A2.
    *
    * Source: ergotree-interpreter/src/eval/subst_const.rs:18-89
    *         ergotree-ir/src/ergo_tree.rs:45-70 (with_constant)

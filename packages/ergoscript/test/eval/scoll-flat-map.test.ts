@@ -224,7 +224,7 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     expect(ctx.jitCost).toBe(70)
   })
 
-  it('lambda-result-type-mismatch when itemRes is not a Coll (cost charged for outer, no per-iter)', () => {
+  it('lambda-result-type-mismatch when itemRes is not a Coll (per-element binding charged; outer structural NOT charged on body error)', () => {
     // Synthesize a closure whose body, despite static type claim SColl(SLong),
     // returns a non-Coll SValue at runtime. We do this by lying about the
     // body's static tpe (passing a Const whose runtime kind doesn't match its
@@ -253,10 +253,13 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
       expect(e).toBeInstanceOf(EvalError)
       expect((e as EvalError).code).toBe('lambda-result-type-mismatch')
     }
-    // Pattern B: outer cost charged BEFORE loop. n=1 → 60 + 10*ceil(1/8) = 70.
-    // Const body eval inside loop adds ADD_TO_ENV_COST not applicable; just
-    // Const cost 5. Total at throw: 70 + 5 = 75.
-    expect(ctx.jitCost).toBe(75)
+    // JVM charges the flatMap structural cost (PerItemCost on res.length) AFTER
+    // the body evals (methods.scala:1004-1008), so a body error never reaches it.
+    // Per element: ADD_TO_ENV_COST (5, lambda-arg binding) + Const body eval (5).
+    // The type-mismatch throws on element 1, before the post-loop structural
+    // charge → total 10, no outer. (Was 75 under the old charge-before-loop,
+    // input-length, no-per-element-binding model; JVM-aligned now.)
+    expect(ctx.jitCost).toBe(10)
   })
 })
 

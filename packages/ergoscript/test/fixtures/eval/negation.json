@@ -112,36 +112,48 @@
       "expected_error_code": null
     },
     {
-      "name": "negation_byte_min_overflow",
+      "name": "negation_byte_min_wrap",
       "tree_bytes_hex": "00f00280",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "arith-overflow"
+      "expected_value_json": {
+        "kind": "Byte",
+        "value": -128
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
     },
     {
-      "name": "negation_short_min_overflow",
+      "name": "negation_short_min_wrap",
       "tree_bytes_hex": "00f003ffff03",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "arith-overflow"
+      "expected_value_json": {
+        "kind": "Short",
+        "value": -32768
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
     },
     {
-      "name": "negation_int_min_overflow",
+      "name": "negation_int_min_wrap",
       "tree_bytes_hex": "00f004ffffffffffffffffff01",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "arith-overflow"
+      "expected_value_json": {
+        "kind": "Int",
+        "value": -2147483648
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
     },
     {
-      "name": "negation_long_min_overflow",
+      "name": "negation_long_min_wrap",
       "tree_bytes_hex": "00f005ffffffffffffffffff01",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "arith-overflow"
+      "expected_value_json": {
+        "kind": "Long",
+        "value": "-9223372036854775808"
+      },
+      "expected_cost": 35,
+      "expected_error_code": null
     },
     {
       "name": "negation_bigint_min_overflow",

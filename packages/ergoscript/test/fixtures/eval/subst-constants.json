@@ -578,12 +578,43 @@
       "expected_error_code": "subst-constants-error"
     },
     {
-      "name": "subst_position_oob",
+      "name": "subst_position_oob_noop",
       "tree_bytes_hex": "00740e0610010454730010010a100102",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "subst-constants-error"
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 16
+          },
+          {
+            "kind": "Byte",
+            "value": 1
+          },
+          {
+            "kind": "Byte",
+            "value": 4
+          },
+          {
+            "kind": "Byte",
+            "value": 84
+          },
+          {
+            "kind": "Byte",
+            "value": 115
+          },
+          {
+            "kind": "Byte",
+            "value": 0
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 215,
+      "expected_error_code": null
     },
     {
       "name": "subst_length_mismatch",
@@ -602,12 +633,43 @@
       "expected_error_code": "subst-constants-error"
     },
     {
-      "name": "subst_negative_position",
+      "name": "subst_negative_position_noop",
       "tree_bytes_hex": "00740e06100104547300100101100102",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "subst-constants-error"
+      "expected_value_json": {
+        "elem": {
+          "tag": "SByte"
+        },
+        "items": [
+          {
+            "kind": "Byte",
+            "value": 16
+          },
+          {
+            "kind": "Byte",
+            "value": 1
+          },
+          {
+            "kind": "Byte",
+            "value": 4
+          },
+          {
+            "kind": "Byte",
+            "value": 84
+          },
+          {
+            "kind": "Byte",
+            "value": 115
+          },
+          {
+            "kind": "Byte",
+            "value": 0
+          }
+        ],
+        "kind": "Coll"
+      },
+      "expected_cost": 215,
+      "expected_error_code": null
     }
   ]
 }

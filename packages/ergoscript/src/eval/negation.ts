@@ -1,19 +1,21 @@
 /**
  * Negation arm — unary numeric negate (`-x`) on numeric SValues.
  *
- * Result kind equals input kind. Overflow: `Negate(MIN_K)` for each of
- * Byte/Short/Int/Long/BigInt exceeds the signed range (|MIN_K| = MAX_K + 1)
- * and raises `'arith-overflow'` (reused from 2c BinOp.Arith — same
- * semantic posture as `checked_add`/`checked_mul` overflow).
+ * Result kind equals input kind. `Negate(MIN_K)`: Byte/Short/Int/Long WRAP
+ * two's-complement (`-MIN_K === MIN_K`, no error) to match JVM's numeric
+ * `negate` (sigma-state `ast/trees.scala:889`); BigInt is 256-bit *checked*
+ * and raises `'arith-overflow'` on `-(2^255)` (JVM's 256-bit BigInt overflows
+ * too). JVM is canonical here.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/negation.rs:16
+ * Sigma-rust ref: ergotree-interpreter/src/eval/negation.rs:16,25
  *   ctx.add_jit_cost(30)?;                       // Negation = Fixed(30)
  *   let input_v = self.input.eval(env, ctx)?;    // eval child after cost
  *   match input_v { Byte/Short/Int/Long/BigInt => checked_neg, ... }
  *
- * Sigma-rust uses per-primitive `checked_neg`; we use the shared
- * `_numeric.ts` helpers (`valueToBigInt` → negate in bigint →
- * `checkRange` → `bigIntToValue`) for a kind-uniform path.
+ * ⚠ Deliberate divergence from sigma-rust: its `checked_neg` ERRORS on all five
+ * MINs — wrong vs JVM for the 4 machine widths. We wrap them (`_numeric.ts`
+ * `maskToKind`) and keep BigInt checked. Routed to the sigma-rust session in
+ * `~/projects/santa/prompts/ergots-v5-divergences.md` §A1.
  *
  * Cost-charging order: envelope BEFORE eval-child (sigma-rust line 16 →
  * 17; same posture as LogicalNot / BitInversion).
@@ -32,7 +34,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bigIntToValue, checkRange, isNumeric, valueToBigInt } from './bin-op/_numeric'
+import { bigIntToValue, checkRange, isNumeric, maskToKind, valueToBigInt } from './bin-op/_numeric'
 
 const NEGATION_COST = 30
 
@@ -46,6 +48,16 @@ export function evalNegation(e: Negation, env: Env, ctx: EvalContext): SValue {
     )
   }
   const negated = -valueToBigInt(input)
-  checkRange(negated, input.kind, 'arith-overflow')
-  return bigIntToValue(input.kind, negated)
+  // JVM `Negation.eval` (sigma-state `ast/trees.scala:889`) negates via the
+  // numeric `negate`: two's-complement WRAP for the fixed-width types
+  // (`-MIN_K === MIN_K`, no error), while BigInt is 256-bit *checked* and throws
+  // on `-(2^255)`. sigma-rust `negation.rs:25` uses `checked_neg` for every
+  // width and so errors on all five MINs — a divergence from JVM on the 4
+  // machine widths. JVM is canonical here (SANTA v5 `Numeric_Negation`; routed
+  // to sigma-rust in `~/projects/santa/prompts/ergots-v5-divergences.md` §A1).
+  if (input.kind === 'BigInt') {
+    checkRange(negated, input.kind, 'arith-overflow')
+    return bigIntToValue(input.kind, negated)
+  }
+  return bigIntToValue(input.kind, maskToKind(negated, input.kind))
 }

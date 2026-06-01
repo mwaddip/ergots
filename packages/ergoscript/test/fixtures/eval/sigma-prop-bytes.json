@@ -511,7 +511,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 46
+      "expected_cost": 58
     },
     {
       "name": "cor_2_leaves",
@@ -813,7 +813,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 46
+      "expected_cost": 58
     }
   ]
 }

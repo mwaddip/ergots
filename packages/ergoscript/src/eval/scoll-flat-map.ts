@@ -108,11 +108,6 @@ export function evalSCollFlatMap(
     }
   }
 
-  // 6. Outer cost: addPerItemCost(60, 10, 8, n) AFTER all guards (Pattern B).
-  //    Source: scoll.rs:126.
-  const n = inputColl.items.length
-  ctx.addPerItemCost(FLATMAP_OUTER_BASE, FLATMAP_OUTER_PER_CHUNK, FLATMAP_OUTER_CHUNK_SIZE, n)
-
   // 7. Determine initial output elem type. 3-branch init (R3(b)):
   //    - SColl body type → use bodyTpe.elem (concrete path)
   //    - SAny body type  → set outElem = SAny pre-loop; refine post-iter-1
@@ -137,6 +132,14 @@ export function evalSCollFlatMap(
   const argId = closure.argIds[0]!
   const outItems: SValue[] = []
   for (const item of inputColl.items) {
+    // Per-element lambda-arg binding cost: 5 (ADD_TO_ENV_COST). JVM applies the
+    // FuncValue once per element, each application charging AddToEnvironmentDesc
+    // = 5 to bind the arg before the body eval (`values.scala:1047`). Binding
+    // inline here without it under-charged 5/element vs JVM; sigma-rust shares
+    // the gap (`scoll.rs` flatmap_eval binds via env.insert, uncharged). Routed
+    // to the sigma-rust session in `~/projects/santa/prompts/ergots-v5-divergences.md`.
+    // JVM is canonical.
+    ctx.addCost(5)
     const bodyEnv = env.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     if (itemRes.kind !== 'Coll') {
@@ -157,6 +160,14 @@ export function evalSCollFlatMap(
     }
     for (const sub of itemRes.items) outItems.push(sub)
   }
+
+  // 9. Outer cost: addPerItemCost(60, 10, 8, OUTPUT length). JVM `flatMap_eval`
+  //    (methods.scala:1004-1008) charges PerItemCost(60,10,8) over `res.length`
+  //    — the flattened OUTPUT length — AFTER running the body evals; sigma-rust
+  //    (scoll.rs:126) and our prior code charged on the INPUT length, a large
+  //    structural under-charge. JVM is canonical (SANTA v5 B2; routed in
+  //    `~/projects/santa/prompts/ergots-v5-divergences.md`).
+  ctx.addPerItemCost(FLATMAP_OUTER_BASE, FLATMAP_OUTER_PER_CHUNK, FLATMAP_OUTER_CHUNK_SIZE, outItems.length)
 
   // Empty-input case: outElem stays SAny; returns Coll[SAny].
   return { kind: 'Coll', elem: outElem, items: outItems }

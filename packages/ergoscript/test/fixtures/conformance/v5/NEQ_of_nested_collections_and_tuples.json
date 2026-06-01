@@ -1,0 +1,1240 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "NEQ of nested collections and tuples",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(Coll(),Coll(Coll()))#0",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 96,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(),Coll())#1",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 106,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(),Coll())#2",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 106,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(),Coll())#3",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 106,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll()),Coll())#4",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 96,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll()),Coll(Coll(1)))#5",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll()),Coll(Coll()))#6",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll()),Coll(Coll()))#7",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll()),Coll(Coll()))#8",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll()))#9",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(2)))#10",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1)))#11",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1)))#12",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1)))#13",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(2)),Coll(Coll(1)))#14",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 2
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1,2)))#15",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  },
+                  {
+                    "kind" : "Int",
+                    "value" : 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1)))#16",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1)))#17",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1)),Coll(Coll(1)))#18",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 126,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(Coll(1,2)),Coll(Coll(1)))#19",
+      "script" : "{ (x: (Coll[Coll[Int]], Coll[Coll[Int]])) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1800dad901013c1c1c948c7201018c72010201e4e3013c1c1c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  },
+                  {
+                    "kind" : "Int",
+                    "value" : 2
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SInt"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SInt"
+                },
+                "items" : [
+                  {
+                    "kind" : "Int",
+                    "value" : 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    }
+  ]
+}

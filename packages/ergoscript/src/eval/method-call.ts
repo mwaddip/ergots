@@ -46,7 +46,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
-import { primitiveValueEqual } from './bin-op/relation'
+import { sValueEquals } from './bin-op/relation'
 import {
   evalSAvlTreeContains,
   evalSAvlTreeDigest,
@@ -359,8 +359,9 @@ function registerHandlers(): void {
 
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
   // Source: ergotree-interpreter/src/eval/scoll.rs:21-50 — INDEX_OF_EVAL_FN
-  // Pattern B cost: addPerItemCost(20, 10, 2, n) AFTER extracting Coll, BEFORE search.
-  // 'from < 0' clamped to 0. Returns Int index or -1.
+  // Cost (JVM indexOf_eval): per-comparison element eq cost during the scan +
+  // PerItemCost(20,10,2) over ITERATIONS performed, charged after. 'from < 0'
+  // clamped to 0. Returns Int index or -1.
   HANDLERS.set(handlerKey(12, 26), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -369,7 +370,6 @@ function registerHandlers(): void {
       )
     }
     const n = obj.items.length
-    ctx.addPerItemCost(20, 10, 2, n) // Pattern B; source: scoll.rs:31
     if (args.length !== 2) {
       throw new EvalError(
         `SColl.indexOf expects 2 args; got ${args.length}`,
@@ -383,11 +383,27 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
+    // JVM `indexOf_eval` (methods.scala:1080-1097): scan from `start`, charging
+    // the element eq cost per comparison via `equalDataValues`, THEN charge
+    // PerItemCost(20,10,2) over the ITERATIONS performed (`i - start`) — not the
+    // full input length. Our prior code charged full-length up-front and used the
+    // uncharged `primitiveValueEqual`, diverging from JVM on BOTH; sigma-rust
+    // shares it (scoll.rs:31 full-length + bare `==`). Routed in santa
+    // prompts/ergots-v5-divergences.md §B3. JVM canonical. `sValueEquals` charges
+    // the element-type eq cost (mirrors equalDataValues) and returns equality.
     const from = Math.max(0, fromArg.value)
-    for (let i = from; i < n; i++) {
-      if (primitiveValueEqual(obj.items[i]!, target)) return { kind: 'Int', value: i }
+    let foundIdx = -1
+    let i = from
+    while (i < n) {
+      const eq = sValueEquals(obj.items[i]!, target, ctx)
+      i++
+      if (eq) {
+        foundIdx = i - 1
+        break
+      }
     }
-    return { kind: 'Int', value: -1 }
+    ctx.addPerItemCost(20, 10, 2, i - from)
+    return { kind: 'Int', value: foundIdx }
   } })
 
   // SGlobal.groupGenerator (PropertyCall, typeId=106, methodId=1)
