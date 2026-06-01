@@ -802,10 +802,11 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr): Expr {
  * built by `Traversable::children` (mir/expr.rs:534-605) and the per-variant
  * `iter_from!` macro expansion.
  *
- * Used only by {@link hasDeserializeWalk}; the substitution walker uses
- * {@link mapChildren} which reconstructs the parent.
+ * Used by {@link hasDeserializeWalk} and by `eval/validate-bin-op-types.ts`'s
+ * whole-tree pass; the substitution walker uses {@link mapChildren} which
+ * reconstructs the parent.
  */
-function* childrenOf(e: Expr): Generator<Expr, void, void> {
+export function* childrenOf(e: Expr): Generator<Expr, void, void> {
   switch (e.tag) {
     // Zero children.
     case 'Const':

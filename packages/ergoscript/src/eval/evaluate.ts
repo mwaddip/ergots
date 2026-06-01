@@ -18,6 +18,7 @@ import {
   substituteDeserialize,
   treeHasDeserialize,
 } from './_substitute-deserialize'
+import { validateBinOpTypes } from './validate-bin-op-types'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -111,12 +112,21 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
 function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
+  // JVM-align #2: mirror the deserializer's check2(SameType)/(OnlyNumeric) on
+  // comparison/equality — a WHOLE-TREE pre-eval pass run before any cost is
+  // charged, so a mismatched node (even in a never-evaluated branch) rejects the
+  // tree with zero JIT cost, matching the JVM's deserialize-time rejection. Runs
+  // on the post-substitution body so substituted-in Deserialize* subtrees are
+  // checked too. See eval/validate-bin-op-types.ts.
+  const treeVersion = ctx.treeVersion ?? 0
   if (treeHasDeserialize(tree)) {
     const constSubstituted = tree.header.constantSegregation
       ? substituteConstants(tree.body, tree.constants, tree.constantTypes)
       : tree.body
     const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx)
+    validateBinOpTypes(rewrittenBody, treeVersion)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
+  validateBinOpTypes(tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }
