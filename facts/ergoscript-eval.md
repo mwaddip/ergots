@@ -165,7 +165,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
   - **`ByteArrayToBigInt`** — Pattern A `Fixed(30)`. Signed BE → bigint; range-checked to i256 `[-2^255, 2^255 - 1]`. Empty input throws separately. Length NOT capped — 33+ byte inputs in-range succeed (sigma-rust `eval_above_max_bound`).
   - **`Xor`** — Pattern B `addPerItemCost(10, 2, 128, l_length)`. Cost sized by LEFT operand. Truncating-zip: output length = `min(left, right)`. NO length-mismatch error (mirrors sigma-rust `helper_xor`).
   - **`DecodePoint`** — Pattern A `Fixed(300)`. Reuses existing `crypto/secp256k1.ts:decodePoint` adapter (handles Ergo 33-zero-bytes identity convention).
-  - **`SubstConstants`** — Pattern B `addPerItemCost(100, 100, 1, template.constants.length)`. **Consensus-critical bytes-in/bytes-out.** Cost sized by TEMPLATE'S `constants.length`, NOT positions.length (sigma-rust bug-3 regression at `subst_const.rs:221-283`). Output byte-equality with sigma-rust guaranteed by reusing `parseTree`/`serializeTree`.
+  - **`SubstConstants`** — Pattern B `addPerItemCost(100, 100, 1, template.constants.length)`. **Consensus-critical bytes-in/bytes-out.** Cost sized by TEMPLATE'S `constants.length`, NOT positions.length (sigma-rust bug-3 regression at `subst_const.rs:221-283`). **Serializer-level (A2-b, 2026-06-01):** delegates to `wire/ergo-tree.ts` `substituteConstantsBytes`, which copies the tree BODY verbatim (never parses it) — mirroring JVM `ErgoTreeSerializer.substituteConstants`, so a template whose body isn't valid Expr bytes (SANTA `#1`) passes through where the old `parseTree`/`serializeTree` round-trip threw. Out-of-range positions are a no-op and duplicate positions are first-wins (JVM `getPositionsBackref`); ergots leads here (sigma-rust still parse-based). See `facts/ergoscript-wire.md` §A2-b.
 - 7 new `EvalError` codes (48 → 55):
   - `'predef-input-not-byte-array'` (T2; shared by T2/T3/T4/T6/T7/T8 for non-Coll[Byte] inputs)
   - `'byte-array-to-long-too-short'` (T4; length < 8)
@@ -173,14 +173,14 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
   - `'byte-array-to-bigint-empty'` (T6)
   - `'byte-array-to-bigint-out-of-range'` (T6)
   - `'decode-point-invalid'` (T8)
-  - `'subst-constants-error'` (T9 — compact code covering 7 throw paths per the 2g.5 compact-taxonomy decision)
+  - `'subst-constants-error'` (T9 — compact code covering 6 throw paths per the 2g.5 compact-taxonomy decision; was 7 before A2 made out-of-range positions a no-op)
 - 3 new shared helpers:
   - `collByteToUint8Array(v, arm, code?)` in `eval/_byte-coll.ts` — extracted in T7.5 from 6-7 inline copies; takes optional EvalErrorCode (default `'predef-input-not-byte-array'`).
   - `signedBeBytesToBigInt(bytes): bigint` + `I256_MIN`, `I256_MAX` constants in `eval/_byte-coll.ts` — T6.
   - `extractCollInt(v, arm, code?)` in `eval/_coll-helpers.ts` — T9 (for SubstConstants positions argument).
 - Two documented TS-from-sigma-rust divergences (both inherited, neither introduced by this slice):
   - **`DecodePoint` identity**: existing `decodePoint` adapter at `crypto/secp256k1.ts:65-77` checks `isZero33(bytes)` (all 33 bytes zero), while sigma-rust dispatches on `buf[0] !== 0` only. Pre-existing across the verifier surface; not introduced by 2i-a. In-corpus fixtures always produce identity as exactly 33 zero bytes (canonical sigma-rust serialization). Pathological inputs like `[0x00, nonzero, …]` would diverge. **Resolved as deliberate strict-reject in phase 2i-d** — documented centrally at `packages/ergoscript/src/crypto/secp256k1.ts:decodePoint`. Production-unreachable; strict-reject chosen as a safety margin against hand-crafted/hostile inputs.
-  - **`SubstConstants` type-check**: TS validates `sTypeEquals(newValuesV.elem, tree.constantTypes[i])` (the outer Coll's declared element type) vs sigma-rust's per-item `Constant.tpe == old_constant.tpe`. Equivalent for well-typed inputs (all of mainnet); divergence only on pathological hand-crafted hetero-typed Colls.
+  - **`SubstConstants` type-check**: `substituteConstantsBytes` validates `sTypeEquals(newValuesElem, constantTypes[i])` (the outer Coll's declared element type) vs sigma-rust/JVM's per-item `Constant.tpe == old_constant.tpe`. Equivalent for well-typed inputs (all of mainnet); divergence only on pathological hand-crafted hetero-typed Colls.
 
 **Phase 2i-a COMPLETE.** Method handler registry: 44 entries (unchanged). EvalError codes: 55. Eval arm coverage: 60 of ~70. Ergoscript test count: 3074. Total monorepo: 3652.
 
@@ -465,7 +465,7 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 - **`'byte-array-to-bigint-empty'`** — `ByteArrayToBigInt` arm: input `Coll[Byte]` had length 0. Distinct from the out-of-range code so callers can distinguish "empty input" from "value out of i256 bounds".
 - **`'byte-array-to-bigint-out-of-range'`** — `ByteArrayToBigInt` arm: signed-BE-decoded bigint fell outside `[I256_MIN, I256_MAX]` = `[-2^255, 2^255 - 1]`. Sigma-rust mirror: `byte_array_to_bigint.rs` range-check after decode.
 - **`'decode-point-invalid'`** — `DecodePoint` arm: the 33-byte SEC1-compressed input failed `decodePoint` adapter validation (non-zero33 AND non-decodable per `crypto/secp256k1.ts`). Charged Pattern A cost 300 BEFORE the throw.
-- **`'subst-constants-error'`** — `SubstConstants` arm: compact taxonomy code covering 7 distinct throw paths (positions vs newValues length mismatch; position out of range; type mismatch between newValues' element type and the template's constant type at that position; newValues' input not a Coll; positions' input not a Coll; scriptBytes' input not Coll[Byte]; nested `parseTree`/`serializeTree` error). Per the 2g.5 compact-taxonomy decision — these are all "the input shape doesn't satisfy SubstConstants' contract" and are not branched-on by callers.
+- **`'subst-constants-error'`** — `SubstConstants` arm: compact taxonomy code covering 6 distinct throw paths (positions vs newValues length mismatch; type mismatch between newValues' element type and the template's constant type at that position; newValues' input not a Coll; positions' input not a Coll; scriptBytes' input not Coll[Byte]; serializer-level substitution error from `substituteConstantsBytes` — bad template bytes / too-many-constants). Out-of-range positions are a no-op, NOT a throw (JVM parity, A2). Per the 2g.5 compact-taxonomy decision — these are all "the input shape doesn't satisfy SubstConstants' contract" and are not branched-on by callers.
 
 ### Phase 2i-b codes (curve + AVL + sigma-trivial predefs)
 

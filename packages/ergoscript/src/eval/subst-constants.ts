@@ -3,68 +3,65 @@
  * (CONSENSUS-CRITICAL: output bytes go on-chain; a 1-byte divergence from the
  * JVM `sigma-state` reference is a consensus failure).
  *
- * ⚠ Out-of-range position handling DELIBERATELY diverges from sigma-rust to
- * match the JVM (no-op, not an error — see step 7). JVM is canonical.
+ * The byte surgery lives in the wire layer: `substituteConstantsBytes`
+ * (`wire/ergo-tree.ts`), mirroring JVM `ErgoTreeSerializer.substituteConstants`
+ * (`sigma-state-6.0.3`). This arm evals the three children, extracts/guards
+ * their shapes, then delegates and charges cost.
  *
- * Sigma-rust ref:
- *   ergotree-interpreter/src/eval/subst_const.rs:18-89  (top-level eval impl)
- *   ergotree-ir/src/ergo_tree.rs:45-70                  (ParsedErgoTree::with_constant)
+ * ⚠ The template BODY is copied VERBATIM, never parsed — matching JVM. A crafted
+ * template whose body is not valid Expr bytes (SANTA substConstants `#1`) is
+ * returned unchanged (0 constants ⇒ no substitution) where the old
+ * `parseTree`/`serializeTree` path threw. The wire fn documents the full
+ * JVM-parity contract (out-of-range no-op, first-wins duplicate positions, the
+ * v3-gated size prefix, the unbounded body read).
  *
- * Pseudocode (mirrors sigma-rust):
- *     script_bytes_v = scriptBytes.eval(env, ctx)        // child eval
- *     positions_v    = positions.eval(env, ctx)          // child eval
- *     new_values_v   = newValues.eval(env, ctx)          // child eval
- *     ... extract positions: number[] ...                 // Coll[Int] guard
- *     ... extract new_constants: SValue[] ...             // Coll[_]  guard
- *     if positions.length !== new_constants.length: throw 'subst-constants-error'
- *     ... extract script_bytes: Uint8Array ...            // Coll[Byte] guard
- *     ergo_tree = parseTree(script_bytes)                 // wire-layer error → 'subst-constants-error'
- *     ctx.addPerItemCost(100, 100, 1, ergo_tree.constants.length)   // Pattern B; template-sized
- *     for (ix, i) in positions.entries():
- *       if i < 0 || i >= ergo_tree.constants.length: continue   // JVM no-op (getPositionsBackref:294), NOT a throw
- *       if newValues.elem !== ergo_tree.constantTypes[i]: throw 'subst-constants-error'  // structural sType-equality
- *       ergo_tree.constants[i] = new_constants[ix]        // defensive deep copy
- *     return Coll[Byte] of serializeTree(ergo_tree)
+ * Sigma-rust ref (the historical parse-based approach — still its current impl):
+ *   ergotree-interpreter/src/eval/subst_const.rs:18-89
+ *   ergotree-ir/src/ergo_tree.rs:45-70  (ParsedErgoTree::with_constant)
+ * sigma-rust full-parses the body too, so it shares the `#1` divergence; ergots
+ * leads the serializer-level fix (JVM is canonical). Routed for sigma-rust in
+ * `~/projects/santa/prompts/ergots-v5-divergences.md` §A2.
  *
- * Cost-charging order: Pattern B (charged after the type-guards / parseTree,
- * before the substitution loop). Sized by the TEMPLATE'S `constants.length`,
- * NOT the caller-supplied `positions.length`. The bug-3 regression test at
- * sigma-rust subst_const.rs:221-283 fixes this: substituting 1 vs 3 positions
- * on a 3-const template must yield identical SubstConstants cost.
+ * Pseudocode:
+ *     script_bytes = scriptBytes.eval(...)             // Coll[Byte] guard
+ *     positions    = positions.eval(...)               // Coll[Int]  guard
+ *     new_values   = newValues.eval(...)               // Coll[_]    guard
+ *     {bytes, n}   = substituteConstantsBytes(script_bytes, positions,
+ *                       new_values.items, new_values.elem, ctx.treeVersion)
+ *     ctx.addPerItemCost(100, 100, 1, n)               // Pattern B; template-sized
+ *     return Coll[Byte] of bytes
  *
- * Output byte-equality guarantee: serializeTree(parseTree(b)) ≡ b on all 255
- * corpus fixtures and 6,221 parse-mutation entries. Substituting
- * `constants[i] := new_constants[ix]` keeps the constant_types list invariant
- * (the structural type check enforces this) and changes only the constant's
- * serialized form in the constants section; the body bytes are untouched. So
- * for any tree whose original encoding our serializeTree round-trips
- * byte-exactly, the substituted-output bytes match sigma-rust byte-for-byte
- * — verified end-to-end by the byte-equality canary in
- * `test/eval/subst-constants.test.ts`.
+ * Cost-charging order: Pattern B, sized by the TEMPLATE's constant count `n`
+ * (returned by the wire fn), NOT the caller-supplied `positions.length`. The
+ * bug-3 regression (sigma-rust subst_const.rs:221-283 + the byte-equality
+ * suite) fixes this: substituting 1 vs 3 positions on a 3-const template must
+ * yield identical SubstConstants cost. The final jitCost is independent of
+ * whether the charge lands before or after the byte surgery — the op is atomic
+ * w.r.t. cost, and errored runs (the only paths affected by ordering) do not
+ * assert cost.
  *
- * Single compact error code: `'subst-constants-error'` covers the remaining
- * throw paths (per the 2g.5 compact-taxonomy decision); the out-of-range
- * position path is now a no-op (JVM parity), not a throw. Externally callers
- * distinguish the throws via `error.message` text. The throw paths are
- * enumerated in `eval/errors.ts` under the `'subst-constants-error'` docs.
+ * Single compact error code: `'subst-constants-error'` wraps every throw path
+ * from the wire fn (bad template bytes, length mismatch, structural type
+ * mismatch) per the 2g.5 compact-taxonomy decision; the out-of-range position
+ * path is a no-op (JVM parity), not a throw. Callers distinguish the throws via
+ * `error.message`.
  *
  * Build-time type guards: `SubstConstants::new` in sigma-rust validates
  * `script_bytes : SColl(SByte)`, `positions : SColl(SInt)`, and
- * `new_values : SColl(_)` at MIR construction, so parser-produced trees
- * cannot reach the shape-guards in this handler. The TS-side guards remain
- * for defense against `ConstantPlaceholder` injection / hand-crafted MIR
- * (calc_blake2b256 / byte_array_to_long precedent).
+ * `new_values : SColl(_)` at MIR construction, so parser-produced trees cannot
+ * reach the shape-guards here. The TS-side guards remain for defense against
+ * `ConstantPlaceholder` injection / hand-crafted MIR (calc_blake2b256 /
+ * byte_array_to_long precedent).
  */
 
-import type { ErgoTree, SubstConstants, SValue } from '../mir/types'
+import type { SubstConstants, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
 import { extractCollInt } from './_coll-helpers'
-import { sTypeEquals } from '../mir/stype-helpers'
-import { parseTree, serializeTree } from '../wire/ergo-tree'
+import { substituteConstantsBytes } from '../wire/ergo-tree'
 
 export function evalSubstConstants(
   e: SubstConstants,
@@ -93,74 +90,30 @@ export function evalSubstConstants(
     )
   }
 
-  // 4. Length match (sigma-rust subst_const.rs:49-55).
-  if (positions.length !== newValuesV.items.length) {
-    throw new EvalError(
-      `SubstConstants: positions.length (${positions.length}) !== new_values.length (${newValuesV.items.length})`,
-      'subst-constants-error',
-    )
-  }
-
-  // 5. Parse the embedded template. Any wire-layer error → 'subst-constants-error'.
-  //    This is consensus-critical: the template bytes are the same bytes the
-  //    rest of the system expects to round-trip; reusing parseTree keeps the
-  //    output bytes bit-identical to sigma-rust (validated by 255 corpus
-  //    fixtures + 6,221 parse-mutation tests).
-  let tree: ErgoTree
+  // 4. Serializer-level substitution: header + constants re-serialized, body
+  //    copied verbatim. The length check, out-of-range no-op, first-wins
+  //    duplicate handling, and structural type-equality all live in the wire
+  //    fn (JVM parity). Any wire-layer error → compact 'subst-constants-error'.
+  let result: { bytes: Uint8Array; numConstants: number }
   try {
-    tree = parseTree(scriptBytes)
+    result = substituteConstantsBytes(
+      scriptBytes,
+      positions,
+      newValuesV.items,
+      newValuesV.elem,
+      ctx.treeVersion ?? 0,
+    )
   } catch (cause) {
     throw new EvalError(
-      `SubstConstants: bad template bytes — ${(cause as Error).message}`,
+      `SubstConstants: ${(cause as Error).message}`,
       'subst-constants-error',
     )
   }
 
-  // 6. Pattern B cost: AFTER parse, BEFORE substitution. Sized by
-  //    `tree.constants.length`, NOT `positions.length` (sigma-rust
-  //    subst_const.rs:65; bug-3 regression at subst_const.rs:221-283).
-  ctx.addPerItemCost(100, 100, 1, tree.constants.length)
+  // 5. Pattern B cost: sized by the TEMPLATE's constant count (returned by the
+  //    wire fn), NOT positions.length (sigma-rust subst_const.rs:65; bug-3).
+  ctx.addPerItemCost(100, 100, 1, result.numConstants)
 
-  // 7. Substitute. Validate position bounds + structural type-equality per
-  //    iteration. Defensive deep copy on the constants array — never mutate
-  //    the input tree's arrays in place (the input tree may be shared with
-  //    other evaluations under hand-crafted MIR or future caller caching).
-  const newConstants = [...tree.constants]
-  for (let ix = 0; ix < positions.length; ix++) {
-    const i = positions[ix]!
-    // JVM `ErgoTreeSerializer.getPositionsBackref` (ErgoTreeSerializer.scala:294)
-    // guards `0 <= pos && pos < nConstants`: any out-of-range position — negative
-    // OR too-large — is silently SKIPPED (no substitution, no error), so the
-    // template bytes pass through unchanged. sigma-rust `subst_const.rs:71-77`
-    // and our prior code both *errored* here — a divergence from JVM (SANTA v5
-    // substConstants #0/#2/#3/#6; routed to sigma-rust in
-    // `~/projects/santa/prompts/ergots-v5-divergences.md` §A2). JVM is canonical.
-    if (i < 0 || i >= tree.constants.length) {
-      continue
-    }
-    // new_values.elem is the declared Coll element type; compare to the
-    // original constant's stored SType. Mirrors sigma-rust ergo_tree.rs:51
-    // (the `constant.tpe == old_constant.tpe` check inside with_constant).
-    // sTypeEquals is recursive (stype-helpers.ts:48), so nested types
-    // (Coll[Coll[Byte]], Tuple of varied items, SOption[T]) compare deeply.
-    if (!sTypeEquals(newValuesV.elem, tree.constantTypes[i]!)) {
-      throw new EvalError(
-        `SubstConstants: type mismatch at position ${i} (new_values elem vs original)`,
-        'subst-constants-error',
-      )
-    }
-    newConstants[i] = newValuesV.items[ix]!
-  }
-
-  // 8. Re-serialize. Byte-equality with sigma-rust is guaranteed by the
-  //    round-trip property of parseTree/serializeTree (see file-level docstring).
-  const newTree: ErgoTree = { ...tree, constants: newConstants }
-  try {
-    return bytesToCollByteSValue(serializeTree(newTree))
-  } catch (cause) {
-    throw new EvalError(
-      `SubstConstants: re-serialize failed — ${(cause as Error).message}`,
-      'subst-constants-error',
-    )
-  }
+  // 6. Wrap the substituted bytes as Coll[Byte].
+  return bytesToCollByteSValue(result.bytes)
 }

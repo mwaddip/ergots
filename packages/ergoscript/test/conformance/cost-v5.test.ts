@@ -28,6 +28,7 @@ const VECTOR_FILES = [
   'Coll_indexOf_method_equivalence.json',
   'NEQ_of_nested_collections_and_tuples.json',
   'SigmaProp.propBytes_equivalence.json',
+  'substConstants_equivalence.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

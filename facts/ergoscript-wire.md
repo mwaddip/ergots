@@ -90,6 +90,16 @@ serializeSType(t: SType, w: ByteWriter): void
 parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue
 serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void
 
+// wire/ergo-tree.ts — serializer-level constant substitution (body copied
+// verbatim); consumed by the SubstConstants eval arm. See the A2-b subsection.
+substituteConstantsBytes(
+  scriptBytes: Uint8Array,
+  positions: number[],
+  newValues: SValue[],
+  newValuesElem: SType,
+  treeVersion: number,
+): { bytes: Uint8Array; numConstants: number }
+
 // wire/sigma-boolean.ts
 parseSigmaBoolean(r: ByteReader): SigmaBoolean
 sigmaBooleanOpCode(sb: SigmaBoolean): number | null
@@ -167,7 +177,7 @@ class AddressDecodeError      extends Error { code: string }
 
 Per-class code enumeration (every code below is emitted by current source):
 
-- **`ErgoTreeParseError`**: `'empty'`, `'oversized'`, `'body-size-overflow'`, `'too-many-constants'`, `'header-inconsistent'`.
+- **`ErgoTreeParseError`**: `'empty'`, `'oversized'`, `'body-size-overflow'`, `'too-many-constants'`, `'header-inconsistent'`, `'subst-length-mismatch'`, `'subst-type-mismatch'` (the last two from `substituteConstantsBytes`; the eval arm re-wraps them as `EvalError('subst-constants-error')`).
 - **`ErgoTreeSerializeError`**: `'header-inconsistent'`, `'constants-arity-mismatch'`.
 - **`ExprParseError`**: `'opcode-reserved'` (19 sites — reserved in sigma-rust's `OpCode` enum but never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; covers `OpTrue`, `OpFalse`, `UnitConstant`, `Select1..Select5`, `FunDef`, `SomeValue`, `NoneValue`, `ModQ`, `PlusModQ`, `MinusModQ`, `CollShiftLeft/Right/RightZeroed`, `CollRotateLeft/Right`; added phase 2i-d, renamed from `'not-implemented-yet'` to reflect permanent-state rather than forward-promise); `'not-implemented-yet'` (4 wire sites still using it — `LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue` — routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); top-level direct-dispatch status undetermined pending separate review; ALSO emitted by the `EvalError` class for legitimately-TBD eval support — distinguished from this wire-layer use by error class); `'unknown-opcode'` (byte not in sigma-rust's opcode table at all); plus per-variant codes including `'apply-too-many-args'`, `'block-too-many-items'`, `'collection-size-out-of-range'`, `'deserialize-context-id-out-of-range'`, `'deserialize-register-id-out-of-range'`, `'extract-register-as-id-out-of-range'`, `'func-value-too-many-args'`, `'get-var-id-out-of-range'`, `'invalid-binop-opcode'`, `'invalid-constant-placeholder-id'`, `'invalid-option-tag'`, `'method-call-id-out-of-range'`, `'method-call-missing-type-arg'`, `'method-call-too-many-args'`, `'property-call-id-out-of-range'`, `'select-field-index-out-of-range'`, `'tuple-arity-out-of-range'`, `'unknown-binop-kind'`, `'val-def-rhs-tpe'`, `'val-use-unknown-id'`.
 - **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch).
@@ -237,6 +247,20 @@ Mirrors sigma-rust's `parse_box_with_indexed_digests` at `chain/ergo_box.rs:350`
 The previously-thrown `SValueParseError('sbox-ergo-tree-no-size')` code is removed from the taxonomy enumeration above. ~99% of mainnet boxes use v0 P2PK trees without a size prefix (empirically confirmed by 2j-pre Layer-3 smoke against the bootstrap-data snapshot at heights 1, 1000, 3849); the rejection was an incorrect assumption from 2j-pre T9.
 
 No public-API signature change. `parseTreeFromReader` is internal (exported within the package for cross-module use by `parse-svalue.ts` only).
+
+## A2-b serializer-level substConstants (2026-06-01)
+
+`substituteConstantsBytes(scriptBytes, positions, newValues, newValuesElem, treeVersion)` ships as the byte-surgery behind the `SubstConstants` eval arm, replacing that arm's prior `parseTree`/`serializeTree` round-trip. It mirrors JVM `ErgoTreeSerializer.substituteConstants` (`sigma-state-6.0.3`, `ErgoTreeSerializer.scala:320-411`): the header + constants segment are re-parsed and re-serialized, but the tree BODY is copied **verbatim** — never parsed as an `Expr`.
+
+This is the consensus-faithful behavior: a crafted template whose body is not valid Expr bytes (SANTA substConstants `#1` = seg-off `[00 00 08 D3]`) is returned unchanged (0 constants ⇒ no substitution) where a full `parseTree` throws. The old round-trip path threw; JVM does not. ergots **leads** this fix — sigma-rust still uses the parse-based `with_constant` and shares the divergence (routed for sigma-rust via `~/projects/santa/prompts/ergots-v5-divergences.md` §A2). JVM is canonical.
+
+JVM-parity details encoded in the fn (all from `ErgoTreeSerializer.scala:286-411`):
+- Out-of-range positions (negative or `>= numConstants`) are a silent no-op; duplicate positions are FIRST-wins (`getPositionsBackref:286-299`).
+- Every constant (substituted or not) is re-serialized via `serializeSType`/`serializeSValue` (matching JVM's `constantSerializer`), so the constants segment is NOT a verbatim copy — only the body is.
+- The size prefix is re-emitted only when `treeVersion >= 3` (`isV3OrLaterErgoTreeVersion`, the V6 soft-fork; `:369-375`); for the v≤2 range ergots evaluates it is dropped, so a `hasSize` template's output omits the size slot — exactly as JVM does. `treeVersion` is the evaluation's ErgoTree version, NOT the template header's.
+- The size field does NOT bound the body read (`treeBytes = r.getBytes(r.remaining)`); the body is all remaining bytes.
+
+New `ErgoTreeParseError` codes: `'subst-length-mismatch'`, `'subst-type-mismatch'`. Validated by the SANTA conformance vector (`test/conformance/cost-v5.test.ts`, `substConstants_equivalence.json`, 7 entries incl. `#1`) + wire-fn unit tests (`test/wire/subst-constants-bytes.test.ts`), with the eval-side byte-equality canary (`test/eval/subst-constants.test.ts`) and 255 corpus fixtures as the byte-identity regression net for valid templates.
 
 ## Coverage
 

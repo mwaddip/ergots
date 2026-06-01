@@ -45,6 +45,7 @@ import { parseSValue } from './parse-svalue'
 import { serializeSValue } from './serialize-svalue'
 import { parseExpr } from './parse'
 import { serializeExpr } from './serialize'
+import { sTypeEquals } from '../mir/stype-helpers'
 
 /**
  * Defensive cap on input length. Sigma-rust reads `tree_size_bytes` as a
@@ -380,4 +381,149 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
     )
   }
   return bytes
+}
+
+/**
+ * Serializer-level constant substitution — the byte-surgery behind
+ * `SubstConstants`, mirroring JVM `ErgoTreeSerializer.substituteConstants`
+ * (`sigma-state-6.0.3`, `ErgoTreeSerializer.scala:320-411`).
+ *
+ * CONSENSUS-CRITICAL: the returned bytes are a SubstConstants result that goes
+ * on-chain; a 1-byte divergence from the JVM reference is a consensus failure.
+ *
+ * Unlike `parseTree`/`serializeTree`, the tree BODY is treated as opaque bytes
+ * and copied VERBATIM — never parsed as an `Expr`. That is the whole point: a
+ * crafted template whose body is not valid Expr bytes (e.g. SANTA substConstants
+ * `#1` = `[00 00 08 D3]`, a seg-off header whose body leads with opcode 0x00) is
+ * handled by JVM (0 constants ⇒ no substitution ⇒ body copied) where a full
+ * `parseTree` throws. The header + constants segment ARE parsed — we must know
+ * where the constants end / the body begins, and we re-serialize the constants
+ * the way JVM does via `constantSerializer` (`ErgoTreeSerializer.scala:351-358`).
+ *
+ * Semantics straight from the JVM source:
+ *   - Out-of-range positions (negative or `>= numConstants`) are a silent no-op,
+ *     and duplicate positions are FIRST-wins — both via the `getPositionsBackref`
+ *     back-reference (`ErgoTreeSerializer.scala:286-299`).
+ *   - The size prefix is re-emitted ONLY when `treeVersion >= 3`
+ *     (`VersionContext.isV3OrLaterErgoTreeVersion`, the V6 soft-fork;
+ *     `ErgoTreeSerializer.scala:369-375`); for the v≤2 range ergots evaluates it
+ *     is DROPPED, so a `hasSize` template's output omits the size slot exactly as
+ *     JVM does. `treeVersion` is the EVALUATION's ErgoTree version
+ *     (`ctx.treeVersion`), NOT the template header's version.
+ *   - `deserializeHeaderWithTreeBytes` does NOT bound the reader by the size
+ *     field (`treeBytes = r.getBytes(r.remaining)` reads to end); we mirror that,
+ *     so the body is all remaining bytes, not a size-bounded slice.
+ *
+ * @param scriptBytes   serialized template ErgoTree
+ * @param positions     constant indices to replace (`newValues[i]` ↔ `positions[i]`)
+ * @param newValues     replacement values
+ * @param newValuesElem element type of the `Coll[_]` the values came from; each
+ *        substituted constant's stored type must structurally equal it
+ *        (JVM `require(c.tpe == newConst.tpe)`, `ErgoTreeSerializer.scala:356`)
+ * @param treeVersion   the evaluation's ErgoTree version (size-prefix gate only)
+ * @returns the substituted bytes and the template's constant count (the
+ *          template-sized SubstConstants cost is charged by the caller)
+ */
+export function substituteConstantsBytes(
+  scriptBytes: Uint8Array,
+  positions: number[],
+  newValues: SValue[],
+  newValuesElem: SType,
+  treeVersion: number,
+): { bytes: Uint8Array; numConstants: number } {
+  // JVM `require(positions.length == newVals.length)` (ErgoTreeSerializer.scala:323).
+  if (positions.length !== newValues.length) {
+    throw new ErgoTreeParseError(
+      `substituteConstantsBytes: positions length ${positions.length} !== new_values length ${newValues.length}`,
+      'subst-length-mismatch',
+    )
+  }
+
+  const r = new ByteReader(scriptBytes)
+  const rawHeader = r.readU8()
+  const version = (rawHeader & VERSION_MASK) as TreeHeader['version']
+  const hasSize = (rawHeader & HAS_SIZE_FLAG) !== 0
+  const seg = (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0
+
+  // hasSize: read+discard the declared size. JVM does NOT bound the reader here
+  // (deserializeHeaderWithTreeBytes → treeBytes = r.getBytes(r.remaining)), so
+  // the body is everything remaining after the constants, not a size-bounded
+  // slice. Mirror that exactly.
+  if (hasSize) {
+    r.readVlqU()
+  }
+
+  // Constants segment. Parsed so we know where the body begins, and held as
+  // SValues so each can be re-serialized the way JVM does.
+  const constantTypes: SType[] = []
+  const constants: SValue[] = []
+  if (seg) {
+    const count = r.readVlqU()
+    if (count > MAX_CONSTANTS_COUNT) {
+      throw new ErgoTreeParseError(
+        `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
+        'too-many-constants',
+      )
+    }
+    for (let i = 0; i < count; i++) {
+      const tpe = parseSType(r)
+      constantTypes.push(tpe)
+      constants.push(parseSValue(tpe, version, r))
+    }
+  }
+  const numConstants = constants.length
+
+  // Body: all remaining bytes, copied VERBATIM (never parsed as an Expr).
+  const body = r.readBytes(r.remaining)
+
+  // Back-references: backref[i] = the FIRST position index targeting constant i
+  // (-1 if none). First-wins + out-of-range drop, per JVM getPositionsBackref
+  // (ErgoTreeSerializer.scala:286-299).
+  const backref = new Array<number>(numConstants).fill(-1)
+  for (let iPos = 0; iPos < positions.length; iPos++) {
+    const pos = positions[iPos]!
+    if (pos >= 0 && pos < numConstants && backref[pos] === -1) {
+      backref[pos] = iPos
+    }
+  }
+
+  // Re-serialize the constants segment with substitutions applied. JVM
+  // re-serializes EVERY constant (original or replacement) via
+  // `constantSerializer`; mirror that with serializeSType/serializeSValue so the
+  // bytes match (ErgoTreeSerializer.scala:345-361). The count is emitted only
+  // when segregation is on (`if (isConstantSegregation(header))`, scala:340).
+  const constW = new ByteWriter()
+  if (seg) {
+    constW.writeVlqU(numConstants)
+  }
+  for (let i = 0; i < numConstants; i++) {
+    const iPos = backref[i]!
+    if (iPos === -1) {
+      serializeSType(constantTypes[i]!, constW)
+      serializeSValue(constantTypes[i]!, constants[i]!, version, constW)
+    } else {
+      // JVM `require(c.tpe == newConst.tpe)` — structural sType-equality.
+      if (!sTypeEquals(newValuesElem, constantTypes[i]!)) {
+        throw new ErgoTreeParseError(
+          `substituteConstantsBytes: type mismatch at position ${i} (new_values elem vs original)`,
+          'subst-type-mismatch',
+        )
+      }
+      serializeSType(newValuesElem, constW)
+      serializeSValue(newValuesElem, newValues[iPos]!, version, constW)
+    }
+  }
+  const constBytes = constW.toBytes()
+
+  // Reassemble: header + [size if treeVersion>=3 && hasSize] + constants + body.
+  const out = new ByteWriter()
+  out.writeU8(rawHeader)
+  if (treeVersion >= 3 && hasSize) {
+    // ErgoTreeSerializer.scala:372-374: v3+ re-emits size = constants + body.
+    out.writeVlqU(constBytes.length + body.length)
+  }
+  out.writeBytes(constBytes)
+  out.writeBytes(body)
+
+  return { bytes: out.toBytes(), numConstants }
 }
