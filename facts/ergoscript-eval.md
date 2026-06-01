@@ -150,7 +150,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - `HandlerFn` signature gains optional 5th `extra?: { mc: MethodCall; env: Env }` argument (forwarded by `evalMethodCall`; `evalPropertyCall` passes `undefined`). flatMap is the first consumer; 42 existing handlers ignore the arg via TS structural typing.
 - **Two TS-from-sigma-rust divergences on lambda static typing (both inherited from existing arms; both load-bearing for flatMap):**
   - **R3(a) elem-type check.** Runtime `Closure` SValue (`mir/types.ts:149-156`) does NOT carry `argTpes`. The elem-type check (`sTypeEquals(input.elem, lambdaArgTpe)`) runs only when `mc.args[0]` is an inline FuncValue MIR node; skipped for ValUse-source lambdas. Mirrors existing `coll-map.ts:94-108` convention. Sigma-rust always runs the check via runtime `lambda.args[0].tpe`.
-  - **R3(b) output elem type.** `exprTpe(closure.body)` returns `SAny` for `PropertyCall` and `MethodCall` body Exprs (`expr-tpe.ts:138-146` / `:261-267` — SMethod resolver not yet online in phase 2a). The canonical flatMap body `x.indices` IS a PropertyCall. Handler tolerates SAny pre-loop and refines from `itemRes.elem` after the first iter. **Empty-input flatMap with PropertyCall body returns `Coll[SAny]`** — sigma-rust would return `Coll[T]` concrete; this is a documented loss of static type information, NOT a value-correctness issue (items field is correct).
+  - **R3(b) output elem type — CLOSED by phase A3 (2026-06-01).** Originally `exprTpe(closure.body)` returned `SAny` for `PropertyCall`/`MethodCall` bodies (no SMethod resolver), so an empty-input flatMap with a `PropertyCall` body (e.g. `x.indices`) returned `Coll[SAny]` where sigma-rust/JVM return `Coll[T]`. Phase **A3** added the method-return-type resolver (`mir/method-signatures.ts`, consulted by `exprTpe`): the empty-input output elem now derives from the body's static type, matching sigma-rust. The non-empty first-iter refinement path is unchanged and agrees. See the A3 changelog entry below.
 - Zero new `EvalError` codes — both handlers reuse `'method-not-implemented'`, `'coll-input-not-coll'`, `'lambda-not-callable'`, `'coll-elem-tpe-mismatch'`, `'lambda-result-type-mismatch'` per the 2g.5 compact-taxonomy decision.
 
 **Phase 2h-f COMPLETE.** Method handler registry: 44 entries. EvalError codes: 48 (unchanged). Test count: 2922 (ergoscript; was 2903, +19 from 2h-f).
@@ -231,6 +231,16 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
 - Long-tail parse-rejecting / deprecated arms (`OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `ModQ` family, `CollShift`/`CollRotate`) — phase 2i-d.
+
+**Phase A3 — MethodCall/PropertyCall return-type resolver** (additive; value/representation only, NOT cost; 2026-06-01):
+
+- New `mir/method-signatures.ts`: a declarative `MethodSignature { tDom, tRange, tpeParams? }` catalog keyed by `(typeId, methodId)`, transcribing sigma-rust's `SMethodDesc.tpe`. `exprTpe` now consults it for both the `MethodCall` and `PropertyCall` arms via `resolveReturnTpe`, which returns a CLOSED `tRange` verbatim and falls back to `SAny` (the load-bearing cascade) for an unregistered method OR a type-var `tRange` (substitution engine deferred — no generic-output method registered yet).
+- Populated: `SGroupElement.getEncoded` (7:2) → `Coll[SByte]`; `SColl.indices` (12:14) → `Coll[SInt]`. Both have a closed `tRange`, so no substitution is exercised this phase.
+- Closes SANTA v5 item **A3**: empty-input `flatMap` now returns the lambda body's static elem type (e.g. `Coll[SByte]`) instead of `Coll[SAny]`, matching JVM `sigma-state-6.0.3`. Resolves the R3(b) note above. **Value-only — zero cost change** (conformance `Coll()#0` cost stays 149; flatMap eval cost stays 70).
+- **Dual-table sync invariant:** the signature catalog (`mir/method-signatures.ts`) and the method-handler registry (`eval/method-call.ts`) share the `(typeId, methodId)` namespace. A handler MAY exist without a signature (eval-only; the call's static type stays `SAny`), but every signature MUST agree with its handler's runtime element type (the static `tRange` equals the `elem`/shape the handler constructs). Mechanical enforcement is future work.
+- No new `EvalError` codes; no new method handlers (registry unchanged). Ergoscript test count: 3413.
+
+**Phase A3 COMPLETE.** See `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`.
 
 ## Public surface (v0.2.0)
 

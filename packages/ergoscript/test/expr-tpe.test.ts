@@ -130,3 +130,62 @@ describe('exprTpe — coverage completion arms', () => {
     expect(exprTpe(e)).toEqual({ tag: 'SInt' })
   })
 })
+
+/**
+ * MethodCall/PropertyCall return-type resolution (A3 — 2026-06-01).
+ *
+ * exprTpe consults the mir/method-signatures.ts catalog for method/property
+ * calls. getEncoded (7:2) → Coll[SByte], indices (12:14) → Coll[SInt] (both
+ * closed t_range). Unregistered (typeId, methodId) → SAny (load-bearing cascade
+ * fallback). Both target methods are PropertyCall on the wire (0xdb); the
+ * MethodCall arm consults the same catalog.
+ *
+ * Spec: docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md
+ */
+describe('exprTpe — method-call return-type resolution (A3)', () => {
+  const groupElemConst: Expr = {
+    tag: 'Const',
+    tpe: { tag: 'SGroupElement' },
+    value: { kind: 'GroupElement', value: new Uint8Array(33) },
+  }
+  const collLongConst: Expr = {
+    tag: 'Const',
+    tpe: { tag: 'SColl', elem: { tag: 'SLong' } },
+    value: { kind: 'Coll', elem: { tag: 'SLong' }, items: [] },
+  }
+  const collByteConst: Expr = {
+    tag: 'Const',
+    tpe: SCOLL_SBYTE,
+    value: { kind: 'Coll', elem: SBYTE, items: [] },
+  }
+
+  it('PropertyCall getEncoded (7:2) returns Coll[SByte]', () => {
+    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 7, methodId: 2 }
+    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
+  })
+
+  it('PropertyCall indices (12:14) returns Coll[SInt], ignoring the receiver elem', () => {
+    const onLong: Expr = { tag: 'PropertyCall', obj: collLongConst, typeId: 12, methodId: 14 }
+    expect(exprTpe(onLong)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
+    // indices' t_range is closed (Coll[Int] regardless of the receiver's T).
+    const onByte: Expr = { tag: 'PropertyCall', obj: collByteConst, typeId: 12, methodId: 14 }
+    expect(exprTpe(onByte)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
+  })
+
+  it('MethodCall arm consults the same catalog (7:2 → Coll[SByte])', () => {
+    const e: Expr = {
+      tag: 'MethodCall',
+      obj: groupElemConst,
+      typeId: 7,
+      methodId: 2,
+      args: [],
+      explicitTypeArgs: {},
+    }
+    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
+  })
+
+  it('unregistered (typeId, methodId) falls back to SAny (cascade guard)', () => {
+    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 999, methodId: 999 }
+    expect(exprTpe(e)).toEqual({ tag: 'SAny' })
+  })
+})

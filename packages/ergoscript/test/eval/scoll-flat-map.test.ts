@@ -180,16 +180,16 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     expect(ctx.jitCost).toBe(0)
   })
 
-  it('empty input + property-call body returns Coll[SAny] (R3(b) divergence from sigma-rust)', () => {
+  it('empty input + property-call body returns Coll[SInt] (indices static return type, JVM-aligned)', () => {
     // Empty Coll[Coll[Long]] flatMap (xs: Coll[Long]) => xs.indices.
-    // Body is a PropertyCall — exprTpe returns SAny. No iters happen, so no
-    // refinement. Result: { kind: 'Coll', elem: SAny, items: [] }.
-    //
-    // Sigma-rust would return Coll[Int] empty (concrete via SMethod resolver);
-    // TS returns Coll[SAny] empty. This is the documented R3(b) divergence.
+    // Body is a PropertyCall to SColl.indices (12:14); the method-signature
+    // resolver gives its static return type Coll[SInt]. No iters happen on empty
+    // input, but the output elem now derives from the body's STATIC type (not
+    // first-iter refinement), so the result is Coll[SInt] empty — matching
+    // JVM/sigma-rust `CollKind::from_vec_vec(body.tpe(), ...)`. A3 closed.
     const ctx = makeContext({})
     const obj: SValue = { kind: 'Coll', elem: SCOLL_LONG, items: [] }
-    // closure.body is a PropertyCall; exprTpe = SAny.
+    // closure.body is a PropertyCall to indices → exprTpe = Coll[SInt].
     const closure: Closure = {
       argIds: [1],
       body: {
@@ -217,10 +217,40 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     )
     const result = evalSCollFlatMap(obj, [lambda], ctx, {}, mc, Env.empty())
     expect(result.kind).toBe('Coll')
-    // Documents the divergence: elem stays SAny because no iter refined it.
-    expect((result as SValue & { kind: 'Coll' }).elem).toEqual({ tag: 'SAny' })
+    // JVM-aligned: elem is the body's static return elem (SInt), even on empty input.
+    expect((result as SValue & { kind: 'Coll' }).elem).toEqual({ tag: 'SInt' })
     expect((result as SValue & { kind: 'Coll' }).items.length).toBe(0)
-    // Empty input → outer cost = 60 (base) + 10 * 1 chunk = 70 (n=0 ⇒ 1 chunk, Scala PerItemCost).
+    // Value-only fix: cost UNCHANGED. Empty input → outer cost = 60 + 10 * 1 chunk = 70
+    // (n=0 ⇒ 1 chunk, Scala PerItemCost).
+    expect(ctx.jitCost).toBe(70)
+  })
+
+  it('empty input + getEncoded body returns Coll[SByte] (mirrors conformance Coll()#0)', () => {
+    // Empty Coll[GroupElement] flatMap (b: GroupElement) => b.getEncoded.
+    // getEncoded (PropertyCall 7:2) resolves to Coll[SByte]; on empty input the
+    // output elem is the body's static elem → Coll[SByte] empty. This is the
+    // SANTA v5 `Coll()#0` vector's shape at the eval layer.
+    const SGROUPELEMENT: SType = { tag: 'SGroupElement' }
+    const SCOLL_GE: SType = { tag: 'SColl', elem: SGROUPELEMENT }
+    const ctx = makeContext({})
+    const obj: SValue = { kind: 'Coll', elem: SGROUPELEMENT, items: [] }
+    const body: Expr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'ValUse', valId: 1, tpe: SGROUPELEMENT },
+      typeId: 7,
+      methodId: 2, // getEncoded
+    }
+    const closure: Closure = { argIds: [1], body, capturedEnv: {} }
+    const lambda: SValue = { kind: 'Lambda', closure }
+    const lambdaExpr: Expr = buildFuncValueExpr(SGROUPELEMENT, body)
+    const mc = buildFlatMapExpr(
+      { tag: 'Const', tpe: SCOLL_GE, value: { kind: 'Coll', elem: SGROUPELEMENT, items: [] } },
+      lambdaExpr,
+    )
+    const result = evalSCollFlatMap(obj, [lambda], ctx, {}, mc, Env.empty())
+    expect(result.kind).toBe('Coll')
+    expect((result as SValue & { kind: 'Coll' }).elem).toEqual({ tag: 'SByte' })
+    expect((result as SValue & { kind: 'Coll' }).items.length).toBe(0)
     expect(ctx.jitCost).toBe(70)
   })
 

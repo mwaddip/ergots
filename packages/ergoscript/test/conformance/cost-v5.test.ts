@@ -35,9 +35,10 @@ const VECTOR_FILES = [
 // cost arm under test). Skipped here with the reason so the suite stays green
 // on what is actually fixed; each is a tracked task.
 const KNOWN_DIVERGENCES: Record<string, Record<string, string>> = {
-  'Coll_flatMap_method_equivalence.json': {
-    'Coll()#0': 'A3: empty flatMap returns Coll[SAny] vs JVM Coll[SByte] (ergots-only, SMethod-resolver-gated)',
-  },
+  // A3 (empty flatMap output elem type) closed by the method-signature resolver
+  // (mir/method-signatures.ts): getEncoded (7:2) now resolves to Coll[SByte], so
+  // empty-input flatMap returns Coll[SByte] like JVM. The Coll()#0 entry is no
+  // longer divergent — un-skipped. See docs/specs/2026-06-01-ergoscript-a3-*.
 }
 
 for (const file of VECTOR_FILES) {

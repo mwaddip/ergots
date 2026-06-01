@@ -165,6 +165,31 @@ export function hasSAny(t: SType): boolean {
   }
 }
 
+/**
+ * `true` when `t` contains an `STypeVar` anywhere — at the top level or nested
+ * inside a composite (`SColl`/`SOption`/`STuple`/`SFunc`). Sibling to
+ * {@link hasSAny}, with the same recursion structure but the `STypeVar` tag as
+ * the leading hit instead of `SAny`. Used by the method-return-type resolver
+ * (`mir/method-signatures.ts`) to decide whether a method's declared `t_range`
+ * is CLOSED (usable verbatim) or references an unbound type var (substitution
+ * deferred → falls back to `SAny`).
+ */
+export function hasTypeVar(t: SType): boolean {
+  switch (t.tag) {
+    case 'STypeVar':
+      return true
+    case 'SColl':
+    case 'SOption':
+      return hasTypeVar(t.elem)
+    case 'STuple':
+      return t.items.some(hasTypeVar)
+    case 'SFunc':
+      return t.args.some(hasTypeVar) || hasTypeVar(t.result)
+    default:
+      return false
+  }
+}
+
 export function sTypeEqualsModuloSAny(a: SType, b: SType): boolean {
   // Wildcard: SAny (unresolved placeholder) matches anything, at any depth.
   if (a.tag === 'SAny' || b.tag === 'SAny') return true

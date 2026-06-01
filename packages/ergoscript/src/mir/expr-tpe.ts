@@ -21,6 +21,7 @@
  */
 
 import type { Expr, SType, STypeVar } from './types'
+import { methodSignature, resolveReturnTpe } from './method-signatures'
 
 export class ExprTpeError extends Error {
   constructor(
@@ -135,23 +136,23 @@ export function exprTpe(e: Expr): SType {
       }
       return it.elem
     }
-    case 'PropertyCall':
-      // PropertyCall return type requires an SMethod resolver, which is not
-      // available in phase 2a (Task 20 noted this). For now we return SAny
-      // as a placeholder — corpus tests will surface cases where the val-def
-      // type lookup actually needs the real return type, signaling the need
-      // for the resolver. If/when that happens we'll prioritize bringing the
-      // resolver online; for now the placeholder lets a tree that *only*
-      // round-trips bytes pass through without us needing to know the type.
+    case 'PropertyCall': {
+      // Resolve the property's return type via the method-signature catalog
+      // (mir/method-signatures.ts). Unregistered (typeId, methodId) → SAny,
+      // the load-bearing cascade placeholder (reference_sany_type_checks_skip_not_fail):
+      // a tree that only round-trips bytes still passes through. A registered
+      // method with a closed t_range resolves concretely; a type-var t_range is
+      // deferred to SAny (substitution engine not yet built).
       //
-      // Phase 2h-f: `SColl.flatMap` is now a concrete load-bearing consumer.
-      // The canonical body `xs.flatMap(x => x.indices)` is a PropertyCall →
-      // SAny. The flatMap handler tolerates this (3-branch outElem init +
-      // first-iter refinement from itemRes.elem). Empty-input flatMap with a
-      // PropertyCall body returns Coll[SAny] (sigma-rust returns concrete
-      // Coll[T]). See `facts/ergoscript-eval.md` Phase 2h-f changelog R3(b).
-      // Bringing the SMethod resolver online closes the divergence.
-      return { tag: 'SAny' }
+      // Phase A3 (2026-06-01): getEncoded (7:2) and indices (12:14) now resolve,
+      // so the empty-input flatMap output elem comes from the body's STATIC type
+      // (matching sigma-rust `from_vec_vec(body.tpe(), ...)`) instead of stalling
+      // at Coll[SAny]. See spec
+      // docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md.
+      const sig = methodSignature(e.typeId, e.methodId)
+      if (sig === undefined) return { tag: 'SAny' }
+      return resolveReturnTpe(sig, exprTpe(e.obj), [], {})
+    }
     case 'SelectField': {
       // sigma-rust `mir/select_field.rs::SelectField::tpe` (line 107-109): the
       // type is `items[fieldIndex - 1]` (1-based index) of the input tuple.
@@ -331,19 +332,17 @@ export function exprTpe(e: Expr): SType {
       // sigma-rust `mir/sigma_prop_bytes.rs::SigmaPropBytes::tpe`:
       // SColl[SByte] (serialized sigma-protocol proposition bytes).
       return { tag: 'SColl', elem: { tag: 'SByte' } }
-    case 'MethodCall':
-      // sigma-rust `mir/method_call.rs::MethodCall::tpe`: looks up the
-      // method's `t_range` from the SMethod resolver, which we don't have
-      // in phase 2a. Mirror the PropertyCall path: return SAny as a
-      // placeholder so downstream val-defs continue to round-trip without
-      // knowing the method return type.
-      //
-      // Phase 2h-f R3(b) divergence (same root cause as PropertyCall above):
-      // a lambda body that is a MethodCall (e.g. `xs.flatMap(x => x.zip(ys))`
-      // — hypothetical; flatMap's body-restriction would reject this shape)
-      // would return SAny here. Bringing the SMethod resolver online closes
-      // this for both arms.
-      return { tag: 'SAny' }
+    case 'MethodCall': {
+      // sigma-rust `mir/method_call.rs::MethodCall::tpe` looks up the method's
+      // (substituted) `t_range`. We mirror it via the same catalog as
+      // PropertyCall (shared (typeId, methodId) namespace). `args` and
+      // `explicitTypeArgs` feed the (deferred) substitution; for the current
+      // closed-t_range methods they're unused. Unregistered → SAny (cascade).
+      // See spec docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md.
+      const sig = methodSignature(e.typeId, e.methodId)
+      if (sig === undefined) return { tag: 'SAny' }
+      return resolveReturnTpe(sig, exprTpe(e.obj), e.args.map(exprTpe), e.explicitTypeArgs)
+    }
     case 'Downcast':
       // sigma-rust `mir/downcast.rs::Downcast::tpe`: target type stored on
       // the node. Symmetric to Upcast.

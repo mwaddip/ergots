@@ -111,9 +111,22 @@ class ByteWriter
 
 // mir/expr-tpe.ts
 exprTpe(e: Expr): SType
+
+// mir/method-signatures.ts (consulted by exprTpe for MethodCall/PropertyCall)
+interface MethodSignature { tDom: readonly SType[]; tRange: SType; tpeParams?: readonly STypeVar[] }
+methodSignature(typeId: number, methodId: number): MethodSignature | undefined
+resolveReturnTpe(sig: MethodSignature, receiver: SType, argTpes: readonly SType[], explicitTypeArgs: Record<string, SType>): SType
 ```
 
 `parseExpr` accepts the parallel-indexed segregated constant arrays from the surrounding ErgoTree envelope. `constantTypes` is consulted by the `ConstantPlaceholder` handler to recover a placeholder's `SType` from its id; `constantValues` is reserved for substitution-at-parse-time semantics (sigma-rust's `substitute_placeholders` flag — not currently used). `valDefTypes` is a shared scope-wide `Map<ValId, SType>` populated by `ValDef` parsers and read by `ValUse` parsers (mirrors sigma-rust's `SigmaByteReader.val_def_type_store`); the outer envelope creates a fresh empty map per tree, and recursive descent shares it across the whole Expr graph.
+
+**Method-call return-type resolution (phase A3).** For `MethodCall`/`PropertyCall`, `exprTpe` consults the declarative signature catalog `mir/method-signatures.ts` (keyed by `(typeId, methodId)`, transcribing sigma-rust's `SMethodDesc.tpe`) and applies `resolveReturnTpe(sig, receiver, argTpes, explicitTypeArgs)` — where `receiver = exprTpe(obj)` and `argTpes = args.map(exprTpe)` (exactly sigma-rust's substitution inputs). Contract:
+
+- **Registered, closed `tRange`** → returns `tRange` verbatim. The only path implemented this phase; covers `getEncoded` (7:2) → `Coll[SByte]` and `indices` (12:14) → `Coll[SInt]`.
+- **Registered, type-var `tRange`** → `{ tag: 'SAny' }` (type-variable substitution deferred; no generic-output method registered yet).
+- **Unregistered** → `{ tag: 'SAny' }` — the documented placeholder treated as a wildcard by `sTypeEqualsModuloSAny`/`hasSAny`. **Never throws** (contrast genuinely-unparsed Expr variants, which still throw `ExprTpeError('tpe-not-implemented')`).
+
+The catalog is the enumerable, forward-covering contract surface; it grows by descriptor-addition (a closed-`tRange` method is pure addition; the substitution branch lands once, behind `resolveReturnTpe`, when the first generic-output method needs it). It shares the `(typeId, methodId)` namespace with the eval handler registry (`eval/method-call.ts`) — see the dual-table sync invariant in [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Spec: `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`.
 
 Once the package publishes, these symbols will likely move behind a `/wire` subpath export (the proof package's `/envelope` pattern). Until then, this file documents their current shape so downstream packages can rely on them.
 
