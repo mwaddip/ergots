@@ -21,9 +21,11 @@
  * here must agree with its handler's runtime element type (the sync invariant —
  * see `facts/ergoscript-eval.md`).
  *
- * Source mapping (pinned `external/sigma-rust`, branch integration/ergots):
- *   - `7:2`  SGroupElement.getEncoded — `ergotree-ir/src/types/sgroup_elem.rs:41-50`
- *   - `12:14` SColl.indices          — `ergotree-ir/src/types/scoll.rs:123-136`
+ * Source mapping (v5 entries: sigma-rust `external/sigma-rust` @ integration/ergots;
+ * v6 entries: JVM `sigma-state`, the sole v6-canonical source):
+ *   - `7:2`  SGroupElement.getEncoded — sigma-rust `ergotree-ir/src/types/sgroup_elem.rs:41-50`
+ *   - `12:14` SColl.indices          — sigma-rust `ergotree-ir/src/types/scoll.rs:123-136`
+ *   - `12:19` SColl.patch            — JVM `sigma/ast/methods.scala:1013-1015`
  *
  * Spec: docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md
  */
@@ -53,11 +55,13 @@ function key(typeId: number, methodId: number): string {
 
 const SCOLL_BYTE: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
 const SCOLL_INT: SType = { tag: 'SColl', elem: { tag: 'SInt' } }
+const SCOLL_IV: SType = { tag: 'SColl', elem: { tag: 'STypeVar', name: 'IV' } }
 
 /**
  * Declarative catalog. Each entry transcribes sigma-rust's `SMethodDesc.tpe`
- * verbatim. Both current entries have a CLOSED `tRange` (no type var), so
- * `resolveReturnTpe` returns `tRange` as-is. Grows by descriptor-addition.
+ * verbatim. Closed-`tRange` entries take `resolveReturnTpe`'s early-return; generic-output
+ * entries (type-var `tRange`, e.g. `patch` 12:19) are resolved by the
+ * substitution engine (`mir/type-unify.ts`). Grows by descriptor-addition.
  */
 const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, MethodSignature>([
   // SGroupElement.getEncoded — sgroup_elem.rs:41-50 — SFunc([SGroupElement] → Coll[Byte]).
@@ -69,6 +73,19 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
       tDom: [{ tag: 'SColl', elem: { tag: 'STypeVar', name: 't' } }],
       tRange: SCOLL_INT,
       tpeParams: [{ name: 't' }],
+    },
+  ],
+  // SColl.patch — JVM methods.scala:1013-1015 — SFunc([Coll[IV], Int, Coll[IV], Int] → Coll[IV]).
+  // First generic-OUTPUT method (type-var tRange): exercises the substitution
+  // engine end-to-end. Handler at eval/method-call.ts (12:19) returns
+  // { elem: obj.elem }, so the static Coll[IV→receiver.elem] matches runtime
+  // (the dual-table sync invariant — see facts/ergoscript-eval.md).
+  [
+    key(12, 19),
+    {
+      tDom: [SCOLL_IV, { tag: 'SInt' }, SCOLL_IV, { tag: 'SInt' }],
+      tRange: SCOLL_IV,
+      tpeParams: [{ name: 'IV' }],
     },
   ],
 ])
