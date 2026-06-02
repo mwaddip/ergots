@@ -115,10 +115,17 @@ is the living field — phases update it (and append findings / scope deltas) he
   **Now unlocks P3/P5 generic-output methods** (pure descriptor-additions).
 
 ### P1 — Numeric v6 methods  ·  status: not started
-- **Goal:** bitwise (`bitOr/bitAnd/bitXor/bitNot`), `shiftLeft/shiftRight`,
-  `toBigEndianBytes`, `toBits`, `toBytes` across Byte/Short/Int/Long/BigInt;
-  `Boolean.toByte`. **Items:** eval arms + cost. **Depends-on:** none (self-contained
-  warm-up; concrete return types, no P0 needed).
+- **Goal:** `bitwiseInverse`/`bitwiseOr`/`bitwiseAnd`/`bitwiseXor`, `shiftLeft`/`shiftRight`,
+  `toBytes`, `toBits` across Byte/Short/Int/Long/BigInt; `Boolean.toByte` (JVM
+  `SNumericTypeMethods.v6Methods` ids 6–13 + `SBooleanMethods.toByte`). NB `toBytes` IS big-endian
+  (its eval is `toBigEndianBytes` internally); the spec's `toBigEndianBytes` is a
+  `LanguageSpecificationV6` `newFeature` — resolve the exact mapping in the P1 spec.
+  `Global.fromBigEndianBytes` is a **separate P5** global, not this.
+- **Items:** MethodCall handlers (distinct from the existing `BinOp` Bit *operators*) + per-method
+  cost (**P1 HAS cost** — `ToBytes`/`ToBits`/`BitwiseOp` CostKinds). **Depends-on:** not blocking, BUT
+  `bitwise*`/`shift*` return `tNum` (the receiver's numeric type = a type-var `tRange`) → they USE the
+  **P0** engine for precise return typing (`toBytes`→`Coll[Byte]` / `toBits`→`Coll[Boolean]` are
+  closed). Refines the original "no P0 needed".
 
 ### P2 — `SUnsignedBigInt` (new type)  ·  status: not started
 - **Goal:** the new numeric type end-to-end: thin wire (`SType` code + parse/serialize),
