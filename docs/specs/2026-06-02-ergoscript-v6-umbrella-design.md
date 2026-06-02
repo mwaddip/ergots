@@ -94,17 +94,25 @@ lines) enumerates every v6 feature as a `property(...)` with `verifyCases`
 Dependency-ordered. Each phase: **goal · key items · depends-on · status**. Status
 is the living field — phases update it (and append findings / scope deltas) here.
 
-### P0 — type-var / `exprTpe` substitution engine  ·  **status: partly started**
+### P0 — type-var / `exprTpe` substitution engine  ·  **status: DONE (2026-06-02)**
 - **Goal:** make `resolveReturnTpe` substitute type vars from concrete call-site
   types, so generic-output methods resolve to concrete `SType` instead of `SAny`.
 - **Items:** unify type-var-bearing `tDom` against `receiver`/`argTpes` (+
   `explicitTypeArgs`) → substitution map → substitute into `tRange`.
-- **Start point:** A3 (`mir/method-signatures.ts`) already ships the
+- **Start point:** A3 (`mir/method-signatures.ts`) already shipped the
   `MethodSignature` catalog, the `resolveReturnTpe(sig, receiver, argTpes,
   explicitTypeArgs)` hook (API already takes the substitution inputs), `STypeVar`,
-  and `hasTypeVar`. The body is the stub (`tRange` verbatim if closed, else `SAny`).
-  P0 fills in unify + substitute. **Value-only — zero cost change.**
+  and `hasTypeVar`. The body was the stub (`tRange` verbatim if closed, else `SAny`).
 - **Depends-on:** none. **Gates:** P3, P5 (and any generic-output method).
+- **Done (2026-06-02):** `mir/type-unify.ts` (faithful port of JVM
+  `unifyTypes`/`unifyTypeLists`/`applySubst`, `ast/package.scala`) + the
+  `resolveReturnTpe` substitution path (closed-`tRange` early-return; else
+  explicit-then-unify with a `hasTypeVar→SAny` safety net, mirroring JVM
+  `getSpecializedMethodFor`). `SColl.patch` (12:19) registered as the
+  proof-of-exercise (first type-var `tRange`). Value-only, full suite green
+  (4071 tests), no cost moved. Spec:
+  `2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md`.
+  **Now unlocks P3/P5 generic-output methods** (pure descriptor-additions).
 
 ### P1 — Numeric v6 methods  ·  status: not started
 - **Goal:** bitwise (`bitOr/bitAnd/bitXor/bitNot`), `shiftLeft/shiftRight`,

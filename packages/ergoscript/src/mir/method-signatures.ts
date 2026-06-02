@@ -100,9 +100,9 @@ export function methodSignature(
 
 /**
  * Resolve a registered method's concrete return type from its signature plus
- * the call-site types. `receiver` / `argTpes` / `explicitTypeArgs` are exactly
- * sigma-rust's substitution inputs (`receiver` unifies `tDom[0]`, `argTpes`
- * unify `tDom[1..]`, `explicitTypeArgs` supply method type params).
+ * the call-site types. `receiver` / `argTpes` / `explicitTypeArgs` are the
+ * substitution inputs (`receiver` unifies `tDom[0]`, `argTpes` unify `tDom[1..]`,
+ * `explicitTypeArgs` supply method type params) — ≡ JVM `getSpecializedMethodFor`.
  *
  * Closed `tRange` (no type var) is returned verbatim. A type-var `tRange` is
  * resolved by applying `explicitTypeArgs` then unifying the signature's `tDom`
