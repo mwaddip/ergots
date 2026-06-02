@@ -269,7 +269,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase v5 Coll/GroupElement methods COMPLETE.**
 
-## Public surface (v0.2.0)
+## Public surface (v0.3.0)
 
 ```ts
 evaluate(tree: ErgoTree, opts?: EvalOpts): SValue
