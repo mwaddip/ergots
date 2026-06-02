@@ -7,6 +7,7 @@
 import type { SValue, SType } from '../mir/types'
 import { bytesToCollByteSValue } from './_byte-coll'
 import type { HandlerFn } from './method-call'
+import { EvalError } from './eval-context'
 
 const SBOOLEAN: SType = { tag: 'SBoolean' }
 
@@ -19,6 +20,8 @@ interface NumV6 {
   or(a: number | bigint, b: number | bigint): number | bigint
   and(a: number | bigint, b: number | bigint): number | bigint
   xor(a: number | bigint, b: number | bigint): number | bigint
+  shl(x: number | bigint, bits: number): number | bigint
+  shr(x: number | bigint, bits: number): number | bigint
 }
 
 // Fixed-width truncators — JS bitwise ops work on i32 but Byte/Short need narrowing.
@@ -34,6 +37,8 @@ const byteDesc: NumV6 = {
   or: (a, b) => trByte((a as number) | (b as number)),
   and: (a, b) => trByte((a as number) & (b as number)),
   xor: (a, b) => trByte((a as number) ^ (b as number)),
+  shl: (x, bits) => trByte((x as number) << bits),
+  shr: (x, bits) => trByte((x as number) >> bits),
 }
 const shortDesc: NumV6 = {
   typeId: 3, kind: 'Short', shiftBound: 16,
@@ -42,6 +47,8 @@ const shortDesc: NumV6 = {
   or: (a, b) => trShort((a as number) | (b as number)),
   and: (a, b) => trShort((a as number) & (b as number)),
   xor: (a, b) => trShort((a as number) ^ (b as number)),
+  shl: (x, bits) => trShort((x as number) << bits),
+  shr: (x, bits) => trShort((x as number) >> bits),
 }
 const intDesc: NumV6 = {
   typeId: 4, kind: 'Int', shiftBound: 32,
@@ -53,6 +60,8 @@ const intDesc: NumV6 = {
   or: (a, b) => trInt((a as number) | (b as number)),
   and: (a, b) => trInt((a as number) & (b as number)),
   xor: (a, b) => trInt((a as number) ^ (b as number)),
+  shl: (x, bits) => trInt((x as number) << bits),
+  shr: (x, bits) => trInt((x as number) >> bits),
 }
 const longDesc: NumV6 = {
   typeId: 5, kind: 'Long', shiftBound: 64,
@@ -66,6 +75,8 @@ const longDesc: NumV6 = {
   or: (a, b) => wrap64((a as bigint) | (b as bigint)),
   and: (a, b) => wrap64((a as bigint) & (b as bigint)),
   xor: (a, b) => wrap64((a as bigint) ^ (b as bigint)),
+  shl: (x, bits) => wrap64((x as bigint) << BigInt(bits)),
+  shr: (x, bits) => (x as bigint) >> BigInt(bits),
 }
 
 const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc]
@@ -104,6 +115,19 @@ function makeBinaryBitwise(t: NumV6, op: 'or' | 'and' | 'xor'): HandlerFn {
     return { kind: t.kind, value: v } as SValue
   }
 }
+function makeShift(t: NumV6, dir: 'shl' | 'shr'): HandlerFn {
+  return (obj, args, ctx) => {
+    ctx.addCost(5)
+    const bits = (args[0] as { kind: 'Int'; value: number }).value
+    if (bits < 0 || bits >= t.shiftBound) {
+      throw new EvalError(
+        `${t.kind}.${dir === 'shl' ? 'shiftLeft' : 'shiftRight'}: bits out of range [0, ${t.shiftBound}) (got ${bits})`,
+        'numeric-shift-out-of-range',
+      )
+    }
+    return { kind: t.kind, value: t[dir]((obj as { value: number | bigint }).value, bits) } as SValue
+  }
+}
 
 export function numericV6Handlers(): Array<{ typeId: number; methodId: number; handler: HandlerFn }> {
   const out: Array<{ typeId: number; methodId: number; handler: HandlerFn }> = []
@@ -114,6 +138,8 @@ export function numericV6Handlers(): Array<{ typeId: number; methodId: number; h
     out.push({ typeId: t.typeId, methodId: 9, handler: makeBinaryBitwise(t, 'or') })
     out.push({ typeId: t.typeId, methodId: 10, handler: makeBinaryBitwise(t, 'and') })
     out.push({ typeId: t.typeId, methodId: 11, handler: makeBinaryBitwise(t, 'xor') })
+    out.push({ typeId: t.typeId, methodId: 12, handler: makeShift(t, 'shl') })
+    out.push({ typeId: t.typeId, methodId: 13, handler: makeShift(t, 'shr') })
   }
   return out
 }

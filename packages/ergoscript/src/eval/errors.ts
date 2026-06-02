@@ -644,3 +644,17 @@ export type EvalErrorCode =
    *         (eval/scoll.rs, branch ergo-node-integration).
    */
   | 'coll-update-many-length-mismatch'
+
+  // -------------------------------------------------------------------------
+  // v6 P1 numeric shift methods (2 new codes; 66 → 67)
+  // -------------------------------------------------------------------------
+  /**
+   * `Byte.shiftLeft` / `Byte.shiftRight` (typeId 2, methodIds 12–13),
+   * `Short.shiftLeft` / `Short.shiftRight` (typeId 3, methodIds 12–13),
+   * `Int.shiftLeft` / `Int.shiftRight` (typeId 4, methodIds 12–13),
+   * `Long.shiftLeft` / `Long.shiftRight` (typeId 5, methodIds 12–13):
+   * the `bits` argument is outside `[0, width)` where width is 8 / 16 / 32 / 64.
+   * Both `bits < 0` and `bits >= width` are rejected. Mirrors the JVM
+   * `ExactIntegral.shiftLeft` / `shiftRight` range guard.
+   */
+  | 'numeric-shift-out-of-range'

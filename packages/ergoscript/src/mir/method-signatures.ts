@@ -74,6 +74,8 @@ function numericV6Signatures(): Array<[string, MethodSignature]> {
     e.push([key(id, 9), { tDom: [TNUM_TPE, TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
     e.push([key(id, 10), { tDom: [TNUM_TPE, TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
     e.push([key(id, 11), { tDom: [TNUM_TPE, TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
+    e.push([key(id, 12), { tDom: [TNUM_TPE, { tag: 'SInt' }], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
+    e.push([key(id, 13), { tDom: [TNUM_TPE, { tag: 'SInt' }], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
   }
   return e
 }
