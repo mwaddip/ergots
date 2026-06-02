@@ -280,13 +280,14 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
   - **`X.bitwiseOr` / `X.bitwiseAnd` / `X.bitwiseXor` (methodIds 9/10/11)** → `tNum`: signed-narrowed bitwise ops. BigInt versions have no overflow check (JVM `CBigInt` has no constructor-check for and/or/xor — in-range inputs always produce in-range results).
   - **`X.shiftLeft` / `X.shiftRight` (methodIds 12/13)** → `tNum`: arithmetic shifts. Bounds-checked on `bits` before the shift — throws `'numeric-shift-out-of-range'` when `bits < 0` or `bits >= width`. `BigInt.shiftLeft` additionally checks the result against signed-256 range — throws `'bigint-result-out-of-range'` on overflow. `shiftRight` is arithmetic (signed, JVM `>>`) not logical.
 - **2 new `EvalError` codes (66 → 68):** `'numeric-shift-out-of-range'`, `'bigint-result-out-of-range'`. See the EvalError taxonomy section for the full specifications.
+- **[C1 final-review fix, same session]** Adversarial wrong-kind operand guards: 1 new `EvalError` code (68 → 69): `'numeric-method-bad-operand'`. All 5 factories (`makeToBytes`, `makeToBits`, `makeInverse`, `makeBinaryBitwise`, `makeShift`) now guard the receiver `obj` kind (and the arg kind for `makeBinaryBitwise`/`makeShift`) after `ctx.addCost(5)` and before reading `.value`. Without the guard, Byte/Short/Int handlers silently return garbage (`.value` is `undefined` → JS numeric coercion produces 0; no throw) and Long/BigInt handlers throw a raw `TypeError` (JS BigInt coercion on a non-bigint). Both are consensus over-accept vectors where the JVM (`asInstanceOf`) and sigma-rust (`try_extract_into`) both reject at eval. Source: `eval/_numeric-v6.ts:requireKind`.
 - **Key design decisions (both caught in review; record for audit-response):**
   - **Gate is `treeVersion >= 3` (NOT `isV6Activated`).** An earlier draft used an activation flag; the correct gate is the ErgoTree version field, consistent with how the dispatcher enforces all v6 method gating. Caught during the Task 4 checkpoint review.
   - **BigInt is signed-256-bounded.** `shiftLeft` overflow throws `'bigint-result-out-of-range'` (JVM `toSignedBigIntValueExact`). An earlier draft treated BigInt as arbitrary-precision; the bounded model is correct per the JVM CBigInt contract. Caught during the Task 4 escalation gate.
 - **Second consumer of the P0 type-var substitution engine** (after `SColl.patch` 12:19): the bitwise/shift methods (methodIds 8–13) have `tRange = tNum` (a type variable), so `resolveReturnTpe` must bind `tNum` from the receiver type to produce the closed return type. Registered in `mir/method-signatures.ts` via `numericV6Signatures()`.
 - Full suite: **3510 green** (node + jsdom). `tsc --noEmit` clean.
 
-**Phase v6 P1 COMPLETE.** Method handler registry: 94 entries. EvalError codes: 68. Eval arm coverage: 67/67 (unchanged — `MethodCall` arm was already wired; P1 adds METHOD-REGISTRY entries, not eval arms). Test count: 3510.
+**Phase v6 P1 COMPLETE (incl. C1 final-review fix).** Method handler registry: 94 entries. EvalError codes: 69. Eval arm coverage: 67/67 (unchanged — `MethodCall` arm was already wired; P1 adds METHOD-REGISTRY entries, not eval arms). Test count: 3527 (17 new guard tests).
 
 ## Public surface (v0.3.0)
 
@@ -401,7 +402,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (68 codes)
+## `EvalError` taxonomy (69 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -549,6 +550,7 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 
 - **`'numeric-shift-out-of-range'`** — any `X.shiftLeft` or `X.shiftRight` (typeIds 2–6, methodIds 12–13) when the `bits` argument is outside `[0, width)` where `width` is 8/16/32/64/256 for Byte/Short/Int/Long/BigInt respectively. Both `bits < 0` and `bits >= width` are rejected. Mirrors the JVM `ExactIntegral.shiftLeft`/`shiftRight` range guard (scala/ExactIntegral.scala) and `BigIntegerOps` range guard (CBigInt.scala). Source: `eval/_numeric-v6.ts:makeShift`.
 - **`'bigint-result-out-of-range'`** — any v6 BigInt operation whose result falls outside signed-256 range `[-2^255, 2^255 - 1]`. Currently reachable only via `BigInt.shiftLeft` (methodId 12), which can produce a result with bitLength > 255. `shiftRight` on an in-range value always stays in-range. Mirrors the JVM `CBigInt` constructor's `toSignedBigIntValueExact` (Extensions.scala:219) which throws `ArithmeticException` when `bitLength() > 255`. Distinct from `'byte-array-to-bigint-out-of-range'` (2i-a, which is for the `ByteArrayToBigInt` predef rejecting an over-width input). Source: `eval/_numeric-v6.ts:checkBigInt256`.
+- **`'numeric-method-bad-operand'`** — any of the 40 v6 numeric method handlers when the receiver `obj` or an operand argument (arg for `makeBinaryBitwise` / bits arg for `makeShift`) evaluates to an unexpected `kind`. Mirrors the JVM `asInstanceOf` / sigma-rust `try_extract_into` rejection at eval. Wire-format invariants (MethodCall construction enforces typed args at build time) make this unreachable for parser-produced trees; defensive against hand-crafted MIR (adversarial wrong-kind constant injected as `obj` or `args[0]`). Without this guard, wrong-kind Byte/Short/Int operands silently return garbage; wrong-kind Long/BigInt operands throw a raw `TypeError` — both are consensus over-accept vectors. The guard is unconditional at runtime (concrete `obj.kind` is always concrete, never SAny — this is NOT a static `exprTpe` check). Source: `eval/_numeric-v6.ts:requireKind` (final-review C1 fix).
 
 No other error codes are emitted by the current evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 

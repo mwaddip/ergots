@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 68 codes added through v6 P1 numeric methods
+ *   - documents the 69 codes added through v6 P1 numeric method operand guards
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -24,6 +24,7 @@
  *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
  *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
  *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
+ *    + 1 code added in v6 P1 C1 final-review fix (numeric-method-bad-operand)
  *    + 7 codes added in phase 2i-a (pure-bytes predefs):
  *        - 'predef-input-not-byte-array' (T2; shared by T2/T3/T4/T6/T7/T8)
  *        - 'byte-array-to-long-too-short' (T4)
@@ -45,6 +46,11 @@
  *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
  *          for DR with register absent + default null OR recursive-Deserialize)
  *   = 64 codes total after phase 2i-c.
+ *    + 2 codes from v5 Coll methods (coll-update-index-out-of-range,
+ *        coll-update-many-length-mismatch) → 66
+ *    + 2 codes from v6 P1 numeric methods (numeric-shift-out-of-range,
+ *        bigint-result-out-of-range) → 68
+ *    + 1 code from v6 P1 C1 final-review (numeric-method-bad-operand) → 69
  */
 
 /**
@@ -682,3 +688,33 @@ export type EvalErrorCode =
    *         sigmastate-interpreter/src/main/scala/special/collection/Extensions.scala (CBigInt)
    */
   | 'bigint-result-out-of-range'
+
+  // -------------------------------------------------------------------------
+  // v6 P1 C1 final-review — numeric method operand guards (1 new code; 68 → 69)
+  // -------------------------------------------------------------------------
+  /**
+   * Any of the 40 v6 numeric method handlers (`toBytes` / `toBits` /
+   * `bitwiseInverse` / `bitwiseOr` / `bitwiseAnd` / `bitwiseXor` /
+   * `shiftLeft` / `shiftRight` on Byte/Short/Int/Long/BigInt) when the
+   * receiver `obj` or an operand argument evaluates to an unexpected `kind`.
+   *
+   * Mirrors the JVM `asInstanceOf` / sigma-rust `try_extract_into` rejection
+   * at eval. The JVM throws `ClassCastException`; sigma-rust throws
+   * `EvalError::TryExtractFrom`. Wire-format invariants (MethodCall
+   * construction via `SNumericTypeMethods` / `SBigIntMethods` enforce typed
+   * args at build time) make this unreachable for parser-produced trees;
+   * defensive against hand-crafted MIR (adversarial wrong-kind constant
+   * injected as `obj` or `args[0]`). Without this guard, wrong-kind Byte/
+   * Short/Int operands silently return garbage (`.value` is `undefined` → JS
+   * produces 0 from numeric coercion); wrong-kind Long/BigInt operands throw
+   * a raw `TypeError` (JS BigInt coercion) — both are consensus over-accept
+   * vectors.
+   *
+   * The guard is unconditional at runtime (concrete `obj.kind` is always
+   * concrete, never SAny — this is NOT a static `exprTpe` check; the "skip
+   * SAny static checks" rule does not apply here).
+   *
+   * Source: sigma-rust `try_extract_into::<i8/i16/i32/i64/BigInt256>()`
+   *         ergotree-interpreter/src/eval/method_call.rs
+   */
+  | 'numeric-method-bad-operand'

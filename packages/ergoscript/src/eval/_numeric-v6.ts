@@ -15,6 +15,26 @@ import { encodeBigIntBE } from '../wire/serialize-svalue'
 // predef rejecting an over-width input; this is an arithmetic result overflow).
 const OUT_OF_256_CODE = 'bigint-result-out-of-range'
 
+// EvalError code for wrong-kind receiver or argument. Mirrors JVM asInstanceOf /
+// sigma-rust try_extract_into rejection at eval. Wire-format invariants make this
+// unreachable for parser-produced trees; defensive against hand-crafted MIR.
+// The guard runs after addCost (Pattern A, same ordering as SBox.tokens).
+const BAD_OPERAND_CODE = 'numeric-method-bad-operand'
+
+/**
+ * Assert that `v.kind === kind`; throw a typed EvalError otherwise.
+ * Called AFTER ctx.addCost (Pattern A) and BEFORE reading `.value`.
+ * `ctx` is the method name used in the error message (e.g. 'Byte.toBytes').
+ */
+function requireKind(v: SValue, kind: string, method: string): void {
+  if (v.kind !== kind) {
+    throw new EvalError(
+      `${method}: expected ${kind} operand, got '${v.kind}'`,
+      BAD_OPERAND_CODE,
+    )
+  }
+}
+
 const SBOOLEAN: SType = { tag: 'SBoolean' }
 
 interface NumV6 {
@@ -89,8 +109,10 @@ const longDesc: NumV6 = {
  * Range-check a BigInt result to signed-256. Mirrors JVM CBigInt.shiftLeft/shiftRight
  * calling `.toSignedBigIntValueExact` (Extensions.scala:219-223), which throws
  * ArithmeticException when bitLength() > 255 (i.e. value outside [-2^255, 2^255-1]).
- * Bitwise and/or/xor on in-range inputs stay in-range (JVM code has no such check
- * — CBigInt.scala:57-63), so checkBigInt256 is applied only where JVM does.
+ * Bitwise inv/or/and/xor on in-range inputs stay in-range — the JVM bounds all six
+ * BigInt ops via the CBigInt constructor check on INPUTS (CBigInt.scala:57-63), so
+ * in-range inputs produce in-range results for bitwise ops and the result check is
+ * provably unreachable there. checkBigInt256 is applied only to shift results.
  */
 function checkBigInt256(r: bigint): bigint {
   if (r < I256_MIN || r > I256_MAX) {
@@ -104,8 +126,8 @@ const bigIntDesc: NumV6 = {
   // toBytes: Java BigInteger.toByteArray() = minimal two's-complement (encodeBigIntBE mirrors this).
   // In-range input; no overflow check needed.
   toBE: (x) => encodeBigIntBE(x as bigint),
-  // bitwiseInverse: ~x = -x - 1 in two's complement. In-range BigInt stays in-range
-  // (JVM CBigInt has no overflow check for not/and/or/xor — constructor check covers inputs).
+  // bitwiseInverse: ~x = -x - 1 in two's complement. In-range BigInt stays in-range;
+  // result check omitted (provably unreachable — see checkBigInt256 doc above).
   inv: (x) => ~(x as bigint),
   or: (a, b) => (a as bigint) | (b as bigint),
   and: (a, b) => (a as bigint) & (b as bigint),
@@ -122,12 +144,14 @@ const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIn
 function makeToBytes(t: NumV6): HandlerFn {
   return (obj, _args, ctx) => {
     ctx.addCost(5)
+    requireKind(obj, t.kind, `${t.kind}.toBytes`)
     return bytesToCollByteSValue(t.toBE((obj as { value: number | bigint }).value))
   }
 }
 function makeToBits(t: NumV6): HandlerFn {
   return (obj, _args, ctx) => {
     ctx.addCost(5)
+    requireKind(obj, t.kind, `${t.kind}.toBits`)
     const bytes = t.toBE((obj as { value: number | bigint }).value)
     const items: SValue[] = new Array(bytes.length * 8)
     for (let i = 0; i < bytes.length; i++) {
@@ -143,23 +167,30 @@ function makeToBits(t: NumV6): HandlerFn {
 function makeInverse(t: NumV6): HandlerFn {
   return (obj, _args, ctx) => {
     ctx.addCost(5)
+    requireKind(obj, t.kind, `${t.kind}.bitwiseInverse`)
     return { kind: t.kind, value: t.inv((obj as { value: number | bigint }).value) } as SValue
   }
 }
 function makeBinaryBitwise(t: NumV6, op: 'or' | 'and' | 'xor'): HandlerFn {
+  const mName = op === 'or' ? 'bitwiseOr' : op === 'and' ? 'bitwiseAnd' : 'bitwiseXor'
   return (obj, args, ctx) => {
     ctx.addCost(5)
+    requireKind(obj, t.kind, `${t.kind}.${mName}`)
+    requireKind(args[0]!, t.kind, `${t.kind}.${mName} arg`)
     const v = t[op]((obj as { value: number | bigint }).value, (args[0] as { value: number | bigint }).value)
     return { kind: t.kind, value: v } as SValue
   }
 }
 function makeShift(t: NumV6, dir: 'shl' | 'shr'): HandlerFn {
+  const mName = dir === 'shl' ? 'shiftLeft' : 'shiftRight'
   return (obj, args, ctx) => {
-    ctx.addCost(5) // Pattern A: cost charged before bits-bound throw (mirrors JVM ExactIntegral)
+    ctx.addCost(5) // Pattern A: cost charged before guards (mirrors JVM ExactIntegral)
+    requireKind(obj, t.kind, `${t.kind}.${mName}`)
+    requireKind(args[0]!, 'Int', `${t.kind}.${mName} bits`)
     const bits = (args[0] as { kind: 'Int'; value: number }).value
     if (bits < 0 || bits >= t.shiftBound) {
       throw new EvalError(
-        `${t.kind}.${dir === 'shl' ? 'shiftLeft' : 'shiftRight'}: bits out of range [0, ${t.shiftBound}) (got ${bits})`,
+        `${t.kind}.${mName}: bits out of range [0, ${t.shiftBound}) (got ${bits})`,
         'numeric-shift-out-of-range',
       )
     }
