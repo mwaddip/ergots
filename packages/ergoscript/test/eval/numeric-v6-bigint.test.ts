@@ -4,8 +4,8 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
 
-// Out-of-signed-256 EvalError code — reused from byte-array-to-bigint.ts.
-const OUT_OF_256_CODE = 'byte-array-to-bigint-out-of-range'
+// Dedicated error code for BigInt arithmetic result overflow (signed-256 range).
+const OUT_OF_256_CODE = 'bigint-result-out-of-range'
 
 const SBIGINT: SType = { tag: 'SBigInt' }
 const SINT: SType = { tag: 'SInt' }
@@ -13,6 +13,9 @@ const v3 = () => makeContext({ treeVersion: 3 })
 function big(value: bigint): SValue { return { kind: 'BigInt', value } }
 function bytesColl(...vs: number[]): SValue {
   return { kind: 'Coll', elem: { tag: 'SByte' }, items: vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })) }
+}
+function bools(...bs: boolean[]): SValue {
+  return { kind: 'Coll', elem: { tag: 'SBoolean' }, items: bs.map((b) => ({ kind: 'Boolean', value: b })) }
 }
 function unary(methodId: number, v: bigint): MethodCallExpr {
   return { tag: 'MethodCall', obj: { tag: 'Const', tpe: SBIGINT, value: big(v) } as any, args: [], typeId: 6, methodId, explicitTypeArgs: {} }
@@ -45,6 +48,21 @@ describe('numeric v6 BigInt arms', () => {
     expect(evalMethodCall(binary(9, 0xf0n, 0x0fn), Env.empty(), v3())).toEqual(big(0xffn))
     expect(evalMethodCall(binary(11, 0xffn, 0x0fn), Env.empty(), v3())).toEqual(big(0xf0n))
   })
+  it('bitwiseAnd (id 10)', () => {
+    // 0xff & 0x0f = 0x0f
+    expect(evalMethodCall(binary(10, 0xffn, 0x0fn), Env.empty(), v3())).toEqual(big(0x0fn))
+  })
+  it('toBits: variable-length (encodeBigIntBE path)', () => {
+    // 0n -> encodeBigIntBE(0n) = [0x00] -> 8 bits, all false
+    expect(evalMethodCall(unary(7, 0n), Env.empty(), v3())).toEqual(bools(...Array(8).fill(false)))
+    // -1n -> encodeBigIntBE(-1n) = [0xFF] -> 8 bits, all true
+    expect(evalMethodCall(unary(7, -1n), Env.empty(), v3())).toEqual(bools(...Array(8).fill(true)))
+    // 128n -> encodeBigIntBE(128n) = [0x00, 0x80] (leading 0x00 for sign) -> 16 bits
+    // byte0 (0x00): 8×false; byte1 (0x80=10000000): MSB=true then 7×false
+    expect(evalMethodCall(unary(7, 128n), Env.empty(), v3())).toEqual(
+      bools(...Array(8).fill(false), true, ...Array(7).fill(false)),
+    )
+  })
   it('shiftLeft: in-range ok; bits-bound and result-overflow both throw', () => {
     expect(evalMethodCall(shift(12, 3n, 8), Env.empty(), v3())).toEqual(big(768n)) // JVM vector
     expect(evalMethodCall(shift(12, -222n, 10), Env.empty(), v3())).toEqual(big(-227328n)) // JVM vector
@@ -56,5 +74,8 @@ describe('numeric v6 BigInt arms', () => {
   it('shiftRight: arithmetic, in-range', () => {
     expect(evalMethodCall(shift(13, 24n, 3), Env.empty(), v3())).toEqual(big(3n))
     expect(evalMethodCall(shift(13, 1600n, 8), Env.empty(), v3())).toEqual(big(6n))
+  })
+  it('shiftRight: bits-bound (bits >= 256) throws numeric-shift-out-of-range', () => {
+    expectThrow(() => evalMethodCall(shift(13, 24n, 256), Env.empty(), v3()), 'numeric-shift-out-of-range')
   })
 })

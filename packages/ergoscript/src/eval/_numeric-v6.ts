@@ -10,9 +10,10 @@ import type { HandlerFn } from './method-call'
 import { EvalError } from './eval-context'
 import { encodeBigIntBE } from '../wire/serialize-svalue'
 
-// EvalError code for BigInt results exceeding signed-256 range — same code
-// as byte-array-to-bigint.ts for consistency.
-const OUT_OF_256_CODE = 'byte-array-to-bigint-out-of-range'
+// EvalError code for BigInt op results exceeding signed-256 range.
+// Distinct from 'byte-array-to-bigint-out-of-range' (that's the ByteArrayToBigInt
+// predef rejecting an over-width input; this is an arithmetic result overflow).
+const OUT_OF_256_CODE = 'bigint-result-out-of-range'
 
 const SBOOLEAN: SType = { tag: 'SBoolean' }
 
@@ -109,7 +110,9 @@ const bigIntDesc: NumV6 = {
   or: (a, b) => (a as bigint) | (b as bigint),
   and: (a, b) => (a as bigint) & (b as bigint),
   xor: (a, b) => (a as bigint) ^ (b as bigint),
-  // shiftLeft/shiftRight: result may overflow signed-256 (JVM calls toSignedBigIntValueExact).
+  // shiftLeft: result may overflow signed-256 (JVM calls toSignedBigIntValueExact on result).
+  // shiftRight (arithmetic): right-shift on an in-range value always stays in-range — the
+  // guard mirrors the JVM call but can never fire for shr. It is kept for structural symmetry.
   shl: (x, bits) => checkBigInt256((x as bigint) << BigInt(bits)),
   shr: (x, bits) => checkBigInt256((x as bigint) >> BigInt(bits)),
 }
@@ -152,7 +155,7 @@ function makeBinaryBitwise(t: NumV6, op: 'or' | 'and' | 'xor'): HandlerFn {
 }
 function makeShift(t: NumV6, dir: 'shl' | 'shr'): HandlerFn {
   return (obj, args, ctx) => {
-    ctx.addCost(5)
+    ctx.addCost(5) // Pattern A: cost charged before bits-bound throw (mirrors JVM ExactIntegral)
     const bits = (args[0] as { kind: 'Int'; value: number }).value
     if (bits < 0 || bits >= t.shiftBound) {
       throw new EvalError(

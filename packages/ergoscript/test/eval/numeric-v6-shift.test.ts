@@ -4,8 +4,8 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
 
-const NUM_TPE: Record<string, SType> = { Byte: { tag: 'SByte' }, Int: { tag: 'SInt' }, Long: { tag: 'SLong' } }
-const TID: Record<string, number> = { Byte: 2, Int: 4, Long: 5 }
+const NUM_TPE: Record<string, SType> = { Byte: { tag: 'SByte' }, Short: { tag: 'SShort' }, Int: { tag: 'SInt' }, Long: { tag: 'SLong' } }
+const TID: Record<string, number> = { Byte: 2, Short: 3, Int: 4, Long: 5 }
 const SINT: SType = { tag: 'SInt' }
 const v3 = () => makeContext({ treeVersion: 3 })
 function n(kind: string, value: number | bigint): SValue { return { kind, value } as SValue }
@@ -31,6 +31,13 @@ describe('numeric v6 shiftLeft/shiftRight (fixed-width)', () => {
     expect(evalMethodCall(shift('Int', 13, -8, 2), Env.empty(), v3())).toEqual(n('Int', -2))
   })
 
+  it('Short shiftLeft + shiftRight happy-path', () => {
+    // Short shiftLeft(1, 1) = 2 (trShort(1 << 1) = 2)
+    expect(evalMethodCall(shift('Short', 12, 1, 1), Env.empty(), v3())).toEqual(n('Short', 2))
+    // Short shiftRight(-2, 1) = -1 (arithmetic: trShort(-2 >> 1) = -1)
+    expect(evalMethodCall(shift('Short', 13, -2, 1), Env.empty(), v3())).toEqual(n('Short', -1))
+  })
+
   it('rejects bits out of [0, width): throws numeric-shift-out-of-range', () => {
     for (const bits of [-1, 8]) {
       let threw: EvalError | undefined
@@ -40,5 +47,11 @@ describe('numeric v6 shiftLeft/shiftRight (fixed-width)', () => {
     }
     // boundary: bits = width-1 allowed
     expect(evalMethodCall(shift('Byte', 12, 1, 7), Env.empty(), v3())).toEqual(n('Byte', -128)) // 1<<7 = -128 (i8)
+
+    // Byte shiftRight out-of-range (bits = 8 = shiftBound for Byte)
+    let threw: EvalError | undefined
+    try { evalMethodCall(shift('Byte', 13, -2, 8), Env.empty(), v3()) } catch (e) { threw = e as EvalError }
+    expect(threw).toBeInstanceOf(EvalError)
+    expect(threw?.code).toBe('numeric-shift-out-of-range')
   })
 })

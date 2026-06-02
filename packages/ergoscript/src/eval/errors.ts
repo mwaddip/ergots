@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 40 + 3 + 1 = 44 codes added through phase 2h-b Tier 1
+ *   - documents the 67 codes added through v6 P1 numeric methods
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -646,7 +646,7 @@ export type EvalErrorCode =
   | 'coll-update-many-length-mismatch'
 
   // -------------------------------------------------------------------------
-  // v6 P1 numeric shift methods (2 new codes; 66 → 67)
+  // v6 P1 numeric methods (2 new codes; 64 → 66)
   // -------------------------------------------------------------------------
   /**
    * `Byte.shiftLeft` / `Byte.shiftRight` (typeId 2, methodIds 12–13),
@@ -656,5 +656,29 @@ export type EvalErrorCode =
    * the `bits` argument is outside `[0, width)` where width is 8 / 16 / 32 / 64.
    * Both `bits < 0` and `bits >= width` are rejected. Mirrors the JVM
    * `ExactIntegral.shiftLeft` / `shiftRight` range guard.
+   *
+   * Also thrown for `BigInt.shiftLeft` / `BigInt.shiftRight` (typeId 6, methodIds
+   * 12–13) when `bits` is outside `[0, 256)`. Mirrors the JVM `BigIntegerOps`
+   * range guard (`CBigInt.scala`).
    */
   | 'numeric-shift-out-of-range'
+
+  // -------------------------------------------------------------------------
+  // v6 P1 BigInt result overflow (1 new code; 66 → 67)
+  // -------------------------------------------------------------------------
+  /**
+   * Any v6 BigInt operation whose result falls outside signed-256 range
+   * `[-2^255, 2^255 - 1]`. Currently only reachable via `BigInt.shiftLeft`
+   * (methodId 12), which can produce a result with bitLength > 255. `shiftRight`
+   * on an in-range value always stays in range. Mirrors the JVM `CBigInt`
+   * constructor's call to `.toSignedBigIntValueExact` (Extensions.scala:219)
+   * which throws `ArithmeticException` when bitLength() > 255.
+   *
+   * Distinct from `'byte-array-to-bigint-out-of-range'` (phase 2i-a), which is
+   * for the `ByteArrayToBigInt` predef arm rejecting an over-width input byte
+   * array, not for an arithmetic result.
+   *
+   * Source: sigmastate-interpreter/src/main/scala/org/ergoplatform/sdk/Extensions.scala:219
+   *         sigmastate-interpreter/src/main/scala/special/collection/Extensions.scala (CBigInt)
+   */
+  | 'bigint-result-out-of-range'
