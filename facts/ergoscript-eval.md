@@ -271,6 +271,23 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase v5 Coll/GroupElement methods COMPLETE.**
 
+**Phase v6 P1 — numeric methods (Byte/Short/Int/Long/BigInt)** (additive; 40 new method handlers + 2 new `EvalError` codes; 2026-06-02):
+
+- **40 new method handlers** (registry 54 → 94): 8 method ids × 5 numeric types (Byte typeId=2, Short=3, Int=4, Long=5, BigInt=6). All gated `treeVersion >= 3` via `minVersion: 3` on registry entries (second use of the dispatcher minVersion mechanism after `SHeader.checkPow` (104:16) and `SAvlTree.insertOrUpdate` (100:16)). All cost `FixedCost(JitCost(5))` Pattern A (charged before all ops including bounds throws). Source: `eval/_numeric-v6.ts` (`numericV6Handlers`) + `eval/method-call.ts` registration loop.
+  - **`X.toBytes` (methodId 6)** → `Coll[SByte]` (closed `tRange`): big-endian two's complement byte representation. Width: 1/2/4/8 bytes for Byte/Short/Int/Long; minimal-width signed BE (`encodeBigIntBE`) for BigInt, mirroring Java `BigInteger.toByteArray()`.
+  - **`X.toBits` (methodId 7)** → `Coll[SBoolean]` (closed `tRange`): big-endian bit expansion, MSB-first within each byte. Width: 8/16/32/64/256 bits.
+  - **`X.bitwiseInverse` (methodId 8)** → `tNum` (generic-output via P0 substitution engine): bitwise NOT, signed-narrowed back to receiver kind (JS `~` + `checkRange` equivalent for Byte/Short/Int; BigInt stays in range — `~x = -x-1` preserves i256 bounds for in-range input).
+  - **`X.bitwiseOr` / `X.bitwiseAnd` / `X.bitwiseXor` (methodIds 9/10/11)** → `tNum`: signed-narrowed bitwise ops. BigInt versions have no overflow check (JVM `CBigInt` has no constructor-check for and/or/xor — in-range inputs always produce in-range results).
+  - **`X.shiftLeft` / `X.shiftRight` (methodIds 12/13)** → `tNum`: arithmetic shifts. Bounds-checked on `bits` before the shift — throws `'numeric-shift-out-of-range'` when `bits < 0` or `bits >= width`. `BigInt.shiftLeft` additionally checks the result against signed-256 range — throws `'bigint-result-out-of-range'` on overflow. `shiftRight` is arithmetic (signed, JVM `>>`) not logical.
+- **2 new `EvalError` codes (66 → 68):** `'numeric-shift-out-of-range'`, `'bigint-result-out-of-range'`. See the EvalError taxonomy section for the full specifications.
+- **Key design decisions (both caught in review; record for audit-response):**
+  - **Gate is `treeVersion >= 3` (NOT `isV6Activated`).** An earlier draft used an activation flag; the correct gate is the ErgoTree version field, consistent with how the dispatcher enforces all v6 method gating. Caught during the Task 4 checkpoint review.
+  - **BigInt is signed-256-bounded.** `shiftLeft` overflow throws `'bigint-result-out-of-range'` (JVM `toSignedBigIntValueExact`). An earlier draft treated BigInt as arbitrary-precision; the bounded model is correct per the JVM CBigInt contract. Caught during the Task 4 escalation gate.
+- **Second consumer of the P0 type-var substitution engine** (after `SColl.patch` 12:19): the bitwise/shift methods (methodIds 8–13) have `tRange = tNum` (a type variable), so `resolveReturnTpe` must bind `tNum` from the receiver type to produce the closed return type. Registered in `mir/method-signatures.ts` via `numericV6Signatures()`.
+- Full suite: **3510 green** (node + jsdom). `tsc --noEmit` clean.
+
+**Phase v6 P1 COMPLETE.** Method handler registry: 94 entries. EvalError codes: 68. Eval arm coverage: 67/67 (unchanged — `MethodCall` arm was already wired; P1 adds METHOD-REGISTRY entries, not eval arms). Test count: 3510.
+
 ## Public surface (v0.3.0)
 
 ```ts
@@ -384,7 +401,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (66 codes)
+## `EvalError` taxonomy (68 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -528,15 +545,20 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 - **`'coll-update-index-out-of-range'`** — `SColl.updated` (12:20) / `SColl.updateMany` (12:21): a target index is out of bounds for the receiver Coll. Genuine runtime error (indices are runtime `Int` values, not type-constrained); a NEGATIVE index wraps to a huge `usize` in sigma-rust ⇒ also OOB. Source: sigma-rust `UPDATED_EVAL_FN` / `UPDATE_MANY_EVAL_FN` (`eval/scoll.rs`, branch `ergo-node-integration`).
 - **`'coll-update-many-length-mismatch'`** — `SColl.updateMany` (12:21): the `indexes` and `values` colls differ in length (genuine runtime error — lengths aren't constrained by the `Coll[T].updateMany(Coll[Int], Coll[T])` signature). Checked before the per-index OOB loop. Source: same.
 
-No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
+### Phase v6 P1 — numeric method codes (Byte/Short/Int/Long/BigInt; all require `treeVersion >= 3`)
+
+- **`'numeric-shift-out-of-range'`** — any `X.shiftLeft` or `X.shiftRight` (typeIds 2–6, methodIds 12–13) when the `bits` argument is outside `[0, width)` where `width` is 8/16/32/64/256 for Byte/Short/Int/Long/BigInt respectively. Both `bits < 0` and `bits >= width` are rejected. Mirrors the JVM `ExactIntegral.shiftLeft`/`shiftRight` range guard (scala/ExactIntegral.scala) and `BigIntegerOps` range guard (CBigInt.scala). Source: `eval/_numeric-v6.ts:makeShift`.
+- **`'bigint-result-out-of-range'`** — any v6 BigInt operation whose result falls outside signed-256 range `[-2^255, 2^255 - 1]`. Currently reachable only via `BigInt.shiftLeft` (methodId 12), which can produce a result with bitLength > 255. `shiftRight` on an in-range value always stays in-range. Mirrors the JVM `CBigInt` constructor's `toSignedBigIntValueExact` (Extensions.scala:219) which throws `ArithmeticException` when `bitLength() > 255`. Distinct from `'byte-array-to-bigint-out-of-range'` (2i-a, which is for the `ByteArrayToBigInt` predef rejecting an over-width input). Source: `eval/_numeric-v6.ts:checkBigInt256`.
+
+No other error codes are emitted by the current evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
 ## Dispatcher minVersion gating (phase 2h-c.2)
 
 The method-call dispatcher consults an optional `minVersion?: number` field on each registry entry. When set, the dispatcher throws `EvalError('tree-version-too-low')` if `(ctx.treeVersion ?? 0) < entry.minVersion`, BEFORE invoking the handler. This is sigma-rust-parity with `MethodDesc.min_version`-level gating: V<N reject incurs receiver-eval cost + envelope cost (4) but NOT the handler's own cost (e.g., 700 for `checkPow`).
 
-Two registry entries currently use `minVersion: 3`: `SHeader.checkPow` (104:16; phase 2h-c.2) and `SAvlTree.insertOrUpdate` (100:16; phase 2h-d) — both mirror sigma-rust descriptors with `min_version: ErgoTreeVersion::V3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
+Registry entries using `minVersion: 3` (V3-gated): `SHeader.checkPow` (104:16; phase 2h-c.2), `SAvlTree.insertOrUpdate` (100:16; phase 2h-d), and all **40 v6 numeric-method handlers** (typeIds 2–6, methodIds 6–13; phase v6 P1) — all mirror JVM `isV3OrLaterErgoTreeVersion` gating. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
 
-## Method-handler registry (54 entries)
+## Method-handler registry (94 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -596,10 +618,52 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 52 | `SColl.updateMany` | 12:21 | `addPerItemCost(20, 2, 10, n)` | B | `Coll[T]` (each `idx[k]`→`val[k]`, last-write-wins); len-mismatch → `'coll-update-many-length-mismatch'`, OOB → `'coll-update-index-out-of-range'` | `eval/scoll.rs` (ergo-node-integration) |
 | 53 | `SColl.patch` | 12:19 | `addPerItemCost(30, 2, 10, n)` | B | `Coll[T]` = `input[0,from)` ++ `patch` ++ `input[from+replaced,)` (`from`/`replaced` each independently clamped ≥0); campaign iter-28 | `eval/scoll.rs:195-236` PATCH_EVAL_FN |
 | 54 | `SOption.map` | 36:7 | 20 | A | `Option[OV]` — lambda HOF: `Some(t)`→`Some(f t)`, `None`→`None`; campaign iter-29; body in `eval/soption-map.ts` | `eval/soption.rs:13-60` map_eval |
+| 55 | `Byte.toBytes` | 2:6 | 5 | A | `Coll[Byte]` (1 byte) — **V3-gated** | JVM `SNumericTypeMethods.toBytes` |
+| 56 | `Byte.toBits` | 2:7 | 5 | A | `Coll[Boolean]` (8 bits, MSB-first) — V3-gated | JVM `SNumericTypeMethods.toBits` |
+| 57 | `Byte.bitwiseInverse` | 2:8 | 5 | A | `Byte` — V3-gated | JVM `SNumericTypeMethods.bitwiseInverse` |
+| 58 | `Byte.bitwiseOr` | 2:9 | 5 | A | `Byte` — V3-gated | JVM `SNumericTypeMethods.bitwiseOr` |
+| 59 | `Byte.bitwiseAnd` | 2:10 | 5 | A | `Byte` — V3-gated | JVM `SNumericTypeMethods.bitwiseAnd` |
+| 60 | `Byte.bitwiseXor` | 2:11 | 5 | A | `Byte` — V3-gated | JVM `SNumericTypeMethods.bitwiseXor` |
+| 61 | `Byte.shiftLeft` | 2:12 | 5 | A | `Byte` — V3-gated; bits∈[0,8) else `'numeric-shift-out-of-range'` | JVM `SNumericTypeMethods.shiftLeft` |
+| 62 | `Byte.shiftRight` | 2:13 | 5 | A | `Byte` — V3-gated; bits∈[0,8) else `'numeric-shift-out-of-range'` | JVM `SNumericTypeMethods.shiftRight` |
+| 63 | `Short.toBytes` | 3:6 | 5 | A | `Coll[Byte]` (2 bytes BE) — V3-gated | JVM `SNumericTypeMethods.toBytes` |
+| 64 | `Short.toBits` | 3:7 | 5 | A | `Coll[Boolean]` (16 bits, MSB-first) — V3-gated | JVM `SNumericTypeMethods.toBits` |
+| 65 | `Short.bitwiseInverse` | 3:8 | 5 | A | `Short` — V3-gated | JVM `SNumericTypeMethods.bitwiseInverse` |
+| 66 | `Short.bitwiseOr` | 3:9 | 5 | A | `Short` — V3-gated | JVM `SNumericTypeMethods.bitwiseOr` |
+| 67 | `Short.bitwiseAnd` | 3:10 | 5 | A | `Short` — V3-gated | JVM `SNumericTypeMethods.bitwiseAnd` |
+| 68 | `Short.bitwiseXor` | 3:11 | 5 | A | `Short` — V3-gated | JVM `SNumericTypeMethods.bitwiseXor` |
+| 69 | `Short.shiftLeft` | 3:12 | 5 | A | `Short` — V3-gated; bits∈[0,16) | JVM `SNumericTypeMethods.shiftLeft` |
+| 70 | `Short.shiftRight` | 3:13 | 5 | A | `Short` — V3-gated; bits∈[0,16) | JVM `SNumericTypeMethods.shiftRight` |
+| 71 | `Int.toBytes` | 4:6 | 5 | A | `Coll[Byte]` (4 bytes BE) — V3-gated | JVM `SNumericTypeMethods.toBytes` |
+| 72 | `Int.toBits` | 4:7 | 5 | A | `Coll[Boolean]` (32 bits, MSB-first) — V3-gated | JVM `SNumericTypeMethods.toBits` |
+| 73 | `Int.bitwiseInverse` | 4:8 | 5 | A | `Int` — V3-gated | JVM `SNumericTypeMethods.bitwiseInverse` |
+| 74 | `Int.bitwiseOr` | 4:9 | 5 | A | `Int` — V3-gated | JVM `SNumericTypeMethods.bitwiseOr` |
+| 75 | `Int.bitwiseAnd` | 4:10 | 5 | A | `Int` — V3-gated | JVM `SNumericTypeMethods.bitwiseAnd` |
+| 76 | `Int.bitwiseXor` | 4:11 | 5 | A | `Int` — V3-gated | JVM `SNumericTypeMethods.bitwiseXor` |
+| 77 | `Int.shiftLeft` | 4:12 | 5 | A | `Int` — V3-gated; bits∈[0,32) | JVM `SNumericTypeMethods.shiftLeft` |
+| 78 | `Int.shiftRight` | 4:13 | 5 | A | `Int` — V3-gated; bits∈[0,32) | JVM `SNumericTypeMethods.shiftRight` |
+| 79 | `Long.toBytes` | 5:6 | 5 | A | `Coll[Byte]` (8 bytes BE) — V3-gated | JVM `SNumericTypeMethods.toBytes` |
+| 80 | `Long.toBits` | 5:7 | 5 | A | `Coll[Boolean]` (64 bits, MSB-first) — V3-gated | JVM `SNumericTypeMethods.toBits` |
+| 81 | `Long.bitwiseInverse` | 5:8 | 5 | A | `Long` — V3-gated | JVM `SNumericTypeMethods.bitwiseInverse` |
+| 82 | `Long.bitwiseOr` | 5:9 | 5 | A | `Long` — V3-gated | JVM `SNumericTypeMethods.bitwiseOr` |
+| 83 | `Long.bitwiseAnd` | 5:10 | 5 | A | `Long` — V3-gated | JVM `SNumericTypeMethods.bitwiseAnd` |
+| 84 | `Long.bitwiseXor` | 5:11 | 5 | A | `Long` — V3-gated | JVM `SNumericTypeMethods.bitwiseXor` |
+| 85 | `Long.shiftLeft` | 5:12 | 5 | A | `Long` — V3-gated; bits∈[0,64) | JVM `SNumericTypeMethods.shiftLeft` |
+| 86 | `Long.shiftRight` | 5:13 | 5 | A | `Long` — V3-gated; bits∈[0,64) | JVM `SNumericTypeMethods.shiftRight` |
+| 87 | `BigInt.toBytes` | 6:6 | 5 | A | `Coll[Byte]` (minimal-width signed BE via `encodeBigIntBE` ≡ Java `BigInteger.toByteArray()`) — V3-gated | JVM `SNumericTypeMethods.toBytes` |
+| 88 | `BigInt.toBits` | 6:7 | 5 | A | `Coll[Boolean]` (256 bits, MSB-first) — V3-gated | JVM `SNumericTypeMethods.toBits` |
+| 89 | `BigInt.bitwiseInverse` | 6:8 | 5 | A | `BigInt` — V3-gated; no overflow check (`~x = -x-1` preserves i256 bounds for in-range input) | JVM `SNumericTypeMethods.bitwiseInverse` |
+| 90 | `BigInt.bitwiseOr` | 6:9 | 5 | A | `BigInt` — V3-gated; no overflow check | JVM `SNumericTypeMethods.bitwiseOr` |
+| 91 | `BigInt.bitwiseAnd` | 6:10 | 5 | A | `BigInt` — V3-gated; no overflow check | JVM `SNumericTypeMethods.bitwiseAnd` |
+| 92 | `BigInt.bitwiseXor` | 6:11 | 5 | A | `BigInt` — V3-gated; no overflow check | JVM `SNumericTypeMethods.bitwiseXor` |
+| 93 | `BigInt.shiftLeft` | 6:12 | 5 | A | `BigInt` — V3-gated; bits∈[0,256); result range-checked to i256 → `'bigint-result-out-of-range'` on overflow | JVM `SNumericTypeMethods.shiftLeft` |
+| 94 | `BigInt.shiftRight` | 6:13 | 5 | A | `BigInt` — V3-gated; bits∈[0,256); result always in-range for in-range input | JVM `SNumericTypeMethods.shiftRight` |
 
 (Rows 50-52 are the v5 `negate`/`updated`/`updateMany` handlers. `updateMany` perChunkCost is **2** per the canonical JVM `methods.scala:1055` — the stale vendored `integration/ergots` checkout reads 1; cost was sourced from the JVM + the n=14 conformance vector, not that checkout.)
 
-(All **54** `HANDLERS` registrations are now tabled. Rows 53-54 — `SColl.patch` (iter-28) and `SOption.map` (iter-29) — were added during the walker campaign and tabled here 2026-06-02.)
+(Rows 53-54 — `SColl.patch` (iter-28) and `SOption.map` (iter-29) — were added during the walker campaign and tabled 2026-06-02.)
+
+(Rows 55–94 — the v6 P1 numeric methods — are 40 entries across 5 numeric types × 8 method ids (6–13). All gate on `treeVersion >= 3` via `minVersion: 3` on the HANDLERS registry; the dispatcher rejects V<3 trees BEFORE invoking the handler (zero handler-cost on V<3 reject). All cost `FixedCost(JitCost(5))` Pattern A. The `bitwiseInverse`/`bitwiseOr`/`bitwiseAnd`/`bitwiseXor`/`shiftLeft`/`shiftRight` methods (ids 8–13) have `tRange = tNum` (type-variable return type resolved by the P0 substitution engine at call sites — see `mir/method-signatures.ts:numericV6Signatures`). The `toBytes`/`toBits` methods (ids 6–7) have closed `tRange` (`Coll[SByte]` / `Coll[SBoolean]`). Implementation: `eval/_numeric-v6.ts` + registration loop in `eval/method-call.ts`.)
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 
@@ -634,7 +698,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-f adds 2 more method handlers (`SGroupElement.getEncoded` + `SColl.flatMap`) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2i-a adds 8 new `Expr` arms (pure-bytes predefs) — coverage advances to 60 / ~70; post-2i-a uplift to C2 corpus TBD on next corpus run.
 
-**Method-handler registry: 49 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating; +2 from 2h-f — `SGroupElement.getEncoded` at 7:2 and `SColl.flatMap` at 12:15; +1 from 2j-b arm-coverage parallel session — `SContext.minerPubKey` at 101:10, Pattern A cost 20 returning the 33-byte SEC1-compressed `ctx.preHeader.minerPk` as `Coll[Byte]`; mirrors sigma-rust `MINER_PUBKEY_EVAL_FN`. Surfaced as a halt at mainnet h=208788; +1 from 2j-b iter-4 arm-coverage parallel session — `SPreHeader.minerPk` at 105:6, Pattern A cost 10 returning the raw 33-byte miner pubkey as `SGroupElement` (NOT sigma-serialized — receiver-side counterpart to row 45 which returns `Coll[Byte]`); mirrors sigma-rust `MINER_PK_EVAL_FN`. Surfaced as a halt at mainnet h=228633; +1 from 2j-b iter-5 arm-coverage parallel session — `SContext.selfBoxIndex` at 101:8, Pattern A cost 20 returning 0-based `ctx.inputs.indexOf(ctx.selfBox)` gated by `activated_script_version >= 2`; mirrors sigma-rust `SELF_BOX_INDEX_EVAL_FN`. Surfaced as a halt at mainnet h=342,964; +1 from 2j-b iter-10 arm-coverage parallel session — `SPreHeader.parentId` at 105:2, Pattern A cost 10 returning the 32-byte `ctx.preHeader.parentId` as `Coll[Byte]` (contrast row 46 `SPreHeader.minerPk` which returns `SGroupElement` of raw pubkey); mirrors sigma-rust `PARENT_ID_EVAL_FN`. Surfaced as a halt at mainnet h=679,337; +1 from 2j-b iter-11 arm-coverage parallel session — `SPreHeader.height` at 105:5, Pattern A cost 10 returning `obj.value.height` as `Int` (sigma-rust `as i32`); mirrors sigma-rust `HEIGHT_EVAL_FN`. Surfaced as a halt at mainnet h=679,837).
+**Method-handler registry: 94 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating; +2 from 2h-f — `SGroupElement.getEncoded` at 7:2 and `SColl.flatMap` at 12:15; +1 from 2j-b arm-coverage parallel session — `SContext.minerPubKey` at 101:10, Pattern A cost 20 returning the 33-byte SEC1-compressed `ctx.preHeader.minerPk` as `Coll[Byte]`; mirrors sigma-rust `MINER_PUBKEY_EVAL_FN`. Surfaced as a halt at mainnet h=208788; +1 from 2j-b iter-4 arm-coverage parallel session — `SPreHeader.minerPk` at 105:6, Pattern A cost 10 returning the raw 33-byte miner pubkey as `SGroupElement` (NOT sigma-serialized — receiver-side counterpart to row 45 which returns `Coll[Byte]`); mirrors sigma-rust `MINER_PK_EVAL_FN`. Surfaced as a halt at mainnet h=228633; +1 from 2j-b iter-5 arm-coverage parallel session — `SContext.selfBoxIndex` at 101:8, Pattern A cost 20 returning 0-based `ctx.inputs.indexOf(ctx.selfBox)` gated by `activated_script_version >= 2`; mirrors sigma-rust `SELF_BOX_INDEX_EVAL_FN`. Surfaced as a halt at mainnet h=342,964; +1 from 2j-b iter-10 arm-coverage parallel session — `SPreHeader.parentId` at 105:2, Pattern A cost 10 returning the 32-byte `ctx.preHeader.parentId` as `Coll[Byte]` (contrast row 46 `SPreHeader.minerPk` which returns `SGroupElement` of raw pubkey); mirrors sigma-rust `PARENT_ID_EVAL_FN`. Surfaced as a halt at mainnet h=679,337; +1 from 2j-b iter-11 arm-coverage parallel session — `SPreHeader.height` at 105:5, Pattern A cost 10 returning `obj.value.height` as `Int` (sigma-rust `as i32`); mirrors sigma-rust `HEIGHT_EVAL_FN`. Surfaced as a halt at mainnet h=679,837; +40 from v6 P1 — `Byte/Short/Int/Long/BigInt.toBytes/toBits/bitwiseInverse/bitwiseOr/bitwiseAnd/bitwiseXor/shiftLeft/shiftRight` (typeIds 2–6, methodIds 6–13), all `minVersion: 3` via the dispatcher gate, `FixedCost(JitCost(5))`).
 
 **Public function signatures are stable** from v0.2.0 onward. Future arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 

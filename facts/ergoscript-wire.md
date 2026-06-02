@@ -120,13 +120,24 @@ resolveReturnTpe(sig: MethodSignature, receiver: SType, argTpes: readonly SType[
 
 `parseExpr` accepts the parallel-indexed segregated constant arrays from the surrounding ErgoTree envelope. `constantTypes` is consulted by the `ConstantPlaceholder` handler to recover a placeholder's `SType` from its id; `constantValues` is reserved for substitution-at-parse-time semantics (sigma-rust's `substitute_placeholders` flag — not currently used). `valDefTypes` is a shared scope-wide `Map<ValId, SType>` populated by `ValDef` parsers and read by `ValUse` parsers (mirrors sigma-rust's `SigmaByteReader.val_def_type_store`); the outer envelope creates a fresh empty map per tree, and recursive descent shares it across the whole Expr graph.
 
-**Method-call return-type resolution (phases A3 + v6 P0).** For `MethodCall`/`PropertyCall`, `exprTpe` consults the declarative signature catalog `mir/method-signatures.ts` (keyed by `(typeId, methodId)`, transcribing the method's `SFunc` signature — v5 entries from sigma-rust, v6 from JVM `sigma-state`) and applies `resolveReturnTpe(sig, receiver, argTpes, explicitTypeArgs)` — where `receiver = exprTpe(obj)` and `argTpes = args.map(exprTpe)` (the substitution inputs). Contract:
+**Method-call return-type resolution (phases A3 + v6 P0 + v6 P1).** For `MethodCall`/`PropertyCall`, `exprTpe` consults the declarative signature catalog `mir/method-signatures.ts` (keyed by `(typeId, methodId)`, transcribing the method's `SFunc` signature — v5 entries from sigma-rust, v6 from JVM `sigma-state`) and applies `resolveReturnTpe(sig, receiver, argTpes, explicitTypeArgs)` — where `receiver = exprTpe(obj)` and `argTpes = args.map(exprTpe)` (the substitution inputs). Contract:
 
 - **Registered, closed `tRange`** → returns `tRange` verbatim (e.g. `getEncoded` (7:2) → `Coll[SByte]`, `indices` (12:14) → `Coll[SInt]`).
-- **Registered, type-var `tRange`** → `tRange` with type vars bound from `receiver`/`argTpes`/`explicitTypeArgs` via the substitution engine (`mir/type-unify.ts`, ≡ JVM `MethodCall.tpe()`); an operand that cannot bind a var leaves a residual that falls back to `{ tag: 'SAny' }`. First registered generic-output method: `patch` (12:19) → `Coll[IV-of-receiver]` (v6 P0).
+- **Registered, type-var `tRange`** → `tRange` with type vars bound from `receiver`/`argTpes`/`explicitTypeArgs` via the substitution engine (`mir/type-unify.ts`, ≡ JVM `MethodCall.tpe()`); an operand that cannot bind a var leaves a residual that falls back to `{ tag: 'SAny' }`. First registered generic-output method: `patch` (12:19) → `Coll[IV-of-receiver]` (v6 P0). Second-wave generic-output consumers: the v6 P1 bitwise/shift methods (typeIds 2–6, methodIds 8–13) all have `tRange = tNum` bound from the receiver's numeric type.
 - **Unregistered** → `{ tag: 'SAny' }` — the documented placeholder treated as a wildcard by `sTypeEqualsModuloSAny`/`hasSAny`. **Never throws** (contrast genuinely-unparsed Expr variants, which still throw `ExprTpeError('tpe-not-implemented')`).
 
-The catalog is the enumerable, forward-covering contract surface; it grows by descriptor-addition (the substitution branch landed in v6 P0, `mir/type-unify.ts` — a faithful port of JVM `unifyTypes`/`unifyTypeLists`/`applySubst`). It shares the `(typeId, methodId)` namespace with the eval handler registry (`eval/method-call.ts`) — see the dual-table sync invariant in [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Specs: `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`, `docs/specs/2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md`.
+The catalog grows by descriptor-addition and is populated via `numericV6Signatures()` for v6 P1. Current catalog entries (v6 P1 era):
+
+| (typeId:methodId) | Method | `tRange` kind | `tRange` |
+|---|---|---|---|
+| 7:2 | `SGroupElement.getEncoded` | closed | `Coll[SByte]` |
+| 12:14 | `SColl.indices` | closed | `Coll[SInt]` |
+| 12:19 | `SColl.patch` | generic | `Coll[IV]` (IV binds from receiver elem) |
+| 2:6, 3:6, 4:6, 5:6, 6:6 | `Byte/Short/Int/Long/BigInt.toBytes` | closed | `Coll[SByte]` |
+| 2:7, 3:7, 4:7, 5:7, 6:7 | `Byte/Short/Int/Long/BigInt.toBits` | closed | `Coll[SBoolean]` |
+| 2:8–13, 3:8–13, 4:8–13, 5:8–13, 6:8–13 | `bitwiseInverse`/`Or`/`And`/`Xor`/`shiftLeft`/`shiftRight` | generic | `tNum` (TNum binds from receiver numeric type) |
+
+The catalog shares the `(typeId, methodId)` namespace with the eval handler registry (`eval/method-call.ts`) — see the dual-table sync invariant in [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Specs: `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`, `docs/specs/2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md`.
 
 Once the package publishes, these symbols will likely move behind a `/wire` subpath export (the proof package's `/envelope` pattern). Until then, this file documents their current shape so downstream packages can rely on them.
 

@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 67 codes added through v6 P1 numeric methods
+ *   - documents the 68 codes added through v6 P1 numeric methods
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -646,7 +646,7 @@ export type EvalErrorCode =
   | 'coll-update-many-length-mismatch'
 
   // -------------------------------------------------------------------------
-  // v6 P1 numeric methods (2 new codes; 64 → 66)
+  // v6 P1 numeric methods — shift-bound guard (1 new code; 66 → 67)
   // -------------------------------------------------------------------------
   /**
    * `Byte.shiftLeft` / `Byte.shiftRight` (typeId 2, methodIds 12–13),
@@ -664,7 +664,7 @@ export type EvalErrorCode =
   | 'numeric-shift-out-of-range'
 
   // -------------------------------------------------------------------------
-  // v6 P1 BigInt result overflow (1 new code; 66 → 67)
+  // v6 P1 BigInt result overflow (1 new code; 67 → 68)
   // -------------------------------------------------------------------------
   /**
    * Any v6 BigInt operation whose result falls outside signed-256 range
