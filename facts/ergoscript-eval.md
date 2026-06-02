@@ -534,7 +534,7 @@ The method-call dispatcher consults an optional `minVersion?: number` field on e
 
 Two registry entries currently use `minVersion: 3`: `SHeader.checkPow` (104:16; phase 2h-c.2) and `SAvlTree.insertOrUpdate` (100:16; phase 2h-d) — both mirror sigma-rust descriptors with `min_version: ErgoTreeVersion::V3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
 
-## Method-handler registry (54 entries; table enumerates 52)
+## Method-handler registry (54 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -592,10 +592,12 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 50 | `SGroupElement.negate` | 7:5 | 45 | A | `GroupElement` (additive inverse `−P`; flips SEC1 parity prefix; identity → identity) | `eval/sgroup_elem.rs` (ergo-node-integration) |
 | 51 | `SColl.updated` | 12:20 | `addPerItemCost(20, 1, 10, n)` | B | `Coll[T]` (copy, index `i`→`v`); OOB → `'coll-update-index-out-of-range'` | `eval/scoll.rs` (ergo-node-integration) |
 | 52 | `SColl.updateMany` | 12:21 | `addPerItemCost(20, 2, 10, n)` | B | `Coll[T]` (each `idx[k]`→`val[k]`, last-write-wins); len-mismatch → `'coll-update-many-length-mismatch'`, OOB → `'coll-update-index-out-of-range'` | `eval/scoll.rs` (ergo-node-integration) |
+| 53 | `SColl.patch` | 12:19 | `addPerItemCost(30, 2, 10, n)` | B | `Coll[T]` = `input[0,from)` ++ `patch` ++ `input[from+replaced,)` (`from`/`replaced` each independently clamped ≥0); campaign iter-28 | `eval/scoll.rs:195-236` PATCH_EVAL_FN |
+| 54 | `SOption.map` | 36:7 | 20 | A | `Option[OV]` — lambda HOF: `Some(t)`→`Some(f t)`, `None`→`None`; campaign iter-29; body in `eval/soption-map.ts` | `eval/soption.rs:13-60` map_eval |
 
 (Rows 50-52 are the v5 `negate`/`updated`/`updateMany` handlers. `updateMany` perChunkCost is **2** per the canonical JVM `methods.scala:1055` — the stale vendored `integration/ergots` checkout reads 1; cost was sourced from the JVM + the n=14 conformance vector, not that checkout.)
 
-(Table enumerates 52 rows; the `HANDLERS` map has **54** registrations — 2 interim entries predate this table and remain untabled, a pre-existing doc drift flagged for a future sweep, not chased here.)
+(All **54** `HANDLERS` registrations are now tabled. Rows 53-54 — `SColl.patch` (iter-28) and `SOption.map` (iter-29) — were added during the walker campaign and tabled here 2026-06-02.)
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 
