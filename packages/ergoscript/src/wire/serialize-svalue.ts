@@ -553,7 +553,7 @@ function assertKind<K extends SValue['kind']>(
  *     `unsigned = v + 2^(8k)`, which is guaranteed to have its high bit
  *     set in k bytes. Emit unsigned in k bytes big-endian.
  */
-function encodeBigIntBE(v: bigint): Uint8Array {
+export function encodeBigIntBE(v: bigint): Uint8Array {
   if (v === 0n) return new Uint8Array([0x00])
 
   if (v > 0n) {

@@ -5,9 +5,14 @@
  * Spec: docs/specs/2026-06-02-ergoscript-v6-p1-numeric-methods-design.md
  */
 import type { SValue, SType } from '../mir/types'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { bytesToCollByteSValue, I256_MIN, I256_MAX } from './_byte-coll'
 import type { HandlerFn } from './method-call'
 import { EvalError } from './eval-context'
+import { encodeBigIntBE } from '../wire/serialize-svalue'
+
+// EvalError code for BigInt results exceeding signed-256 range — same code
+// as byte-array-to-bigint.ts for consistency.
+const OUT_OF_256_CODE = 'byte-array-to-bigint-out-of-range'
 
 const SBOOLEAN: SType = { tag: 'SBoolean' }
 
@@ -79,7 +84,37 @@ const longDesc: NumV6 = {
   shr: (x, bits) => (x as bigint) >> BigInt(bits),
 }
 
-const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc]
+/**
+ * Range-check a BigInt result to signed-256. Mirrors JVM CBigInt.shiftLeft/shiftRight
+ * calling `.toSignedBigIntValueExact` (Extensions.scala:219-223), which throws
+ * ArithmeticException when bitLength() > 255 (i.e. value outside [-2^255, 2^255-1]).
+ * Bitwise and/or/xor on in-range inputs stay in-range (JVM code has no such check
+ * — CBigInt.scala:57-63), so checkBigInt256 is applied only where JVM does.
+ */
+function checkBigInt256(r: bigint): bigint {
+  if (r < I256_MIN || r > I256_MAX) {
+    throw new EvalError(`BigInt result out of signed-256 range`, OUT_OF_256_CODE)
+  }
+  return r
+}
+
+const bigIntDesc: NumV6 = {
+  typeId: 6, kind: 'BigInt', shiftBound: 256,
+  // toBytes: Java BigInteger.toByteArray() = minimal two's-complement (encodeBigIntBE mirrors this).
+  // In-range input; no overflow check needed.
+  toBE: (x) => encodeBigIntBE(x as bigint),
+  // bitwiseInverse: ~x = -x - 1 in two's complement. In-range BigInt stays in-range
+  // (JVM CBigInt has no overflow check for not/and/or/xor — constructor check covers inputs).
+  inv: (x) => ~(x as bigint),
+  or: (a, b) => (a as bigint) | (b as bigint),
+  and: (a, b) => (a as bigint) & (b as bigint),
+  xor: (a, b) => (a as bigint) ^ (b as bigint),
+  // shiftLeft/shiftRight: result may overflow signed-256 (JVM calls toSignedBigIntValueExact).
+  shl: (x, bits) => checkBigInt256((x as bigint) << BigInt(bits)),
+  shr: (x, bits) => checkBigInt256((x as bigint) >> BigInt(bits)),
+}
+
+const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIntDesc]
 
 function makeToBytes(t: NumV6): HandlerFn {
   return (obj, _args, ctx) => {

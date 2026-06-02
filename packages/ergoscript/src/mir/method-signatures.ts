@@ -59,6 +59,7 @@ const SCOLL_IV: SType = { tag: 'SColl', elem: { tag: 'STypeVar', name: 'IV' } }
 const SCOLL_BOOL: SType = { tag: 'SColl', elem: { tag: 'SBoolean' } }
 const NUMERIC_STYPE: Record<number, SType> = {
   2: { tag: 'SByte' }, 3: { tag: 'SShort' }, 4: { tag: 'SInt' }, 5: { tag: 'SLong' },
+  6: { tag: 'SBigInt' },
 }
 // TNUM_VAR: the STypeVar descriptor used in tpeParams (STypeVar = { name: string }).
 // TNUM_TPE: the SType position form used in tDom/tRange (discriminated-union member).
