@@ -60,12 +60,20 @@ const SCOLL_BOOL: SType = { tag: 'SColl', elem: { tag: 'SBoolean' } }
 const NUMERIC_STYPE: Record<number, SType> = {
   2: { tag: 'SByte' }, 3: { tag: 'SShort' }, 4: { tag: 'SInt' }, 5: { tag: 'SLong' },
 }
+// TNUM_VAR: the STypeVar descriptor used in tpeParams (STypeVar = { name: string }).
+// TNUM_TPE: the SType position form used in tDom/tRange (discriminated-union member).
+const TNUM_VAR: STypeVar = { name: 'TNum' }
+const TNUM_TPE: SType = { tag: 'STypeVar', name: 'TNum' }
 function numericV6Signatures(): Array<[string, MethodSignature]> {
   const e: Array<[string, MethodSignature]> = []
   for (const id of Object.keys(NUMERIC_STYPE).map(Number)) {
     const recv = NUMERIC_STYPE[id]!
     e.push([key(id, 6), { tDom: [recv], tRange: SCOLL_BYTE }])
     e.push([key(id, 7), { tDom: [recv], tRange: SCOLL_BOOL }])
+    e.push([key(id, 8), { tDom: [TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
+    e.push([key(id, 9), { tDom: [TNUM_TPE, TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
+    e.push([key(id, 10), { tDom: [TNUM_TPE, TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
+    e.push([key(id, 11), { tDom: [TNUM_TPE, TNUM_TPE], tRange: TNUM_TPE, tpeParams: [TNUM_VAR] }])
   }
   return e
 }
