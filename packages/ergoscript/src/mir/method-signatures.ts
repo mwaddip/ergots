@@ -56,6 +56,19 @@ function key(typeId: number, methodId: number): string {
 const SCOLL_BYTE: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
 const SCOLL_INT: SType = { tag: 'SColl', elem: { tag: 'SInt' } }
 const SCOLL_IV: SType = { tag: 'SColl', elem: { tag: 'STypeVar', name: 'IV' } }
+const SCOLL_BOOL: SType = { tag: 'SColl', elem: { tag: 'SBoolean' } }
+const NUMERIC_STYPE: Record<number, SType> = {
+  2: { tag: 'SByte' }, 3: { tag: 'SShort' }, 4: { tag: 'SInt' }, 5: { tag: 'SLong' },
+}
+function numericV6Signatures(): Array<[string, MethodSignature]> {
+  const e: Array<[string, MethodSignature]> = []
+  for (const id of Object.keys(NUMERIC_STYPE).map(Number)) {
+    const recv = NUMERIC_STYPE[id]!
+    e.push([key(id, 6), { tDom: [recv], tRange: SCOLL_BYTE }])
+    e.push([key(id, 7), { tDom: [recv], tRange: SCOLL_BOOL }])
+  }
+  return e
+}
 
 /**
  * Declarative catalog. Each entry transcribes sigma-rust's `SMethodDesc.tpe`
@@ -88,6 +101,7 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
       tpeParams: [{ name: 'IV' }],
     },
   ],
+  ...numericV6Signatures(),
 ])
 
 /** Look up a method's declared signature, or `undefined` if unregistered. */

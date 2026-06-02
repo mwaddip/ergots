@@ -67,6 +67,7 @@ import {
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
+import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
 import {
   evalSHeaderId,
@@ -98,7 +99,7 @@ const SBOX: SType = { tag: 'SBox' }
 const SINT: SType = { tag: 'SInt' }
 const SHEADER: SType = { tag: 'SHeader' }
 
-type HandlerFn = (
+export type HandlerFn = (
   obj: SValue,
   args: SValue[],
   ctx: EvalContext,
@@ -852,6 +853,11 @@ function registerHandlers(): void {
     handler: (obj, args, ctx) => evalSHeaderCheckPow(obj, args, ctx),
     minVersion: 3,  // V3 gate — sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3
   })
+
+  // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.
+  for (const { typeId, methodId, handler } of numericV6Handlers()) {
+    HANDLERS.set(handlerKey(typeId, methodId), { handler, minVersion: 3 })
+  }
 }
 
 registerHandlers()
