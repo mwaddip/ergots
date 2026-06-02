@@ -6,6 +6,7 @@
   },
   "description": "Pure-TypeScript Ergo NiPoPoW proof verifier — parse, serialize, verify, compare; plus the P2P envelope codec.",
   "type": "module",
+  "sideEffects": false,
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,12 +15,12 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./envelope": {
-      "import": "./dist/envelope.js",
-      "types": "./dist/envelope.d.ts"
+      "types": "./dist/envelope.d.ts",
+      "import": "./dist/envelope.js"
     }
   },
   "main": "./dist/index.js",
@@ -32,6 +33,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:watch": "vitest",

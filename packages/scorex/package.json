@@ -4,6 +4,7 @@
   "publishConfig": { "access": "public" },
   "description": "Pure-TypeScript Scorex wire codec (VLQ, ZigZag VLQ, ByteReader/Writer) plus Ergo block-Header / AutolykosSolution data types shared across @ergots/* packages.",
   "type": "module",
+  "sideEffects": false,
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -12,8 +13,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "main": "./dist/index.js",
@@ -21,6 +22,7 @@
   "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:watch": "vitest",
