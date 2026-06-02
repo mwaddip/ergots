@@ -8,12 +8,10 @@
  * `SColl.flatMap` / `SOption.map` handlers need to type an empty/None result,
  * and that the val-def type store records at parse time.
  *
- * THIS PHASE populates only methods whose `t_range` is CLOSED (no type var):
- * `resolveReturnTpe` returns such a `t_range` verbatim. A `t_range` that
- * references a type var falls back to `SAny` (the load-bearing cascade
- * placeholder — see memory `reference_sany_type_checks_skip_not_fail`); the
- * type-variable substitution engine is deferred until the first generic-OUTPUT
- * method is registered, so we don't ship unexercised substitution machinery.
+ * `resolveReturnTpe` returns a CLOSED `t_range` verbatim; a `t_range`
+ * referencing type vars is resolved via the unification + substitution engine
+ * (`mir/type-unify.ts`), with `SAny` as the cascade fallback when operands
+ * cannot bind a var (see memory `reference_sany_type_checks_skip_not_fail`).
  *
  * Layering: this module lives in `mir/` (the IR layer) and imports only
  * `mir/types` + `mir/stype-helpers`. It does NOT depend on `eval/`, mirroring
@@ -32,14 +30,16 @@
 
 import type { SType, STypeVar } from './types'
 import { hasTypeVar } from './stype-helpers'
+import { applySubst, unifyTypeLists } from './type-unify'
+import type { STypeSubst } from './type-unify'
 
 /**
  * A method's static signature, mirroring sigma-rust `SMethodDesc.tpe` (an
  * `SFunc`). `tDom = [receiverType, ...argTypes]`; `tRange` is the return type,
  * which MAY reference type vars bound by `tDom` / `explicitTypeArgs`
- * (substitution is deferred this phase — see module doc). `tpeParams` lists the
- * method's declared type params (sigma-rust `SFunc.tpe_params`); omitted for
- * monomorphic methods.
+ * (resolved by `resolveReturnTpe` via the substitution engine). `tpeParams`
+ * lists the method's declared type params (sigma-rust `SFunc.tpe_params`);
+ * omitted for monomorphic methods.
  */
 export interface MethodSignature {
   readonly tDom: readonly SType[]
@@ -87,16 +87,35 @@ export function methodSignature(
  * sigma-rust's substitution inputs (`receiver` unifies `tDom[0]`, `argTpes`
  * unify `tDom[1..]`, `explicitTypeArgs` supply method type params).
  *
- * THIS PHASE: returns `tRange` verbatim when it is CLOSED (no type var); a
- * `tRange` referencing a type var returns `{ tag: 'SAny' }` (substitution
- * deferred — same cascade fallback as an unregistered method). The args are
- * accepted now so the signature is stable when the substitution branch lands.
+ * Closed `tRange` (no type var) is returned verbatim. A type-var `tRange` is
+ * resolved by applying `explicitTypeArgs` then unifying the signature's `tDom`
+ * against `[receiver, ...argTpes]` (≡ JVM `MethodCall.tpe()`); an operand that
+ * cannot bind a var leaves a residual, which falls back to `{ tag: 'SAny' }`
+ * (the cascade). See `mir/type-unify.ts` + the v6 P0 spec.
  */
 export function resolveReturnTpe(
   sig: MethodSignature,
-  _receiver: SType,
-  _argTpes: readonly SType[],
-  _explicitTypeArgs: Record<string, SType>
+  receiver: SType,
+  argTpes: readonly SType[],
+  explicitTypeArgs: Record<string, SType>
 ): SType {
-  return hasTypeVar(sig.tRange) ? { tag: 'SAny' } : sig.tRange
+  // Closed tRange: substitution is identity — return verbatim (the A3 path,
+  // preserved EXACTLY for getEncoded 7:2, indices 12:14, and any future
+  // closed-tRange method). Skipping unification makes the invariance structural.
+  if (!hasTypeVar(sig.tRange)) return sig.tRange
+
+  // Generic tRange. Mirror JVM getSpecializedMethodFor (MethodCallSerializer.scala:84,96):
+  //   (1) apply explicit type args to tDom + tRange (withConcreteTypes), THEN
+  //   (2) unify the substituted tDom against [receiver, ...argTpes] (specializeFor).
+  const explicitSubst: STypeSubst = new Map(Object.entries(explicitTypeArgs))
+  const tDom = sig.tDom.map((t) => applySubst(t, explicitSubst))
+  const tRange = applySubst(sig.tRange, explicitSubst)
+
+  const unified = unifyTypeLists(tDom, [receiver, ...argTpes])
+  const resolved = unified === null ? tRange : applySubst(tRange, unified)
+
+  // Safety net (no JVM analog — JVM never sees unresolved types): any residual
+  // type var means the operands couldn't bind it (e.g. an SAny-cascade receiver)
+  // → fall back to SAny (the load-bearing cascade placeholder).
+  return hasTypeVar(resolved) ? { tag: 'SAny' } : resolved
 }
