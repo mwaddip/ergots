@@ -240,7 +240,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Does NOT ship yet (deferred):**
 
-- Broader method-call surface beyond the 44 registered handlers: `Coll.zipWith` / `.reverse` / `.patch` / `.updated` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader`/`SGroupElement` methods (negate). Wait until phase 2i-d or corpus demand resurfaces.
+- Broader method-call surface: `Coll.zipWith` / `.reverse` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader` methods. (`Coll.patch` [iter-28], `Coll.updated`, `Coll.updateMany`, `SGroupElement.negate` are now implemented.) Wait until corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
 - `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
@@ -255,6 +255,19 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - No new `EvalError` codes; no new method handlers (registry unchanged). Ergoscript test count: 3413.
 
 **Phase A3 COMPLETE.** See `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`.
+
+**Phase v5 Coll/GroupElement methods — `negate` / `updated` / `updateMany`** (additive; 3 new method handlers + 2 new `EvalError` codes; 2026-06-02):
+
+- 3 new method handlers (registry → **54** actual `HANDLERS` registrations):
+  - **`SGroupElement.negate` (7:5)** — Pattern A `FixedCost(45)`; additive inverse `−P` via `decodePoint → pointNegate → encodePoint` (flips the SEC1 parity prefix byte; identity → identity).
+  - **`SColl.updated` (12:20)** — Pattern B `addPerItemCost(20, 1, 10, n)` on input length; copy with index `i` replaced by `v`; OOB index → `'coll-update-index-out-of-range'` (a NEGATIVE index wraps to a huge `usize` in sigma-rust ⇒ also OOB).
+  - **`SColl.updateMany` (12:21)** — Pattern B `addPerItemCost(20, 2, 10, n)` on input length; sequential replace of each `indexes[k]` with `values[k]` (last write wins on a repeated index); errors on indexes/values length mismatch (`'coll-update-many-length-mismatch'`), then per-index OOB (`'coll-update-index-out-of-range'`).
+- **Cost gotcha:** `updateMany`'s perChunkCost is **2**, NOT 1 — `sigma/ast/methods.scala:1055` (canonical JVM), and sigma-rust `ergo-node-integration` agrees. The stale vendored `external/sigma-rust @ integration/ergots` checkout reads `1`; do NOT source cost from it. The n=14 conformance vector (cost 160) pins perChunk=2 (1 would give 159).
+- **Deliberate deviation:** `updateMany`'s sigma-rust input/values elem-type-mismatch check is OMITTED — unreachable for type-checked trees, untested by the vectors, and a strict `SType` compare would false-positive against `SAny`-typed colls (`reference_sany_type_checks_skip_not_fail`).
+- 2 new `EvalError` codes (64 → 66): `'coll-update-index-out-of-range'`, `'coll-update-many-length-mismatch'`.
+- These are valid v5 language methods (ErgoTree-v2-evaluable) but **unused on mainnet** — the tip-reaching walk never exercised them; implementing now closes a latent missing-arm halt. Validated against the JVM-blessed SANTA conformance vectors (`test/fixtures/conformance/v5/{GroupElement.negate,Coll_updated,Coll_updateMany}_*.json`, 27 entries) via `test/conformance/cost-v5.test.ts`. Ergoscript test count: node 3469 / jsdom 3469.
+
+**Phase v5 Coll/GroupElement methods COMPLETE.**
 
 ## Public surface (v0.2.0)
 
@@ -369,7 +382,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (55 codes)
+## `EvalError` taxonomy (66 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -508,6 +521,11 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 - **`'deserialize-tpe-mismatch'`** — `DeserializeContext` / `DeserializeRegister` substitute pass: `exprTpe(parsed) !== e.tpe`. Check runs on BOTH the register-decoded inner Expr AND the `default` fallback Expr (per `mir/expr.rs:486-491` — applied post-`.or(default.as_deref().cloned())`). Mirrors `SubstDeserializeError::ExprTpeError { expected, actual }` at line 727.
 - **`'deserialize-not-substituted'`** — `DeserializeContext` / `DeserializeRegister` eval-time defensive throw. Reached when the substitute pass did NOT rewrite a node. Two cases: (a) `DeserializeRegister` with register absent + `e.default === null` — sigma-rust `substitute_deserialize` returns `Ok(())` LEAVING the node unchanged per `mir/expr.rs:478-481` ("When script in register is not found, and default is not defined, leave DeserializeRegisterNode unchanged, which will error on evaluation"); the defensive throw is the canonical mirror. (b) Recursive Deserialize: an outer Deserialize* decoded to an inner Expr containing another Deserialize* node — sigma-rust's `try_rewrite_bu` does NOT re-walk substituted children (`mir/expr.rs:397-408`), so the inner Deserialize survives and trips this throw.
 
+### Phase v5 Coll-update codes (Coll.updated / Coll.updateMany)
+
+- **`'coll-update-index-out-of-range'`** — `SColl.updated` (12:20) / `SColl.updateMany` (12:21): a target index is out of bounds for the receiver Coll. Genuine runtime error (indices are runtime `Int` values, not type-constrained); a NEGATIVE index wraps to a huge `usize` in sigma-rust ⇒ also OOB. Source: sigma-rust `UPDATED_EVAL_FN` / `UPDATE_MANY_EVAL_FN` (`eval/scoll.rs`, branch `ergo-node-integration`).
+- **`'coll-update-many-length-mismatch'`** — `SColl.updateMany` (12:21): the `indexes` and `values` colls differ in length (genuine runtime error — lengths aren't constrained by the `Coll[T].updateMany(Coll[Int], Coll[T])` signature). Checked before the per-index OOB loop. Source: same.
+
 No other error codes are emitted by the v0.2.0 evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
 ## Dispatcher minVersion gating (phase 2h-c.2)
@@ -516,7 +534,7 @@ The method-call dispatcher consults an optional `minVersion?: number` field on e
 
 Two registry entries currently use `minVersion: 3`: `SHeader.checkPow` (104:16; phase 2h-c.2) and `SAvlTree.insertOrUpdate` (100:16; phase 2h-d) — both mirror sigma-rust descriptors with `min_version: ErgoTreeVersion::V3`. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
 
-## Method-handler registry (49 entries)
+## Method-handler registry (54 entries; table enumerates 52)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -571,6 +589,13 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 47 | `SContext.selfBoxIndex` | 101:8 | 20 | A | `Int` — 0-based index of `ctx.selfBox` in `ctx.inputs` via reference equality; **gated by `activated_script_version = saturating_sub(preHeader.version, 1)`** — pre-V2 blocks return -1 unconditionally (JVM bug #603 compat; the JVM ref-eq bug was fixed globally in v5.x, so the gate is BLOCK-level not tree-level — `[[feedback-tree-version-gate]]`). Throws `'context-field-missing'` for missing preHeader, missing selfBox/inputs on V2+, or selfBox-not-in-inputs (chain-invariant violation). First exercised on mainnet at h=342,964 — same block where sigma-rust originally diverged from JVM (fixed in their v0.2.0) | `eval/scontext.rs:33-57` |
 | 48 | `SPreHeader.parentId` | 105:2 | 10 | A | `Coll[Byte]` (32-byte `obj.value.parentId`, sign-extended per byte via `bytesToCollByteSValue`); contrast row 46 (`SPreHeader.minerPk`) which returns `SGroupElement` of the raw pubkey | `eval/spreheader.rs:14-18` |
 | 49 | `SPreHeader.height` | 105:5 | 10 | A | `Int` (`obj.value.height`, JS number passthrough — sigma-rust `as i32`) | `eval/spreheader.rs:32-36` |
+| 50 | `SGroupElement.negate` | 7:5 | 45 | A | `GroupElement` (additive inverse `−P`; flips SEC1 parity prefix; identity → identity) | `eval/sgroup_elem.rs` (ergo-node-integration) |
+| 51 | `SColl.updated` | 12:20 | `addPerItemCost(20, 1, 10, n)` | B | `Coll[T]` (copy, index `i`→`v`); OOB → `'coll-update-index-out-of-range'` | `eval/scoll.rs` (ergo-node-integration) |
+| 52 | `SColl.updateMany` | 12:21 | `addPerItemCost(20, 2, 10, n)` | B | `Coll[T]` (each `idx[k]`→`val[k]`, last-write-wins); len-mismatch → `'coll-update-many-length-mismatch'`, OOB → `'coll-update-index-out-of-range'` | `eval/scoll.rs` (ergo-node-integration) |
+
+(Rows 50-52 are the v5 `negate`/`updated`/`updateMany` handlers. `updateMany` perChunkCost is **2** per the canonical JVM `methods.scala:1055` — the stale vendored `integration/ergots` checkout reads 1; cost was sourced from the JVM + the n=14 conformance vector, not that checkout.)
+
+(Table enumerates 52 rows; the `HANDLERS` map has **54** registrations — 2 interim entries predate this table and remain untabled, a pre-existing doc drift flagged for a future sweep, not chased here.)
 
 (`SColl.zip`'s `n` = obj length, NOT `min(obj, arg)` — Pattern B charges based on obj's length per sigma-rust.)
 

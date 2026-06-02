@@ -619,3 +619,28 @@ export type EvalErrorCode =
    *         ergotree-interpreter/src/eval/deserialize_context.rs (tests-only)
    */
   | 'deserialize-not-substituted'
+
+  // -------------------------------------------------------------------------
+  // v5 Coll update methods — Coll.updated / Coll.updateMany (2 new codes; 64 → 66)
+  // -------------------------------------------------------------------------
+  /**
+   * `SColl.updated` (typeId 12, methodId 20) / `SColl.updateMany` (12:21):
+   * a target index is out of bounds for the receiver Coll. Genuine runtime
+   * error — indices are runtime Int values, not type-constrained. sigma-rust
+   * casts `i32 as usize` then `Vec::get_mut(idx)` → `None` ⇒ error, so a
+   * NEGATIVE index wraps to a huge usize and is OOB as well.
+   *
+   * Source: sigma-rust UPDATED_EVAL_FN / UPDATE_MANY_EVAL_FN
+   *         (eval/scoll.rs, branch ergo-node-integration).
+   */
+  | 'coll-update-index-out-of-range'
+  /**
+   * `SColl.updateMany` (typeId 12, methodId 21): the `indexes` and `values`
+   * Colls have different lengths. Genuine runtime error (lengths are runtime
+   * values, not constrained by the `Coll[T].updateMany(Coll[Int], Coll[T])`
+   * signature). Checked before the per-index OOB loop, matching sigma-rust.
+   *
+   * Source: sigma-rust UPDATE_MANY_EVAL_FN length guard
+   *         (eval/scoll.rs, branch ergo-node-integration).
+   */
+  | 'coll-update-many-length-mismatch'

@@ -47,6 +47,7 @@ import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
 import { sValueEquals } from './bin-op/relation'
+import { decodePoint, pointNegate, encodePoint } from '../crypto/secp256k1'
 import {
   evalSAvlTreeContains,
   evalSAvlTreeDigest,
@@ -435,6 +436,26 @@ function registerHandlers(): void {
     return bytesToCollByteSValue(obj.value)
   } })
 
+  // SGroupElement.negate (MethodCall, typeId=7, methodId=5) — v5 method
+  // Source: sigma-rust NEGATE_EVAL_FN (eval/sgroup_elem.rs, branch
+  // ergo-node-integration — the clean reference; cross-checked vs the JVM).
+  // Cost FixedCost(45): sigma/ast/methods.scala:670 (Negate_CostKind), charged
+  // BEFORE the op (mirrors sigma-rust line 29). Value = additive inverse −P
+  // (same x, flipped y-parity → flips the SEC1 prefix byte); decode → negate →
+  // encode mirrors multiply-group.ts / exponentiate.ts. Identity (0x00-lead /
+  // 33 zero bytes) → identity, via the Ergo identity convention baked into
+  // crypto/secp256k1.ts decodePoint/encodePoint.
+  HANDLERS.set(handlerKey(7, 5), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(45) // methods.scala:670 Negate_CostKind = FixedCost(JitCost(45))
+    if (obj.kind !== 'GroupElement') {
+      throw new EvalError(
+        `SGroupElement.negate expects a GroupElement obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'GroupElement', value: encodePoint(pointNegate(decodePoint(obj.value))) }
+  } })
+
   // SColl.indices (MethodCall, typeId=12, methodId=14)
   // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
   // Pattern B cost: addPerItemCost(20, 2, 16, n) AFTER Coll extraction.
@@ -566,6 +587,120 @@ function registerHandlers(): void {
         ...obj.items.slice(from + replaced),
       ],
     }
+  } })
+
+  // SColl.updated (MethodCall, typeId=12, methodId=20) — v5 method
+  // Source: sigma-rust UPDATED_EVAL_FN (eval/scoll.rs, branch ergo-node-integration).
+  // Cost PerItemCost(20,1,10) on INPUT length n (sigma/ast/methods.scala:1035,
+  // canonical), charged BEFORE arg handling. Returns a copy
+  // with index i replaced by v. sigma-rust does `i as i32 as usize` then
+  // `res.get_mut(idx)` → None ⇒ err, so a NEGATIVE i wraps to a huge usize and is
+  // OOB as well. Result elem type = input's elem type. V0+ (UPDATED_METHOD min
+  // V0). Unused on mainnet — a valid v5 language method (SANTA conformance only).
+  HANDLERS.set(handlerKey(12, 20), { handler: (obj, args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.updated expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    const n = obj.items.length
+    ctx.addPerItemCost(20, 1, 10, n) // PerItemCost(20,1,10); source: methods.scala:1035
+    if (args.length !== 2) {
+      throw new EvalError(
+        `SColl.updated expects 2 args; got ${args.length}`,
+        'method-not-implemented'
+      )
+    }
+    const [indexArg, valueArg] = args as [SValue, SValue]
+    if (indexArg.kind !== 'Int') {
+      throw new EvalError(
+        `SColl.updated expects 'index' to be Int; got '${indexArg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    // sigma-rust: `i as usize` + get_mut(idx) → None on OOB; a negative i wraps
+    // to a huge usize and is OOB. So reject index < 0 OR index >= n.
+    if (indexArg.value < 0 || indexArg.value >= n) {
+      throw new EvalError(
+        `SColl.updated: index ${indexArg.value} out of bounds for Coll of length ${n}`,
+        'coll-update-index-out-of-range'
+      )
+    }
+    const items = obj.items.slice()
+    items[indexArg.value] = valueArg
+    return { kind: 'Coll', elem: obj.elem, items }
+  } })
+
+  // SColl.updateMany (MethodCall, typeId=12, methodId=21) — v5 method
+  // Source: sigma-rust UPDATE_MANY_EVAL_FN (eval/scoll.rs, branch
+  // ergo-node-integration — the clean reference; the vendored integration/ergots
+  // checkout is stale on this method's cost). Cost PerItemCost(20,2,10) on INPUT
+  // length n: perChunkCost is 2, NOT 1 (sigma/ast/methods.scala:1055, canonical;
+  // sigma-rust ergo-node-integration agrees). The n=14 vector (cost 160) pins it —
+  // perChunk=1 would give 159. Charged BEFORE arg handling. Replaces each
+  // indexes[k] with values[k] (sequential ⇒ last write wins on a repeated index).
+  // Errors: indexes/values length mismatch, then per-index OOB (a negative index
+  // wraps to a huge usize ⇒ OOB too). The sigma-rust input/values elem-type-
+  // mismatch check is intentionally OMITTED: unreachable for type-checked trees,
+  // untested, and a strict SType compare would false-positive against SAny-typed
+  // colls (the iter-19 skip-don't-fail rule). Result elem type = input's. V0+.
+  // Unused on mainnet — valid v5 language (SANTA conformance only).
+  HANDLERS.set(handlerKey(12, 21), { handler: (obj, args, ctx, _explicitTypeArgs) => {
+    if (obj.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.updateMany expects a Coll obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    const n = obj.items.length
+    ctx.addPerItemCost(20, 2, 10, n) // perChunk=2 (JVM); source: methods.scala:1055
+    if (args.length !== 2) {
+      throw new EvalError(
+        `SColl.updateMany expects 2 args; got ${args.length}`,
+        'method-not-implemented'
+      )
+    }
+    const [indexesArg, valuesArg] = args as [SValue, SValue]
+    if (indexesArg.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.updateMany expects 'indexes' to be a Coll; got '${indexesArg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    if (valuesArg.kind !== 'Coll') {
+      throw new EvalError(
+        `SColl.updateMany expects 'values' to be a Coll; got '${valuesArg.kind}'`,
+        'method-not-implemented'
+      )
+    }
+    // sigma-rust order: length mismatch (scoll.rs:308) before the per-index OOB loop.
+    if (indexesArg.items.length !== valuesArg.items.length) {
+      throw new EvalError(
+        `SColl.updateMany: indexes/values length mismatch ` +
+          `(${indexesArg.items.length} vs ${valuesArg.items.length})`,
+        'coll-update-many-length-mismatch'
+      )
+    }
+    const items = obj.items.slice()
+    for (let k = 0; k < indexesArg.items.length; k++) {
+      const idx = indexesArg.items[k]!
+      if (idx.kind !== 'Int') {
+        throw new EvalError(
+          `SColl.updateMany expects each index to be Int; got '${idx.kind}'`,
+          'method-not-implemented'
+        )
+      }
+      // negative wraps to a huge usize ⇒ OOB; idx >= n ⇒ OOB (scoll.rs:328).
+      if (idx.value < 0 || idx.value >= n) {
+        throw new EvalError(
+          `SColl.updateMany: index ${idx.value} out of bounds for Coll of length ${n}`,
+          'coll-update-index-out-of-range'
+        )
+      }
+      items[idx.value] = valuesArg.items[k]!
+    }
+    return { kind: 'Coll', elem: obj.elem, items }
   } })
 
   // SOption.map (MethodCall, typeId=36, methodId=7) — campaign iter-29

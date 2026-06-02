@@ -26,6 +26,9 @@ const vectorDir = path.join(__dirname, '../fixtures/conformance/v5')
 const VECTOR_FILES = [
   'Coll_flatMap_method_equivalence.json',
   'Coll_indexOf_method_equivalence.json',
+  'Coll_updated_method_equivalence.json',
+  'Coll_updateMany_method_equivalence.json',
+  'GroupElement.negate_equivalence.json',
   'NEQ_of_nested_collections_and_tuples.json',
   'SigmaProp.propBytes_equivalence.json',
   'substConstants_equivalence.json',
