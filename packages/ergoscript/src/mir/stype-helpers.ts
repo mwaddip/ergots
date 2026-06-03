@@ -12,6 +12,7 @@ const PRIMITIVE_TAGS: ReadonlySet<SType['tag']> = new Set<SType['tag']>([
   'SInt',
   'SLong',
   'SBigInt',
+  'SUnsignedBigInt',
   'SGroupElement',
   'SSigmaProp',
   'SBox',
@@ -30,8 +31,8 @@ const PRIMITIVE_TAGS: ReadonlySet<SType['tag']> = new Set<SType['tag']>([
  * except the four composites (`SColl`, `STuple`, `SOption`, `SFunc`) and
  * `STypeVar`.
  *
- * Matches sigma-rust's `SType::is_prim` (less `SUnsignedBigInt`, not modeled
- * here).
+ * Matches sigma-rust's `SType::is_prim`. `SUnsignedBigInt` is included (a v6
+ * embeddable primitive).
  */
 export function isPrimitive(t: SType): boolean {
   return PRIMITIVE_TAGS.has(t.tag)
@@ -89,6 +90,8 @@ export function sTypeEquals(a: SType, b: SType): boolean {
     case 'SLong':
       return true
     case 'SBigInt':
+      return true
+    case 'SUnsignedBigInt':
       return true
     case 'SGroupElement':
       return true

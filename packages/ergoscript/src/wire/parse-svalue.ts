@@ -529,6 +529,9 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
         'not-implemented-phase-2a'
       )
 
+    case 'SUnsignedBigInt':
+      throw new SValueParseError('SUnsignedBigInt codec not yet implemented (Task 3)', 'not-implemented-phase-2a')
+
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
       const _exhaust: never = t

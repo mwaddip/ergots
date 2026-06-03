@@ -503,6 +503,9 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
         'not-implemented-phase-2a'
       )
 
+    case 'SUnsignedBigInt':
+      throw new SValueSerializeError('SUnsignedBigInt codec not yet implemented (Task 3)', 'not-implemented-phase-2a')
+
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
       const _exhaust: never = t

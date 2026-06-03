@@ -104,10 +104,10 @@ describe('SType helpers', () => {
  *   TUPLE_PAIR1 = 60, TUPLE_PAIR2 = 72, TUPLE_PAIR_SYMMETRIC = 84,
  *   TUPLE = 96 (Tuple with explicit length)
  *
- * Embeddable primitive codes (1..8 modelled; 9 = SUnsignedBigInt is v6-only
- * and not in our discriminated union):
+ * Embeddable primitive codes (1..9; 9 = SUnsignedBigInt is v6-only, accepted
+ * permissively at parse — version gate lives in validateV6Types):
  *   SBoolean=1, SByte=2, SShort=3, SInt=4, SLong=5, SBigInt=6,
- *   SGroupElement=7, SSigmaProp=8.
+ *   SGroupElement=7, SSigmaProp=8, SUnsignedBigInt=9.
  *
  * Non-embeddable primitives:
  *   SAny=97, SUnit=98, SBox=99, SAvlTree=100, SContext=101, SString=102,
@@ -345,14 +345,16 @@ describe('SType wire format', () => {
     expect(() => parseSType(r)).toThrow(STypeParseError)
   })
 
-  it('rejects SUnsignedBigInt primitive type code (9)', () => {
+  it('parses SUnsignedBigInt primitive type code (9)', () => {
+    // P2a: code 9 is now accepted permissively (version gate deferred to validateV6Types).
     const r = new ByteReader(new Uint8Array([9]))
-    expect(() => parseSType(r)).toThrow(STypeParseError)
+    expect(parseSType(r)).toEqual({ tag: 'SUnsignedBigInt' })
   })
 
-  it('rejects SColl[SUnsignedBigInt] short-form (12 + 9 = 21)', () => {
+  it('parses SColl[SUnsignedBigInt] short-form (12 + 9 = 21)', () => {
+    // P2a: compact Coll form with embedded SUnsignedBigInt is accepted permissively.
     const r = new ByteReader(new Uint8Array([21]))
-    expect(() => parseSType(r)).toThrow(STypeParseError)
+    expect(parseSType(r)).toEqual({ tag: 'SColl', elem: { tag: 'SUnsignedBigInt' } })
   })
 
   it('rejects unknown high type code (110)', () => {

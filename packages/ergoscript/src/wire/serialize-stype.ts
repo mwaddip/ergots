@@ -58,6 +58,8 @@ function embeddablePrimitiveCode(t: SType): number | null {
       return 5
     case 'SBigInt':
       return 6
+    case 'SUnsignedBigInt':
+      return 9
     case 'SGroupElement':
       return 7
     case 'SSigmaProp':
@@ -99,6 +101,9 @@ export function serializeSType(t: SType, w: ByteWriter): void {
       return
     case 'SBigInt':
       w.writeU8(6)
+      return
+    case 'SUnsignedBigInt':
+      w.writeU8(9)
       return
     case 'SGroupElement':
       w.writeU8(7)

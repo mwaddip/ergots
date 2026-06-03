@@ -549,6 +549,9 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return a.value === (b as typeof a).value
     }
 
+    case 'UnsignedBigInt':
+      throw new EvalError('SUnsignedBigInt operations are not in P2a (P2b/P2c)', 'unsigned-bigint-op-unsupported')
+
     default: {
       const _exhaust: never = a
       throw new Error(`sValueEquals: unreachable kind ${JSON.stringify(_exhaust)}`)
@@ -644,6 +647,8 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
       return headerEqual(a.value, (b as typeof a).value)
     case 'String':
       return a.value === (b as typeof a).value
+    case 'UnsignedBigInt':
+      throw new EvalError('SUnsignedBigInt operations are not in P2a (P2b/P2c)', 'unsigned-bigint-op-unsupported')
     default: {
       const _exhaust: never = a
       throw new Error(`primitiveValueEqual: unreachable kind ${JSON.stringify(_exhaust)}`)

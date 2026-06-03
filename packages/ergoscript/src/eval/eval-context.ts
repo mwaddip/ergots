@@ -12,6 +12,19 @@
 import type { Header } from '@ergots/scorex'
 import type { ErgoBox, PreHeader, ContextExtension, SValue } from '../mir/types'
 
+/**
+ * Evaluator error. `code` is a stable string key for programmatic matching.
+ *
+ * Known codes (representative, not exhaustive):
+ *   'cost-limit-exceeded'          — JIT cost limit overrun
+ *   'arith-overflow'               — arithmetic overflow / division by zero
+ *   'downcast-overflow'            — Downcast narrowing failed
+ *   'bin-op-not-numeric'           — BinOp applied to a non-numeric operand
+ *   'bin-op-kind-mismatch'         — BinOp operand kinds mismatch (V3+)
+ *   'bigint-result-out-of-range'   — BigInt256 arithmetic result overflows ±2^255
+ *   'v6-type-in-pre-v3-tree'       — SUnsignedBigInt type found in a pre-V3 tree
+ *   'unsigned-bigint-op-unsupported' — SUnsignedBigInt operations (P2b/P2c scope)
+ */
 export class EvalError extends Error {
   constructor(
     message: string,

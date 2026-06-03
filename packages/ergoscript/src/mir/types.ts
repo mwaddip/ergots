@@ -35,6 +35,7 @@ export type SType =
   | { tag: 'SInt' }
   | { tag: 'SLong' }
   | { tag: 'SBigInt' }
+  | { tag: 'SUnsignedBigInt' }
   | { tag: 'SGroupElement' }
   | { tag: 'SSigmaProp' }
   | { tag: 'SBox' }
@@ -851,6 +852,7 @@ export type SValue =
   | { kind: 'Int'; value: number }
   | { kind: 'Long'; value: bigint }
   | { kind: 'BigInt'; value: bigint }
+  | { kind: 'UnsignedBigInt'; value: bigint }
   | { kind: 'GroupElement'; value: Uint8Array }
   | { kind: 'SigmaProp'; value: SigmaBoolean }
   | { kind: 'Box'; value: ErgoBox }
