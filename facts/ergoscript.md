@@ -39,7 +39,7 @@ Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 
 ### Package shape
 
-One published npm package, `@ergots/ergoscript`. **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
+One published npm package, `@ergots/ergoscript` (**published to npm as `@ergots/ergoscript@0.2.0`**, 2026-06-02). **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
 
 ### Runtime dependencies
 
@@ -80,7 +80,7 @@ See `docs/specs/` for per-phase test-strategy detail.
 | AVL+ | Integrated via `@ergots/avltree` v0.2.0: full 16 of 16 `SAvlTree.*` method handlers wired (phase 2h-b: 7 Tier-1 accessors + 6 Tier-2 verification ops; phase 2h-d: `updateOperations`/`updateDigest` Tier-1 + V3-gated `insertOrUpdate` Tier-2) |
 | Cost-equivalence | Infrastructure landed in phase 2j-a (mainnet-validate harness wiring: shim emits sigma-rust per-input cost via `reduce_to_crypto` + `ctx.jit_cost_value()`; harness compares vs our `ctx.jitCost`; halt-on-first-divergence with structured `error-report.json`). Layer-5 smoke clean to h=1000; first cost-drift surfaced at h=3850 (delta 24, ours undercharged). Per-arm calibration ongoing in 2j-b/c/... |
 
-Cross-runtime: 3527 ergoscript + 156 avltree + 247 nipopow + 177 scorex = 4107 tests, passing under both `node` and `jsdom` (v6 P1 + C1 final-review fix complete).
+Cross-runtime: 3580 ergoscript + 156 avltree + 247 nipopow + 177 scorex = 4160 tests, passing under both `node` and `jsdom` (v6 P2a complete).
 
 **Convention:** when a slice file's coverage changes, this summary table is updated in the same commit.
 
