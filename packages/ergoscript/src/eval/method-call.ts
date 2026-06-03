@@ -898,6 +898,34 @@ function registerHandlers(): void {
     return { kind: 'UnsignedBigInt', value: umod(obj.value, m.value) }
   } })
 
+  // SUnsignedBigInt.plusMod (9:15) — v6 P2d-1. FixedCost(30) (methods.scala:583), Pattern A.
+  // (a + that) mod m. Source: CUnsignedBigInt.scala:61-65.
+  HANDLERS.set(handlerKey(9, 15), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(30)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.plusMod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const that = args[0], m = args[1]
+    if (that?.kind !== 'UnsignedBigInt' || m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.plusMod: expected UnsignedBigInt arguments`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value + that.value, m.value) }
+  } })
+
+  // SUnsignedBigInt.subtractMod (9:16) — v6 P2d-1. FixedCost(30) (methods.scala:589), Pattern A.
+  // (a − that) mod m; intermediate may be < 0 (umod is Euclidean). Source: CUnsignedBigInt.scala:67-71.
+  HANDLERS.set(handlerKey(9, 16), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(30)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.subtractMod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const that = args[0], m = args[1]
+    if (that?.kind !== 'UnsignedBigInt' || m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.subtractMod: expected UnsignedBigInt arguments`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value - that.value, m.value) }
+  } })
+
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.
   for (const { typeId, methodId, handler } of numericV6Handlers()) {
     HANDLERS.set(handlerKey(typeId, methodId), { handler, minVersion: 3 })
