@@ -19,6 +19,7 @@ import {
   treeHasDeserialize,
 } from './_substitute-deserialize'
 import { validateBinOpTypes } from './validate-bin-op-types'
+import { validateV6Types } from './validate-v6-types'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -124,9 +125,16 @@ function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
       ? substituteConstants(tree.body, tree.constants, tree.constantTypes)
       : tree.body
     const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx)
+    // JVM-align: reject v3+-only type constructs (SUnsignedBigInt/SFunc) in a
+    // pre-V3 tree (constantTypes[] + the post-substitution body) before any
+    // eval/cost, matching the JVM's deserialize-time rejection. See
+    // eval/validate-v6-types.ts. Walks rewrittenBody so attacker-controlled
+    // Deserialize* sub-trees are covered.
+    validateV6Types(tree, rewrittenBody, treeVersion)
     validateBinOpTypes(rewrittenBody, treeVersion)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
+  validateV6Types(tree, tree.body, treeVersion)
   validateBinOpTypes(tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }
