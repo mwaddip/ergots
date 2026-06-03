@@ -60,6 +60,7 @@ const SCOLL_BOOL: SType = { tag: 'SColl', elem: { tag: 'SBoolean' } }
 const NUMERIC_STYPE: Record<number, SType> = {
   2: { tag: 'SByte' }, 3: { tag: 'SShort' }, 4: { tag: 'SInt' }, 5: { tag: 'SLong' },
   6: { tag: 'SBigInt' },
+  9: { tag: 'SUnsignedBigInt' }, // v6 P2b — UBI inherits the numeric method signatures (tNum→UBI)
 }
 // TNUM_VAR: the STypeVar descriptor used in tpeParams (STypeVar = { name: string }).
 // TNUM_TPE: the SType position form used in tDom/tRange (discriminated-union member).
