@@ -126,6 +126,13 @@ describe('SColl.startsWith (12:31)', () => {
   it('static return type is Boolean (closed)', () => {
     expect(resolveReturnTpe(methodSignature(12, 31)!, { tag: 'SColl', elem: SINT }, [{ tag: 'SColl', elem: SINT }], {})).toEqual({ tag: 'SBoolean' })
   })
+  it('mismatched element TYPE → false, not throw (JVM-faithful; sigma-rust fork throws)', () => {
+    // Hand-crafted Coll[Long].startsWith(Coll[Int]) — adversarial-only. JVM Coll.startsWith
+    // uses Scala == (cross-kind → false); ergots' cost-free sValueStructuralEq matches. The
+    // stale sigma-rust fork throws here; JVM is canonical (project_jvm_alignment_workstream).
+    const e: MethodCallExpr = { tag: 'MethodCall', obj: constExpr(longColl(1), { tag: 'SColl', elem: SLONG }), args: [constExpr(collOf([{ kind: 'Int', value: 1 }], SINT), { tag: 'SColl', elem: SINT })], typeId: 12, methodId: 31, explicitTypeArgs: {} }
+    expect(evalMethodCall(e, Env.empty(), v3())).toEqual(bool(false))
+  })
 })
 
 describe('SColl.endsWith (12:32)', () => {
@@ -155,5 +162,9 @@ describe('SColl.endsWith (12:32)', () => {
     let threw: EvalError | undefined
     try { evalMethodCall(call2(longColl(1), 32, longColl(1)), Env.empty(), makeContext({ treeVersion: 2 })) } catch (e) { threw = e as EvalError }
     expect(threw?.code).toBe('tree-version-too-low')
+  })
+  it('mismatched element TYPE → false, not throw (JVM-faithful; sigma-rust fork throws)', () => {
+    const e: MethodCallExpr = { tag: 'MethodCall', obj: constExpr(longColl(1), { tag: 'SColl', elem: SLONG }), args: [constExpr(collOf([{ kind: 'Int', value: 1 }], SINT), { tag: 'SColl', elem: SINT })], typeId: 12, methodId: 32, explicitTypeArgs: {} }
+    expect(evalMethodCall(e, Env.empty(), v3())).toEqual(bool(false))
   })
 })
