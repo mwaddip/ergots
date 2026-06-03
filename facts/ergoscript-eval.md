@@ -386,6 +386,22 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase v6 P2c DONE (2026-06-03).** Method handler registry: 104 entries. EvalError codes: 72 (unchanged). Full suite: 3624 green (node + jsdom). `tsc --noEmit` clean.
 
+**Phase v6 P2d-1 — `SUnsignedBigInt` modular methods** (additive; 5 new method handlers + 0 new `EvalError` codes; 2026-06-03):
+
+- **5 new method handlers** (registry 104 → 109), all `minVersion: 3`, all `FixedCost` Pattern A:
+  | method | `typeId:methodId` | cost | semantics |
+  |---|---|---|---|
+  | `UnsignedBigInt.plusMod`     | 9:15 | 30 | `(a + that) mod m` |
+  | `UnsignedBigInt.subtractMod` | 9:16 | 30 | `(a − that) mod m` (intermediate may be `< 0`) |
+  | `UnsignedBigInt.multiplyMod` | 9:17 | 40 | `(a · that) mod m` |
+  | `UnsignedBigInt.mod`         | 9:18 | 20 | `a mod m` |
+  | `BigInt.toUnsignedMod`       | 6:15 | 15 | `aSigned mod m` → UBI (receiver may be `< 0`) |
+- All reductions go through one Euclidean primitive `umod(x,m) = ((x % m) + m) % m` (`eval/_ubi-modular.ts`) — Java `BigInteger.mod` is Euclidean, JS `%` is a remainder. Result is always `∈ [0, m) ⊂ [0, 2²⁵⁶)`, so the UBI bound is satisfied for free — **no range/overflow path**.
+- **0 new `EvalError` codes.** Only reachable error is `m == 0` (UBI is `≥ 0`, so `m ≤ 0 ⟺ m == 0`; JVM throws `ArithmeticException("BigInteger: modulus not positive")`) → reuses **`'arith-divide-by-zero'`** (same code `evalUBIArith` already uses for UBI modulo-by-zero). Wrong-kind operand → existing `'numeric-method-bad-operand'`.
+- `mir/method-signatures.ts`: 5 closed-`tRange` `SUnsignedBigInt` entries (so `exprTpe` resolves results).
+- Source: JVM `methods.scala:551-623`, `CUnsignedBigInt.scala:47-77`, `CBigInt.scala:77-79`. Oracle: `LanguageSpecificationV6.scala` `verifyCases`. Spec: `docs/specs/2026-06-03-ergoscript-v6-p2d1-ubi-modular-methods-design.md`.
+- **Deferred to P2d-2:** `UnsignedBigInt.modInverse` (9:14, `FixedCost(150)`).
+
 ## Public surface (v0.3.0)
 
 ```ts
