@@ -79,3 +79,51 @@ describe('SColl.get (12:33)', () => {
     expect(resolveReturnTpe(sig, { tag: 'SColl', elem: SLONG }, [SINT], {})).toEqual({ tag: 'SOption', elem: SLONG })
   })
 })
+
+const bool = (v: boolean): SValue => ({ kind: 'Boolean', value: v })
+function bigColl(...vals: number[]): SValue { return collOf(vals.map((v) => ({ kind: 'BigInt', value: BigInt(v) })), { tag: 'SBigInt' }) }
+function call2(obj: SValue, methodId: number, arg: SValue): MethodCallExpr {
+  return { tag: 'MethodCall', obj: constExpr(obj, { tag: 'SColl', elem: SLONG }), args: [constExpr(arg, { tag: 'SColl', elem: SLONG })], typeId: 12, methodId, explicitTypeArgs: {} }
+}
+
+describe('SColl.startsWith (12:31)', () => {
+  it('true prefix; cost = 4 + 5 + 5 + handler 11 (Zip on receiver len=3) = 25', () => {
+    const ctx = v3()
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 31, longColl(1, 2)), Env.empty(), ctx)).toEqual(bool(true))
+    expect(ctx.jitCost).toBe(25)
+  })
+  it('full-equal prefix → true', () => {
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 31, longColl(1, 2, 3)), Env.empty(), v3())).toEqual(bool(true))
+  })
+  it('mismatched prefix → false', () => {
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 31, longColl(1, 2, 4)), Env.empty(), v3())).toEqual(bool(false))
+  })
+  it('longer prefix than receiver → false', () => {
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 31, longColl(1, 2, 3, 4)), Env.empty(), v3())).toEqual(bool(false))
+  })
+  it('empty prefix on empty → true; empty-receiver cost = 4 + 5 + 5 + 11 = 25', () => {
+    const ctx = v3()
+    expect(evalMethodCall(call2(longColl(), 31, longColl()), Env.empty(), ctx)).toEqual(bool(true))
+    expect(ctx.jitCost).toBe(25)
+  })
+  it('COST-FREE comparison regression: matching multi-element startsWith charges ONLY the Zip envelope (no per-element EQ)', () => {
+    // 3 matching Long elements: if sValueEquals leaked in, cost would be 25 + 3×EQ_PRIM(3) = 34.
+    const ctx = v3()
+    evalMethodCall(call2(longColl(1, 2, 3), 31, longColl(1, 2, 3)), Env.empty(), ctx)
+    expect(ctx.jitCost).toBe(25)
+  })
+  it('COST-FREE regression with BigInt elements (louder: leaked cost would be +3×EQ_BIGINT)', () => {
+    const ctx = v3()
+    const e: MethodCallExpr = { tag: 'MethodCall', obj: constExpr(bigColl(1, 2, 3), { tag: 'SColl', elem: { tag: 'SBigInt' } }), args: [constExpr(bigColl(1, 2, 3), { tag: 'SColl', elem: { tag: 'SBigInt' } })], typeId: 12, methodId: 31, explicitTypeArgs: {} }
+    evalMethodCall(e, Env.empty(), ctx)
+    expect(ctx.jitCost).toBe(25) // NOT 25 + 3×EQ_BIGINT(5) = 40
+  })
+  it('rejects pre-V3 with tree-version-too-low', () => {
+    let threw: EvalError | undefined
+    try { evalMethodCall(call2(longColl(1), 31, longColl(1)), Env.empty(), makeContext({ treeVersion: 2 })) } catch (e) { threw = e as EvalError }
+    expect(threw?.code).toBe('tree-version-too-low')
+  })
+  it('static return type is Boolean (closed)', () => {
+    expect(resolveReturnTpe(methodSignature(12, 31)!, { tag: 'SColl', elem: SINT }, [{ tag: 'SColl', elem: SINT }], {})).toEqual({ tag: 'SBoolean' })
+  })
+})
