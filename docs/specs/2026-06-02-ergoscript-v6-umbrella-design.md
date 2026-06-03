@@ -206,7 +206,7 @@ The corrected decomposition closes the two lowest-risk groups first:
   - **0 new `EvalError` codes** (registry 104 → 109): `m == 0` reuses `'arith-divide-by-zero'`; wrong-kind
     operand reuses `'numeric-method-bad-operand'`. 5 closed-`tRange` `method-signatures.ts` entries.
   - Oracle = JVM `LanguageSpecificationV6.scala verifyCases` (incl. the `subtractMod(0,24,10)=6` underflow
-    and `toUnsignedMod(50,0)→Failure` cases). Full suite: **3657 green (node + jsdom)**, `tsc` clean. Spec:
+    and `toUnsignedMod(50,0)→Failure` cases). Full suite: **3658 green (node + jsdom)**, `tsc` clean. Spec:
     `2026-06-03-ergoscript-v6-p2d1-ubi-modular-methods-design.md`.
 - **P2d-2** (`UnsignedBigInt.modInverse` 9:14, `FixedCost(150)`; hand-written extended-Euclidean) — pending; the 95%-crypto-confidence-bar piece, deliberately carved out.
 

@@ -57,6 +57,11 @@ describe('UBI.mod (9:18) — v6 P2d-1', () => {
   it('m == 0 → arith-divide-by-zero', () => {
     expectThrow(() => evalMethodCall(ubiMC(18, 7n, [0n]), Env.empty(), v3()), 'arith-divide-by-zero')
   })
+  it('m == 0: FixedCost still charged before the throw (cost-then-throw order; 4+5+5+20)', () => {
+    const c = v3()
+    expect(() => evalMethodCall(ubiMC(18, 7n, [0n]), Env.empty(), c)).toThrow()
+    expect(c.jitCost).toBe(34)
+  })
   it('wrong-kind receiver → numeric-method-bad-operand', () => {
     const bad = {
       tag: 'MethodCall',
