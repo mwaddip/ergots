@@ -279,8 +279,8 @@ function addPerItemJitCost(
  *
  * Iter-20: the SAvlTree/SBox/SPreHeader/SHeader arms were originally missing
  * (fell through to DEFAULT), causing a cost-drift on `Coll[SAvlTree]` equality
- * at mainnet h=972,275. SUnsignedBigInt (v6) maps to BIGINT in sigma-rust but
- * is not modelled here (pre-v6 trees only).
+ * at mainnet h=972,275. SUnsignedBigInt (v6, P2c) maps to EQ_COA_BigInt (same
+ * constant as SBigInt), handled by the explicit arm below.
  */
 function collEqPerItemCost(elem: SType): PerItemCost {
   switch (elem.tag) {
@@ -290,6 +290,7 @@ function collEqPerItemCost(elem: SType): PerItemCost {
     case 'SLong':         return EQ_COLL_LONG_PER_ITEM
     case 'SBoolean':      return EQ_COLL_BOOLEAN_PER_ITEM
     case 'SBigInt':       return EQ_COLL_BIGINT_PER_ITEM
+    case 'SUnsignedBigInt': return EQ_COLL_BIGINT_PER_ITEM // mirror BigInt (EQ_COA_BigInt)
     case 'SGroupElement': return EQ_COLL_GROUP_ELEMENT_PER_ITEM
     case 'SAvlTree':      return EQ_COLL_AVL_TREE_PER_ITEM
     case 'SBox':          return EQ_COLL_BOX_PER_ITEM
@@ -310,7 +311,7 @@ function collEqPerItemCost(elem: SType): PerItemCost {
 function isCoaCollElem(elem: SType): boolean {
   switch (elem.tag) {
     case 'SByte': case 'SShort': case 'SInt': case 'SLong': case 'SBoolean':
-    case 'SBigInt': case 'SGroupElement': case 'SAvlTree': case 'SBox':
+    case 'SBigInt': case 'SUnsignedBigInt': case 'SGroupElement': case 'SAvlTree': case 'SBox':
     case 'SPreHeader': case 'SHeader':
       return true
     default:
@@ -550,8 +551,8 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       return a.value === (b as typeof a).value
     }
 
-    case 'UnsignedBigInt':
-      throw new EvalError('SUnsignedBigInt operations are not in P2a (P2b/P2c)', 'unsigned-bigint-op-unsupported')
+    // UnsignedBigInt — mirrors BigInt (JVM descriptors map both to EQ_BigInt).
+    case 'UnsignedBigInt': ctx.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
 
     default: {
       const _exhaust: never = a
@@ -649,7 +650,7 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'String':
       return a.value === (b as typeof a).value
     case 'UnsignedBigInt':
-      throw new EvalError('SUnsignedBigInt operations are not in P2a (P2b/P2c)', 'unsigned-bigint-op-unsupported')
+      return a.value === (b as typeof a).value
     default: {
       const _exhaust: never = a
       throw new Error(`primitiveValueEqual: unreachable kind ${JSON.stringify(_exhaust)}`)
