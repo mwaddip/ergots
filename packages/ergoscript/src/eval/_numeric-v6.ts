@@ -142,10 +142,11 @@ const bigIntDesc: NumV6 = {
 // Maximum value of an unsigned 256-bit integer (2^256 - 1).
 const UBI_MAX = (1n << 256n) - 1n
 
-// EvalError code for a UnsignedBigInt result outside [0, 2^256). Reused by the
-// cast arms (Task 4) for a negative value cast to UBI. Distinct from P1's
-// signed 'bigint-result-out-of-range'.
-const UBI_OUT_OF_RANGE = 'unsigned-bigint-out-of-range'
+// EvalError code for a UnsignedBigInt value outside [0, 2^256): a shiftLeft
+// result >= 2^256 (below), or a negative value cast to UBI in `_cast-ubi.ts`
+// (which imports this constant). Distinct from P1's signed
+// 'bigint-result-out-of-range'.
+export const UBI_OUT_OF_RANGE = 'unsigned-bigint-out-of-range'
 
 const ubiDesc: NumV6 = {
   typeId: 9, kind: 'UnsignedBigInt', shiftBound: 256,

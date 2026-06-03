@@ -67,6 +67,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { downcastUBI } from './_cast-ubi'
 import {
   bigIntToValue,
   checkRange,
@@ -105,8 +106,18 @@ function sTypeToNumericKind(t: SType): NumericKind {
 export function evalDowncast(e: Downcast, env: Env, ctx: EvalContext): SValue {
   const input = evalExpr(e.input, env, ctx)
   ctx.addCost(
-    e.tpe.tag === 'SBigInt' ? DOWNCAST_COST_BIGINT_TARGET : DOWNCAST_COST_OTHER_TARGET
+    e.tpe.tag === 'SBigInt' || e.tpe.tag === 'SUnsignedBigInt'
+      ? DOWNCAST_COST_BIGINT_TARGET
+      : DOWNCAST_COST_OTHER_TARGET
   )
+  // UBI cast matrix (source or target = SUnsignedBigInt) is handled in
+  // `_cast-ubi.ts`, isolated from the shared numeric helpers. Intercept
+  // before the v5 isNumeric guard (which rejects UnsignedBigInt) so a UBI
+  // source/target reaches its JVM-faithful arm. Cost charged above (target-
+  // based: 30 for SUnsignedBigInt, matching NumericCastCostKind).
+  if (e.tpe.tag === 'SUnsignedBigInt' || input.kind === 'UnsignedBigInt') {
+    return downcastUBI(input, e.tpe)
+  }
   if (!isNumeric(input.kind)) {
     throw new EvalError(
       `Downcast: operand kind must be numeric, got '${input.kind}'`,
