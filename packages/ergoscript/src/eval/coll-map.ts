@@ -255,6 +255,8 @@ function inferSType(v: SValue): SType {
       return { tag: 'SAny' }
     case 'AvlTree':
       return { tag: 'SAvlTree' }
+    case 'UnsignedBigInt':
+      return { tag: 'SUnsignedBigInt' }
     default:
       throw new EvalError(
         `Map: cannot infer SType for SValue kind '${(v as never as { kind: string }).kind}'`,
