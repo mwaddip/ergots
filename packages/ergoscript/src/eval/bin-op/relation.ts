@@ -29,6 +29,7 @@ import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
 import { isNumeric, valueToBigInt, bigIntToValue, widerKind, upcastCost } from './_numeric'
+import { compareUBI } from './_ubi-binop'
 import { serializeSigmaBoolean } from '../../wire/sigma-boolean'
 import { ByteWriter } from '@ergots/scorex'
 
@@ -691,6 +692,21 @@ export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
 
   // Step 1: eval left operand first (sigma-rust bin_op.rs:190).
   const left = evalExpr(e.left, env, ctx)
+
+  // UBI ordering — routed locally, before the isNumeric guard (P2b Critical 1).
+  // Both operands must be UBI; ordering cost is the flat 20 (spec §3).
+  if (left.kind === 'UnsignedBigInt') {
+    ctx.addCost(RELATION_ORDERING_COST)
+    const right = evalExpr(e.right, env, ctx)
+    if (right.kind !== 'UnsignedBigInt') {
+      throw new EvalError(
+        `BinOp.Relation.${op}: UnsignedBigInt operand requires an UnsignedBigInt other operand, got '${right.kind}'`,
+        'bin-op-kind-mismatch',
+      )
+    }
+    return { kind: 'Boolean', value: compareUBI(op, left.value, right.value) }
+  }
+
   if (!isNumeric(left.kind)) {
     throw new EvalError(
       `BinOp.Relation.${op}: non-numeric left operand kind ${left.kind}`,

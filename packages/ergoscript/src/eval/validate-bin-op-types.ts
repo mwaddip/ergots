@@ -40,6 +40,7 @@ function isNumericTpe(t: SType): boolean {
     case 'SInt':
     case 'SLong':
     case 'SBigInt':
+    case 'SUnsignedBigInt': // v6 P2c — UBI is an SNumericType (JVM), so OnlyNumeric admits it
       return true
     default:
       return false
