@@ -69,7 +69,7 @@ import {
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
-import { umod } from './_ubi-modular'
+import { umod, umodInverse } from './_ubi-modular'
 import {
   evalSHeaderId,
   evalSHeaderVersion,
@@ -953,6 +953,21 @@ function registerHandlers(): void {
       throw new EvalError(`BigInt.toUnsignedMod: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
     }
     return { kind: 'UnsignedBigInt', value: umod(obj.value, m.value) }
+  } })
+
+  // SUnsignedBigInt.modInverse (9:14) — v6 P2d-2. FixedCost(150) (methods.scala:574), Pattern A.
+  // Modular multiplicative inverse via hand-rolled extended Euclidean (umodInverse). m==0 ⇒
+  // arith-divide-by-zero (via umod); gcd(a,m)!=1 ⇒ unsigned-bigint-not-invertible. Source: CUnsignedBigInt.scala:57-59.
+  HANDLERS.set(handlerKey(9, 14), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(150)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.modInverse: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const m = args[0]
+    if (m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.modInverse: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umodInverse(obj.value, m.value) }
   } })
 
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.

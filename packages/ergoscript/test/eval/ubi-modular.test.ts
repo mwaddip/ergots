@@ -178,3 +178,51 @@ describe('BigInt.toUnsignedMod (6:15) — v6 P2d-1 (JVM verifyCases :2466-2472)'
     expect(exprTpe(toUnsignedModMC(50n, 10n) as unknown as Expr)).toEqual(SUBI)
   })
 })
+
+describe('UBI.modInverse (9:14) — v6 P2d-2 (JVM verifyCases :2874-2880; BasicOps :590-628)', () => {
+  it('(12).modInverse(5) = 3, cost 164 (4 dispatcher + 5 recv + 5 m + 150 handler)', () => {
+    const c = v3()
+    expect(evalMethodCall(ubiMC(14, 12n, [5n]), Env.empty(), c)).toEqual(ubi(3n))
+    expect(c.jitCost).toBe(164)
+  })
+  it('(3).modInverse(7) = 5  [3·5 = 15 ≡ 1 mod 7]', () => {
+    expect(evalMethodCall(ubiMC(14, 3n, [7n]), Env.empty(), v3())).toEqual(ubi(5n))
+  })
+  it('m == 0 → arith-divide-by-zero  [JVM: ArithmeticException "modulus not positive"]', () => {
+    expectThrow(() => evalMethodCall(ubiMC(14, 7n, [0n]), Env.empty(), v3()), 'arith-divide-by-zero')
+  })
+  it('m == 0: FixedCost still charged before the throw (cost-then-throw; 4+5+5+150)', () => {
+    const c = v3()
+    expect(() => evalMethodCall(ubiMC(14, 7n, [0n]), Env.empty(), c)).toThrow()
+    expect(c.jitCost).toBe(164)
+  })
+  it('gcd(a,m) != 1 → unsigned-bigint-not-invertible  [(2).modInverse(4): gcd=2]', () => {
+    expectThrow(() => evalMethodCall(ubiMC(14, 2n, [4n]), Env.empty(), v3()), 'unsigned-bigint-not-invertible')
+  })
+  it('m == 1 → 0  [trivial ring; falls out of the algorithm, no special-case branch]', () => {
+    expect(evalMethodCall(ubiMC(14, 5n, [1n]), Env.empty(), v3())).toEqual(ubi(0n))
+  })
+  it('a == 0, m > 1 → unsigned-bigint-not-invertible  [gcd(0,5)=5]', () => {
+    expectThrow(() => evalMethodCall(ubiMC(14, 0n, [5n]), Env.empty(), v3()), 'unsigned-bigint-not-invertible')
+  })
+  it('large 256-bit operand: a·modInverse(a, n) ≡ 1 (mod n)  [n = secp256k1 order, prime]', () => {
+    const a = 2n ** 255n - 19n
+    const inv = (evalMethodCall(ubiMC(14, a, [groupOrder]), Env.empty(), v3()) as { value: bigint }).value
+    expect((a * inv) % groupOrder).toBe(1n)
+  })
+  it('wrong-kind receiver → numeric-method-bad-operand', () => {
+    const bad = {
+      tag: 'MethodCall',
+      obj: constOf({ tag: 'SInt' }, { kind: 'Int', value: 1 } as SValue),
+      args: [constOf(SUBI, ubi(5n))],
+      typeId: 9, methodId: 14, explicitTypeArgs: {},
+    } as unknown as MC
+    expectThrow(() => evalMethodCall(bad, Env.empty(), v3()), 'numeric-method-bad-operand')
+  })
+  it('pre-V3 tree (treeVersion 2) → tree-version-too-low', () => {
+    expectThrow(() => evalMethodCall(ubiMC(14, 12n, [5n]), Env.empty(), makeContext({ treeVersion: 2 })), 'tree-version-too-low')
+  })
+  it('exprTpe → SUnsignedBigInt', () => {
+    expect(exprTpe(ubiMC(14, 12n, [5n]) as unknown as Expr)).toEqual(SUBI)
+  })
+})
