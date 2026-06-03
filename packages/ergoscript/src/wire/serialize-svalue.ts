@@ -503,8 +503,22 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
         'not-implemented-phase-2a'
       )
 
-    case 'SUnsignedBigInt':
-      throw new SValueSerializeError('SUnsignedBigInt codec not yet implemented (Task 3)', 'not-implemented-phase-2a')
+    case 'SUnsignedBigInt': {
+      assertKind(t, v, 'UnsignedBigInt')
+      const bytes = encodeUnsignedBigIntBE(v.value)
+      if (bytes.length > 32) {
+        // Defensive: an out-of-range UBI is an internal invariant violation,
+        // unreachable from a valid parse or a v6 method (the JVM serialize has
+        // no cap, but a >32B UBI cannot arise legitimately). See spec §3.
+        throw new SValueSerializeError(
+          `SUnsignedBigInt requires ${bytes.length} bytes; exceeds 32-byte limit`,
+          'unsigned-bigint-too-large',
+        )
+      }
+      w.writeVlqU(bytes.length)
+      w.writeBytes(bytes)
+      return
+    }
 
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
@@ -538,6 +552,27 @@ function assertKind<K extends SValue['kind']>(
       'type-value-mismatch'
     )
   }
+}
+
+/**
+ * Encode a non-negative bigint as minimal unsigned big-endian magnitude bytes.
+ * Mirrors sigma.crypto.BigIntegers.asUnsignedByteArray (0 -> []; no sign pad).
+ * Distinct from encodeBigIntBE (signed two's-complement). See P2a spec §3.
+ */
+export function encodeUnsignedBigIntBE(v: bigint): Uint8Array {
+  if (v < 0n) {
+    throw new SValueSerializeError(
+      'SUnsignedBigInt value must be non-negative',
+      'unsigned-bigint-negative',
+    )
+  }
+  const bytes: number[] = []
+  let n = v
+  while (n > 0n) {
+    bytes.unshift(Number(n & 0xffn))
+    n >>= 8n
+  }
+  return new Uint8Array(bytes) // 0n -> [] (loop never runs)
 }
 
 /**

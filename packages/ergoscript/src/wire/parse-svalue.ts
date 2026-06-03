@@ -529,8 +529,20 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
         'not-implemented-phase-2a'
       )
 
-    case 'SUnsignedBigInt':
-      throw new SValueParseError('SUnsignedBigInt codec not yet implemented (Task 3)', 'not-implemented-phase-2a')
+    case 'SUnsignedBigInt': {
+      // VLQ length + unsigned-magnitude BE bytes. Permissive on version (the v3
+      // gate is validateV6Types). Length-0 decodes to 0n (must accept; the JVM
+      // does — rejecting would be stricter = fork). See P2a spec §3.
+      const len = r.readVlqU()
+      if (len > 32) {
+        throw new SValueParseError(
+          `SUnsignedBigInt length ${len} exceeds 32 bytes`,
+          'unsigned-bigint-too-large',
+        )
+      }
+      const bytes = r.readBytes(len)
+      return { kind: 'UnsignedBigInt', value: decodeUnsignedBigIntBE(bytes) }
+    }
 
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
@@ -541,6 +553,13 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       )
     }
   }
+}
+
+/** Decode unsigned big-endian magnitude bytes to bigint ([] -> 0n). See spec §3. */
+function decodeUnsignedBigIntBE(bytes: Uint8Array): bigint {
+  let n = 0n
+  for (const b of bytes) n = (n << 8n) | BigInt(b)
+  return n
 }
 
 /**
