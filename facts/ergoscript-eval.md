@@ -404,6 +404,18 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase v6 P2d-1 DONE (2026-06-03).** Method handler registry: 109 entries. EvalError codes: 72 (unchanged). Eval arm coverage: 67/67 (unchanged — adds METHOD-REGISTRY entries, not eval arms). Full suite: 3658 green (node + jsdom). `tsc --noEmit` clean.
 
+**Phase v6 P2d-2 — `SUnsignedBigInt.modInverse`** (additive; 1 new method handler + 1 new `EvalError` code; 2026-06-03):
+
+- **1 new method handler** (registry 109 → 110), `minVersion: 3`, `FixedCost(150)` (`methods.scala:574`) Pattern A:
+  | method | `typeId:methodId` | cost | semantics |
+  |---|---|---|---|
+  | `UnsignedBigInt.modInverse` | 9:14 | 150 | `b ∈ [0, m)` with `a·b ≡ 1 (mod m)` |
+- Hand-rolled classic iterative **extended Euclidean** `umodInverse(a, m)` (`eval/_ubi-modular.ts`, beside `umod`) — JS `bigint` has no native modInverse. Reuses `umod` twice: reduce the base into `[0, m)`, normalize the Bézout coefficient into `[0, m)`. Result is always `∈ [0, m) ⊂ [0, 2²⁵⁶)`, so the UBI bound holds for free — **no range/overflow path**. `m == 1 → 0` falls out of the algorithm (no special case).
+- **1 new `EvalError` code** (72 → 73): `'unsigned-bigint-not-invertible'` — `gcd(a, m) ≠ 1` (no multiplicative inverse). `m == 0` reuses `'arith-divide-by-zero'` (inherited via the first `umod` call); wrong-kind operand → existing `'numeric-method-bad-operand'`.
+- `mir/method-signatures.ts`: 1 closed-`tRange` `(9, 14) → SUnsignedBigInt` entry.
+- Source: JVM `methods.scala:574-576`, `CUnsignedBigInt.scala:57-59` (`wrappedValue.modInverse(m)`). Oracle: `LanguageSpecificationV6.scala:2874-2880` (`modInverse(12,5)=3`) + `BasicOpsSpecification.scala:590-628` (`modInverse(3,7)=5`; `m==0` throws). Spec: `docs/specs/2026-06-03-ergoscript-v6-p2d2-ubi-modinverse-design.md`.
+- **P2 (`SUnsignedBigInt`) COMPLETE** — full v6 method surface landed (P2a type core · P2b methods+casts · P2c BinOps+bridges · P2d-1 modular · P2d-2 modInverse).
+
 ## Public surface (v0.3.0)
 
 ```ts
