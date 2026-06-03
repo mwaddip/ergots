@@ -127,3 +127,33 @@ describe('SColl.startsWith (12:31)', () => {
     expect(resolveReturnTpe(methodSignature(12, 31)!, { tag: 'SColl', elem: SINT }, [{ tag: 'SColl', elem: SINT }], {})).toEqual({ tag: 'SBoolean' })
   })
 })
+
+describe('SColl.endsWith (12:32)', () => {
+  it('true suffix; cost = 4 + 5 + 5 + 11 (Zip on receiver len=3) = 25', () => {
+    const ctx = v3()
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 32, longColl(2, 3)), Env.empty(), ctx)).toEqual(bool(true))
+    expect(ctx.jitCost).toBe(25)
+  })
+  it('non-suffix → false', () => {
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 32, longColl(1, 2)), Env.empty(), v3())).toEqual(bool(false))
+  })
+  it('full-equal → true', () => {
+    expect(evalMethodCall(call2(longColl(1, 2, 3), 32, longColl(1, 2, 3)), Env.empty(), v3())).toEqual(bool(true))
+  })
+  it('longer suffix than receiver → false', () => {
+    expect(evalMethodCall(call2(longColl(2, 3), 32, longColl(1, 2, 3)), Env.empty(), v3())).toEqual(bool(false))
+  })
+  it('empty suffix on empty → true', () => {
+    expect(evalMethodCall(call2(longColl(), 32, longColl()), Env.empty(), v3())).toEqual(bool(true))
+  })
+  it('COST-FREE regression: matching suffix charges only the Zip envelope', () => {
+    const ctx = v3()
+    evalMethodCall(call2(longColl(1, 2, 3), 32, longColl(1, 2, 3)), Env.empty(), ctx)
+    expect(ctx.jitCost).toBe(25)
+  })
+  it('rejects pre-V3 with tree-version-too-low', () => {
+    let threw: EvalError | undefined
+    try { evalMethodCall(call2(longColl(1), 32, longColl(1)), Env.empty(), makeContext({ treeVersion: 2 })) } catch (e) { threw = e as EvalError }
+    expect(threw?.code).toBe('tree-version-too-low')
+  })
+})

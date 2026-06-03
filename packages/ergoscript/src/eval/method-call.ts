@@ -67,7 +67,7 @@ import {
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
-import { evalCollReverse, evalCollGet, evalCollStartsWith } from './scoll-v6'
+import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
 import { umod, umodInverse } from './_ubi-modular'
@@ -975,6 +975,7 @@ function registerHandlers(): void {
   // Source: sigma/ast/methods.scala SCollectionMethods v6Methods (:1211-1216).
   HANDLERS.set(handlerKey(12, 30), { handler: (obj, args, ctx) => evalCollReverse(obj, args, ctx), minVersion: 3 })
   HANDLERS.set(handlerKey(12, 31), { handler: (obj, args, ctx) => evalCollStartsWith(obj, args, ctx), minVersion: 3 })
+  HANDLERS.set(handlerKey(12, 32), { handler: (obj, args, ctx) => evalCollEndsWith(obj, args, ctx), minVersion: 3 })
   HANDLERS.set(handlerKey(12, 33), { handler: (obj, args, ctx) => evalCollGet(obj, args, ctx), minVersion: 3 })
 
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.

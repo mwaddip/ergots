@@ -42,6 +42,25 @@ export function evalCollStartsWith(obj: SValue, args: SValue[], ctx: EvalContext
   return { kind: 'Boolean', value: true }
 }
 
+// endsWith (12:32) — Zip_CostKind PerItemCost(10,1,10) on RECEIVER length.
+// Element comparison COST-FREE. JVM: methods.scala:1165-1181.
+export function evalCollEndsWith(obj: SValue, args: SValue[], ctx: EvalContext): SValue {
+  if (obj.kind !== 'Coll') {
+    throw new EvalError(`SColl.endsWith expects a Coll obj; got '${obj.kind}'`, 'method-not-implemented')
+  }
+  ctx.addPerItemCost(10, 1, 10, obj.items.length) // Zip_CostKind on receiver length; methods.scala:1163,1178
+  const suffix = args[0]
+  if (args.length !== 1 || suffix === undefined || suffix.kind !== 'Coll') {
+    throw new EvalError(`SColl.endsWith expects 1 Coll arg; got ${args.map((a) => a.kind).join(',')}`, 'method-not-implemented')
+  }
+  if (suffix.items.length > obj.items.length) return { kind: 'Boolean', value: false }
+  const offset = obj.items.length - suffix.items.length
+  for (let i = 0; i < suffix.items.length; i++) {
+    if (!sValueStructuralEq(obj.items[offset + i]!, suffix.items[i]!)) return { kind: 'Boolean', value: false }
+  }
+  return { kind: 'Boolean', value: true }
+}
+
 // get (12:33) — ByIndex.costKind FixedCost(30). Total: 0<=i<len ? Some : None.
 // JVM: methods.scala:1183-1189 (.withIRInfo(MethodCallIrBuilder) → stays a MethodCall).
 // tRange Option[IV] (generic; resolved by P0).
