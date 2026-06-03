@@ -128,7 +128,7 @@ is the living field — phases update it (and append findings / scope deltas) he
   closed). Refines the original "no P0 needed".
 - **Done (2026-06-02):** 40 MethodCall handlers (typeIds 2–6, methodIds 6–13) across Byte/Short/Int/Long/BigInt, all `minVersion: 3` gated. 3 new `EvalError` codes (`'numeric-shift-out-of-range'`, `'bigint-result-out-of-range'`, `'numeric-method-bad-operand'`). BigInt is signed-256-bounded (`checkBigInt256`). P0 type-var engine used for `bitwise*`/`shift*` return-type resolution. Final-review fix (C1): operand-kind guards on all 5 factory functions, preventing consensus over-accept on wrong-kind arguments. Full suite: 3527 green. Spec: `2026-06-02-ergoscript-v6-p1-numeric-methods-design.md`.
 
-### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b DONE (2026-06-03); P2c DONE (2026-06-03); P2d-1 DONE (2026-06-03); P2d-2 (modInverse) pending
+### P2 — `SUnsignedBigInt` (new type)  ·  status: COMPLETE (2026-06-03) — P2a · P2b · P2c · P2d-1 · P2d-2 all DONE
 
 **Corrected P2 decomposition (2026-06-03, after reading the JVM operation tables):**
 The original "P2b methods+casts / P2c modular+conversions" split silently omitted the
@@ -140,7 +140,7 @@ The corrected decomposition closes the two lowest-risk groups first:
 - **P2b** = UBI numeric/bitwise methods (typeId 9, methodIds 6–13) + full UBI cast matrix (`Upcast`/`Downcast` with UBI source or target)  ·  **status: in progress (this branch)**
 - **P2c** = UBI arithmetic + ordering BinOps (`+`, `−`, `×`, `/`, `%`, `<`, `≤`, `>`, `≥`) + equality (`==`/`!=`) + trivial `toUnsigned`/`toSigned` bridges  ·  **DONE (2026-06-03)**
 - **P2d-1** = the 5 mechanical modular methods: `mod`, `plusMod`, `subtractMod`, `multiplyMod` (UBI 9:18/15/16/17) + `BigInt.toUnsignedMod` (6:15)  ·  **DONE (2026-06-03)**
-- **P2d-2** = `UnsignedBigInt.modInverse` (9:14, `FixedCost(150)`; hand-written extended-Euclidean), carved out for focused scrutiny  ·  pending
+- **P2d-2** = `UnsignedBigInt.modInverse` (9:14, `FixedCost(150)`; hand-written extended-Euclidean), carved out for focused scrutiny  ·  **DONE (2026-06-03)**
 
 **Goal:** the new numeric type end-to-end: thin wire (`SType` code + parse/serialize),
   eval, cost, its full method set, and `BigInt.toUnsigned` / `toUnsignedMod`.
@@ -208,7 +208,22 @@ The corrected decomposition closes the two lowest-risk groups first:
   - Oracle = JVM `LanguageSpecificationV6.scala verifyCases` (incl. the `subtractMod(0,24,10)=6` underflow
     and `toUnsignedMod(50,0)→Failure` cases). Full suite: **3658 green (node + jsdom)**, `tsc` clean. Spec:
     `2026-06-03-ergoscript-v6-p2d1-ubi-modular-methods-design.md`.
-- **P2d-2** (`UnsignedBigInt.modInverse` 9:14, `FixedCost(150)`; hand-written extended-Euclidean) — pending; the 95%-crypto-confidence-bar piece, deliberately carved out.
+- **P2d-2 DONE (2026-06-03):** `UnsignedBigInt.modInverse` (9:14, `FixedCost(150)`, `minVersion: 3`) — the
+  95%-crypto-confidence-bar piece, carved out for focused scrutiny. Built via the full skill chain
+  (brainstorm → spec → writing-plans → subagent-driven TDD with spec + opus code-quality review). **Key points:**
+  - Hand-rolled classic iterative **extended Euclidean** `umodInverse(a, m)` (`eval/_ubi-modular.ts`, beside
+    `umod`) — JS `bigint` has no native modInverse. Reuses `umod` twice (reduce base into [0,m); normalize the
+    Bézout coefficient). Result ∈ [0,m) ⊂ [0,2²⁵⁶) ⇒ no range path. `m == 1 → 0` falls out (no special case).
+  - **1 new `EvalError` code** (registry 109 → 110; codes 72 → 73): `'unsigned-bigint-not-invertible'`
+    (`gcd(a,m) ≠ 1`). `m == 0` reuses `'arith-divide-by-zero'` (inherited via `umod`). 1 closed-`tRange`
+    `(9,14)→SUnsignedBigInt` signature entry.
+  - Oracle = JVM `LanguageSpecificationV6.scala:2874-2880` (`modInverse(12,5)=3`) +
+    `BasicOpsSpecification.scala:590-628` (`modInverse(3,7)=5`; `m==0` throws). Both blessed vectors
+    hand-traced; the opus code-quality review ran an exhaustive brute-force cross-check (0 defects, ship).
+    Full suite: **3669 green (node + jsdom)**, `tsc` clean. Spec:
+    `2026-06-03-ergoscript-v6-p2d2-ubi-modinverse-design.md`.
+- **P2 (`SUnsignedBigInt`) COMPLETE (2026-06-03)** — full v6 method surface landed (P2a type core · P2b
+  methods+casts · P2c BinOps+bridges · P2d-1 modular · P2d-2 modInverse). Next: P3 (Coll v6).
 
 ### P3 — Coll v6 methods  ·  status: not started
 - **Goal:** `find`, `reverse`, `startsWith`, `endsWith`, `get`, `getOrElse`(lazy),

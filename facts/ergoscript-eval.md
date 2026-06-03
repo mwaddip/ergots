@@ -416,6 +416,8 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - Source: JVM `methods.scala:574-576`, `CUnsignedBigInt.scala:57-59` (`wrappedValue.modInverse(m)`). Oracle: `LanguageSpecificationV6.scala:2874-2880` (`modInverse(12,5)=3`) + `BasicOpsSpecification.scala:590-628` (`modInverse(3,7)=5`; `m==0` throws). Spec: `docs/specs/2026-06-03-ergoscript-v6-p2d2-ubi-modinverse-design.md`.
 - **P2 (`SUnsignedBigInt`) COMPLETE** — full v6 method surface landed (P2a type core · P2b methods+casts · P2c BinOps+bridges · P2d-1 modular · P2d-2 modInverse).
 
+**Phase v6 P2d-2 DONE (2026-06-03).** Method handler registry: 110 entries. EvalError codes: 73. Eval arm coverage: 67/67 (unchanged). Full suite: 3669 green (node + jsdom). `tsc --noEmit` clean.
+
 ## Public surface (v0.3.0)
 
 ```ts
