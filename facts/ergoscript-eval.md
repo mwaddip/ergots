@@ -289,6 +289,30 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase v6 P1 COMPLETE (incl. C1 final-review fix).** Method handler registry: 94 entries. EvalError codes: 69. Eval arm coverage: 67/67 (unchanged — `MethodCall` arm was already wired; P1 adds METHOD-REGISTRY entries, not eval arms). Test count: 3527 (17 new guard tests).
 
+**Phase v6 P2a — `SUnsignedBigInt` type core** (additive; 2 new `EvalError` codes; no new eval arms or method handlers; 2026-06-03):
+
+- **`SUnsignedBigInt` added to the `SType` union** (type code 9, `SEmbeddable`; see `facts/ergoscript-wire.md` for the wire-layer additions). The `SValue` union gains `{ kind: 'UnsignedBigInt'; value: bigint }` — a distinct variant from `{ kind: 'BigInt'; value: bigint }` using the **unsigned magnitude** codec (see §Wire codec below). The `kind` distinction is required so `serializeSValue` selects the unsigned path and P2b method dispatch / operand guards can tell them apart (mirrors JVM's distinct `CUnsignedBigInt` wrapper at `SType.scala:194`). Adding the union member makes `tsc` flag every exhaustive `switch (v.kind)` that needs a new arm — compiler-guided completeness.
+
+- **Permissive parse stance** (gate is the pass, NOT the wire layer): `parseSValue(SUnsignedBigInt, …)` and `serializeSValue(SUnsignedBigInt, …)` carry NO version check. The v3 gate lives entirely in `validateV6Types` (see below), keyed on the authoritative `ctx.treeVersion`. A parse-without-eval consumer (e.g. `parseTree` for tooling) accepts a UBI constant at any tree version — that is the same parse-residual shape the already-shipped `validateBinOpTypes` carries, and is consensus-irrelevant (consensus evaluates → the pass fires → reject pre-eval, zero cost).
+
+- **New pre-eval pass `validateV6Types(tree, body, treeVersion)`** — wired into `dispatchTreeBody` (`eval/evaluate.ts`) beside `validateBinOpTypes`, BEFORE `tryTrivialReduce` / `evalExpr` and before any cost. Two surfaces walked:
+  1. **`tree.constantTypes[]`** — every segregated constant's declared `SType`, deep-checked for a forbidden construct. Mandatory (review Finding 1): a dead or never-evaluated segregated constant typed `SUnsignedBigInt` — or a type annotation like `Coll[SUnsignedBigInt]` carrying no UBI elements — never appears as a body expression, yet the JVM deserializes segregated constants eagerly and rejects code 9/112 there. A value-level body walk cannot catch it; only a `constantTypes[]` walk can.
+  2. **The body** — walk the `Expr` tree via `childrenOf` (from `_substitute-deserialize.ts`); for each node inspect its **wire-serialized type annotations** (NOT computed `exprTpe`) for a forbidden construct. Run on both `rewrittenBody` and raw `tree.body`, like `validateBinOpTypes`, so substituted-in `Deserialize*` sub-trees and CP→Const inlinings are covered.
+
+  Reject (under `treeVersion < 3`) if any walked `SType` **is or contains** `SUnsignedBigInt` **or** `SFunc` (deep-walking `SColl.elem`, `SOption.elem`, `STuple.items`, `SFunc.args`/`result`). Error: `EvalError('v6-type-in-pre-v3-tree')`, message naming the construct + position.
+
+  **Critical faithfulness rule — inspect serialized annotations, NOT computed `exprTpe`.** A v5 lambda's computed type is `SFunc` (synthesized by `exprTpe` of a `FuncValue`), but no `SFunc` type code is serialized for a first-order v5 lambda. Checking computed types would false-reject every valid v5 `map`/`fold` tree. The pass reads only the `.tpe` / `elemTpe` / `explicitTypeArgs` fields that came from `parseSType` on the wire. Annotation-carrying nodes (enumerated exhaustively, tsc-guided): `Const.tpe`, `ConstPlaceholder.tpe`, `ValUse.tpe`, `Collection.elemTpe`, `Upcast.tpe`, `Downcast.tpe`, `GetVar.tpe`, `ExtractRegisterAs.tpe`, `DeserializeContext.tpe`, `DeserializeRegister.tpe`, `FuncValue.args[].tpe`, `MethodCall.explicitTypeArgs`.
+
+- **`SFunc`-112 closure** — the same `validateV6Types` pass also gates the serialized `SFunc` type code (112) under `treeVersion < 3`, closing a pre-existing parser over-accept: `parseSType` accepted code 112 unconditionally, but the JVM gates it on `isV3OrLaterErgoTreeVersion` (`TypeSerializer.scala:211`). A v5 tree with a serialized `SFunc` annotation is an over-accept = latent fork. The pass deep-checks for `SFunc` everywhere it checks for `SUnsignedBigInt`; closing it in the same pass avoids a separate walk. (Gets its own dedicated test cases — v5 tree with code-112 annotation ⇒ rejected; v6 ⇒ accepted; v5 with first-order lambda ⇒ passes.)
+
+- **Operations not in P2a.** UBI **methods** (inherited numeric/bitwise ids 6–13, casts → P2b), modular arithmetic / conversions → P2c, `Upcast`/`Downcast` arms for UBI → P2b. A `UnsignedBigInt` SValue reaching an unsupported operation at eval throws `EvalError('unsigned-bigint-op-unsupported')`.
+
+- **2 new `EvalError` codes (69 → 71):** `'v6-type-in-pre-v3-tree'`, `'unsigned-bigint-op-unsupported'`. See the EvalError taxonomy section.
+
+- **Conformance** (option B gate — `dispatchTreeBody` runs pre-eval, covers `constantTypes[]` + `rewrittenBody` + raw `tree.body` at authoritative `ctx.treeVersion`): the accept/reject outcome for every input matches the JVM, which gates at type deserialization. The sole residual — `parseTree(v5 bytes with code 9/112)` succeeds where the JVM throws — is consensus-irrelevant (spend → eval → pass fires → reject) and the same shape as `validateBinOpTypes`'s parse-residual. Spec: `docs/specs/2026-06-03-ergoscript-v6-p2a-sunsignedbigint-type-core-design.md`.
+
+**Phase v6 P2a COMPLETE (contract-first; code lands in subsequent tasks).** Method handler registry: 94 entries (unchanged). EvalError codes: 71. Eval arm coverage: 67/67 (unchanged).
+
 ## Public surface (v0.3.0)
 
 ```ts
@@ -366,6 +390,7 @@ These hold on every `SValue` returned by the evaluator. Callers may rely on them
 type SType =
   | { tag: 'SBoolean' } | { tag: 'SByte' } | { tag: 'SShort' }
   | { tag: 'SInt' } | { tag: 'SLong' } | { tag: 'SBigInt' }
+  | { tag: 'SUnsignedBigInt' }                        // v6 P2a — type code 9; permissive parse, pre-eval gate
   | { tag: 'SGroupElement' } | { tag: 'SSigmaProp' } | { tag: 'SBox' }
   | { tag: 'SAvlTree' } | { tag: 'SUnit' } | { tag: 'SAny' }
   | { tag: 'SHeader' } | { tag: 'SPreHeader' } | { tag: 'SContext' }
@@ -380,6 +405,7 @@ type SValue =
   | { kind: 'Boolean'; value: boolean }
   | { kind: 'Byte' | 'Short' | 'Int'; value: number }
   | { kind: 'Long' | 'BigInt'; value: bigint }
+  | { kind: 'UnsignedBigInt'; value: bigint }         // v6 P2a — distinct from BigInt; unsigned magnitude
   | { kind: 'GroupElement'; value: Uint8Array }   // 33-byte compressed secp256k1
   | { kind: 'SigmaProp'; value: SigmaBoolean }    // see facts/ergoscript-sigma.md for SigmaBoolean
   | { kind: 'Box'; value: ErgoBox }
@@ -402,7 +428,7 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (69 codes)
+## `EvalError` taxonomy (71 codes)
 
 `EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted.
 
@@ -551,6 +577,11 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 - **`'numeric-shift-out-of-range'`** — any `X.shiftLeft` or `X.shiftRight` (typeIds 2–6, methodIds 12–13) when the `bits` argument is outside `[0, width)` where `width` is 8/16/32/64/256 for Byte/Short/Int/Long/BigInt respectively. Both `bits < 0` and `bits >= width` are rejected. Mirrors the JVM `ExactIntegral.shiftLeft`/`shiftRight` range guard (scala/ExactIntegral.scala) and `BigIntegerOps` range guard (CBigInt.scala). Source: `eval/_numeric-v6.ts:makeShift`.
 - **`'bigint-result-out-of-range'`** — any v6 BigInt operation whose result falls outside signed-256 range `[-2^255, 2^255 - 1]`. Currently reachable only via `BigInt.shiftLeft` (methodId 12), which can produce a result with bitLength > 255. `shiftRight` on an in-range value always stays in-range. Mirrors the JVM `CBigInt` constructor's `toSignedBigIntValueExact` (Extensions.scala:219) which throws `ArithmeticException` when `bitLength() > 255`. Distinct from `'byte-array-to-bigint-out-of-range'` (2i-a, which is for the `ByteArrayToBigInt` predef rejecting an over-width input). Source: `eval/_numeric-v6.ts:checkBigInt256`.
 - **`'numeric-method-bad-operand'`** — any of the 40 v6 numeric method handlers when the receiver `obj` or an operand argument (arg for `makeBinaryBitwise` / bits arg for `makeShift`) evaluates to an unexpected `kind`. Mirrors the JVM `asInstanceOf` / sigma-rust `try_extract_into` rejection at eval. Wire-format invariants (MethodCall construction enforces typed args at build time) make this unreachable for parser-produced trees; defensive against hand-crafted MIR (adversarial wrong-kind constant injected as `obj` or `args[0]`). Without this guard, wrong-kind Byte/Short/Int operands silently return garbage; wrong-kind Long/BigInt operands throw a raw `TypeError` — both are consensus over-accept vectors. The guard is unconditional at runtime (concrete `obj.kind` is always concrete, never SAny — this is NOT a static `exprTpe` check). Source: `eval/_numeric-v6.ts:requireKind` (final-review C1 fix).
+
+### Phase v6 P2a codes (`SUnsignedBigInt` type core)
+
+- **`'v6-type-in-pre-v3-tree'`** — `validateV6Types` pre-eval pass: a walked `SType` is or contains `SUnsignedBigInt` (type code 9) **or** `SFunc` (type code 112) in a tree with `treeVersion < 3`. Fired on wire-serialized type annotations (NOT computed `exprTpe` — a v5 `map`/`fold` lambda's computed type is `SFunc` but carries no serialized code-112 annotation and must NOT be rejected). Zero JIT cost — the pass runs before `addCost` is ever called. Matches the JVM rejection at type deserialization (`TypeSerializer.scala:211` for SFunc; `getEmbeddableType`/`embeddableV5` for SUnsignedBigInt), applied instead at the authoritative `ctx.treeVersion` post-parse. Both `tree.constantTypes[]` (segregated-constant declared types) and the Expr body (via `childrenOf`) are walked — the `constantTypes[]` walk is mandatory for dead segregated constants and empty-typed-coll constants that carry no decoded UBI value but whose type annotation exposes the forbidden construct. Source: `eval/validate-v6-types.ts:validateV6Types`.
+- **`'unsigned-bigint-op-unsupported'`** — a `UnsignedBigInt` SValue reached an eval arm or method handler that has not yet been implemented for UBI operands. All UBI methods (numeric/bitwise ids 6–13), casts (`Upcast`/`Downcast` for UBI), and modular-arithmetic ops are deferred to P2b/P2c. A v6 tree that evaluates a UBI constant successfully but then applies an unsupported op will throw this code. Distinct from `'not-implemented-yet'` (which is for unknown `Expr.tag` arms) — this code signals a known UBI-specific operation not yet wired. Source: defensive guard to be added as needed per arm in P2b/P2c.
 
 No other error codes are emitted by the current evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 

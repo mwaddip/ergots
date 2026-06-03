@@ -207,8 +207,8 @@ Per-class code enumeration (every code below is emitted by current source):
 - **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch).
 - **`STypeParseError`**: `'invalid-type-code'`, `'unsupported-type'`, `'invalid-tuple-length'`, `'invalid-stypevar-length'`, `'invalid-stypevar-utf8'`, `'invalid-sfunc-tpe-params'`.
 - **`STypeSerializeError`**: `'tuple-too-short'`, `'tuple-too-long'`, `'stypevar-name-length'`, `'sfunc-tdom-too-long'`, `'sfunc-tpe-params-too-long'`, `'unreachable'`.
-- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue constant in a tree-version < 3 ErgoTree; mirrors sigma-rust `serialization/data.rs:196`), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-creation-height-out-of-range'` (parse rejects creation_height > u32, matching sigma-rust `get_u32`; audit follow-up), `'sbox-index-out-of-range'` (parse rejects index > u16, matching `get_u16`; previously serialize-only). (`'sbox-ergo-tree-no-size'` removed in phase 2j-pre fix-1 — see changelog below.)
-- **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue with tree-version < 3 passed to `serializeSValue`; mirrors sigma-rust `serialization/data.rs:98`), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-creation-height-out-of-range'` (serialize rejects creation_height > u32; audit follow-up), `'sbox-tokens-out-of-range'`, `'savltree-digest-length'`, `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`.
+- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue constant in a tree-version < 3 ErgoTree; mirrors sigma-rust `serialization/data.rs:196`), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-creation-height-out-of-range'` (parse rejects creation_height > u32, matching sigma-rust `get_u32`; audit follow-up), `'sbox-index-out-of-range'` (parse rejects index > u16, matching `get_u16`; previously serialize-only). (`'sbox-ergo-tree-no-size'` removed in phase 2j-pre fix-1 — see changelog below.) **Forthcoming in v6 P2a T3 (codec task):** `'unsigned-bigint-too-large'` (UBI payload > 32 bytes; mirrors `CoreDataSerializer.scala:120`), `'unsigned-bigint-negative'` (reserved defensive code; the unsigned-magnitude decoder is non-negative by construction but the code is pre-registered).
+- **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue with tree-version < 3 passed to `serializeSValue`; mirrors sigma-rust `serialization/data.rs:98`), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-creation-height-out-of-range'` (serialize rejects creation_height > u32; audit follow-up), `'sbox-tokens-out-of-range'`, `'savltree-digest-length'`, `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`. **Forthcoming in v6 P2a T3 (codec task):** `'unsigned-bigint-too-large'` (defensive encoder guard — out-of-range UBI is an internal invariant violation, unreachable from valid parse or v6 method result, but guarded).
 - **`SigmaBooleanParseError`**: `'arity-out-of-range'`, `'unknown-opcode'`, `'cthreshold-k-out-of-range'` (Cthreshold's `k` outside `[1, items.length]`; added phase 2g-medium), `'sigma-conjecture-empty-items'` (Cand/Cor/Cthreshold parsed with `items.length === 0`; added phase 2g-medium).
 - **`ExprTpeError`** (raised by `exprTpe`, the SType-of-Expr projection): `'apply-func-not-sfunc'`, `'bin-op-kind-unhandled'`, `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'select-field-input-not-stuple'`, `'select-field-out-of-range'`, `'tpe-not-implemented'`.
 - **`ReaderError`** (raised by `ByteReader`): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`.
@@ -261,6 +261,51 @@ Signature change: both `parseSValue` and `serializeSValue` gain a `treeVersion: 
 The internal helpers `parseExpr`, `serializeExpr`, `parseConstFromByte`, and `serializeConst` also gain `treeVersion` parameters. Their **public entry points** (`parseExpr`, `serializeExpr`) accept `treeVersion` as an optional parameter defaulted to `0` — direct callers of these from outside the envelope (test helpers, external tooling) that work with V3+ trees containing inline SHeader body constants must pass an explicit `treeVersion`. The top-level `parseTree` / `serializeTree` always pass the correct version, so production paths are unaffected.
 
 Round-trip invariant byte-equal verified on 5 V3 SHeader-constant ErgoTree fixtures (single V1 header, single V2 header, `Coll[Header]` of 3, `Option[Header] = Some`, `Option[Header] = None`) plus 1 negative V2 fixture (rejects with `'sheader-tree-version-too-low'`). Mutation testing achieves ≥ 90% kill rate on structural bytes per fixture (87.5% on `Option[Header] = None` due to sigma-rust's `get_option` accepting any non-1 byte as None).
+
+## Phase v6 P2a wire additions (`SUnsignedBigInt` type code + value codec)
+
+`SUnsignedBigInt` is added to the `SType` union as **type code 9** (`SEmbeddable`, `SNumericType`; JVM `SType.scala:547`). Handling is permissive at the wire layer — the v3 gate lives in the evaluator's `validateV6Types` pre-eval pass (see `facts/ergoscript-eval.md`), NOT here. This matches ergots' established pattern for `validateBinOpTypes` (parser stays permissive; consensus rejection is pre-eval).
+
+### `SUnsignedBigInt` in `parseSType` / `serializeSType`
+
+- **Embeddable type code 9 → `{ tag: 'SUnsignedBigInt' }`** (permissive; accepted at any tree version). The JVM gates code 9 via `embeddableV6` (selected by `isV3OrLaterErgoTreeVersion`); ergots accepts unconditionally for byte-roundtrip, and the pre-eval pass enforces the gate.
+- `serializeSType({ tag: 'SUnsignedBigInt' })` → emits code 9 via the `embeddablePrimitiveCode` path AND the main `serializeSType` switch (so composite type-codes `Coll[UBI]`, `Option[UBI]`, tuple-containing UBI, and `SFunc`-containing UBI all work through the normal compact-form machinery).
+
+### `SUnsignedBigInt` in `parseSValue` / `serializeSValue` (permissive — no version check)
+
+The codec is **distinct from `SBigInt`** (consensus-critical — different byte representations for the same numeric values):
+
+| | `SBigInt` (existing) | `SUnsignedBigInt` (P2a) |
+|---|---|---|
+| Encode | `toByteArray` — signed two's-complement, minimal; high-bit-set positive ⇒ leading `0x00` | `asUnsignedByteArray` — unsigned magnitude, minimal; no sign padding |
+| Decode | `new BigInteger(bytes)` — signed | `fromUnsignedByteArray(bytes)` — unsigned magnitude |
+| Range | `[-2^255, 2^255−1]` | `[0, 2^256−1]` |
+| `0` encodes to | `[0x00]` (1 byte, VLQ len `01 00`) | `[]` (empty, VLQ len `00`) |
+| `128` encodes to | `[0x00, 0x80]` (2 bytes) | `[0x80]` (1 byte) |
+
+Length framing: VLQ `putUShort`/`getUShort` (Scorex `putUShort` is plain VLQ, so ergots' existing `writeVlqU`/`readVlqU` is correct). Source: `CoreDataSerializer.scala:39-42, 118-124`.
+
+**Confirmed edge cases (each a required test vector):**
+
+- **`0` → `[]` (empty; wire `00`).** `sigma.crypto.BigIntegers.asUnsignedByteArray(0)` strips the leading zero unconditionally (`BigIntegers.scala:110-118`). The loop `while (n > 0n) { unshift(n & 0xff); n >>= 8n }` never runs for `0n` → empty array. This is the **opposite of `SBigInt`** where `0 → [0x00]`.
+- **No high-bit sign padding.** `128` → `[0x80]` (1 byte). The encoder MUST be a fresh magnitude encoder — NOT a tweak of `encodeBigIntBE` (whose `unshift(0x00)` high-bit pad must NOT carry over).
+- **Length-0 on the wire decodes to `0n`** (`fromUnsignedByteArray([]) → 0`; `CoreDataSerializer.scala:118-124` does NOT reject size 0). ergots **must accept** length-0 → `0n`; rejecting is stricter than the JVM = fork. (Contrast `SBigInt`, which rejects length-0 — audit ERG-03.)
+- **Decode cap 32 bytes** (`> 32` ⇒ `SValueParseError('unsigned-bigint-too-large')`; `CoreDataSerializer.scala:120`).
+- **Non-negative only.** The encoder guards `v < 0n` → throws (unsigned: no negatives); the decoder yields a non-negative bigint by construction.
+- **Non-canonical leading-zero inputs** (e.g. `[0x00, 0x05]`) decode to `5n` and re-encode canonically as `[0x05]` — accepted but not byte-identical on a round-trip of that specific input. Do NOT assert byte-identity on non-canonical test vectors.
+
+New helpers (paralleling `encodeBigIntBE`/`decodeBigIntBE`):
+
+- `encodeUnsignedBigIntBE(v: bigint): Uint8Array` — `v < 0n` ⇒ throw; emit minimal unsigned BE magnitude bytes via `while (n > 0n)` loop (no high-bit pad); `0n` → `[]`.
+- `decodeUnsignedBigIntBE(bytes: Uint8Array): bigint` — fold bytes as unsigned magnitude BE; `[]` → `0n`.
+
+New `SValueParseError` codes (forthcoming — land in the T3 codec task): `'unsigned-bigint-too-large'` (`> 32` byte payload), `'unsigned-bigint-negative'` (reserved; the unsigned-magnitude decoder cannot produce a negative, but the code is registered for defensive completeness).
+
+New `SValueSerializeError` codes (forthcoming — land in T3): `'unsigned-bigint-too-large'` (defensive encoder guard on out-of-range UBI — unreachable from a valid parse or a v6 method result, but guarded nonetheless).
+
+### `SFunc` type code 112 — pre-existing permissive parse (note)
+
+`parseSType` accepts type code 112 (`SFunc`) unconditionally (no version gate). The JVM gates it on `isV3OrLaterErgoTreeVersion` (`TypeSerializer.scala:211`). This pre-existing over-accept is closed by the evaluator's `validateV6Types` pass (which deep-walks for `SFunc` everywhere it walks for `SUnsignedBigInt`) — the parser stays permissive for byte-roundtrip; consensus rejection is pre-eval.
 
 ## Phase 2j-pre fix-1 wire updates (`sbox-ergo-tree-no-size` removed)
 
