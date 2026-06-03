@@ -402,6 +402,8 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - Source: JVM `methods.scala:551-623`, `CUnsignedBigInt.scala:47-77`, `CBigInt.scala:77-79`. Oracle: `LanguageSpecificationV6.scala` `verifyCases`. Spec: `docs/specs/2026-06-03-ergoscript-v6-p2d1-ubi-modular-methods-design.md`.
 - **Deferred to P2d-2:** `UnsignedBigInt.modInverse` (9:14, `FixedCost(150)`).
 
+**Phase v6 P2d-1 DONE (2026-06-03).** Method handler registry: 109 entries. EvalError codes: 72 (unchanged). Eval arm coverage: 67/67 (unchanged — adds METHOD-REGISTRY entries, not eval arms). Full suite: 3657 green (node + jsdom). `tsc --noEmit` clean.
+
 ## Public surface (v0.3.0)
 
 ```ts
