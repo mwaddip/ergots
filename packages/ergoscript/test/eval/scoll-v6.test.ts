@@ -44,3 +44,38 @@ describe('SColl.reverse (12:30)', () => {
     expect(resolveReturnTpe(sig, { tag: 'SColl', elem: SINT }, [], {})).toEqual({ tag: 'SColl', elem: SINT })
   })
 })
+
+function someOpt(v: SValue, elem: SType): SValue { return { kind: 'Option', elem, value: v } }
+function noneOpt(elem: SType): SValue { return { kind: 'Option', elem, value: null } }
+function intC(v: number): any { return constExpr({ kind: 'Int', value: v }, SINT) }
+
+describe('SColl.get (12:33)', () => {
+  it('in-range → Some(item), cost = 4 + 5(obj) + 5(idx) + 30(Fixed) = 44', () => {
+    const ctx = v3()
+    expect(evalMethodCall(call(longColl(1, 2), 33, [intC(0)]), Env.empty(), ctx))
+      .toEqual(someOpt({ kind: 'Long', value: 1n }, SLONG))
+    expect(ctx.jitCost).toBe(44)
+  })
+  it('index 1 → Some(2)', () => {
+    expect(evalMethodCall(call(longColl(1, 2), 33, [intC(1)]), Env.empty(), v3()))
+      .toEqual(someOpt({ kind: 'Long', value: 2n }, SLONG))
+  })
+  it('negative index → None (total, no throw)', () => {
+    expect(evalMethodCall(call(longColl(1, 2), 33, [intC(-1)]), Env.empty(), v3())).toEqual(noneOpt(SLONG))
+  })
+  it('out-of-range index → None', () => {
+    expect(evalMethodCall(call(longColl(1, 2), 33, [intC(2)]), Env.empty(), v3())).toEqual(noneOpt(SLONG))
+  })
+  it('empty coll → None', () => {
+    expect(evalMethodCall(call(longColl(), 33, [intC(0)]), Env.empty(), v3())).toEqual(noneOpt(SLONG))
+  })
+  it('rejects non-Int index with method-not-implemented', () => {
+    let threw: EvalError | undefined
+    try { evalMethodCall(call(longColl(1, 2), 33, [constExpr(longColl(0), { tag: 'SColl', elem: SLONG })]), Env.empty(), v3()) } catch (e) { threw = e as EvalError }
+    expect(threw?.code).toBe('method-not-implemented')
+  })
+  it('static return type resolves to Option[receiver-elem] (P0 generic)', () => {
+    const sig = methodSignature(12, 33)!
+    expect(resolveReturnTpe(sig, { tag: 'SColl', elem: SLONG }, [SINT], {})).toEqual({ tag: 'SOption', elem: SLONG })
+  })
+})

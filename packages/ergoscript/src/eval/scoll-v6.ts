@@ -21,3 +21,20 @@ export function evalCollReverse(obj: SValue, _args: SValue[], ctx: EvalContext):
   ctx.addPerItemCost(20, 2, 100, obj.items.length) // Append.costKind; methods.scala:1124
   return { kind: 'Coll', elem: obj.elem, items: [...obj.items].reverse() }
 }
+
+// get (12:33) — ByIndex.costKind FixedCost(30). Total: 0<=i<len ? Some : None.
+// JVM: methods.scala:1183-1189 (.withIRInfo(MethodCallIrBuilder) → stays a MethodCall).
+// tRange Option[IV] (generic; resolved by P0).
+export function evalCollGet(obj: SValue, args: SValue[], ctx: EvalContext): SValue {
+  if (obj.kind !== 'Coll') {
+    throw new EvalError(`SColl.get expects a Coll obj; got '${obj.kind}'`, 'method-not-implemented')
+  }
+  ctx.addCost(30) // ByIndex.costKind FixedCost(30); transformers.scala:285
+  const idx = args[0]
+  if (args.length !== 1 || idx === undefined || idx.kind !== 'Int') {
+    throw new EvalError(`SColl.get expects 1 Int arg; got ${args.map((a) => a.kind).join(',')}`, 'method-not-implemented')
+  }
+  const i = idx.value
+  const inBounds = i >= 0 && i < obj.items.length
+  return { kind: 'Option', elem: obj.elem, value: inBounds ? obj.items[i]! : null }
+}
