@@ -128,7 +128,7 @@ is the living field — phases update it (and append findings / scope deltas) he
   closed). Refines the original "no P0 needed".
 - **Done (2026-06-02):** 40 MethodCall handlers (typeIds 2–6, methodIds 6–13) across Byte/Short/Int/Long/BigInt, all `minVersion: 3` gated. 3 new `EvalError` codes (`'numeric-shift-out-of-range'`, `'bigint-result-out-of-range'`, `'numeric-method-bad-operand'`). BigInt is signed-256-bounded (`checkBigInt256`). P0 type-var engine used for `bitwise*`/`shift*` return-type resolution. Final-review fix (C1): operand-kind guards on all 5 factory functions, preventing consensus over-accept on wrong-kind arguments. Full suite: 3527 green. Spec: `2026-06-02-ergoscript-v6-p1-numeric-methods-design.md`.
 
-### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b in progress; P2c/P2d pending
+### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b DONE (2026-06-03); P2c/P2d pending
 
 **Corrected P2 decomposition (2026-06-03, after reading the JVM operation tables):**
 The original "P2b methods+casts / P2c modular+conversions" split silently omitted the
@@ -156,7 +156,15 @@ The corrected decomposition closes the two lowest-risk groups first:
   serialized — checking it would false-reject valid v5 lambdas). Full suite: 3580 green. Spec:
   `2026-06-03-ergoscript-v6-p2a-sunsignedbigint-type-core-design.md`.
 
-- **P2b in progress (this branch):** 8 UBI method handlers (typeId 9, methodIds 6–13; same `FixedCost(5)`/`minVersion:3` pattern as the P1 signed-numeric group) + the full UBI cast matrix for `Upcast`/`Downcast`. **Load-bearing finding from adversarial review (2026-06-03):** the original "no cast targets UBI / Upcast untouched" claim was false for hand-crafted cast opcodes — a real adversarial fork, closed by implementing all 6 `(source, target)` cells of the matrix. Key correctness constraints: (Critical 1) UBI handling is local to the cast arms — must NOT widen the shared `isNumeric` predicate (consumed by 7 arms; widening would flip `Negation(ubi)` from reject→accept); (Important 1) `mir/method-signatures.ts` `NUMERIC_STYPE` must gain typeId 9 so UBI method returns resolve to concrete types; `eval/coll-map.ts` `inferSType` needs a `'UnsignedBigInt'` arm (the one exhaustiveness gap tsc does not force). 1 new `EvalError` code: `'unsigned-bigint-out-of-range'` (shiftLeft overflow ≥ 2²⁵⁶; negative signed-source cast to UBI). `'unsigned-bigint-op-unsupported'` (P2a) reused for UBI↔BigInt casts + UBI-source Upcast. Spec: `2026-06-03-ergoscript-v6-p2b-sunsignedbigint-methods-casts-design.md`.
+- **P2b DONE (2026-06-03):** 8 UBI method handlers (typeId 9, methodIds 6–13; same `FixedCost(5)`/`minVersion:3` pattern as the P1 signed-numeric group) + the full UBI cast matrix for `Upcast`/`Downcast`. Implemented across 5 commits (Tasks 1–6 on `ergoscript-v6`). **Key decisions and findings:**
+  - **Load-bearing adversarial-review finding:** the original "no cast targets UBI / Upcast untouched" claim was false for hand-crafted cast opcodes — a real adversarial fork, closed by implementing all 6 `(source, target)` cells of the matrix (see cast matrix in `facts/ergoscript-eval.md`). Faithfulness drives the gate: the JVM has no UBI-source Upcast path (use `toSigned`), no BigInt↔UBI cast path (use `toUnsigned`/`toSigned`), and all cells throw `'unsigned-bigint-op-unsupported'` there.
+  - **Critical 1 (non-regression):** UBI handling stays local to the cast arms and the `ubiDesc` NumV6 descriptor — the shared `isNumeric` predicate is NOT widened. Widening would flip `Negation(ubi)`, `Arith(ubi)`, and ordering-BinOp(ubi) from reject→accept — a fork. Test pins confirm no regression.
+  - **`ubiDesc`:** the 6th `NumV6` descriptor in `_numeric-v6.ts`, with `kind: 'UnsignedBigInt'`, `typeId: 9`, unsigned-magnitude `toBE` (`encodeUnsignedBigIntBE`), 256-bit-fixed-flip `inv` (`UBI_MAX − x`), and shiftLeft magnitude guard (result `≥ 2²⁵⁶` → `'unsigned-bigint-out-of-range'`).
+  - **`mir/method-signatures.ts`:** `NUMERIC_STYPE` gained `9: { tag: 'SUnsignedBigInt' }` (Important 1). Without it `exprTpe(ubi.bitwiseInverse)` → `SAny`; with it → `SUnsignedBigInt`.
+  - **`eval/coll-map.ts` `inferSType`:** `case 'UnsignedBigInt': return { tag: 'SUnsignedBigInt' }` arm added (tsc does NOT force this; the `default:` swallowed it).
+  - **Version gating for casts:** no per-arm V3 guard in `downcastUBI`/`upcastUBI` — `validateV6Types` (P2a) covers it via `Upcast.tpe`/`Downcast.tpe` type-annotation walks.
+  - **1 new `EvalError` code:** `'unsigned-bigint-out-of-range'` (72 total). `'unsigned-bigint-op-unsupported'` (P2a) reused for UBI↔BigInt casts + UBI-source Upcast.
+  - Full suite: 3602 green (node + jsdom). `tsc --noEmit` clean. Spec: `2026-06-03-ergoscript-v6-p2b-sunsignedbigint-methods-casts-design.md`.
 
 - **P2c** (UBI arithmetic BinOps `+/−/×/÷/%`, ordering BinOps `</≤/>/≥`, trivial `toUnsigned`/`toSigned` bridges) — pending.
 
