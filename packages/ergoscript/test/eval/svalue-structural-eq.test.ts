@@ -22,6 +22,9 @@ describe('sValueStructuralEq — cost-free structural equality', () => {
       [{ kind: 'Option', elem: SLONG, value: null }, { kind: 'Option', elem: SLONG, value: null }],
       [L(1), { kind: 'Int', value: 1 }], // cross-kind → false
       [coll([coll([L(1)])], { tag: 'SColl', elem: SLONG }), coll([coll([L(1)])], { tag: 'SColl', elem: SLONG })], // nested
+      // coa-path (recurseElems=false): Coll[SByte] — the common startsWith/endsWith element type.
+      [coll([{ kind: 'Byte', value: 1 }, { kind: 'Byte', value: 2 }], { tag: 'SByte' }), coll([{ kind: 'Byte', value: 1 }, { kind: 'Byte', value: 2 }], { tag: 'SByte' })],
+      [coll([{ kind: 'Byte', value: 1 }], { tag: 'SByte' }), coll([{ kind: 'Byte', value: 9 }], { tag: 'SByte' })], // coa differ → false
     ]
     for (const [a, b] of pairs) {
       expect(sValueStructuralEq(a, b)).toBe(sValueEquals(a, b, makeContext({})))

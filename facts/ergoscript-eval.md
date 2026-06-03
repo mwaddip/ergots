@@ -446,11 +446,17 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - **Errors:** zero new codes — defensive receiver/arg-kind checks reuse
   `'method-not-implemented'` (the SColl MethodCall convention); pre-V3 invocation →
   `'tree-version-too-low'` (dispatcher gate). `get` OOB/negative is not an error.
-- **Inherited residuals** (not regressions): (1) `startsWith`/`endsWith` over `Coll[Box]`/
-  `Coll[AvlTree]`/`Coll[Header]`/`Coll[PreHeader]` throw `'not-implemented-yet'` via
-  `sValueStructuralEq` — the same limitation as the `Eq` BinOp arm; (2) a hand-crafted
-  mismatched-elem `startsWith`/`endsWith` reaches eval (benign `false`) — the general
-  MethodCall-arg-type pre-eval pass is deferred to P8.
+- **Composite-element comparison:** `startsWith`/`endsWith` over colls whose elements are
+  themselves composite (`Box`/`AvlTree`/`Header`/`PreHeader`/`Tuple`/`Coll`/`Option`) do a
+  cost-free **structural** compare via `sValueStructuralEq` — NOT a throw — mirroring the JVM's
+  element-wise `Coll.startsWith`. (`relation.ts` does field-by-field `boxEqual`/`avlTreeEqual`/
+  `preHeaderEqual`/`headerEqual` since phase 2e; the stale "`Box`/`AvlTree` throw
+  `'not-implemented-yet'`" notes at lines 22/245 predate that and are inaccurate — a pre-existing
+  doc-drift, not P3.)
+- **Residual** (adversarial-only, deferred to P8): a hand-crafted mismatched-elem
+  `startsWith`/`endsWith` reaches eval (benign `false`) because the parser is permissive and
+  `validateBinOpTypes` covers only `Relation` nodes; the general MethodCall-arg-type pre-eval
+  pass is deferred.
 
 ## Public surface (v0.3.0)
 
