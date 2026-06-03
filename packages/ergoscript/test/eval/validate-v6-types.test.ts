@@ -1,5 +1,5 @@
 /**
- * validateV6Types — the v6-type version gate (P2a Task 5).
+ * validateV6Types — the v6-type version gate (P2a Task 5 + Task 6).
  *
  * The JVM rejects a v3+-only type construct (`SUnsignedBigInt` type code 9,
  * `SFunc` type code 112) carried by a pre-V3 ErgoTree at *deserialization*.
@@ -20,6 +20,12 @@
  *     the JVM deserializes all segregated constants eagerly, a body-only walk
  *     misses them.
  *
+ * Task 6 adds the parallel SFunc-112 closure vectors (see §5 of the P2a
+ * spec): a serialized SFunc type annotation in a pre-V3 tree must be rejected
+ * by the same pass; a v6 tree carrying it must be accepted; a v5 first-order
+ * lambda (whose *computed* type is SFunc but whose wire bytes carry no code
+ * 112) must NOT be false-rejected.
+ *
  * v6 trees (version 3) carrying the same construct are accepted and evaluate
  * normally (no gate fires). Spec: docs/specs/2026-06-03-…-p2a-…-design.md §4.
  */
@@ -27,8 +33,10 @@ import { describe, it, expect } from 'vitest'
 import { evaluate, evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
 import { validateV6Types } from '../../src/eval/validate-v6-types'
-import type { ErgoTree, Expr, TreeHeader } from '../../src/mir/types'
+import type { ErgoTree, Expr, SType, TreeHeader } from '../../src/mir/types'
+import { serializeSType } from '../../src/wire/serialize-stype'
 import { captureEvalError } from '../_helpers'
+import { ByteWriter } from '@ergots/scorex'
 
 // ── tree builders ─────────────────────────────────────────────────────────────
 
@@ -363,6 +371,175 @@ describe('validateV6Types — per-annotation-position enumerator (v5, direct cal
       expect(err.code).toBe('v6-type-in-pre-v3-tree')
     })
   }
+})
+
+// ── validateV6Types — SFunc-112 v5 over-accept closure (P2a Task 6) ──────────
+//
+// SFunc (wire type code 112) is a v3+-only construct, gated by the JVM at
+// TypeSerializer.scala:211 under `isV3OrLaterErgoTreeVersion`. A pre-V3 tree
+// carrying a serialized SFunc type annotation is JVM-rejected at deserialization
+// → the same `validateV6Types` pass that covers UBI also covers SFunc
+// (`containsV6Type` returns true for `SFunc`, `SUnsignedBigInt`). These tests
+// prove the closure is in place (no src change needed — the pass already walks
+// for SFunc) and guard the §4.1 computed-vs-serialized trap: a v5 first-order
+// lambda whose *computed* type is SFunc must NOT be false-rejected.
+//
+// Construction: SFunc is placed at annotation positions that `annotationsOf`
+// enumerates (GetVar.varTpe, Collection.elemTpe, tree.constantTypes[]). The
+// tests first assert that the serialized type bytes actually contain code 112
+// (byte 0x70) — if that invariant breaks the tests prove nothing.
+
+/** A simple SFunc type: (SInt) => SBoolean, no tpe-params. */
+const sfuncIntToBool: SType = {
+  tag: 'SFunc',
+  args: [{ tag: 'SInt' }],
+  result: { tag: 'SBoolean' },
+  tpeParams: [],
+}
+
+/**
+ * Serialize `sfuncIntToBool` into bytes. Used to confirm code 112 is
+ * present before the rejection tests run (if serializeSType changes, fail
+ * here — the vectors below would no longer prove wire-code 112 rejection).
+ */
+function sfuncBytes(): Uint8Array {
+  const w = new ByteWriter()
+  serializeSType(sfuncIntToBool, w)
+  return w.toBytes()
+}
+
+describe('validateV6Types — SFunc-112 v5 over-accept closure', () => {
+  // ── byte-presence guard ──────────────────────────────────────────────────
+  it('serializeSType(SFunc(SInt→SBoolean)) produces byte 112 (0x70) — vector validity guard', () => {
+    // SFunc wire: [112, t_dom_len=1, SInt=4, t_range=SBoolean=1, tpe_params_len=0]
+    const bytes = sfuncBytes()
+    expect(bytes[0]).toBe(112) // TYPE_CODE_SFUNC
+    expect(bytes[1]).toBe(1) // t_dom_len
+    expect(bytes[2]).toBe(4) // SInt
+    expect(bytes[3]).toBe(1) // SBoolean
+    expect(bytes[4]).toBe(0) // tpe_params_len
+    expect(bytes.length).toBe(5)
+  })
+
+  it('Coll[SFunc(SInt→SBoolean)] serializes with byte 112 inside the element type', () => {
+    // serializeSColl: embeddablePrimitiveCode(SFunc)=null, not SColl → writes
+    // COLL_TYPECODE(12) then serializeSType(SFunc) → byte 12 then 112.
+    const w = new ByteWriter()
+    serializeSType({ tag: 'SColl', elem: sfuncIntToBool }, w)
+    const bytes = w.toBytes()
+    expect(bytes[0]).toBe(12) // COLL_TYPECODE
+    expect(bytes[1]).toBe(112) // SFunc type code — the wire annotation
+  })
+
+  // ── reject: v5 (version 2) — body annotations ───────────────────────────
+
+  it('v5 tree: GetVar.varTpe = SFunc(SInt→SBoolean) rejects with v6-type-in-pre-v3-tree', () => {
+    // GetVar.varTpe is a wire-serialized annotation (parseSType populates it).
+    // annotationsOf(GetVar) = [e.varTpe]; containsV6Type({tag:'SFunc'}) = true.
+    // The bytes contain code 112 (per the guard above). JVM: TypeSerializer
+    // encounters 112 under a pre-V3 tree → check-type-code ⇒ reject.
+    const tree: ErgoTree = {
+      header: header(2),
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'GetVar',
+        varId: 1,
+        varTpe: sfuncIntToBool,
+      },
+    }
+    const err = captureEvalError(() => validateV6TypesThrow(tree))
+    expect(err.code).toBe('v6-type-in-pre-v3-tree')
+  })
+
+  it('v5 tree: Coll[SFunc] elemTpe annotation rejects (deep-walk SColl.elem)', () => {
+    // The SFunc is nested inside an SColl.elem annotation — containsV6Type
+    // recurses into SColl.elem and hits SFunc. The Collection is empty so no
+    // SFunc *value* is decoded; the type annotation alone triggers the gate.
+    const tree: ErgoTree = {
+      header: header(2),
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'Collection',
+        kind: 'Exprs',
+        elemTpe: sfuncIntToBool,
+        items: [],
+      },
+    }
+    const err = captureEvalError(() => validateV6TypesThrow(tree))
+    expect(err.code).toBe('v6-type-in-pre-v3-tree')
+  })
+
+  // ── reject: v5 — segregated constant block ───────────────────────────────
+
+  it('v5 tree: dead SFunc-typed segregated constant rejects (constantTypes[] walk mandatory)', () => {
+    // constants[0] is SFunc-typed but the body never emits ConstPlaceholder(0).
+    // A body-only walk would miss it; the constantTypes[] walk catches it.
+    // Parallels the UBI dead-segregated-constant test (Task 5).
+    const tree: ErgoTree = {
+      header: segHeader(2),
+      constantTypes: [sfuncIntToBool],
+      constants: [],
+      body: intConst(0),
+    }
+    const err = captureEvalError(() => validateV6TypesThrow(tree))
+    expect(err.code).toBe('v6-type-in-pre-v3-tree')
+  })
+
+  // ── accept: v6 (version 3) ───────────────────────────────────────────────
+
+  it('v6 tree (version 3): GetVar.varTpe = SFunc is accepted — gate is no-op for treeVersion >= 3', () => {
+    // validateV6Types returns immediately for treeVersion >= 3; no rejection.
+    const tree: ErgoTree = {
+      header: header(3),
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'GetVar',
+        varId: 1,
+        varTpe: sfuncIntToBool,
+      },
+    }
+    expect(() => validateV6Types(tree, tree.body, 3)).not.toThrow()
+  })
+
+  // ── no false-reject: v5 first-order lambda ───────────────────────────────
+
+  it('v5 tree with a Map over a non-empty Coll — first-order FuncValue passes (no code-112 in wire bytes)', () => {
+    // A v5 map whose mapper arg type is first-order (SInt). The *computed*
+    // type of the FuncValue is SFunc(SInt→SInt), but no SFunc TYPE CODE is
+    // serialized: the wire carries only the FuncValue.args[].tpe = SInt (code 4).
+    // The pass reads wire-serialized annotations only (§4.1); the computed type
+    // is never checked. This guards the distinct trap from the Task 5 companion
+    // (which used a bare FuncValue) by exercising a Map structure that actually
+    // evaluates through a lambda body — a realistic v5 tree shape.
+    const tree: ErgoTree = {
+      header: header(2),
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'Map',
+        input: {
+          tag: 'Const',
+          tpe: { tag: 'SColl', elem: { tag: 'SInt' } },
+          value: {
+            kind: 'Coll',
+            elem: { tag: 'SInt' },
+            items: [{ kind: 'Int', value: 1 }, { kind: 'Int', value: 2 }],
+          },
+        },
+        mapper: {
+          tag: 'FuncValue',
+          // arg type SInt = code 4; no SFunc code 112 anywhere in wire bytes
+          args: [{ id: 1, tpe: { tag: 'SInt' } }],
+          body: { tag: 'ValUse', valId: 1, tpe: { tag: 'SInt' } },
+        },
+      },
+    }
+    // The pass must NOT throw v6-type-in-pre-v3-tree.
+    expect(() => validateV6Types(tree, tree.body, 2)).not.toThrow()
+  })
 })
 
 // ── local helper ──────────────────────────────────────────────────────────────
