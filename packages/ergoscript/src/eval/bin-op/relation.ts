@@ -373,33 +373,40 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  * Different `kind` → `false` (no cross-type coercion, matching sigma-rust's
  * match-arm posture which returns Ok(false) for cross-type pairs).
  *
+ * Cost-charging is conditional on `ctx` being present. With `ctx` (the costed
+ * `sValueEquals` wrapper, used by the Eq/NEq BinOp arm) every per-type EQ cost is
+ * charged exactly as before. Without `ctx` (the cost-free `sValueStructuralEq`
+ * wrapper, used by SColl.startsWith/endsWith — uncosted Scala ops on the JVM) the
+ * boolean result is IDENTICAL but NO cost is charged. Cost is the ONLY use of
+ * `ctx` in this core; the boolean logic is byte-for-byte unchanged either way.
+ *
  * @param a   Left SValue operand (already evaluated)
  * @param b   Right SValue operand (already evaluated)
- * @param ctx EvalContext for JIT cost accumulation
+ * @param ctx Optional EvalContext for JIT cost accumulation; omitted = cost-free
  */
-export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
+function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
   // Different kinds → catch-all arm in sigma-rust (lines 131-135): charges
   // EQ_PRIM_COST and then `Ok(lv == rv)` where PartialEq returns false for
   // cross-variant pairs. So: charge EQ_PRIM_COST, return false.
   if (a.kind !== b.kind) {
-    ctx.addCost(EQ_PRIM_COST)
+    ctx?.addCost(EQ_PRIM_COST)
     return false
   }
 
   switch (a.kind) {
     // Primitive comparisons — data_value_comparer.rs:53-60.
-    case 'Boolean': ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Byte':    ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Short':   ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Int':     ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Long':    ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Boolean': ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Byte':    ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Short':   ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Int':     ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Long':    ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
 
     // BigInt — data_value_comparer.rs:62-65.
-    case 'BigInt':  ctx.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
+    case 'BigInt':  ctx?.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
 
     // GroupElement — data_value_comparer.rs:67-70.
     case 'GroupElement': {
-      ctx.addCost(EQ_GROUP_ELEMENT_COST)
+      ctx?.addCost(EQ_GROUP_ELEMENT_COST)
       const ba = a.value
       const bb = (b as typeof a).value
       if (ba.length !== bb.length) return false
@@ -412,12 +419,12 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // Tuple — data_value_comparer.rs:83-93.
     // EQ_TUPLE_COST + recursive cost per element.
     case 'Tuple': {
-      ctx.addCost(EQ_TUPLE_COST)
+      ctx?.addCost(EQ_TUPLE_COST)
       const ta = a
       const tb = b as typeof a
       if (ta.items.length !== tb.items.length) return false
       for (let i = 0; i < ta.items.length; i++) {
-        if (!sValueEquals(ta.items[i]!, tb.items[i]!, ctx)) return false
+        if (!compareSValues(ta.items[i]!, tb.items[i]!, ctx)) return false
       }
       return true
     }
@@ -425,7 +432,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // Option — data_value_comparer.rs:96-103.
     // EQ_OPTION_COST + recursive inner cost when both Some.
     case 'Option': {
-      ctx.addCost(EQ_OPTION_COST)
+      ctx?.addCost(EQ_OPTION_COST)
       const oa = a
       const ob = b as typeof a
       // Sigma-rust match: (None, None) → Ok(true), (Some(l), Some(r)) → recurse,
@@ -433,13 +440,13 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       // (the match only looks at value presence, not the SType); we mirror that.
       if (oa.value === null && ob.value === null) return true
       if (oa.value === null || ob.value === null) return false
-      return sValueEquals(oa.value, ob.value, ctx)
+      return compareSValues(oa.value, ob.value, ctx)
     }
 
     // Coll — data_value_comparer.rs:105-118.
     case 'Coll': {
       // COLL_MATCH_TYPE_COST always paid (data_value_comparer.rs:108).
-      ctx.addCost(COLL_MATCH_TYPE_COST)
+      ctx?.addCost(COLL_MATCH_TYPE_COST)
       const ca = a
       const cb = b as typeof a
       const n = ca.items.length
@@ -453,7 +460,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       // Sigma-rust uses `Ok(lv == rv)` which compares the entire Coll at once
       // (Rust PartialEq on CollKind). We mirror by checking element-wise.
       const perItemCost = collEqPerItemCost(ca.elem)
-      ctx.addCost(addPerItemJitCost(perItemCost, n))
+      ctx?.addCost(addPerItemJitCost(perItemCost, n))
       // Element comparison. JVM `equalColls_Dispatch`: COA leaf-element colls are
       // bulk-compared (equalCOA_Prim, no recursion — the per-item cost above is
       // the whole charge); COMPOSITE-element colls (Coll/Tuple/Option/SigmaProp)
@@ -465,9 +472,9 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       const recurseElems = !isCoaCollElem(ca.elem)
       for (let i = 0; i < n; i++) {
         if (recurseElems) {
-          // sValueEquals charges the nested MatchType + per-item (and short-
+          // compareSValues charges the nested MatchType + per-item (and short-
           // circuits on inner length mismatch, matching JVM).
-          if (!sValueEquals(ca.items[i]!, cb.items[i]!, ctx)) return false
+          if (!compareSValues(ca.items[i]!, cb.items[i]!, ctx)) return false
         } else {
           if (ca.items[i]!.kind !== cb.items[i]!.kind) return false
           if (!primitiveValueEqual(ca.items[i]!, cb.items[i]!)) return false
@@ -481,7 +488,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // SigmaProp's PartialEq compares the inner SigmaBoolean structurally, which is
     // equivalent to comparing the canonical wire bytes.
     case 'SigmaProp': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
       const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
       if (ra.length !== rb.length) return false
@@ -494,7 +501,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // Unit: falls into catch-all arm → EQ_PRIM_COST, always equal.
     // sigma-rust: Unit == Unit is true via PartialEq (unit has only one value).
     case 'Unit': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return true
     }
 
@@ -503,7 +510,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // returns false (PartialEq compares by closure identity, not structural eq).
     // We return false conservatively.
     case 'Lambda': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return false
     }
 
@@ -511,14 +518,14 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // Sigma-rust data_value_comparer.rs:130-135: `_ => { ctx.add_jit_cost(EQ_PRIM_COST)?; Ok(lv == rv) }`
     // Value::Context is a unit variant; Context == Context is always true via PartialEq.
     case 'Context': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return true
     }
 
     // Global: unit variant (mirrors Context arm above). Value::Global == Value::Global
     // is always true via PartialEq (sigma-rust catch-all arm in data_value_comparer.rs).
     case 'Global': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return true
     }
 
@@ -527,19 +534,19 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // cost charged once before the recursive walk (data_value_comparer.rs:73-128).
     // First mainnet trigger: h=448,658 tx 1 input 0 (Coll[Box] equality).
     case 'Box': {
-      ctx.addCost(EQ_BOX_COST)
+      ctx?.addCost(EQ_BOX_COST)
       return boxEqual(a.value, (b as typeof a).value)
     }
     case 'AvlTree': {
-      ctx.addCost(EQ_AVL_TREE_COST)
+      ctx?.addCost(EQ_AVL_TREE_COST)
       return avlTreeEqual(a.value, (b as typeof a).value)
     }
     case 'PreHeader': {
-      ctx.addCost(EQ_PREHEADER_COST)
+      ctx?.addCost(EQ_PREHEADER_COST)
       return preHeaderEqual(a.value, (b as typeof a).value)
     }
     case 'Header': {
-      ctx.addCost(EQ_HEADER_COST)
+      ctx?.addCost(EQ_HEADER_COST)
       return headerEqual(a.value, (b as typeof a).value)
     }
 
@@ -547,18 +554,35 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       // SString equality is primitive (JS string compare). Iter-17 added
       // SValue.String for output-roundtrip parity; mainnet rarely exercises
       // String-equality at eval time, but it must compile and behave correctly.
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return a.value === (b as typeof a).value
     }
 
     // UnsignedBigInt — mirrors BigInt (JVM descriptors map both to EQ_BigInt).
-    case 'UnsignedBigInt': ctx.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
+    case 'UnsignedBigInt': ctx?.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
 
     default: {
       const _exhaust: never = a
-      throw new Error(`sValueEquals: unreachable kind ${JSON.stringify(_exhaust)}`)
+      throw new Error(`compareSValues: unreachable kind ${JSON.stringify(_exhaust)}`)
     }
   }
+}
+
+/**
+ * Costed structural equality (the Eq/NEq BinOp arm). `ctx` REQUIRED — charges
+ * the per-type EQ costs. Behavior unchanged from before the P3 refactor.
+ */
+export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
+  return compareSValues(a, b, ctx)
+}
+
+/**
+ * Cost-free structural equality (SColl.startsWith/endsWith, v6 P3). Same boolean
+ * result as sValueEquals but charges NO cost — the JVM's Coll.startsWith/endsWith
+ * are uncosted Scala ops (only the Zip envelope is charged by the caller).
+ */
+export function sValueStructuralEq(a: SValue, b: SValue): boolean {
+  return compareSValues(a, b)
 }
 
 /**
