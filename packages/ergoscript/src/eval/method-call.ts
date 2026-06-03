@@ -854,6 +854,35 @@ function registerHandlers(): void {
     minVersion: 3,  // V3 gate — sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3
   })
 
+  // SBigInt.toUnsigned (6:14) — v6 P2c bridge. FixedCost(5) (methods.scala:543), Pattern A
+  // (after the dispatcher's +4). Receiver BigInt; rejects negative (CBigInt.toUnsigned →
+  // CUnsignedBigInt ctor). minVersion 3 (BigInt.getMethods gates ToUnsigned on isV3OrLater,
+  // methods.scala:559-565).
+  HANDLERS.set(handlerKey(6, 14), { minVersion: 3, handler: (obj, _args, ctx) => {
+    ctx.addCost(5)
+    if (obj.kind !== 'BigInt') {
+      throw new EvalError(`BigInt.toUnsigned: expected BigInt operand, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    if (obj.value < 0n) {
+      throw new EvalError(`BigInt.toUnsigned: negative value ${obj.value}`, 'unsigned-bigint-out-of-range')
+    }
+    return { kind: 'UnsignedBigInt', value: obj.value }
+  } })
+
+  // SUnsignedBigInt.toSigned (9:19) — v6 P2c bridge. FixedCost(10) (methods.scala:607). Receiver
+  // UBI; rejects value >= 2^255 (toSignedBigIntValueExact, bitLength > 255 — the "leftmost bit
+  // set" case). minVersion 3 (UBI is v6-only).
+  HANDLERS.set(handlerKey(9, 19), { minVersion: 3, handler: (obj, _args, ctx) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.toSigned: expected UnsignedBigInt operand, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    if (obj.value >= (1n << 255n)) {
+      throw new EvalError(`UnsignedBigInt.toSigned: value ${obj.value} exceeds signed-256 range`, 'bigint-result-out-of-range')
+    }
+    return { kind: 'BigInt', value: obj.value }
+  } })
+
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.
   for (const { typeId, methodId, handler } of numericV6Handlers()) {
     HANDLERS.set(handlerKey(typeId, methodId), { handler, minVersion: 3 })
