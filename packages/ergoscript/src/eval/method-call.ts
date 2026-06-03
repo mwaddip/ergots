@@ -69,6 +69,7 @@ import {
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
+import { umod } from './_ubi-modular'
 import {
   evalSHeaderId,
   evalSHeaderVersion,
@@ -881,6 +882,20 @@ function registerHandlers(): void {
       throw new EvalError(`UnsignedBigInt.toSigned: value ${obj.value} exceeds signed-256 range`, 'bigint-result-out-of-range')
     }
     return { kind: 'BigInt', value: obj.value }
+  } })
+
+  // SUnsignedBigInt.mod (9:18) — v6 P2d-1. FixedCost(20) (methods.scala:601), Pattern A.
+  // a mod m (Euclidean). m==0 ⇒ arith-divide-by-zero (umod). Source: CUnsignedBigInt.scala:47.
+  HANDLERS.set(handlerKey(9, 18), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(20)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.mod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const m = args[0]
+    if (m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.mod: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value, m.value) }
   } })
 
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.

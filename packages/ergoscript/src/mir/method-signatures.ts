@@ -117,6 +117,8 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
   [key(6, 14), { tDom: [{ tag: 'SBigInt' }], tRange: { tag: 'SUnsignedBigInt' } }],
   // SUnsignedBigInt.toSigned — JVM methods.scala:609 — SFunc([SUnsignedBigInt] → SBigInt). v6 P2c bridge; closed tRange.
   [key(9, 19), { tDom: [{ tag: 'SUnsignedBigInt' }], tRange: { tag: 'SBigInt' } }],
+  // SUnsignedBigInt.mod — JVM methods.scala:603 — SFunc([UBI, UBI] → UBI). v6 P2d-1; closed tRange.
+  [key(9, 18), { tDom: [{ tag: 'SUnsignedBigInt' }, { tag: 'SUnsignedBigInt' }], tRange: { tag: 'SUnsignedBigInt' } }],
   ...numericV6Signatures(),
 ])
 
