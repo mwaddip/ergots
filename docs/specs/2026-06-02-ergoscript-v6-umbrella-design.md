@@ -128,7 +128,7 @@ is the living field — phases update it (and append findings / scope deltas) he
   closed). Refines the original "no P0 needed".
 - **Done (2026-06-02):** 40 MethodCall handlers (typeIds 2–6, methodIds 6–13) across Byte/Short/Int/Long/BigInt, all `minVersion: 3` gated. 3 new `EvalError` codes (`'numeric-shift-out-of-range'`, `'bigint-result-out-of-range'`, `'numeric-method-bad-operand'`). BigInt is signed-256-bounded (`checkBigInt256`). P0 type-var engine used for `bitwise*`/`shift*` return-type resolution. Final-review fix (C1): operand-kind guards on all 5 factory functions, preventing consensus over-accept on wrong-kind arguments. Full suite: 3527 green. Spec: `2026-06-02-ergoscript-v6-p1-numeric-methods-design.md`.
 
-### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b DONE (2026-06-03); P2c/P2d pending
+### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b DONE (2026-06-03); P2c DONE (2026-06-03); P2d pending
 
 **Corrected P2 decomposition (2026-06-03, after reading the JVM operation tables):**
 The original "P2b methods+casts / P2c modular+conversions" split silently omitted the
@@ -138,7 +138,7 @@ P2a stubs all of it (two sites in `relation.ts`) to throw `'unsigned-bigint-op-u
 The corrected decomposition closes the two lowest-risk groups first:
 
 - **P2b** = UBI numeric/bitwise methods (typeId 9, methodIds 6–13) + full UBI cast matrix (`Upcast`/`Downcast` with UBI source or target)  ·  **status: in progress (this branch)**
-- **P2c** = UBI arithmetic + ordering BinOps (`+`, `−`, `×`, `/`, `%`, `<`, `≤`, `>`, `≥`) + trivial `toUnsigned`/`toSigned` bridges  ·  pending
+- **P2c** = UBI arithmetic + ordering BinOps (`+`, `−`, `×`, `/`, `%`, `<`, `≤`, `>`, `≥`) + equality (`==`/`!=`) + trivial `toUnsigned`/`toSigned` bridges  ·  **DONE (2026-06-03)**
 - **P2d** = modular-crypto batch: `toUnsignedMod`, `modInverse`, `plusMod`, `subtractMod`, `multiplyMod`, `mod`  ·  pending
 
 **Goal:** the new numeric type end-to-end: thin wire (`SType` code + parse/serialize),
@@ -166,7 +166,34 @@ The corrected decomposition closes the two lowest-risk groups first:
   - **1 new `EvalError` code:** `'unsigned-bigint-out-of-range'` (72 total). `'unsigned-bigint-op-unsupported'` (P2a) reused for UBI↔BigInt casts + UBI-source Upcast.
   - Full suite: 3602 green (node + jsdom). `tsc --noEmit` clean. Spec: `2026-06-03-ergoscript-v6-p2b-sunsignedbigint-methods-casts-design.md`.
 
-- **P2c** (UBI arithmetic BinOps `+/−/×/÷/%`, ordering BinOps `</≤/>/≥`, trivial `toUnsigned`/`toSigned` bridges) — pending.
+- **P2c DONE (2026-06-03):** UBI arithmetic (`+ − × / % min max`), ordering (`< ≤ > ≥`), and equality
+  (`== !=`) BinOps + the `toUnsigned`/`toSigned` bridge methods. Built via the full skill chain (brainstorm →
+  spec → 2 adversarial spec reviews REVISE→SHIP → writing-plans → subagent-driven TDD with per-task
+  spec+quality review). 6 commits on `ergoscript-v6` (facts · arith · ordering+C1 · equality · bridges ·
+  non-regression). **Key decisions/findings:**
+  - **Load-bearing cost correction:** UBI arith/ordering takes the **non-BigInt cost tier** — the JVM cost
+    match is `case SBigInt => X; case _ => Y` and `SUnsignedBigInt` is a distinct case object ⇒ `case _`. So
+    `+ − × / %` = **15** (not 20/25), `min`/`max` = **5** (not 10); ordering = 20; scalar `==`/`!=` = 5
+    (`EQ_BigInt`). The inherited "UBI = BigInt tier" assumption (and an exploration subagent's first table)
+    was WRONG — caught by reading the charge site (`trees.scala:735` → `costFunc(SUnsignedBigInt)`).
+  - **C1 fork (caught by adversarial spec review):** `validateBinOpTypes.isNumericTpe` excluded
+    `SUnsignedBigInt`, so a valid V3 `LT(ubi,ubi)` would be rejected pre-eval (`'bin-op-not-numeric'`) — a
+    reject-where-JVM-accepts fork (`SUnsignedBigInt extends SNumericType`). Closed by adding UBI to
+    `isNumericTpe`; verified safe (`LT(Int,ubi)` still rejects via SameType; `Eq` unaffected).
+  - **`isNumeric` stays UNWIDENED (Critical 1):** UBI is routed by LOCAL branches in `arith.ts`/`relation.ts`
+    (before the `isNumeric` guard) + the new helper `eval/bin-op/_ubi-binop.ts` (`evalUBIArith` with the
+    `[0,2²⁵⁶)` bound + `compareUBI`). `Negation(ubi)` stays permanently rejecting (non-regression test pins it).
+  - **Equality mirrors BigInt exactly** (scalar `EQ_BIGINT_COST` + `Coll[UBI]` COA bulk via `EQ_COA_BigInt` —
+    the JVM `descriptors` maps both `BigIntRType` and `UnsignedBigIntRType` to the same pair). Closes the two
+    P2a `'unsigned-bigint-op-unsupported'` stubs in `relation.ts` (now survives only in `_cast-ubi.ts` ×3 +
+    the eval-context doc-catalog).
+  - **2 bridge methods** (registry 102 → 104): `BigInt.toUnsigned` (6:14, `FixedCost 5`, rejects negative) +
+    `UnsignedBigInt.toSigned` (9:19, `FixedCost 10`, rejects `≥ 2²⁵⁵`), both `minVersion: 3`, closed-`tRange`
+    `method-signatures.ts` entries. **0 new `EvalError` codes** (all reused).
+  - **Process find:** the plan's test cost-totals omitted the per-`Const` eval cost (5 each) + the MethodCall
+    dispatcher envelope (4); the Task-2 implementer caught it and the plan was corrected for Tasks 3–5.
+  - Full suite: **3624 green (node + jsdom)**, `tsc --noEmit` clean. Spec:
+    `2026-06-03-ergoscript-v6-p2c-sunsignedbigint-binops-bridges-design.md`.
 
 - **P2d** (modular-crypto batch: `toUnsignedMod`, `modInverse`, `plusMod`, `subtractMod`, `multiplyMod`, `mod`) — pending.
 

@@ -384,7 +384,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 - **0 new `EvalError` codes.** All error codes reuse existing symbols: `'unsigned-bigint-out-of-range'` (P2b), `'arith-divide-by-zero'` (phase 2c), `'bin-op-kind-mismatch'` (phase 2c), `'bigint-result-out-of-range'` (P1), `'numeric-method-bad-operand'` (P1).
 
-**Phase v6 P2c DONE (2026-06-03).** Method handler registry: 104 entries. EvalError codes: 72 (unchanged). Full suite: TBD green (node + jsdom). `tsc --noEmit` clean.
+**Phase v6 P2c DONE (2026-06-03).** Method handler registry: 104 entries. EvalError codes: 72 (unchanged). Full suite: 3624 green (node + jsdom). `tsc --noEmit` clean.
 
 ## Public surface (v0.3.0)
 
