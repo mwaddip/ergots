@@ -128,10 +128,23 @@ is the living field — phases update it (and append findings / scope deltas) he
   closed). Refines the original "no P0 needed".
 - **Done (2026-06-02):** 40 MethodCall handlers (typeIds 2–6, methodIds 6–13) across Byte/Short/Int/Long/BigInt, all `minVersion: 3` gated. 3 new `EvalError` codes (`'numeric-shift-out-of-range'`, `'bigint-result-out-of-range'`, `'numeric-method-bad-operand'`). BigInt is signed-256-bounded (`checkBigInt256`). P0 type-var engine used for `bitwise*`/`shift*` return-type resolution. Final-review fix (C1): operand-kind guards on all 5 factory functions, preventing consensus over-accept on wrong-kind arguments. Full suite: 3527 green. Spec: `2026-06-02-ergoscript-v6-p1-numeric-methods-design.md`.
 
-### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b/P2c pending
-- **Goal:** the new numeric type end-to-end: thin wire (`SType` code + parse/serialize),
-  eval, cost, its method set, and `BigInt.toUnsigned` / `toUnsignedMod`.
+### P2 — `SUnsignedBigInt` (new type)  ·  status: P2a DONE (2026-06-03); P2b in progress; P2c/P2d pending
+
+**Corrected P2 decomposition (2026-06-03, after reading the JVM operation tables):**
+The original "P2b methods+casts / P2c modular+conversions" split silently omitted the
+plain-arithmetic and ordering BinOp surface on UBI (`trees.scala:868` registers
+`SUnsignedBigInt → OperationImpl(UnsignedBigIntIsExactIntegral, UnsignedBigIntIsExactOrdering, …)`);
+P2a stubs all of it (two sites in `relation.ts`) to throw `'unsigned-bigint-op-unsupported'`.
+The corrected decomposition closes the two lowest-risk groups first:
+
+- **P2b** = UBI numeric/bitwise methods (typeId 9, methodIds 6–13) + full UBI cast matrix (`Upcast`/`Downcast` with UBI source or target)  ·  **status: in progress (this branch)**
+- **P2c** = UBI arithmetic + ordering BinOps (`+`, `−`, `×`, `/`, `%`, `<`, `≤`, `>`, `≥`) + trivial `toUnsigned`/`toSigned` bridges  ·  pending
+- **P2d** = modular-crypto batch: `toUnsignedMod`, `modInverse`, `plusMod`, `subtractMod`, `multiplyMod`, `mod`  ·  pending
+
+**Goal:** the new numeric type end-to-end: thin wire (`SType` code + parse/serialize),
+  eval, cost, its full method set, and `BigInt.toUnsigned` / `toUnsignedMod`.
   **Depends-on:** none (mostly independent); largest single phase.
+
 - **P2a DONE (2026-06-03):** `SUnsignedBigInt` type code 9 added to `SType`/`SValue` unions.
   Option-B gate: permissive wire parse + `validateV6Types` pre-eval pass over `constantTypes[]`
   and the (post-substitution) body, keyed on authoritative `ctx.treeVersion`. Distinct
@@ -142,12 +155,12 @@ is the living field — phases update it (and append findings / scope deltas) he
   (the `annotationsOf()` enumerator deliberately excludes `ValUse.tpe`, which is computed not
   serialized — checking it would false-reject valid v5 lambdas). Full suite: 3580 green. Spec:
   `2026-06-03-ergoscript-v6-p2a-sunsignedbigint-type-core-design.md`.
-- **P2b** (UBI numeric/bitwise methods + casts; methodIds 6–13 + `Upcast`/`Downcast` for UBI) — pending.
-  **P2b note (from P2a final review):** `eval/coll-map.ts` `inferSType` has a non-`never` `default:`
-  (fail-safe throw today, unreachable in P2a since no op yields a UBI value) — add a
-  `case 'UnsignedBigInt': return { tag: 'SUnsignedBigInt' }` arm when UBI-producing ops land. It's
-  the one exhaustiveness spot tsc does **not** force, so it won't surface on its own.
-- **P2c** (modular arithmetic + `toUnsigned`/`toUnsignedMod`/`toSigned` conversions) — pending.
+
+- **P2b in progress (this branch):** 8 UBI method handlers (typeId 9, methodIds 6–13; same `FixedCost(5)`/`minVersion:3` pattern as the P1 signed-numeric group) + the full UBI cast matrix for `Upcast`/`Downcast`. **Load-bearing finding from adversarial review (2026-06-03):** the original "no cast targets UBI / Upcast untouched" claim was false for hand-crafted cast opcodes — a real adversarial fork, closed by implementing all 6 `(source, target)` cells of the matrix. Key correctness constraints: (Critical 1) UBI handling is local to the cast arms — must NOT widen the shared `isNumeric` predicate (consumed by 7 arms; widening would flip `Negation(ubi)` from reject→accept); (Important 1) `mir/method-signatures.ts` `NUMERIC_STYPE` must gain typeId 9 so UBI method returns resolve to concrete types; `eval/coll-map.ts` `inferSType` needs a `'UnsignedBigInt'` arm (the one exhaustiveness gap tsc does not force). 1 new `EvalError` code: `'unsigned-bigint-out-of-range'` (shiftLeft overflow ≥ 2²⁵⁶; negative signed-source cast to UBI). `'unsigned-bigint-op-unsupported'` (P2a) reused for UBI↔BigInt casts + UBI-source Upcast. Spec: `2026-06-03-ergoscript-v6-p2b-sunsignedbigint-methods-casts-design.md`.
+
+- **P2c** (UBI arithmetic BinOps `+/−/×/÷/%`, ordering BinOps `</≤/>/≥`, trivial `toUnsigned`/`toSigned` bridges) — pending.
+
+- **P2d** (modular-crypto batch: `toUnsignedMod`, `modInverse`, `plusMod`, `subtractMod`, `multiplyMod`, `mod`) — pending.
 
 ### P3 — Coll v6 methods  ·  status: not started
 - **Goal:** `find`, `reverse`, `startsWith`, `endsWith`, `get`, `getOrElse`(lazy),
