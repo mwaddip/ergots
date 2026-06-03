@@ -8,7 +8,7 @@ import type { SValue, SType } from '../mir/types'
 import { bytesToCollByteSValue, I256_MIN, I256_MAX } from './_byte-coll'
 import type { HandlerFn } from './method-call'
 import { EvalError } from './eval-context'
-import { encodeBigIntBE } from '../wire/serialize-svalue'
+import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
 
 // EvalError code for BigInt op results exceeding signed-256 range.
 // Distinct from 'byte-array-to-bigint-out-of-range' (that's the ByteArrayToBigInt
@@ -39,7 +39,7 @@ const SBOOLEAN: SType = { tag: 'SBoolean' }
 
 interface NumV6 {
   typeId: number
-  kind: 'Byte' | 'Short' | 'Int' | 'Long' | 'BigInt'
+  kind: 'Byte' | 'Short' | 'Int' | 'Long' | 'BigInt' | 'UnsignedBigInt'
   shiftBound: number
   toBE(value: number | bigint): Uint8Array
   inv(x: number | bigint): number | bigint
@@ -139,7 +139,39 @@ const bigIntDesc: NumV6 = {
   shr: (x, bits) => checkBigInt256((x as bigint) >> BigInt(bits)),
 }
 
-const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIntDesc]
+// Maximum value of an unsigned 256-bit integer (2^256 - 1).
+const UBI_MAX = (1n << 256n) - 1n
+
+// EvalError code for a UnsignedBigInt result outside [0, 2^256). Reused by the
+// cast arms (Task 4) for a negative value cast to UBI. Distinct from P1's
+// signed 'bigint-result-out-of-range'.
+const UBI_OUT_OF_RANGE = 'unsigned-bigint-out-of-range'
+
+const ubiDesc: NumV6 = {
+  typeId: 9, kind: 'UnsignedBigInt', shiftBound: 256,
+  // toBytes/toBits use minimal unsigned magnitude (CUnsignedBigInt.toBytes =
+  // asUnsignedByteArray); 0n -> [] (NOT [0x00] like signed BigInt).
+  toBE: (x) => encodeUnsignedBigIntBE(x as bigint),
+  // bitwiseInverse: JVM flips all 256 bits (asUnsignedByteArray(32,·) then ~b),
+  // i.e. (2^256-1) - x. NOT JS ~x (which goes negative).
+  inv: (x) => UBI_MAX - (x as bigint),
+  or: (a, b) => (a as bigint) | (b as bigint),
+  and: (a, b) => (a as bigint) & (b as bigint),
+  xor: (a, b) => (a as bigint) ^ (b as bigint),
+  // shiftLeft can push past 2^256-1; CUnsignedBigInt constructor rejects
+  // bitLength > 256. (bits-range guard runs first, in makeShift.)
+  shl: (x, bits) => {
+    const r = (x as bigint) << BigInt(bits)
+    if (r > UBI_MAX) {
+      throw new EvalError(`UnsignedBigInt.shiftLeft: result exceeds 2^256-1`, UBI_OUT_OF_RANGE)
+    }
+    return r
+  },
+  // shiftRight on a non-negative magnitude always stays in range.
+  shr: (x, bits) => (x as bigint) >> BigInt(bits),
+}
+
+const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIntDesc, ubiDesc]
 
 function makeToBytes(t: NumV6): HandlerFn {
   return (obj, _args, ctx) => {
