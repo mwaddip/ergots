@@ -22,6 +22,19 @@ const ubiMC = (methodId: number, recv: bigint, args: bigint[]): MC =>
     explicitTypeArgs: {},
   } as unknown as MC)
 
+const SBIGINT: SType = { tag: 'SBigInt' }
+const big = (v: bigint): SValue => ({ kind: 'BigInt', value: v })
+/** BigInt-receiver toUnsignedMod call (6:15): signed receiver, UBI modulus. */
+const toUnsignedModMC = (recv: bigint, m: bigint): MC =>
+  ({
+    tag: 'MethodCall',
+    obj: constOf(SBIGINT, big(recv)),
+    args: [constOf(SUBI, ubi(m))],
+    typeId: 6,
+    methodId: 15,
+    explicitTypeArgs: {},
+  } as unknown as MC)
+
 function expectThrow(fn: () => unknown, code: string): void {
   let threw: EvalError | undefined
   try { fn() } catch (e) { threw = e as EvalError }
@@ -112,5 +125,51 @@ describe('UBI.subtractMod (9:16) — v6 P2d-1 (JVM verifyCases :2793-2802)', () 
   })
   it('exprTpe → SUnsignedBigInt', () => {
     expect(exprTpe(ubiMC(16, 0n, [24n, 10n]) as unknown as Expr)).toEqual(SUBI)
+  })
+})
+
+describe('UBI.multiplyMod (9:17) — v6 P2d-1 (JVM verifyCases :2843-2849)', () => {
+  it('(g).multiplyMod(g, g) = 0  [group order], cost 59 (4 + 5·3 + 40)', () => {
+    const c = v3()
+    expect(evalMethodCall(ubiMC(17, groupOrder, [groupOrder, groupOrder]), Env.empty(), c)).toEqual(ubi(0n))
+    expect(c.jitCost).toBe(59)
+  })
+  it('(7).multiplyMod(8, 10) = 6  [(7*8) mod 10 = 56 mod 10]', () => {
+    expect(evalMethodCall(ubiMC(17, 7n, [8n, 10n]), Env.empty(), v3())).toEqual(ubi(6n))
+  })
+  it('m == 0 → arith-divide-by-zero', () => {
+    expectThrow(() => evalMethodCall(ubiMC(17, 7n, [8n, 0n]), Env.empty(), v3()), 'arith-divide-by-zero')
+  })
+  it('exprTpe → SUnsignedBigInt', () => {
+    expect(exprTpe(ubiMC(17, 7n, [8n, 10n]) as unknown as Expr)).toEqual(SUBI)
+  })
+})
+
+describe('BigInt.toUnsignedMod (6:15) — v6 P2d-1 (JVM verifyCases :2466-2472)', () => {
+  it('(50).toUnsignedMod(10) = 0, cost 29 (4 + 5 recv + 5 m + 15 handler)', () => {
+    const c = v3()
+    expect(evalMethodCall(toUnsignedModMC(50n, 10n), Env.empty(), c)).toEqual(ubi(0n))
+    expect(c.jitCost).toBe(29)
+  })
+  it('(50).toUnsignedMod(0) → arith-divide-by-zero  [JVM: ArithmeticException "modulus not positive"]', () => {
+    expectThrow(() => evalMethodCall(toUnsignedModMC(50n, 0n), Env.empty(), v3()), 'arith-divide-by-zero')
+  })
+  it('negative receiver: (-7).toUnsignedMod(10) = 3  [signed receiver, Euclidean — code accepts negatives]', () => {
+    expect(evalMethodCall(toUnsignedModMC(-7n, 10n), Env.empty(), v3())).toEqual(ubi(3n))
+  })
+  it('wrong-kind receiver (not BigInt) → numeric-method-bad-operand', () => {
+    const bad = {
+      tag: 'MethodCall',
+      obj: constOf(SUBI, ubi(50n)), // UBI, not BigInt
+      args: [constOf(SUBI, ubi(10n))],
+      typeId: 6, methodId: 15, explicitTypeArgs: {},
+    } as unknown as MC
+    expectThrow(() => evalMethodCall(bad, Env.empty(), v3()), 'numeric-method-bad-operand')
+  })
+  it('pre-V3 tree → tree-version-too-low', () => {
+    expectThrow(() => evalMethodCall(toUnsignedModMC(50n, 10n), Env.empty(), makeContext({ treeVersion: 2 })), 'tree-version-too-low')
+  })
+  it('exprTpe → SUnsignedBigInt', () => {
+    expect(exprTpe(toUnsignedModMC(50n, 10n) as unknown as Expr)).toEqual(SUBI)
   })
 })

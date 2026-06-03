@@ -926,6 +926,35 @@ function registerHandlers(): void {
     return { kind: 'UnsignedBigInt', value: umod(obj.value - that.value, m.value) }
   } })
 
+  // SUnsignedBigInt.multiplyMod (9:17) — v6 P2d-1. FixedCost(40) (methods.scala:595), Pattern A.
+  // (a · that) mod m. Source: CUnsignedBigInt.scala:73-77.
+  HANDLERS.set(handlerKey(9, 17), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(40)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.multiplyMod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const that = args[0], m = args[1]
+    if (that?.kind !== 'UnsignedBigInt' || m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.multiplyMod: expected UnsignedBigInt arguments`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value * that.value, m.value) }
+  } })
+
+  // SBigInt.toUnsignedMod (6:15) — v6 P2d-1. FixedCost(15) (methods.scala:551-553), Pattern A.
+  // Receiver is a SIGNED BigInt (may be < 0); aSigned mod m → UBI (umod is Euclidean).
+  // Source: CBigInt.scala:77-79. minVersion 3 (BigInt.getMethods gates on isV3OrLater).
+  HANDLERS.set(handlerKey(6, 15), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'BigInt') {
+      throw new EvalError(`BigInt.toUnsignedMod: expected BigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const m = args[0]
+    if (m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`BigInt.toUnsignedMod: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value, m.value) }
+  } })
+
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.
   for (const { typeId, methodId, handler } of numericV6Handlers()) {
     HANDLERS.set(handlerKey(typeId, methodId), { handler, minVersion: 3 })
