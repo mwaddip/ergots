@@ -129,6 +129,8 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
   [key(9, 14), { tDom: [{ tag: 'SUnsignedBigInt' }, { tag: 'SUnsignedBigInt' }], tRange: { tag: 'SUnsignedBigInt' } }],
   // SBigInt.toUnsignedMod — JVM methods.scala:553 — SFunc([SBigInt, UBI] → UBI). v6 P2d-1; closed tRange.
   [key(6, 15), { tDom: [{ tag: 'SBigInt' }, { tag: 'SUnsignedBigInt' }], tRange: { tag: 'SUnsignedBigInt' } }],
+  // SColl.reverse — JVM methods.scala:1126 — SFunc([Coll[IV]] → Coll[IV]). v6 P3; generic tRange.
+  [key(12, 30), { tDom: [SCOLL_IV], tRange: SCOLL_IV, tpeParams: [{ name: 'IV' }] }],
   ...numericV6Signatures(),
 ])
 

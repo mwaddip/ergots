@@ -67,6 +67,7 @@ import {
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
+import { evalCollReverse } from './scoll-v6'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
 import { umod, umodInverse } from './_ubi-modular'
@@ -969,6 +970,10 @@ function registerHandlers(): void {
     }
     return { kind: 'UnsignedBigInt', value: umodInverse(obj.value, m.value) }
   } })
+
+  // SColl v6 methods (typeId 12, methodIds 30-33) — phase v6 P3. minVersion:3.
+  // Source: sigma/ast/methods.scala SCollectionMethods v6Methods (:1211-1216).
+  HANDLERS.set(handlerKey(12, 30), { handler: (obj, args, ctx) => evalCollReverse(obj, args, ctx), minVersion: 3 })
 
   // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.
   for (const { typeId, methodId, handler } of numericV6Handlers()) {
