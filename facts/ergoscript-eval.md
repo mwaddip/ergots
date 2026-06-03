@@ -65,7 +65,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase 2f Coll HOFs — 9 collection arms** (additive):
 
-- 9 more arms wired: `SizeOf` (Fixed(14) Pattern A), `Append` (`addPerItemCost(20, 2, 128, result.length)` Pattern A), `ByIndex` (Fixed(30) Pattern A), `Slice` (`addPerItemCost(10, 2, 128, result.length)` Pattern A), `MapColl` / `Filter` / `Fold` / `Exists` / `ForAll` (Mixed: outer `addPerItemCost(20, 2, 128, input.length)` Pattern A + per-iter Fixed(1) Pattern B).
+- 9 more arms wired: `SizeOf` (Fixed(14) Pattern A), `Append` (`addPerItemCost(20, 2, 100, result.length)` Pattern A), `ByIndex` (Fixed(30) Pattern A), `Slice` (`addPerItemCost(10, 2, 100, result.length)` Pattern A), `MapColl` / `Filter` / `Fold` / `Exists` / `ForAll` (Mixed: outer `addPerItemCost(20, 2, 128, input.length)` Pattern A + per-iter Fixed(1) Pattern B).
 - Cost-charging patterns clarified: **Pattern A** (envelope-first, outer cost BEFORE eval-children); **Pattern B** (per-iteration, AFTER each loop iteration); **Mixed** (both coexisting, used by all 5 lambda HOFs).
 - 7 new `EvalError` codes: `'coll-input-not-coll'`, `'coll-elem-tpe-mismatch'`, `'coll-by-index-out-of-range'`, `'coll-by-index-index-not-int'`, `'coll-slice-bound-not-int'`, `'lambda-not-callable'`, `'lambda-result-type-mismatch'`.
 - Port-level discrepancy: sigma-rust's Filter/Exists/ForAll MIR structs carry an `elemTpe` field; the TS MIR structs do NOT — the evaluator derives the declared element type from `condition.args[0].tpe`.
@@ -418,6 +418,40 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 **Phase v6 P2d-2 DONE (2026-06-03).** Method handler registry: 110 entries. EvalError codes: 73. Eval arm coverage: 67/67 (unchanged). Full suite: 3669 green (node + jsdom). `tsc --noEmit` clean.
 
+**Phase v6 P3 — Coll v6 methods (`reverse`/`startsWith`/`endsWith`/`get`)** (additive; 4 new method handlers + 0 new `EvalError` codes; 2026-06-03):
+
+- **4 new method handlers** (typeId 12, methodIds 30–33), all gated `treeVersion >= 3`
+  via `minVersion: 3` at the dispatcher. Source module `eval/scoll-v6.ts`. JVM source:
+  `sigma/ast/methods.scala` `SCollectionMethods` `v6Methods` (`:1211-1216`, gated `:1221-1227`).
+  - **`reverse` (12:30)** → `Coll[IV]` (generic, via the P0 substitution engine). Cost
+    `addPerItemCost(20, 2, 100, n)` on the receiver length (`Append.costKind`,
+    `transformers.scala:74-75`). Reverses the items, preserves elem type. Empty → empty.
+  - **`startsWith` (12:31)** / **`endsWith` (12:32)** → `Boolean` (closed). Cost
+    `addPerItemCost(10, 1, 10, n)` on the **receiver** length (`Zip_CostKind`,
+    `methods.scala:1102-1103`). Element comparison is **cost-free** (`sValueStructuralEq`,
+    NOT the costed `sValueEquals`) — the JVM's `Coll.startsWith`/`endsWith` are uncosted
+    Scala ops, so the only charge is the one Zip envelope (contrast `indexOf`, which is
+    per-comparison costed).
+  - **`get` (12:33)** → `Option[IV]` (generic, via P0). Cost `FixedCost(30)`
+    (`ByIndex.costKind`, `transformers.scala:285`). Total function: `0 ≤ i < len ?
+    Some(item) : None` — negative/OOB return `None`, never throw.
+- **Static typing:** 4 `mir/method-signatures.ts` entries. `reverse`/`get` carry type-var
+  `tRange` (resolved by the P0 engine); `startsWith`/`endsWith` are closed `SBoolean`.
+- **Cost-free structural equality:** `sValueEquals` (`eval/bin-op/relation.ts`) refactored
+  into a cost-free core `compareSValues(a, b, ctx?)`; `sValueStructuralEq(a, b)` is the
+  cost-free wrapper used by `startsWith`/`endsWith`. `sValueEquals` behavior is unchanged
+  (it passes `ctx`).
+- **No wire change** — the generic `MethodCall` path handles all four (`IV` is
+  receiver-inferred; `explicitTypeArgs` empty, like `patch` 12:19).
+- **Errors:** zero new codes — defensive receiver/arg-kind checks reuse
+  `'method-not-implemented'` (the SColl MethodCall convention); pre-V3 invocation →
+  `'tree-version-too-low'` (dispatcher gate). `get` OOB/negative is not an error.
+- **Inherited residuals** (not regressions): (1) `startsWith`/`endsWith` over `Coll[Box]`/
+  `Coll[AvlTree]`/`Coll[Header]`/`Coll[PreHeader]` throw `'not-implemented-yet'` via
+  `sValueStructuralEq` — the same limitation as the `Eq` BinOp arm; (2) a hand-crafted
+  mismatched-elem `startsWith`/`endsWith` reaches eval (benign `false`) — the general
+  MethodCall-arg-type pre-eval pass is deferred to P8.
+
 ## Public surface (v0.3.0)
 
 ```ts
@@ -533,9 +567,9 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (72 codes)
+## `EvalError` taxonomy (73 codes)
 
-`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted. P2b added 1 new code (`'unsigned-bigint-out-of-range'`) and extended `'unsigned-bigint-op-unsupported'` (P2a) to also cover UBI cast arm rejects.
+`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted. P2b added 1 new code (`'unsigned-bigint-out-of-range'`) and extended `'unsigned-bigint-op-unsupported'` (P2a) to also cover UBI cast arm rejects. P2d-2 added `'unsigned-bigint-not-invertible'` (73 total). P3 adds 0 new codes.
 
 ### Phase 2b codes
 
@@ -714,7 +748,7 @@ The method-call dispatcher consults an optional `minVersion?: number` field on e
 
 Registry entries using `minVersion: 3` (V3-gated): `SHeader.checkPow` (104:16; phase 2h-c.2), `SAvlTree.insertOrUpdate` (100:16; phase 2h-d), all **40 v6 numeric-method handlers** (typeIds 2–6, methodIds 6–13; phase v6 P1), the **8 v6 UnsignedBigInt method handlers** (typeId 9, methodIds 6–13; phase v6 P2b), and the **2 v6 bridge methods** (`BigInt.toUnsigned` 6:14 and `UnsignedBigInt.toSigned` 9:19; phase v6 P2c) — all mirror JVM `isV3OrLaterErgoTreeVersion` gating. Future V3+ method handlers (e.g., `SContext.getVarFromInput` at 101:12) should prefer this dispatcher path over the in-arm 2e pattern (Upcast/Downcast).
 
-## Method-handler registry (104 entries)
+## Method-handler registry (115 entries)
 
 The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes through a `(typeId, methodId)` → handler registry. Per error-taxonomy Decision #1, all defensive obj-kind throws reuse `'method-not-implemented'` (or the existing `'context-obj-not-context'` for SContext handlers).
 
@@ -824,6 +858,10 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 102 | `UnsignedBigInt.shiftRight` | 9:13 | 5 | A | `UnsignedBigInt` — V3-gated; bits range guard: bits∈[0,256) else `'numeric-shift-out-of-range'`; result always in `[0, 2²⁵⁶−1]` for in-range input | JVM `SNumericTypeMethods.shiftRight` |
 | 103 | `BigInt.toUnsigned` | 6:14 | 5 | A | `UnsignedBigInt` — **V3-gated** (`minVersion: 3`); negative receiver → `'unsigned-bigint-out-of-range'`; wrong-kind receiver → `'numeric-method-bad-operand'`; else `{ kind:'UnsignedBigInt', value }` | JVM `methods.scala:543-549, 559-565` |
 | 104 | `UnsignedBigInt.toSigned` | 9:19 | 10 | A | `SBigInt` — **V3-gated** (`minVersion: 3`); receiver `≥ 2²⁵⁵` (leftmost bit set) → `'bigint-result-out-of-range'`; wrong-kind receiver → `'numeric-method-bad-operand'`; else `{ kind:'BigInt', value }` | JVM `methods.scala:607-611`, `Extensions.scala:219-223` |
+| 111 | `SColl.reverse` | 12:30 | `addPerItemCost(20,2,100,n)` | B | `Coll[IV]` (generic, via P0 substitution engine); reverses items, preserves elem type; empty → empty — **V3-gated** (`minVersion: 3`) | JVM `sigma/ast/methods.scala:1211-1216, 1221-1227`; `transformers.scala:74-75` |
+| 112 | `SColl.startsWith` | 12:31 | `addPerItemCost(10,1,10,n)` on receiver length | B | `Boolean` (closed) — element comparison via cost-free `sValueStructuralEq` (NOT the costed `sValueEquals`); `n` = receiver length — **V3-gated** (`minVersion: 3`) | JVM `methods.scala:1102-1103` (Zip_CostKind) |
+| 113 | `SColl.endsWith` | 12:32 | `addPerItemCost(10,1,10,n)` on receiver length | B | `Boolean` (closed) — same cost model and element-comparison as `startsWith`; checks suffix alignment — **V3-gated** (`minVersion: 3`) | JVM `methods.scala:1102-1103` (Zip_CostKind) |
+| 114 | `SColl.get` | 12:33 | `FixedCost(30)` | A | `Option[IV]` (generic, via P0 substitution engine); `0 ≤ i < len ? Some(item) : None` — negative/OOB return `None`, never throw — **V3-gated** (`minVersion: 3`) | JVM `ByIndex.costKind`; `transformers.scala:285` |
 
 (Rows 50-52 are the v5 `negate`/`updated`/`updateMany` handlers. `updateMany` perChunkCost is **2** per the canonical JVM `methods.scala:1055` — the stale vendored `integration/ergots` checkout reads 1; cost was sourced from the JVM + the n=14 conformance vector, not that checkout.)
 
@@ -868,7 +906,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-f adds 2 more method handlers (`SGroupElement.getEncoded` + `SColl.flatMap`) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2i-a adds 8 new `Expr` arms (pure-bytes predefs) — coverage advances to 60 / ~70; post-2i-a uplift to C2 corpus TBD on next corpus run.
 
-**Method-handler registry: 104 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating; +2 from 2h-f — `SGroupElement.getEncoded` at 7:2 and `SColl.flatMap` at 12:15; +1 from 2j-b arm-coverage parallel session — `SContext.minerPubKey` at 101:10, Pattern A cost 20 returning the 33-byte SEC1-compressed `ctx.preHeader.minerPk` as `Coll[Byte]`; mirrors sigma-rust `MINER_PUBKEY_EVAL_FN`. Surfaced as a halt at mainnet h=208788; +1 from 2j-b iter-4 arm-coverage parallel session — `SPreHeader.minerPk` at 105:6, Pattern A cost 10 returning the raw 33-byte miner pubkey as `SGroupElement` (NOT sigma-serialized — receiver-side counterpart to row 45 which returns `Coll[Byte]`); mirrors sigma-rust `MINER_PK_EVAL_FN`. Surfaced as a halt at mainnet h=228633; +1 from 2j-b iter-5 arm-coverage parallel session — `SContext.selfBoxIndex` at 101:8, Pattern A cost 20 returning 0-based `ctx.inputs.indexOf(ctx.selfBox)` gated by `activated_script_version >= 2`; mirrors sigma-rust `SELF_BOX_INDEX_EVAL_FN`. Surfaced as a halt at mainnet h=342,964; +1 from 2j-b iter-10 arm-coverage parallel session — `SPreHeader.parentId` at 105:2, Pattern A cost 10 returning the 32-byte `ctx.preHeader.parentId` as `Coll[Byte]` (contrast row 46 `SPreHeader.minerPk` which returns `SGroupElement` of raw pubkey); mirrors sigma-rust `PARENT_ID_EVAL_FN`. Surfaced as a halt at mainnet h=679,337; +1 from 2j-b iter-11 arm-coverage parallel session — `SPreHeader.height` at 105:5, Pattern A cost 10 returning `obj.value.height` as `Int` (sigma-rust `as i32`); mirrors sigma-rust `HEIGHT_EVAL_FN`. Surfaced as a halt at mainnet h=679,837; +40 from v6 P1 — `Byte/Short/Int/Long/BigInt.toBytes/toBits/bitwiseInverse/bitwiseOr/bitwiseAnd/bitwiseXor/shiftLeft/shiftRight` (typeIds 2–6, methodIds 6–13), all `minVersion: 3` via the dispatcher gate, `FixedCost(JitCost(5))`; +8 from v6 P2b — `UnsignedBigInt.toBytes/toBits/bitwiseInverse/bitwiseOr/bitwiseAnd/bitwiseXor/shiftLeft/shiftRight` (typeId 9, methodIds 6–13), all `minVersion: 3`, `FixedCost(JitCost(5))`, implementation in `eval/_numeric-v6.ts` `ubiDesc`; +2 from v6 P2c — `BigInt.toUnsigned` (6:14) `FixedCost(5)` and `UnsignedBigInt.toSigned` (9:19) `FixedCost(10)`, both `minVersion: 3`, bridge the signed↔unsigned BigInt boundary).
+**Method-handler registry: 115 entries** (was 8 before 2h-b; +13 from 2h-b — 7 Tier-1 accessors at typeId:methodId 100:1..100:7 + 6 Tier-2 verification ops at 100:9..100:14; +17 from 2h-c.1 — 15 `SHeader.*` accessors at 104:1..104:15 + 2 `SContext.*` additions at 101:2 and 101:9; +1 from 2h-c.2 — `SHeader.checkPow` at 104:16; +3 from 2h-d — `SAvlTree.updateOperations` at 100:8, `SAvlTree.updateDigest` at 100:15, and `SAvlTree.insertOrUpdate` at 100:16 with dispatcher `minVersion: 3` gating; +2 from 2h-f — `SGroupElement.getEncoded` at 7:2 and `SColl.flatMap` at 12:15; +1 from 2j-b arm-coverage parallel session — `SContext.minerPubKey` at 101:10, Pattern A cost 20 returning the 33-byte SEC1-compressed `ctx.preHeader.minerPk` as `Coll[Byte]`; mirrors sigma-rust `MINER_PUBKEY_EVAL_FN`. Surfaced as a halt at mainnet h=208788; +1 from 2j-b iter-4 arm-coverage parallel session — `SPreHeader.minerPk` at 105:6, Pattern A cost 10 returning the raw 33-byte miner pubkey as `SGroupElement` (NOT sigma-serialized — receiver-side counterpart to row 45 which returns `Coll[Byte]`); mirrors sigma-rust `MINER_PK_EVAL_FN`. Surfaced as a halt at mainnet h=228633; +1 from 2j-b iter-5 arm-coverage parallel session — `SContext.selfBoxIndex` at 101:8, Pattern A cost 20 returning 0-based `ctx.inputs.indexOf(ctx.selfBox)` gated by `activated_script_version >= 2`; mirrors sigma-rust `SELF_BOX_INDEX_EVAL_FN`. Surfaced as a halt at mainnet h=342,964; +1 from 2j-b iter-10 arm-coverage parallel session — `SPreHeader.parentId` at 105:2, Pattern A cost 10 returning the 32-byte `ctx.preHeader.parentId` as `Coll[Byte]` (contrast row 46 `SPreHeader.minerPk` which returns `SGroupElement` of raw pubkey); mirrors sigma-rust `PARENT_ID_EVAL_FN`. Surfaced as a halt at mainnet h=679,337; +1 from 2j-b iter-11 arm-coverage parallel session — `SPreHeader.height` at 105:5, Pattern A cost 10 returning `obj.value.height` as `Int` (sigma-rust `as i32`); mirrors sigma-rust `HEIGHT_EVAL_FN`. Surfaced as a halt at mainnet h=679,837; +40 from v6 P1 — `Byte/Short/Int/Long/BigInt.toBytes/toBits/bitwiseInverse/bitwiseOr/bitwiseAnd/bitwiseXor/shiftLeft/shiftRight` (typeIds 2–6, methodIds 6–13), all `minVersion: 3` via the dispatcher gate, `FixedCost(JitCost(5))`; +8 from v6 P2b — `UnsignedBigInt.toBytes/toBits/bitwiseInverse/bitwiseOr/bitwiseAnd/bitwiseXor/shiftLeft/shiftRight` (typeId 9, methodIds 6–13), all `minVersion: 3`, `FixedCost(JitCost(5))`, implementation in `eval/_numeric-v6.ts` `ubiDesc`; +2 from v6 P2c — `BigInt.toUnsigned` (6:14) `FixedCost(5)` and `UnsignedBigInt.toSigned` (9:19) `FixedCost(10)`, both `minVersion: 3`, bridge the signed↔unsigned BigInt boundary; +5 from v6 P2d-1 — `UnsignedBigInt.plusMod` (9:15), `subtractMod` (9:16), `multiplyMod` (9:17), `mod` (9:18), `BigInt.toUnsignedMod` (6:15), all `minVersion: 3`; +1 from v6 P2d-2 — `UnsignedBigInt.modInverse` (9:14), `minVersion: 3`, `FixedCost(150)`; +4 from v6 P3 — `SColl.reverse` (12:30), `SColl.startsWith` (12:31), `SColl.endsWith` (12:32), `SColl.get` (12:33), all `minVersion: 3`).
 
 **Public function signatures are stable** from v0.2.0 onward. Future arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`.
 
