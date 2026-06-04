@@ -282,7 +282,7 @@ The corrected decomposition closes the two lowest-risk groups first:
   (facts)→`8934dcfa`(wire)→`21fa31df`(sigs)→`4f0b08b`(handlers)→`a772527`(reject+checkPow regen).
   **Next: P5 (Global functions).**
 
-### P5 — Global functions  ·  status: in progress (decomposed P5a/P5b/P5c)
+### P5 — Global functions  ·  status: in progress (P5a DONE; P5b/P5c not started)
 - **Goal:** `serialize`, `deserializeTo`, `fromBigEndianBytes`, `encodeNbits`,
   `decodeNbits`, `powHit`. **Depends-on:** P0 (generics) + a thin wire slice.
 - **Decomposition (2026-06-04, after verifying the surface vs JVM):** all six are real,
@@ -295,8 +295,13 @@ The corrected decomposition closes the two lowest-risk groups first:
     **runtime-value** type derivation, NOT `exprTpe` — closes the SAny over-reject fork);
     deserializeTo = PerItemCost(100,32,32) on input length + a `MaxTreeDepth`(110) bound.
     Full data-type domain incl. Box/Header/AvlTree (Box registers cost = `putType` + data,
-    no envelope). **status: spec'd** —
-    `2026-06-04-ergoscript-v6-p5a-serialize-deserializeto-design.md`.
+    no envelope). **status: DONE (2026-06-04)** —
+    `2026-06-04-ergoscript-v6-p5a-serialize-deserializeto-design.md`. Landed serialize (106:3) +
+    deserializeTo (106:4) — registry 119, codes 76, 3822 green (node + jsdom). The `MaxTreeDepth`
+    gap was closed STRUCTURALLY (T2.5: one shared reader-level counter on `@ergots/scorex`
+    `ByteReader`, bumped at parseExpr/parseSValue/parseSigmaBoolean + the box-register Expr —
+    all parsers share one counter). Deferred residual: the V1-Header d=0 byte-shape
+    sigma-rust-vs-JVM fork in scorex (→ v6 scorex work).
   - **P5b** — `fromBigEndianBytes` (106:5) + `encodeNbits` (106:6) + `decodeNbits` (106:7):
     numeric/compact decoders. **status: not started.**
   - **P5c** — `powHit` (106:8): Autolykos v2 hit → `SUnsignedBigInt`; carved for the 95%

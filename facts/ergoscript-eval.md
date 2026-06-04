@@ -480,7 +480,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 - **Round-trip property** (`deserializeTo[T](serialize[T](x)) == x`) verified across full type domain: Byte, Short, Int, Long, BigInt, UnsignedBigInt, Coll[Byte], Coll[Int], Option[Int] (None + Some), Tuple, GroupElement, AvlTree, Header (V2), Box (no regs; with Int reg; with Coll[Byte] reg). V1 excluded from round-trip (sigma-rust-vs-JVM d=0 fork — adversarial-only residual).
 - **Wire-confirm:** `106:3` MethodCall carries NO explicit type arg bytes on the wire (wire round-trip → `explicitTypeArgs = {}`); `106:4` DOES carry `T` (wire round-trip → `explicitTypeArgs = { T: SInt }` or equivalent).
 
-**Phase v6 P5a COMPLETE (2026-06-04).** Method handler registry: 119 entries. EvalError codes: 76. Eval arm coverage: 67/67 (unchanged — adds METHOD-REGISTRY entries, not eval arms). Full suite: **3820 green** (node + jsdom). `tsc --noEmit` clean.
+**Phase v6 P5a COMPLETE (2026-06-04).** Method handler registry: 119 entries. EvalError codes: 76. Eval arm coverage: 67/67 (unchanged — adds METHOD-REGISTRY entries, not eval arms). Full suite: **3822 green** (node + jsdom). `tsc --noEmit` clean. Includes the T2.5 structural `MaxTreeDepth`(110) reader-level counter (shared `@ergots/scorex` `ByteReader`, bumped at parseExpr/parseSValue/parseSigmaBoolean + box-register Expr) and the T7 Tuple-Expr-register serialize-cost fix. One deferred residual: V1-Header d=0 byte-shape sigma-rust-vs-JVM fork in scorex → v6 scorex work.
 
 ## Public surface (v0.3.0)
 

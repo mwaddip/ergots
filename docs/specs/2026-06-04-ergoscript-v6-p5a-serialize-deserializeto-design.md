@@ -1,7 +1,7 @@
 # ErgoScript v6 (ErgoTree V3) — P5a: `Global.serialize` + `Global.deserializeTo`
 
 **Date:** 2026-06-04
-**Status:** design (brainstorm approved; pending user spec review → writing-plans)
+**Status:** COMPLETE (2026-06-04) — implemented (T1–T7) + reviewed; one deferred residual (V1-Header d=0 byte-shape → v6 scorex work)
 **Branch:** `ergoscript-v6`
 **Scope owner:** `@ergots/ergoscript`
 **Umbrella:** `docs/specs/2026-06-02-ergoscript-v6-umbrella-design.md` (P5 ledger)
@@ -339,7 +339,14 @@ arg; `deserializeTo` reuses the existing MethodCall explicit-type-arg slice (no 
   writes type bytes via `put` (cost 1) per byte (vs `putBytes`).
 - No standalone blessed serialize(Box/Header/AvlTree) cost vector → relies on the
   composition argument above; the round-trip totals are the backstop.
-- **V1-Header `d=0` byte-shape fork (OPEN RESIDUAL, T6, 2026-06-04)** — adversarial-only.
+- **Tuple-Expr register serialize-cost — CLOSED (T7 final-review fix, 2026-06-04).**
+  `serialize(Box)` of a box with a Tuple-Expr (`opaqueBytes`) register was throwing in the cost
+  walk while the byte path + the JVM accept it (over-reject fork; reachable via context boxes,
+  e.g. h=855,650 R8 `(SByte 102, SByte 99)`). Fixed by `addRegisterExprCost`, which cost-walks the
+  register's raw bytes and charges the JVM `putValue` path (`put(OP_TUPLE)=1` + `putUByte(count)=0`
+  + per-item: Const → `putType`+`DataSerializer`, nested Tuple → recurse). The `(SByte,SByte)`
+  register costs 5.
+- **V1-Header `d=0` byte-shape fork — DEFERRED to v6 scorex work (user call, 2026-06-04)** — adversarial-only.
   `serialize`/`deserializeTo` for a hand-crafted V1 (block-version-1) `Header` with
   `powDistance=0` produces bytes shaped by `@ergots/scorex` (following sigma-rust):
   `d_len=1, d_bytes=[0x00]` = 2 bytes. The JVM instead serializes d=0 as `d_len=0, d_bytes=[]`
@@ -351,4 +358,5 @@ arg; `deserializeTo` reuses the existing MethodCall explicit-type-arg slice (no 
   solution), and V1 blocks are unreachable via `Context.headers` on a V3+ chain (tree-version
   gate). The serialize COST is JVM-faithful regardless of the d-encoding fork. The round-trip
   test for Header is therefore restricted to V2 (version ≥ 2) only. Tracked pending a
-  validation-model decision on whether `@ergots/scorex` should be patched to follow the JVM.
+  validation-model decision (sigma-rust vs JVM for scorex's Autolykos-V1 d-encoding) — to be made
+  when the v6 scorex part is built; DEFERRED there per the user (2026-06-04).
