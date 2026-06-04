@@ -81,6 +81,26 @@ export class SigmaBooleanSerializeError extends Error {
  * Source: ergotree-ir/src/serialization/sigmaboolean.rs
  */
 export function parseSigmaBoolean(r: ByteReader): SigmaBoolean {
+  // MaxTreeDepth bound (consensus) — this is the SigmaBoolean increment point of
+  // the JVM's single shared `r.level` counter (`SigmaBoolean.serializer.parse`,
+  // `SigmaBoolean.scala:71-104`: `r.level = depth + 1` on entry, `- 1` on exit).
+  // It shares the same reader-level counter as the expr-node parser (`parseExpr`)
+  // and data parser (`parseSValue`), so a conjecture tree reached via
+  // `parseSValue(SSigmaProp)` continues the whole-tree depth budget. try/finally
+  // keeps the counter balanced if a nested child parse throws.
+  r.enterDepth()
+  try {
+    return parseSigmaBooleanBody(r)
+  } finally {
+    r.exitDepth()
+  }
+}
+
+/**
+ * Body of {@link parseSigmaBoolean}, run inside the reader-level depth guard.
+ * Separated so the single enter/exit pair wraps every dispatch arm.
+ */
+function parseSigmaBooleanBody(r: ByteReader): SigmaBoolean {
   const op = r.readU8()
   switch (op) {
     case OP_TRIVIAL_PROP_FALSE: return { tag: 'TrivialProp', value: false }

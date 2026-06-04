@@ -100,13 +100,22 @@ charged even on a parse failure) — matches the JVM `addSeqCost` ordering.
   (e.g. `deserializeTo[Coll[Coll[…111…]]]` of an empty outer coll) is **accepted** — the JVM
   returns an empty coll at recursion depth 1. The bound is on the actual parse-recursion depth,
   NOT on `T`'s nesting depth (an earlier draft of this spec had that backwards — caught in
-  code-quality review). Implement by threading a depth counter through `parseSValue` (one level
-  per recursive call, `maxDepth` param), with deserializeTo passing `maxDepth = 110` from a fresh
-  reader (depth starts at 1, matching the JVM's first-call level 1). ergots' `parseSValue` has
-  no depth guard by default → other callers stay unbounded. **Residuals (adversarial-only,
-  genuinely-broad to close → deferred + documented):** the box-register sub-parse and the
-  general Constants-in-tree path are NOT depth-counted; the latter's faithful bound is entangled
-  with whole-tree expr depth (one shared reader level), a broader change.
+  code-quality review). **CLOSED STRUCTURALLY (T2.5, 2026-06-04):** the initial implementation
+  threaded a `depth`/`maxDepth` param through `parseSValue` (data path ONLY); a code-quality
+  review flagged that as piecemeal — the SSigmaProp→`parseSigmaBoolean` conjecture nesting, the
+  box-register sub-parse, and the general expr-tree/Constant path were all un-counted (each a
+  fork). That threaded param was REPLACED by a single shared reader-level counter on
+  `@ergots/scorex` `ByteReader` (`level` + `maxTreeDepth` default 110, `enterDepth`/`exitDepth`),
+  bumped at the three central recursion funnels — `parseExpr` (≡ JVM `ValueSerializer`),
+  `parseSValue` (≡ `CoreDataSerializer`), `parseSigmaBoolean` (≡ `SigmaBoolean.serializer`).
+  Because every ergots parser threads the one reader, ALL nesting kinds are now bounded uniformly
+  (the previously-documented box-register + whole-tree-Constant residuals are CLOSED). A fresh
+  `ByteReader` defaults to 110 (mirroring the JVM's fresh reader), so `parseTree`, box parse,
+  `deserializeTo`, and DeserializeContext/Register re-parses are all bounded as the JVM bounds
+  them. The `hasSize=true` ErgoTree body forks a sub-reader that INHERITS the parent level
+  (`forkSubReader`), matching the JVM's single-reader `positionLimit` approach. Over-depth raises
+  `ReaderError('max-tree-depth-exceeded')` (the single faithful analogue of the JVM
+  `DeserializeCallDepthExceeded`), caught at the `deserializeTo` boundary → `global-deserialize-failed`.
 - **Oversized data throws** (BigInt/UBI > 32 bytes) — `parseSValue` already enforces this
   (the SBigInt/SUnsignedBigInt arms); maps to a deserialize-failure EvalError.
 
@@ -314,10 +323,15 @@ arg; `deserializeTo` reuses the existing MethodCall explicit-type-arg slice (no 
 
 ## Open items / risks
 
-- **Depth bound (110)** — RESOLVED in implementation: data-driven counter threaded through
-  `parseSValue` (`maxDepth` param, one level per recursive call), deserializeTo passes 110 from
-  a fresh reader. Two residuals deferred (box-register sub-parse depth; whole-tree Constants
-  depth — entangled with expr depth) — see the faithfulness pin above.
+- **Depth bound (110)** — FULLY RESOLVED (T2.5, 2026-06-04). The original threaded-`maxDepth`
+  param on `parseSValue` (data path only) was replaced by a single shared reader-level counter
+  on `@ergots/scorex` `ByteReader` (`enterDepth`/`exitDepth`, default cap 110), incremented at
+  the three central recursion funnels (`parseExpr`, `parseSValue`, `parseSigmaBoolean`). Both
+  previously-deferred residuals — box-register sub-parse depth AND whole-tree Constant/expr
+  depth — are now CLOSED, because all parsers share the one reader. Boundary tests cover every
+  nesting kind (expr-tree, data Coll/Option, sigma-boolean, box-register) at 110-accept /
+  111-reject; full suite (3744) + all real-tree fixtures unaffected (node + jsdom). See the
+  faithfulness pin above.
 - **`put_u32` vs no-arg `putUInt` cost** on Box.creationHeight / AvlTree.keyLength / token
   index / Header.height — pinned to 3 (DataInfo overload) above; re-verify each call site
   during TDD against `SigmaByteWriter.scala`.

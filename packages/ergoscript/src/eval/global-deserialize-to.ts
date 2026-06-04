@@ -16,9 +16,11 @@
  *     increments the level once per ACTUAL recursive call — so the JVM only descends
  *     into elements that are PRESENT. A value of a deeply-nested TYPE whose DATA is
  *     empty/shallow (e.g. `deserializeTo[Coll[Coll[…]]]` of an empty outer coll) is
- *     ACCEPTED. We mirror this by passing `maxDepth = 110` to `parseSValue` (which
- *     counts one level per recursive call, from a fresh reader at depth 1) rather
- *     than pre-checking the type's nesting depth.
+ *     ACCEPTED. We mirror this with the shared reader-level depth counter
+ *     (`ByteReader.enterDepth`/`exitDepth`, default cap 110): a FRESH `ByteReader`
+ *     defaults to `maxTreeDepth = 110` exactly like the JVM's fresh reader, and
+ *     `parseSValue` (and, for an SSigmaProp value, `parseSigmaBoolean`) bumps that
+ *     one counter per recursive call rather than pre-checking the type's depth.
  */
 
 import { ByteReader } from '@ergots/scorex'
@@ -26,17 +28,6 @@ import { parseSValue } from '../wire/parse-svalue'
 import { collByteToUint8Array } from './_byte-coll'
 import { EvalError, type EvalContext } from './eval-context'
 import type { SType, SValue } from '../mir/types'
-
-/**
- * JVM `SigmaConstants.MaxTreeDepth = 110` — the deepest data-deserialization
- * recursion level allowed for a FRESH reader (`CoreByteReader.level_=` throws
- * when the new level > 110). `Global.deserializeTo` starts a fresh reader
- * (`CSigmaDslBuilder.scala:279`), so the full budget applies. Passed to
- * `parseSValue` as its `maxDepth`; parseSValue enforces it data-driven (one
- * level per recursive call). NB: the box-register sub-parse and the general
- * Constants-in-tree parse path are NOT depth-bounded — see the P5a spec residual.
- */
-const MAX_TREE_DEPTH = 110
 
 export function evalGlobalDeserializeTo(
   obj: SValue,
@@ -69,10 +60,15 @@ export function evalGlobalDeserializeTo(
   try {
     // Trailing bytes are intentionally NOT checked — the JVM ignores them
     // (CSigmaDslBuilder.scala:277-282 reads exactly what the type needs).
-    // maxDepth = 110 enforces the JVM MaxTreeDepth data-driven inside parseSValue;
-    // an over-deep value raises SValueParseError 'max-tree-depth-exceeded', which
-    // surfaces here as 'global-deserialize-failed'.
-    return parseSValue(T, ctx.treeVersion ?? 0, new ByteReader(bytes), 1, MAX_TREE_DEPTH)
+    //
+    // A FRESH ByteReader defaults to maxTreeDepth = 110, exactly mirroring the
+    // JVM's fresh `SigmaByteReader` in `CSigmaDslBuilder.deserializeTo`
+    // (`CSigmaDslBuilder.scala:279`, default `SigmaSerializer.MaxTreeDepth`).
+    // The reader's shared `level` counter (bumped by parseSValue, and by
+    // parseSigmaBoolean for an SSigmaProp value) enforces MaxTreeDepth
+    // data-driven; an over-deep value raises ReaderError 'max-tree-depth-exceeded'
+    // which is caught below and surfaced as 'global-deserialize-failed'.
+    return parseSValue(T, ctx.treeVersion ?? 0, new ByteReader(bytes))
   } catch (e) {
     throw new EvalError(
       `Global.deserializeTo failed: ${(e as Error).message}`,

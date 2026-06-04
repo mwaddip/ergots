@@ -14,9 +14,13 @@
  *                           decoded value exceeds the declared range (e.g. readVlqU32).
  *   'slice-out-of-bounds' -- slice(start, end) arguments violate [0, buf.length] bounds.
  *   'array-too-large'    -- readArray decoded length exceeds MAX_ARRAY_LENGTH (1 << 24).
+ *   'max-tree-depth-exceeded' -- enterDepth() would push the recursion level past
+ *                           maxTreeDepth (default 110). Faithful port of the JVM
+ *                           DeserializeCallDepthExceeded thrown by
+ *                           CoreByteReader.level_= (SigmaConstants.MaxTreeDepth = 110).
  */
 export class ReaderError extends Error {
-  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large') {
+  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded') {
     super(message);
     this.name = 'ReaderError';
   }

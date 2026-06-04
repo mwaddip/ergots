@@ -42,11 +42,28 @@ Where this file is silent on implementation detail, those are canonical.
 // ─── ByteReader ──────────────────────────────────────────────────────────────
 
 export class ByteReader {
-  constructor(bytes: Uint8Array)
+  // maxTreeDepth defaults to MAX_TREE_DEPTH (110); a forked sub-reader inherits it.
+  constructor(bytes: Uint8Array, maxTreeDepth?: number)
 
   get position(): number          // current cursor offset
   get remaining(): number         // bytes.length - position
   get isExhausted(): boolean      // position >= bytes.length
+
+  // ── Recursion-depth counter (shared across all parsers reading THIS reader) ──
+  // Faithful port of the JVM CoreByteReader.level (cap SigmaConstants.MaxTreeDepth=110).
+  // Used by @ergots/ergoscript's recursive parsers (parseExpr / parseSValue /
+  // parseSigmaBoolean) to bound deserialization depth uniformly; parsers that never
+  // recurse (e.g. @ergots/nipopow's block codec) simply never call enterDepth, so the
+  // counter stays 0 and the cap is a no-op for them.
+  readonly maxTreeDepth: number   // recursion-depth cap (default MAX_TREE_DEPTH)
+  get level(): number             // current recursion depth (starts 0 on a fresh reader)
+  enterDepth(): void              // ++level; throws ReaderError('max-tree-depth-exceeded') if level would exceed maxTreeDepth
+  exitDepth(): void               // --level (pair with enterDepth via try/finally)
+  // Fork a sub-reader over `bytes` INHERITING this reader's level + maxTreeDepth.
+  // For size-prefixed inner regions read into a bounded buffer (e.g. a hasSize=true
+  // ErgoTree body), so the depth counter persists across the size boundary as the
+  // JVM does via positionLimit on the one reader.
+  forkSubReader(bytes: Uint8Array): ByteReader
 
   // Return a view (no copy) from start (inclusive) to end (exclusive).
   // Throws ReaderError('slice-out-of-bounds') if args violate [0, buf.length].
@@ -100,7 +117,7 @@ export class ByteWriter {
 // ─── Error classes ───────────────────────────────────────────────────────────
 
 export class ReaderError extends Error {
-  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large'
+  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded'
 }
 
 export class AutolykosV1NotSupportedError extends Error {
@@ -121,6 +138,7 @@ export function readVlqU32(reader: ByteReader, fieldName: string): number  // th
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 export const MAX_ARRAY_LENGTH = 1 << 24  // 16,777,216
+export const MAX_TREE_DEPTH = 110        // default ByteReader.maxTreeDepth (JVM SigmaConstants.MaxTreeDepth)
 
 export const BLOCK_ID_LEN = 32   // bytes
 export const DIGEST32_LEN = 32   // bytes

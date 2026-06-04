@@ -167,6 +167,43 @@ export function parseExprWithFirstByte(
   valDefTypes: Map<number, SType>,
   treeVersion = 0
 ): Expr {
+  // MaxTreeDepth bound (consensus) — this is the expr-node increment point of
+  // the JVM's single shared `r.level` counter (`ValueSerializer.deserialize`,
+  // `ValueSerializer.scala:393-408`: `r.level = depth + 1` on entry, `- 1` on
+  // exit). It shares the very same reader-level counter used by `parseSValue`
+  // (data values) and `parseSigmaBoolean` (sigma-booleans), so the whole-tree
+  // depth budget is enforced uniformly. A `Const` Expr counts ONE level here
+  // and then `parseConstFromByte` → `parseSValue` counts another (mirroring the
+  // JVM's ValueSerializer→ConstantSerializer→DataSerializer chain, two levels
+  // for a constant leaf). try/finally keeps the counter balanced on parse error.
+  r.enterDepth()
+  try {
+    return parseExprBody(
+      opcode,
+      r,
+      constantTypes,
+      constantValues,
+      valDefTypes,
+      treeVersion,
+    )
+  } finally {
+    r.exitDepth()
+  }
+}
+
+/**
+ * Body of {@link parseExprWithFirstByte}, run inside the reader-level depth
+ * guard. Separated so the single enter/exit pair wraps every dispatch arm
+ * (including the inline-constant branch and all early returns).
+ */
+function parseExprBody(
+  opcode: number,
+  r: ByteReader,
+  constantTypes: SType[],
+  constantValues: SValue[],
+  valDefTypes: Map<number, SType>,
+  treeVersion = 0
+): Expr {
   // Inline-constant range: bytes in [0..LAST_CONSTANT_CODE] are SType codes
   // for embedded `Constant` values, not opcodes. Sigma-rust handles these in
   // `Constant::parse_with_tag` (`serialization/expr.rs:88-93`). We route the

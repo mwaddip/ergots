@@ -142,7 +142,9 @@ export class SValueParseError extends Error {
 
 /**
  * Parse an SValue from the reader `r`, driven by the type `t`. Throws
- * {@link SValueParseError} on malformed bytes or on deferred kinds.
+ * {@link SValueParseError} on malformed bytes or on deferred kinds, and
+ * `ReaderError('max-tree-depth-exceeded')` (from the shared reader-level
+ * depth counter) when data nesting exceeds the reader's `maxTreeDepth`.
  *
  * The reader cursor advances exactly the number of bytes the encoding
  * consumes; the caller can chain further reads. Trailing-byte checks
@@ -154,33 +156,37 @@ export class SValueParseError extends Error {
  * Mirrors sigma-rust `ergotree-ir/src/serialization/data.rs:196` where the
  * same version check is `r.tree_version() >= ErgoTreeVersion::V3`.
  */
-export function parseSValue(
-  t: SType,
-  treeVersion: number,
-  r: ByteReader,
-  depth = 1,
-  maxDepth = Number.POSITIVE_INFINITY,
-): SValue {
+export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValue {
   // MaxTreeDepth bound (consensus) — mirrors the JVM `CoreByteReader.level`:
-  // `CoreDataSerializer.deserialize` sets `r.level = depth + 1` at the top of
-  // EVERY call (from a fresh level-0 reader) and `CoreByteReader.level_=` throws
-  // when the new level > maxTreeDepth. So one parseSValue call == one JVM level,
-  // and the limit fires DATA-DRIVEN: an empty/shallow value of a deep TYPE never
-  // recurses, so it is accepted (the JVM only descends into elements present).
+  // `CoreDataSerializer.deserialize` does `r.level = depth + 1` at the top of
+  // EVERY data-value call and `r.level = r.level - 1` at the bottom
+  // (`CoreDataSerializer.scala:95-96,148`); `CoreByteReader.level_=` throws when
+  // the new level > maxTreeDepth (default 110). The counter lives on the reader
+  // and is SHARED with the expr-node parser (`parseExpr`) and the SigmaBoolean
+  // parser (`parseSigmaBoolean`), exactly as the JVM shares one `r.level` across
+  // ValueSerializer / CoreDataSerializer / SigmaBoolean.serializer. So this guard
+  // participates in the whole-tree depth budget automatically — there is no
+  // separate threaded `depth` to keep in sync.
   //
-  // DEFAULT maxDepth = Infinity — only callers that begin a fresh reader like the
-  // JVM (Global.deserializeTo, maxDepth 110) opt in. The general tree/Constant
-  // parse path stays unbounded HERE: faithfully bounding it needs whole-tree
-  // reader-level tracking (expr depth + data depth share one counter), a broader
-  // change. Likewise the box-register sub-parse (parseRegisterValue → parseSValue
-  // at default depth) is not threaded. Both are adversarial-only residuals — see
-  // the P5a design spec "depth bound" section.
-  if (depth > maxDepth) {
-    throw new SValueParseError(
-      `data nesting depth ${depth} exceeds MaxTreeDepth ${maxDepth}`,
-      'max-tree-depth-exceeded',
-    )
+  // The limit fires DATA-DRIVEN: enterDepth runs once per parseSValue call, and
+  // empty/shallow data never recurses, so a deeply-nested TYPE with empty data is
+  // accepted (the JVM only descends into elements present). try/finally guarantees
+  // the level is decremented even when a nested parse throws.
+  r.enterDepth()
+  try {
+    return parseSValueBody(t, treeVersion, r)
+  } finally {
+    r.exitDepth()
   }
+}
+
+/**
+ * Body of {@link parseSValue}, run inside the reader-level depth guard. Kept
+ * as a separate function so the single enter/exit pair in `parseSValue` wraps
+ * every `switch` arm (including the early-returning ones) without repeating
+ * try/finally per arm.
+ */
+function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
   switch (t.tag) {
     case 'SBoolean':
       // sigma-rust: `Literal::Boolean(r.get_u8()? != 0)`. Any nonzero byte
@@ -298,7 +304,7 @@ export function parseSValue(
       // General case: parse each item by `t.elem`.
       const items: SValue[] = new Array(len)
       for (let i = 0; i < len; i++) {
-        items[i] = parseSValue(t.elem, treeVersion, r, depth + 1, maxDepth)
+        items[i] = parseSValue(t.elem, treeVersion, r)
       }
       return { kind: 'Coll', elem: t.elem, items }
     }
@@ -312,7 +318,7 @@ export function parseSValue(
       // cursor at +1, NOT as Some-with-recurse into inner parsing.
       const tag = r.readU8()
       if (tag === 1) {
-        const inner = parseSValue(t.elem, treeVersion, r, depth + 1, maxDepth)
+        const inner = parseSValue(t.elem, treeVersion, r)
         return { kind: 'Option', elem: t.elem, value: inner }
       }
       return { kind: 'Option', elem: t.elem, value: null }
@@ -322,7 +328,7 @@ export function parseSValue(
       // No length prefix; arity comes from the SType.
       const items: SValue[] = new Array(t.items.length)
       for (let i = 0; i < t.items.length; i++) {
-        items[i] = parseSValue(t.items[i]!, treeVersion, r, depth + 1, maxDepth)
+        items[i] = parseSValue(t.items[i]!, treeVersion, r)
       }
       return { kind: 'Tuple', items }
     }

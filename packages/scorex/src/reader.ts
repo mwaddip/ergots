@@ -21,13 +21,103 @@ const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
  */
 export const MAX_ARRAY_LENGTH = 1 << 24;
 
+/**
+ * Default deserialization recursion-depth cap. Mirrors the JVM
+ * `SigmaConstants.MaxTreeDepth = 110` (`core/.../data/SigmaConstants.scala:28`),
+ * surfaced through every reader as `CoreByteReader.maxTreeDepth`
+ * (`core/.../serialization/CoreByteReader.scala:16`, default
+ * `CoreSerializer.MaxTreeDepth`). Every Ergo deserializer (`ValueSerializer`,
+ * `CoreDataSerializer`, `SigmaBoolean.serializer`) shares the one reader's
+ * `level` counter and is bounded by this cap. ergots parsers that recurse
+ * call {@link ByteReader.enterDepth} / {@link ByteReader.exitDepth} to
+ * participate; readers used by parsers that never recurse (e.g. `@ergots/nipopow`
+ * block-codec) simply never touch `level`, so the cap is a no-op for them.
+ */
+export const MAX_TREE_DEPTH = 110;
+
 export class ByteReader {
   private _position = 0;
 
-  constructor(private readonly bytes: Uint8Array) {}
+  /**
+   * Recursion-depth counter, shared by every parser that reads through this
+   * one reader. Faithful port of the JVM `CoreByteReader.lvl`
+   * (`CoreByteReader.scala:125`): starts at 0 on a fresh reader, is bumped by
+   * {@link enterDepth} at the top of each recursive deserialize call and
+   * un-bumped by {@link exitDepth} at the bottom — so it tracks current DEPTH,
+   * not a cumulative node count.
+   */
+  private _level = 0;
+
+  /**
+   * Recursion-depth cap. New level > `maxTreeDepth` throws (the JVM
+   * `CoreByteReader.level_=` setter, `:127-131`). Defaults to
+   * {@link MAX_TREE_DEPTH} (110), matching the JVM where every `startReader`
+   * uses `SigmaConstants.MaxTreeDepth`.
+   */
+  readonly maxTreeDepth: number;
+
+  /**
+   * @param bytes        the buffer to read from
+   * @param maxTreeDepth recursion-depth cap (default {@link MAX_TREE_DEPTH});
+   *                     a forked sub-reader inherits the parent's cap so a
+   *                     size-prefixed inner body shares the same limit.
+   */
+  constructor(private readonly bytes: Uint8Array, maxTreeDepth: number = MAX_TREE_DEPTH) {
+    this.maxTreeDepth = maxTreeDepth;
+  }
 
   get position(): number {
     return this._position;
+  }
+
+  /** Current recursion depth (see {@link _level}). Read-only for callers. */
+  get level(): number {
+    return this._level;
+  }
+
+  /**
+   * Enter one level of deserialization recursion. Mirrors the JVM
+   * `r.level = depth + 1` at the top of `ValueSerializer.deserialize`
+   * (`ValueSerializer.scala:394-395`), `CoreDataSerializer.deserialize`
+   * (`CoreDataSerializer.scala:95-96`) and `SigmaBoolean.serializer.parse`
+   * (`SigmaBoolean.scala:72-73`). Throws `ReaderError('max-tree-depth-exceeded')`
+   * when the NEW level would exceed {@link maxTreeDepth} — exactly the JVM
+   * `DeserializeCallDepthExceeded` thrown by `CoreByteReader.level_=`
+   * (`:127-131`). A fresh level-0 reader sets level 1 on the first call and
+   * throws on the call that would set level `maxTreeDepth + 1`.
+   *
+   * MUST be paired with {@link exitDepth} on the matching exit path (use
+   * try/finally so a parse error still decrements).
+   */
+  enterDepth(): void {
+    const next = this._level + 1;
+    if (next > this.maxTreeDepth) {
+      throw new ReaderError(
+        `nested deserialization call depth (${next}) exceeds allowed maximum ${this.maxTreeDepth}`,
+        'max-tree-depth-exceeded',
+      );
+    }
+    this._level = next;
+  }
+
+  /** Exit one level of deserialization recursion (the JVM `r.level = r.level - 1`). */
+  exitDepth(): void {
+    this._level -= 1;
+  }
+
+  /**
+   * Fork a sub-reader over `bytes` that INHERITS this reader's current
+   * recursion depth and cap. Used by parsers that read a size-prefixed inner
+   * region into a bounded buffer (ergots' `hasSize=true` ErgoTree body): the
+   * JVM keeps reading such a region on the SAME reader via `positionLimit`
+   * (`ErgoTreeSerializer.scala:143-211`), so its `level` persists across the
+   * size boundary. A naive `new ByteReader(slice)` would reset level to 0 and
+   * under-count depth; this preserves the shared counter faithfully.
+   */
+  forkSubReader(bytes: Uint8Array): ByteReader {
+    const sub = new ByteReader(bytes, this.maxTreeDepth);
+    sub._level = this._level;
+    return sub;
   }
 
   get remaining(): number {

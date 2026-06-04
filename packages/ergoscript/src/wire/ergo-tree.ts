@@ -136,7 +136,12 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
         'body-size-overflow',
       )
     }
-    inner = new ByteReader(outer.readBytes(bodyByteLength))
+    // Fork a sub-reader that INHERITS the outer reader's recursion depth + cap.
+    // The JVM reads a size-prefixed body on the SAME reader via `positionLimit`
+    // (`ErgoTreeSerializer.scala:143-211`), so `r.level` persists across the
+    // size boundary; a plain `new ByteReader(slice)` would reset level to 0 and
+    // under-count the MaxTreeDepth budget. See ByteReader.forkSubReader.
+    inner = outer.forkSubReader(outer.readBytes(bodyByteLength))
   } else {
     inner = outer
   }
