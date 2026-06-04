@@ -285,18 +285,24 @@ describe('MaxTreeDepth — box internals (register / nested ergoTree)', () => {
   }
 
   it('box register data recursing to exactly depth 110 is ACCEPTED', () => {
-    // Box parse: parseSValue(SBox) is L1. The register value parseSValue chain
-    // continues on the SAME reader. So a register Coll-chain reaches L1 + chain.
-    // To land the deepest register data-value at level 110, the register's
-    // Coll-chain must be 109 deep (109 present markers) + innermost empty.
-    // (SBox=L1, then reg Coll#1=L2 ... reg Coll#109=L110.)
-    const bytes = boxBytesWithDeepRegister(109, new Array(108).fill(1).concat([0]))
+    // Depth chain (shared reader level): parseSValue(SBox)=L1, then the register
+    // is read as an Expr via parseRegisterExprWithTag (≡ JVM r.getValue() /
+    // ValueSerializer.deserialize) = L2, then the register's Coll-chain:
+    // reg Coll#1=L3 ... reg Coll#108=L110. So a 108-deep register Coll-chain lands
+    // the innermost value at level 110 (accepted). Markers: 107 present (len 1)
+    // drive Coll#1..#107 to recurse; the innermost Coll[SByte] reads len 0 (empty).
+    const bytes = boxBytesWithDeepRegister(108, new Array(107).fill(1).concat([0]))
     const sbox = parseSValue({ tag: 'SBox' }, 0, new ByteReader(bytes))
     expect(sbox.kind).toBe('Box')
   })
 
-  it('box register data recursing past depth 110 is REJECTED', () => {
-    const bytes = boxBytesWithDeepRegister(130, new Array(135).fill(1))
+  it('box register data recursing past depth 110 is REJECTED (boundary)', () => {
+    // One deeper: a 109-deep register Coll-chain puts the innermost at level 111
+    // (SBox L1 + register-Expr L2 + 109 Colls). This is exactly the JVM divergence
+    // the register-Expr level closes: the JVM reads the register via r.getValue()
+    // (an extra ValueSerializer level) and rejects this box at depth 111, so ergots
+    // must too. 108 present markers drive the recursion to the 111th enterDepth.
+    const bytes = boxBytesWithDeepRegister(109, new Array(108).fill(1).concat([0]))
     let err: unknown
     try {
       parseSValue({ tag: 'SBox' }, 0, new ByteReader(bytes))

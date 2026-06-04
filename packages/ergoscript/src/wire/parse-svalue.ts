@@ -95,39 +95,54 @@ function parseRegisterExprWithTag(
   r: ByteReader,
   treeVersion: number
 ): { tpe: SType; value: SValue } {
-  if (tag <= LAST_CONSTANT_CODE) {
-    // Constant Expr: tag is the SType lead byte.
-    const tpe = parseSTypeWithFirstByte(tag, r)
-    const value = parseSValue(tpe, treeVersion, r)
-    return { tpe, value }
+  // A register value is an Expr read via the JVM's `r.getValue()`
+  // (`ValueSerializer.deserialize`, `SigmaByteReader.scala:46`), which bumps the
+  // shared reader level once per Expr node BEFORE the inner data parse/recursion.
+  // So a register Const costs THIS ValueSerializer level + the `parseSValue`
+  // (CoreDataSerializer) level, and a register Tuple costs this level + one per
+  // item — matching the JVM. Without this enterDepth, SBox register sub-values
+  // undercount depth by one level vs the JVM (a `deserializeTo[Box]` whose
+  // register is nested to `Coll^109` would be accepted here but rejected by the
+  // JVM at depth 111 — a consensus fork). The leaf `parseSValue` adds the data
+  // level; nested-Tuple recursion re-enters here, one level per item.
+  r.enterDepth()
+  try {
+    if (tag <= LAST_CONSTANT_CODE) {
+      // Constant Expr: tag is the SType lead byte.
+      const tpe = parseSTypeWithFirstByte(tag, r)
+      const value = parseSValue(tpe, treeVersion, r)
+      return { tpe, value }
+    }
+    if (tag === OP_TUPLE) {
+      // Tuple Expr: 1-byte items count, then N nested Exprs.
+      const itemsCount = r.readU8()
+      if (itemsCount < 2) {
+        throw new SValueParseError(
+          `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
+          'sbox-register-tuple-arity'
+        )
+      }
+      const itemTpes: SType[] = []
+      const itemValues: SValue[] = []
+      for (let i = 0; i < itemsCount; i++) {
+        const itemTag = r.readU8()
+        const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
+        itemTpes.push(item.tpe)
+        itemValues.push(item.value)
+      }
+      return {
+        tpe: { tag: 'STuple', items: itemTpes },
+        value: { kind: 'Tuple', items: itemValues },
+      }
+    }
+    throw new SValueParseError(
+      `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
+        `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
+      'sbox-register-unsupported-expr'
+    )
+  } finally {
+    r.exitDepth()
   }
-  if (tag === OP_TUPLE) {
-    // Tuple Expr: 1-byte items count, then N nested Exprs.
-    const itemsCount = r.readU8()
-    if (itemsCount < 2) {
-      throw new SValueParseError(
-        `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
-        'sbox-register-tuple-arity'
-      )
-    }
-    const itemTpes: SType[] = []
-    const itemValues: SValue[] = []
-    for (let i = 0; i < itemsCount; i++) {
-      const itemTag = r.readU8()
-      const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
-      itemTpes.push(item.tpe)
-      itemValues.push(item.value)
-    }
-    return {
-      tpe: { tag: 'STuple', items: itemTpes },
-      value: { kind: 'Tuple', items: itemValues },
-    }
-  }
-  throw new SValueParseError(
-    `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
-      `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
-    'sbox-register-unsupported-expr'
-  )
 }
 
 export class SValueParseError extends Error {
