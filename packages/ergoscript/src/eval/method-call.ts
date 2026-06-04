@@ -135,7 +135,10 @@ export function evalMethodCall(e: MethodCall, env: Env, ctx: EvalContext): SValu
 export function evalPropertyCall(e: PropertyCall, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(4) // Pattern A; source: property_call.rs:16
   const obj = evalExpr(e.obj, env, ctx)
-  return dispatch(e.typeId, e.methodId, obj, [], ctx, {}, undefined)
+  // v6 P4: forward e.explicitTypeArgs (now a REQUIRED field, always present —
+  // `{}` for all pre-v6-P4 PropertyCall nodes; populated for SGlobal.none[T]
+  // 106:10, the first PropertyCall-opcode method with a wire type-arg).
+  return dispatch(e.typeId, e.methodId, obj, [], ctx, e.explicitTypeArgs, undefined)
 }
 
 function dispatch(
@@ -423,6 +426,60 @@ function registerHandlers(): void {
     }
     return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
   } })
+
+  // SGlobal.some (MethodCall, typeId=106, methodId=9) — v6 P4.
+  // Source (JVM): sigma/ast/methods.scala:1986-1992 — FixedCost(JitCost(5)),
+  // V3-gated (isV3OrLaterErgoTreeVersion). `some(value: T): Option[T]`.
+  // Pattern A self-cost 5 (charged before obj check). Returns Some(arg) with
+  // elem = the wire explicit type arg T. minVersion 3 → the dispatcher rejects
+  // pre-V3 trees with 'tree-version-too-low' before this handler runs.
+  HANDLERS.set(handlerKey(106, 9), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(5)
+      if (obj.kind !== 'Global') {
+        throw new EvalError(
+          `SGlobal.some expects a Global obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      if (args.length !== 1) {
+        throw new EvalError(
+          `SGlobal.some expects 1 arg; got ${args.length}`,
+          'method-not-implemented'
+        )
+      }
+      // parse guarantees T for 106:9 (PropertyCall/MethodCall explicit type arg).
+      return { kind: 'Option', elem: explicitTypeArgs['T']!, value: args[0]! }
+    },
+    minVersion: 3,
+  })
+
+  // SGlobal.none (PropertyCall, typeId=106, methodId=10) — v6 P4.
+  // Source (JVM): sigma/ast/methods.scala:1994-1999 — FixedCost(JitCost(5)),
+  // V3-gated (isV3OrLaterErgoTreeVersion). `none[T](): Option[T]`.
+  // Pattern A self-cost 5 (charged before obj check). Returns None with
+  // elem = the wire explicit type arg T. minVersion 3 → the dispatcher rejects
+  // pre-V3 trees with 'tree-version-too-low' before this handler runs.
+  HANDLERS.set(handlerKey(106, 10), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(5)
+      if (obj.kind !== 'Global') {
+        throw new EvalError(
+          `SGlobal.none expects a Global obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      if (args.length !== 0) {
+        throw new EvalError(
+          `SGlobal.none expects 0 args; got ${args.length}`,
+          'method-not-implemented'
+        )
+      }
+      // parse guarantees T for 106:10 (PropertyCall explicit type arg).
+      return { kind: 'Option', elem: explicitTypeArgs['T']!, value: null }
+    },
+    minVersion: 3,
+  })
 
   // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
   // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN
