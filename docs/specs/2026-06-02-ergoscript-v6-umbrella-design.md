@@ -225,10 +225,30 @@ The corrected decomposition closes the two lowest-risk groups first:
 - **P2 (`SUnsignedBigInt`) COMPLETE (2026-06-03)** — full v6 method surface landed (P2a type core · P2b
   methods+casts · P2c BinOps+bridges · P2d-1 modular · P2d-2 modInverse). Next: P3 (Coll v6).
 
-### P3 — Coll v6 methods  ·  status: not started
-- **Goal:** `find`, `reverse`, `startsWith`, `endsWith`, `get`, `getOrElse`(lazy),
-  bitwise, diff. Several already have eval fns in sigma-rust eni's `scoll.rs`.
-  **Depends-on:** P0 (generic element types).
+### P3 — Coll v6 methods  ·  status: DONE (2026-06-03)
+- **Goal (verified surface):** the v6 `SCollection` additions are exactly FOUR
+  methods (`methods.scala:1211-1216`, gated `isV3OrLaterErgoTreeVersion` `:1221-1227`):
+  `reverse` (30, `Coll[IV]→Coll[IV]`), `startsWith` (31) / `endsWith` (32)
+  (`(Coll[IV],Coll[IV])→Boolean`), `get` (33, `(Coll[IV],Int)→Option[IV]`). **Depends-on:** P0.
+- **Framing correction (the umbrella's earlier 8-item list was wrong):** `find` /
+  `bitwise` / `diff` are NOT in v6.0 — they are `// TODO v6.0` placeholders
+  (`LanguageSpecificationV6.scala:1316/1332/1351`, GitHub #479/#418). `Coll.getOrElse`
+  is a v5 method already covered via the `ByIndex` lowering (`methods.scala:826-830` →
+  `eval/coll-by-index.ts`, incl. the V3+ lazy default); the lazy-default `getOrElse`
+  belongs to **Option (P4)**, not Coll.
+- **Done (2026-06-03):** 4 handlers in `eval/scoll-v6.ts` (`minVersion:3`) + 4
+  `method-signatures.ts` entries (`reverse`/`get` generic via the P0 engine;
+  `startsWith`/`endsWith` closed `Boolean`) + a cost-free `sValueStructuralEq`
+  (`compareSValues(a,b,ctx?)` factored from `sValueEquals`) so `startsWith`/`endsWith`
+  charge only the JVM `Zip_CostKind` envelope (element comparison uncosted, matching
+  the JVM's uncosted `Coll.startsWith`). Costs JVM-verified: `reverse`=`Append.costKind`
+  PerItem(20,2,100), `startsWith`/`endsWith`=`Zip_CostKind` PerItem(10,1,10) on receiver
+  length, `get`=`ByIndex.costKind` Fixed(30). **0 new EvalError codes, 0 wire changes**
+  (generic MethodCall path, `explicitTypeArgs` empty). Built via the full skill chain
+  (brainstorm → spec → adversarial reviewer → writing-plans → subagent-driven TDD with
+  per-task spec + opus quality review). Gate: tsc clean (4 pkgs), **3701 green (node +
+  jsdom)**. Spec: `2026-06-03-ergoscript-v6-p3-coll-methods-design.md`. **Next: P4
+  (Option v6 + `Global.some/none`).**
 
 ### P4 — Option v6 + `Global.some/none`  ·  status: not started
 - **Goal:** `Option.getOrElse`(lazy default); `Global.some` / `Global.none`.
