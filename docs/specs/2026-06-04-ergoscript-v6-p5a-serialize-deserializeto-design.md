@@ -339,3 +339,16 @@ arg; `deserializeTo` reuses the existing MethodCall explicit-type-arg slice (no 
   writes type bytes via `put` (cost 1) per byte (vs `putBytes`).
 - No standalone blessed serialize(Box/Header/AvlTree) cost vector → relies on the
   composition argument above; the round-trip totals are the backstop.
+- **V1-Header `d=0` byte-shape fork (OPEN RESIDUAL, T6, 2026-06-04)** — adversarial-only.
+  `serialize`/`deserializeTo` for a hand-crafted V1 (block-version-1) `Header` with
+  `powDistance=0` produces bytes shaped by `@ergots/scorex` (following sigma-rust):
+  `d_len=1, d_bytes=[0x00]` = 2 bytes. The JVM instead serializes d=0 as `d_len=0, d_bytes=[]`
+  = 1 byte (Scala `BigIntegers.asUnsignedByteArray` of `BigInteger.ZERO` returns empty).
+  Source: `sigma-rust/ergo-chain-types/src/header.rs AutolykosSolution::serialize_bytes(v1)`;
+  JVM: `AutolykosSolutionSerializer.scala:45-51`. This is a **pre-existing sigma-rust-vs-JVM
+  fork in `@ergots/scorex`'s Autolykos-V1 d-encoding**, not introduced by P5a. Scope: fully
+  adversarial — real V1 mainnet headers have non-zero powDistance (d=0 is not a valid PoW
+  solution), and V1 blocks are unreachable via `Context.headers` on a V3+ chain (tree-version
+  gate). The serialize COST is JVM-faithful regardless of the d-encoding fork. The round-trip
+  test for Header is therefore restricted to V2 (version ≥ 2) only. Tracked pending a
+  validation-model decision on whether `@ergots/scorex` should be patched to follow the JVM.
