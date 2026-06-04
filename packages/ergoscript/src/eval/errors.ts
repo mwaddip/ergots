@@ -799,3 +799,20 @@ export type EvalErrorCode =
    * Source: JVM `sigma/ast/methods.scala:1906`
    */
   | 'global-deserialize-failed'
+
+  // -------------------------------------------------------------------------
+  // v6 P5b-1 — Global.fromBigEndianBytes (1 new code; 76 → 77)
+  // -------------------------------------------------------------------------
+  /**
+   * `SGlobal.fromBigEndianBytes[T]` (106:5): the supplied `Coll[Byte]` bytes
+   * could not be decoded as a value of type `T`. Raised on wrong exact length
+   * for a fixed-width type (Byte=1/Short=2/Int=4/Long=8), an oversized
+   * BigInt/UnsignedBigInt (> 32 bytes), empty bytes for BigInt (JVM
+   * `new BigInteger(byte[0])` throws; UnsignedBigInt empty → 0 is accepted), or
+   * an unsupported non-numeric `T` (rejected at eval — the JVM's unsupported-type
+   * throw is in the runtime body). `FixedCost(10)` is charged before the throw.
+   * V3-gated (`minVersion: 3`).
+   *
+   * Source: JVM `sigma/ast/methods.scala:1925`
+   */
+  | 'global-from-bigendian-bytes-failed'

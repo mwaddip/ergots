@@ -165,6 +165,13 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
     tRange: { tag: 'STypeVar', name: 'T' },
     tpeParams: [{ name: 'T' }],
   }],
+  // SGlobal.fromBigEndianBytes — SFunc([SGlobal, Coll[Byte]] → T). JVM methods.scala:1925.
+  // tRange generic — resolved from the explicit type arg T at the call site (same shape as 106:4).
+  [key(106, 5), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'SColl', elem: { tag: 'SByte' } }],
+    tRange: { tag: 'STypeVar', name: 'T' },
+    tpeParams: [{ name: 'T' }],
+  }],
   ...numericV6Signatures(),
 ])
 
