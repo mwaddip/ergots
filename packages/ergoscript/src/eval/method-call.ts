@@ -70,6 +70,7 @@ import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
+import { evalGlobalEncodeNbits } from './global-encode-nbits'
 import { evalGlobalSerialize } from './global-serialize'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
@@ -503,6 +504,11 @@ function registerHandlers(): void {
   // Decodes a big-endian Coll[Byte] into a value of type T (inverse of P1 toBytes).
   // BigInt/UBI arms added in P5b-1 T5. V3-gated.
   HANDLERS.set(handlerKey(106, 5), { handler: evalGlobalFromBigEndianBytes, minVersion: 3 })
+
+  // SGlobal.encodeNbits (MethodCall, typeId=106, methodId=6) — v6 P5b-2.
+  // Source: JVM sigma/ast/methods.scala:1939. FixedCost(JitCost(25)). V3-gated.
+  // Encodes a BigInt into Bitcoin compact ("nBits") form → Long.
+  HANDLERS.set(handlerKey(106, 6), { handler: evalGlobalEncodeNbits, minVersion: 3 })
 
   // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
   // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN

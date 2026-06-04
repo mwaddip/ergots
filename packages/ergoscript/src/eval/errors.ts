@@ -816,3 +816,5 @@ export type EvalErrorCode =
    * Source: JVM `sigma/ast/methods.scala:1925`
    */
   | 'global-from-bigendian-bytes-failed'
+  | 'global-encode-nbits-failed'
+  | 'global-decode-nbits-failed'
