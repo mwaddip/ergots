@@ -755,3 +755,20 @@ export type EvalErrorCode =
    * `eval/_ubi-modular.ts` `umodInverse` (v6 P2d-2).
    */
   | 'unsigned-bigint-not-invertible'
+
+  // -------------------------------------------------------------------------
+  // v6 P4 — V3+ empty-args MethodCall reject (1 new code; 73 → 74)
+  // -------------------------------------------------------------------------
+  /**
+   * `validateMethodCallArity` pre-eval pass: a `MethodCall`-opcode node with
+   * empty args (`args.length === 0`) appears in a `treeVersion >= 3` tree.
+   * Mirrors the JVM `MethodCallSerializer.parse`
+   * `if (isV3OrLaterErgoTreeVersion) assert(args.nonEmpty)`
+   * (data/shared/.../serialization/MethodCallSerializer.scala:53-55). Honest
+   * trees never emit this (zero-arg calls use the PropertyCall opcode); it is an
+   * adversarial over-accept (any zero-arg method reached via the MethodCall
+   * opcode — `none` 106:10, `groupGenerator` 106:1 — would otherwise evaluate).
+   * Pre-V3 is grandfathered (the JVM does not assert there). Zero-cost reject.
+   * Source: `eval/validate-method-call-arity.ts` (v6 P4).
+   */
+  | 'method-call-empty-args'

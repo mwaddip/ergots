@@ -19,6 +19,7 @@ import {
   treeHasDeserialize,
 } from './_substitute-deserialize'
 import { validateBinOpTypes } from './validate-bin-op-types'
+import { validateMethodCallArity } from './validate-method-call-arity'
 import { validateV6Types } from './validate-v6-types'
 
 /**
@@ -132,9 +133,14 @@ function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
     // Deserialize* sub-trees are covered.
     validateV6Types(tree, rewrittenBody, treeVersion)
     validateBinOpTypes(rewrittenBody, treeVersion)
+    // JVM-align: reject a V3+ MethodCall-opcode node with empty args (honest
+    // trees use PropertyCall for zero args). Closes the none/groupGenerator
+    // over-accept. Pre-V3 grandfathered. See eval/validate-method-call-arity.ts.
+    validateMethodCallArity(rewrittenBody, treeVersion)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
   validateV6Types(tree, tree.body, treeVersion)
   validateBinOpTypes(tree.body, treeVersion)
+  validateMethodCallArity(tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }

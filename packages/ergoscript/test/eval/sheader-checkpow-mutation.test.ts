@@ -9,24 +9,39 @@
  *   - Leaves behaviour identical (tolerated — documented inline)
  *
  * Fixture: packages/ergoscript/test/fixtures/eval/sheader-checkpow.json
- *   exprBytes = "00dc6810b2db6502fe04000000" (13 bytes)
+ *   exprBytes = "00db6810b2db6502fe040000" (12 bytes)
+ *
+ *   JVM-faithful encoding (v6 P4): checkPow is a ZERO-ARG method, so it is
+ *   serialized under the PropertyCall opcode (0xdb), NOT the MethodCall opcode
+ *   (0xdc). The JVM `MethodCall` AST node routes every zero-arg call through
+ *   PropertyCall (values.scala:1322), and `MethodCallSerializer.parse` rejects a
+ *   0xdc empty-args node at ErgoTree version >= 3. The PropertyCall form drops
+ *   the MethodCall args-count byte, so this encoding is 1 byte shorter (12 vs 13)
+ *   than the prior sigma-rust-shaped 0xdc fixture. See
+ *   src/eval/validate-method-call-arity.ts (the pre-eval pass that rejects the
+ *   0xdc empty-args form).
+ *
  *   Byte map:
  *     [0]     0x00 = ErgoTree header (V0, no size, no constant-segregation)
- *     [1]     0xdc = MethodCall opcode (220)
+ *     [1]     0xdb = PropertyCall opcode (219) — checkPow envelope
  *     [2]     0x68 = typeId 104 (SHeader)
  *     [3]     0x10 = methodId 16 (checkPow)
- *     [4]     0xb2 = receiver node opcode (ByIndex outer)
- *     [5]     0xdb = inner opcode
- *     [6]     0x65 = MethodCall opcode for .headers accessor
- *     [7]     0x02 = typeId/methodId for .headers (Context.headers)
- *     [8]     0xfe = typeId/methodId for .headers method
- *     [9]     0x04 = index argument (VLQ 2 → headers[0])
- *     [10-12] 0x00 0x00 0x00 = padding / VLQ-zero arguments
+ *     [4]     0xb2 = ByIndex opcode (178) — the receiver headers(0)
+ *     [5]     0xdb = PropertyCall opcode (219) — inner Context.headers
+ *     [6]     0x65 = typeId 101 (SContext)
+ *     [7]     0x02 = methodId 2 (.headers)
+ *     [8]     0xfe = Context node opcode (the .headers receiver)
+ *     [9]     0x04 = ByIndex.index Const SInt typecode
+ *     [10]    0x00 = ByIndex.index value (ZigZag-VLQ 0 → headers[0])
+ *     [11]    0x00 = ByIndex.default (None marker)
  *
  * Known tolerated offsets (benign for the byte-flip reason documented below):
- *   None expected — all 13 bytes are load-bearing for at least one XOR pattern.
- *   If tolerance occurs on [10-12] padding zeros, those are the most likely
- *   candidates (VLQ-zero-length args fields or similar). Document them here if found.
+ *   offset=0 (the ErgoTree header byte) survives XOR 0x01 and XOR 0x80: those
+ *   flip header bits that, for this V0 / no-size / no-constant-segregation tree,
+ *   neither change how the body parses nor how it evaluates — checkPow still
+ *   returns Boolean(true). 2 survivors out of 36 mutations = 94.4% kill rate
+ *   (>= the 90% threshold). All 11 body/envelope bytes ([1]-[11]) are
+ *   load-bearing for at least one XOR pattern.
  *
  * Implementation: single `it()` with internal loop — safe under vitest's default
  * sequential-within-describe order AND under any parallel-test config.
