@@ -93,14 +93,20 @@ charged even on a parse failure) — matches the JVM `addSeqCost` ordering.
   check `r.isExhausted()` after `DataSerializer.deserialize` (`CSigmaDslBuilder.scala:277-282`
   reads exactly what the type needs and discards the rest). Adding the "obvious clean"
   trailing-byte check would reject where the JVM accepts.
-- **Depth bound = `MaxTreeDepth` 110.** The JVM caps recursion via `r.level` in
-  `CoreDataSerializer.deserialize` (`SigmaConstants.MaxTreeDepth = 110`); a deeply-typed `T`
-  (e.g. `Coll[Coll[…111…]]`) makes the JVM **throw**. ergots' `parseSValue` has **no** depth
-  guard today → it would parse (or stack-overflow). For deserializeTo we must enforce the
-  same 110 bound (a depth counter threaded into the parse, or a pre-check on `T`'s nesting
-  depth) so we reject where the JVM rejects. This is the one new adversarial-robustness item.
-  *(`T`'s depth is bounded by its wire encoding; the data recursion follows `T`, so bounding
-  `T`'s depth ≡ bounding the data recursion.)*
+- **Depth bound = `MaxTreeDepth` 110, DATA-DRIVEN (not type-structural).** The JVM caps
+  recursion via `r.level` (`CoreByteReader.level_=` throws when level > 110;
+  `CoreDataSerializer.deserialize` increments level once per ACTUAL recursive call, descending
+  only into elements that are PRESENT). So a deeply-nested *type* whose *data* is empty/shallow
+  (e.g. `deserializeTo[Coll[Coll[…111…]]]` of an empty outer coll) is **accepted** — the JVM
+  returns an empty coll at recursion depth 1. The bound is on the actual parse-recursion depth,
+  NOT on `T`'s nesting depth (an earlier draft of this spec had that backwards — caught in
+  code-quality review). Implement by threading a depth counter through `parseSValue` (one level
+  per recursive call, `maxDepth` param), with deserializeTo passing `maxDepth = 110` from a fresh
+  reader (depth starts at 1, matching the JVM's first-call level 1). ergots' `parseSValue` has
+  no depth guard by default → other callers stay unbounded. **Residuals (adversarial-only,
+  genuinely-broad to close → deferred + documented):** the box-register sub-parse and the
+  general Constants-in-tree path are NOT depth-counted; the latter's faithful bound is entangled
+  with whole-tree expr depth (one shared reader level), a broader change.
 - **Oversized data throws** (BigInt/UBI > 32 bytes) — `parseSValue` already enforces this
   (the SBigInt/SUnsignedBigInt arms); maps to a deserialize-failure EvalError.
 
@@ -308,8 +314,10 @@ arg; `deserializeTo` reuses the existing MethodCall explicit-type-arg slice (no 
 
 ## Open items / risks
 
-- **Depth bound (110)** for deserializeTo — new code; confirm the exact JVM trigger
-  (`r.level` increments per recursion, throws at > MaxTreeDepth) and mirror precisely.
+- **Depth bound (110)** — RESOLVED in implementation: data-driven counter threaded through
+  `parseSValue` (`maxDepth` param, one level per recursive call), deserializeTo passes 110 from
+  a fresh reader. Two residuals deferred (box-register sub-parse depth; whole-tree Constants
+  depth — entangled with expr depth) — see the faithfulness pin above.
 - **`put_u32` vs no-arg `putUInt` cost** on Box.creationHeight / AvlTree.keyLength / token
   index / Header.height — pinned to 3 (DataInfo overload) above; re-verify each call site
   during TDD against `SigmaByteWriter.scala`.

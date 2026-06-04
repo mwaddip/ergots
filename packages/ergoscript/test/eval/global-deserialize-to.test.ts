@@ -114,33 +114,48 @@ describe('Global.deserializeTo (106:4) — v6 P5a', () => {
     expect(() => evalMethodCall(deserExpr(SBYTE, [7]), Env.empty(), ctx)).toThrowError(EvalError)
   })
 
-  // -------- MaxTreeDepth(110) bound — EXACT boundary --------
-  // JVM throws iff typeNestingDepth(T) > 110 (CoreByteReader.level_= throws at
-  // level > 110; a value of type T reaches level = typeNestingDepth(T)). These
-  // two cases straddle the exact boundary: a `> 111` off-by-one would wrongly
-  // ACCEPT the depth-111 case (it parses [0] as an empty nested Coll, no throw).
+  // -------- MaxTreeDepth(110) bound — DATA-DRIVEN (consensus) --------
+  // The JVM increments its reader level once per ACTUAL recursive deserialize
+  // call (CoreDataSerializer), descending only into elements that are PRESENT,
+  // and throws when level > 110 (CoreByteReader.level_=). So the bound is
+  // data-driven, NOT type-structural: a deeply-nested TYPE with empty/shallow
+  // DATA is ACCEPTED. parseSValue enforces this via maxDepth=110 (1 level/call).
 
-  it('type depth 111 (110 SColl wraps) throws global-deserialize-failed — JVM rejects', () => {
-    // 110 SColl wraps around SByte → typeNestingDepth 111 > 110 → reject.
+  it('deeply-nested TYPE with empty data is ACCEPTED (data-driven, not type depth)', () => {
+    // 111 SColl wraps around SByte, but bytes [0] = empty outer Coll (len 0):
+    // the parse recurses 0 times (depth 1) → empty Coll. A type-structural gate
+    // would wrongly reject this depth-112 type; the data-driven bound accepts it.
     let T: SType = { tag: 'SByte' }
-    for (let i = 0; i < 110; i++) T = { tag: 'SColl', elem: T }
+    for (let i = 0; i < 111; i++) T = { tag: 'SColl', elem: T }
     const ctx = makeContext({ treeVersion: 3 })
-    expect(() => evalMethodCall(deserExpr(T, [0]), Env.empty(), ctx)).toThrowError(EvalError)
+    const r = evalMethodCall(deserExpr(T, [0]), Env.empty(), ctx)
+    expect(r).toMatchObject({ kind: 'Coll', items: [] })
+  })
+
+  it('data that recurses past depth 110 throws global-deserialize-failed', () => {
+    // 111 SColl wraps; each level carries 1 element (length byte 0x01), forcing
+    // the parse to recurse to depth 111 (> 110) → throw. ~110 length bytes drive it.
+    let T: SType = { tag: 'SByte' }
+    for (let i = 0; i < 111; i++) T = { tag: 'SColl', elem: T }
+    const deepData = new Array(115).fill(1)
+    const ctx = makeContext({ treeVersion: 3 })
+    expect(() => evalMethodCall(deserExpr(T, deepData), Env.empty(), ctx)).toThrowError(EvalError)
     try {
-      evalMethodCall(deserExpr(T, [0]), Env.empty(), makeContext({ treeVersion: 3 }))
+      evalMethodCall(deserExpr(T, deepData), Env.empty(), makeContext({ treeVersion: 3 }))
     } catch (e) {
       expect((e as EvalError).code).toBe('global-deserialize-failed')
     }
   })
 
-  it('type depth 110 (109 SColl wraps) is allowed by the depth bound (empty Coll)', () => {
-    // 109 SColl wraps around SByte → typeNestingDepth 110, the deepest allowed.
-    // bytes [0] = an empty outer Coll (length 0) → parse succeeds with no element
-    // recursion → returns an empty Coll. Proves the bound rejects 111, not 110.
+  it('data recursing to exactly depth 110 is allowed (boundary)', () => {
+    // 110 SColl wraps; the outer 109 each carry 1 element, the innermost
+    // Coll[Byte] (NativeColl) is empty → deepest recursion = depth 110 (= the
+    // limit, not exceeding it) → accepted.
     let T: SType = { tag: 'SByte' }
-    for (let i = 0; i < 109; i++) T = { tag: 'SColl', elem: T }
+    for (let i = 0; i < 110; i++) T = { tag: 'SColl', elem: T }
+    const data = new Array(109).fill(1).concat([0]) // 109 len-1 markers + innermost len 0
     const ctx = makeContext({ treeVersion: 3 })
-    const r = evalMethodCall(deserExpr(T, [0]), Env.empty(), ctx)
-    expect(r).toMatchObject({ kind: 'Coll', items: [] })
+    const r = evalMethodCall(deserExpr(T, data), Env.empty(), ctx)
+    expect(r).toMatchObject({ kind: 'Coll' })
   })
 })

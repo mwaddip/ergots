@@ -791,8 +791,8 @@ export type EvalErrorCode =
    * `SGlobal.deserializeTo[T]` (106:4): the supplied `Coll[Byte]` argument
    * bytes failed to parse as an SValue of type `T` via the data codec
    * (`DataSerializer.deserialize`). Raised on malformed / truncated bytes,
-   * an oversized BigInt / UnsignedBigInt (> 32 bytes), or type nesting
-   * deeper than `MaxTreeDepth` (110). There is NO ErgoTree body parse and
+   * an oversized BigInt / UnsignedBigInt (> 32 bytes), or actual parse
+   * recursion deeper than `MaxTreeDepth` (110, data-driven). There is NO ErgoTree body parse and
    * NO `exprTpe` match step — `T` drives the parse directly.
    * Mirrors the JVM `sigmaDeserialize` path surfaced as `EvalError`.
    *

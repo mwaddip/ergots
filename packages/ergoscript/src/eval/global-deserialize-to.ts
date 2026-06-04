@@ -11,10 +11,14 @@
  * Faithfulness pins:
  *   - Trailing bytes are intentionally NOT checked (JVM does not check
  *     `r.isExhausted()` after deserialize — `CSigmaDslBuilder.scala:277-282`).
- *   - Type nesting > MaxTreeDepth(110) rejects — mirrors the JVM `r.level`
- *     check (`CoreByteReader.level_=` throws when level > 110; deserializing a
- *     value of type T reaches level `typeNestingDepth(T)`). So reject iff
- *     `typeNestingDepth(T) > 110`.
+ *   - MaxTreeDepth(110) is DATA-DRIVEN, not type-structural. `CoreByteReader.level_=`
+ *     throws when the recursion level exceeds 110, and `CoreDataSerializer.deserialize`
+ *     increments the level once per ACTUAL recursive call — so the JVM only descends
+ *     into elements that are PRESENT. A value of a deeply-nested TYPE whose DATA is
+ *     empty/shallow (e.g. `deserializeTo[Coll[Coll[…]]]` of an empty outer coll) is
+ *     ACCEPTED. We mirror this by passing `maxDepth = 110` to `parseSValue` (which
+ *     counts one level per recursive call, from a fresh reader at depth 1) rather
+ *     than pre-checking the type's nesting depth.
  */
 
 import { ByteReader } from '@ergots/scorex'
@@ -24,34 +28,15 @@ import { EvalError, type EvalContext } from './eval-context'
 import type { SType, SValue } from '../mir/types'
 
 /**
- * JVM `SigmaConstants.MaxTreeDepth = 110`. `CoreByteReader.level_=` throws when
- * the new level is `> maxTreeDepth` (`CoreByteReader.scala:127-131`), and
- * `CoreDataSerializer.deserialize` sets `r.level = depth + 1` at the top of
- * EVERY call (`CoreDataSerializer.scala:94-96`), starting from a fresh reader at
- * level 0. So deserializing a value of type T drives the level up to exactly
- * `typeNestingDepth(T)` at the deepest leaf — and the JVM throws iff
- * `typeNestingDepth(T) > 110`. (NB: a scalar reaches level 1, not 0.)
+ * JVM `SigmaConstants.MaxTreeDepth = 110` — the deepest data-deserialization
+ * recursion level allowed for a FRESH reader (`CoreByteReader.level_=` throws
+ * when the new level > 110). `Global.deserializeTo` starts a fresh reader
+ * (`CSigmaDslBuilder.scala:279`), so the full budget applies. Passed to
+ * `parseSValue` as its `maxDepth`; parseSValue enforces it data-driven (one
+ * level per recursive call). NB: the box-register sub-parse and the general
+ * Constants-in-tree parse path are NOT depth-bounded — see the P5a spec residual.
  */
 const MAX_TREE_DEPTH = 110
-
-/**
- * Nesting depth of a type — the number of `CoreDataSerializer.deserialize`
- * calls the JVM would make to deserialize a value of this type. Scalar types
- * cost 1 call (level 0). Each composite wrapper adds 1.
- *
- * Examples: SByte=1, SColl[SByte]=2, SColl[SColl[SByte]]=3.
- */
-function typeNestingDepth(t: SType): number {
-  switch (t.tag) {
-    case 'SColl':
-    case 'SOption':
-      return 1 + typeNestingDepth(t.elem)
-    case 'STuple':
-      return 1 + (t.items.length > 0 ? Math.max(...t.items.map(typeNestingDepth)) : 0)
-    default:
-      return 1
-  }
-}
 
 export function evalGlobalDeserializeTo(
   obj: SValue,
@@ -81,20 +66,13 @@ export function evalGlobalDeserializeTo(
 
   const T = explicitTypeArgs['T']!
 
-  // MaxTreeDepth bound: the JVM throws when its recursion level exceeds 110, and
-  // deserializing a value of type T reaches level typeNestingDepth(T). So reject
-  // iff typeNestingDepth(T) > 110 (matches JVM CoreByteReader.level_=).
-  if (typeNestingDepth(T) > MAX_TREE_DEPTH) {
-    throw new EvalError(
-      `Global.deserializeTo: type nesting depth exceeds MaxTreeDepth (${MAX_TREE_DEPTH})`,
-      'global-deserialize-failed',
-    )
-  }
-
   try {
     // Trailing bytes are intentionally NOT checked — the JVM ignores them
     // (CSigmaDslBuilder.scala:277-282 reads exactly what the type needs).
-    return parseSValue(T, ctx.treeVersion ?? 0, new ByteReader(bytes))
+    // maxDepth = 110 enforces the JVM MaxTreeDepth data-driven inside parseSValue;
+    // an over-deep value raises SValueParseError 'max-tree-depth-exceeded', which
+    // surfaces here as 'global-deserialize-failed'.
+    return parseSValue(T, ctx.treeVersion ?? 0, new ByteReader(bytes), 1, MAX_TREE_DEPTH)
   } catch (e) {
     throw new EvalError(
       `Global.deserializeTo failed: ${(e as Error).message}`,
