@@ -69,6 +69,7 @@ import {
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
+import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
 import { evalGlobalSerialize } from './global-serialize'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
@@ -496,6 +497,12 @@ function registerHandlers(): void {
   // (DataSerializer.deserialize path, NOT ErgoTree body). Trailing bytes ignored.
   // MaxTreeDepth(110) enforced on T's nesting depth. V3-gated.
   HANDLERS.set(handlerKey(106, 4), { handler: evalGlobalDeserializeTo, minVersion: 3 })
+
+  // SGlobal.fromBigEndianBytes (MethodCall, typeId=106, methodId=5) — v6 P5b-1.
+  // Source: JVM sigma/ast/methods.scala:1925-1932. FixedCost(JitCost(10)).
+  // Decodes a big-endian Coll[Byte] into a value of type T (inverse of P1 toBytes).
+  // BigInt/UBI arms added in P5b-1 T5. V3-gated.
+  HANDLERS.set(handlerKey(106, 5), { handler: evalGlobalFromBigEndianBytes, minVersion: 3 })
 
   // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
   // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN
