@@ -104,6 +104,10 @@ describe('Global.deserializeTo (106:4) — v6 P5a', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(EvalError)
       expect((e as EvalError).code).toBe('global-deserialize-failed')
+      // Pins the cost-before-parse faithfulness pin: PerItemCost(100,32,32,0)=132
+      // is charged even though the parse fails. Total = 4 (disp) + 5 (Global) +
+      // 5 (Const) + 132. A regression moving addPerItemCost after parse would fail here.
+      expect(ctx.jitCost).toBe(146)
     }
   })
 
