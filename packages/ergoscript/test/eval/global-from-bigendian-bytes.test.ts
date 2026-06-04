@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { evalGlobalFromBigEndianBytes } from '../../src/eval/global-from-bigendian-bytes'
+import { evalMethodCall } from '../../src/eval/method-call'
+import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import type { SType, SValue } from '../../src/mir/types'
+import type { SType, SValue, MethodCall } from '../../src/mir/types'
 
 const SBYTE: SType = { tag: 'SByte' }
 const FAIL = 'global-from-bigendian-bytes-failed'
@@ -92,5 +94,44 @@ describe('Global.fromBigEndianBytes (106:5) — BigInt / UnsignedBigInt', () => 
   })
   it('UnsignedBigInt: rejects len>32', () => {
     expectFail({ tag: 'SUnsignedBigInt' }, new Array(33).fill(0x01), FAIL)
+  })
+})
+
+describe('Global.fromBigEndianBytes (106:5) — adversarial', () => {
+  it('rejects a non-numeric explicit type T at eval (default branch)', () => {
+    expectFail({ tag: 'SBoolean' }, [0x01], FAIL)
+    expectFail({ tag: 'SColl', elem: { tag: 'SByte' } }, [0x01], FAIL)
+  })
+
+  it('dispatcher rejects 106:5 for a pre-V3 tree (treeVersion < 3)', () => {
+    const mc: MethodCall = {
+      tag: 'MethodCall',
+      obj: { tag: 'Global' },
+      typeId: 106,
+      methodId: 5,
+      args: [{ tag: 'Const', tpe: { tag: 'SColl', elem: { tag: 'SByte' } }, value: { kind: 'Coll', elem: { tag: 'SByte' }, items: [{ kind: 'Byte', value: 0 }, { kind: 'Byte', value: 0 }, { kind: 'Byte', value: 0 }, { kind: 'Byte', value: 1 }] } }],
+      explicitTypeArgs: { T: { tag: 'SInt' } },
+    }
+    const ctx = makeContext({ treeVersion: 2 })
+    try {
+      evalMethodCall(mc, Env.empty(), ctx)
+      throw new Error('expected EvalError, but evalMethodCall returned')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('tree-version-too-low')
+    }
+  })
+
+  it('round-trips a real V3 fromBigEndianBytes call through evalMethodCall', () => {
+    const mc: MethodCall = {
+      tag: 'MethodCall',
+      obj: { tag: 'Global' },
+      typeId: 106,
+      methodId: 5,
+      args: [{ tag: 'Const', tpe: { tag: 'SColl', elem: { tag: 'SByte' } }, value: collByte([0, 0, 0, 9]) }],
+      explicitTypeArgs: { T: { tag: 'SInt' } },
+    }
+    const ctx = makeContext({ treeVersion: 3 })
+    expect(evalMethodCall(mc, Env.empty(), ctx)).toEqual({ kind: 'Int', value: 9 })
   })
 })
