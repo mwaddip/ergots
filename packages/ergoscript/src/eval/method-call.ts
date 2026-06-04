@@ -68,6 +68,7 @@ import {
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
+import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
 import { umod, umodInverse } from './_ubi-modular'
@@ -480,6 +481,13 @@ function registerHandlers(): void {
     },
     minVersion: 3,
   })
+
+  // SGlobal.deserializeTo (MethodCall, typeId=106, methodId=4) — v6 P5a.
+  // Source: JVM sigma/ast/methods.scala:1906-1955. PerItemCost(100,32,32) on
+  // input byte-count. Parses Coll[Byte] as a data value of type T
+  // (DataSerializer.deserialize path, NOT ErgoTree body). Trailing bytes ignored.
+  // MaxTreeDepth(110) enforced on T's nesting depth. V3-gated.
+  HANDLERS.set(handlerKey(106, 4), { handler: evalGlobalDeserializeTo, minVersion: 3 })
 
   // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
   // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN

@@ -789,11 +789,12 @@ export type EvalErrorCode =
   | 'global-serialize-failed'
   /**
    * `SGlobal.deserializeTo[T]` (106:4): the supplied `Coll[Byte]` argument
-   * bytes failed to parse as an ErgoTree body expression, OR the parsed
-   * expression's `exprTpe` does not match the method's explicit type arg `T`.
-   * Also raised if the parsed tree exceeds `MaxTreeDepth` (110 nodes).
-   * Mirrors the JVM `sigmaDeserialize` + `typeDescr` type-check path surfaced
-   * as `EvalError`.
+   * bytes failed to parse as an SValue of type `T` via the data codec
+   * (`DataSerializer.deserialize`). Raised on malformed / truncated bytes,
+   * an oversized BigInt / UnsignedBigInt (> 32 bytes), or type nesting
+   * deeper than `MaxTreeDepth` (110). There is NO ErgoTree body parse and
+   * NO `exprTpe` match step — `T` drives the parse directly.
+   * Mirrors the JVM `sigmaDeserialize` path surfaced as `EvalError`.
    *
    * Source: JVM `sigma/ast/methods.scala:1906`
    */
