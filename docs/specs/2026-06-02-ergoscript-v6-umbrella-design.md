@@ -302,8 +302,13 @@ The corrected decomposition closes the two lowest-risk groups first:
     `ByteReader`, bumped at parseExpr/parseSValue/parseSigmaBoolean + the box-register Expr —
     all parsers share one counter). Deferred residual: the V1-Header d=0 byte-shape
     sigma-rust-vs-JVM fork in scorex (→ v6 scorex work).
-  - **P5b** — `fromBigEndianBytes` (106:5) + `encodeNbits` (106:6) + `decodeNbits` (106:7):
-    numeric/compact decoders. **status: not started.**
+  - **P5b** — split (2026-06-04) into two focused batches, mirroring the P2d-1/P2d-2 cut
+    (mechanical vs crypto-confidence):
+    - **P5b-1** — `fromBigEndianBytes` (106:5): generic decoder, `FixedCost(10)`, inverse of
+      P1 `toBytes`, rides deserializeTo's explicit-type-arg wire (zero new wire). **status: in progress.**
+    - **P5b-2** — `encodeNbits` (106:6) + `decodeNbits` (106:7): the Bitcoin-compact pair;
+      `decodeNbits` reuses `@ergots/scorex` `decodeCompactBits`, `encodeNbits` is the new inverse
+      carrying the sign-bit crypto-confidence escalation. **status: not started.**
   - **P5c** — `powHit` (106:8): Autolykos v2 hit → `SUnsignedBigInt`; carved for the 95%
     crypto-confidence bar. **status: not started.**
 
