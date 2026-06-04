@@ -282,7 +282,7 @@ The corrected decomposition closes the two lowest-risk groups first:
   (facts)→`8934dcfa`(wire)→`21fa31df`(sigs)→`4f0b08b`(handlers)→`a772527`(reject+checkPow regen).
   **Next: P5 (Global functions).**
 
-### P5 — Global functions  ·  status: in progress (P5a DONE; P5b/P5c not started)
+### P5 — Global functions  ·  status: in progress (P5a + P5b-1 DONE; P5b-2/P5c not started)
 - **Goal:** `serialize`, `deserializeTo`, `fromBigEndianBytes`, `encodeNbits`,
   `decodeNbits`, `powHit`. **Depends-on:** P0 (generics) + a thin wire slice.
 - **Decomposition (2026-06-04, after verifying the surface vs JVM):** all six are real,
@@ -305,7 +305,7 @@ The corrected decomposition closes the two lowest-risk groups first:
   - **P5b** — split (2026-06-04) into two focused batches, mirroring the P2d-1/P2d-2 cut
     (mechanical vs crypto-confidence):
     - **P5b-1** — `fromBigEndianBytes` (106:5): generic decoder, `FixedCost(10)`, inverse of
-      P1 `toBytes`, rides deserializeTo's explicit-type-arg wire (zero new wire). **status: in progress.**
+      P1 `toBytes`, rides deserializeTo's explicit-type-arg wire (zero new wire). **status: DONE (2026-06-04)** — `docs/specs/2026-06-04-ergoscript-v6-p5b1-from-bigendian-bytes-design.md`.
     - **P5b-2** — `encodeNbits` (106:6) + `decodeNbits` (106:7): the Bitcoin-compact pair;
       `decodeNbits` reuses `@ergots/scorex` `decodeCompactBits`, `encodeNbits` is the new inverse
       carrying the sign-bit crypto-confidence escalation. **status: not started.**
