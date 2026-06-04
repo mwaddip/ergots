@@ -471,14 +471,18 @@ function addHeaderCost(h: Header, ctx: EvalContext): void {
   // Solution. GroupElementSerializer.serialize is always putBytes(33) = 36.
   if (h.version === 1) {
     // V1: pk + w (both GE 33) + nonce(8) + putUByte(dLen)=0 + putBytes(d).
-    // NOTE (adversarial-only): a V1 block-version Header cannot occur on a
-    // V3+ chain (the treeVersion>=3 gate), so this branch is unreachable on the
-    // consensus path; it exists for faithfulness against a hand-crafted V1 value.
-    // The dBytes length uses the JVM's BigIntegers.asUnsignedByteArray (0n -> [],
-    // cost 3+0=3) — matching the JVM COST. (ergots' scorex byte serializer for V1
-    // d=0 emits a [0x00] byte per the sigma-rust to_bytes_be convention; that
-    // byte-shape divergence is a pre-existing scorex matter and does not affect
-    // the JVM-faithful COST computed here.)
+    // NOTE (adversarial-only, but REACHABLE): a V1 block-version Header does not
+    // arrive via Context.headers on a V3+ chain, BUT a V1 Header value IS
+    // constructible as a hand-crafted SHeader constant in a V3+ tree (parse-svalue
+    // accepts an SHeader literal with no version>=2 constraint), so this branch is
+    // reachable via serialize / deserializeTo[Header] (and SHeader byte-roundtrip).
+    // The dBytes length here uses the JVM's BigIntegers.asUnsignedByteArray
+    // (0n -> [], cost 3+0=3), so the COST computed here is JVM-faithful. HOWEVER
+    // @ergots/scorex's byte serializer for a V1 d=0 emits a [0x00] byte (sigma-rust
+    // to_bytes_be convention), which DIVERGES from the JVM's [] — a pre-existing
+    // sigma-rust-vs-JVM BYTE-shape fork in scorex, independent of this cost. Tracked
+    // as a P5a residual (validation-model decision: which reference wins for the
+    // shared scorex autolykos-V1 d-encoding); the cost here is correct regardless.
     ctx.addCost(3 + 33) // pk
     ctx.addCost(3 + 33) // w (powOnetimePk)
     ctx.addCost(3 + 8) // nonce
