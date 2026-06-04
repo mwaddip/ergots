@@ -151,6 +151,20 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
     tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'T' } },
     tpeParams: [{ name: 'T' }],
   }],
+  // SGlobal.serialize — SFunc([SGlobal, T] → Coll[Byte]). JVM methods.scala:1957.
+  // tRange is CLOSED (always Coll[Byte] regardless of T) — the resolver returns it verbatim.
+  [key(106, 3), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'STypeVar', name: 'T' }],
+    tRange: { tag: 'SColl', elem: { tag: 'SByte' } },
+    tpeParams: [{ name: 'T' }],
+  }],
+  // SGlobal.deserializeTo — SFunc([SGlobal, Coll[Byte]] → T). JVM methods.scala:1906.
+  // tRange is generic — resolved from the explicit type arg T at the call site.
+  [key(106, 4), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'SColl', elem: { tag: 'SByte' } }],
+    tRange: { tag: 'STypeVar', name: 'T' },
+    tpeParams: [{ name: 'T' }],
+  }],
   ...numericV6Signatures(),
 ])
 

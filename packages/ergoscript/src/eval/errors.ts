@@ -772,3 +772,29 @@ export type EvalErrorCode =
    * Source: `eval/validate-method-call-arity.ts` (v6 P4).
    */
   | 'method-call-empty-args'
+
+  // -------------------------------------------------------------------------
+  // v6 P5a — Global.serialize / Global.deserializeTo (2 new codes; 74 → 76)
+  // -------------------------------------------------------------------------
+  /**
+   * `SGlobal.serialize` (106:3): the sigma-serialization of the argument value
+   * failed. Raised when the internal `serializeSValue` / `serializeSType`
+   * round-trip throws for a value that cannot be expressed in the wire format
+   * (e.g. a `'Lambda'` or `'Context'` SValue kind, which have no on-wire
+   * SValue encoding). Mirrors the JVM `sigmaSerialize` throwing
+   * `SigmaSerializationException` surfaced as `EvalError`.
+   *
+   * Source: JVM `sigma/ast/methods.scala:1957`
+   */
+  | 'global-serialize-failed'
+  /**
+   * `SGlobal.deserializeTo[T]` (106:4): the supplied `Coll[Byte]` argument
+   * bytes failed to parse as an ErgoTree body expression, OR the parsed
+   * expression's `exprTpe` does not match the method's explicit type arg `T`.
+   * Also raised if the parsed tree exceeds `MaxTreeDepth` (110 nodes).
+   * Mirrors the JVM `sigmaDeserialize` + `typeDescr` type-check path surfaced
+   * as `EvalError`.
+   *
+   * Source: JVM `sigma/ast/methods.scala:1906`
+   */
+  | 'global-deserialize-failed'

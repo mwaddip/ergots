@@ -385,6 +385,14 @@ ergots implementation:
 
 - **`ExprSerializeError('property-call-missing-type-arg')`** — thrown when `serializePropertyCall` finds a name in `explicitTypeArgNames(typeId, methodId)` that is absent from `e.explicitTypeArgs`. Defensive; unreachable from a well-parsed tree (the parser always populates every registered name). Mirrors `'method-call-missing-type-arg'` (pre-existing in `ExprParseError`).
 
+## Phase v6 P5a wire notes (serialize / deserializeTo)
+
+**`SGlobal.serialize` (106:3)** carries **no wire type argument**. The JVM `SerializeMethod` (`methods.scala:1957`) does not include `T` on the wire — T is fully inferred from the runtime value of `args[0]` inside the handler. The existing MethodCall opcode path applies without change: the `EXPLICIT_TYPE_ARG_NAMES` entry for `(106, 3)` is absent (or `[]`), so `parseMethodCall`/`serializeMethodCall` consume/emit no extra type bytes. Wire format is identical to other non-generic MethodCall methods (opcode 0xdc, typeId 106, methodId 3, obj=Global, args=[value]).
+
+**`SGlobal.deserializeTo[T]` (106:4)** carries **an explicit type arg `T` on the wire**, exactly like `SGlobal.some` (106:9). The `EXPLICIT_TYPE_ARG_NAMES` registry in `wire/mir/explicit-type-args.ts` must be extended with `(106, 4) → ['T']`. `parseMethodCall` then reads one `parseSType(r)` after the arg list (building `explicitTypeArgs: { T: parsedType }`); `serializeMethodCall` writes one `serializeSType(explicitTypeArgs['T'], w)`. A missing `T` in `serializeMethodCall` throws `ExprSerializeError('method-call-missing-type-arg')` (the existing defensive code). **No new wire error codes.**
+
+Both methods go through the existing `MethodCall` opcode (0xdc) — no PropertyCall involvement.
+
 ## Coverage
 
 100% of MIR variants parse and serialize byte-identically against the PR 862 corpora (45 legacy + 14 ecosystem + 9 sig-15 = 68 trees), plus mainnet boxes (12,712 from Task B's wider corpus + 173 from the original C2 corpus). Phase 2a corpus test: 255 passing fixtures + 1 mainnet stub + 6 `known_unstable` (sigma-rust itself does not round-trip them).
