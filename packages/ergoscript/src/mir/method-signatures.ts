@@ -137,6 +137,20 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
   [key(12, 32), { tDom: [SCOLL_IV, SCOLL_IV], tRange: { tag: 'SBoolean' }, tpeParams: [{ name: 'IV' }] }],
   // SColl.get — JVM methods.scala:1183 — SFunc([Coll[IV], Int] → Option[IV]). v6 P3; generic tRange.
   [key(12, 33), { tDom: [SCOLL_IV, { tag: 'SInt' }], tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'IV' } }, tpeParams: [{ name: 'IV' }] }],
+  // SGlobal.some — JVM methods.scala:1986-1992 — SFunc([SGlobal, T] → Option[T]); T resolved from
+  // call-site arg type OR explicit type arg. v6 P4.
+  [key(106, 9), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'STypeVar', name: 'T' }],
+    tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'T' } },
+    tpeParams: [{ name: 'T' }],
+  }],
+  // SGlobal.none — JVM methods.scala:1994-1999 — SFunc([SGlobal] → Option[T]); T only from
+  // explicit type arg (no arg to unify against). v6 P4.
+  [key(106, 10), {
+    tDom: [{ tag: 'SGlobal' }],
+    tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'T' } },
+    tpeParams: [{ name: 'T' }],
+  }],
   ...numericV6Signatures(),
 ])
 

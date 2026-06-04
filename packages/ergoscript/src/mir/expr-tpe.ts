@@ -151,7 +151,7 @@ export function exprTpe(e: Expr): SType {
       // docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md.
       const sig = methodSignature(e.typeId, e.methodId)
       if (sig === undefined) return { tag: 'SAny' }
-      return resolveReturnTpe(sig, exprTpe(e.obj), [], {})
+      return resolveReturnTpe(sig, exprTpe(e.obj), [], e.explicitTypeArgs)
     }
     case 'SelectField': {
       // sigma-rust `mir/select_field.rs::SelectField::tpe` (line 107-109): the
