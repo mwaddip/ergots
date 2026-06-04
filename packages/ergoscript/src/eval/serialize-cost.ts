@@ -32,7 +32,16 @@ import { EvalError } from './eval-context'
 import type { EvalContext } from './eval-context'
 import type { ErgoBox, SType, SValue } from '../mir/types'
 import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
+import { parseSValue } from '../wire/parse-svalue'
+import { parseSTypeWithFirstByte } from '../wire/parse-stype'
+import { ByteReader } from '@ergots/scorex'
 import type { Header } from '@ergots/scorex'
+
+// OpCode dispatch boundary — mirrors parse-svalue.ts. A register Expr lead byte
+// ≤ LAST_CONSTANT_CODE (112) is a Constant; > 112 is an opcode-dispatched Expr.
+// Registers admit only Constant or Tuple (OP_TUPLE = 134), per register.rs.
+const LAST_CONSTANT_CODE = 112
+const OP_TUPLE = 134
 
 // ── Primitive cost constants (JVM SigmaByteWriter.scala, agent-verified) ──────
 //
@@ -393,7 +402,12 @@ function sameEmbeddable(a: SType, b: SType): boolean {
  *   putUByte(nTokens)            = 0
  *   per token: putBytes(id 32)=35 + putULong(amount)=3   → 38
  *   putUByte(nRegs)              = 0
- *   per register: putType(tpe) + serializeCost(tpe, value)
+ *   per register: w.putValue(reg) — ValueSerializer.serialize:
+ *     · plain Constant (no opaqueBytes): putType(tpe) + serializeCost(tpe, value)
+ *       — ConstantSerializer with no store, NO opcode (ConstantSerializer.scala:13-16).
+ *     · Tuple Expr (opaqueBytes set, lead byte OP_TUPLE): the non-Constant `case _`
+ *       path = put(opcode) + Tuple serializer; cost-walked from the raw register
+ *       bytes by addRegisterExprCost (faithful per-item-form costing).
  *   putBytes(txId 32)            = 35
  *   putUShort(index)             = 3
  */
@@ -414,21 +428,85 @@ function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
     const entry = box.registers[regId]
     if (entry === undefined) continue
     if (entry.opaqueBytes !== undefined) {
-      // Register stored as a raw Tuple-Expr blob (rare). The JVM would serialize
-      // it through putValue as a normal Constant; we cannot decompose the opaque
-      // bytes into (tpe, value) for an analytical cost. This shape is not
-      // reachable from a Global.serialize of a runtime Box value (registers
-      // carry concrete (tpe, value) Constants); guard defensively.
-      throw new EvalError(
-        `serialize: box register R${regId} has opaque Tuple-Expr bytes; cost not derivable`,
-        'global-serialize-failed',
-      )
+      // Register stored as a raw register-Expr blob (the wire lead byte was
+      // OP_TUPLE 0x86 — the register is a Tuple Expr, not a plain Constant; set
+      // by parse-svalue when parsing a context box, and REACHABLE: such boxes
+      // exist on mainnet, e.g. h=855,650 R8 = (SByte 102, SByte 99)). The JVM
+      // serializes this register via w.putValue(reg) = ValueSerializer.serialize,
+      // whose non-Constant `case _` writes w.put(opCode) (the Tuple opcode) then
+      // the Tuple serializer (ValueSerializer.scala:369-389) — it SUCCEEDS, so we
+      // must produce a cost, not throw. The parsed (tpe, value) loses the per-item
+      // wire FORM (a tuple item may be a Const(STuple) data form OR a nested Tuple
+      // Expr opcode form — both yield a kind:'Tuple' value but cost differently),
+      // so we cost-walk the register's RAW bytes (their lead bytes preserve the
+      // form), mirroring parseRegisterExprWithTag. This re-parse is COST-ONLY; the
+      // depth bound was already enforced at the original box parse, so a plain
+      // reader over opaqueBytes (no depth re-check / double-count) suffices.
+      addRegisterExprCost(new ByteReader(entry.opaqueBytes), ctx)
+      continue
     }
     ctx.addCost(putTypeCost(entry.tpe)) // putType(regTpe)
     serializeCost(entry.tpe, entry.value, ctx) // DataSerializer.serialize(regData)
   }
   ctx.addCost(3 + 32) // putBytes(txId, 32)
   ctx.addCost(PUT_NUM3) // putUShort(index)
+}
+
+/**
+ * Cost of serializing ONE box-register Expr blob (its raw `opaqueBytes` wire),
+ * as accrued by SigmaByteWriter when the JVM does `w.putValue(reg)`. Faithful
+ * cost-counterpart of `parseRegisterExprWithTag` (parse-svalue.ts:93): it reads
+ * the same wire form (lead byte, then Const data OR Tuple items) but charges the
+ * matching SigmaByteWriter primitive costs instead of building values.
+ *
+ * JVM mapping (ValueSerializer.serialize, ValueSerializer.scala:359-391):
+ *   - lead ≤ LAST_CONSTANT_CODE → Constant: hits `case c: Constant` with NO
+ *     constant store (methods.scala starts the serialize writer with
+ *     constantExtractionStore=None), so `case None` → constantSerializer.serialize
+ *     = putType(tpe) + DataSerializer.serialize(value) — NO opcode byte
+ *     (ConstantSerializer.scala:13-16). Cost = putTypeCost(tpe) + serializeCost(tpe,value).
+ *   - lead == OP_TUPLE (134) → Tuple Expr: hits `case _` → w.put(opCode) then
+ *     TupleSerializer.serialize (TupleSerializer.scala:18-25):
+ *       w.put(TupleCode)                = PutByteCost = 1  (SigmaByteWriter.scala:45-48,241)
+ *       w.putUByte(count, numItemsInfo) = 0  (SigmaByteWriter.scala:56-59 → super →
+ *                                             CoreByteWriter.scala:47-49, no cost callback)
+ *       per item w.putValue(item)       = recurse (a Const item = putType + DataSerializer;
+ *                                          a nested Tuple item = put(opcode) + …).
+ *
+ * This re-parse is COST-ONLY: the box's depth budget was already enforced when
+ * the box was first parsed, so the fresh ByteReader here is a plain reader (we do
+ * NOT re-enter the depth counter, avoiding any double-count).
+ */
+function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
+  const lead = r.readU8()
+  if (lead <= LAST_CONSTANT_CODE) {
+    // Constant Expr: lead byte IS the SType lead byte. Recover (tpe, value) from
+    // the wire to charge the data-form cost (putType + DataSerializer).
+    const tpe = parseSTypeWithFirstByte(lead, r)
+    const value = parseSValue(tpe, 0, r) // treeVersion irrelevant: register data is
+    // concrete; SHeader-in-register (the only version-gated kind) is not a register
+    // value shape (registers are Const/Tuple of data types).
+    ctx.addCost(putTypeCost(tpe)) // putType(tpe)
+    serializeCost(tpe, value, ctx) // DataSerializer.serialize(value)
+    return
+  }
+  if (lead === OP_TUPLE) {
+    // Tuple Expr: w.put(opCode) = 1; putUByte(count) = 0; Σ items (recurse).
+    ctx.addCost(PUT_BYTE) // w.put(TupleCode)
+    const itemsCount = r.readU8() // putUByte(count) — uncosted; just consumes the byte
+    for (let i = 0; i < itemsCount; i++) {
+      addRegisterExprCost(r, ctx)
+    }
+    return
+  }
+  // parse-svalue only ever captures opaqueBytes for OP_TUPLE-lead registers (and
+  // Constants never get opaqueBytes), so this is unreachable in practice; guard
+  // defensively to keep the cost walk total.
+  throw new EvalError(
+    `serialize: box register Expr lead 0x${lead.toString(16).padStart(2, '0')} ` +
+      `is neither Constant nor Tuple; cost not derivable`,
+    'global-serialize-failed',
+  )
 }
 
 /**

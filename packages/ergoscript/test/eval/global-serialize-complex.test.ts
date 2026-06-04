@@ -31,7 +31,8 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
-import { ByteWriter, deriveHeaderId } from '@ergots/scorex'
+import { parseSValue } from '../../src/wire/parse-svalue'
+import { ByteWriter, ByteReader, deriveHeaderId } from '@ergots/scorex'
 import type { MethodCall, SType, SValue, ErgoBox } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
 
@@ -196,6 +197,90 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     expect(cost).toBe(FRAMEWORK + START_WRITER + 84)
     expect(cost).toBe(108)
     expect(bytes).toEqual(wireBytes({ tag: 'SBox' }, box))
+  })
+
+  // ── SBox with a Tuple-Expr register (opaqueBytes) — h=855,650 R8 shape ────────
+  //
+  // Mainnet context boxes (INPUTS(i)/SELF/…) can carry a register that is a Tuple
+  // Expr on the wire (lead byte OP_TUPLE = 0x86 = 134), not a plain Constant. The
+  // parser preserves the raw register Expr bytes in `entry.opaqueBytes` (and the
+  // byte serializer writes them verbatim). A V3+ `Global.serialize(box)` of such a
+  // box MUST cost the JVM `w.putValue(reg)` of that Tuple Expr — NOT throw.
+  //
+  // JVM cost of a register Tuple Expr `(SByte 102, SByte 99)` — ValueSerializer
+  // .serialize hits the `case _` non-Constant path (ValueSerializer.scala:369-389):
+  //   w.put(TupleCode)               = PutByteCost = 1   (SigmaByteWriter.scala:45-48,241;
+  //                                                       TupleCode=134, OpCodes.scala:59)
+  //   TupleSerializer.serialize (TupleSerializer.scala:18-25):
+  //     w.putUByte(count=2, numItemsInfo) = 0  (SigmaByteWriter.scala:56-59 → super
+  //                                             → CoreByteWriter.scala:47-49, no cost)
+  //     per item w.putValue(item) → Constant/None path (ValueSerializer.scala:366-367
+  //       → ConstantSerializer.scala:13-16 = putType + DataSerializer, NO opcode):
+  //         putType(SByte) = 1  +  DataSerializer.serialize(byte) put = 1   → 2
+  //   register cost = 1 + 0 + 2 + 2 = 5.
+  //
+  // Box walk = minimal-box 46 + register 5 = 51 ; total = 14 + 10 + 51 = 75.
+  const SBYTE_TYPE_CODE = 2 // parse-stype.ts:57-58 / serialize-stype.ts:51-52
+  const OP_TUPLE = 134 // parse-svalue.ts:77 — LAST_CONSTANT_CODE(112) + 22
+  // Raw wire bytes of the register Tuple Expr `(SByte 102, SByte 99)`:
+  //   [OP_TUPLE, count=2, SByte, 102, SByte, 99]
+  const tupleRegOpaque = new Uint8Array([
+    OP_TUPLE,
+    2,
+    SBYTE_TYPE_CODE,
+    102,
+    SBYTE_TYPE_CODE,
+    99,
+  ])
+  // Matching parsed view (STuple of two SByte; what parseRegisterExprWithTag yields).
+  const tupleRegTpe: SType = { tag: 'STuple', items: [{ tag: 'SByte' }, { tag: 'SByte' }] }
+  const tupleRegValue: SValue = {
+    kind: 'Tuple',
+    items: [
+      { kind: 'Byte', value: 102 },
+      { kind: 'Byte', value: 99 },
+    ],
+  }
+
+  it('serialize[Box] with a Tuple-Expr register (R4 = (SByte 102, SByte 99)) → cost 75 (no throw)', () => {
+    const box: SValue = {
+      kind: 'Box',
+      value: makeBox({
+        registers: {
+          4: { tpe: tupleRegTpe, value: tupleRegValue, opaqueBytes: tupleRegOpaque },
+        },
+      }),
+    }
+    // The defect was a THROW here; assert it no longer throws and costs faithfully.
+    const { bytes, cost } = evalSer({ tag: 'SBox' }, box)
+    expect(cost).toBe(FRAMEWORK + START_WRITER + 51)
+    expect(cost).toBe(75)
+    // Cost path and byte path must agree on the register: the bytes are exactly the
+    // verbatim opaqueBytes the serializer writes (cross-check vs serializeSValue).
+    expect(bytes).toEqual(wireBytes({ tag: 'SBox' }, box))
+  })
+
+  it('serialize[Box] Tuple-Expr register — mainnet capture path (parseSValue) costs identically', () => {
+    // Strongest cross-check: build the box the way mainnet does — serialize a box
+    // carrying the Tuple-Expr register, then parseSValue(SBox) it back so the parser
+    // CAPTURES opaqueBytes from the wire itself. The re-serialized cost must match.
+    const seed: SValue = {
+      kind: 'Box',
+      value: makeBox({
+        registers: {
+          4: { tpe: tupleRegTpe, value: tupleRegValue, opaqueBytes: tupleRegOpaque },
+        },
+      }),
+    }
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SBox' }, seed, 3, w)
+    const parsed = parseSValue({ tag: 'SBox' }, 3, new ByteReader(w.toBytes()))
+    if (parsed.kind !== 'Box') throw new Error('expected Box')
+    // The parser must have captured the Tuple-Expr register as opaqueBytes.
+    expect(parsed.value.registers[4]?.opaqueBytes).toEqual(tupleRegOpaque)
+    const reparsedBox: SValue = { kind: 'Box', value: parsed.value }
+    const { cost } = evalSer({ tag: 'SBox' }, reparsedBox)
+    expect(cost).toBe(75)
   })
 
   // ── SHeader ──────────────────────────────────────────────────────────────────
