@@ -172,6 +172,18 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
     tRange: { tag: 'STypeVar', name: 'T' },
     tpeParams: [{ name: 'T' }],
   }],
+  // SGlobal.encodeNbits — SFunc([SGlobal, SBigInt] → SLong). JVM methods.scala:1939.
+  // Non-generic; closed tRange (SLong). v6 P5b-2.
+  [key(106, 6), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'SBigInt' }],
+    tRange: { tag: 'SLong' },
+  }],
+  // SGlobal.decodeNbits — SFunc([SGlobal, SLong] → SBigInt). JVM methods.scala:1944.
+  // Non-generic; closed tRange (SBigInt). v6 P5b-2.
+  [key(106, 7), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'SLong' }],
+    tRange: { tag: 'SBigInt' },
+  }],
   ...numericV6Signatures(),
 ])
 
