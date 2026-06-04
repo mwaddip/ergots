@@ -534,6 +534,7 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr): Expr {
         obj: fn(e.obj),
         typeId: e.typeId,
         methodId: e.methodId,
+        explicitTypeArgs: e.explicitTypeArgs,
       }
       return r
     }

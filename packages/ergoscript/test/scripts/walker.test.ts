@@ -136,6 +136,7 @@ describe('analyzeBox', () => {
 
     const tree: Expr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'GlobalVars', kind: 'SelfBox' },
       typeId: 99,
       methodId: 8,

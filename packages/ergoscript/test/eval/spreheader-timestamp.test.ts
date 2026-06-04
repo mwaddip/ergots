@@ -38,12 +38,14 @@ describe('SPreHeader.timestamp handler (Layer C1)', () => {
     // Outer PropertyCall: SPreHeader.timestamp on the inner result
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 3,
@@ -60,12 +62,14 @@ describe('SPreHeader.timestamp handler (Layer C1)', () => {
     const ctx = makeContext({ preHeader })
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 3,
@@ -79,6 +83,7 @@ describe('SPreHeader.timestamp handler (Layer C1)', () => {
     // Direct PropertyCall(Context, timestamp) — Context obj (not PreHeader)
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 105,
       methodId: 3,

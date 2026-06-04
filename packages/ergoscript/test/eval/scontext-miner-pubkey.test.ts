@@ -49,6 +49,7 @@ function syntheticPreHeader(minerPk: Uint8Array = syntheticMinerPk()): PreHeader
 
 const minerPubKeyExpr: PropertyCallExpr = {
   tag: 'PropertyCall',
+  explicitTypeArgs: {},
   obj: { tag: 'Context' },
   typeId: 101,
   methodId: 10,
@@ -80,6 +81,7 @@ describe('SContext.minerPubKey handler', () => {
     // include the +20 (proving Pattern A ordering).
     const nonContextExpr: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Global' },
       typeId: 101,
       methodId: 10,

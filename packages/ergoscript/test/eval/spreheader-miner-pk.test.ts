@@ -55,12 +55,14 @@ describe('SPreHeader.minerPk handler', () => {
     // Build Context.preHeader.minerPk = PropertyCall(PropertyCall(Context, 101:3), 105:6).
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 6,
@@ -78,6 +80,7 @@ describe('SPreHeader.minerPk handler', () => {
     const ctx = makeContext({})
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 105,
       methodId: 6,
@@ -104,12 +107,14 @@ describe('SPreHeader.minerPk handler', () => {
     const ctx = makeContext({ preHeader })
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 6,

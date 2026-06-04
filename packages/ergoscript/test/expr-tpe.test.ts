@@ -160,15 +160,15 @@ describe('exprTpe — method-call return-type resolution (A3)', () => {
   }
 
   it('PropertyCall getEncoded (7:2) returns Coll[SByte]', () => {
-    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 7, methodId: 2 }
+    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 7, methodId: 2, explicitTypeArgs: {} }
     expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
   it('PropertyCall indices (12:14) returns Coll[SInt], ignoring the receiver elem', () => {
-    const onLong: Expr = { tag: 'PropertyCall', obj: collLongConst, typeId: 12, methodId: 14 }
+    const onLong: Expr = { tag: 'PropertyCall', obj: collLongConst, typeId: 12, methodId: 14, explicitTypeArgs: {} }
     expect(exprTpe(onLong)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
     // indices' t_range is closed (Coll[Int] regardless of the receiver's T).
-    const onByte: Expr = { tag: 'PropertyCall', obj: collByteConst, typeId: 12, methodId: 14 }
+    const onByte: Expr = { tag: 'PropertyCall', obj: collByteConst, typeId: 12, methodId: 14, explicitTypeArgs: {} }
     expect(exprTpe(onByte)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
   })
 
@@ -185,7 +185,7 @@ describe('exprTpe — method-call return-type resolution (A3)', () => {
   })
 
   it('unregistered (typeId, methodId) falls back to SAny (cascade guard)', () => {
-    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 999, methodId: 999 }
+    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 999, methodId: 999, explicitTypeArgs: {} }
     expect(exprTpe(e)).toEqual({ tag: 'SAny' })
   })
 })

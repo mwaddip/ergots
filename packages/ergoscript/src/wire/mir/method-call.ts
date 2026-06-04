@@ -22,41 +22,18 @@
  *
  * Source: sigma-rust `serialization/method_call.rs`. Sigma-rust resolves
  * the SMethod via `SMethod::from_ids(type_id, method_id)?` then reads one
- * SType per entry in `method.method_raw.explicit_type_args`. We mirror
- * this with a small registry of (typeId, methodId) → STypeVar-name list
- * derived directly from sigma-rust's type companion definitions; the
- * registry only needs the type-var NAMES because the count and ordering
- * follow from sigma-rust's `Vec<STypeVar>` and the names become the keys
- * of our `Record<string, SType>`.
- *
- * Methods currently known to declare explicit_type_args (all `vec![STypeVar::t()]`,
- * so always exactly one "T"):
- *   - SBox (typeId=99):    getReg            (methodId=7)
- *   - SContext (typeId=101): getVarFromInput (methodId=12)
- *   - SGlobal (typeId=106): deserialize      (methodId=4)
- *   - SGlobal (typeId=106): fromBigEndianBytes (methodId=5)
- *   - SGlobal (typeId=106): none             (methodId=10)
- *
- * For any (typeId, methodId) not in the registry we assume zero explicit
- * type args. This mirrors the sigma-rust behavior for well-typed corpora
- * (only listed methods ever produce non-empty type args) while being
- * conservative for unknown methods — full SMethod resolution (with
- * rejection of unknown methodIds) is deferred to a later pass that owns
- * the method dispatch table; at the wire layer we only need enough info
- * to know how many SType bytes follow the args vector.
- *
- * The registry intentionally lives in this file (rather than a shared
- * `mir/` registry module) because it is purely a wire-layer concern: it
- * exists to disambiguate how many bytes to consume, not to model
- * ErgoScript semantics. When the SMethod registry lands in a future task
- * (likely with the interpreter), this table moves there.
+ * SType per entry in `method.method_raw.explicit_type_args`. We mirror this
+ * with the shared `explicitTypeArgNames` registry in `./explicit-type-args`
+ * (a (typeId, methodId) → STypeVar-name list, also consumed by the
+ * PropertyCall path); the registry only needs the type-var NAMES because the
+ * count and ordering follow from sigma-rust's `Vec<STypeVar>` and the names
+ * become the keys of our `Record<string, SType>`. For any (typeId, methodId)
+ * not in the registry we assume zero explicit type args.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/method_call.rs
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/method_call.rs
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sbox.rs (GET_REG_METHOD_DESC)
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/scontext.rs (GET_VAR_FROM_INPUT_METHOD_DESC)
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sglobal.rs (DESERIALIZE_METHOD_DESC, FROM_BIGENDIAN_BYTES_METHOD_DESC, NONE_METHOD_DESC)
+ *   ./explicit-type-args.ts — the shared (typeId, methodId) → type-var registry
  */
 
 import type { Expr, MethodCall, SType, SValue } from '../../mir/types'
@@ -66,43 +43,12 @@ import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
+import { explicitTypeArgNames } from './explicit-type-args'
 
 // Defensive cap on the args array length, mirroring `apply.ts`. Methods
 // take a handful of args at most in practice; a count beyond this is
 // almost certainly a malformed encoding.
 const MAX_METHOD_ARGS = 1 << 16
-
-// TypeCode constants for type companions that declare methods. Mirrors the
-// `TypeCode` values in sigma-rust `serialization/types.rs`.
-const TYPE_CODE_SBOX = 99
-const TYPE_CODE_SCONTEXT = 101
-const TYPE_CODE_SGLOBAL = 106
-
-// (typeId, methodId) → ordered list of STypeVar names declaring this method's
-// explicit_type_args. Empty list (or absence) = no inline STypes follow the
-// args vector. See module header for the full provenance of each entry.
-const EXPLICIT_TYPE_ARG_NAMES: Record<number, Record<number, readonly string[]>> = {
-  [TYPE_CODE_SBOX]: {
-    7: ['T'], // getReg[T]
-  },
-  [TYPE_CODE_SCONTEXT]: {
-    12: ['T'], // getVarFromInput[T]
-  },
-  [TYPE_CODE_SGLOBAL]: {
-    4: ['T'],  // deserialize[T]
-    5: ['T'],  // fromBigEndianBytes[T]
-    10: ['T'], // none[T]
-  },
-}
-
-/**
- * Returns the ordered list of STypeVar names whose SType bytes follow the
- * args vector on the wire for `(typeId, methodId)`. Empty for any pair
- * not in the registry (the conservative default — see module header).
- */
-function explicitTypeArgNames(typeId: number, methodId: number): readonly string[] {
-  return EXPLICIT_TYPE_ARG_NAMES[typeId]?.[methodId] ?? []
-}
 
 /**
  * Parse a `MethodCall` payload (the OP_METHOD_CALL opcode byte was consumed

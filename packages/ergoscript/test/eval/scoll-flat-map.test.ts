@@ -194,6 +194,7 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
       argIds: [1],
       body: {
         tag: 'PropertyCall',
+        explicitTypeArgs: {},
         obj: { tag: 'ValUse', valId: 1, tpe: SCOLL_LONG },
         typeId: 12,
         methodId: 14, // indices
@@ -203,6 +204,7 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     const lambda: SValue = { kind: 'Lambda', closure }
     const lambdaExpr: Expr = buildFuncValueExpr(SCOLL_LONG, {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'ValUse', valId: 1, tpe: SCOLL_LONG },
       typeId: 12,
       methodId: 14,
@@ -236,6 +238,7 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     const obj: SValue = { kind: 'Coll', elem: SGROUPELEMENT, items: [] }
     const body: Expr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'ValUse', valId: 1, tpe: SGROUPELEMENT },
       typeId: 7,
       methodId: 2, // getEncoded

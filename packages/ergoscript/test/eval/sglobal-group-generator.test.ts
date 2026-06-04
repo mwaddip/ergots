@@ -26,6 +26,7 @@ describe('SGlobal.groupGenerator handler (Layer C1)', () => {
     const ctx = makeContext({})
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Global' },
       typeId: 106,
       methodId: 1,
@@ -39,6 +40,7 @@ describe('SGlobal.groupGenerator handler (Layer C1)', () => {
     const ctx = makeContext({})
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 106,
       methodId: 1,

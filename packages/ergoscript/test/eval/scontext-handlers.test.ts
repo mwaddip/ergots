@@ -70,6 +70,7 @@ describe('SContext.lastBlockUtxoRootHash — oracle fixture-driven (Phase 2h-c.1
 describe('SContext.lastBlockUtxoRootHash — defensive ctx.headers checks', () => {
   const propertyCallExpr: PropertyCallExpr = {
     tag: 'PropertyCall',
+    explicitTypeArgs: {},
     obj: { tag: 'Context' },
     typeId: 101,
     methodId: 9,
@@ -104,6 +105,7 @@ describe('SContext.lastBlockUtxoRootHash — defensive obj-kind check', () => {
     // Construct PropertyCall(Global, lastBlockUtxoRootHash) — obj will be 'Global'.
     const nonContextExpr: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Global' },
       typeId: 101,
       methodId: 9,
@@ -126,6 +128,7 @@ describe('SContext.headers — defensive obj-kind check', () => {
     // Construct PropertyCall(Global, headers) — obj will be 'Global'.
     const nonContextExpr: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Global' },
       typeId: 101,
       methodId: 2,

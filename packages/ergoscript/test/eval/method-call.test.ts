@@ -51,6 +51,7 @@ describe('MethodCall dispatcher — skeleton (no handlers registered)', () => {
     // PropertyCall with obj = Context, but typeId=255/methodId=255 is unregistered.
     const e: PropertyCall = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       typeId: 255,
       methodId: 255,
       obj: { tag: 'Context' },
@@ -104,6 +105,7 @@ describe('registered method handler defensive throws', () => {
     // is not 'Box' — triggers the defensive shape-guard throw.
     const e: PropertyCall = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       typeId: 99,
       methodId: 8,
       obj: { tag: 'Context' },
@@ -121,6 +123,7 @@ describe('registered method handler defensive throws', () => {
     // which is not 'Context' — triggers the defensive shape-guard throw.
     const e: PropertyCall = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       typeId: 101,
       methodId: 1,
       obj: { tag: 'GlobalVars', kind: 'SelfBox' },

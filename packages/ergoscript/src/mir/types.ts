@@ -430,6 +430,14 @@ export interface PropertyCall {
   obj: Expr
   typeId: number
   methodId: number
+  /**
+   * Explicit type arguments by STypeVar name. Mirrors {@link MethodCall}'s
+   * field. Empty (`{}`) for all pre-v6-P4 PropertyCall nodes; populated for
+   * methods whose return type needs an explicit `T` on the wire (e.g.
+   * `SGlobal.none[T]` 106:10, the first such PropertyCall-opcode method).
+   * The parser always sets it (to `{}` when the method declares none).
+   */
+  explicitTypeArgs: Record<string, SType>
 }
 
 // BlockValue: a sequence of statements followed by a result expression.
