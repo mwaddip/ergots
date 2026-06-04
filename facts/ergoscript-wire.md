@@ -102,6 +102,7 @@ substituteConstantsBytes(
 
 // wire/sigma-boolean.ts
 parseSigmaBoolean(r: ByteReader): SigmaBoolean
+serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void
 sigmaBooleanOpCode(sb: SigmaBoolean): number | null
 proveDlogPublicKey(sb: SigmaBoolean): Uint8Array | null
 
@@ -139,7 +140,17 @@ The catalog grows by descriptor-addition and is populated via `numericV6Signatur
 
 The catalog shares the `(typeId, methodId)` namespace with the eval handler registry (`eval/method-call.ts`) — see the dual-table sync invariant in [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Specs: `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`, `docs/specs/2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md`.
 
-Once the package publishes, these symbols will likely move behind a `/wire` subpath export (the proof package's `/envelope` pattern). Until then, this file documents their current shape so downstream packages can rely on them.
+**Now re-exported (resolving the early-build "export or keep internal" deferral, 2026-06-03):**
+`parseSigmaBoolean` / `serializeSigmaBoolean` and their error classes `SigmaBooleanParseError` /
+`SigmaBooleanSerializeError` are re-exported top-level from the package index (`src/index.ts`,
+alongside `parseSValue`/`serializeSValue`) — for downstream wire-conformance consumers (e.g. SANTA's
+dasher) that round-trip a **bare** SigmaBoolean (op_code + payload, no SValue/SType framing, so
+`parseSValue` cannot reach it). `sigmaBooleanOpCode` / `proveDlogPublicKey` remain shape-documented
+but are NOT re-exported (no consumer demand); the other wire symbols above are documented-shape only.
+
+Once the package's wire surface stabilizes, all of these will likely move behind a `/wire` subpath
+export (the proof package's `/envelope` pattern); until then this file documents their current shape so
+downstream packages can rely on them.
 
 ## Round-trip invariant
 

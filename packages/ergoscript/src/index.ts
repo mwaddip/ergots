@@ -53,4 +53,18 @@ export { VerifyError } from './sigma/errors'
 export type { VerifyErrorCode } from './sigma/errors'
 export type { SigmaBoolean } from './mir/types'
 
-export const VERSION = '0.2.0'
+// Bare SigmaBoolean wire round-trip (op_code + payload — the inner proposition
+// tree, NOT an SSigmaProp SValue). Exposed for downstream wire-conformance
+// consumers (e.g. SANTA's dasher) that round-trip canonical SigmaBoolean bytes
+// directly: a bare SigmaBoolean has no SValue/SType framing, so parseSValue
+// cannot reach it. Resolves the early-build "export or keep internal" deferral.
+// (Like parseSValue/serializeSValue above, kept top-level for now; a future
+// full wire-surface move behind a `/wire` subpath would relocate all of these.)
+export {
+  parseSigmaBoolean,
+  serializeSigmaBoolean,
+  SigmaBooleanParseError,
+  SigmaBooleanSerializeError,
+} from './wire/sigma-boolean'
+
+export const VERSION = '0.3.0'
