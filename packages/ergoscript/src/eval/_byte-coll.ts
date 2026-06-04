@@ -56,6 +56,22 @@ export function signedBeBytesToBigInt(bytes: Uint8Array): bigint {
   return value
 }
 
+/**
+ * Unsigned big-endian byte-array -> bigint. Pure bigint arithmetic. Empty input
+ * returns 0n (matches BouncyCastle `BigIntegers.fromUnsignedByteArray([])` = 0,
+ * the JVM `fromBigEndianBytes[UnsignedBigInt]` path). Sibling of
+ * `signedBeBytesToBigInt` (which sign-extends); this one never sign-extends.
+ *
+ * Used by: SGlobal.fromBigEndianBytes (106:5, v6 P5b-1) for the UnsignedBigInt arm.
+ */
+export function unsignedBeBytesToBigInt(bytes: Uint8Array): bigint {
+  let value = 0n
+  for (let i = 0; i < bytes.length; i++) {
+    value = (value << 8n) | BigInt(bytes[i]!)
+  }
+  return value
+}
+
 /** Signed 256-bit integer minimum: -2^255. Used by ByteArrayToBigInt range check. */
 export const I256_MIN = -(1n << 255n)
 
