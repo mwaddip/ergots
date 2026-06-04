@@ -11,11 +11,10 @@
  * Faithfulness pins:
  *   - Trailing bytes are intentionally NOT checked (JVM does not check
  *     `r.isExhausted()` after deserialize — `CSigmaDslBuilder.scala:277-282`).
- *   - Type nesting > MaxTreeDepth(110) rejects — mirrors JVM `r.level`
- *     check in `CoreDataSerializer.deserialize`. The JVM level is 0-based:
- *     level 110 is the deepest allowed call (= type depth 111 in our 1-based
- *     `typeNestingDepth`). Types with depth > 111 throw. Check:
- *     `typeNestingDepth(T) > MAX_DEPTH_ALLOWED` where `MAX_DEPTH_ALLOWED = 111`.
+ *   - Type nesting > MaxTreeDepth(110) rejects — mirrors the JVM `r.level`
+ *     check (`CoreByteReader.level_=` throws when level > 110; deserializing a
+ *     value of type T reaches level `typeNestingDepth(T)`). So reject iff
+ *     `typeNestingDepth(T) > 110`.
  */
 
 import { ByteReader } from '@ergots/scorex'
@@ -25,16 +24,15 @@ import { EvalError, type EvalContext } from './eval-context'
 import type { SType, SValue } from '../mir/types'
 
 /**
- * JVM `SigmaConstants.MaxTreeDepth = 110`. This is the maximum 0-based
- * recursion `level` the JVM allows in `CoreDataSerializer.deserialize`.
- * The maximum 1-based type nesting depth that succeeds is `MAX_TREE_DEPTH + 1
- * = 111` (level 0..110 = 111 recursive calls allowed).
- *
- * `typeNestingDepth` is 1-based (scalar = 1, SColl[scalar] = 2, …).
- * Throw condition: depth > 111, i.e. the JVM would need level 111 (> 110).
+ * JVM `SigmaConstants.MaxTreeDepth = 110`. `CoreByteReader.level_=` throws when
+ * the new level is `> maxTreeDepth` (`CoreByteReader.scala:127-131`), and
+ * `CoreDataSerializer.deserialize` sets `r.level = depth + 1` at the top of
+ * EVERY call (`CoreDataSerializer.scala:94-96`), starting from a fresh reader at
+ * level 0. So deserializing a value of type T drives the level up to exactly
+ * `typeNestingDepth(T)` at the deepest leaf — and the JVM throws iff
+ * `typeNestingDepth(T) > 110`. (NB: a scalar reaches level 1, not 0.)
  */
 const MAX_TREE_DEPTH = 110
-const MAX_DEPTH_ALLOWED = MAX_TREE_DEPTH + 1 // 111
 
 /**
  * Nesting depth of a type — the number of `CoreDataSerializer.deserialize`
@@ -83,9 +81,10 @@ export function evalGlobalDeserializeTo(
 
   const T = explicitTypeArgs['T']!
 
-  // MaxTreeDepth bound: the JVM's r.level is 0-based, throws at level > 110.
-  // Our typeNestingDepth is 1-based. Allowed up to depth 111 (= level 110).
-  if (typeNestingDepth(T) > MAX_DEPTH_ALLOWED) {
+  // MaxTreeDepth bound: the JVM throws when its recursion level exceeds 110, and
+  // deserializing a value of type T reaches level typeNestingDepth(T). So reject
+  // iff typeNestingDepth(T) > 110 (matches JVM CoreByteReader.level_=).
+  if (typeNestingDepth(T) > MAX_TREE_DEPTH) {
     throw new EvalError(
       `Global.deserializeTo: type nesting depth exceeds MaxTreeDepth (${MAX_TREE_DEPTH})`,
       'global-deserialize-failed',

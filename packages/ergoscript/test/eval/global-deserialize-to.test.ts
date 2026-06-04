@@ -114,12 +114,16 @@ describe('Global.deserializeTo (106:4) — v6 P5a', () => {
     expect(() => evalMethodCall(deserExpr(SBYTE, [7]), Env.empty(), ctx)).toThrowError(EvalError)
   })
 
-  // -------- MaxTreeDepth(110) bound --------
+  // -------- MaxTreeDepth(110) bound — EXACT boundary --------
+  // JVM throws iff typeNestingDepth(T) > 110 (CoreByteReader.level_= throws at
+  // level > 110; a value of type T reaches level = typeNestingDepth(T)). These
+  // two cases straddle the exact boundary: a `> 111` off-by-one would wrongly
+  // ACCEPT the depth-111 case (it parses [0] as an empty nested Coll, no throw).
 
-  it('deserializeTo with type nested > 110 deep throws global-deserialize-failed', () => {
-    // Build SColl[SColl[...SColl[SByte]...]] nested 111 levels.
+  it('type depth 111 (110 SColl wraps) throws global-deserialize-failed — JVM rejects', () => {
+    // 110 SColl wraps around SByte → typeNestingDepth 111 > 110 → reject.
     let T: SType = { tag: 'SByte' }
-    for (let i = 0; i < 111; i++) T = { tag: 'SColl', elem: T }
+    for (let i = 0; i < 110; i++) T = { tag: 'SColl', elem: T }
     const ctx = makeContext({ treeVersion: 3 })
     expect(() => evalMethodCall(deserExpr(T, [0]), Env.empty(), ctx)).toThrowError(EvalError)
     try {
@@ -127,5 +131,16 @@ describe('Global.deserializeTo (106:4) — v6 P5a', () => {
     } catch (e) {
       expect((e as EvalError).code).toBe('global-deserialize-failed')
     }
+  })
+
+  it('type depth 110 (109 SColl wraps) is allowed by the depth bound (empty Coll)', () => {
+    // 109 SColl wraps around SByte → typeNestingDepth 110, the deepest allowed.
+    // bytes [0] = an empty outer Coll (length 0) → parse succeeds with no element
+    // recursion → returns an empty Coll. Proves the bound rejects 111, not 110.
+    let T: SType = { tag: 'SByte' }
+    for (let i = 0; i < 109; i++) T = { tag: 'SColl', elem: T }
+    const ctx = makeContext({ treeVersion: 3 })
+    const r = evalMethodCall(deserExpr(T, [0]), Env.empty(), ctx)
+    expect(r).toMatchObject({ kind: 'Coll', items: [] })
   })
 })
