@@ -282,10 +282,25 @@ The corrected decomposition closes the two lowest-risk groups first:
   (facts)→`8934dcfa`(wire)→`21fa31df`(sigs)→`4f0b08b`(handlers)→`a772527`(reject+checkPow regen).
   **Next: P5 (Global functions).**
 
-### P5 — Global functions  ·  status: not started
+### P5 — Global functions  ·  status: in progress (decomposed P5a/P5b/P5c)
 - **Goal:** `serialize`, `deserializeTo`, `fromBigEndianBytes`, `encodeNbits`,
-  `decodeNbits`, `powHit`. `deserializeTo` extends our existing Deserialize family.
-  **Depends-on:** P0 (generics) + thin wire (new opcodes/predefs).
+  `decodeNbits`, `powHit`. **Depends-on:** P0 (generics) + a thin wire slice.
+- **Decomposition (2026-06-04, after verifying the surface vs JVM):** all six are real,
+  registered SGlobal methods (type id 106, methodIds 3–8), gated `isV3OrLaterErgoTreeVersion`,
+  all `MethodCall` (0xdc) — **zero new wire code** (the explicit-type-arg slice exists from
+  P4; `serialize` carries none; `106:4`/`106:5` already in the wire registry). Split by
+  machinery:
+  - **P5a** — `serialize` (106:3) + `deserializeTo` (106:4): the value/data codec pair (reuse
+    `serializeSValue`/`parseSValue`). serialize = DynamicCost (analytical cost walk;
+    **runtime-value** type derivation, NOT `exprTpe` — closes the SAny over-reject fork);
+    deserializeTo = PerItemCost(100,32,32) on input length + a `MaxTreeDepth`(110) bound.
+    Full data-type domain incl. Box/Header/AvlTree (Box registers cost = `putType` + data,
+    no envelope). **status: spec'd** —
+    `2026-06-04-ergoscript-v6-p5a-serialize-deserializeto-design.md`.
+  - **P5b** — `fromBigEndianBytes` (106:5) + `encodeNbits` (106:6) + `decodeNbits` (106:7):
+    numeric/compact decoders. **status: not started.**
+  - **P5c** — `powHit` (106:8): Autolykos v2 hit → `SUnsignedBigInt`; carved for the 95%
+    crypto-confidence bar. **status: not started.**
 
 ### P6 — higher-order lambdas  ·  status: not started (scope separately)
 - **Goal:** lambdas as first-class values. Deepest phase — touches eval engine +
