@@ -69,6 +69,7 @@ import {
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
+import { evalGlobalSerialize } from './global-serialize'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
 import { umod, umodInverse } from './_ubi-modular'
@@ -481,6 +482,13 @@ function registerHandlers(): void {
     },
     minVersion: 3,
   })
+
+  // SGlobal.serialize (MethodCall, typeId=106, methodId=3) — v6 P5a.
+  // Source: JVM sigma/ast/methods.scala:1957-1984. DynamicCost = StartWriter(10)
+  // + per-primitive write costs from DataSerializer walk. T derived from the
+  // runtime value via sValueType (NOT exprTpe — SAny-incomplete static type would
+  // fork). Output = raw data bytes (no type prefix). V3-gated.
+  HANDLERS.set(handlerKey(106, 3), { handler: evalGlobalSerialize, minVersion: 3 })
 
   // SGlobal.deserializeTo (MethodCall, typeId=106, methodId=4) — v6 P5a.
   // Source: JVM sigma/ast/methods.scala:1906-1955. PerItemCost(100,32,32) on
