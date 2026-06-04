@@ -215,7 +215,7 @@ Per-class code enumeration (every code below is emitted by current source):
 - **`ErgoTreeParseError`**: `'empty'`, `'oversized'`, `'body-size-overflow'`, `'too-many-constants'`, `'header-inconsistent'`, `'subst-length-mismatch'`, `'subst-type-mismatch'` (the last two from `substituteConstantsBytes`; the eval arm re-wraps them as `EvalError('subst-constants-error')`).
 - **`ErgoTreeSerializeError`**: `'header-inconsistent'`, `'constants-arity-mismatch'`.
 - **`ExprParseError`**: `'opcode-reserved'` (19 sites — reserved in sigma-rust's `OpCode` enum but never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; covers `OpTrue`, `OpFalse`, `UnitConstant`, `Select1..Select5`, `FunDef`, `SomeValue`, `NoneValue`, `ModQ`, `PlusModQ`, `MinusModQ`, `CollShiftLeft/Right/RightZeroed`, `CollRotateLeft/Right`; added phase 2i-d, renamed from `'not-implemented-yet'` to reflect permanent-state rather than forward-promise); `'not-implemented-yet'` (4 wire sites still using it — `LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue` — routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); top-level direct-dispatch status undetermined pending separate review; ALSO emitted by the `EvalError` class for legitimately-TBD eval support — distinguished from this wire-layer use by error class); `'unknown-opcode'` (byte not in sigma-rust's opcode table at all); plus per-variant codes including `'apply-too-many-args'`, `'block-too-many-items'`, `'collection-size-out-of-range'`, `'deserialize-context-id-out-of-range'`, `'deserialize-register-id-out-of-range'`, `'extract-register-as-id-out-of-range'`, `'func-value-too-many-args'`, `'get-var-id-out-of-range'`, `'invalid-binop-opcode'`, `'invalid-constant-placeholder-id'`, `'invalid-option-tag'`, `'method-call-id-out-of-range'`, `'method-call-missing-type-arg'`, `'method-call-too-many-args'`, `'property-call-id-out-of-range'`, `'select-field-index-out-of-range'`, `'tuple-arity-out-of-range'`, `'unknown-binop-kind'`, `'val-def-rhs-tpe'`, `'val-use-unknown-id'`.
-- **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch).
+- **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch); `'property-call-missing-type-arg'` (v6 P4 — `serializePropertyCall` found a type-parameter name in `explicitTypeArgNames(typeId, methodId)` absent from `e.explicitTypeArgs`; defensive, unreachable from a well-parsed tree; mirrors the pre-existing `'method-call-missing-type-arg'` on the `ExprParseError` side).
 - **`STypeParseError`**: `'invalid-type-code'`, `'unsupported-type'`, `'invalid-tuple-length'`, `'invalid-stypevar-length'`, `'invalid-stypevar-utf8'`, `'invalid-sfunc-tpe-params'`.
 - **`STypeSerializeError`**: `'tuple-too-short'`, `'tuple-too-long'`, `'stypevar-name-length'`, `'sfunc-tdom-too-long'`, `'sfunc-tpe-params-too-long'`, `'unreachable'`.
 - **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue constant in a tree-version < 3 ErgoTree; mirrors sigma-rust `serialization/data.rs:196`), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-creation-height-out-of-range'` (parse rejects creation_height > u32, matching sigma-rust `get_u32`; audit follow-up), `'sbox-index-out-of-range'` (parse rejects index > u16, matching `get_u16`; previously serialize-only), `'unsigned-bigint-too-large'` (UBI payload > 32 bytes; mirrors `CoreDataSerializer.scala:120`; shipped v6 P2a T3). (`'sbox-ergo-tree-no-size'` removed in phase 2j-pre fix-1 — see changelog below.)
@@ -341,6 +341,49 @@ JVM-parity details encoded in the fn (all from `ErgoTreeSerializer.scala:286-411
 - The size field does NOT bound the body read (`treeBytes = r.getBytes(r.remaining)`); the body is all remaining bytes.
 
 New `ErgoTreeParseError` codes: `'subst-length-mismatch'`, `'subst-type-mismatch'`. Validated by the SANTA conformance vector (`test/conformance/cost-v5.test.ts`, `substConstants_equivalence.json`, 7 entries incl. `#1`) + wire-fn unit tests (`test/wire/subst-constants-bytes.test.ts`), with the eval-side byte-equality canary (`test/eval/subst-constants.test.ts`) and 255 corpus fixtures as the byte-identity regression net for valid templates.
+
+## Phase v6 P4 wire additions (PropertyCall explicit-type-args)
+
+`SGlobal.none` (106:10) is the first method invoked via the **PropertyCall opcode** (0 args) that carries an explicit type argument `T` on the wire. This required extending the `PropertyCall` MIR node and its serializer/deserializer to match what the JVM's `PropertyCallSerializer` already does for methods with `hasExplicitTypeArgs`.
+
+### `PropertyCall` MIR node — `explicitTypeArgs` field
+
+The `PropertyCall` MIR node (`mir/types.ts`) gains the field:
+
+```ts
+interface PropertyCall {
+  tag: 'PropertyCall'
+  obj: Expr
+  typeId: number
+  methodId: number
+  explicitTypeArgs: Record<string, SType>  // NEW (v6 P4); empty ({}) for all pre-P4 PropertyCall nodes
+}
+```
+
+This mirrors the `MethodCall` node's existing `explicitTypeArgs` field. Pre-P4 `PropertyCall` nodes that carry no explicit type args parse with `explicitTypeArgs: {}` (the empty record); byte-roundtrip is unchanged.
+
+### Wire encoding (PropertyCall explicit-type-arg tail)
+
+**Source: JVM `PropertyCallSerializer.scala:20-49`.**
+
+After writing `typeId, methodId, obj` (the pre-existing PropertyCall body), the serializer iterates `method.explicitTypeArgs` (the list of type-parameter names for this method, looked up from a registry) and writes one `SType` per name via `putType(typeSubst(a))`. The parser reads the same count of `SType` values after `obj`. This is byte-identical to `MethodCallSerializer`'s explicit-type-arg tail (`:23-33`) — the same registry drives both.
+
+ergots implementation:
+
+1. **Shared registry** — `EXPLICIT_TYPE_ARG_NAMES` (previously a private const in `wire/mir/method-call.ts`) is extracted to `wire/mir/explicit-type-args.ts`, exporting `explicitTypeArgNames(typeId, methodId): readonly string[]`. Both `parseMethodCall`/`serializeMethodCall` and `parsePropertyCall`/`serializePropertyCall` import from this shared module.
+2. **`parsePropertyCall`** — after reading `obj`, calls `explicitTypeArgNames(typeId, methodId)` and reads one `parseSType(r)` per name, building `explicitTypeArgs`. Trees with no registered names for a given `(typeId, methodId)` parse `explicitTypeArgs: {}` (no bytes consumed) — backward-compatible.
+3. **`serializePropertyCall`** — after writing `obj`, iterates `explicitTypeArgNames(typeId, methodId)` and writes `serializeSType(explicitTypeArgs[name], w)` for each. A missing name in `explicitTypeArgs` throws `ExprSerializeError('property-call-missing-type-arg')` (defensive — mirrors `'method-call-missing-type-arg'`).
+4. **`evalPropertyCall`** (`eval/method-call.ts`) — forwards `e.explicitTypeArgs` to `dispatch()` instead of `{}`. Handlers that read from `explicitTypeArgs` (e.g. `SGlobal.some`/`SGlobal.none`) now receive the wire-parsed type.
+5. **`exprTpe` PropertyCall arm** (`mir/expr-tpe.ts`) — passes `e.explicitTypeArgs` to `resolveReturnTpe` (previously `{}` — the MethodCall arm already passed `e.explicitTypeArgs`).
+
+### Consumers
+
+- **`SGlobal.none` (106:10)** — PropertyCall opcode, 0 args, carries `T` (e.g. `SByte`) on the wire. First consumer of the new PropertyCall explicit-type-arg path. `explicitTypeArgNames(106, 10)` returns `['T']`.
+- **`SGlobal.some` (106:9)** — MethodCall opcode, 1 arg, carries `T` on the wire via the existing MethodCall path (no PropertyCall involvement). `explicitTypeArgNames(106, 9)` returns `['T']`.
+
+### New wire serialize error
+
+- **`ExprSerializeError('property-call-missing-type-arg')`** — thrown when `serializePropertyCall` finds a name in `explicitTypeArgNames(typeId, methodId)` that is absent from `e.explicitTypeArgs`. Defensive; unreachable from a well-parsed tree (the parser always populates every registered name). Mirrors `'method-call-missing-type-arg'` (pre-existing in `ExprParseError`).
 
 ## Coverage
 
