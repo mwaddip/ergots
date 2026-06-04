@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 69 codes added through v6 P1 numeric method operand guards
+ *   - documents the 73 codes added through v6 P2 (SUnsignedBigInt; see history)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -51,6 +51,10 @@
  *    + 2 codes from v6 P1 numeric methods (numeric-shift-out-of-range,
  *        bigint-result-out-of-range) → 68
  *    + 1 code from v6 P1 C1 final-review (numeric-method-bad-operand) → 69
+ *    + 4 codes from v6 P2 SUnsignedBigInt (v6-type-in-pre-v3-tree,
+ *        unsigned-bigint-op-unsupported, unsigned-bigint-out-of-range,
+ *        unsigned-bigint-not-invertible) → 73 (housekeeping 2026-06-03: used in
+ *        the P2 arms but omitted from this union until now)
  */
 
 /**
@@ -718,3 +722,36 @@ export type EvalErrorCode =
    *         ergotree-interpreter/src/eval/method_call.rs
    */
   | 'numeric-method-bad-operand'
+
+  // -------------------------------------------------------------------------
+  // v6 P2 — SUnsignedBigInt + V3 type gating (4 new codes; 69 → 73)
+  // Housekeeping (2026-06-03): these P2a/P2b/P2d-2 codes were used in the arms
+  // but omitted from this union — `EvalError` takes `code: string`, so they
+  // compiled regardless; added here for taxonomy completeness.
+  // -------------------------------------------------------------------------
+  /**
+   * `validateV6Types` pre-eval pass: an `SUnsignedBigInt` / `SFunc` type
+   * construct appears in a `treeVersion < 3` tree (checked over `constantTypes[]`
+   * + the post-substitution body's wire-serialized type annotations). Zero-cost
+   * reject. Source: `eval/validate-v6-types.ts` (v6 P2a).
+   */
+  | 'v6-type-in-pre-v3-tree'
+  /**
+   * A `UnsignedBigInt` SValue reached an operation with no JVM path. After P2c
+   * this survives only in the UBI cast matrix (`eval/_cast-ubi.ts`): UBI↔BigInt
+   * casts and UBI-source `Upcast` (the JVM uses `toUnsigned`/`toSigned` instead).
+   * Source: `eval/_cast-ubi.ts` (v6 P2a/P2b).
+   */
+  | 'unsigned-bigint-op-unsupported'
+  /**
+   * `UnsignedBigInt` arithmetic/shift result fell outside the unsigned range
+   * [0, 2^256) — e.g. `shiftLeft` overflow (`≥ 2^256`). Source:
+   * `eval/_numeric-v6.ts` (ubiDesc) / `eval/bin-op/_ubi-binop.ts` (v6 P2b/P2c).
+   */
+  | 'unsigned-bigint-out-of-range'
+  /**
+   * `UnsignedBigInt.modInverse(a, m)`: `gcd(a, m) ≠ 1`, so no modular inverse
+   * exists. (`m == 0` reuses `'arith-divide-by-zero'`.) Source:
+   * `eval/_ubi-modular.ts` `umodInverse` (v6 P2d-2).
+   */
+  | 'unsigned-bigint-not-invertible'

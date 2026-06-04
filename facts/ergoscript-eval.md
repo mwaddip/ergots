@@ -19,7 +19,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 - 3 more arms wired: `BinOp` (central dispatcher delegating on `e.op.kind` to 4 per-family sub-arms), `LogicalNot`, `BoolToSigmaProp`.
 - All 22 `BinOp` sub-ops implemented across 4 families: **Arith** (7: Plus, Minus, Multiply, Divide, Modulo, Max, Min; checks bounds per kind; throws `'arith-overflow'` on bounds violation, `'arith-divide-by-zero'` for `/0` and `%0`); **Relation** (6: Lt, Le, Gt, Ge, Eq, NEq); **Logical** (3: And, Or short-circuit on Boolean operands — right-side cost NOT charged when short-circuited — and eager Xor); **Bit** (3 of 6: BitAnd, BitOr, BitXor with kind-uniform bigint masking + sign-preserving re-narrowing; the 3 shift ops throw `'not-implemented-yet'` — sigma-rust delegates them to `SNumericTypeMethods` not the BinOp arm).
-- `sValueEquals` recursive structural comparer covering primitives, `GroupElement` (byte-equal), `SigmaProp` (byte-equal on opaque `.raw`), `Coll`, `Tuple`, `Option`. Cross-kind comparison returns `false` (no coercion) — **later version-gated (2026-06-01): at `ctx.treeVersion < 3`, mismatched-NUMERIC `Eq`/`NEq` operands are coerced to the wider kind before comparison (JVM pre-V3 auto-upcast); see the `'bin-op-kind-mismatch'` taxonomy entry.** `Box` / `AvlTree` throw `'not-implemented-yet'`. Cost charged per sigma-rust's `data_value_comparer.rs` constants.
+- `sValueEquals` recursive structural comparer covering primitives, `GroupElement` (byte-equal), `SigmaProp` (byte-equal on opaque `.raw`), `Coll`, `Tuple`, `Option`. Cross-kind comparison returns `false` (no coercion) — **later version-gated (2026-06-01): at `ctx.treeVersion < 3`, mismatched-NUMERIC `Eq`/`NEq` operands are coerced to the wider kind before comparison (JVM pre-V3 auto-upcast); see the `'bin-op-kind-mismatch'` taxonomy entry.** `Box` / `AvlTree` throw `'not-implemented-yet'` **(2c snapshot — superseded: structural equality via `boxEqual`/`avlTreeEqual`/`preHeaderEqual`/`headerEqual` landed phase 2e/2h)**. Cost charged per sigma-rust's `data_value_comparer.rs` constants.
 - 5 new `EvalError` codes: `'arith-overflow'`, `'arith-divide-by-zero'`, `'bin-op-kind-mismatch'`, `'bin-op-not-numeric'`, `'bin-op-not-boolean'`.
 
 **Phase 2d-A — numeric-poly unary arms** (additive):
@@ -242,7 +242,6 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 - Broader method-call surface: `Coll.zipWith` / `.reverse` / `.get` (V3-gated), `SNumericTypeMethods` Bit shifts, additional `SBox`/`SPreHeader` methods. (`Coll.patch` [iter-28], `Coll.updated`, `Coll.updateMany`, `SGroupElement.negate` are now implemented.) Wait until corpus demand resurfaces.
 - BinOp `Bit` shift ops via `SNumericTypeMethods` — when method-call dispatch surface expands.
-- `Box` / `AvlTree` equality comparison (currently `'not-implemented-yet'` from `sValueEquals`) — when chain-state model fully lands.
 - Real-context cost validation (Layer C3) — phase 2j calibration.
 - Long-tail parse-rejecting / deprecated arms (`OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `ModQ` family, `CollShift`/`CollRotate`) — phase 2i-d.
 
