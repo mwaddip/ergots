@@ -196,6 +196,47 @@ describe('Global.serialize (106:3) — v6 P5a (data types)', () => {
     expect(ctx.jitCost).toBe(60)
   })
 
+  // SString length uses the no-DataInfo putUInt (cost 0), NOT putUShort (3) — so
+  // cost = StartWriter(10) + putBytes(3 + utf8Len). Verified vs CoreDataSerializer.
+  // scala:29-32 + SigmaByteWriter.scala:105-107 (anchorless arm; review Important-1).
+  it('serialize[String]("") → Coll[Byte]([0]), cost 27', () => {
+    // walk = putBytes(0) = 3 (length putUInt = 0) → handler = 13 → total = 27
+    const ctx = makeContext({ treeVersion: 3 })
+    const r = evalMethodCall(
+      serExpr({ tag: 'SString' }, { kind: 'String', value: '' }), Env.empty(), ctx)
+    expect(r).toEqual(collByte([0]))
+    expect(ctx.jitCost).toBe(27)
+  })
+
+  it('serialize[String]("ab") → Coll[Byte]([2, 97, 98]), cost 29', () => {
+    // walk = putBytes(2) = 3 + 2 = 5 (length putUInt = 0) → handler = 15 → total = 29
+    const ctx = makeContext({ treeVersion: 3 })
+    const r = evalMethodCall(
+      serExpr({ tag: 'SString' }, { kind: 'String', value: 'ab' }), Env.empty(), ctx)
+    expect(r).toEqual(collByte([2, 97, 98]))
+    expect(ctx.jitCost).toBe(29)
+  })
+
+  it('serialize[UnsignedBigInt](0) → Coll[Byte]([0]), cost 30', () => {
+    // encodeUnsignedBigIntBE(0n) = [] (len 0).
+    // walk = putUShort(len=0)(3) + putBytes(0)(3+0) = 6 → handler = 16 → total = 30
+    const ctx = makeContext({ treeVersion: 3 })
+    const r = evalMethodCall(
+      serExpr({ tag: 'SUnsignedBigInt' }, { kind: 'UnsignedBigInt', value: 0n }), Env.empty(), ctx)
+    expect(r).toEqual(collByte([0]))
+    expect(ctx.jitCost).toBe(30)
+  })
+
+  it('serialize[UnsignedBigInt](50) → Coll[Byte]([1, 50]), cost 31', () => {
+    // encodeUnsignedBigIntBE(50n) = [0x32] (1 byte).
+    // walk = putUShort(len=1)(3) + putBytes(1)(3+1) = 7 → handler = 17 → total = 31
+    const ctx = makeContext({ treeVersion: 3 })
+    const r = evalMethodCall(
+      serExpr({ tag: 'SUnsignedBigInt' }, { kind: 'UnsignedBigInt', value: 50n }), Env.empty(), ctx)
+    expect(r).toEqual(collByte([1, 50]))
+    expect(ctx.jitCost).toBe(31)
+  })
+
   it('V3 gate — treeVersion 2 throws tree-version-too-low', () => {
     const ctx = makeContext({ treeVersion: 2 })
     expect(() =>

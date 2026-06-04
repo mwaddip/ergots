@@ -174,14 +174,19 @@ export function serializeCost(t: SType, v: SValue, ctx: EvalContext): void {
 
     // ── SString ───────────────────────────────────────────────────────────────
     //
-    // Wire: VLQ u16 (UTF-8 byte count) + raw UTF-8 bytes.
-    // JVM: putUShort(utf8Len)(3) + putBytes(utf8Len)(3 + utf8Len).
+    // Wire: VLQ length (UTF-8 byte count) + raw UTF-8 bytes.
+    // JVM (CoreDataSerializer.scala:29-32): putUInt(utf8Len) + putBytes(utf8Len).
+    // The length uses the NO-DataInfo `putUInt(x: Long)` overload
+    // (SigmaByteWriter.scala:105-107 → CoreByteWriter), which adds NO cost — unlike
+    // putUShort / putUInt(DataInfo), which charge PutUnsignedNumericCost (3). So ONLY
+    // the putBytes(3 + utf8Len) is charged. (Contrast SBigInt above, whose length IS
+    // a costed putUShort.) Unreachable on the eval path today, pinned faithful.
 
     case 'SString': {
       const sv = v as Extract<SValue, { kind: 'String' }>
       const utf8Len = new TextEncoder().encode(sv.value).length
-      // putUShort(utf8Len) = 3; putBytes(utf8Len) = 3 + utf8Len
-      ctx.addCost(PUT_NUM3 + (3 + utf8Len))
+      // putUInt(utf8Len) = 0 (no-DataInfo overload); putBytes(utf8Len) = 3 + utf8Len
+      ctx.addCost(3 + utf8Len)
       return
     }
 
