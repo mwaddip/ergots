@@ -64,3 +64,33 @@ describe('Global.fromBigEndianBytes (106:5) — fixed-width', () => {
     expect(ctx.jitCost).toBe(10)
   })
 })
+
+describe('Global.fromBigEndianBytes (106:5) — BigInt / UnsignedBigInt', () => {
+  it('BigInt: signed two\'s-complement big-endian', () => {
+    expect(decode({ tag: 'SBigInt' }, [0x05])).toEqual({ kind: 'BigInt', value: 5n })
+    expect(decode({ tag: 'SBigInt' }, [0xff])).toEqual({ kind: 'BigInt', value: -1n })
+    expect(decode({ tag: 'SBigInt' }, [0x01, 0x00])).toEqual({ kind: 'BigInt', value: 256n })
+  })
+  it('BigInt: 32-byte signed extremes are in range', () => {
+    const mostNeg = [0x80, ...new Array(31).fill(0x00)] // -2^255
+    const maxPos = [0x7f, ...new Array(31).fill(0xff)]  // 2^255 - 1
+    expect(decode({ tag: 'SBigInt' }, mostNeg)).toEqual({ kind: 'BigInt', value: -(1n << 255n) })
+    expect(decode({ tag: 'SBigInt' }, maxPos)).toEqual({ kind: 'BigInt', value: (1n << 255n) - 1n })
+  })
+  it('BigInt: rejects empty (JVM new BigInteger([]) throws) and len>32', () => {
+    expectFail({ tag: 'SBigInt' }, [], FAIL)
+    expectFail({ tag: 'SBigInt' }, new Array(33).fill(0x01), FAIL)
+  })
+  it('UnsignedBigInt: unsigned big-endian magnitude', () => {
+    expect(decode({ tag: 'SUnsignedBigInt' }, [0xff])).toEqual({ kind: 'UnsignedBigInt', value: 255n })
+    expect(decode({ tag: 'SUnsignedBigInt' }, [0x01, 0x00])).toEqual({ kind: 'UnsignedBigInt', value: 256n })
+  })
+  it('UnsignedBigInt: empty -> 0 (asymmetry vs BigInt), full 32-byte max in range', () => {
+    expect(decode({ tag: 'SUnsignedBigInt' }, [])).toEqual({ kind: 'UnsignedBigInt', value: 0n })
+    const max = new Array(32).fill(0xff)
+    expect(decode({ tag: 'SUnsignedBigInt' }, max)).toEqual({ kind: 'UnsignedBigInt', value: (1n << 256n) - 1n })
+  })
+  it('UnsignedBigInt: rejects len>32', () => {
+    expectFail({ tag: 'SUnsignedBigInt' }, new Array(33).fill(0x01), FAIL)
+  })
+})

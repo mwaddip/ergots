@@ -17,11 +17,13 @@
  *  - UBI: empty -> 0 (matches BigIntegers.fromUnsignedByteArray([])); reject len>32.
  */
 
-import { collByteToUint8Array } from './_byte-coll'
+import { collByteToUint8Array, signedBeBytesToBigInt, unsignedBeBytesToBigInt } from './_byte-coll'
 import { EvalError, type EvalContext } from './eval-context'
 import type { SType, SValue } from '../mir/types'
 
 const FAIL = 'global-from-bigendian-bytes-failed'
+// SBigInt.MaxSizeInBytes === SUnsignedBigInt.MaxSizeInBytes === 32 (JVM SType).
+const MAX_BIGINT_BYTES = 32
 
 export function evalGlobalFromBigEndianBytes(
   obj: SValue,
@@ -73,6 +75,24 @@ export function evalGlobalFromBigEndianBytes(
       let v = 0n
       for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(bytes[i]!)
       return { kind: 'Long', value: BigInt.asIntN(64, v) }
+    }
+    case 'SBigInt': {
+      if (bytes.length === 0) {
+        throw new EvalError(`fromBigEndianBytes[BigInt] needs at least 1 byte`, FAIL)
+      }
+      if (bytes.length > MAX_BIGINT_BYTES) {
+        throw new EvalError(`fromBigEndianBytes[BigInt] exceeds ${MAX_BIGINT_BYTES} bytes, got ${bytes.length}`, FAIL)
+      }
+      // <=32 bytes two's-complement always lands in signed-256; JVM's
+      // toSignedBigIntValueExact is a no-op there, so no extra range check.
+      return { kind: 'BigInt', value: signedBeBytesToBigInt(bytes) }
+    }
+    case 'SUnsignedBigInt': {
+      if (bytes.length > MAX_BIGINT_BYTES) {
+        throw new EvalError(`fromBigEndianBytes[UnsignedBigInt] exceeds ${MAX_BIGINT_BYTES} bytes, got ${bytes.length}`, FAIL)
+      }
+      // empty -> 0n (matches BigIntegers.fromUnsignedByteArray([])).
+      return { kind: 'UnsignedBigInt', value: unsignedBeBytesToBigInt(bytes) }
     }
     default:
       throw new EvalError(`fromBigEndianBytes: unsupported type '${T.tag}'`, FAIL)
