@@ -23,9 +23,13 @@ Where this file is silent on implementation detail, those are canonical.
 7. `Header` interface + `parseHeader`, `serializeHeader`, `serializeHeaderWithoutPow`, `deriveHeaderId`.
 8. `AutolykosSolution` interface + `parseAutolykosSolution`, `serializeAutolykosSolution`.
 9. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
-10. Autolykos v2 PoW verifier: `verifyAutolykosV2(header): boolean` + helpers (`calcBigN`, `autolykosMessage`, `buildAutolykosSeed`, `genIndexes`, `hashElement`).
+10. Autolykos v2 PoW verifier: `verifyAutolykosV2(header): boolean` + helpers (`calcBigN`, `autolykosMessage`). Internals `buildAutolykosSeed`, `genIndexes`, `hashElement` are module-internal in P5c and removed from `packages/scorex/src/index.ts`.
 11. `decodeCompactBits(nBits): bigint` — Bitcoin-compact-bits target unpacking, used by the Autolykos v2 verifier.
 12. `AutolykosV1NotSupportedError` typed error class — thrown by `verifyAutolykosV2` on v1 headers (matches sigma-rust `AutolykosPowSchemeError::Unsupported`).
+13. `autolykosHitForMessage(k, msg, nonce, h, N): bigint` — un-checked Autolykos-2 PoW hit core (Architecture C″). Faithful port of JVM `Autolykos2PowValidation.hitForVersion2ForMessage` (`Autolykos2PowValidation.scala:122-137`). `h` is raw bytes; the header path passes `int32BE(height)`.
+14. `autolykosHitForMessageWithChecks(k, msg, nonce, h, N): bigint` — same hit core, guarded by `require(k>=2)`, `require(k<=32)`, `require(N>=16)`; throws `PowHitInvalidParamsError` on violation. JVM `hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`).
+15. `int32BE(n: number): Uint8Array` — 4-byte big-endian encoding. JVM `scorex.utils.Ints.toByteArray`.
+16. `PowHitInvalidParamsError` typed error class — `readonly code = 'pow-hit-invalid-params'`; thrown by `autolykosHitForMessageWithChecks` on parameter-guard violations.
 
 **Does NOT ship:**
 
@@ -124,6 +128,10 @@ export class AutolykosV1NotSupportedError extends Error {
   readonly code: 'autolykos-v1-not-supported'
 }
 
+export class PowHitInvalidParamsError extends Error {
+  readonly code: 'pow-hit-invalid-params'
+}
+
 // ─── VLQ free functions ───────────────────────────────────────────────────────
 
 // Encode/decode accept and return bigint (arbitrary precision; callers narrow to number as needed).
@@ -200,11 +208,41 @@ export function serializeAutolykosSolution(s: AutolykosSolution, version: number
 
 export function calcBigN(version: number, height: number): number
 export function autolykosMessage(header: Header): Uint8Array  // 32 bytes
-export function buildAutolykosSeed(msg: Uint8Array, nonce: Uint8Array, height: number, bigN: number): Uint8Array  // 32 bytes
-export function genIndexes(seed: Uint8Array, bigN: number): number[]  // 32 indices
-export function hashElement(index: number, height: number): Uint8Array  // 31 bytes
+// buildAutolykosSeed, genIndexes, hashElement are module-internal (P5c); removed from public index.ts
 export function verifyAutolykosV2(header: Header): boolean
   // throws AutolykosV1NotSupportedError on header.version === 1
+
+// ─── Autolykos v2 PoW hit core (Architecture C″ — shared by verifyAutolykosV2, nipopow.compare, SGlobal.powHit) ───
+
+// 4-byte big-endian encoding of a signed 32-bit integer.
+// JVM: scorex.utils.Ints.toByteArray
+export function int32BE(n: number): Uint8Array  // 4 bytes
+
+// Un-checked Autolykos-2 PoW hit core.
+// Faithful port of JVM Autolykos2PowValidation.hitForVersion2ForMessage (Autolykos2PowValidation.scala:122-137).
+// h is raw bytes; the header path passes int32BE(height).
+// No parameter guards — callers that need validation must use autolykosHitForMessageWithChecks.
+export function autolykosHitForMessage(
+  k: number,
+  msg: Uint8Array,
+  nonce: Uint8Array,
+  h: Uint8Array,
+  N: number
+): bigint
+
+// Same as autolykosHitForMessage, guarded by:
+//   require(k >= 2)  — at least 2 elements needed for the k-sum
+//   require(k <= 32) — genIndexes does not support k > 32
+//   require(N >= 16) — minimum table size
+// Throws PowHitInvalidParamsError (code 'pow-hit-invalid-params') on any guard violation.
+// JVM: Autolykos2PowValidation.hitForVersion2ForMessageWithChecks (Autolykos2PowValidation.scala:115-120).
+export function autolykosHitForMessageWithChecks(
+  k: number,
+  msg: Uint8Array,
+  nonce: Uint8Array,
+  h: Uint8Array,
+  N: number
+): bigint
 
 // ─── nBits decode ────────────────────────────────────────────────────────────
 
@@ -279,6 +317,10 @@ A typed error class wrapping the case where `verifyAutolykosV2` is called with `
 
 Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this throw exists for callers that mistakenly hand a v1 header to `verifyAutolykosV2` directly. `@ergots/ergoscript`'s `SHeader.checkPow` eval arm catches this class and re-throws as `EvalError('autolykos-v1-not-supported')`.
 
+**`PowHitInvalidParamsError` — thrown by `autolykosHitForMessageWithChecks` on parameter guard violations**
+
+A typed error class for invalid Autolykos-2 PoW hit parameters. The `code` is the string literal `'pow-hit-invalid-params'`. Thrown when any of the three guards fires: `k < 2` (at least 2 elements required for the k-sum), `k > 32` (genIndexes does not support larger k), or `N < 16` (minimum table size). Mirrors the JVM `require(...)` calls in `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`). `@ergots/ergoscript`'s `SGlobal.powHit` eval arm catches this class and re-throws as `EvalError('pow-hit-invalid-params')`.
+
 ## Test corpus
 
 Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdom` via two vitest configs (`vitest.config.ts` and `vitest.browser.config.ts`). Moved from `@ergots/nipopow` and `@ergots/ergoscript` during the phase 2h-c.0 extraction:
@@ -317,6 +359,14 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::pow_hit` (lines 176-197) | `verifyAutolykosV2` + helpers (`autolykos-v2.ts`) | V2 path only; V1 sigma-rust returns pow_distance but our port throws AutolykosV1NotSupportedError |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::decode_compact_bits` | `decodeCompactBits` (`nbits.ts`) | Bitcoin-compact-bits target unpacking; bit-exact mirror |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::AutolykosPowSchemeError::Unsupported` (line 322) | `AutolykosV1NotSupportedError` (`errors.ts`) | V1 verification not implemented; sigma-rust returns Err on the same condition |
+| JVM `Autolykos2PowValidation.hitForVersion2ForMessage` (`Autolykos2PowValidation.scala:122-137`) | `autolykosHitForMessage` (`autolykos-v2.ts`) | Un-checked hit core; Architecture C″ shared entry point |
+| JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`) | `autolykosHitForMessageWithChecks` (`autolykos-v2.ts`) | Guarded hit core; throws `PowHitInvalidParamsError` on k/N violations |
+| JVM `scorex.utils.Ints.toByteArray` | `int32BE` (`autolykos-v2.ts`) | 4-byte big-endian int encoding; used to pass `height` as `h` bytes |
+| JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` param guards | `PowHitInvalidParamsError` (`errors.ts`) | Typed error for k<2 / k>32 / N<16 guard violations |
+
+## Version note (v6 P5c)
+
+The P5c changes to this package (`autolykosHitForMessage`, `autolykosHitForMessageWithChecks`, `int32BE`, `PowHitInvalidParamsError` added; `buildAutolykosSeed`, `genIndexes`, `hashElement` removed from the public `index.ts` export) constitute a breaking public-API change. A version bump and npm republish of `@ergots/scorex` is required at v6 delivery (before or together with the `@ergots/nipopow` and `@ergots/ergoscript` v6 packages that depend on the new API).
 
 ## Known limitations / follow-ups
 

@@ -202,6 +202,10 @@ No other error classes are exported from this package. Internal panics (e.g. bla
 4. **Envelope fixtures**: P2P codes 90/91 round-trip; JVM-captured request bytes parse and re-serialize byte-identically.
 5. **Cross-runtime**: vitest runs each test under both `node` and `jsdom` environments.
 
+## Internal dependency note (v6 P5c)
+
+The public contract of this package is **unchanged** by v6 P5c. Internally, `compare.ts`'s `powHit(header)` helper — which computes the Autolykos-2 hit for a PoPoW header during `compareProofs` — now routes through `@ergots/scorex`'s `autolykosHitForMessage` (the Architecture C″ shared hit core). This replaces the previous internal inline use of the `buildAutolykosSeed`/`genIndexes`/`hashElement` trio, which are removed from `@ergots/scorex`'s public API in P5c. The change is identity-preserving: same inputs, same `bigint` output, same test fixtures.
+
 ## Cross-references
 
 - `facts/scorex.md` — foundational codec contract; defines `Header`, `AutolykosSolution`, `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions consumed by this package
