@@ -250,9 +250,37 @@ The corrected decomposition closes the two lowest-risk groups first:
   jsdom)**. Spec: `2026-06-03-ergoscript-v6-p3-coll-methods-design.md`. **Next: P4
   (Option v6 + `Global.some/none`).**
 
-### P4 — Option v6 + `Global.some/none`  ·  status: not started
-- **Goal:** `Option.getOrElse`(lazy default); `Global.some` / `Global.none`.
-  **Depends-on:** P0 (`some`/`none` are generic).
+### P4 — Option v6 + `Global.some/none`  ·  status: DONE (2026-06-04)
+- **Framing correction (verified vs JVM):** the umbrella's earlier "`Option.getOrElse`(lazy
+  default); some/none" was 2/3 already-done or out-of-scope. `SOptionMethods.getMethods()`
+  (`methods.scala:792-799`) is identical v5/v6, and `Option.getOrElse`'s lazy default (its
+  only v6 aspect) was already shipped as the `OptionGetOrElse` arm (`eval/option-get-or-else.ts`,
+  V3-gated). `Option.fold` is a non-shipping placeholder (absent from `getMethods()`, like P3's
+  find/bitwise/diff); `SOption.filter` is an unrelated v5 gap. So P4 = just `Global.some`/`none`
+  + an adversarial-completeness reject.
+- **Landed:** `Global.some` (106:9) / `Global.none` (106:10) — 2 SGlobal method handlers,
+  `FixedCost(JitCost(5))`, `minVersion: 3`, generic `Option[T]` via the P0 engine (`none` is the
+  first method resolved purely from an explicit type arg). Both serialize `T` on the wire; `some`
+  rides the MethodCall opcode, `none` the **PropertyCall** opcode (JVM `MethodCall.companion =
+  if (args.isEmpty) PropertyCall else MethodCall`, `values.scala:1322`). First **PropertyCall
+  explicit-type-arg wire slice** (shared registry `wire/mir/explicit-type-args.ts` +
+  `PropertyCall.explicitTypeArgs` field + parse/serialize mirroring `PropertyCallSerializer.scala:20-49`).
+- **Adversarial reject (in scope):** `validateMethodCallArity` — a pre-eval, zero-cost, whole-tree
+  pass rejecting V3+ `MethodCall`-opcode nodes with empty args (JVM `MethodCallSerializer.scala:53-55`
+  `assert(args.nonEmpty)`), wired into both `dispatchTreeBody` sites. 1 new code `'method-call-empty-args'`.
+  Closes the new `none` AND the pre-existing `groupGenerator` (106:1) over-accept. The pass surfaced
+  that the `checkPow` (104:16) fixture was sigma-rust-shaped (0xdc MethodCall — a form the JVM rejects
+  at V3); regenerated to the JVM-faithful 0xdb PropertyCall encoding (eval value `true` + cost 759
+  unchanged; now hand-blessed, diverges from `fixture-gen`). Corpus audit: checkPow was the only such
+  fixture. Handler arity guards (some=1 / none=0 args) close the live-branch arity divergence; the
+  **dead-branch arity check (all methods, deserialize-time whole-tree) is the deferred broad arg-count
+  faithfulness sweep** (user-scoped separate, 2026-06-04).
+- **Built via the full skill chain** (brainstorm → spec → writing-plans → subagent-driven TDD with
+  per-task review + final whole-diff code review = SHIP, 0 Critical/Important). **Gate: tsc clean
+  (4 pkgs), 3721 green (node + jsdom).** Registry 115→117, codes 73→74, 0 new wire opcodes. Spec:
+  `2026-06-04-ergoscript-v6-p4-option-global-some-none-design.md`. 6 commits `0508651`(spec)→`1f8e5af`
+  (facts)→`8934dcfa`(wire)→`21fa31df`(sigs)→`4f0b08b`(handlers)→`a772527`(reject+checkPow regen).
+  **Next: P5 (Global functions).**
 
 ### P5 — Global functions  ·  status: not started
 - **Goal:** `serialize`, `deserializeTo`, `fromBigEndianBytes`, `encodeNbits`,

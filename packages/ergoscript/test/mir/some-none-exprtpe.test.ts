@@ -10,7 +10,7 @@
  *     discarding any T bound on the node.
  *
  * JVM source: sigma/ast/methods.scala:1986-1999 (some/none in SGlobal).
- * Spec: docs/specs/2026-06-03-ergoscript-v6-p4-some-none-design.md
+ * Spec: docs/specs/2026-06-04-ergoscript-v6-p4-option-global-some-none-design.md
  */
 import { describe, it, expect } from 'vitest'
 import { exprTpe } from '../../src/mir/expr-tpe'
