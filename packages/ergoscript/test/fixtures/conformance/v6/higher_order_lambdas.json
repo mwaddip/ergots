@@ -1,0 +1,53 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "higher order lambdas",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "Coll(1,2)#0",
+      "script" : "{(xs: Coll[Int]) =>\n   val inc = { (x: Int) => x + 1 }\n   def apply(in: (Int => Int, Int)) = in._1(in._2)\n   xs.map { (x: Int) => apply((inc, x)) }\n }\n",
+      "tree_bytes_hex" : "1b36010402dad9010110ad7201d9010304dad901054c7001040400da8c720501018c720502018602d90105049a72057300720301e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 3
+            }
+          ]
+        },
+        "cost" : 408,
+        "error" : null
+      }
+    }
+  ]
+}
