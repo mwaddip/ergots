@@ -20,7 +20,7 @@
 import { describe, expect, it } from 'vitest'
 import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
-import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { makeContext } from '../../src/eval/eval-context'
 import type { MethodCall as MethodCallExpr, SType } from '../../src/mir/types'
 
 const SGE: SType = { tag: 'SGroupElement' }
@@ -92,7 +92,7 @@ describe('SGroupElement.expUnsigned (7:6) handler — v6 P7a', () => {
       explicitTypeArgs: {},
     }
     const ctx = makeContext({ treeVersion: 3 })
-    expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrow(EvalError)
+    expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrowError(/expects a GroupElement obj/)
   })
 
   it('rejects a signed-BigInt exponent (exp vs expUnsigned operand distinction)', () => {
@@ -105,6 +105,22 @@ describe('SGroupElement.expUnsigned (7:6) handler — v6 P7a', () => {
       explicitTypeArgs: {},
     }
     const ctx = makeContext({ treeVersion: 3 })
-    expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrow(EvalError)
+    expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrowError(/expects an UnsignedBigInt exponent/)
+  })
+
+  it('rejects extra args (arity 1 exact — JVM reflection-arity parity)', () => {
+    const expr: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: { tag: 'Const', tpe: SGE, value: { kind: 'GroupElement', value: hexToBytes(G_HEX) } },
+      typeId: 7,
+      methodId: 6,
+      args: [
+        { tag: 'Const', tpe: SUBI, value: { kind: 'UnsignedBigInt', value: 1n } },
+        { tag: 'Const', tpe: SUBI, value: { kind: 'UnsignedBigInt', value: 2n } },
+      ],
+      explicitTypeArgs: {},
+    }
+    const ctx = makeContext({ treeVersion: 3 })
+    expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrowError(/expects an UnsignedBigInt exponent/)
   })
 })

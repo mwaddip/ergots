@@ -117,6 +117,7 @@ describe('secp256k1 adapter', () => {
   function hexToBytes(hex: string): Uint8Array {
     return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
   }
+  const ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
 
   describe('expPoint', () => {
     it('identity base, any k → 33 zero bytes', () => {
@@ -136,6 +137,25 @@ describe('secp256k1 adapter', () => {
       const gBytes = hexToBytes(G_HEX)
       const result = expPoint(gBytes, 1n)
       expect(bytesEqual(result, gBytes)).toBe(true)
+    })
+
+    it('g^(n+1) = g — pins mod-n reduction for k > n (first wire-reachable above-order surface)', () => {
+      // A UBI scalar in [n, 2^256) is valid wire input; mod-n must reduce it correctly.
+      const gBytes = hexToBytes(G_HEX)
+      const result = expPoint(gBytes, ORDER + 1n)
+      expect(bytesEqual(result, gBytes)).toBe(true)
+    })
+
+    it('g^(2^256 - 1) = g^((2^256-1) mod n) — reduction-equivalence pin (full 256-bit scalar)', () => {
+      // The maximum UBI value; confirms expPoint applies mod-n before pointMul.
+      const gBytes = hexToBytes(G_HEX)
+      const kMax = (1n << 256n) - 1n
+      const out = expPoint(gBytes, kMax)
+      expect(out).toBeInstanceOf(Uint8Array)
+      expect(out.length).toBe(33)
+      // Reduction-equivalence: expPoint(G, k) must equal expPoint(G, k mod n).
+      const reduced = expPoint(gBytes, kMax % ORDER)
+      expect(bytesEqual(out, reduced)).toBe(true)
     })
   })
 

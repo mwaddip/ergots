@@ -575,8 +575,9 @@ function registerHandlers(): void {
           'method-not-implemented' // reuse per error taxonomy option 1
         )
       }
+      // arity 1 exact — JVM eval-rejects extra args via reflection arity (JavaImpl.scala:136-138)
       const k = args[0]
-      if (k === undefined || k.kind !== 'UnsignedBigInt') {
+      if (args.length !== 1 || k === undefined || k.kind !== 'UnsignedBigInt') {
         throw new EvalError(
           `SGroupElement.expUnsigned expects an UnsignedBigInt exponent; got '${k?.kind}'`,
           'method-not-implemented' // reuse per error taxonomy option 1
