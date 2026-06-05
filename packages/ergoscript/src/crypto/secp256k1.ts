@@ -131,6 +131,25 @@ export function pointMul(p: Point, k: bigint): Point {
 }
 
 /**
+ * base^k on secp256k1 at the BYTE level: decode → identity-base guard →
+ * `pointMul` (mod-n reduction; k=0 / k≡0 (mod n) → ZERO) → encode (ZERO →
+ * 33 zero bytes, the Ergo identity convention).
+ *
+ * The identity-base guard is LOAD-BEARING: `@noble/curves` `Point.multiply`
+ * does NOT short-circuit `Point.ZERO` (see `eval/exponentiate.ts` module docs
+ * for the full rationale + sigma-rust `ec_point.rs:113-118` correspondence).
+ *
+ * Shared by the v5 `Exponentiate` arm (signed BigInt exponent) and
+ * `SGroupElement.expUnsigned` 7:6 (UBI exponent ∈ [0, 2²⁵⁶), v6 P7a) — the
+ * mod-n reduction in `pointMul` covers both ranges identically.
+ */
+export function expPoint(baseBytes: Uint8Array, k: bigint): Uint8Array {
+  const base = decodePoint(baseBytes)
+  if (base.is0()) return new Uint8Array(POINT_BYTES) // identity^k = identity
+  return encodePoint(pointMul(base, k))
+}
+
+/**
  * Decode a 32-byte big-endian scalar, reducing mod n.
  * Mirrors sigma-rust's `Scalar::reduce_bytes` (`wscalar.rs:60-67`).
  */

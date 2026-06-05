@@ -30,6 +30,7 @@
  *
  * We mirror via the `base.is0()` guard below. Validation: oracle fixture
  * `exp_identity_k` asserts 33-zero-bytes output for `identity^nonzero_k`.
+ * (Since v6 P7a the guard lives in crypto/secp256k1.ts expPoint, shared with SGroupElement.expUnsigned.)
  *
  * Build-time type guard: `Exponentiate::new` (sigma-rust
  * `ergotree-ir/src/mir/exponentiate.rs:27-39`) enforces
@@ -55,7 +56,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { decodePoint, encodePoint, pointMul } from '../crypto/secp256k1'
+import { expPoint } from '../crypto/secp256k1'
 
 export function evalExponentiate(
   e: Exponentiate,
@@ -77,12 +78,7 @@ export function evalExponentiate(
       'predef-input-not-bigint',
     )
   }
-  const base = decodePoint(leftV.value)
-  // Mirror sigma-rust's `if !is_identity(base) { ... } else { *base }`.
-  // REQUIRED — @noble/curves Point.multiply does not handle identity bases.
-  if (base.is0()) {
-    return { kind: 'GroupElement', value: new Uint8Array(33) } // identity (Ergo: 33 zero bytes)
-  }
-  const result = pointMul(base, rightV.value) // pointMul reduces mod n internally
-  return { kind: 'GroupElement', value: encodePoint(result) }
+  // decode → identity-base guard → pointMul → encode, shared with
+  // SGroupElement.expUnsigned (7:6) since v6 P7a. See crypto/secp256k1.ts.
+  return { kind: 'GroupElement', value: expPoint(leftV.value, rightV.value) }
 }
