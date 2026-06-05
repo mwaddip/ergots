@@ -347,7 +347,8 @@ interface EvalOpts {
   inputs?: ErgoBox[]             // transaction inputs
   outputs?: ErgoBox[]            // transaction outputs
   preHeader?: PreHeader          // pre-header of current block
-  extension?: ContextExtension   // context-extension key-value map
+  extension?: ContextExtension   // context-extension key-value map (SELF input)
+  inputExtensions?: ContextExtension[]  // per-input extensions, indexed by spending-transaction input position (v6 P7a)
   dataInputs?: ErgoBox[]         // transaction data-inputs
   headers?: Header[]             // block headers (up to 10; sigma-rust [Header; 10]); Header type from @ergots/scorex
 }
@@ -361,6 +362,7 @@ interface EvalContext extends EvalOpts {
 
 - `addCost` — saturating add; throws `EvalError 'cost-limit-exceeded'` if `jitCostLimit` is set and exceeded.
 - `addPerItemCost` — composite charge: `addCost(base + ceil(nItems / chunkSize) * perChunk)`.
+- **`inputExtensions`** — per-input context extensions for `Context.getVarFromInput` (101:12, v6 P7a). Indexed by spending-transaction input position (mirrors JVM `spendingTransaction.inputs(i).extension`). May legitimately differ in length from `inputs` — the JVM's own blessed `getVarFromInput` vector has `tx.inputs.length = 0` while `ctx.inputs.length = 1`; never validate length equality. Absent field ⟹ every `getVarFromInput` lookup → `None`. Key domain is unsigned 0–255 (ContextExtension byte keys); JVM JSON ingestion normalizes signed `-1` to `255` — supply `255`, not `-1`, when constructing extensions from JVM JSON output.
 
 ### `EvalError`
 
@@ -433,6 +435,14 @@ New `SType { tag: 'SUnsignedBigInt' }` and `SValue { kind: 'UnsignedBigInt'; val
 | `Global.encodeNbits` | 106:6 | 25 | `Long` | `SBigInt` → Bitcoin-compact nBits encoding |
 | `Global.decodeNbits` | 106:7 | 50 | `BigInt` | Bitcoin-compact `Long` → signed `BigInt`; → `'global-decode-nbits-failed'` on signed-256 overflow |
 | `Global.powHit` | 106:8 | PowHitCostKind | `UnsignedBigInt` | Autolykos-2 PoW hit computation; → `'pow-hit-invalid-params'` for invalid k/N |
+
+### Per-type v6 methods (v6 P7a) — 3 handlers
+
+| Method | typeId:methodId | Cost | Returns | Notes |
+|---|---|---|---|---|
+| `Box.getReg[T]` | 99:19 | `FixedCost(50)` | `Option[T]` | Dynamic-index register read. Index out of `[0,9]` → `None`; absent register → `None`; defined + wrong type → throws `'register-type-mismatch'`. Carries explicit type arg `T` on wire. `minVersion: 3`. |
+| `Context.getVarFromInput[T]` | 101:12 | `FixedCost(10)` | `Option[T]` | Read a context-extension variable from a specified input. OOB input idx, missing var, or type mismatch → `None` (never throws). Reads `inputExtensions[inputIdx]`. `minVersion: 3`. |
+| `GroupElement.expUnsigned` | 7:6 | `FixedCost(900)` | `GroupElement` | Scalar exponentiation with an `UnsignedBigInt` scalar. `g^0 = g^order = identity` (33 zero bytes); `g^1 = g`. Monomorphic — no explicit type args. `minVersion: 3`. |
 
 ### First-class functions (v6 P6)
 

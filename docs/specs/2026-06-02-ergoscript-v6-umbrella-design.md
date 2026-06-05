@@ -330,10 +330,33 @@ The corrected decomposition closes the two lowest-risk groups first:
   **Depends-on:** TBD (assess in its spec).
 - P6 reframed on entry: the eval engine already handled first-class functions *without closures* (the happy path ran). The real work comprised four deliverables: (1) `FunDef` opcode `0xd7` parse+serialize+eval as a `ValDef` carrying `tpeArgs`; (2) `exprTpe(Apply)` SAny relaxation (was over-rejecting unresolved func types); (3) **lexical-scoping (closures)** — `Lambda` now captures its definition-site env (`Closure.capturedEnv`), and `Apply` + all 7 HOF arms evaluate the body in `capturedEnv` extended with args (reverses the prior dynamic scoping; currying `add(3)(1)` → 4); (4) **type-var-apply reject** — applying a lambda whose arg type is an unresolved `STypeVar` throws `EvalError('apply-unresolved-type-var')`, mirroring the JVM `stypeToRType(STypeVar)` failure. All four deliverables validated against JVM-blessed SANTA conformance vectors (`higher_order_lambdas`, `FunDef` concrete, currying, `Coll[SFunc]`, type-var-body accept+reject, plus powHit k≠32). Registry 123 (unchanged), EvalError codes 81 (+1: `'apply-unresolved-type-var'`). Full suite **3891 green** (node + jsdom), tsc clean. Remaining v6: P7, P8.
 
-### P7 — per-type additions + behavior changes + sigma reducers  ·  status: not started
-- **Goal:** Box new props, Header new methods, `Context.getVarFromInput`; the
-  version-gated behavior changes (`substConstants` v6, `AvlTree.insert`/`insertOrUpdate`
-  v6); `allZK`/`anyZK`. **Depends-on:** mostly none; split further in its spec if large.
+### P7 — per-type additions + behavior changes + sigma reducers  ·  decomposed 2026-06-05
+
+P7 was decomposed (user-agreed 2026-06-05) into P7a, P7b, and a dropped bucket:
+
+#### P7a ✅ DONE 2026-06-06 — three per-type v6 method handlers
+
+Spec: `docs/specs/2026-06-05-ergoscript-v6-p7a-per-type-methods-design.md`.
+
+- **99:7 → 99:19 wire fix** — JVM `getRegV5` (id 7) carries no type-arg bytes; id 19 (`getRegMethodV6`) carries `['T']`. Prior sigma-rust-shaped `99:7 → ['T']` entry removed; `99:19 → ['T']` added. Consensus-load-bearing: the old entry mis-consumed one SType byte.
+- **`Box.getReg[T]` (99:19)** — `FixedCost(50)`, Pattern A. Index `[0,9]`; absent → `None`; mismatch → `'register-type-mismatch'` throw; `minVersion: 3`.
+- **`Context.getVarFromInput[T]` (101:12)** — `FixedCost(10)`, Pattern A. Total (never throws): OOB idx, missing var, type-mismatch → `None`; `minVersion: 3`. Added `inputExtensions?: ContextExtension[]` to `EvalOpts`/`makeContext`.
+- **`GroupElement.expUnsigned` (7:6)** — `FixedCost(900)`, Pattern A. Routes through shared `expPoint` helper (extracted from the existing v5 Exponentiate arm). Scalar edges `g^0=g^order=identity`, `g^1=g` pinned; `minVersion: 3`.
+- **Registry:** 123 → 126. **EvalError codes:** 81 (0 new). Suite: 3935 (was 3891 at P6 close).
+- **Review-caught consensus fixes:** (a) `expUnsigned` arity-1-exact guard (JVM `IllegalArgumentException` on wrong arity); (b) `getVarFromInput` var-id byte-identity `& 0xff` — JS bitwise ops sign-extend; the mask aligns with JVM `Byte` → unsigned-key semantics, confirmed to be Critical.
+
+**Documented inherited residuals (pre-existing class, not expanded in P7a):**
+1. **v6-method-in-dead-branch-of-pre-v3-tree** — JVM rejects at deserialize (`SMethod.fromIds` is version-aware); ergots' `minVersion` gate fires at eval → dead branches escape. Candidate future `validateMethodVersions` pre-eval pass (sibling of `validateV6Types`/`validateMethodCallArity`), routed separately.
+2. **Registry-wide extra-args arity sweep** — pre-existing class; P7a's three handlers use arity-exact guards, but the sweep over all ~126 registry entries is a separate pass.
+3. **Self-GetVar key-domain sibling gap** — JVM crashes at context construction for `extension` keys ≥ 0x80; ergots `GetVar` returns `Some`/`None` for those keys (opposite direction from the `& 0xff` fix to `getVarFromInput`). Pre-existing; needs its own pass.
+
+#### P7b — open (own spec)
+
+Version-gated behavior *changes*: `substConstants` v6 fix for tree version > 0 (reconcile against the deferred A2-b serializer-level item) + `AvlTree.insert`/`insertOrUpdate` v6 semantics delta. Own spec before implementation.
+
+#### Sigma reducers (`allZK`/`anyZK`) — DROPPED
+
+`allZK`/`anyZK` are source-language `PredefinedFunc` sugar (`SigmaPredef.scala:79-92`) with **no opcode and no serializer**. Any on-chain form is `SigmaAnd`/`SigmaOr`, already shipped in 2g-combinators. Nothing to build.
 
 ### P8 — validation (eventually)  ·  status: deferred
 - **Goal:** wire `LanguageSpecificationV6` `verifyCases` + SANTA's JVM-blessed v6

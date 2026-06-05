@@ -171,7 +171,7 @@ Blessed vectors: 4 `verifyCases` (`LanguageSpecificationV6.scala:1908-1916`) —
   differs (UBI's BigInteger, ∈ [0, 2²⁵⁶), instead of signed BigInt).
 - **ergots:** there is no exported composite helper today — the arm's sequence is inline
   (`eval/exponentiate.ts:80-87`): `decodePoint` → identity-**base** guard (`base.is0()` → 33 zero bytes;
-  noble `multiply` on the zero point is UB) → `pointMul` → `encodePoint`. **Extract a shared
+  noble multiply-on-ZERO is uncontracted — the guard is defense-in-depth mirroring sigma-rust, see crypto/secp256k1.ts expPoint) → `pointMul` → `encodePoint`. **Extract a shared
   `expPoint(baseBytes, k)` covering all four steps** (the identity-base guard is mandatory) **and route
   both arms through it.** New handler: operand-kind guards (obj `GroupElement`, arg `UnsignedBigInt`),
   charge 900, `expPoint`, `minVersion: 3`. Monomorphic → **no explicit type args, zero wire change**.
