@@ -282,7 +282,7 @@ The corrected decomposition closes the two lowest-risk groups first:
   (facts)→`8934dcfa`(wire)→`21fa31df`(sigs)→`4f0b08b`(handlers)→`a772527`(reject+checkPow regen).
   **Next: P5 (Global functions).**
 
-### P5 — Global functions  ·  status: in progress (P5a + P5b-1 + P5b-2 DONE; P5c not started)
+### P5 — Global functions  ·  status: COMPLETE (P5a + P5b-1 + P5b-2 + P5c DONE)
 - **Goal:** `serialize`, `deserializeTo`, `fromBigEndianBytes`, `encodeNbits`,
   `decodeNbits`, `powHit`. **Depends-on:** P0 (generics) + a thin wire slice.
 - **Decomposition (2026-06-04, after verifying the surface vs JVM):** all six are real,
@@ -312,7 +312,17 @@ The corrected decomposition closes the two lowest-risk groups first:
       (2026-06-04)** — `docs/specs/2026-06-04-ergoscript-v6-p5b2-encode-decode-nbits-design.md`.
       Landed `encodeNbits` (106:6) + `decodeNbits` (106:7) — registry 122, codes 79.
   - **P5c** — `powHit` (106:8): Autolykos v2 hit → `SUnsignedBigInt`; carved for the 95%
-    crypto-confidence bar. **status: not started.**
+    crypto-confidence bar. **status: DONE (2026-06-05)** —
+    `docs/specs/2026-06-05-ergoscript-v6-p5c-powhit-design.md` (Architecture **C″**).
+    `FixedCost(500 + (k+1)·(⌊L/128⌋+1)·7)` charged before the require guards (cost-then-throw;
+    k≥2/k≤32/N≥16); returns `SUnsignedBigInt`; `method-signatures` `(106,8)` closed-tRange.
+    **Single-source unification:** the Autolykos-2 hit lives once in `@ergots/scorex`
+    (`autolykosHitForMessage`/`…WithChecks`); `verifyAutolykosV2` AND **nipopow's**
+    `compare.ts powHit` both route through it (the scorex hit-trio → internal; the nipopow
+    refactor was user-authorized). Registry 123, codes 80 (`'pow-hit-invalid-params'`). Gate:
+    build clean, **4455 green** (scorex 181 / avltree 156 / nipopow 247 / ergoscript 3871), tsc
+    clean. Follow-up: a JVM-blessed k≠32 value vector (SANTA `ergots-powhit-vectors.md`).
+    **→ P5 COMPLETE; next P6 (HOF lambdas).**
 
 ### P6 — higher-order lambdas  ·  status: not started (scope separately)
 - **Goal:** lambdas as first-class values. Deepest phase — touches eval engine +
