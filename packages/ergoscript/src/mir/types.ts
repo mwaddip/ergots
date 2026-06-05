@@ -226,6 +226,9 @@ export interface PreHeader {
  * consumes only `values` (via `GetVar`). Each entry carries both the
  * declared SType and the runtime SValue — same shape as
  * `ErgoBox.registers` (from phase 2f narrow).
+ * Keys are the UNSIGNED wire byte (0-255); ingestion from signed JSON
+ * renderings (the JVM sdk codec emits "-1" for wire 0xFF) must normalize
+ * to unsigned.
  */
 export interface ContextExtension {
   values: Record<number, { tpe: SType; value: SValue } | undefined>

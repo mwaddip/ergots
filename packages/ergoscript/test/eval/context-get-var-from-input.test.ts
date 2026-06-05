@@ -151,6 +151,38 @@ describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
     const ctx = makeContext({ treeVersion: 3, inputExtensions: [ext0] })
     expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrowError(/expects a Short input index/)
   })
+
+  it('negative varId hits the unsigned key by byte identity (wire 0xFF ≡ Byte -1 → Some)', () => {
+    // JVM: extension Map[Byte] is keyed by the raw byte — getVarFromInput(0, -1)
+    // finds the entry parsed from wire key 0xFF. Our Record is unsigned-keyed,
+    // so the handler normalizes (-1 & 0xff = 255).
+    const extHigh: ContextExtension = {
+      values: { 255: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } },
+    }
+    const ctx = makeContext({ treeVersion: 3, inputExtensions: [extHigh] })
+    const result = evalMethodCall(gvfiExpr(0, -1, SBOOLEAN), Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Option', elem: SBOOLEAN, value: { kind: 'Boolean', value: true } })
+  })
+
+  it('negative varId does NOT alias a low key (Byte -1 ≠ key 11 → None)', () => {
+    const ctx = makeContext({ treeVersion: 3, inputExtensions: [ext0] }) // ext0 has only key 11
+    const result = evalMethodCall(gvfiExpr(0, -1, SBOOLEAN), Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Option', elem: SBOOLEAN, value: null })
+  })
+
+  it('boundary pair: Byte 127 hits key 127; Byte -128 hits key 128', () => {
+    const extBoundary: ContextExtension = {
+      values: {
+        127: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } },
+        128: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } },
+      },
+    }
+    const ctx = makeContext({ treeVersion: 3, inputExtensions: [extBoundary] })
+    expect(evalMethodCall(gvfiExpr(0, 127, SBOOLEAN), Env.empty(), ctx))
+      .toEqual({ kind: 'Option', elem: SBOOLEAN, value: { kind: 'Boolean', value: true } })
+    expect(evalMethodCall(gvfiExpr(0, -128, SBOOLEAN), Env.empty(), ctx))
+      .toEqual({ kind: 'Option', elem: SBOOLEAN, value: { kind: 'Boolean', value: false } })
+  })
 })
 
 describe('three-way type-mismatch asymmetry (spec §3.3) — side-by-side pin', () => {

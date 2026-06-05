@@ -89,6 +89,9 @@ export interface EvalOpts {
    * `'context-field-missing'` convention — per-input witness data a caller
    * may legitimately not carry). SContext.getVarFromInput (101:12, v6 P7a)
    * reads this.
+   * Keys in each entry's .values are unsigned 0-255 (see ContextExtension);
+   * the 101:12 handler normalizes its signed Byte var-id operand into that
+   * domain (& 0xff, byte identity with the JVM's signed-Byte Map keys).
    */
   inputExtensions?: ContextExtension[]
 }
