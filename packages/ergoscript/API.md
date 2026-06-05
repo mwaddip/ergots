@@ -10,18 +10,18 @@ Public surface for the ErgoTree wire-format package. The wire format and seriali
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, or other Node built-ins. No WASM.
 
-## Scope and partial-evaluator caveat
+## Scope
 
-This package ships (as of v0.2.x, pre-publish):
+This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2g.6, 2h-b).** `evaluate` / `evaluateWith` cover **52 of ~70 `Expr` arms** plus a 21-entry method-call handler registry. AVL+ membership-proof verification ships via `@ergots/avltree` (phase 2h-b).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P5c).** `evaluate` / `evaluateWith` cover **67 of 67 implementable `Expr` arms** plus a **123-entry method-call handler registry** and **80 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P5c).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 
 What this package is NOT:
 
-- **NOT a consensus-complete script verifier.** ~18 `Expr` arms remain wired to `'not-implemented-yet'`. Real-context cost validation is phase 2j (consensus-critical, not yet shipped). Header chain-state model (phase 2h-c) is deferred. Method-call surface is finite (21 handlers), not exhaustive.
 - **NOT a substitute for sigma-rust or a JVM node** on any binding decision. Use this package for tooling (parse / address derivation / simulators / dev frontends) and for unsigned-side prep / preview of script evaluation. For consensus-grade acceptance, combine with sigma-rust.
+- **NOT fully free of `'not-implemented-yet'` paths.** 5 defensive sites remain (see the `evaluate` coverage caveat below). 19 wire opcodes are reserved-but-parse-rejected by sigma-rust itself; 4 more route through other dispatch paths in sigma-rust and remain under separate review.
 
 A `evaluate(tree)` success means: the tree parses, the implemented arms hit by execution all returned the documented SValue, and `jitCost` stayed within `jitCostLimit` (if set). It does NOT mean "the script would be accepted by an Ergo full node."
 
@@ -35,10 +35,15 @@ import {
   isP2PK, p2pkPublicKey,
   addressFromErgoTree, ergoTreeFromAddress,
   base58Encode, base58Decode,
+  parseSValue, serializeSValue,
+  parseSType, serializeSType,
+  parseSigmaBoolean, serializeSigmaBoolean,
   MAX_TREE_SIZE, VERSION,
   type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
+  SValueParseError, SValueSerializeError,
+  SigmaBooleanParseError, SigmaBooleanSerializeError,
 } from '@ergots/ergoscript';
 ```
 
@@ -114,12 +119,32 @@ Base58 (Bitcoin alphabet) codec. Exposed primarily for testing and tooling; addr
 - **`base58Encode`:** Leading zero bytes map to leading `'1'` characters (the standard Bitcoin convention). Empty input yields the empty string.
 - **`base58Decode`:** Throws `AddressDecodeError` with `code: 'bad-base58'` on any non-alphabet character. Empty input yields an empty `Uint8Array`.
 
+### `parseSValue` / `serializeSValue` / `parseSType` / `serializeSType`
+
+```ts
+function parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue;
+function serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void;
+function parseSType(r: ByteReader): SType;
+function serializeSType(tpe: SType, w: ByteWriter): void;
+```
+
+Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Full taxonomy in `facts/ergoscript-wire.md`.
+
+### `parseSigmaBoolean` / `serializeSigmaBoolean`
+
+```ts
+function parseSigmaBoolean(r: ByteReader): SigmaBoolean;
+function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void;
+```
+
+Bare `SigmaBoolean` wire round-trip (opcode + payload — the inner proposition tree, NOT an `SSigmaProp` SValue). Exposed for wire-conformance consumers that round-trip canonical `SigmaBoolean` bytes directly. Throws `SigmaBooleanParseError` / `SigmaBooleanSerializeError` on failure.
+
 ### Constants
 
 | Name | Value | Meaning |
 |---|---|---|
 | `MAX_TREE_SIZE` | `1_048_576` | Max input bytes for `parseTree` (1 MB; defensive cap against adversarial input) |
-| `VERSION` | `'0.2.0'` | Package version string |
+| `VERSION` | `'0.3.0'` | Package version string |
 
 ---
 
@@ -167,6 +192,7 @@ interface TreeHeader {
 type SType =
   | { tag: 'SBoolean' } | { tag: 'SByte' } | { tag: 'SShort' }
   | { tag: 'SInt' }     | { tag: 'SLong' } | { tag: 'SBigInt' }
+  | { tag: 'SUnsignedBigInt' }                     // v6 P2a — type code 9; permissive parse, pre-eval gate
   | { tag: 'SGroupElement' } | { tag: 'SSigmaProp' } | { tag: 'SBox' }
   | { tag: 'SAvlTree' } | { tag: 'SUnit' } | { tag: 'SAny' }
   | { tag: 'SHeader' }  | { tag: 'SPreHeader' } | { tag: 'SContext' }
@@ -178,7 +204,7 @@ type SType =
   | { tag: 'STypeVar';  name: string };
 ```
 
-Closed discriminated union over the ErgoScript type system. Mirrors sigma-rust's `ergotree-ir/src/types/stype.rs` minus `SUnsignedBigInt` (v6-only; the reference verifier rejects it via `check_v6_type`).
+Closed discriminated union over the ErgoScript type system. Mirrors sigma-rust's `ergotree-ir/src/types/stype.rs`. `SUnsignedBigInt` (v6 P2a, type code 9) is a first-class variant: the wire parser accepts it permissively (no version check), but the pre-eval `validateV6Types` pass rejects any tree containing it when `ctx.treeVersion < 3`, matching the JVM's gate at type deserialization.
 
 ### `SValue`
 
@@ -189,7 +215,8 @@ type SValue =
   | { kind: 'Short';        value: number }    // i16 range
   | { kind: 'Int';          value: number }    // i32 range
   | { kind: 'Long';         value: bigint }    // i64 range
-  | { kind: 'BigInt';       value: bigint }    // arbitrary signed bigint
+  | { kind: 'BigInt';       value: bigint }    // signed-256 range ([-2^255, 2^255-1])
+  | { kind: 'UnsignedBigInt'; value: bigint }  // v6 P2a — unsigned-256 range [0, 2^256-1]; distinct codec from BigInt
   | { kind: 'GroupElement'; value: Uint8Array }    // 33-byte compressed secp256k1
   | { kind: 'SigmaProp';    value: SigmaBoolean }  // structural 6-variant union
   | { kind: 'Box';          value: ErgoBox }
@@ -198,10 +225,14 @@ type SValue =
   | { kind: 'Coll';         elem: SType; items: SValue[] }
   | { kind: 'Tuple';        items: SValue[] }
   | { kind: 'Option';       elem: SType; value: SValue | null }
-  | { kind: 'Lambda';       closure: Closure };
+  | { kind: 'Lambda';       closure: Closure }
+  | { kind: 'Context' }                        // phase 2g.5 — Context Expr arm sentinel
+  | { kind: 'Global' }                         // phase 2g.6 — Global Expr arm sentinel
+  | { kind: 'PreHeader'; value: PreHeader }    // phase 2g.6 — chain-state PreHeader value carrier
+  | { kind: 'Header'; value: Header };         // phase 2h-c.1 — chain-state Header value carrier
 ```
 
-Runtime-value discriminated union. Composite kinds (`Coll`, `Option`) carry their element type explicitly because the wire format does not always encode it unambiguously (empty `Coll`, `None` for `SOption`).
+Runtime-value discriminated union. Composite kinds (`Coll`, `Option`) carry their element type explicitly because the wire format does not always encode it unambiguously (empty `Coll`, `None` for `SOption`). `Context`/`Global`/`PreHeader`/`Header` are evaluator-internal sentinels never produced at the top level by honest trees; they appear as intermediate values when evaluating context-access methods.
 
 `SigmaProp.value` is a structural `SigmaBoolean` (6-variant discriminated union — see `facts/ergoscript-sigma.md`). Wire parse + serialize is byte-identical against sigma-rust; structural access is consumed by `verifySignature` and by the `SigmaPropBytes` evaluator arm.
 
@@ -264,11 +295,179 @@ Internal modules (`wire/`, `mir/`) emit additional typed error classes (`ExprPar
 
 ---
 
+## Evaluator
+
+```ts
+import {
+  evaluate, evaluateWith, makeContext,
+  EvalError,
+  type EvalOpts, type EvalContext,
+} from '@ergots/ergoscript';
+```
+
+### `evaluate(tree, opts?)`
+
+```ts
+function evaluate(tree: ErgoTree, opts?: EvalOpts): SValue;
+```
+
+Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constants`, when provided, overrides the tree's segregated constants for `ConstantPlaceholder` resolution. `opts.treeVersion` auto-derives from `tree.header.version`.
+
+- **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
+- **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
+- **Postcondition (failure):** Throws `EvalError` with one of the 80 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 19 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `FunDef`, `SomeValue`, `NoneValue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`. A further 4 (`LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are routed through other dispatch paths in sigma-rust and their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or one of 5 defensive `EvalError 'not-implemented-yet'` sites still throw at runtime.
+
+### `evaluateWith(tree, ctx)`
+
+```ts
+function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue;
+```
+
+Same evaluation pipeline as `evaluate` using a caller-supplied `EvalContext`. The context is mutated in-place — inspect `ctx.jitCost` after the call to read total cost charged. Partial costs are NOT rolled back on failure; `ctx.jitCost` reflects cost up to and including the point of any throw.
+
+### `makeContext(opts?)`
+
+```ts
+function makeContext(opts?: EvalOpts): EvalContext;
+```
+
+Construct a fresh `EvalContext` from `EvalOpts`. Pure constructor — same opts in, structurally equivalent context out.
+
+### `EvalOpts` / `EvalContext`
+
+```ts
+interface EvalOpts {
+  jitCostLimit?: number          // undefined = unlimited
+  constants?: SValue[]           // overrides tree.constants for ConstPlaceholder
+  treeVersion?: number           // 0..7; auto-derived from tree.header.version in evaluate()
+  // Chain-state fields:
+  height?: number                // current block height
+  selfBox?: ErgoBox              // spending box
+  inputs?: ErgoBox[]             // transaction inputs
+  outputs?: ErgoBox[]            // transaction outputs
+  preHeader?: PreHeader          // pre-header of current block
+  extension?: ContextExtension   // context-extension key-value map
+  dataInputs?: ErgoBox[]         // transaction data-inputs
+  headers?: Header[]             // block headers (up to 10; sigma-rust [Header; 10]); Header type from @ergots/scorex
+}
+
+interface EvalContext extends EvalOpts {
+  jitCost: number                // mutable accumulator; read after evaluateWith()
+  addCost(amount: number): void
+  addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void
+}
+```
+
+- `addCost` — saturating add; throws `EvalError 'cost-limit-exceeded'` if `jitCostLimit` is set and exceeded.
+- `addPerItemCost` — composite charge: `addCost(base + ceil(nItems / chunkSize) * perChunk)`.
+
+### `EvalError`
+
+```ts
+class EvalError extends Error {
+  readonly code: string;  // one of the 80 codes in facts/ergoscript-eval.md
+}
+```
+
+All 80 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (80 codes)". Notable codes:
+
+| Code | When thrown |
+|---|---|
+| `'not-implemented-yet'` | An `Expr` variant with no arm, or a defensive site in an arm |
+| `'cost-limit-exceeded'` | `ctx.jitCost` exceeded `jitCostLimit` after a charge |
+| `'arith-overflow'` | `BinOp.Arith` result outside signed range |
+| `'arith-divide-by-zero'` | `BinOp.Arith` divide or modulo by zero |
+| `'method-not-implemented'` | `MethodCall`/`PropertyCall` hit an unregistered `(typeId, methodId)` |
+| `'tree-version-too-low'` | A V3-gated method or type encountered in a `treeVersion < 3` tree |
+| `'v6-type-in-pre-v3-tree'` | `SUnsignedBigInt` or serialized `SFunc` annotation in a pre-V3 tree |
+| `'avl-tree-proof-failed'` | `@ergots/avltree` verifier returned `null` (proof failure) |
+| `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
+
+---
+
+## V3 (ErgoTree v6) surface
+
+The following method handlers and types are **V3-gated** (require `tree.header.version >= 3`; pre-V3 trees throw `EvalError 'tree-version-too-low'` before the handler runs). All 123 registry entries are documented in full in `facts/ergoscript-eval.md`.
+
+### Numeric methods (v6 P1) — 40 handlers
+
+`Byte/Short/Int/Long/BigInt` gain 8 methods each (typeIds 2–6, methodIds 6–13), all `FixedCost(5)`:
+
+| Method | Returns | Notes |
+|---|---|---|
+| `X.toBytes` | `Coll[Byte]` | BE two's-complement; 1/2/4/8 bytes for Byte/Short/Int/Long; minimal-width signed BE for BigInt |
+| `X.toBits` | `Coll[Boolean]` | MSB-first bit expansion; 8/16/32/64/256 bits |
+| `X.bitwiseInverse` | `X` | Bitwise NOT; signed-narrowed back to receiver kind |
+| `X.bitwiseOr / .bitwiseAnd / .bitwiseXor` | `X` | Signed bitwise ops |
+| `X.shiftLeft / .shiftRight` | `X` | Arithmetic shifts; `bits` outside `[0, width)` → `'numeric-shift-out-of-range'` |
+
+### `SUnsignedBigInt` type and methods (v6 P2)
+
+New `SType { tag: 'SUnsignedBigInt' }` and `SValue { kind: 'UnsignedBigInt'; value: bigint }` (unsigned magnitude, range `[0, 2^256-1]`). Methods (typeId 9):
+
+- **8 bitwise/shift methods** (methodIds 6–13, `FixedCost(5)`): same names as P1 but unsigned-codec variants for `toBytes`/`toBits`; unsigned-overflow guard on `shiftLeft` → `'unsigned-bigint-out-of-range'`.
+- **Modular arithmetic** (methodIds 14–18): `modInverse` (9:14, cost 150), `plusMod` (9:15, cost 30), `subtractMod` (9:16, cost 30), `multiplyMod` (9:17, cost 40), `mod` (9:18, cost 20), plus `BigInt.toUnsignedMod` (6:15, cost 15). Euclidean semantics.
+- **Bridge methods**: `BigInt.toUnsigned` (6:14, cost 5) — throws `'unsigned-bigint-out-of-range'` if receiver `< 0`; `UnsignedBigInt.toSigned` (9:19, cost 10) — throws `'bigint-result-out-of-range'` if `value >= 2^255`.
+- **BinOps** (v6 P2c): UBI operands supported in Arith (`Plus`/`Minus`/`Multiply`/`Divide`/`Modulo`/`Min`/`Max`), ordering (`Lt`/`Le`/`Gt`/`Ge`), and equality (`Eq`/`NEq`). UBI arith costs use the non-BigInt tier (lower than signed BigInt). Mixed UBI/signed operands in a V3 tree → `'bin-op-kind-mismatch'`.
+
+### Coll v6 methods (v6 P3) — 4 handlers, typeId 12
+
+| Method | typeId:methodId | Cost | Returns |
+|---|---|---|---|
+| `Coll.reverse` | 12:30 | `addPerItemCost(20, 2, 100, n)` | `Coll[T]` (generic via P0 engine) |
+| `Coll.startsWith` | 12:31 | `addPerItemCost(10, 1, 10, n)` | `Boolean` |
+| `Coll.endsWith` | 12:32 | `addPerItemCost(10, 1, 10, n)` | `Boolean` |
+| `Coll.get` | 12:33 | `FixedCost(30)` | `Option[T]` (None on OOB/negative; never throws) |
+
+### Global methods (v6 P4–P5c) — 8 handlers, typeId 106
+
+| Method | typeId:methodId | Cost | Returns | Notes |
+|---|---|---|---|---|
+| `Global.some` | 106:9 | 5 | `Option[T]` | 1-arg MethodCall; `T` from explicit wire type arg |
+| `Global.none` | 106:10 | 5 | `Option[T]` | 0-arg PropertyCall; `T` from explicit wire type arg |
+| `Global.serialize` | 106:3 | DynamicCost | `Coll[Byte]` | T derived from runtime value kind; → `'global-serialize-failed'` for non-serializable kinds |
+| `Global.deserializeTo[T]` | 106:4 | `perItemCost(100, 32, 32, n)` | `T` | Bytes→SValue; MaxTreeDepth(110) enforced; → `'global-deserialize-failed'` |
+| `Global.fromBigEndianBytes[T]` | 106:5 | 10 | `T` (numeric) | Exact-length (Byte=1/Short=2/Int=4/Long=8) or max-32 (BigInt/UBI); → `'global-from-bigendian-bytes-failed'` |
+| `Global.encodeNbits` | 106:6 | 25 | `Long` | `SBigInt` → Bitcoin-compact nBits encoding |
+| `Global.decodeNbits` | 106:7 | 50 | `BigInt` | Bitcoin-compact `Long` → signed `BigInt`; → `'global-decode-nbits-failed'` on signed-256 overflow |
+| `Global.powHit` | 106:8 | PowHitCostKind | `UnsignedBigInt` | Autolykos-2 PoW hit computation; → `'pow-hit-invalid-params'` for invalid k/N |
+
+---
+
+## Sigma-protocol verifier
+
+```ts
+import {
+  verifySignature,
+  VerifyError,
+  type VerifyErrorCode,
+  type SigmaBoolean,
+} from '@ergots/ergoscript';
+```
+
+### `verifySignature(sigmaBoolean, message, proof)`
+
+```ts
+function verifySignature(
+  sigmaBoolean: SigmaBoolean,
+  message: Uint8Array,
+  proof: Uint8Array,
+): boolean;
+```
+
+Verify a Schnorr/DH-tuple sigma-protocol proof against `message` and the proposition described by `sigmaBoolean`. Returns `true` on success, `false` on a valid rejection (invalid signature). Throws `VerifyError` on malformed proof bytes or unsupported proof structure.
+
+- **Covers:** `TrivialProp` (true/false direct), `ProveDlog` (Schnorr), `ProveDhTuple`, and compound `Cand`/`Cor`/`Cthreshold` conjecture walk via Fiat-Shamir challenge distribution.
+- **Throws:** `VerifyError` with one of 8 codes — see `facts/ergoscript-sigma.md` for the full taxonomy.
+
+---
+
 ## Conventions
 
 - **All byte sequences are `Uint8Array`.** Never `Buffer`. Hash digests, IDs, public keys, and serialized trees all use the same type.
 - **`number` for `SByte`/`SShort`/`SInt`/heights/version/registerId.** JS `Number` is safe up to 2^53; i32-and-smaller values fit comfortably.
-- **`bigint` for `SLong`, `SBigInt`, and ErgoBox values.** Anything that can exceed `Number.MAX_SAFE_INTEGER` uses `bigint`.
+- **`bigint` for `SLong`, `SBigInt`, `SUnsignedBigInt`, and ErgoBox values.** Anything that can exceed `Number.MAX_SAFE_INTEGER` uses `bigint`. `SUnsignedBigInt` values are stored as non-negative bigints (unsigned magnitude).
 - **No async surface.** Every function is synchronous. Hashing is a tight loop; the async boundary would only add overhead.
 - **No I/O, no globals.** Pure functions: same inputs always produce the same output.
 - **Throws on input rejection.** Parse and serialize errors throw typed exceptions with `.code` for programmatic dispatch. Programmer-error invariants (out-of-range writes, contract violations) throw plain `Error`.
