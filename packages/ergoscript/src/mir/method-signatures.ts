@@ -184,6 +184,14 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
     tDom: [{ tag: 'SGlobal' }, { tag: 'SLong' }],
     tRange: { tag: 'SBigInt' },
   }],
+  // SGlobal.powHit — JVM methods.scala:1884 — SFunc([SGlobal, SInt, Coll[Byte],
+  // Coll[Byte], Coll[Byte], SInt] → SUnsignedBigInt). Non-generic; closed tRange.
+  // v6 P5c. Load-bearing for exprTpe: map(powHit) must type as Coll[UnsignedBigInt]
+  // (sigma-rust #877 mis-typed it SBoolean). Handler at eval/method-call.ts (106:8).
+  [key(106, 8), {
+    tDom: [{ tag: 'SGlobal' }, { tag: 'SInt' }, SCOLL_BYTE, SCOLL_BYTE, SCOLL_BYTE, { tag: 'SInt' }],
+    tRange: { tag: 'SUnsignedBigInt' },
+  }],
   ...numericV6Signatures(),
 ])
 
