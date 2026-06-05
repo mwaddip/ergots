@@ -324,11 +324,11 @@ The corrected decomposition closes the two lowest-risk groups first:
     clean. Follow-up: a JVM-blessed k≠32 value vector (SANTA `ergots-powhit-vectors.md`).
     **→ P5 COMPLETE; next P6 (HOF lambdas).**
 
-### P6 — higher-order lambdas  ·  status: in progress
+### P6 — higher-order lambdas  ·  status: done
 - **Goal:** lambdas as first-class values. Deepest phase — touches eval engine +
   type checker. Its spec scopes feasibility/risk before committing.
   **Depends-on:** TBD (assess in its spec).
-- reframed — eval engine already supports HOF (verified Coll(2,3)/408); P6 = FunDef + exprTpe(Apply) fixes + JVM-blessed conformance; see the P6 design spec.
+- P6 reframed on entry: the eval engine already handled first-class functions *without closures* (the happy path ran). The real work comprised four deliverables: (1) `FunDef` opcode `0xd7` parse+serialize+eval as a `ValDef` carrying `tpeArgs`; (2) `exprTpe(Apply)` SAny relaxation (was over-rejecting unresolved func types); (3) **lexical-scoping (closures)** — `Lambda` now captures its definition-site env (`Closure.capturedEnv`), and `Apply` + all 7 HOF arms evaluate the body in `capturedEnv` extended with args (reverses the prior dynamic scoping; currying `add(3)(1)` → 4); (4) **type-var-apply reject** — applying a lambda whose arg type is an unresolved `STypeVar` throws `EvalError('apply-unresolved-type-var')`, mirroring the JVM `stypeToRType(STypeVar)` failure. All four deliverables validated against JVM-blessed SANTA conformance vectors (`higher_order_lambdas`, `FunDef` concrete, currying, `Coll[SFunc]`, type-var-body accept+reject, plus powHit k≠32). Registry 123 (unchanged), EvalError codes 81 (+1: `'apply-unresolved-type-var'`). Full suite **3891 green** (node + jsdom), tsc clean. Remaining v6: P7, P8.
 
 ### P7 — per-type additions + behavior changes + sigma reducers  ·  status: not started
 - **Goal:** Box new props, Header new methods, `Context.getVarFromInput`; the

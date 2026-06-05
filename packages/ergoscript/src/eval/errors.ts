@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 73 codes added through v6 P2 (SUnsignedBigInt; see history)
+ *   - documents the 81 codes added through v6 P6 (HOF lambdas; see history)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for

@@ -54,7 +54,7 @@ const ctx = makeContext({ /* EvalOpts */ });
 const result2 = evaluateWith(tree, ctx);
 ```
 
-`evaluate` returns an `SValue` (discriminated union keyed on `.kind`). 67 of 67 implementable `Expr` arms are wired (post-2i-d reframe; 19 wire opcodes are reserved in sigma-rust and parse-reject via `'opcode-reserved'`; 4 more route through other dispatch paths and parse-reject via `'not-implemented-yet'`). The **123-entry method-handler registry** covers the full v5 surface plus the V3-gated v6 P0–P5 methods (numeric V3 bitwise/shifts/toBits/toBytes, `SUnsignedBigInt` methods/casts/arith/modular, Coll V3 `reverse`/`startsWith`/`endsWith`/`get`, `Global.some`/`none`/`serialize`/`deserializeTo`/`fromBigEndianBytes`/`encodeNbits`/`decodeNbits`/`powHit`). **80 `EvalError` codes.** Cost values are sigma-rust-accurate per arm.
+`evaluate` returns an `SValue` (discriminated union keyed on `.kind`). 67 of 67 implementable `Expr` arms are wired (post-2i-d reframe; 18 wire opcodes are reserved in sigma-rust and parse-reject via `'opcode-reserved'` — `FunDef` (`0xd7`) was the 19th but is now parsed+evaluated as a `ValDef` from v6 P6; 4 more route through other dispatch paths and parse-reject via `'not-implemented-yet'`). The **123-entry method-handler registry** covers the full v5 surface plus the V3-gated v6 P0–P6 methods (numeric V3 bitwise/shifts/toBits/toBytes, `SUnsignedBigInt` methods/casts/arith/modular, Coll V3 `reverse`/`startsWith`/`endsWith`/`get`, `Global.some`/`none`/`serialize`/`deserializeTo`/`fromBigEndianBytes`/`encodeNbits`/`decodeNbits`/`powHit`). **First-class functions** (lambdas in tuples/colls/applied via `Apply`/`ByIndex`/`SelectField`; lexical closures capturing their definition-site env; `FunDef` `0xd7` parsed and evaluated as a `ValDef`; new `EvalError 'apply-unresolved-type-var'` for type-var-arg lambda apply). **81 `EvalError` codes.** Cost values are JVM-accurate per arm.
 
 ### Sigma-protocol verifier
 
@@ -90,7 +90,7 @@ The package is stateless and pure: bytes in, structured result out. No I/O, no c
 
 ## What this package does NOT do
 
-- **Remaining v6 method surface** — ErgoTree V3 (v6) phases P6 (HOF lambdas), P7 (per-type methods + `allZK`/`anyZK`), and P8 (validation) are not yet shipped; calling an unregistered v6 method throws `EvalError 'method-not-implemented'`. Reserved/deprecated opcodes (ModQ family, `OpTrue`/`OpFalse`, `UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `FunDef`, `SomeValue`, `NoneValue`) parse-reject via `'opcode-reserved'` and are never dispatched (mirrors sigma-rust behavior).
+- **Remaining v6 method surface** — ErgoTree V3 (v6) phases P7 (per-type methods + `allZK`/`anyZK`) and P8 (validation) are not yet shipped; calling an unregistered v6 method throws `EvalError 'method-not-implemented'`. Reserved/deprecated opcodes (ModQ family, `OpTrue`/`OpFalse`, `UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`) parse-reject via `'opcode-reserved'` and are never dispatched (mirrors sigma-rust behavior). `FunDef` (`0xd7`) is now parsed+evaluated (v6 P6).
 - **No sigma-protocol prover.** `verifySignature` is the verifier side of the sigma protocol — it checks proofs produced by sigma-rust's prover or any conformant prover. Proof generation is out of scope.
 - **No `.es` source compiler.** This is a binary AST parser — `.es` source compilation (sigma-rust's `ergoscript-compiler`) is out of scope.
 - **No transaction building, no key derivation, no mnemonic/BIP32.** Those belong to the future wallet / transaction-broadcaster package.

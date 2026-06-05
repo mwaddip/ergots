@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P5c).** `evaluate` / `evaluateWith` cover **67 of 67 implementable `Expr` arms** plus a **123-entry method-call handler registry** and **80 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P5c).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6).** `evaluate` / `evaluateWith` cover **67 of 67 implementable `Expr` arms** plus a **123-entry method-call handler registry** and **81 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 
 What this package is NOT:
@@ -315,8 +315,8 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 80 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
-- **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 19 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `FunDef`, `SomeValue`, `NoneValue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`. A further 4 (`LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are routed through other dispatch paths in sigma-rust and their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or one of 5 defensive `EvalError 'not-implemented-yet'` sites still throw at runtime.
+- **Postcondition (failure):** Throws `EvalError` with one of the 81 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 18 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'` — `FunDef` (`0xd7`) was the 19th but is now parsed+evaluated as a `ValDef` from v6 P6. A further 4 (`LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are routed through other dispatch paths in sigma-rust and their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or one of 5 defensive `EvalError 'not-implemented-yet'` sites still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
 
@@ -366,11 +366,11 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 80 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 81 codes in facts/ergoscript-eval.md
 }
 ```
 
-All 80 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (80 codes)". Notable codes:
+All 81 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (81 codes)". Notable codes:
 
 | Code | When thrown |
 |---|---|
@@ -383,6 +383,7 @@ All 80 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'v6-type-in-pre-v3-tree'` | `SUnsignedBigInt` or serialized `SFunc` annotation in a pre-V3 tree |
 | `'avl-tree-proof-failed'` | `@ergots/avltree` verifier returned `null` (proof failure) |
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
+| `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |
 
 ---
 
@@ -432,6 +433,16 @@ New `SType { tag: 'SUnsignedBigInt' }` and `SValue { kind: 'UnsignedBigInt'; val
 | `Global.encodeNbits` | 106:6 | 25 | `Long` | `SBigInt` → Bitcoin-compact nBits encoding |
 | `Global.decodeNbits` | 106:7 | 50 | `BigInt` | Bitcoin-compact `Long` → signed `BigInt`; → `'global-decode-nbits-failed'` on signed-256 overflow |
 | `Global.powHit` | 106:8 | PowHitCostKind | `UnsignedBigInt` | Autolykos-2 PoW hit computation; → `'pow-hit-invalid-params'` for invalid k/N |
+
+### First-class functions (v6 P6)
+
+`FunDef` (`0xd7`) is now parsed, serialized, and evaluated as a `ValDef` carrying a non-empty `tpeArgs: STypeVar[]` (a polymorphic `let f[T] = rhs`). Eval is unchanged from a plain `ValDef`; `tpeArgs` are ignored at runtime (the JVM `BlockValue.eval` also ignores them). All-version (not V3-gated).
+
+**Lexical closures.** `Lambda` SValues now carry `capturedEnv` (the definition-site environment). `Apply` and all 7 lambda HOF arms (`MapColl`, `Fold`, `Filter`, `Exists`, `ForAll`, `SColl.flatMap`, `SOption.map`) evaluate the body in `capturedEnv` extended with per-call arg bindings — not the caller's env. This enables currying: `{ val add = (a:Int)=>(b:Int)=>a+b; add(3)(1) }` → `Int 4`.
+
+**Type-var-apply reject.** Applying a lambda whose arg type is or contains an unresolved `STypeVar` throws `EvalError('apply-unresolved-type-var')` (mirrors JVM `stypeToRType(STypeVar)` → `RuntimeException`). A lambda that is bound but never applied evaluates fine; the reject fires only at apply-time. This is an adversarial-only guard (honest trees monomorphize at the call site).
+
+**Functions in composites.** Functions stored in `Coll`/`Tuple` SValues and accessed via `ByIndex`/`SelectField` already worked; P6 validates them against the JVM-blessed `higher_order_lambdas` conformance vector (value `Coll[Int][2,3]`, cost 408).
 
 ---
 
