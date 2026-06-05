@@ -95,9 +95,9 @@ function asUnsignedByteArray(length: number, value: bigint): Uint8Array {
   // Each byte = 2 hex chars
   const paddedHex = hex.padStart(length * 2, '0');
   if (paddedHex.length > length * 2) {
-    // Value doesn't fit in `length` bytes
-    // Take only the last `length` bytes (truncate — shouldn't happen for valid inputs)
-    // The Rust impl returns an error; we throw
+    // Value doesn't fit in `length` bytes — reject (the JVM/Rust error rather
+    // than truncate). Unreachable for valid Autolykos inputs: f2 < 2^253 and the
+    // 32-byte hit always fits.
     throw new RangeError(`asUnsignedByteArray: value too large for ${length} bytes`);
   }
   const result = new Uint8Array(length);
