@@ -45,13 +45,11 @@ import {
   decodeCompactBits,
   autolykosMessage,
   calcBigN,
-  buildAutolykosSeed,
-  genIndexes,
-  hashElement,
+  autolykosHitForMessage,
+  int32BE,
 } from '@ergots/scorex';
 import { hasValidConnections } from './connections.ts';
 import { checkInterlinksProof } from './verifier.ts';
-import { blake2b256 } from './crypto/blake2b256.ts';
 import { bytesEqual } from './bytes.ts';
 
 // secp256k1 curve order (constant — matches sigma-rust order_bigint())
@@ -310,34 +308,13 @@ function powHit(header: Header): bigint {
     return ORDER; // fallback: no level contribution
   }
 
-  const msg = autolykosMessage(header);
-  const nonce = header.autolykosSolution.nonce;
-  const height = header.height;
-  const bigN = calcBigN(header.version, height);
-
-  const seed = buildAutolykosSeed(msg, nonce, height, bigN);
-  const indices = genIndexes(seed, bigN);
-
-  // f2 = sum of 31-byte element hashes interpreted as BigInt
-  let f2 = 0n;
-  for (const idx of indices) {
-    const elemHash = hashElement(idx, height);
-    let v = 0n;
-    for (let i = 0; i < elemHash.length; i++) {
-      v = (v << 8n) | BigInt(elemHash[i]!);
-    }
-    f2 += v;
-  }
-
-  // array = asUnsignedByteArray(32, f2)
-  const array = asUnsignedByteArray(32, f2);
-
-  // hit = BigUint from blake2b256(array)
-  const hitBytes = blake2b256(array);
-  let hit = 0n;
-  for (let i = 0; i < hitBytes.length; i++) {
-    hit = (hit << 8n) | BigInt(hitBytes[i]!);
-  }
+  const hit = autolykosHitForMessage(
+    32,
+    autolykosMessage(header),
+    header.autolykosSolution.nonce,
+    int32BE(header.height),
+    calcBigN(header.version, header.height),
+  );
   return hit;
 }
 
@@ -354,20 +331,4 @@ function bigintToF64(v: bigint): number {
   return Number(v);
 }
 
-/**
- * Produce exactly `length` bytes (big-endian, zero-padded, no sign byte).
- * Matches sigma-rust's BouncyCastle asUnsignedByteArray.
- */
-function asUnsignedByteArray(length: number, value: bigint): Uint8Array {
-  if (value < 0n) throw new RangeError('asUnsignedByteArray: negative value');
-  const hex = value.toString(16).padStart(length * 2, '0');
-  if (hex.length > length * 2) {
-    throw new RangeError(`asUnsignedByteArray: value too large for ${length} bytes`);
-  }
-  const result = new Uint8Array(length);
-  for (let i = 0; i < length; i++) {
-    result[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
-  }
-  return result;
-}
 
