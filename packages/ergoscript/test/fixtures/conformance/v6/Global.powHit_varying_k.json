@@ -1,0 +1,71 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.powHit varying k",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-powhit",
+  "entries" : [
+    {
+      "name" : "k=2#0",
+      "script" : "{ Global.powHit(2, fromBase16(\"0a101b8c6a4f2e\"), fromBase16(\"000000000000002c\"), fromBase16(\"00000000\"), 1048576) }",
+      "tree_bytes_hex" : "1b300504040e070a101b8c6a4f2e0e08000000000000002c0e04000000000480808001dc6a08dd0573007301730273037304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "35274035984502409775838491832016077028975555290652562361403236742579897229335"
+        },
+        "cost" : 535,
+        "error" : null
+      }
+    },
+    {
+      "name" : "k=16#1",
+      "script" : "{ Global.powHit(16, fromBase16(\"0a101b8c6a4f2e\"), fromBase16(\"000000000000002c\"), fromBase16(\"00000000\"), 1048576) }",
+      "tree_bytes_hex" : "1b300504200e070a101b8c6a4f2e0e08000000000000002c0e04000000000480808001dc6a08dd0573007301730273037304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "86883723630804049999276477318408104291833135337669321564636939912790977587966"
+        },
+        "cost" : 633,
+        "error" : null
+      }
+    },
+    {
+      "name" : "k=31#2",
+      "script" : "{ Global.powHit(31, fromBase16(\"0a101b8c6a4f2e\"), fromBase16(\"000000000000002c\"), fromBase16(\"00000000\"), 1048576) }",
+      "tree_bytes_hex" : "1b3005043e0e070a101b8c6a4f2e0e08000000000000002c0e04000000000480808001dc6a08dd0573007301730273037304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "35399430143882412612100281269753553760506747322394340848280571876306312093601"
+        },
+        "cost" : 738,
+        "error" : null
+      }
+    }
+  ]
+}

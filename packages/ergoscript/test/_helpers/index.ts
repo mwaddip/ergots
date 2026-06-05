@@ -57,6 +57,8 @@ export function hydrateSValue(json: any): SValue {
       return { kind: 'Long', value: BigInt(json.value as string) }
     case 'BigInt':
       return { kind: 'BigInt', value: BigInt(json.value as string) }
+    case 'UnsignedBigInt':
+      return { kind: 'UnsignedBigInt', value: BigInt(json.value as string) }
     case 'GroupElement':
       return { kind: 'GroupElement', value: hexToBytes(json.bytes_hex) }
     case 'SigmaProp': {

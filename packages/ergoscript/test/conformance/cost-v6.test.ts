@@ -2,8 +2,8 @@
  * SANTA v6 conformance — ergots vs JVM (`jvm:sigma-state-6.0.3`).
  * Vectors imported verbatim from SANTA (`vectors/eval/v6/`) into
  * `test/fixtures/conformance/v6/`. Asserting whole-tree value+cost against the
- * JVM-blessed oracle. VECTOR_FILES grows as SANTA blesses the adversarial
- * A/B/C/FunDef vectors (P6 Task 7).
+ * JVM-blessed oracle. VECTOR_FILES grows as SANTA blesses more v6 vectors (the
+ * powHit k≠32 follow-up below; the P6 adversarial A/B/C/FunDef HOF vectors next).
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -15,7 +15,15 @@ import { hydrateSValue } from '../_helpers'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
 
-const VECTOR_FILES = ['higher_order_lambdas.json']
+const VECTOR_FILES = [
+  'higher_order_lambdas.json',
+  // P5c follow-up (SANTA fc3c1f4): JVM-blessed Global.powHit k≠32 value+cost
+  // (k=2/16/31) + require-boundary rejects (k=1/33, N=15). Independently pins
+  // the (0 until k) index generalization the k=32 verify-path fixtures never
+  // exercised, plus the (k+1)·7 cost coefficient.
+  'Global.powHit_varying_k.json',
+  'Global.powHit_require_boundary.json',
+]
 
 for (const file of VECTOR_FILES) {
   const doc = JSON.parse(fs.readFileSync(path.join(vectorDir, file), 'utf8')) as SantaVector
