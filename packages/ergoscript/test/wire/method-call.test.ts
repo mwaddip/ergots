@@ -16,9 +16,11 @@ import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
  *       [explicit_type_arg_i: SType]*
  *           Zero or more inline SType encodings, one per STypeVar declared
  *           by the SMethod's `explicit_type_args` list. Currently only
- *           Box.getReg (99,7), Context.getVarFromInput (101,12), and
+ *           Box.getReg (99,19), Context.getVarFromInput (101,12), and
  *           Global.{deserialize, fromBigEndianBytes, none} (106,{4,5,10})
  *           use this; all declare exactly one `STypeVar::t()` (= "T").
+ *           Note: id 7 (getRegV5) is registered at ALL versions but carries
+ *           NO explicit type args on the wire (JVM shape; sigma-rust diverges).
  *   - `PropertyCall` (opcode 0xdb):
  *       [typeId: u8]
  *       [methodId: u8]
@@ -83,37 +85,45 @@ describe('PropertyCall variant', () => {
 })
 
 describe('MethodCall variant', () => {
-  it('round-trips SELF.getReg[Int](4) (Box.getReg, typeId=99, methodId=7, T=SInt)', () => {
-    // AST: MethodCall(
-    //        obj=GlobalVars(SelfBox),
-    //        typeId=99, methodId=7,
-    //        args=[Const(SInt 4)],
-    //        explicitTypeArgs={ T: SInt }
-    //      )
+  it('round-trips SELF.getReg[Int](4) (Box.getReg, typeId=99, methodId=19, T=SInt) — JVM getRegMethodV6', () => {
+    // v6 P7a: the JVM's script-callable getReg is methodId 19 (getRegMethodV6,
+    // methods.scala:1338-1347) and carries ONE explicit type arg. The old id-7
+    // form (getRegV5) declares NO explicit type args — see the test below.
     //
     // bytes:
     //   0x00       header
     //   0xdc       OP_METHOD_CALL
     //   0x63       typeId = 99 (SBOX)
-    //   0x07       methodId = 7 (Box.getReg)
+    //   0x13       methodId = 19 (Box.getReg, v6)
     //   0xa7       obj = OP_SELF_BOX
     //   0x01       args_count = 1 (VLQ-u32)
     //   0x04 0x08  arg_0 = Const(SInt, ZigZag(4)=8)
     //   0x04       explicit_type_arg T = SInt (TypeCode 4)
-    const bytes = new Uint8Array([0x00, 0xdc, 0x63, 0x07, 0xa7, 0x01, 0x04, 0x08, 0x04])
+    const bytes = new Uint8Array([0x00, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04])
+
+    const tree = parseTree(bytes)
+    expect(tree.body.tag).toBe('MethodCall')
+    if (tree.body.tag !== 'MethodCall') throw new Error('unreachable')
+    expect(tree.body.typeId).toBe(99)
+    expect(tree.body.methodId).toBe(19)
+    expect(tree.body.explicitTypeArgs).toEqual({ T: { tag: 'SInt' } })
+
+    const out = serializeTree(tree)
+    expect(Array.from(out)).toEqual(Array.from(bytes))
+  })
+
+  it('parses MethodCall(99, 7) with ZERO explicit type args (JVM getRegV5 shape) and round-trips', () => {
+    // v6 P7a spec §2.3: JVM id 7 (getRegV5) has NO explicit type args — the
+    // previous ergots entry (99:7 → ['T'], sigma-rust-shaped) mis-consumed one
+    // SType here. Parse must consume nothing after the args.
+    const bytes = new Uint8Array([0x00, 0xdc, 0x63, 0x07, 0xa7, 0x01, 0x04, 0x08])
 
     const tree = parseTree(bytes)
     expect(tree.body.tag).toBe('MethodCall')
     if (tree.body.tag !== 'MethodCall') throw new Error('unreachable')
     expect(tree.body.typeId).toBe(99)
     expect(tree.body.methodId).toBe(7)
-    expect(tree.body.obj.tag).toBe('GlobalVars')
-    if (tree.body.obj.tag !== 'GlobalVars') throw new Error('unreachable')
-    expect(tree.body.obj.kind).toBe('SelfBox')
-    expect(tree.body.args).toHaveLength(1)
-    if (tree.body.args[0]!.tag !== 'Const') throw new Error('unreachable')
-    expect(tree.body.args[0]!.value).toEqual({ kind: 'Int', value: 4 })
-    expect(tree.body.explicitTypeArgs).toEqual({ T: { tag: 'SInt' } })
+    expect(tree.body.explicitTypeArgs).toEqual({})
 
     const out = serializeTree(tree)
     expect(Array.from(out)).toEqual(Array.from(bytes))

@@ -19,7 +19,11 @@
  *
  * Methods currently known to declare explicit_type_args (all `vec![STypeVar::t()]`,
  * so always exactly one "T"):
- *   - SBox (typeId=99):      getReg             (methodId=7)
+ *   - SBox (typeId=99):      getReg             (methodId=19) -- v6 P7a; JVM getRegMethodV6.
+ *     ⚠️ The JVM ALSO registers id 7 ("getRegV5", all versions) with NO explicit
+ *     type args — sigma-rust's sbox.rs puts getReg-with-type-args at id 7, which
+ *     DIVERGES from the JVM wire shape (same class as the checkPow 0xdc/0xdb
+ *     divergence). The JVM is canonical: id 7 carries no SType tail.
  *   - SContext (typeId=101): getVarFromInput    (methodId=12)
  *   - SGlobal (typeId=106):  deserialize        (methodId=4)
  *   - SGlobal (typeId=106):  fromBigEndianBytes (methodId=5)
@@ -30,7 +34,7 @@
  * args (the conservative default — matches sigma-rust for well-typed corpora).
  *
  * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sbox.rs (GET_REG_METHOD_DESC)
+ *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sbox.rs (GET_REG_METHOD_DESC) -- DIVERGENT source for SBox entry; see ⚠️ above
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/scontext.rs (GET_VAR_FROM_INPUT_METHOD_DESC)
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sglobal.rs (DESERIALIZE / FROM_BIGENDIAN_BYTES / SOME / NONE method descs)
  *   ~/projects/sigmastate-interpreter/data/shared/src/main/scala/sigma/serialization/PropertyCallSerializer.scala (the JVM oracle for the PropertyCall tail)
@@ -47,7 +51,7 @@ const TYPE_CODE_SGLOBAL = 106
 // method body. See module header for the full provenance of each entry.
 const EXPLICIT_TYPE_ARG_NAMES: Record<number, Record<number, readonly string[]>> = {
   [TYPE_CODE_SBOX]: {
-    7: ['T'], // getReg[T]
+    19: ['T'], // getReg[T] — v6 P7a; JVM getRegMethodV6 (methods.scala:1338-1347)
   },
   [TYPE_CODE_SCONTEXT]: {
     12: ['T'], // getVarFromInput[T]
