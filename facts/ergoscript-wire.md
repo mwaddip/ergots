@@ -127,16 +127,19 @@ resolveReturnTpe(sig: MethodSignature, receiver: SType, argTpes: readonly SType[
 - **Registered, type-var `tRange`** → `tRange` with type vars bound from `receiver`/`argTpes`/`explicitTypeArgs` via the substitution engine (`mir/type-unify.ts`, ≡ JVM `MethodCall.tpe()`); an operand that cannot bind a var leaves a residual that falls back to `{ tag: 'SAny' }`. First registered generic-output method: `patch` (12:19) → `Coll[IV-of-receiver]` (v6 P0). Second-wave generic-output consumers: the v6 P1 bitwise/shift methods (typeIds 2–6, methodIds 8–13) all have `tRange = tNum` bound from the receiver's numeric type.
 - **Unregistered** → `{ tag: 'SAny' }` — the documented placeholder treated as a wildcard by `sTypeEqualsModuloSAny`/`hasSAny`. **Never throws** (contrast genuinely-unparsed Expr variants, which still throw `ExprTpeError('tpe-not-implemented')`).
 
-The catalog grows by descriptor-addition and is populated via `numericV6Signatures()` for v6 P1. Current catalog entries (v6 P1 era):
+The catalog grows by descriptor-addition and is populated via `numericV6Signatures()` for v6 P1. Current catalog entries (v6 P7a era):
 
 | (typeId:methodId) | Method | `tRange` kind | `tRange` |
 |---|---|---|---|
 | 7:2 | `SGroupElement.getEncoded` | closed | `Coll[SByte]` |
+| 7:6 | `SGroupElement.expUnsigned` | closed | `SGroupElement` |
 | 12:14 | `SColl.indices` | closed | `Coll[SInt]` |
 | 12:19 | `SColl.patch` | generic | `Coll[IV]` (IV binds from receiver elem) |
 | 2:6, 3:6, 4:6, 5:6, 6:6 | `Byte/Short/Int/Long/BigInt.toBytes` | closed | `Coll[SByte]` |
 | 2:7, 3:7, 4:7, 5:7, 6:7 | `Byte/Short/Int/Long/BigInt.toBits` | closed | `Coll[SBoolean]` |
 | 2:8–13, 3:8–13, 4:8–13, 5:8–13, 6:8–13 | `bitwiseInverse`/`Or`/`And`/`Xor`/`shiftLeft`/`shiftRight` | generic | `tNum` (TNum binds from receiver numeric type) |
+| 99:19 | `SBox.getReg[T]` | generic | `SOption[T]` (T binds from `explicitTypeArgs['T']`) |
+| 101:12 | `SContext.getVarFromInput[T]` | generic | `SOption[T]` (T binds from `explicitTypeArgs['T']`) |
 
 The catalog shares the `(typeId, methodId)` namespace with the eval handler registry (`eval/method-call.ts`) — see the dual-table sync invariant in [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Specs: `docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md`, `docs/specs/2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md`.
 
@@ -436,6 +439,33 @@ The version-gating story is unchanged by this section: `FunDef` itself is parsed
 ### New wire parse error
 
 - **`ExprParseError('fun-def-tpe-arg-not-type-var')`** — a declared `FunDef` type-arg parsed to an `SType` other than `STypeVar`. Adversarial-only (a well-formed `FunDef` always carries `STypeVar` args, per the JVM serializer); guarded so a hand-crafted tree with a non-type-var type-arg rejects rather than silently mis-typing.
+
+## Phase v6 P7a wire correction — `SBox` explicit-type-args (99:7 removed, 99:19 added)
+
+**Source: JVM `methods.scala:1329-1347`, verified 2026-06-05.**
+
+`methods.scala` declares two `SBox` register-access methods with different ids and different explicit-type-arg counts:
+
+| id | name | registered | explicit type args | wire shape |
+|---|---|---|---|---|
+| **7** | `"getRegV5"` | `commonBoxMethods` (every version) | **none** (`Seq()`) | `MethodCall(99, 7, args)` — zero type-arg bytes |
+| **19** | `"getReg"` | `v6Methods` only (`isV3OrLaterErgoTreeVersion`) | `Seq(tT)` — one `T` | `MethodCall(99, 19, args)` — one `SType` byte (or bytes) |
+
+The previous `wire/mir/explicit-type-args.ts` entry `99:7 → ['T']` was transcribed from sigma-rust's `sbox.rs GET_REG`, which diverges from the JVM here. **This entry is REMOVED in phase v6 P7a.**
+
+**Why this matters (dead-branch fork):** a JVM-shaped `MethodCall(99, 7, args)` carries **no** type-arg bytes. With the now-removed `99:7 → ['T']` entry, ergots consumed one `SType` byte after the method body — typically producing a whole-tree parse reject, but adversarially worse: a crafted tree could re-align and parse successfully on BOTH sides into **different trees** (accept/accept with divergent semantics). A pre-v3 or v6 tree with `MethodCall(99, 7)` in a dead branch is *deserialize-accepted* by the JVM (id 7 is registered at every version; the branch never evals) but was *rejected* by ergots → fork. After the fix, `99:7` parses as a zero-type-arg MethodCall and — having no registered handler — eval-throws `'method-not-implemented'`, matching the JVM's eval-time `NoSuchMethodException` at every tree version on every platform.
+
+**Fix applied to `wire/mir/explicit-type-args.ts`:**
+
+- **Remove** `7: ['T']` from the `SBox` (typeId 99) block.
+- **Add** `19: ['T']` to the `SBox` (typeId 99) block (`getReg[T]`, JVM `getRegMethodV6`, `methods.scala:1338-1347`).
+- Update the module-header provenance comment: the sigma-rust cross-refs for the old id 7 entry are the trap; the canonical source is the JVM `methods.scala`.
+
+**Fixture and test sweep (known hit):** `test/wire/method-call.test.ts` ("round-trips SELF.getReg[Int](4)") previously hard-coded the sigma-rust shape (typeId 99, methodId 7, + one SType byte) — rewritten in phase v6 P7a Task 2 as the `99:19` round-trip, with an added `99:7` zero-type-args parse case (deserializes to `MethodCall(99, 7, ...)`, eval-throws `'method-not-implemented'`).
+
+**`getVarFromInput` (101:12) — no wire change:** the existing `101:12 → ['T']` entry in the explicit-type-args registry matches the JVM (`getVarFromInputMethod` declares `Seq(tT)`, `methods.scala:1755-1765`). No action required for that entry.
+
+**`expUnsigned` (7:6) — no wire change:** monomorphic (`SFunc([SGroupElement, SUnsignedBigInt], SGroupElement)`), zero explicit type args; `explicitTypeArgNames(7, 6)` is absent (or `[]`) — no type bytes on the wire.
 
 ## Coverage
 
