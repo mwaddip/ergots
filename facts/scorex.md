@@ -366,7 +366,7 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 
 ## Version note (v6 P5c)
 
-The P5c changes to this package (`autolykosHitForMessage`, `autolykosHitForMessageWithChecks`, `int32BE`, `PowHitInvalidParamsError` added; `buildAutolykosSeed`, `genIndexes`, `hashElement` removed from the public `index.ts` export) constitute a breaking public-API change. A version bump and npm republish of `@ergots/scorex` is required at v6 delivery (before or together with the `@ergots/nipopow` and `@ergots/ergoscript` v6 packages that depend on the new API).
+The P5c changes to this package (`autolykosHitForMessage`, `autolykosHitForMessageWithChecks`, `int32BE`, `PowHitInvalidParamsError` added; `buildAutolykosSeed`, `genIndexes`, `hashElement` removed from the public `index.ts` export) constitute a breaking public-API change. The package version is bumped to **0.2.0** (`packages/scorex/package.json` + the `@ergots/nipopow` / `@ergots/ergoscript` exact pins, on the `ergoscript-v6` branch); the npm republish of `@ergots/scorex@0.2.0` happens at v6 delivery (before or together with the `@ergots/nipopow` and `@ergots/ergoscript` v6 packages that depend on the new API).
 
 ## Known limitations / follow-ups
 
