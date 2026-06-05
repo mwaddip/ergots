@@ -406,7 +406,7 @@ interface ValDef {
   tag: 'ValDef'
   id: number
   rhs: Expr
-  tpeArgs: STypeVar[]   // NEW (v6 P6); empty ([]) for a plain ValDef, non-empty for a FunDef
+  tpeArgs?: STypeVar[]   // NEW (v6 P6); absent or empty ⇒ plain ValDef, non-empty ⇒ FunDef
 }
 ```
 

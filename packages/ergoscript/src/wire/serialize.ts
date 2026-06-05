@@ -172,7 +172,9 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       serializeBlockValue(e, w)
       return
     case 'ValDef':
-      w.writeU8(OP.OP_VAL_DEF)
+      // v6 P6: opcode chosen from tpeArgs — non-empty ⇒ FunDef (0xd7),
+      // absent/empty ⇒ plain ValDef (0xd6). Matches the JVM `companion` switch.
+      w.writeU8(e.tpeArgs && e.tpeArgs.length > 0 ? OP.OP_FUN_DEF : OP.OP_VAL_DEF)
       serializeValDef(e, w)
       return
     case 'ValUse':

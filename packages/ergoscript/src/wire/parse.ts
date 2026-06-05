@@ -505,10 +505,11 @@ function parseExprBody(
         'not-implemented-yet'
       )
     case OP.OP_FUN_DEF:
-      throw new ExprParseError(
-        'FunDef opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
-        'opcode-reserved'
-      )
+      // v6 P6: FunDef is a polymorphic `let f[T] = rhs` — a ValDef carrying a
+      // type-arg list. Parsed onto the ValDef MIR node with `isFunDef = true`
+      // (reads nTpeArgs + type args before rhs). The JVM evaluates it as a
+      // ValDef. Was previously parse-rejected ('opcode-reserved').
+      return parseValDef(r, constantTypes, constantValues, valDefTypes, true)
     case OP.OP_SOME_VALUE:
       throw new ExprParseError(
         'SomeValue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',

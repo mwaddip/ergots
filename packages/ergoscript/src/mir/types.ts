@@ -448,11 +448,16 @@ export interface BlockValue {
   result: Expr
 }
 
-// ValDef: let-bound expression `let x = rhs`. sigma-rust mir/val_def.rs.
+// ValDef: let-bound `let x = rhs`, or (with tpeArgs) the polymorphic
+// `let f[T] = rhs` — which the JVM serializes as FunDef (opcode 0xd7).
+// JVM values.scala:922: companion = if (tpeArgs.isEmpty) ValDef else FunDef.
+// The MIR `tag` stays 'ValDef' for both shapes; the opcode is chosen from
+// tpeArgs.length at serialize time. sigma-rust mir/val_def.rs.
 export interface ValDef {
   tag: 'ValDef'
   id: number
   rhs: Expr
+  tpeArgs?: STypeVar[] // v6 P6: present + non-empty ⇒ FunDef; absent/[] ⇒ plain ValDef
 }
 
 // ValUse: reference to a previously-defined ValDef. sigma-rust mir/val_use.rs.

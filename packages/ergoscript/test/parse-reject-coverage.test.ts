@@ -3,11 +3,15 @@ import { parseTree } from '../src/wire/ergo-tree'
 import { ExprParseError } from '../src/wire/parse'
 
 /**
- * Phase 2i-d completeness test — asserts each of the 19 truly-dead wire
+ * Phase 2i-d completeness test — asserts each of the 18 truly-dead wire
  * opcodes (reserved in sigma-rust's OpCode enum but never dispatched at
  * the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`)
  * hits the parse-reject path with code 'opcode-reserved' and a message
  * containing the human-readable opcode name.
+ *
+ * Was 19 — `FunDef` (0xd7) was removed in v6 P6: it is now PARSED as a
+ * polymorphic ValDef carrying `tpeArgs` (see test/wire/fun-def.test.ts and
+ * facts/ergoscript-wire.md's P6 wire section), no longer parse-rejected.
  *
  * Defensive regression test — proves against silent regression if anyone
  * later wires a stray dispatch arm for these opcodes.
@@ -38,7 +42,7 @@ const opcodes: OpEntry[] = [
   { name: 'Select3', opcode: 0x89 },
   { name: 'Select4', opcode: 0x8a },
   { name: 'Select5', opcode: 0x8b },
-  { name: 'FunDef', opcode: 0xd7 },
+  // FunDef (0xd7) removed in v6 P6 — now parsed as a tpeArgs-carrying ValDef.
   { name: 'SomeValue', opcode: 0xde },
   { name: 'NoneValue', opcode: 0xdf },
   { name: 'ModQ', opcode: 0xe7 },
@@ -51,9 +55,9 @@ const opcodes: OpEntry[] = [
   { name: 'CollRotateRight', opcode: 0xfd },
 ]
 
-describe("parse-reject completeness — 19 'opcode-reserved' wire sites", () => {
-  it('the fixture set has exactly 19 entries (guard against silent regression)', () => {
-    expect(opcodes.length).toBe(19)
+describe("parse-reject completeness — 18 'opcode-reserved' wire sites", () => {
+  it('the fixture set has exactly 18 entries (guard against silent regression)', () => {
+    expect(opcodes.length).toBe(18)
   })
 
   describe.each(opcodes)(

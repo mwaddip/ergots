@@ -31,10 +31,12 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/expr.rs:161,274
  */
 
-import type { SType, SValue, ValDef } from '../../mir/types'
+import type { STypeVar, SType, SValue, ValDef } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { ExprParseError } from '../errors'
 import { exprTpe } from '../../mir/expr-tpe'
+import { parseSType } from '../parse-stype'
+import { serializeSType } from '../serialize-stype'
 // Forward import: parse.ts and serialize.ts re-export their dispatcher
 // functions. The Expr graph is mutually recursive (ValDef → Expr → ValDef …)
 // so the import cycle is unavoidable. ESM hoists `import` declarations and
@@ -44,11 +46,21 @@ import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 
 /**
- * Parse a `ValDef` payload (the OP_VAL_DEF opcode byte was consumed by the
- * dispatcher). Reads `id`, then parses the rhs Expr (which may itself
- * contain ValDef/ValUse nodes), then records the binding in `valDefTypes`
- * so a later sibling/descendant `ValUse` of the same id can recover its
- * type.
+ * Parse a `ValDef` payload (the OP_VAL_DEF/OP_FUN_DEF opcode byte was consumed
+ * by the dispatcher). Reads `id`, then — for a FunDef (`isFunDef === true`) —
+ * the type-arg list, then parses the rhs Expr (which may itself contain
+ * ValDef/ValUse nodes), then records the binding in `valDefTypes` so a later
+ * sibling/descendant `ValUse` of the same id can recover its type.
+ *
+ * A `FunDef` (JVM opcode 0xd7) is the JVM's `ValDef` whose `companion` switches
+ * to `FunDef` exactly when `tpeArgs` is non-empty — a polymorphic `let f[T] =
+ * rhs`. The JVM `ValDefSerializer.scala` (`serialize`/`parseBody`) writes/reads
+ * the type-arg list as: a `nTpeArgs` count as a **raw u8** (`w.put(len)` /
+ * `r.getByte()`, NOT VLQ), then each type-arg via `putType`/`getType` (an
+ * `STypeVar`), before `rhs`. A plain `ValDef` (opcode 0xd6) has no type-arg
+ * list — `id` is followed directly by `rhs`. The JVM evaluates a FunDef exactly
+ * like a ValDef (binds `rhs`, ignores `tpeArgs`); we mirror that on the same
+ * MIR node, carrying `tpeArgs` only for byte-faithful round-trip.
  *
  * Mirrors sigma-rust's `ValDef::sigma_parse`.
  */
@@ -56,9 +68,29 @@ export function parseValDef(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  isFunDef = false
 ): ValDef {
   const id = r.readVlqU()
+  let tpeArgs: STypeVar[] | undefined
+  if (isFunDef) {
+    // JVM ValDefSerializer reads the count as a raw byte (`r.getByte()`), NOT
+    // a VLQ. Each type-arg is parsed via the shared SType parser (which already
+    // handles STypeVar at type code 103) and MUST be an STypeVar.
+    const n = r.readU8()
+    const args: STypeVar[] = []
+    for (let i = 0; i < n; i++) {
+      const t = parseSType(r)
+      if (t.tag !== 'STypeVar') {
+        throw new ExprParseError(
+          `FunDef(id=${id}): type arg ${i} parsed to '${t.tag}', expected STypeVar`,
+          'fun-def-tpe-arg-not-type-var'
+        )
+      }
+      args.push({ name: t.name })
+    }
+    tpeArgs = args
+  }
   const rhs = parseExpr(r, constantTypes, constantValues, valDefTypes)
   // Side effect: register the binding for the scope. Sigma-rust uses
   // HashMap::insert which silently overwrites; we mirror that semantic.
@@ -72,15 +104,30 @@ export function parseValDef(
       'val-def-rhs-tpe'
     )
   }
-  return { tag: 'ValDef', id, rhs }
+  // tpeArgs present + non-empty ⇒ FunDef; absent/[] ⇒ plain ValDef. We omit the
+  // field entirely (rather than storing []) for an empty list so a FunDef with
+  // zero declared type args round-trips identically to a plain ValDef — which
+  // matches the JVM `companion` switch keyed on `tpeArgs.isEmpty`.
+  return tpeArgs && tpeArgs.length > 0
+    ? { tag: 'ValDef', id, rhs, tpeArgs }
+    : { tag: 'ValDef', id, rhs }
 }
 
 /**
  * Serialize a `ValDef` payload (the dispatcher in {@link serializeExpr}
- * emits the OP_VAL_DEF opcode byte). Writes `id` (VLQ-u32) followed by
- * the rhs Expr.
+ * emits the opcode byte — OP_FUN_DEF when `tpeArgs` is non-empty, else
+ * OP_VAL_DEF). Writes `id` (VLQ-u32), then — for a FunDef — the type-arg list
+ * (`nTpeArgs` as a raw u8, then each STypeVar via {@link serializeSType}, per
+ * the JVM `ValDefSerializer.scala`), followed by the rhs Expr. A plain ValDef
+ * (no `tpeArgs`) emits `id` then `rhs` directly — byte-identical to pre-P6.
  */
 export function serializeValDef(d: ValDef, w: ByteWriter): void {
   w.writeVlqU(d.id)
+  if (d.tpeArgs && d.tpeArgs.length > 0) {
+    w.writeU8(d.tpeArgs.length) // raw u8 (JVM ValDefSerializer: w.put(len)), NOT VLQ
+    for (const tv of d.tpeArgs) {
+      serializeSType({ tag: 'STypeVar', name: tv.name }, w)
+    }
+  }
   serializeExpr(d.rhs, w)
 }
