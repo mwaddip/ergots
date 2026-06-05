@@ -6,10 +6,7 @@ This package is the shared foundation for `@ergots/nipopow` and `@ergots/ergoscr
 
 ## Install
 
-Currently a workspace package; not yet published to npm.
-
 ```bash
-# Within the ergots monorepo workspace:
 npm install @ergots/scorex
 ```
 
@@ -62,6 +59,25 @@ const target: bigint = decodeCompactBits(header.nBits);  // Bitcoin-compact diff
 ```
 
 Verifies an Autolykos v2 proof-of-work solution against the header's self-declared `nBits` target. v1 headers throw a typed error (sigma-rust parity — neither sigma-rust nor `ergo-node-rust` verify v1 PoW; v1 is JVM-only territory).
+
+### Autolykos-2 PoW hit core
+
+```ts
+import {
+  autolykosHitForMessage,
+  autolykosHitForMessageWithChecks,
+  int32BE,
+  PowHitInvalidParamsError
+} from '@ergots/scorex';
+
+// Un-checked hit core (callers responsible for parameter validity):
+const hit: bigint = autolykosHitForMessage(k, msg, nonce, int32BE(height), N);
+
+// Guarded variant — throws PowHitInvalidParamsError on k<2, k>32, or N<16:
+const hit2: bigint = autolykosHitForMessageWithChecks(k, msg, nonce, h, N);
+```
+
+The hit primitive shared by `verifyAutolykosV2`, `@ergots/nipopow`'s proof comparison, and `@ergots/ergoscript`'s `Global.powHit` evaluator arm. Faithful port of JVM `Autolykos2PowValidation.hitForVersion2ForMessage`. `int32BE` encodes a signed 32-bit integer as 4 big-endian bytes (JVM `scorex.utils.Ints.toByteArray`); pass `int32BE(height)` as the `h` argument for the standard header path.
 
 See [facts/scorex.md](../../facts/scorex.md) for the full interface contract: all method signatures, type invariants, VLQ semantics, error codes, and source mapping to sigma-rust.
 
