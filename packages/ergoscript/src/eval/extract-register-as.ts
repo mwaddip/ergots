@@ -82,8 +82,10 @@ function tokensToCollTupleSValue(
  * R4..R9 are looked up in box.registers; returns undefined if absent.
  *
  * Mirrors sigma-rust `ErgoBox::get_register` (chain/ergo_box.rs:155-168).
+ *
+ * Exported since v6 P7a: shared with the SBox.getReg (99:19) MethodCall handler.
  */
-function getRegisterEntry(
+export function getRegisterEntry(
   box: ErgoBox,
   id: number
 ): { tpe: SType; value: SValue } | undefined {

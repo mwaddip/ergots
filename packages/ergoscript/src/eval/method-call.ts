@@ -75,6 +75,8 @@ import { evalGlobalDecodeNbits } from './global-decode-nbits'
 import { evalGlobalPowHit } from './global-pow-hit'
 import { evalGlobalSerialize } from './global-serialize'
 import { numericV6Handlers } from './_numeric-v6'
+import { getRegisterEntry } from './extract-register-as'
+import { sTypeEquals } from '../mir/stype-helpers'
 import { evalSOptionMap } from './soption-map'
 import { umod, umodInverse } from './_ubi-modular'
 import {
@@ -584,6 +586,60 @@ function registerHandlers(): void {
         )
       }
       return { kind: 'GroupElement', value: expPoint(obj.value, k.value) }
+    },
+    minVersion: 3,
+  })
+
+  // SBox.getReg (MethodCall, typeId=99, methodId=19) — v6 P7a.
+  // Source (JVM): methods.scala:1338-1347 getRegMethodV6 — (SBox, SInt) →
+  // Option[T], ExtractRegisterAs.costKind = FixedCost(JitCost(50))
+  // (transformers.scala:497-500), v6Methods-only. Eval = CBox.getReg
+  // (CBox.scala:32-44) over the fixed 10-slot register array:
+  //   i<0 or i>9 → None · absent → None · defined+exact type → Some ·
+  //   defined+mismatch → THROW (JVM InvalidType) = 'register-type-mismatch'.
+  // The id-7 sibling ("getRegV5") deserializes at every JVM version but ALWAYS
+  // eval-throws (no reflection binding) — ergots parity = unregistered here →
+  // 'method-not-implemented'. Spec §2 (docs/specs/...p7a-per-type-methods).
+  HANDLERS.set(handlerKey(99, 19), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(50) // ExtractRegisterAs.costKind — charged before guards
+      if (obj.kind !== 'Box') {
+        throw new EvalError(
+          `SBox.getReg expects a Box obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      // arity 1 exact — JVM eval-rejects extra args via reflection arity (JavaImpl.scala:136-138)
+      const idx = args[0]
+      if (args.length !== 1 || idx === undefined || idx.kind !== 'Int') {
+        throw new EvalError(
+          `SBox.getReg expects an Int register index; got '${idx?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const elem = explicitTypeArgs['T']
+      if (elem === undefined) {
+        // Unreachable from the wire (the parser enforces the registered type
+        // arg); defensive against hand-built MIR.
+        throw new EvalError(
+          'SBox.getReg: missing explicit type arg T',
+          'method-not-implemented'
+        )
+      }
+      const i = idx.value
+      // CBox.getReg runtime-index bound: i<0 || i>=10 → None. (The
+      // ExtractRegisterAs NODE's 'register-id-out-of-range' never applies
+      // here — its register id is a parse-time byte, this one is runtime.)
+      if (i < 0 || i > 9) return { kind: 'Option', elem, value: null }
+      const entry = getRegisterEntry(obj.value, i)
+      if (entry === undefined) return { kind: 'Option', elem, value: null }
+      if (!sTypeEquals(entry.tpe, elem)) {
+        throw new EvalError(
+          `SBox.getReg: register R${i} type mismatch (expected ${elem.tag}, got ${entry.tpe.tag})`,
+          'register-type-mismatch'
+        )
+      }
+      return { kind: 'Option', elem, value: entry.value }
     },
     minVersion: 3,
   })

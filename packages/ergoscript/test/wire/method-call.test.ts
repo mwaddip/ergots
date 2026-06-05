@@ -129,6 +129,17 @@ describe('MethodCall variant', () => {
     expect(Array.from(out)).toEqual(Array.from(bytes))
   })
 
+  it('serializing a hand-built MethodCall(99,19) MISSING its explicit type arg throws method-call-missing-type-arg', () => {
+    // The registry says 99:19 carries one explicit T — a hand-built MIR node
+    // without it must fail LOUDLY at serialize, not emit underspecified bytes.
+    const tree = parseTree(new Uint8Array([0x00, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04]))
+    if (tree.body.tag !== 'MethodCall') throw new Error('unreachable')
+    const mutated = { ...tree, body: { ...tree.body, explicitTypeArgs: {} } }
+    expect(() => serializeTree(mutated)).toThrowError(
+      expect.objectContaining({ code: 'method-call-missing-type-arg' })
+    )
+  })
+
   it('round-trips a zero-arg method without explicit type args (typeId=99, methodId=8 / Box.tokens)', () => {
     // AST: MethodCall(
     //        obj=GlobalVars(SelfBox),
