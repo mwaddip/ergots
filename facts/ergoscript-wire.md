@@ -214,7 +214,7 @@ Per-class code enumeration (every code below is emitted by current source):
 
 - **`ErgoTreeParseError`**: `'empty'`, `'oversized'`, `'body-size-overflow'`, `'too-many-constants'`, `'header-inconsistent'`, `'subst-length-mismatch'`, `'subst-type-mismatch'` (the last two from `substituteConstantsBytes`; the eval arm re-wraps them as `EvalError('subst-constants-error')`).
 - **`ErgoTreeSerializeError`**: `'header-inconsistent'`, `'constants-arity-mismatch'`.
-- **`ExprParseError`**: `'opcode-reserved'` (19 sites — reserved in sigma-rust's `OpCode` enum but never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; covers `OpTrue`, `OpFalse`, `UnitConstant`, `Select1..Select5`, `FunDef`, `SomeValue`, `NoneValue`, `ModQ`, `PlusModQ`, `MinusModQ`, `CollShiftLeft/Right/RightZeroed`, `CollRotateLeft/Right`; added phase 2i-d, renamed from `'not-implemented-yet'` to reflect permanent-state rather than forward-promise); `'not-implemented-yet'` (4 wire sites still using it — `LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue` — routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); top-level direct-dispatch status undetermined pending separate review; ALSO emitted by the `EvalError` class for legitimately-TBD eval support — distinguished from this wire-layer use by error class); `'unknown-opcode'` (byte not in sigma-rust's opcode table at all); plus per-variant codes including `'apply-too-many-args'`, `'block-too-many-items'`, `'collection-size-out-of-range'`, `'deserialize-context-id-out-of-range'`, `'deserialize-register-id-out-of-range'`, `'extract-register-as-id-out-of-range'`, `'func-value-too-many-args'`, `'get-var-id-out-of-range'`, `'invalid-binop-opcode'`, `'invalid-constant-placeholder-id'`, `'invalid-option-tag'`, `'method-call-id-out-of-range'`, `'method-call-missing-type-arg'`, `'method-call-too-many-args'`, `'property-call-id-out-of-range'`, `'select-field-index-out-of-range'`, `'tuple-arity-out-of-range'`, `'unknown-binop-kind'`, `'val-def-rhs-tpe'`, `'val-use-unknown-id'`.
+- **`ExprParseError`**: `'opcode-reserved'` (18 sites — reserved in sigma-rust's `OpCode` enum but never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; covers `OpTrue`, `OpFalse`, `UnitConstant`, `Select1..Select5`, `SomeValue`, `NoneValue`, `ModQ`, `PlusModQ`, `MinusModQ`, `CollShiftLeft/Right/RightZeroed`, `CollRotateLeft/Right`; added phase 2i-d, renamed from `'not-implemented-yet'` to reflect permanent-state rather than forward-promise; **was 19 — `FunDef` (`0xd7`) removed in v6 P6, now parsed as a `ValDef` carrying `tpeArgs`, see the P6 wire section below**); `'not-implemented-yet'` (4 wire sites still using it — `LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue` — routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); top-level direct-dispatch status undetermined pending separate review; ALSO emitted by the `EvalError` class for legitimately-TBD eval support — distinguished from this wire-layer use by error class); `'unknown-opcode'` (byte not in sigma-rust's opcode table at all); plus per-variant codes including `'apply-too-many-args'`, `'block-too-many-items'`, `'collection-size-out-of-range'`, `'deserialize-context-id-out-of-range'`, `'deserialize-register-id-out-of-range'`, `'extract-register-as-id-out-of-range'`, `'func-value-too-many-args'`, `'fun-def-tpe-arg-not-type-var'` (v6 P6 — a declared `FunDef` type-arg did not parse to an `STypeVar`; see the P6 wire section below), `'get-var-id-out-of-range'`, `'invalid-binop-opcode'`, `'invalid-constant-placeholder-id'`, `'invalid-option-tag'`, `'method-call-id-out-of-range'`, `'method-call-missing-type-arg'`, `'method-call-too-many-args'`, `'property-call-id-out-of-range'`, `'select-field-index-out-of-range'`, `'tuple-arity-out-of-range'`, `'unknown-binop-kind'`, `'val-def-rhs-tpe'`, `'val-use-unknown-id'`.
 - **`ExprSerializeError`**: `'not-supported'` (the `ZkProofBlock` variant — matches sigma-rust's `NotSupported`); `'unknown-variant'` (compile-time-unreachable fallback for the exhaustive switch); `'property-call-missing-type-arg'` (v6 P4 — `serializePropertyCall` found a type-parameter name in `explicitTypeArgNames(typeId, methodId)` absent from `e.explicitTypeArgs`; defensive, unreachable from a well-parsed tree; mirrors the pre-existing `'method-call-missing-type-arg'` on the `ExprParseError` side).
 - **`STypeParseError`**: `'invalid-type-code'`, `'unsupported-type'`, `'invalid-tuple-length'`, `'invalid-stypevar-length'`, `'invalid-stypevar-utf8'`, `'invalid-sfunc-tpe-params'`.
 - **`STypeSerializeError`**: `'tuple-too-short'`, `'tuple-too-long'`, `'stypevar-name-length'`, `'sfunc-tdom-too-long'`, `'sfunc-tpe-params-too-long'`, `'unreachable'`.
@@ -392,6 +392,50 @@ ergots implementation:
 **`SGlobal.deserializeTo[T]` (106:4)** carries **an explicit type arg `T` on the wire**, exactly like `SGlobal.some` (106:9). The `EXPLICIT_TYPE_ARG_NAMES` registry in `wire/mir/explicit-type-args.ts` must be extended with `(106, 4) → ['T']`. `parseMethodCall` then reads one `parseSType(r)` after the arg list (building `explicitTypeArgs: { T: parsedType }`); `serializeMethodCall` writes one `serializeSType(explicitTypeArgs['T'], w)`. A missing `T` in `serializeMethodCall` throws `ExprSerializeError('method-call-missing-type-arg')` (the existing defensive code). **No new wire error codes.**
 
 Both methods go through the existing `MethodCall` opcode (0xdc) — no PropertyCall involvement.
+
+## Phase v6 P6 wire additions (`FunDef` opcode `0xd7`)
+
+`OP_FUN_DEF` (`0xd7`, 215) is now **parsed** (it was previously parse-rejected via `'opcode-reserved'`, see the error-taxonomy section above). A `FunDef` is a polymorphic `let f[T] = rhs` — a `ValDef` with a non-empty list of type parameters. The JVM treats it as a `ValDef` whose `companion` switches to `FunDef` exactly when `tpeArgs` is non-empty; ergots mirrors this on the same `ValDef` MIR node rather than introducing a new variant.
+
+### `ValDef` MIR node — `tpeArgs` field
+
+The `ValDef` MIR node (`mir/types.ts`) gains the field:
+
+```ts
+interface ValDef {
+  tag: 'ValDef'
+  id: number
+  rhs: Expr
+  tpeArgs: STypeVar[]   // NEW (v6 P6); empty ([]) for a plain ValDef, non-empty for a FunDef
+}
+```
+
+The MIR `tag` stays `'ValDef'` for both shapes. The opcode is chosen from `tpeArgs.length` at serialize time — matching the JVM `companion`.
+
+### Wire encoding (FunDef body)
+
+`FunDef` shares the `ValDef` body prefix, with a type-arg list inserted before `rhs`:
+
+1. `id` — VLQ-u32 (same as `ValDef`).
+2. **`FunDef` only:** `nTpeArgs` — a **raw `u8`** (NOT VLQ; a single byte read directly), then `nTpeArgs` × `SType` via the existing `parseSType` (`parse-stype.ts`, which already parses `STypeVar` at type code 103). **Each parsed type-arg MUST be an `STypeVar`** — a non-`STypeVar` raises `ExprParseError('fun-def-tpe-arg-not-type-var')`.
+3. `rhs` — Expr via the existing `getValue` path.
+
+A plain `ValDef` (opcode `0xd6`) carries no `nTpeArgs`/type-arg list — `id` is followed directly by `rhs`. Both shapes populate the shared scope-wide `valDefTypes` map with `rhs.tpe`, so a downstream `ValUse` resolves identically regardless of `tpeArgs`.
+
+### Serialize — opcode selection
+
+`serializeExpr` on a `ValDef` node chooses the opcode from `tpeArgs.length`:
+
+- **`tpeArgs` non-empty** → opcode `0xd7` (`FunDef`): emit `id`, then `nTpeArgs` as a raw `u8`, then each `STypeVar` via the existing `serializeSType` (`serialize-stype.ts`), then `rhs`.
+- **`tpeArgs` empty** → opcode `0xd6` (`ValDef`): the pre-existing plain-`ValDef` path, unchanged. Pre-P6 `ValDef` nodes (parsed with `tpeArgs: []`) serialize byte-identically to before.
+
+**Byte-roundtrip is load-bearing** — `serializeExpr(parseExpr(b))` is byte-equal for every `FunDef`-containing body.
+
+The version-gating story is unchanged by this section: `FunDef` itself is parsed/serialized at **every** tree version (the opcode and `STypeVar` type code carry no version gate, matching the JVM). An `SFunc` type code (112) *appearing inside* a `FunDef`'s `rhs` or its type-arg list stays caught by the evaluator's `validateV6Types` `SFunc`-type-code gate under `treeVersion < 3` (see [`facts/ergoscript-eval.md`](./ergoscript-eval.md)) — no new wire-layer gate.
+
+### New wire parse error
+
+- **`ExprParseError('fun-def-tpe-arg-not-type-var')`** — a declared `FunDef` type-arg parsed to an `SType` other than `STypeVar`. Adversarial-only (a well-formed `FunDef` always carries `STypeVar` args, per the JVM serializer); guarded so a hand-crafted tree with a non-type-var type-arg rejects rather than silently mis-typing.
 
 ## Coverage
 

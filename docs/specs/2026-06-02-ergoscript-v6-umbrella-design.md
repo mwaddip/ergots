@@ -324,10 +324,11 @@ The corrected decomposition closes the two lowest-risk groups first:
     clean. Follow-up: a JVM-blessed k≠32 value vector (SANTA `ergots-powhit-vectors.md`).
     **→ P5 COMPLETE; next P6 (HOF lambdas).**
 
-### P6 — higher-order lambdas  ·  status: not started (scope separately)
+### P6 — higher-order lambdas  ·  status: in progress
 - **Goal:** lambdas as first-class values. Deepest phase — touches eval engine +
   type checker. Its spec scopes feasibility/risk before committing.
   **Depends-on:** TBD (assess in its spec).
+- reframed — eval engine already supports HOF (verified Coll(2,3)/408); P6 = FunDef + exprTpe(Apply) fixes + JVM-blessed conformance; see the P6 design spec.
 
 ### P7 — per-type additions + behavior changes + sigma reducers  ·  status: not started
 - **Goal:** Box new props, Header new methods, `Context.getVarFromInput`; the
