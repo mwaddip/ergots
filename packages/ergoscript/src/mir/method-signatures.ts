@@ -23,9 +23,12 @@
  *
  * Source mapping (v5 entries: sigma-rust `external/sigma-rust` @ integration/ergots;
  * v6 entries: JVM `sigma-state`, the sole v6-canonical source):
- *   - `7:2`  SGroupElement.getEncoded — sigma-rust `ergotree-ir/src/types/sgroup_elem.rs:41-50`
- *   - `12:14` SColl.indices          — sigma-rust `ergotree-ir/src/types/scoll.rs:123-136`
- *   - `12:19` SColl.patch            — JVM `sigma/ast/methods.scala:1013-1015`
+ *   - `7:2`  SGroupElement.getEncoded    — sigma-rust `ergotree-ir/src/types/sgroup_elem.rs:41-50`
+ *   - `7:6`  SGroupElement.expUnsigned   — JVM `sigma/ast/methods.scala:656-660`
+ *   - `12:14` SColl.indices              — sigma-rust `ergotree-ir/src/types/scoll.rs:123-136`
+ *   - `12:19` SColl.patch               — JVM `sigma/ast/methods.scala:1013-1015`
+ *   - `99:19` SBox.getReg               — JVM `sigma/ast/methods.scala:1338-1347` (getRegMethodV6)
+ *   - `101:12` SContext.getVarFromInput  — JVM `sigma/ast/methods.scala:1755-1765`
  *
  * Spec: docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md
  */
@@ -192,6 +195,37 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
     tDom: [{ tag: 'SGlobal' }, { tag: 'SInt' }, SCOLL_BYTE, SCOLL_BYTE, SCOLL_BYTE, { tag: 'SInt' }],
     tRange: { tag: 'SUnsignedBigInt' },
   }],
+  // SBox.getReg — v6 P7a — JVM methods.scala:1338-1347 (getRegMethodV6):
+  // SFunc([SBox, SInt] → SOption(tT)), tpeParams [T]; T arrives as a wire
+  // explicit type arg (the id-7 sibling getRegV5 has NO explicit args and
+  // stays unregistered — it always eval-throws; spec §2).
+  [
+    key(99, 19),
+    {
+      tDom: [{ tag: 'SBox' }, { tag: 'SInt' }],
+      tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'T' } },
+      tpeParams: [{ name: 'T' }],
+    },
+  ],
+  // SContext.getVarFromInput — v6 P7a — JVM methods.scala:1755-1765:
+  // SFunc([SContext, SShort, SByte] → SOption(tT)), tpeParams [T].
+  [
+    key(101, 12),
+    {
+      tDom: [{ tag: 'SContext' }, { tag: 'SShort' }, { tag: 'SByte' }],
+      tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'T' } },
+      tpeParams: [{ name: 'T' }],
+    },
+  ],
+  // SGroupElement.expUnsigned — v6 P7a — JVM methods.scala:656-660:
+  // SFunc([SGroupElement, SUnsignedBigInt] → SGroupElement) — closed tRange.
+  [
+    key(7, 6),
+    {
+      tDom: [{ tag: 'SGroupElement' }, { tag: 'SUnsignedBigInt' }],
+      tRange: { tag: 'SGroupElement' },
+    },
+  ],
   ...numericV6Signatures(),
 ])
 
