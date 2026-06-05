@@ -193,7 +193,7 @@ Blessed vectors: 4 `verifyCases` (`LanguageSpecificationV6.scala:1908-1916`) —
   `(101,12)` tDom `[SContext, SShort, SByte]`, tRange `SOption(tT)`, tpeParams `[T]`;
   `(7,6)` tDom `[SGroupElement, SUnsignedBigInt]`, tRange `SGroupElement` (closed).
   Explicit-type-arg substitution rides the P0 engine.
-- **Registry 123 → 126.** **EvalError codes 81 → 81 (0 new):** reuse `'register-type-mismatch'`,
+- **Registry 122 → 125** (a P3-era one-high recount corrected at P7a close-out; see facts). **EvalError codes 81 → 81 (0 new):** reuse `'register-type-mismatch'`,
   `'method-not-implemented'`, `'tree-version-too-low'`, and the standard operand-guard codes.
 - **facts/ is Task 1** (CLAUDE.md docs-pass rule): `facts/ergoscript-eval.md` registry table + the three
   semantics rows (incl. the §3.3 asymmetry note); `facts/ergoscript-wire.md` explicit-type-args correction

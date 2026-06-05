@@ -122,6 +122,22 @@ describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
     expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrowError(/expects a Short input index/)
   })
 
+  it('rejects a non-Byte second arg', () => {
+    const expr: MethodCallExpr = {
+      tag: 'MethodCall',
+      obj: { tag: 'Context' },
+      typeId: 101,
+      methodId: 12,
+      args: [
+        { tag: 'Const', tpe: { tag: 'SShort' }, value: { kind: 'Short', value: 0 } },
+        { tag: 'Const', tpe: SINT, value: { kind: 'Int', value: 11 } },
+      ],
+      explicitTypeArgs: { T: SBOOLEAN },
+    }
+    const ctx = makeContext({ treeVersion: 3, inputExtensions: [ext0] })
+    expect(() => evalMethodCall(expr, Env.empty(), ctx)).toThrowError(/expects a Byte var id/)
+  })
+
   it('rejects extra args (arity 2 exact — JVM reflection-arity parity)', () => {
     const expr: MethodCallExpr = {
       tag: 'MethodCall',

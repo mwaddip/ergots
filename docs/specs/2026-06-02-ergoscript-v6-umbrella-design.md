@@ -342,12 +342,12 @@ Spec: `docs/specs/2026-06-05-ergoscript-v6-p7a-per-type-methods-design.md`.
 - **`Box.getReg[T]` (99:19)** — `FixedCost(50)`, Pattern A. Index `[0,9]`; absent → `None`; mismatch → `'register-type-mismatch'` throw; `minVersion: 3`.
 - **`Context.getVarFromInput[T]` (101:12)** — `FixedCost(10)`, Pattern A. Total (never throws): OOB idx, missing var, type-mismatch → `None`; `minVersion: 3`. Added `inputExtensions?: ContextExtension[]` to `EvalOpts`/`makeContext`.
 - **`GroupElement.expUnsigned` (7:6)** — `FixedCost(900)`, Pattern A. Routes through shared `expPoint` helper (extracted from the existing v5 Exponentiate arm). Scalar edges `g^0=g^order=identity`, `g^1=g` pinned; `minVersion: 3`.
-- **Registry:** 123 → 126. **EvalError codes:** 81 (0 new). Suite: 3935 (was 3891 at P6 close).
+- **Registry:** 122 → 125 (a P3-era one-high recount corrected at P7a close-out; see facts). **EvalError codes:** 81 (0 new). Suite: 3935 (was 3891 at P6 close).
 - **Review-caught consensus fixes:** (a) `expUnsigned` arity-1-exact guard (JVM `IllegalArgumentException` on wrong arity); (b) `getVarFromInput` var-id byte-identity `& 0xff` — JS bitwise ops sign-extend; the mask aligns with JVM `Byte` → unsigned-key semantics, confirmed to be Critical.
 
 **Documented inherited residuals (pre-existing class, not expanded in P7a):**
 1. **v6-method-in-dead-branch-of-pre-v3-tree** — JVM rejects at deserialize (`SMethod.fromIds` is version-aware); ergots' `minVersion` gate fires at eval → dead branches escape. Candidate future `validateMethodVersions` pre-eval pass (sibling of `validateV6Types`/`validateMethodCallArity`), routed separately.
-2. **Registry-wide extra-args arity sweep** — pre-existing class; P7a's three handlers use arity-exact guards, but the sweep over all ~126 registry entries is a separate pass.
+2. **Registry-wide extra-args arity sweep** — pre-existing class; P7a's three handlers use arity-exact guards, but the sweep over all ~125 registry entries is a separate pass.
 3. **Self-GetVar key-domain sibling gap** — JVM crashes at context construction for `extension` keys ≥ 0x80; ergots `GetVar` returns `Some`/`None` for those keys (opposite direction from the `& 0xff` fix to `getVarFromInput`). Pre-existing; needs its own pass.
 
 #### P7b — open (own spec)
