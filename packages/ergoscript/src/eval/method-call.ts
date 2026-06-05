@@ -72,6 +72,7 @@ import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
 import { evalGlobalEncodeNbits } from './global-encode-nbits'
 import { evalGlobalDecodeNbits } from './global-decode-nbits'
+import { evalGlobalPowHit } from './global-pow-hit'
 import { evalGlobalSerialize } from './global-serialize'
 import { numericV6Handlers } from './_numeric-v6'
 import { evalSOptionMap } from './soption-map'
@@ -515,6 +516,12 @@ function registerHandlers(): void {
   // Source: JVM sigma/ast/methods.scala:1944. FixedCost(JitCost(50)). V3-gated.
   // Decodes a Bitcoin compact ("nBits") Long → BigInt (signed-256 checked).
   HANDLERS.set(handlerKey(106, 7), { handler: evalGlobalDecodeNbits, minVersion: 3 })
+
+  // SGlobal.powHit (MethodCall, typeId=106, methodId=8) — v6 P5c.
+  // Source: JVM sigma/ast/methods.scala:1884-1902. Bespoke FixedCost. V3-gated.
+  // Computes Autolykos V2 hit = blake2b256-based hash for (k, msg, nonce, h, N).
+  // Returns SUnsignedBigInt. Cost charged from raw k BEFORE require guards.
+  HANDLERS.set(handlerKey(106, 8), { handler: evalGlobalPowHit, minVersion: 3 })
 
   // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
   // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN

@@ -818,3 +818,17 @@ export type EvalErrorCode =
   | 'global-from-bigendian-bytes-failed'
   | 'global-encode-nbits-failed'
   | 'global-decode-nbits-failed'
+
+  // -------------------------------------------------------------------------
+  // v6 P5c — Global.powHit (106:8) (1 new code; 79 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * `SGlobal.powHit` (106:8): k<2 / k>32 / N<16 (maps the scorex
+   * `PowHitInvalidParamsError`), or a non-conforming operand (non-Int k or N).
+   * Cost is charged from the RAW k BEFORE the require guards (cost-then-throw).
+   * JVM `Autolykos2PowValidation` require guards.
+   *
+   * Source: JVM sigma/ast/methods.scala:1884-1902 — hitForVersion2ForMessageWithChecks
+   *         ergoscript v6 P5c; scorex autolykos-v2.ts:PowHitInvalidParamsError
+   */
+  | 'pow-hit-invalid-params'
