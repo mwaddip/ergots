@@ -1,6 +1,8 @@
 # ErgoScript v6 — P7a: per-type methods (`Box.getReg` / `Context.getVarFromInput` / `GroupElement.expUnsigned`)
 
-**Status:** proposed (2026-06-05; design approved in-session, spec pending user review).
+**Status:** approved (2026-06-05; design approved in-session; adversarial spec review same day:
+REVISE → fixed — 1 Important + 6 Minor precision findings applied, **0 Critical; all load-bearing
+consensus claims verified-clean** with source cites).
 **Phase:** v6 P7a — first slice of the decomposed P7. Remaining after P7a: P7b (behavior changes), P8 (validation).
 **Branch:** `ergoscript-v6` (local-only per the v6 disposition; one PR to `master` at v6 delivery).
 **Canonical source:** JVM `sigma-state` only (`~/projects/sigmastate-interpreter/`). sigma-rust is an optional
@@ -33,7 +35,9 @@ and says "split further in its spec if large." Decomposed (user-agreed 2026-06-0
 | `SAvlTree` | `insertOrUpdateMethod` (`:1717`) | ✅ shipped (100:16, V3-gated) |
 | `SContext` | `getVarFromInputMethod` id 12 (`:1773-1775`) | **P7a** |
 | `SHeader` | `checkPowMethod` (`:1826`) | ✅ P4 (104:16) |
-| `SGroupElement` | `ExponentiateUnsignedMethod` id 6 (inline gate, `getMethods()` `:55-59` in its object) | **P7a** |
+| `SBigInt` | `toUnsigned` 14 / `toUnsignedMod` 15 (`:546-565`) | ✅ P2c / P2d-1 |
+| `SGlobal` | serialize 3 / deserializeTo 4 / fromBigEndianBytes 5 / encodeNbits 6 / decodeNbits 7 / powHit 8 / some 9 / none 10 (`:2001-2021`) | ✅ P4 / P5 |
+| `SGroupElement` | `ExponentiateUnsignedMethod` id 6 (inline gate in its `getMethods()`) | **P7a** |
 
 The umbrella's "`GroupElement.expUnsigned` — ergots already has this, V3-gated" was a **verified
 inherited-framing error** (zero hits in `packages/ergoscript/src/`); corrected here. `SUnsignedBigInt`'s own
@@ -49,7 +53,7 @@ method set is ✅ P2.
 
 | | id | name | registered | explicit type args | eval route |
 |---|---|---|---|---|---|
-| `getRegMethodV5` | **7** | `"getRegV5"` | `commonBoxMethods` → **all versions** | **none** | reflection lookup of `"getRegV5"` → **not in `ReflectionData`** (only `"getReg"` is, `ReflectionData.scala:298`) and no such method on `CBox` → **eval-time throw, every version** |
+| `getRegMethodV5` | **7** | `"getRegV5"` | `commonBoxMethods` → **all versions** | **none** | `SMethod.javaMethod` fallback — JVM platform: real reflection `classOf[Box].getMethod("getRegV5", …)` → `NoSuchMethodException` (the trait declares only `getReg`, `SigmaDsl.scala:490`); JS platform: `ReflectionData` lacks it (only `"getReg"`, `:298`) → **eval-time throw on both platforms, every version** |
 | `getRegMethodV6` | **19** | `"getReg"` | `v6Methods` only (`isV3OrLaterErgoTreeVersion`) | `Seq(tT)` — one serialized `T` | `javaMethodOf[Box, Int, RType[_]]("getReg")` → `CBox.getReg` |
 
 This split is the fix for ScorexFoundation/sigmastate-interpreter#416: id 7 never serializes `T`, so the
@@ -87,9 +91,11 @@ form appears for **dynamic** indices and hand-crafted trees. ExtractRegisterAs i
 lesson, `[[reference_zero_arg_method_wire_opcode]]`).
 
 **Why it matters (dead-branch fork):** a JVM-shaped `MethodCall(99, 7, args)` carries **no** type-arg bytes.
-ergots' current entry consumes one `SType` after the method body → mis-parse → whole-tree parse reject.
-A pre-v3 or v6 tree with `MethodCall(99,7)` in a **dead branch** is *deserialize-accepted* by the JVM
-(id 7 is registered at every version; the branch never evals) but *rejected* by ergots → fork.
+ergots' current entry consumes one `SType` after the method body → mis-parse — typically a whole-tree
+parse reject, and adversarially worse: the type-args tail is the node's **last** field, so a crafted tree
+can re-align and parse successfully on BOTH sides into **different trees** (accept/accept with divergent
+semantics). A pre-v3 or v6 tree with `MethodCall(99,7)` in a **dead branch** is *deserialize-accepted* by
+the JVM (id 7 is registered at every version; the branch never evals) but *rejected* by ergots → fork.
 
 **Fix:**
 - Remove `7: ['T']` from the SBox block; add `19: ['T']`.
@@ -97,8 +103,10 @@ A pre-v3 or v6 tree with `MethodCall(99,7)` in a **dead branch** is *deserialize
   having no handler, fails at eval with the existing `'method-not-implemented'` — matching the JVM's
   eval-time reflection throw at **every** version, live-branch. (Dead-branch: both sides accept.)
 - Update the module-header provenance comment (the sigma-rust cross-refs for this entry are the trap).
-- Sweep existing test fixtures for any `99:7` MethodCall encoding (expected: none — mainnet never
-  exercised it; the walker reached tip without a 99:7 sighting).
+- Sweep fixtures AND unit tests for `99:7` encodings. **Known hit:**
+  `test/wire/method-call.test.ts:86-120` ("round-trips SELF.getReg[Int](4)") hard-codes the sigma-rust
+  shape (99:7 + one SType byte) — rewrite as the 99:19 round-trip and add a 99:7 **zero**-type-args parse
+  case. The mainnet claim stands (the walker reached tip without a 99:7 sighting).
 
 ---
 
@@ -119,9 +127,12 @@ not derivable from boxes.
 **Additive optional field on `EvalOpts`/`EvalContext`:**
 
 ```ts
-/** Per-input context extensions, indexed by input position (parallel to
- *  `inputs`). Mirrors JVM spendingTransaction.inputs(i).extension.
- *  SContext.getVarFromInput (101:12) reads this. Absent ⇒ every lookup → None. */
+/** Per-input context extensions, indexed by SPENDING-TRANSACTION input
+ *  position — mirrors JVM spendingTransaction.inputs(i).extension. May
+ *  legitimately differ in length from `inputs` (the JVM's own blessed
+ *  getVarFromInput vector has tx.inputs = 0 while ctx.inputs = 1) — never
+ *  validate length equality. SContext.getVarFromInput (101:12) reads this.
+ *  Absent ⇒ every lookup → None. */
 inputExtensions?: ContextExtension[]
 ```
 
@@ -158,16 +169,21 @@ Blessed vectors: 4 `verifyCases` (`LanguageSpecificationV6.scala:1908-1916`) —
 - **Impl semantics:** `CGroupElement.expUnsigned` is the **identical call** to `exp` —
   `CryptoFacade.exponentiatePoint(point, k)` (`CGroupElement.scala:22-26`) — only the scalar source
   differs (UBI's BigInteger, ∈ [0, 2²⁵⁶), instead of signed BigInt).
-- **ergots:** reuse the point-exponentiation helper behind the shipped `Exponentiate` arm
-  (`eval/exponentiate.ts` — Pattern A, Fixed(900), identity short-circuit). New handler: operand-kind
-  guards (obj `GroupElement`, arg `UnsignedBigInt`), charge 900, same point-mult routine, `minVersion: 3`.
-  Monomorphic → **no explicit type args, zero wire change**.
+- **ergots:** there is no exported composite helper today — the arm's sequence is inline
+  (`eval/exponentiate.ts:80-87`): `decodePoint` → identity-**base** guard (`base.is0()` → 33 zero bytes;
+  noble `multiply` on the zero point is UB) → `pointMul` → `encodePoint`. **Extract a shared
+  `expPoint(baseBytes, k)` covering all four steps** (the identity-base guard is mandatory) **and route
+  both arms through it.** New handler: operand-kind guards (obj `GroupElement`, arg `UnsignedBigInt`),
+  charge 900, `expPoint`, `minVersion: 3`. Monomorphic → **no explicit type args, zero wire change**.
 - **Crypto-path escalation point (CLAUDE.md 95% bar):** scalar edges. The blessed vectors pin them —
   `g^1 = g`, `g^0 = identity`, `g^order = identity` (`LanguageSpecificationV6.scala:2475-2493`) — i.e.
-  reduction mod the group order with zero → identity. The v5 `exp` arm already normalizes arbitrary signed
-  scalars for noble (which rejects raw `k=0`/`k≥n`); implementation MUST route through that same
-  normalization, and the three vectors are the gate. If the existing helper's normalization turns out not
-  to cover the unsigned range directly, **stop and escalate** rather than hand-rolling a second path.
+  reduction mod the group order with zero → identity. Adversarial review verified the existing
+  normalization covers the UBI range **unmodified**: `pointMul` (`crypto/secp256k1.ts:125-131`)
+  short-circuits k=0 and k≡0 (mod n) to the zero point and reduces all else into [1, n−1];
+  `encodePoint(ZERO)` → 33 zero bytes. JVM side is raw BC `ECPoint.multiply` with no extra range/sign
+  handling (jvm `Platform.scala:105-111`; `CUnsignedBigInt` enforces [0, 2²⁵⁶) at construction). The
+  three vectors are the gate; if implementation contradicts any of this, **stop and escalate** rather
+  than hand-rolling a second path.
 
 ---
 
@@ -191,12 +207,18 @@ Blessed vectors: 4 `verifyCases` (`LanguageSpecificationV6.scala:1908-1916`) —
 
 1. `MethodCall(99,7)` — parses (no type-arg bytes), eval-throws `'method-not-implemented'` at **every**
    tree version (JVM parity: deserialize-accept + reflection eval-throw). Dead-branch occurrence
-   parse-accepted (the §2.3 fix is what makes this hold).
+   parse-accepted (the §2.3 fix is what makes this hold). *≥1-arg form only:* the v3+ **empty-args** 0xdc
+   variant is whole-tree-rejected on BOTH sides (JVM parse assert, `MethodCallSerializer.scala:53-55` /
+   ergots `validateMethodCallArity`) — already covered by that pass's tests.
 2. `MethodCall(99,19)` in a pre-v3 tree, live branch → `'tree-version-too-low'`.
 3. getReg runtime index OOB (`-1`, `10`) → `None`; absent → `None`; wrong type → throw.
 4. getVarFromInput totality: OOB input, missing var, wrong-typed var → `None`; never throws.
 5. expUnsigned identity edges (`g^0`, `g^order`) + `g^1`.
 6. The three-way mismatch asymmetry (§3.3) pinned side-by-side.
+7. Wrong-arg-**type** / wrong-**arity** calls to the three methods: the JVM deserialize-accepts (no arg
+   checks at parse — `mkMethodCall`/`specializeFor` don't validate) and eval-throws via reflection
+   `IllegalArgumentException`; ergots parses and eval-throws via handler guards — reject-parity
+   live-branch, accept-parity dead-branch. Pinned per method.
 
 **Inherited residual (documented, NOT expanded here):** a v6-only method in a **dead branch** of a pre-v3
 tree. JVM `SMethod.fromIds` is version-aware at **deserialize** → whole-tree reject; ergots' `minVersion`
