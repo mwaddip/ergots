@@ -42,3 +42,16 @@ export class AutolykosV1NotSupportedError extends Error {
     this.name = 'AutolykosV1NotSupportedError';
   }
 }
+
+/**
+ * Thrown by autolykosHitForMessageWithChecks (Global.powHit) on a require
+ * violation: k < 2, k > 32, or N < 16.
+ * JVM: Autolykos2PowValidation.hitForVersion2ForMessageWithChecks:116-118.
+ */
+export class PowHitInvalidParamsError extends Error {
+  readonly code = 'pow-hit-invalid-params' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'PowHitInvalidParamsError';
+  }
+}

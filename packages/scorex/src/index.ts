@@ -33,10 +33,10 @@ export {
 export {
   calcBigN,
   autolykosMessage,
-  buildAutolykosSeed,
-  genIndexes,
-  hashElement,
+  autolykosHitForMessage,
+  autolykosHitForMessageWithChecks,
+  int32BE,
   verifyAutolykosV2,
 } from './autolykos-v2.ts';
 export { decodeCompactBits } from './nbits.ts';
-export { AutolykosV1NotSupportedError } from './errors.ts';
+export { AutolykosV1NotSupportedError, PowHitInvalidParamsError } from './errors.ts';

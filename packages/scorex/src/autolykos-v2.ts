@@ -22,7 +22,7 @@ import { blake2b256 } from './crypto/blake2b256';
 import { decodeCompactBits } from './nbits';
 import { serializeHeaderWithoutPow } from './header';
 import type { Header } from './header';
-import { AutolykosV1NotSupportedError } from './errors';
+import { AutolykosV1NotSupportedError, PowHitInvalidParamsError } from './errors';
 
 // ---------------------------------------------------------------------------
 // secp256k1 curve order (constant)
@@ -108,28 +108,39 @@ function asUnsignedByteArray(length: number, value: bigint): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// int32BE: 4-byte big-endian u32 (JVM scorex.utils.Ints.toByteArray).
+// ---------------------------------------------------------------------------
+export function int32BE(n: number): Uint8Array {
+  const b = new Uint8Array(4);
+  b[0] = (n >>> 24) & 0xff;
+  b[1] = (n >>> 16) & 0xff;
+  b[2] = (n >>> 8) & 0xff;
+  b[3] = n & 0xff;
+  return b;
+}
+
+// ---------------------------------------------------------------------------
 // buildAutolykosSeed: replicates AutolykosPowScheme::calc_seed_v2
 //
 // Inputs:
-//   msg:    32-byte blake2b256 of serialize_without_pow
-//   nonce:  8-byte nonce from autolykos solution
-//   height: u32 header height
-//   bigN:   u32 table size from calcBigN
+//   msg:   32-byte blake2b256 of serialize_without_pow
+//   nonce: 8-byte nonce from autolykos solution
+//   h:     raw height bytes (e.g. int32BE(height)) — passed through to f concat
+//   bigN:  u32 table size from calcBigN
 //
 // Steps:
 //   concat1 = msg ++ nonce
 //   hash1   = blake2b256(concat1)
 //   pre_i8  = BigInt::from_bytes_be(hash1[24..32])   // last 8 bytes
 //   i       = asUnsignedByteArray(4, pre_i8 mod bigN) // 4 bytes
-//   height_bytes = height.to_be_bytes()               // 4 bytes
 //   big_m   = calcBigM()
-//   f       = blake2b256(i ++ height_bytes ++ big_m)
+//   f       = blake2b256(i ++ h ++ big_m)
 //   seed    = blake2b256(f[1..] ++ msg ++ nonce)
 // ---------------------------------------------------------------------------
 export function buildAutolykosSeed(
   msg: Uint8Array,
   nonce: Uint8Array,
-  height: number,
+  h: Uint8Array,
   bigN: number,
 ): Uint8Array {
   // Step 1: concat1 = msg ++ nonce
@@ -148,23 +159,16 @@ export function buildAutolykosSeed(
   const remainder = pre_i8 % BigInt(bigN);
   const iBytes = asUnsignedByteArray(4, remainder);
 
-  // Step 4: height_bytes = height as 4-byte big-endian
-  const heightBytes = new Uint8Array(4);
-  heightBytes[0] = (height >>> 24) & 0xff;
-  heightBytes[1] = (height >>> 16) & 0xff;
-  heightBytes[2] = (height >>> 8) & 0xff;
-  heightBytes[3] = height & 0xff;
-
   const bigM = calcBigM();
 
-  // Step 5: concat2 = i ++ height_bytes ++ big_m
-  const concat2 = new Uint8Array(4 + 4 + bigM.length);
+  // Step 4: concat2 = i ++ h ++ big_m  (h passed raw — JVM hitForVersion2ForMessage)
+  const concat2 = new Uint8Array(4 + h.length + bigM.length);
   concat2.set(iBytes, 0);
-  concat2.set(heightBytes, 4);
-  concat2.set(bigM, 8);
+  concat2.set(h, 4);
+  concat2.set(bigM, 4 + h.length);
   const f = blake2b256(concat2);
 
-  // Step 6: concat3 = f[1..] ++ msg ++ nonce
+  // Step 5: concat3 = f[1..] ++ msg ++ nonce
   const fSlice = f.subarray(1); // 31 bytes
   const concat3 = new Uint8Array(fSlice.length + msg.length + nonce.length);
   concat3.set(fSlice, 0);
@@ -177,11 +181,11 @@ export function buildAutolykosSeed(
 // ---------------------------------------------------------------------------
 // genIndexes: replicates AutolykosPowScheme::gen_indexes
 //
-// Produces 32 indices (u32) in [0, bigN).
+// Produces k indices (u32) in [0, bigN).
 //
 // Algorithm:
-//   extended_hash = seed ++ seed[0..3]   (35 bytes)
-//   for i in 0..32:
+//   extended_hash = seed ++ seed[0..3]   (35 bytes, supports k up to 32)
+//   for i in 0..k:
 //     window = extended_hash[i..i+4]     (4 bytes)
 //     index  = BigInt::from_bytes_be(window) mod bigN
 //
@@ -189,14 +193,16 @@ export function buildAutolykosSeed(
 // `.to_u32_digits().1[0]` would panic (digits empty for 0).
 // Correct answer is 0 — handled naturally in TypeScript with BigInt mod.
 // ---------------------------------------------------------------------------
-export function genIndexes(seed: Uint8Array, bigN: number): number[] {
+export function genIndexes(seed: Uint8Array, bigN: number, k: number): number[] {
+  // JVM genIndexes(k, seed, N): (0 until k).map { BigInt(1, extendedHash.slice(i,i+4)).mod(N) }.
+  // `seed` is the already-hashed seed (scorex factoring) -> no internal re-hash.
   const extended = new Uint8Array(35);
   extended.set(seed, 0);
   extended.set(seed.subarray(0, 3), 32);
 
   const bigNBig = BigInt(bigN);
-  const result: number[] = new Array(32);
-  for (let i = 0; i < 32; i++) {
+  const result: number[] = new Array(k);
+  for (let i = 0; i < k; i++) {
     // 4-byte window as unsigned big-endian BigInt
     let window = 0n;
     for (let j = 0; j < 4; j++) {
@@ -209,33 +215,21 @@ export function genIndexes(seed: Uint8Array, bigN: number): number[] {
 }
 
 // ---------------------------------------------------------------------------
-// hashElement: for index i at height h, compute
-//   blake2b256(i.to_be_bytes() ++ height.to_be_bytes() ++ big_m)[1..]
+// hashElement: for index i at h (raw bytes), compute
+//   blake2b256(int32BE(i) ++ h ++ big_m)[1..]
 //
 // Returns 31 bytes (the hash slice used as a BigInt in the sum).
+// JVM: genElementV2(int32BE(index), h): Blake2b256(idx ++ h ++ M).drop(1).
 // ---------------------------------------------------------------------------
-export function hashElement(index: number, height: number): Uint8Array {
+export function hashElement(index: number, h: Uint8Array): Uint8Array {
   const bigM = calcBigM();
+  const idxBytes = int32BE(index);
 
-  // index as 4-byte big-endian
-  const idxBytes = new Uint8Array(4);
-  idxBytes[0] = (index >>> 24) & 0xff;
-  idxBytes[1] = (index >>> 16) & 0xff;
-  idxBytes[2] = (index >>> 8) & 0xff;
-  idxBytes[3] = index & 0xff;
-
-  // height as 4-byte big-endian
-  const heightBytes = new Uint8Array(4);
-  heightBytes[0] = (height >>> 24) & 0xff;
-  heightBytes[1] = (height >>> 16) & 0xff;
-  heightBytes[2] = (height >>> 8) & 0xff;
-  heightBytes[3] = height & 0xff;
-
-  // concat = idx_be4 ++ height_be4 ++ big_m
-  const concat = new Uint8Array(4 + 4 + bigM.length);
+  // concat = idx_be4 ++ h ++ big_m  (h passed raw)
+  const concat = new Uint8Array(4 + h.length + bigM.length);
   concat.set(idxBytes, 0);
-  concat.set(heightBytes, 4);
-  concat.set(bigM, 8);
+  concat.set(h, 4);
+  concat.set(bigM, 4 + h.length);
 
   const hash = blake2b256(concat);
   // Return bytes [1..32] = 31 bytes
@@ -243,10 +237,46 @@ export function hashElement(index: number, height: number): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// autolykosHitForMessage: Autolykos-2 PoW hit (JVM hitForVersion2ForMessage).
+// Un-checked; caller must validate k/N or use autolykosHitForMessageWithChecks.
+// ---------------------------------------------------------------------------
+export function autolykosHitForMessage(
+  k: number, msg: Uint8Array, nonce: Uint8Array, h: Uint8Array, N: number,
+): bigint {
+  const seed = buildAutolykosSeed(msg, nonce, h, N);
+  const indexes = genIndexes(seed, N, k);
+  let f2 = 0n;
+  for (const idx of indexes) {
+    const elemHash = hashElement(idx, h);
+    let v = 0n;
+    for (let i = 0; i < elemHash.length; i++) v = (v << 8n) | BigInt(elemHash[i]!);
+    f2 += v;
+  }
+  const array = asUnsignedByteArray(32, f2);
+  const hitBytes = blake2b256(array);
+  let hit = 0n;
+  for (let i = 0; i < hitBytes.length; i++) hit = (hit << 8n) | BigInt(hitBytes[i]!);
+  return hit;
+}
+
+// ---------------------------------------------------------------------------
+// autolykosHitForMessageWithChecks: public checked entry for Global.powHit.
+// JVM hitForVersion2ForMessageWithChecks: require(k>=2, k<=32, N>=16).
+// ---------------------------------------------------------------------------
+export function autolykosHitForMessageWithChecks(
+  k: number, msg: Uint8Array, nonce: Uint8Array, h: Uint8Array, N: number,
+): bigint {
+  if (k < 2) throw new PowHitInvalidParamsError(`powHit requires k >= 2, got ${k}`);
+  if (k > 32) throw new PowHitInvalidParamsError(`powHit requires k <= 32, got ${k}`);
+  if (N < 16) throw new PowHitInvalidParamsError(`powHit requires N >= 16, got ${N}`);
+  return autolykosHitForMessage(k, msg, nonce, h, N);
+}
+
+// ---------------------------------------------------------------------------
 // verifyAutolykosV2: full PoW check for Autolykos v2 headers.
 //
 // Returns true iff hit < target, where:
-//   hit    = blake2b256(asUnsignedByteArray32(sum(hashElement(i) for i in indices)))
+//   hit    = autolykosHitForMessage(32, msg, nonce, int32BE(height), bigN)
 //   target = ORDER / decodeCompactBits(header.nBits)
 // ---------------------------------------------------------------------------
 export function verifyAutolykosV2(header: Header): boolean {
@@ -262,30 +292,8 @@ export function verifyAutolykosV2(header: Header): boolean {
   const height = header.height;
   const bigN = calcBigN(header.version, height);
 
-  const seed = buildAutolykosSeed(msg, nonce, height, bigN);
-  const indices = genIndexes(seed, bigN);
-
-  // Compute f2 = sum of element BigInts
-  let f2 = 0n;
-  for (const idx of indices) {
-    const elemHash = hashElement(idx, height);
-    // 31-byte big-endian unsigned
-    let v = 0n;
-    for (let i = 0; i < elemHash.length; i++) {
-      v = (v << 8n) | BigInt(elemHash[i]!);
-    }
-    f2 += v;
-  }
-
-  // array = asUnsignedByteArray(32, f2)
-  const array = asUnsignedByteArray(32, f2);
-
-  // hit = BigUint from blake2b256(array)
-  const hitBytes = blake2b256(array);
-  let hit = 0n;
-  for (let i = 0; i < hitBytes.length; i++) {
-    hit = (hit << 8n) | BigInt(hitBytes[i]!);
-  }
+  // JVM hitForVersion2(header): hitForVersion2ForMessage(32, msg, nonce, int32BE(height), N).
+  const hit = autolykosHitForMessage(32, msg, nonce, int32BE(height), bigN);
 
   // target = ORDER / decodeCompactBits(nBits)
   const decoded = decodeCompactBits(header.nBits);
