@@ -64,12 +64,20 @@ export function exprTpe(e: Expr): SType {
       return { tag: 'SFunc', args, result, tpeParams }
     }
     case 'Apply': {
+      // Apply's type is the t_range of the func's SFunc type. Relaxation
+      // (mirrors ByIndex/OptionGet): an SAny func type cascades to SAny — an
+      // unresolved method/property-call return is concrete at runtime and in
+      // the JVM, so propagate SAny statically rather than throwing (avoids
+      // over-rejecting a JVM-accepted tree). A non-SAny, non-SFunc func is a
+      // genuinely malformed AST → typed error.
+      //
       // sigma-rust `mir/apply.rs::Apply::new` (lines 32-54): Apply's type is
-      // the `t_range` of the func's `SFunc` type. We compute the func's tpe
-      // and project the `result` field. If the func's tpe is NOT an SFunc,
-      // this is a malformed AST — sigma-rust panics-on-unwrap there; we
-      // surface a typed error so the caller can localize the issue.
+      // the `t_range` of the func's `SFunc` type; sigma-rust panics-on-unwrap
+      // for a non-SFunc. We surface a typed error instead, but skip SAny.
       const ft = exprTpe(e.func)
+      if (ft.tag === 'SAny') {
+        return { tag: 'SAny' }
+      }
       if (ft.tag !== 'SFunc') {
         throw new ExprTpeError(
           `Apply.func has tpe ${ft.tag}, expected SFunc`,
