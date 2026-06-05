@@ -23,6 +23,7 @@ import type { EvalContext } from './eval-context'
 import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 import { exprTpe } from '../mir/expr-tpe'
 
 /**
@@ -37,7 +38,10 @@ export function evalSOptionMap(
   obj: SValue,
   args: SValue[],
   ctx: EvalContext,
-  env: Env
+  // Retained for call-site signature symmetry with the dispatcher (extra.env);
+  // unused since v6 P6 made lambda bodies eval in the closure's CAPTURED env
+  // (lexical scoping) rather than this apply-site env.
+  _env: Env
 ): SValue {
   // Fixed cost 20, Pattern A — charged FIRST (sigma-rust soption.rs:20).
   ctx.addCost(20)
@@ -74,7 +78,14 @@ export function evalSOptionMap(
     return { kind: 'Option', elem: outElem, value: null }
   }
   const argId = closure.argIds[0]!
-  const bodyEnv = env.extend(argId, obj.value)
+  // v6 P6: reject a type-var arg type at apply (JVM "Unknown type T"). Placed
+  // after the None early-return above ⇒ Option.map over None never invokes the
+  // lambda, so it never throws (matches the JVM: no invocation, no resolution).
+  assertArgTypeResolved(closure.argTpes[0]!)
+  // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
+  // JVM-faithful for v6. For inline map lambdas capturedEnv == the caller env
+  // (no-op); differs only for out-of-scope-captured lambdas.
+  const bodyEnv = closure.capturedEnv.extend(argId, obj.value)
   const result = evalExpr(closure.body, bodyEnv, ctx)
   return { kind: 'Option', elem: outElem, value: result }
 }

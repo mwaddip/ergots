@@ -52,6 +52,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
@@ -148,8 +149,15 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   for (const item of inputColl.items) {
     // Per-iter cost (sigma-rust coll_map.rs:31).
     ctx.addCost(COLL_MAP_PER_ITER)
-    // Extend env with arg binding (sigma-rust coll_map.rs:32: env.insert(func_arg.idx, arg)).
-    const bodyEnv = env.extend(argId, item)
+    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
+    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_map.rs:32:
+    // env.insert(func_arg.idx, arg)). For inline mapper lambdas (the only kind
+    // on mainnet) capturedEnv == the caller env, so this is a no-op; it differs
+    // only for lambdas returned/captured out of their definition scope.
+    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    const bodyEnv = closure.capturedEnv.extend(argId, item)
     // Eval body (sigma-rust coll_map.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     // Result-type check: if outElemTpe is known AND not SAny, verify itemRes matches.

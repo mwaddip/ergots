@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "HOF FunDef polymorphic identity",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-hof-v6",
+  "entries" : [
+    {
+      "name" : "v3#0",
+      "script" : "{ val id[T] = {(x: Int) => x}; id(7) }  // FunDef 0xd7: tpeArgs=[T], concrete body",
+      "tree_bytes_hex" : "1b1701040ed801d70101670154d90102047202da7201017300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 7
+        },
+        "cost" : 58,
+        "error" : null
+      }
+    }
+  ]
+}

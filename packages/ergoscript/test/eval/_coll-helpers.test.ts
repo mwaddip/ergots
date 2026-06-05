@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest'
 import { extractCollItems, extractFuncValue } from '../../src/eval/_coll-helpers'
 import type { SValue, Expr } from '../../src/mir/types'
+import { Env } from '../../src/eval/env'
 import { captureEvalError } from '../_helpers'
 
 // ---------------------------------------------------------------------------
@@ -29,13 +30,16 @@ function makeCollSValue(items: SValue[]): SValue {
 function makeTrueLambdaSValue(argId: number): SValue {
   // A Lambda SValue with one argId and a trivial body (BooleanConstant True)
   const body: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
-  return { kind: 'Lambda', closure: { argIds: [argId], body, capturedEnv: {} } }
+  return {
+    kind: 'Lambda',
+    closure: { argIds: [argId], argTpes: [{ tag: 'SInt' }], body, capturedEnv: Env.empty() },
+  }
 }
 
 function makeEmptyArgLambdaSValue(): SValue {
   // A Lambda SValue with empty argIds (malformed)
   const body: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
-  return { kind: 'Lambda', closure: { argIds: [], body, capturedEnv: {} } }
+  return { kind: 'Lambda', closure: { argIds: [], argTpes: [], body, capturedEnv: Env.empty() } }
 }
 
 // ---------------------------------------------------------------------------

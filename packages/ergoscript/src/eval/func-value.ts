@@ -13,21 +13,24 @@
  * Cost-charging order: envelope BEFORE returning the Lambda (the only
  * "work" the arm does).
  *
- * Closure shape per packages/ergoscript/src/mir/types.ts (forward-declared
- * in phase 2a):
- *   { argIds: number[], body: Expr, capturedEnv: Record<number, SValue> }
+ * Closure shape per packages/ergoscript/src/mir/types.ts:
+ *   { argIds: number[], argTpes: SType[], body: Expr, capturedEnv: Env }
  *
- * `argIds` strips the FuncArg.tpe (only the val id is needed for body's
- * ValUse lookups). `capturedEnv` is set to `{}` (empty) — sigma-rust uses
- * dynamic-style scoping (env at apply-site, with arg bindings extended,
- * is used for body eval). The `capturedEnv` field in the existing TS
- * shape is non-load-bearing for sigma-rust-compatible semantics; we
- * leave it empty rather than capturing the env at definition (which
- * would diverge from sigma-rust).
+ * `argIds` strips the FuncArg.tpe to the val ids (needed for body's ValUse
+ * lookups); `argTpes` keeps the parallel declared arg types — consumed at
+ * apply-time by `assertArgTypeResolved` (the v6 P6 type-var reject) and by the
+ * lambda-HOF elem-type checks. `capturedEnv` is the lexical environment in scope AT
+ * THE DEFINITION SITE — captured here (lexical closure). The JVM is
+ * canonical for v6 and uses lexical scoping: a returned closure that
+ * references a free variable resolves it from the definition-site env, not
+ * the apply-site env. Apply / the lambda HOF arms evaluate the body in
+ * `capturedEnv` extended with the per-call arg bindings. Worked example:
+ * `{ val add = (a:Int)=>(b:Int)=>a+b; add(3)(1) }` evaluates to `Int 4`
+ * because the inner `(b)=>a+b` closes over `a` from where it was defined.
  *
- * Sigma-rust uses a mutable Env with save/restore for argument binding
- * (apply.rs:30-46). Our TS Env is immutable per phase 2b — Apply uses
- * Env.extend() directly without save/restore.
+ * Our TS Env is immutable per phase 2b: extending it for arg bindings never
+ * mutates the captured env, so the same Lambda value can be applied
+ * repeatedly with independent argument scopes (no save/restore dance).
  */
 
 import type { FuncValue, SValue } from '../mir/types'
@@ -36,14 +39,15 @@ import type { EvalContext } from './eval-context'
 
 const FUNC_VALUE_COST = 5
 
-export function evalFuncValue(e: FuncValue, _env: Env, ctx: EvalContext): SValue {
+export function evalFuncValue(e: FuncValue, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(FUNC_VALUE_COST)
   return {
     kind: 'Lambda',
     closure: {
       argIds: e.args.map((a) => a.id),
+      argTpes: e.args.map((a) => a.tpe),
       body: e.body,
-      capturedEnv: {},
+      capturedEnv: env,
     },
   }
 }

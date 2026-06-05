@@ -14,6 +14,7 @@
  */
 
 import type { Header } from '@ergots/scorex'
+import type { Env } from '../eval/env'
 
 /** Type variable for generic signatures (e.g. `"T"`, `"IV"`, `"OV"`). */
 export interface STypeVar {
@@ -152,30 +153,48 @@ export type SigmaBoolean =
   | { tag: 'Cthreshold'; k: number; items: SigmaBoolean[] }                  // k in [1, items.length]
 
 /**
- * Forward declaration — proper user-function representation lands in phase 2d
- * (FuncValue / Apply). For now this captures the data the evaluator will need:
- * argument ids (matching the body's `ValUse.id` references), the body
- * expression, and the lexical environment captured at function definition.
+ * User-function (lambda) runtime representation.
+ *
+ * Captures argument ids (matching the body's `ValUse.id` references), the body
+ * expression, and the **lexical environment captured at function-definition
+ * time** (`capturedEnv`). The body is evaluated in `capturedEnv` extended with
+ * the per-call argument bindings — i.e. lexical scoping (closures), matching
+ * the JVM (canonical for v6). A returned closure that references a free
+ * variable still resolves it from the env in scope where the lambda was
+ * *defined*, not where it is *applied* (e.g. `{ val add = (a:Int)=>(b:Int)=>a+b;
+ * add(3)(1) }` evaluates to `Int 4`).
  *
  * Mirrors sigma-rust `Lambda { args: Vec<FuncArg>, body: Box<Expr> }` from
- * `ergotree-ir/src/mir/value.rs`, plus an explicit `capturedEnv` (Rust uses
- * `EvalContext.env` for this implicitly).
+ * `ergotree-ir/src/mir/value.rs`, plus an explicit `capturedEnv` (which the
+ * JVM closes over at definition; our immutable `Env` makes the capture
+ * explicit and value-stable).
  */
 export interface Closure {
   /** Argument value ids; binds `ValUse.id` references inside `body`. */
   argIds: number[]
+  /**
+   * Declared argument types, parallel to {@link argIds} (`argTpes[i]` is the
+   * static type of the arg bound to `argIds[i]`). Carried so the apply-time
+   * type-var reject (v6 P6) can fire: the JVM (sigma-state 6.0.3, canonical
+   * for v6) rejects at eval when a lambda whose arg type is (or contains) an
+   * unresolved `STypeVar` is APPLIED — resolving that arg's runtime RType
+   * fails (`RuntimeException: Unknown type T`). See `assertArgTypeResolved`
+   * in `eval/_lambda.ts` and SANTA `HOF_FunDef_type_var_body.json`.
+   *
+   * (This field was previously omitted by design; v6 P6 needs it for the
+   * type-var-apply reject. It also now backs the lambda-HOF elem-type checks,
+   * which previously fell back to the MIR-node FuncValue's declared arg type
+   * — see `facts/ergoscript-eval.md` Phase 2h-f changelog R3(a).)
+   */
+  argTpes: SType[]
   /** Function body — an Expr. */
   body: Expr
-  /** Lexical environment captured at definition time, keyed by ValId. */
-  capturedEnv: Record<number, SValue>
-  // NOTE: deliberately no `argTpes: SType[]` field. Sigma-rust's runtime
-  // `Value::Lambda` carries per-arg static types and uses them for elem-type
-  // checks in lambda HOFs (`coll-map.ts:94-108`, `scoll-flat-map.ts` step 5).
-  // Without `argTpes` here, those checks fall back to the MIR-node FuncValue's
-  // declared arg type — fine for inline-FuncValue lambdas, skipped for
-  // ValUse-source lambdas. See `facts/ergoscript-eval.md` Phase 2h-f changelog
-  // R3(a) for the documented divergence. Adding `argTpes` here would close it
-  // for flatMap + MapColl/Filter/Fold/Exists/ForAll equally (cross-arm scope).
+  /**
+   * Lexical environment captured at definition time (immutable; v6
+   * JVM-faithful). The body is evaluated in this env extended with the
+   * per-call arg bindings — NOT in the caller's apply-site env.
+   */
+  capturedEnv: Env
 }
 
 /**

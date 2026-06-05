@@ -832,3 +832,31 @@ export type EvalErrorCode =
    *         ergoscript v6 P5c; scorex autolykos-v2.ts:PowHitInvalidParamsError
    */
   | 'pow-hit-invalid-params'
+
+  // -------------------------------------------------------------------------
+  // v6 P6 — type-var lambda apply reject (1 new code; 80 → 81)
+  // -------------------------------------------------------------------------
+  /**
+   * Applying a lambda (closure) whose declared argument type is — or
+   * structurally contains — an unresolved `STypeVar`. Thrown at the apply-time
+   * arg binding, at EVERY lambda-invocation site (`apply.ts` + the 7 lambda
+   * HOF arms), BEFORE the arg is bound — independent of whether the body reads
+   * the arg.
+   *
+   * The JVM (sigma-state 6.0.3, canonical for v6) rejects such an application:
+   * resolving the type-var arg's runtime RType fails (`stypeToRType(STypeVar)`
+   * → `RuntimeException: Unknown type T`). A type-var lambda that is bound but
+   * never applied evaluates fine (the binding itself is OK) — so this fires
+   * ONLY at apply, NOT at FuncValue construction or at the FunDef/ValDef bind.
+   * Distinguishes a `{val id[T]={(x:T)=>x}; id(7)}` (rejects) from the
+   * concrete-arg `{val id[T]={(x:Int)=>x}; id(7)}` (accepts → 7).
+   *
+   * Honest compiler-produced trees never apply a type-var-arg lambda (the
+   * polymorphic FunDef is monomorphized at the call site); this is an
+   * adversarial over-accept the dynamically-typed evaluator would otherwise
+   * silently evaluate.
+   *
+   * Source: SANTA `vectors/eval/v6/authored/HOF_FunDef_type_var_body.json`
+   *         (blessed_by jvm:sigma-state-6.0.3).
+   */
+  | 'apply-unresolved-type-var'

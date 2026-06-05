@@ -1,0 +1,83 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "HOF FunDef type-var body",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-fundef-typevar",
+  "entries" : [
+    {
+      "name" : "bound-never-applied-accept#0",
+      "script" : "{ val id[T] = {(x: T) => x}; 5 }",
+      "tree_bytes_hex" : "1b1501040ad801d70101670154d9010267015472027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 5
+        },
+        "cost" : 13,
+        "error" : null
+      }
+    },
+    {
+      "name" : "identity-applied-reject#1",
+      "script" : "{ val id[T] = {(x: T) => x}; id(7) }",
+      "tree_bytes_hex" : "1b1901040ed801d70101670154d901026701547202da7201017300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "applied-body-ignores-arg-reject#2",
+      "script" : "{ val id[T] = {(x: T) => 5}; id(7) }",
+      "tree_bytes_hex" : "1b1b02040a040ed801d70101670154d901026701547300da7201017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "type-dependent-applied-reject#3",
+      "script" : "{ val id[T] = {(x: T) => x + x}; id(7) }",
+      "tree_bytes_hex" : "1b1c01040ed801d70101670154d901026701549a72027202da7201017300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

@@ -79,6 +79,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 import { sTypeEquals } from '../mir/stype-helpers'
 
 // Outer cost: add_per_item_jit_cost(base=3, per_chunk=1, chunk_size=10, n)
@@ -158,9 +159,14 @@ export function evalForAll(e: ForAll, env: Env, ctx: EvalContext): SValue {
     // Only charged for VISITED items — short-circuit reduces the number of charges.
     ctx.addCost(COLL_FORALL_PER_ITER)
 
-    // Extend env with arg binding (sigma-rust coll_forall.rs:30: env.insert(func_arg.idx, arg)).
-    // TS uses immutable Env.extend — no save/restore needed.
-    const bodyEnv = env.extend(argId, item)
+    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
+    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_forall.rs:30:
+    // env.insert(func_arg.idx, arg)). For inline predicate lambdas capturedEnv
+    // == the caller env (no-op); differs only for out-of-scope-captured lambdas.
+    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    const bodyEnv = closure.capturedEnv.extend(argId, item)
 
     // Eval body (sigma-rust coll_forall.rs:31: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)

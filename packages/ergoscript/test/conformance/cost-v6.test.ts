@@ -17,6 +17,13 @@ const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
 
 const VECTOR_FILES = [
   'higher_order_lambdas.json',
+  // P6 Task 7 — JVM-blessed adversarial HOF (SANTA a66af91): FunDef (0xd7,
+  // concrete body) → 7/58, currying (Apply-of-Apply) → 4/119, function-in-
+  // Coll[SFunc] → 6/130. The adversarial-closure gate for first-class functions.
+  'HOF_FunDef_polymorphic_identity.json',
+  'HOF_currying_Apply_of_Apply.json',
+  'HOF_function_in_Coll_of_SFunc.json',
+  'HOF_FunDef_type_var_body.json', // type-var-body FunDef — reject at apply (SANTA), bind-only accepts
   // P5c follow-up (SANTA fc3c1f4): JVM-blessed Global.powHit k≠32 value+cost
   // (k=2/16/31) + require-boundary rejects (k=1/33, N=15). Independently pins
   // the (0 until k) index generalization the k=32 verify-path fixtures never
