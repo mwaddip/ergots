@@ -35,6 +35,19 @@ describe('Global.powHit (106:8)', () => {
     powHit(32, N, ctx)
     expect(ctx.jitCost).toBe(731)
   })
+  it('chunk-boundary cost: L=128 -> 2 chunks (locks bespoke floor(L/128)+1, not the (n-1)/cs+1 helper)', () => {
+    // msg 116 + nonce 8 + h 4 = 128 = exactly one chunkSize.
+    // bespoke: trunc(128/128)+1 = 2 -> 500 + (32+1)*2*7 = 962.
+    // the PerItemCost (n-1)/cs+1 helper would give 1 chunk -> 731 (a consensus fork).
+    const ctx = makeContext({ treeVersion: 3 })
+    const r = evalGlobalPowHit(
+      { kind: 'Global' },
+      [intVal(32), collByte(new Array(116).fill(1)), collByte(NONCE), collByte(H), intVal(N)],
+      ctx,
+    )
+    expect(r.kind).toBe('UnsignedBigInt')
+    expect(ctx.jitCost).toBe(962)
+  })
   it('require(k<=32): rejects, charging cost first (k=33 -> 738)', () => {
     const ctx = makeContext({ treeVersion: 3 })
     try { powHit(33, N, ctx); throw new Error('expected EvalError') }
