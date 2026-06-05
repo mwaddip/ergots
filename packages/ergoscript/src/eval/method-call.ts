@@ -47,7 +47,7 @@ import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
 import { sValueEquals } from './bin-op/relation'
-import { decodePoint, pointNegate, encodePoint } from '../crypto/secp256k1'
+import { decodePoint, pointNegate, encodePoint, expPoint } from '../crypto/secp256k1'
 import {
   evalSAvlTreeContains,
   evalSAvlTreeDigest,
@@ -557,6 +557,35 @@ function registerHandlers(): void {
     }
     return { kind: 'GroupElement', value: encodePoint(pointNegate(decodePoint(obj.value))) }
   } })
+
+  // SGroupElement.expUnsigned (MethodCall, typeId=7, methodId=6) — v6 P7a.
+  // Source (JVM): methods.scala:656-660 — ExponentiateUnsignedMethod,
+  // Exponentiate.costKind = FixedCost(JitCost(900)) (trees.scala:1042-1046),
+  // v6-gated via the inline isV3OrLaterErgoTreeVersion in SGroupElementMethods.
+  // CGroupElement.expUnsigned (CGroupElement.scala:25-26) is the IDENTICAL
+  // CryptoFacade.exponentiatePoint call as exp — only the scalar source
+  // differs (UBI ∈ [0, 2²⁵⁶)). Routes through the shared expPoint
+  // (identity-base guard + mod-n reduction + Ergo identity encoding).
+  HANDLERS.set(handlerKey(7, 6), {
+    handler: (obj, args, ctx, _explicitTypeArgs) => {
+      ctx.addCost(900) // Exponentiate.costKind — charged before operand guards
+      if (obj.kind !== 'GroupElement') {
+        throw new EvalError(
+          `SGroupElement.expUnsigned expects a GroupElement obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const k = args[0]
+      if (k === undefined || k.kind !== 'UnsignedBigInt') {
+        throw new EvalError(
+          `SGroupElement.expUnsigned expects an UnsignedBigInt exponent; got '${k?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      return { kind: 'GroupElement', value: expPoint(obj.value, k.value) }
+    },
+    minVersion: 3,
+  })
 
   // SColl.indices (MethodCall, typeId=12, methodId=14)
   // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
