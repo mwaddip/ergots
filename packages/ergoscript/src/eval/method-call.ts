@@ -1014,6 +1014,58 @@ function registerHandlers(): void {
     }
   } })
 
+  // SContext.getVarFromInput (MethodCall, typeId=101, methodId=12) — v6 P7a.
+  // Source (JVM): methods.scala:1755-1765 — (SContext, SShort, SByte) →
+  // Option[T], GetVar.costKind = FixedCost(JitCost(10))
+  // (transformers.scala:585-590), v6Methods-only (:1773-1775).
+  // Eval = CContext.getVarFromInput (CContext.scala:76-83): TOTAL — OOB input
+  // index, missing var, and TYPE-MISMATCH all → None; NEVER throws. Deliberate
+  // JVM asymmetry vs self-getVar ('get-var-type-mismatch' throw) and
+  // Box.getReg ('register-type-mismatch' throw) — spec §3.3.
+  // ctx.inputExtensions absent = empty (the dataInputs convention).
+  HANDLERS.set(handlerKey(101, 12), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(10) // GetVar.costKind — charged before operand guards
+      if (obj.kind !== 'Context') {
+        throw new EvalError(
+          `SContext.getVarFromInput expects a Context obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      // arity 2 exact — JVM eval-rejects wrong arity via reflection (JavaImpl.scala:136-138)
+      const inputIdx = args[0]
+      if (args.length !== 2 || inputIdx === undefined || inputIdx.kind !== 'Short') {
+        throw new EvalError(
+          `SContext.getVarFromInput expects a Short input index; got '${inputIdx?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const varId = args[1]
+      if (varId === undefined || varId.kind !== 'Byte') {
+        throw new EvalError(
+          `SContext.getVarFromInput expects a Byte var id; got '${varId?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const elem = explicitTypeArgs['T']
+      if (elem === undefined) {
+        // Unreachable from the wire (parser enforces the registered type arg);
+        // defensive against hand-built MIR.
+        throw new EvalError(
+          'SContext.getVarFromInput: missing explicit type arg T',
+          'method-not-implemented'
+        )
+      }
+      // inputs.lift(idx): negative or beyond-length bracket access → undefined.
+      const entry = ctx.inputExtensions?.[inputIdx.value]?.values[varId.value]
+      if (entry === undefined || !sTypeEquals(entry.tpe, elem)) {
+        return { kind: 'Option', elem, value: null }
+      }
+      return { kind: 'Option', elem, value: entry.value }
+    },
+    minVersion: 3,
+  })
+
   // ---------- SHeader (15 property accessors) — phase 2h-c.1 ----------
   // All Pattern A Fixed(10). Source: ergotree-interpreter/src/eval/sheader.rs:16-113.
   // Handler bodies live in ./sheader.ts.

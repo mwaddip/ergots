@@ -76,6 +76,21 @@ export interface EvalOpts {
   dataInputs?: ErgoBox[]
   /** Block headers; sigma-rust uses fixed-size [Header; 10] — TS relaxes to variable length. */
   headers?: Header[]
+  /**
+   * Per-input context extensions, indexed by SPENDING-TRANSACTION input
+   * position — mirrors JVM `spendingTransaction.inputs(i).extension`
+   * (`CContext.scala:76-83`). May legitimately differ in length from
+   * `inputs` (the JVM's own blessed getVarFromInput vector has
+   * tx.inputs = 0 while ctx.inputs = 1) — never validate length equality.
+   * Invariant (documented, not enforced): when both are supplied,
+   * `inputExtensions[selfIndex]` ≡ `extension`; self-`getVar` keeps reading
+   * `extension`. Absent ⇒ every lookup → None (the `dataInputs`
+   * absent-=-empty convention, NOT the `extension`
+   * `'context-field-missing'` convention — per-input witness data a caller
+   * may legitimately not carry). SContext.getVarFromInput (101:12, v6 P7a)
+   * reads this.
+   */
+  inputExtensions?: ContextExtension[]
 }
 
 export interface EvalContext extends EvalOpts {
@@ -110,6 +125,7 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     extension: opts.extension,
     dataInputs: opts.dataInputs,
     headers: opts.headers,
+    inputExtensions: opts.inputExtensions,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {
