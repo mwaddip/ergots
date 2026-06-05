@@ -17,20 +17,13 @@
  * fixed regardless of exponent magnitude — sigma-rust does NOT scale by
  * bit-length.
  *
- * **CRITICAL identity-base guard (load-bearing).** Per spec Risk Hotspot 4:
- * `@noble/curves@2.2.0` `Point.multiply` (weierstrass.ts:1067) does NOT
- * short-circuit on `Point.ZERO`. Only `multiplyUnsafe` (line 1103) has the
- * `is0()` check. Our `pointMul` calls `Point.multiply`, so
- * `pointMul(Point.ZERO, nonzero_k)` would execute the full wNAF code path
- * on identity coordinates — undefined behavior / off-curve result. Sigma-
- * rust's `ec_point::exponentiate` (`ec_point.rs:113-118`) explicitly short-
- * circuits identity bases:
- *
- *   if !is_identity(base) { EcPoint(base.0 * exponent) } else { *base }
- *
- * We mirror via the `base.is0()` guard below. Validation: oracle fixture
- * `exp_identity_k` asserts 33-zero-bytes output for `identity^nonzero_k`.
- * (Since v6 P7a the guard lives in crypto/secp256k1.ts expPoint, shared with SGroupElement.expUnsigned.)
+ * **Identity-base guard.** Mirrors sigma-rust `ec_point.rs:113-118`
+ * (explicit short-circuit for identity bases). See `crypto/secp256k1.ts`
+ * `expPoint` docstring for the full rationale: the guard is defense-in-depth
+ * pinning uncontracted @noble/curves behavior, not protection against UB.
+ * Validation: oracle fixture `exp_identity_k` asserts 33-zero-bytes output
+ * for `identity^nonzero_k`. Since v6 P7a the guard lives in `expPoint`,
+ * shared with `SGroupElement.expUnsigned` (7:6).
  *
  * Build-time type guard: `Exponentiate::new` (sigma-rust
  * `ergotree-ir/src/mir/exponentiate.rs:27-39`) enforces
@@ -44,11 +37,6 @@
  * Ergo 33-zero-byte identity encoding. The guard returns a freshly-allocated
  * 33-zero-byte Uint8Array to match sigma-rust's `EcPoint::scorex_serialize`
  * at `ec_point.rs:127-137`.
- *
- * Note: `decodePoint` (invoked below for the base operand) silently rejects
- * `[0x00, non-zero]` inputs that sigma-rust would accept as identity. See
- * the central `decodePoint` docstring at `crypto/secp256k1.ts` for the
- * divergence rationale (production-unreachable; deliberate strict-reject).
  */
 
 import type { Exponentiate, SValue } from '../mir/types'

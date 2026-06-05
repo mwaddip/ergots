@@ -135,9 +135,13 @@ export function pointMul(p: Point, k: bigint): Point {
  * `pointMul` (mod-n reduction; k=0 / k≡0 (mod n) → ZERO) → encode (ZERO →
  * 33 zero bytes, the Ergo identity convention).
  *
- * The identity-base guard is LOAD-BEARING: `@noble/curves` `Point.multiply`
- * does NOT short-circuit `Point.ZERO` (see `eval/exponentiate.ts` module docs
- * for the full rationale + sigma-rust `ec_point.rs:113-118` correspondence).
+ * The identity-base guard mirrors sigma-rust's explicit short-circuit
+ * (`ec_point.rs:113-118`) and pins behavior noble does NOT contractually
+ * document: `Point.multiply` has no `is0()` short-circuit, and while on the
+ * pinned @noble/curves@2.2.0 `ZERO.multiply(k)` happens to return a clean
+ * ZERO (which `encodePoint` would emit as the same 33 zero bytes), that is
+ * unspecified library behavior — the guard makes the identity path explicit
+ * and upgrade-proof rather than relying on it.
  *
  * Shared by the v5 `Exponentiate` arm (signed BigInt exponent) and
  * `SGroupElement.expUnsigned` 7:6 (UBI exponent ∈ [0, 2²⁵⁶), v6 P7a) — the
