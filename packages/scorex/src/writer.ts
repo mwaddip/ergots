@@ -90,6 +90,11 @@ export class ByteWriter {
     if (value < 0n) {
       throw new Error(`writeVlqBigInt: negative value: ${value}`);
     }
+    if (value > 0xffffffffffffffffn) {
+      // Mirror encodeVlqU (vlq.ts): the wire carries u64 only; a wider value
+      // would decode WRAPPED mod 2^64 on every implementation — reject at source.
+      throw new Error('writeVlqBigInt: value exceeds u64');
+    }
     let v = value;
     while (v >= 0x80n) {
       this.writeU8(Number((v & 0x7fn) | 0x80n));

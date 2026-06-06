@@ -57,7 +57,7 @@ describe('VLQ unsigned (scorex free functions)', () => {
   });
 
   test('encode rejects values above u64 max', () => {
-    expect(() => encodeVlqU(0x10000000000000000n)).toThrow();
+    expect(() => encodeVlqU(0x10000000000000000n)).toThrow(/exceeds u64/);
   });
 
   test('decode wraps mod 2^64 like the references (10th-byte high bits drop)', () => {
