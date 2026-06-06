@@ -67,6 +67,7 @@ export function sTypeOfSValue(v: SValue): SType {
     case 'GroupElement': return { tag: 'SGroupElement' }
     case 'SigmaProp': return { tag: 'SSigmaProp' }
     case 'Box': return { tag: 'SBox' }
+    case 'AvlTree': return { tag: 'SAvlTree' }
     case 'Header': return { tag: 'SHeader' }
     case 'PreHeader': return { tag: 'SPreHeader' }
     case 'Unit': return { tag: 'SUnit' }

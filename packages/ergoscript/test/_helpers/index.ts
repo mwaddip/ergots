@@ -11,6 +11,7 @@ import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { parseSValue } from '../../src/wire/parse-svalue'
 import { ByteReader } from '@ergots/scorex'
 import type { Header } from '@ergots/scorex'
 
@@ -92,8 +93,16 @@ export function hydrateSValue(json: any): SValue {
         value: json.value === null ? null : hydrateSValue(json.value),
       }
     case 'Box':
+      if (typeof json.bytes_hex === 'string') {
+        // SANTA canonical binary form: sigma-serialized ErgoBox bytes.
+        return parseSValue({ tag: 'SBox' }, 3, new ByteReader(hexToBytes(json.bytes_hex)))
+      }
       return { kind: 'Box', value: hydrateErgoBox(json.value) }
     case 'AvlTree': {
+      if (typeof json.bytes_hex === 'string') {
+        // SANTA canonical binary form: sigma-serialized AvlTreeData bytes.
+        return parseSValue({ tag: 'SAvlTree' }, 3, new ByteReader(hexToBytes(json.bytes_hex)))
+      }
       // AvlTreeData carrier. JSON shape (from fixture-gen's
       // avl_tree_data_to_json helper, phase 2h-b):
       //   { digest_hex, treeFlags (u8), keyLength (u32), valueLengthOpt (u32 | null) }
@@ -130,6 +139,12 @@ export function hydrateSValue(json: any): SValue {
       }
     }
     case 'Header': {
+      if (typeof json.bytes_hex === 'string') {
+        // SANTA canonical binary form: scorex-serialized Header bytes.
+        // treeVersion 3: the SHeader literal parse is V3-gated (parse-svalue.ts),
+        // and every bytes_hex Header carrier in the corpus is a v6 vector.
+        return parseSValue({ tag: 'SHeader' }, 3, new ByteReader(hexToBytes(json.bytes_hex)))
+      }
       // Header value carrier. JSON shape is defined by fixture-gen's
       // header_to_json helper (added in phase 2h-c.1).
       return { kind: 'Header', value: hydrateHeader(json.value) }

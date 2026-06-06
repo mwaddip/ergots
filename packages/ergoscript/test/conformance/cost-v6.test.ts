@@ -69,6 +69,17 @@ const VECTOR_FILES = [
   // F1 (SANTA 2026-06-06): DeserializeContext dead-branch tolerance —
   // 2 dead-branch accepts (RED until the F1 fix) + 2 live rejects.
   'DeserializeContext_over_absent_wrong_typed_var.json',
+  // F2 (2026-06-06): timestamp-bigint (#4) + putUByte=1 (#5) acceptance — the 16
+  // dasher reds of 2026-06-06. serialize walks over Box (nTokens/nRegs +2),
+  // AvlTree (flags +1), Header v1/v2 (dLen/unparsedLen +1); the three Header
+  // entries carry timestamp 4928911477310178288 > 2^53 (the #4 panic class).
+  // deserializeTo_header = serialize→deserializeTo→EQ round-trip (677 v2 / 804 v1).
+  'Global.serialize_Box.json',
+  'Global.serialize_Box_Int.json',
+  'Global.serialize_AvlTree.json',
+  'Global.serialize_Header.json',
+  'Global.deserializeTo_header.json',
+  'Header_new_methods.json',
 ]
 
 for (const file of VECTOR_FILES) {
