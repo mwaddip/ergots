@@ -8,8 +8,11 @@
  * Pattern B: per-item cost `addPerItemCost(20, 3, 5, n)` is charged AFTER
  * eval-children (bound + input).
  *
- * Source: atleast.rs:19-58, EXCEPT steps 4-5 where the JVM (canonical)
- * reduces and sigma-rust errors — see inline comment.
+ * Source: steps 1-3,6 follow atleast.rs:19-58 (sigma-rust ergo-node-integration).
+ * Steps 4-5 are canonical from JVM AtLeast.reduce (trees.scala:340-359):
+ * bound ≤ 0 → TrivialProp(true); bound > size → TrivialProp(false).
+ * Sigma-rust ergo-node-integration was fixed 2026-06-04 to agree with the JVM
+ * (it no longer errors here); see inline comment for the historical fork.
  *
  * Eval flow:
  *   1. eval bound → must be Int.
@@ -51,15 +54,21 @@ export function evalAtleast(e: Atleast, env: Env, ctx: EvalContext): SValue {
   // Source: atleast.rs:34 — ctx.add_per_item_jit_cost(20, 3, 5, n)
   ctx.addPerItemCost(20, 3, 5, items.length)
 
-  // Steps 4-5: JVM degenerate-bound reductions (canonical: sigma-state
-  // AtLeast — bound ≤ 0 ⇒ TrivialProp(true); bound > size ⇒ TrivialProp(false);
-  // there is NO eval-time 255 bound cap — blessed entry bound-256-gt-255-False#5
-  // reduces to false, it does not error). sigma-rust's u8 try_into + bound>len
-  // errors here (atleast.rs:47-55) are the TESTNET WEDGE shape (tx accepted on
-  // chain at h=184137 wedged ergo-node-rust): JVM reduces where rust errored.
-  // ergots follows the JVM. Blessed: atLeast_with_a_degenerate_bound #1/#4/#5/#6
-  // (cost 46/46/46/44 — same charge as the non-degenerate siblings, so the
-  // Pattern-B charge above this block is unchanged).
+  // Steps 4-5: JVM degenerate-bound reductions — canonical authority is
+  // JVM AtLeast.reduce (trees.scala:340-359): bound ≤ 0 ⇒ TrivialProp(true);
+  // bound > size ⇒ TrivialProp(false). ergots follows the JVM.
+  //
+  // Historical fork: the STALE vendored sigma-rust (integration/ergots) errored
+  // here via u8 try_into + bound>len checks (atleast.rs:47-55); that was the
+  // shape that wedged ergo-node-rust on testnet tx at h=184137. Canonical
+  // sigma-rust (ergo-node-integration) was fixed 2026-06-04 to reduce, matching
+  // the JVM. Blessed fixtures: atLeast_with_a_degenerate_bound #1/#4/#5/#6
+  // (cost 46/46/46/44 — Pattern-B charge above is unchanged for degenerate cases).
+  //
+  // NOTE: a 255-CHILDREN cap (JVM MaxChildrenCount, on input-coll length, NOT the
+  // bound) is NOT enforced here — deferred to F5 (conformance-run spec,
+  // user-decision-pending). When added it must sit BEFORE these degenerate
+  // reductions; cap-vs-reduce ordering is an open JVM-vs-sigma-rust question.
   const k = boundV.value
   if (k <= 0) {
     return { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }
