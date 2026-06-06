@@ -32,6 +32,32 @@ export function hexToBytes(hex: string): Uint8Array {
 }
 
 /**
+ * Hydrate a SANTA canonical bytes_hex carrier (runner-contract §4: the
+ * STANDALONE chain-serializer form — ErgoBox.sigmaSerializer / ErgoHeader.
+ * sigmaSerializer / AvlTreeData.serializer — a version-FREE codec channel).
+ *
+ * treeVersion=3 neutralizes parseSValue's only version gate (the SHeader
+ * tree-constant reject at parse-svalue.ts:537, which belongs to the TREE
+ * channel); byte→value interpretation is version-invariant, and the entry's
+ * tree still evaluates under its own version.ergoTree via makeContext.
+ * Do NOT thread the entry version here — a v5 entry with a Header input is
+ * legal (Context.headers exists since 5.0) and threading would false-RED it.
+ *
+ * Exhaustion assert: parseSValue delegates trailing-byte checks to the
+ * caller (parse-svalue.ts:164-167) — a vendoring slip (truncated/appended
+ * hex) must fail LOUDLY at hydration, not as a confusing downstream
+ * value/cost mismatch.
+ */
+function hydrateCanonicalBytes(tag: 'SBox' | 'SHeader' | 'SAvlTree', hex: string): SValue {
+  const r = new ByteReader(hexToBytes(hex))
+  const v = parseSValue({ tag }, 3, r)
+  if (r.remaining !== 0) {
+    throw new Error(`hydrateCanonicalBytes(${tag}): ${r.remaining} trailing bytes after parse`)
+  }
+  return v
+}
+
+/**
  * Hydrate a JSON-stringified SValue (sigma-rust's `value_to_json` output)
  * into a runtime SValue. Long / BigInt round-trip as decimal strings (JSON
  * has no bigint literal); GroupElement / SigmaProp as hex strings; Coll /
@@ -93,16 +119,10 @@ export function hydrateSValue(json: any): SValue {
         value: json.value === null ? null : hydrateSValue(json.value),
       }
     case 'Box':
-      if (typeof json.bytes_hex === 'string') {
-        // SANTA canonical binary form: sigma-serialized ErgoBox bytes.
-        return parseSValue({ tag: 'SBox' }, 3, new ByteReader(hexToBytes(json.bytes_hex)))
-      }
+      if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SBox', json.bytes_hex)
       return { kind: 'Box', value: hydrateErgoBox(json.value) }
     case 'AvlTree': {
-      if (typeof json.bytes_hex === 'string') {
-        // SANTA canonical binary form: sigma-serialized AvlTreeData bytes.
-        return parseSValue({ tag: 'SAvlTree' }, 3, new ByteReader(hexToBytes(json.bytes_hex)))
-      }
+      if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SAvlTree', json.bytes_hex)
       // AvlTreeData carrier. JSON shape (from fixture-gen's
       // avl_tree_data_to_json helper, phase 2h-b):
       //   { digest_hex, treeFlags (u8), keyLength (u32), valueLengthOpt (u32 | null) }
@@ -139,12 +159,7 @@ export function hydrateSValue(json: any): SValue {
       }
     }
     case 'Header': {
-      if (typeof json.bytes_hex === 'string') {
-        // SANTA canonical binary form: scorex-serialized Header bytes.
-        // treeVersion 3: the SHeader literal parse is V3-gated (parse-svalue.ts),
-        // and every bytes_hex Header carrier in the corpus is a v6 vector.
-        return parseSValue({ tag: 'SHeader' }, 3, new ByteReader(hexToBytes(json.bytes_hex)))
-      }
+      if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SHeader', json.bytes_hex)
       // Header value carrier. JSON shape is defined by fixture-gen's
       // header_to_json helper (added in phase 2h-c.1).
       return { kind: 'Header', value: hydrateHeader(json.value) }

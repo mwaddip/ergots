@@ -54,7 +54,7 @@ export interface SantaVector {
   entries: SantaEntry[]
 }
 
-/** Derive an SValue's SType — only the kinds that appear as v5 vector inputs.
+/** Derive an SValue's SType — only the kinds that appear as vector inputs.
  *  Coll/Option carry `elem` already (set by hydrateSValue); Tuple recurses. */
 export function sTypeOfSValue(v: SValue): SType {
   switch (v.kind) {
