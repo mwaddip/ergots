@@ -16,7 +16,7 @@ interface HeaderCase {
   id_hex: string;
   height: number;
   n_bits: number;
-  timestamp: number;
+  timestamp: number; // fixture JSON: always < 2^53; compared as BigInt(c.timestamp)
   parent_id_hex: string;
   extension_root_hex: string;
   version: number;
@@ -32,7 +32,7 @@ describe('Header', () => {
       const r = new ByteReader(hexToBytes(c.bytes_hex));
       const h = parseHeader(r);
       expect(h.height).toBe(c.height);
-      expect(h.timestamp).toBe(c.timestamp);
+      expect(h.timestamp).toBe(BigInt(c.timestamp));
       expect(h.nBits).toBe(c.n_bits);
       expect(bytesToHex(h.parentId)).toBe(c.parent_id_hex);
       expect(bytesToHex(h.extensionRoot)).toBe(c.extension_root_hex);
@@ -65,5 +65,19 @@ describe('Header', () => {
       expect(e).toBeInstanceOf(ReaderError);
       expect((e as ReaderError).code).toBe('truncated');
     }
+  });
+
+  test('timestamp beyond 2^53 round-trips losslessly (u64 carried as bigint)', () => {
+    // 4928911477310178288 > 2^53 — the SANTA Header_new_methods blessed value.
+    // The pre-F2 carrier (number + MAX_SAFE_INTEGER parse guard) rejected this;
+    // a u64 timestamp is consensus-valid (JVM carries Long, sigma-rust u64).
+    const r = new ByteReader(hexToBytes(fixtures[0]!.bytes_hex));
+    const h = parseHeader(r);
+    h.timestamp = 4928911477310178288n;
+    const re = serializeHeader(h);
+    const h2 = parseHeader(new ByteReader(re));
+    expect(h2.timestamp).toBe(4928911477310178288n);
+    // Round-trip identity (the NIP-08 audit concern, now structurally lossless):
+    expect(serializeHeader(h2)).toEqual(re);
   });
 });
