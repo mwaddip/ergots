@@ -2,11 +2,12 @@
 
 **Date:** 2026-06-06 · **Status:** discovery DONE → fixing in phases · **Branch:** `ergoscript-v6`
 **Phase type:** discovery/root-cause (done) → reachability-ordered fix phases F1–F5 (user-approved
-the plan + F1 execution 2026-06-06; F2 next, pending "go").
+the plan + F1 execution 2026-06-06; F2 DONE 2026-06-06).
 **Deliverable:** root-caused divergence inventory (done) + phased fix plan (done) + the fixes.
 **Progress:** ✅ **F1 DONE + PUSHED** (`origin/ergoscript-v6` @ `d7cef2f`; atLeast + DC value forks,
-6 eval-tier reds closed, holistic review ship-on-branch). Next: **F2** (timestamp bigint + putUByte
-cost). See SESSION_CONTEXT "CONTINUE HERE" for the F2 start kit.
+6 eval-tier reds closed). ✅ **F2 DONE 2026-06-06** (commits `7bf3bff..531c8fa`, 9 commits; timestamp
+bigint + putUByte cost class; 16 rows closed at blessed costs). Next: **F3** (EQ_of_SigmaProp +
+serialize(SigmaProp) cost, pending user "go").
 
 ## Why
 
@@ -145,20 +146,22 @@ combined with Task 2's `'atleast-bound-out-of-range'` removal: net 81→79).
   vectorless). Same file under surgery; would land source-pinned + unit-tested, with
   the conformance vector following via SANTA's queue. IN or defer to F5?
 
-### F2 — timestamp bigint + the putUByte cost class  ·  closes 19 rows (3 panics + 16 cost)
-Ordered together: #4 unmasks #5's Header-v2 term; both touch the serialize zone.
-- **scorex `Header.timestamp` number→bigint** (root cause #4): drop the
-  `header.ts:69-73` guard, carry u64 losslessly; adapt the 4 ergoscript consumer files
-  (`sheader.ts`, `method-call.ts`, `relation.ts`, `serialize-cost.ts`); nipopow is
-  type-ripple only (zero `.timestamp` refs). **Touches scorex → rebuild `dist/` before
-  testing dependents; scorex republish at v6 delivery already planned.**
-- **putUByte = 1 sweep** (root cause #5): charge the four sites (Box nTokens/nRegs,
-  AvlTree flags, Header-v1 dLen, Header-v2 unparsedLen) + sweep `serialize-cost.ts`
-  for any other bare-putUByte-as-0 modeling.
-- TDD oracle: serialize_Box ×8 + Box_Int ×2 (all +2), serialize_AvlTree ×2 (+1),
-  deserializeTo_header 804 (v1, +1) **and** the two currently-panicking entries
-  (serialize_Header 333, deserializeTo_header 677) which exercise timestamp+unparsedLen
-  together, + Header_new_methods panic entry.
+### F2 — timestamp bigint + the putUByte cost class  ·  ✅ DONE 2026-06-06 (commits `7bf3bff..531c8fa`, 9 commits)
+
+**Outcome:** 16 rows closed at blessed costs. All 6 SANTA vectors green (Box ×8 cost 139–178, Box_Int ×2 cost 142/146, AvlTree ×2 cost 127, serialize_Header 333, deserializeTo_header 677/804, Header_new_methods 774). Zero remaining F2 work. **Two review-caught bonus consensus fixes:**
+1. **VLQ u64 wrap** (`7bf3bff`→`1aacca1`+`6b46fd2`): `decodeVlqU`/`ByteReader.readVlqBigInt` now wrap mod 2^64 (`BigInt.asUintN(64,·)`) matching sigma-rust `get_u64` / JVM `getULong` protobuf loop; `encodeVlqU`/`writeVlqBigInt` reject inputs > u64. A genuine consensus correctness fix caught during code review.
+2. **SHeader/SPreHeader signed-i64 view** (`5a2d979`+`31d2dabc`): the eval accessors for `.timestamp` now present `BigInt.asIntN(64, value)` (signed i64 view) rather than the raw u64 — matching JVM `as Long` semantics; u64-max surfaces as Long(−1) not a large positive bigint.
+
+**putUByte=1 model verified 4 ways:** JVM dispatch chain (`Writer.putUByte`→`put(x.toByte)`→`SigmaByteWriter.put(Byte):45-48`→`addFixedCost(PutByteCost=1)`); scorex-util jar bytecode; eni `add_put_byte_cost` sites; arithmetic confirmation from the blessed row `serialize_Header: 333 = StartWriter(10) + serializeHeaderWithoutPow(244) + putUByte(1) + powSolution(78)`.
+
+**eni type-length divergence flagged for routing (pending user go):** eni does NOT charge the four type-serializer length-byte `put_u8` sites (>4-tuple len `types.rs:456`, SFunc tDom len `:467`, SFunc tpeParams len `:475`, STypeVar name len `stype_param.rs:81`) NOR the STypeVar name-bytes chunk cost (`stype_param.rs:81-82`). JVM is canonical; only the >4-tuple site is adversarially reachable (5-tuple register types, cost pin 84). Routing via SANTA pending user go.
+
+**Gate:** avltree 156 / ergoscript 3987 / nipopow 247 / scorex 187 — all green; tsc clean.
+
+**Note on row count:** the plan said "closes 19 rows (3 panics + 16 cost)". The 3 panic rows and the 16 cost rows were double-counted across both the panic bucket and the cost bucket in the earlier arithmetic — the correct count of distinct dasher reds closed is **16** (the 3 panics are a subset of the 16 putUByte/timestamp cost rows; they all flip together). The re-grade table below is corrected.
+
+- ~~scorex `Header.timestamp` number→bigint (root cause #4)~~ ✅ done `7bf3bff`
+- ~~putUByte = 1 sweep (root cause #5)~~ ✅ done `02b17fe`, `855044b`, `6bfae86`
 
 ### F3 — cost-only remainder (EQ_of_SigmaProp + serialize(SigmaProp))  ·  closes 8 rows (3 identical + 5 unequal EQ + serialize_SigmaProp)
 - **EQ_of_SigmaProp** (root cause #1): recursive SigmaBoolean cost walk in
@@ -218,20 +221,25 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 |---|---|---|
 | Task 2 (✅ done `eb09892`) | 49 | −4 atLeast value |
 | F1 Task 3 (✅ done `5580a75` — DC cost resolved: SANTA re-blessed 12→20, Decision A) | 47 | −2 DC value |
-| F2 | 28 | −3 Header panics, −16 putUByte/serialize cost |
-| F3 | 19 | −8 EQ (3 identical + 5 unequal) − wait: −8 EQ + −1 serialize_SigmaProp = −9 → 19 |
-| F4 | −22 AvlTree Tier-2 cost → near 0 (remaining = the pre-existing 7 v5/authored if any uncovered + tx-tier 21 out-of-scope) |
-| F5 | gap-fill; NEW green pins extend corpus |
+| F2 ✅ DONE | **31** | −16 (timestamp+putUByte cost rows, incl. the 3 that were panicking). *(The old "−19" arithmetic double-counted the 3 panic rows across both the "panics" and "cost" subtotals — they are the same rows. Correct flip count = 16.)* |
+| F3 | 22 | −9 (EQ_of_SigmaProp: 3 identical + 5 unequal = 8 rows; serialize_SigmaProp: 1 row) |
+| F4 | 0 eval-tier ergots-bug reds | −22 AvlTree Tier-2 cost (after F3: 22 remaining = exactly the 22 AvlTree Tier-2 cost rows; tx-tier 21 stay out-of-scope) |
+| F5 | gap-fill; NEW green pins extend corpus | |
 
-(tx-tier 21 stay out-of-scope unless the codec decision flips them in.)
+(tx-tier 21 stay out-of-scope unless the codec decision flips them in. After F4, eval-tier ergots-bug reds = 0.)
 
 ### Decisions needed before/during execution (user)
 1. F1 rider: atLeast 255-cap in F1 or F5?
 2. tx-tier scope (21 not-impl rows): Transaction codec on the roadmap (own future
    phase, NOT part of this plan) or acknowledged-gap (rows stay as growth ledger)?
-3. Corpus vendoring policy: vendor the full green corpus into
-   `test/fixtures/conformance/` as permanent regression pins, or keep per-phase
-   vendored subsets + SANTA grade for breadth?
+3. Corpus vendoring policy: ✅ **RESOLVED 2026-06-06 (user) — middle path.** Vendor the
+   FULL green corpus (2.9 MB / 155 files / 2143 entries) into `test/fixtures/conformance/`
+   as permanent regression pins, with SANTA as upstream: one-command re-sync (`cp -r` +
+   git-diff review) at phase boundaries, so staleness vs SANTA re-blessings is bounded by
+   a phase. Lands as its own task at F5/close-out — per-phase subsets continue through
+   F2–F4 (not load-bearing mid-run). Flow is BIDIRECTIONAL: ergots-side authored
+   tests/vectors flow back to SANTA, which redistributes them to grade all the other
+   implementations (the established ergots-leads pattern).
 4. Process weight per fix phase: full chain incl. brainstorm for each, or
    writing-plans→TDD→review under this umbrella (recommended for F1–F3; F4 gets a
    mini-spec)?
@@ -250,3 +258,18 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 SANTA channel: kitty win 2 (autonomous messaging granted 2026-06-06; file routing still
 per-authorization). sigma-rust session: kitty win 3 (no direct grant — route via SANTA
 or user). This spec is the phase's living ledger; update tables in place.
+
+**F2 follow-up — eni type-length divergence routing (pending user go):** eni does NOT charge the four type-serializer length-byte `put_u8` sites (>4-tuple `types.rs:456`, SFunc tDom `:467`, SFunc tpeParams `:475`, STypeVar name `stype_param.rs:81`) NOR the STypeVar name-bytes chunk cost. JVM canonical charges all five. Route to sigma-rust via SANTA with the exact eni source line refs + the JVM dispatch chain proof (verified 4 ways in F2). Only the >4-tuple site is adversarially reachable (5-tuple register types; cost pin 84 confirmed). Awaiting user go.
+
+**F2 final-review finding — signed-view sweep (follow-up phase item, pre-existing, NOT an F2 regression):**
+the signed-i64-view principle F2 established for the two timestamp accessors stops there; four other
+u64-wire→SLong surfaces still present the raw unsigned bigint for values ∈ [2^63, 2^64):
+`extract-amount.ts:48` (Box.value), `extract-register-as.ts:95` (R0), `extract-register-as.ts:72` +
+`method-call.ts:1240` (token amounts). The JVM (canonical) parses these via unbounded `getULong()`
+(`ErgoBoxCandidate.scala:193/:212/:220`) and surfaces them as SIGNED Longs (`:71`); sigma-rust instead
+REJECTS at parse (`BoxValue`/`TokenAmount::try_from`) — an eni-vs-JVM divergence in its own right.
+ergots currently accepts like the JVM but surfaces an out-of-i64-range positive 'Long' = neither
+reference. Fix class: `BigInt.asIntN(64, ·)` at the four surfaces + JVM DataSerializer-path verify
+(adversarial-verify rule) + SANTA vector request (Box value / token amount ≥ 2^63, AND a ≥2^63
+Header-timestamp vector to pin F2's asIntN sign-flip empirically — currently unit-pinned only).
+Candidate slot: F5 or its own micro-phase; does not gate F3/F4.

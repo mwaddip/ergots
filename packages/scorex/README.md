@@ -21,7 +21,7 @@ import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag, readVlqU32 } 
 const r = new ByteReader(bytes);
 const n = r.readVlqU();             // plain unsigned VLQ -> number
 const s = r.readVlqS();             // ZigZag VLQ -> number (signed)
-const big = r.readVlqBigInt();      // plain unsigned VLQ -> bigint (64-bit safe)
+const big = r.readVlqBigInt();      // plain unsigned VLQ -> bigint, wrapping mod 2^64 (matching JVM getULong / sigma-rust get_u64)
 const opt = r.readOption(sub => sub.readU8());  // null | T
 const arr = r.readArray(sub => sub.readU8());   // T[]
 
@@ -80,6 +80,16 @@ const hit2: bigint = autolykosHitForMessageWithChecks(k, msg, nonce, h, N);
 The hit primitive shared by `verifyAutolykosV2`, `@ergots/nipopow`'s proof comparison, and `@ergots/ergoscript`'s `Global.powHit` evaluator arm. Faithful port of JVM `Autolykos2PowValidation.hitForVersion2ForMessage`. `int32BE` encodes a signed 32-bit integer as 4 big-endian bytes (JVM `scorex.utils.Ints.toByteArray`); pass `int32BE(height)` as the `h` argument for the standard header path.
 
 See [facts/scorex.md](../../facts/scorex.md) for the full interface contract: all method signatures, type invariants, VLQ semantics, error codes, and source mapping to sigma-rust.
+
+## Breaking changes vs 0.1.0 — republish as 0.2.0 at v6 delivery
+
+The following changes are doubly breaking relative to the published `@ergots/scorex@0.1.0`:
+
+- **`Header.timestamp` is now `bigint`** (was `number`). The prior `MAX_SAFE_INTEGER` guard is removed; the field now carries the full u64 range losslessly. Callers that used `header.timestamp` as a JS `number` must update to bigint arithmetic. `SHeader.timestamp` and `SPreHeader.timestamp` in the ergoscript evaluator present the signed i64 view (`BigInt.asIntN(64, timestamp)`), matching JVM `as Long`.
+- **`encodeVlqU` / `writeVlqBigInt` reject inputs > u64** (`value > 0xffffffffffffffffn` guard). Previously any bigint was accepted; now inputs beyond the u64 range throw.
+- **`decodeVlqU` / `readVlqBigInt` wrap mod 2^64** (`BigInt.asUintN(64, accumulator)` applied per-shift). This matches sigma-rust `get_u64` / JVM `getULong`'s protobuf loop behaviour; previously oversized inputs could produce values beyond u64.
+
+These three changes together complete the scorex VLQ u64 contract. A scorex `0.2.0` publish is planned at v6 delivery (the `ergoscript-v6` branch is the staging area; `@ergots/ergoscript` and `@ergots/nipopow` will be co-published).
 
 ## Browser compatibility
 
