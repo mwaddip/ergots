@@ -192,14 +192,14 @@ function substituteDeserializeContext(
     // the eval-time 'deserialize-not-substituted' throw; a dead branch never
     // errors. sigma-rust eni matches (`None => return Ok(())`, expr.rs:453).
     // The old eager throw here was the h=111927 testnet wedge shape. Blessed:
-    // DeserializeContext_over_absent_wrong_typed_var #0 (dead, true@12) /
+    // DeserializeContext_over_absent_wrong_typed_var #0 (dead, true@20) /
     // #2 (live, errored).
     return e
   }
   if (entry.tpe.tag !== 'SColl' || entry.tpe.elem.tag !== 'SByte') {
     // Wrong-typed var: same leave-unchanged contract. JVM inner `case _ => None`
     // (Interpreter.scala:121-122); sigma-rust eni `Err(_) => return Ok(())`
-    // (expr.rs:462). Blessed: entries #1 (dead, true@12) / #3 (live, errored).
+    // (expr.rs:462). Blessed: entries #1 (dead, true@20) / #3 (live, errored).
     return e
   }
   const bytes = collByteToUint8Array(
