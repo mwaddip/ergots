@@ -25,7 +25,7 @@
  *   SBox     → data/.../org/ergoplatform/ErgoBox.scala:204-212 (sigmaSerializer)
  *              + ErgoBoxCandidate.scala:138-181 (serializeBodyWithIndexedDigests)
  *   SHeader  → data/.../org/ergoplatform/ErgoHeader.scala:157-165
- *              + HeaderWithoutPow.scala:47-65 + AutolykosSolution V2:82-87
+ *              + HeaderWithoutPow.scala:47-65 + ErgoHeader.scala V2:82-94
  *   Register putValue → ConstantSerializer.scala:13-16 (putType + DataSerializer)
  *                        with NO constant store (methods.scala:1979 startWriter(None,…))
  *   Primitive costs → SigmaByteWriter.scala:45-185 / 235-262.
@@ -206,6 +206,83 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     expect(bytes).toEqual(wireBytes({ tag: 'SBox' }, box))
   })
 
+  // ── Tuple-register arity boundary: 4-tuple (Quadruple) vs 5-tuple (TupleTypeCode+len) ──
+  //
+  // TypeSerializer.serialize writes Quadruple code (1 byte) for 4-item tuples with NO
+  // length byte; for 5+ items it writes TupleTypeCode (1 byte) + putUByte(len) = 1.
+  // Both overloads of putUByte delegate CoreByteWriter → Writer trait put(x.toByte) →
+  // virtual SigmaByteWriter.put(Byte):45-48 = PutByteCost 1 (F2 #5).
+  //
+  // 4-tuple (R4 = (SByte,SByte,SByte,SByte)):
+  //   putType: Quadruple code (1) + 4 × SByte code (4×1) = 5
+  //   data: STuple walk = 4 × putByte = 4
+  //   register: 5 + 4 = 9
+  //   box walk: 48 + 9 = 57 ; total = 14 + 10 + 57 = 81.
+  //
+  // 5-tuple (R4 = (SByte,SByte,SByte,SByte,SByte)):
+  //   putType: TupleTypeCode (1) + putUByte(len=5) (1) + 5 × SByte code (5×1) = 7
+  //   data: STuple walk = 5 × putByte = 5
+  //   register: 7 + 5 = 12
+  //   box walk: 48 + 12 = 60 ; total = 14 + 10 + 60 = 84.
+
+  it('serialize[Box] with 4-tuple SByte register (R4) → cost 81 (Quadruple code, no length byte)', () => {
+    const reg4: SValue = {
+      kind: 'Tuple',
+      items: [
+        { kind: 'Byte', value: 1 },
+        { kind: 'Byte', value: 2 },
+        { kind: 'Byte', value: 3 },
+        { kind: 'Byte', value: 4 },
+      ],
+    }
+    const tpe4: SType = {
+      tag: 'STuple',
+      items: [{ tag: 'SByte' }, { tag: 'SByte' }, { tag: 'SByte' }, { tag: 'SByte' }],
+    }
+    const box4: SValue = {
+      kind: 'Box',
+      value: makeBox({ registers: { 4: { tpe: tpe4, value: reg4 } } }),
+    }
+    const { bytes, cost } = evalSer({ tag: 'SBox' }, box4)
+    expect(cost).toBe(FRAMEWORK + START_WRITER + 57)
+    expect(cost).toBe(81)
+    expect(bytes).toEqual(wireBytes({ tag: 'SBox' }, box4))
+  })
+
+  it('serialize[Box] with 5-tuple SByte register (R4) → cost 84 (TupleTypeCode + putUByte(len) live)', () => {
+    // The >4-arity length byte (putUByte(len)) is the live consensus surface this test
+    // pins. TypeSerializer.scala:247-248 writes TupleTypeCode + putUByte(len); F2 #5
+    // confirmed putUByte = 1.
+    const reg5: SValue = {
+      kind: 'Tuple',
+      items: [
+        { kind: 'Byte', value: 1 },
+        { kind: 'Byte', value: 2 },
+        { kind: 'Byte', value: 3 },
+        { kind: 'Byte', value: 4 },
+        { kind: 'Byte', value: 5 },
+      ],
+    }
+    const tpe5: SType = {
+      tag: 'STuple',
+      items: [
+        { tag: 'SByte' },
+        { tag: 'SByte' },
+        { tag: 'SByte' },
+        { tag: 'SByte' },
+        { tag: 'SByte' },
+      ],
+    }
+    const box5: SValue = {
+      kind: 'Box',
+      value: makeBox({ registers: { 4: { tpe: tpe5, value: reg5 } } }),
+    }
+    const { bytes, cost } = evalSer({ tag: 'SBox' }, box5)
+    expect(cost).toBe(FRAMEWORK + START_WRITER + 60)
+    expect(cost).toBe(84)
+    expect(bytes).toEqual(wireBytes({ tag: 'SBox' }, box5))
+  })
+
   // ── SBox with a Tuple-Expr register (opaqueBytes) — h=855,650 R8 shape ────────
   //
   // Mainnet context boxes (INPUTS(i)/SELF/…) can carry a register that is a Tuple
@@ -221,7 +298,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
   //   TupleSerializer.serialize (TupleSerializer.scala:18-25):
   //     w.putUByte(count=2, numItemsInfo) = 1  (F2 #5: DataInfo overload
   //                                             SigmaByteWriter.scala:56-59 → super →
-  //                                             CoreByteWriter.scala:47-49 → trait
+  //                                             CoreByteWriter.scala:37-39 → trait
   //                                             put(x.toByte) → virtual put(Byte):45-48
   //                                             = PutByteCost 1; same chain as plain overload)
   //     per item w.putValue(item) → Constant/None path (ValueSerializer.scala:366-367
@@ -307,9 +384,9 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
   //     DifficultySerializer: putBytes(nBits 4) = 7
   //     putUInt(height)          = 0   (no-DataInfo putUInt(x:Long) — genuinely 0)
   //     putBytes(votes 3)        = 6
-  //     if version > 1: putUByte(unparsedLen)=1 (F2 #5; HeaderWithoutPow.scala:61)
+  //     if version > 1: putUByte(unparsedLen)=1 (F2 #5; HeaderWithoutPow.scala:62)
   //                     + putBytes(unparsed u)=(3+u)
-  //   then V2 solution (version != 1, AutolykosSolution.sigmaSerializerV2:82-87):
+  //   then V2 solution (version != 1, ErgoHeader.scala sigmaSerializerV2:82-94):
   //     GroupElementSerializer.serialize(pk 33) = 36
   //     putBytes(nonce 8)        = 11
   //
@@ -358,6 +435,49 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     // walk 244 + 4 = 248 ; total = 14 + 10 + 248 = 272.
     expect(cost).toBe(FRAMEWORK + START_WRITER + 248)
     expect(cost).toBe(272)
+    expect(bytes).toEqual(wireBytes({ tag: 'SHeader' }, hv))
+  })
+
+  // ── V1 header: dLen +1 branch reachability pin ────────────────────────────────
+  //
+  // A V1 header uses the V1 solution path (ErgoHeader.scala:61-80):
+  //   putBytes(pk 33) = 36
+  //   putBytes(w=powOnetimePk 33) = 36
+  //   putBytes(nonce 8) = 11
+  //   putUByte(dLen) = 1  (F2 #5; ErgoHeader.scala:68 — dLen branch IS live here)
+  //   putBytes(d, dLen) = 3 + dLen
+  //
+  // No unparsed branch for v1 (the `if version > 1` guard in HeaderWithoutPow.scala:62
+  // is false). common = 1+35+35+35+36+3+35+7+0+6 = 193.
+  // powDistance = 255n → dLen = 1 (one unsigned magnitude byte, sidesteps d=0 residual).
+  // V1 solution = 36 + 36 + 11 + 1 + (3+1) = 88.
+  // walk = 193 + 88 = 281 ; total = 14 + 10 + 281 = 305.
+
+  it('serialize[Header] (version 1, powDistance=255n) → cost 305 (V1 solution + dLen branch live)', () => {
+    const v1Header: Header = {
+      version: 1,
+      id: new Uint8Array(32),
+      parentId: new Uint8Array(32),
+      adProofsRoot: new Uint8Array(32),
+      stateRoot: new Uint8Array(33),
+      transactionRoot: new Uint8Array(32),
+      timestamp: 0n,
+      nBits: 0,
+      height: 0,
+      extensionRoot: new Uint8Array(32),
+      autolykosSolution: {
+        minerPk: new Uint8Array(33),
+        powOnetimePk: new Uint8Array(33),
+        nonce: new Uint8Array(8),
+        powDistance: 255n,
+      },
+      votes: new Uint8Array(3),
+      unparsedBytes: new Uint8Array(0),
+    }
+    const hv: SValue = { kind: 'Header', value: v1Header }
+    const { bytes, cost } = evalSer({ tag: 'SHeader' }, hv)
+    expect(cost).toBe(FRAMEWORK + START_WRITER + 281)
+    expect(cost).toBe(305)
     expect(bytes).toEqual(wireBytes({ tag: 'SHeader' }, hv))
   })
 

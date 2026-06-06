@@ -49,8 +49,8 @@ const OP_TUPLE = 134
 //  putShort / putInt / putLong (signed)  = 3
 //  putUShort / put_u16                   = 3   (Coll/BigInt/UBI length, Box.index)
 //  putULong / put_u64                    = 3   (Box.value, token.amount, Header.timestamp)
-//  putUInt(DataInfo) / put_u32           = 3   (Box.creationHeight, Header.height,
-//                                               AvlTree.keyLength, token.index)
+//  putUInt(DataInfo) / put_u32           = 3   (no reachable Global.serialize site
+//                                               uses the DataInfo overload)
 //  putUByte                              = 1   (BOTH overloads delegate put(x.toByte)
 //                                               via the scorex Writer trait → virtual
 //                                               dispatch into SigmaByteWriter.put(Byte)
@@ -285,16 +285,23 @@ export function serializeCost(t: SType, v: SValue, ctx: EvalContext): void {
  *     overload — which still costs 1 (F2 #5: both overloads delegate via
  *     CoreByteWriter → Writer trait put(x.toByte) → virtual put(Byte):45-48).
  *   - STypeVar name bytes via `putBytes(name)` = PutChunkCost (3 + n).
- * Note: eni does NOT charge the three type-length sites — a known eni divergence
- * (JVM canonical; already flagged for routing). These costs are JVM-faithful.
+ * Note: eni skips FOUR put_u8 length sites (>4-tuple len types.rs:456; SFunc tDom
+ * len :467; SFunc tpeParams len :475; STypeVar name len stype_param.rs:81) AND the
+ * STypeVar name-bytes chunk cost (stype_param.rs:81-82, no add_put_chunk_cost) — a
+ * known eni divergence (JVM canonical; flagged for SANTA routing). These costs are
+ * JVM-faithful.
  *
  * Embeddable primitives (Boolean/Byte/Short/Int/Long/BigInt/GroupElement/
  * SigmaProp/UnsignedBigInt) compact Coll[prim], Option[prim], and pairs into a
  * single type-code byte — this walk reproduces that compaction so the byte count
  * (and therefore the cost) matches TypeSerializer exactly.
  *
- * Register types are concrete serializable data types (no STypeVar/SFunc in
- * practice), but those arms are handled faithfully for completeness.
+ * Reachability: >4-tuple is reachable via registers (5-item tuples exist on-chain).
+ * STypeVar/SFunc are UNREACHABLE through putTypeCost — the DataSerializer has no
+ * STypeVar/SFunc form, so the register's value parse fails before the type walk
+ * runs; kept for structural parity with TypeSerializer. The SFunc arm models only
+ * the JVM V3 serialize path (pre-V3 SFunc serialize is a MatchError; Global.serialize
+ * implies V3+).
  */
 function putTypeCost(t: SType): number {
   // Embeddable primitives + all simple non-composite type codes: 1 byte each.
@@ -491,7 +498,7 @@ function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
  *       w.put(TupleCode)                = PutByteCost = 1  (SigmaByteWriter.scala:45-48,241)
  *       w.putUByte(count, numItemsInfo) = 1  (F2 #5: DataInfo overload,
  *                                             SigmaByteWriter.scala:56-59 → super →
- *                                             CoreByteWriter.scala:47-49 → trait put(x.toByte)
+ *                                             CoreByteWriter.scala:37-39 → trait put(x.toByte)
  *                                             → virtual SigmaByteWriter.put(Byte):45-48
  *                                             = PutByteCost 1; same chain as plain overload)
  *       per item w.putValue(item)       = recurse (a Const item = putType + DataSerializer;
@@ -520,7 +527,7 @@ function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
     ctx.addCost(PUT_BYTE) // w.put(TupleCode)
     ctx.addCost(PUT_BYTE) // putUByte(count, numItemsInfo) = 1 — DataInfo overload,
     // same Writer-trait delegation chain (SigmaByteWriter.scala:56-59 →
-    // CoreByteWriter:47-49 → trait put → virtual put(Byte)):45-48 = PutByteCost. F2 #5.
+    // CoreByteWriter:37-39 → trait put → virtual put(Byte)):45-48 = PutByteCost. F2 #5.
     const itemsCount = r.readU8() // consumes the count byte (already costed above)
     for (let i = 0; i < itemsCount; i++) {
       addRegisterExprCost(r, ctx)
@@ -540,7 +547,7 @@ function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
 /**
  * Cost of serializing a Header via ErgoHeader.sigmaSerializer, as accrued by
  * SigmaByteWriter. Source: ErgoHeader.scala:157-165 + HeaderWithoutPow.scala:47-65
- * + AutolykosSolution.scala (V1 sigmaSerializerV1:62-70 / V2 sigmaSerializerV2:82-87).
+ * + ErgoHeader.scala (V1 sigmaSerializerV1:61-80 / V2 sigmaSerializerV2:82-94).
  *
  * HeaderWithoutPowSerializer.serialize:
  *   put(version)                 = 1
@@ -554,7 +561,7 @@ function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
  *   putUInt(height) [no-arg]     = 0   (putUInt(x:Long):105-107 — genuinely 0)
  *   putBytes(votes 3)            = 6
  *   if version > 1 (InitialVersion): putUByte(unparsedLen)=1 (F2 #5;
- *     HeaderWithoutPow.scala:61) + putBytes(unparsed)=3+u
+ *     HeaderWithoutPow.scala:62) + putBytes(unparsed)=3+u
  * Then ErgoHeader.sigmaSerializer branches on version:
  *   version == 1 → V1 solution: GE(pk)=36 + GE(w)=36 + putBytes(nonce 8)=11
  *                  + putUByte(dLen)=1 (F2 #5; ErgoHeader.scala:68) + putBytes(d)=3+dLen
@@ -572,7 +579,7 @@ function addHeaderCost(h: Header, ctx: EvalContext): void {
   // putUInt(height) = 0 (no-DataInfo overload)
   ctx.addCost(3 + 3) // putBytes(votes, 3)
   if (h.version > 1) {
-    ctx.addCost(PUT_BYTE) // putUByte(unparsedLen) = 1 (HeaderWithoutPow.scala:61; F2 #5)
+    ctx.addCost(PUT_BYTE) // putUByte(unparsedLen) = 1 (HeaderWithoutPow.scala:62; F2 #5)
     ctx.addCost(3 + h.unparsedBytes.length) // putBytes(unparsed)
   }
   // Solution. GroupElementSerializer.serialize is always putBytes(33) = 36.
