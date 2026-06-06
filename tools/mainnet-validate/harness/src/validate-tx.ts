@@ -64,8 +64,8 @@
  * `ergo-chain-types/src/preheader.rs:26-38`). The fields mirror exactly:
  * `{ version, parentId, timestamp, nBits, height, minerPk, votes }`
  * with `minerPk = header.autolykosSolution.minerPk`. `timestamp` in TS
- * Header is `number`; the TS `PreHeader.timestamp` is `bigint`, so we
- * convert at the boundary.
+ * Header is `bigint` (u64, lossless since F2); the TS `PreHeader.timestamp`
+ * is also `bigint`, so the conversion at the boundary is an identity.
  *
  * # `rollingHeaders` semantics
  *
@@ -263,11 +263,10 @@ export function checkStorageRent(
  *     votes,
  *   }
  *
- * Note `timestamp` widens `number` → `bigint` since the TS `Header`
- * stores timestamp as `number` (audit-bound to <= 2^53) but the TS
- * `PreHeader` is typed `bigint` (matching Rust `u64`). We convert at
- * the boundary so the eval context sees a `bigint` as ergoscript
- * arms expect.
+ * Note `timestamp` in TS `Header` is `bigint` (u64, lossless since F2);
+ * the TS `PreHeader` is also typed `bigint` (matching Rust `u64`). The
+ * `BigInt(h.timestamp)` call below is now an identity — kept for
+ * clarity at the type boundary but incurs no precision loss.
  */
 export function preHeaderFromHeader(h: Header): PreHeader {
     return {
