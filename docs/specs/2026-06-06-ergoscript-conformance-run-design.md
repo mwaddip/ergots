@@ -1,8 +1,12 @@
 # ErgoScript conformance run — full-surface sweep (v5 + v6)
 
-**Date:** 2026-06-06 · **Status:** in progress · **Branch:** `ergoscript-v6`
-**Phase type:** discovery / root-cause — **NO fixes land in this phase** (user, 2026-06-06).
-**Deliverable:** a root-caused divergence inventory + a phased fix plan.
+**Date:** 2026-06-06 · **Status:** discovery DONE → fixing in phases · **Branch:** `ergoscript-v6`
+**Phase type:** discovery/root-cause (done) → reachability-ordered fix phases F1–F5 (user-approved
+the plan + F1 execution 2026-06-06; F2 next, pending "go").
+**Deliverable:** root-caused divergence inventory (done) + phased fix plan (done) + the fixes.
+**Progress:** ✅ **F1 DONE + PUSHED** (`origin/ergoscript-v6` @ `d7cef2f`; atLeast + DC value forks,
+6 eval-tier reds closed, holistic review ship-on-branch). Next: **F2** (timestamp bigint + putUByte
+cost). See SESSION_CONTEXT "CONTINUE HERE" for the F2 start kit.
 
 ## Why
 
