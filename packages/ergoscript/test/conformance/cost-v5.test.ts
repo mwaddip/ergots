@@ -32,6 +32,7 @@ const VECTOR_FILES = [
   'NEQ_of_nested_collections_and_tuples.json',
   'SigmaProp.propBytes_equivalence.json',
   'substConstants_equivalence.json',
+  'atLeast_with_a_degenerate_bound.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

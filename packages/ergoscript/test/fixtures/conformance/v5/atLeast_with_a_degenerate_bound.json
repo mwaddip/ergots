@@ -1,0 +1,155 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "atLeast with a degenerate bound",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-atleast",
+  "entries" : [
+    {
+      "name" : "bound-0-TrueProp#0",
+      "script" : "{ atLeast(0, Coll[SigmaProp] of size 2) }",
+      "tree_bytes_hex" : "1ab60103040008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179898730083020873017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bound-neg1-TrueProp#1",
+      "script" : "{ atLeast(-1, Coll[SigmaProp] of size 2) }",
+      "tree_bytes_hex" : "1ab60103040108cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179898730083020873017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bound-1-COR#2",
+      "script" : "{ atLeast(1, Coll[SigmaProp] of size 2) }",
+      "tree_bytes_hex" : "1ab60103040208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179898730083020873017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "9702cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bound-2-CAND#3",
+      "script" : "{ atLeast(2, Coll[SigmaProp] of size 2) }",
+      "tree_bytes_hex" : "1ab60103040408cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179898730083020873017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "9602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bound-3-gt-size-False#4",
+      "script" : "{ atLeast(3, Coll[SigmaProp] of size 2) }",
+      "tree_bytes_hex" : "1ab60103040608cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179898730083020873017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bound-256-gt-255-False#5",
+      "script" : "{ atLeast(256, Coll[SigmaProp] of size 2) }",
+      "tree_bytes_hex" : "1ab7010304800408cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179808ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179898730083020873017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "empty-input-False#6",
+      "script" : "{ atLeast(1, Coll[SigmaProp] of size 0) }",
+      "tree_bytes_hex" : "1a09010402987300830008",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 44,
+        "error" : null
+      }
+    }
+  ]
+}

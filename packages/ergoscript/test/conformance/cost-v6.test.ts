@@ -66,6 +66,7 @@ const VECTOR_FILES = [
   //   getReg-v6-method-in-v2-tree-reject: 99:19 in ergoTree-v2 → eval REJECT
   //     (ValidationRule 1011 CheckAndGetMethod at deserialize, soft-fork-wrapped).
   'Box.getReg_adversarial.json',
+  'DeserializeContext_over_absent_wrong_typed_var.json',
 ]
 
 for (const file of VECTOR_FILES) {

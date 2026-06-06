@@ -1,0 +1,86 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "DeserializeContext over absent/wrong-typed var",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-deserialize-context",
+  "entries" : [
+    {
+      "name" : "dead-branch-absent#0",
+      "script" : "{ if (true) true else deserializeContext[Boolean](0) }",
+      "tree_bytes_hex" : "1b0d02010101019573007301d40100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 12,
+        "error" : null
+      }
+    },
+    {
+      "name" : "dead-branch-wrong-type#1",
+      "script" : "{ if (true) true else deserializeContext[Boolean](1) }",
+      "tree_bytes_hex" : "1b0d02010101019573007301d40101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 12,
+        "error" : null
+      }
+    },
+    {
+      "name" : "live-absent#2",
+      "script" : "{ deserializeContext[Boolean](0) }",
+      "tree_bytes_hex" : "1b0400d40100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "live-wrong-type#3",
+      "script" : "{ deserializeContext[Boolean](1) }",
+      "tree_bytes_hex" : "1b0400d40101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

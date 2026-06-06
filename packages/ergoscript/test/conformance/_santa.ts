@@ -32,6 +32,8 @@ import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { hydrateSValue, hexToBytes, synthesizeStubBox } from '../_helpers'
+import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { ByteWriter } from '@ergots/scorex'
 
 export interface SantaEntry {
   name: string
@@ -95,8 +97,8 @@ export interface SantaActual {
  *   - `Option` → `{ kind, value }` (NO elem — SANTA schema has no elem for Option).
  *   - `Coll` → `{ kind, elem, items }` (elem IS included for Coll).
  *   - `GroupElement` → `{ kind, bytes_hex }`.
- * NOTE: `SigmaProp` is NOT handled — the function throws on that kind; the
- * comment has been kept accurate to what is actually implemented.
+ * NOTE: `SigmaProp` → `{ kind: 'SigmaProp', raw_hex }` via the wire serializer
+ * (`serializeSigmaBoolean` → ByteWriter → hex). Matches the SANTA canonical form.
  */
 export function svalueToSantaJson(v: SValue): unknown {
   switch (v.kind) {
@@ -125,6 +127,11 @@ export function svalueToSantaJson(v: SValue): unknown {
     case 'Option':
       // SANTA canonical: no `elem` field on Option (runner-contract §4)
       return { kind: 'Option', value: v.value === null ? null : svalueToSantaJson(v.value) }
+    case 'SigmaProp': {
+      const w = new ByteWriter()
+      serializeSigmaBoolean(v.value, w)
+      return { kind: 'SigmaProp', raw_hex: bytesToHex(w.toBytes()) }
+    }
     default:
       throw new Error(`svalueToSantaJson: unhandled SValue kind '${(v as SValue).kind}'`)
   }
