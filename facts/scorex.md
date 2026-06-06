@@ -177,7 +177,7 @@ export interface Header {
   adProofsRoot: Uint8Array       // 32 bytes
   stateRoot: Uint8Array          // 33 bytes (ADDigest = 32-byte digest + 1-byte tree height)
   transactionRoot: Uint8Array    // 32 bytes
-  timestamp: number              // ms since epoch; stored as u64 on wire; capped at Number.MAX_SAFE_INTEGER
+  timestamp: bigint              // ms since epoch; u64 on wire, carried losslessly as bigint (F2)
   nBits: number                  // Bitcoin-compact difficulty (u32, 4 bytes big-endian on wire — NOT VLQ)
   height: number                 // u32 > 0; VLQ-encoded on wire
   extensionRoot: Uint8Array      // 32 bytes
@@ -260,7 +260,7 @@ Callers may rely on these without re-checking after any value returned from the 
 - `stateRoot` is exactly 33 bytes (ADDigest = 32-byte tree root + 1-byte tree height).
 - `votes` is exactly 3 bytes.
 - `nBits` is encoded as 4 bytes big-endian on the wire (NOT VLQ — this diverges from most fields). The parsed value is a `number` in `[0, 2^32-1]`.
-- `timestamp` is a `number` in `[0, Number.MAX_SAFE_INTEGER]`; `parseHeader` throws `ReaderError('vlq-overflow')` if the on-wire VLQ u64 exceeds `Number.MAX_SAFE_INTEGER`. Real chain timestamps are below `2^45` for the next few millennia; this bound is not a practical constraint.
+- `timestamp` is a `bigint` carrying the full wire u64 losslessly; `parseHeader` imposes no upper bound (JVM carries Long — round-trip identity holds for the entire u64 range). The pre-F2 number carrier + `MAX_SAFE_INTEGER` guard (audit NIP-08) was dropped in F2 — the guard protected the lossy carrier, not consensus.
 - `height` is a `number` in `[0, 2^32-1]` (u32 range enforced by `readVlqU32`).
 - `unparsedBytes` is a `Uint8Array` of length 0 for version 1 headers; for version > 1 headers, the length is read as a u8 prefix (0..=255 bytes).
 
@@ -273,7 +273,7 @@ Callers may rely on these without re-checking after any value returned from the 
 
 **VLQ:**
 
-- `encodeVlqU` / `decodeVlqU` handle unsigned integers up to 2^64 - 1 (but `number` callers must stay within `Number.MAX_SAFE_INTEGER`).
+- `encodeVlqU` / `decodeVlqU` handle unsigned integers up to 2^64 - 1 (callers pass a non-negative `bigint` ≤ 2^64 − 1). `decodeVlqU` (and `readVlqBigInt`) wrap mod 2^64 like sigma-rust `get_u64` / JVM protobuf loop when the 10-byte stream encodes a value ≥ 2^64; 10-continuation-byte streams (overflow of the VLQ length limit) still throw `ReaderError('vlq-overflow')`; `encodeVlqU` / `writeVlqBigInt` reject values > 2^64 - 1.
 - `encodeVlqZigZag` / `decodeVlqZigZag` handle signed integers in the i64 range `[-2^63, 2^63 - 1]`.
 - `MAX_ARRAY_LENGTH = 1 << 24 = 16,777,216` is a hard DoS cap applied by `readArray`. No protocol element legitimately exceeds this.
 
@@ -331,7 +331,7 @@ Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdo
 - `nipopow-reader.test.ts` — `ByteReader` used in nipopow-style call patterns; exercises the VLQ path on real proof bytes.
 - `nipopow-writer.test.ts` — `ByteWriter` in nipopow-style serialization patterns.
 - `option-array.test.ts` — `readOption`/`writeOption`, `readArray`/`writeArray`, `readBool`/`writeBool`; null and present branches; multi-element arrays; `array-too-large` error path.
-- `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; `timestamp` overflow guard.
+- `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; u64 timestamp lossless round-trip (beyond 2^53).
 - `autolykos-solution.test.ts` — `parseAutolykosSolution`/`serializeAutolykosSolution` byte-equality; v1 and v2 layouts; `powDistance` minimal-encoding round-trip.
 - `autolykos-v2.test.ts` — `verifyAutolykosV2` against mainnet V2 headers; V1 throw path; helpers' unit tests.
 - `nbits.test.ts` — `decodeCompactBits` round-trip + boundary values.

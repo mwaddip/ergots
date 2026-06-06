@@ -192,7 +192,7 @@ export function hydrateErgoBox(json: any): ErgoBox {
  *   adProofsRoot: hex → Uint8Array (32 bytes)
  *   stateRoot: hex → Uint8Array (33 bytes)
  *   transactionRoot: hex → Uint8Array (32 bytes)
- *   timestamp: decimal string → number (via BigInt then Number)
+ *   timestamp: decimal string → bigint (lossless)
  *   nBits: number
  *   height: number
  *   extensionRoot: hex → Uint8Array (32 bytes)
@@ -209,8 +209,8 @@ export function hydrateHeader(json: any): Header {
     adProofsRoot: hexToBytes(json.adProofsRoot as string),
     stateRoot: hexToBytes(json.stateRoot as string),
     transactionRoot: hexToBytes(json.transactionRoot as string),
-    // timestamp is a decimal string (u64 from Rust) — convert via BigInt then Number
-    timestamp: Number(BigInt(json.timestamp as string)),
+    // timestamp is a decimal string (u64 from Rust) — carry as bigint (lossless)
+    timestamp: BigInt(json.timestamp as string),
     nBits: json.nBits as number,
     height: json.height as number,
     extensionRoot: hexToBytes(json.extensionRoot as string),

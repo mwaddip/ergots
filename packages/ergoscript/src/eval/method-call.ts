@@ -326,6 +326,7 @@ function registerHandlers(): void {
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
   // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
   // Pattern A cost 10 (charged before obj check). Returns Long.
+  // JVM: preHeader.timestamp as i64 — same signed view as SHeader.timestamp.
   HANDLERS.set(handlerKey(105, 3), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
     ctx.addCost(10)
     if (obj.kind !== 'PreHeader') {
@@ -334,7 +335,7 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return { kind: 'Long', value: obj.value.timestamp }
+    return { kind: 'Long', value: BigInt.asIntN(64, obj.value.timestamp) }
   } })
 
   // SPreHeader.height (PropertyCall, typeId=105, methodId=5)

@@ -113,13 +113,15 @@ export function evalSHeaderTransactionsRoot(obj: SValue, _args: SValue[], ctx: E
  * SHeader.timestamp (104:7) — block timestamp as Long (bigint).
  * Source: sheader.rs:58-62.
  *
- * Rust: `header.timestamp as i64`. Our scorex Header.timestamp is a JS `number`;
- * we convert to bigint via BigInt() per the type contract.
+ * Rust: `header.timestamp as i64`. scorex Header.timestamp is the unsigned
+ * wire u64 (bigint, lossless since F2); the JVM/sigma-rust accessor presents
+ * the two's-complement i64 view, so timestamps in [2^63, 2^64) surface as
+ * NEGATIVE Longs. BigInt.asIntN(64, ·) is exactly that reinterpretation.
  */
 export function evalSHeaderTimestamp(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'timestamp')
-  return { kind: 'Long', value: BigInt(obj.value.timestamp) }
+  return { kind: 'Long', value: BigInt.asIntN(64, obj.value.timestamp) }
 }
 
 /**

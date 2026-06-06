@@ -58,7 +58,7 @@ describe('sValueType — runtime value → SType', () => {
         adProofsRoot: new Uint8Array(32),
         stateRoot: new Uint8Array(33),
         transactionRoot: new Uint8Array(32),
-        timestamp: 0,
+        timestamp: 0n,
         nBits: 0,
         height: 0,
         extensionRoot: new Uint8Array(32),

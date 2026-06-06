@@ -25,6 +25,7 @@ import {
   evalSHeaderMinerPk,
   evalSHeaderPowOnetimePk,
   evalSHeaderPowDistance,
+  evalSHeaderTimestamp,
 } from '../../src/eval/sheader'
 import type { SValue } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
@@ -107,7 +108,7 @@ describe('SHeader V2-header null-branch coverage', () => {
       adProofsRoot: new Uint8Array(32),
       stateRoot: new Uint8Array(33),
       transactionRoot: new Uint8Array(32),
-      timestamp: 0,
+      timestamp: 0n,
       nBits: 0,
       height: 0,
       extensionRoot: new Uint8Array(32),
@@ -142,5 +143,43 @@ describe('SHeader V2-header null-branch coverage', () => {
 
     expect(result).toEqual({ kind: 'BigInt', value: 0n })
     expect(ctx.jitCost).toBe(10) // Pattern A Fixed(10)
+  })
+})
+
+// ---------- Signed i64 view of timestamp ----------
+
+describe('SHeader.timestamp signed i64 view (F2 #4)', () => {
+  // The JVM surfaces header.timestamp as Long (i64). scorex Header.timestamp is
+  // now bigint (lossless u64 since F2). Timestamps in [2^63, 2^64) are NEGATIVE
+  // Longs script-side — BigInt.asIntN(64, ·) is the exact reinterpretation.
+  it('SHeader.timestamp surfaces u64 >= 2^63 as the SIGNED Long (JVM i64 view)', () => {
+    const header: Header = {
+      version: 2,
+      id: new Uint8Array(32),
+      parentId: new Uint8Array(32),
+      adProofsRoot: new Uint8Array(32),
+      stateRoot: new Uint8Array(33),
+      transactionRoot: new Uint8Array(32),
+      timestamp: 0xffffffffffffffffn,
+      nBits: 0,
+      height: 0,
+      extensionRoot: new Uint8Array(32),
+      autolykosSolution: {
+        minerPk: new Uint8Array(33),
+        powOnetimePk: null,
+        nonce: new Uint8Array(8),
+        powDistance: null,
+      },
+      votes: new Uint8Array(3),
+      unparsedBytes: new Uint8Array(0),
+    }
+    const obj: SValue = { kind: 'Header', value: header }
+    const ctx = makeContext({})
+
+    const result = evalSHeaderTimestamp(obj, [], ctx)
+
+    // u64 max (0xffffffffffffffff) reinterpreted as i64 = -1
+    expect(result).toEqual({ kind: 'Long', value: -1n })
+    expect(ctx.jitCost).toBe(10) // ACCESSOR_COST
   })
 })

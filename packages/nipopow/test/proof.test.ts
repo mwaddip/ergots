@@ -113,7 +113,11 @@ describe('parseProof error cases', () => {
     }
   });
 
-  test('NIP-08: parseProof rejects header.timestamp > Number.MAX_SAFE_INTEGER', () => {
+  test('NIP-08 (updated F2): header.timestamp > 2^53 round-trips losslessly', () => {
+    // Pre-F2, scorex parseHeader rejected u64 timestamps above MAX_SAFE_INTEGER to
+    // keep the lossy number carrier round-trip-honest (audit NIP-08). The carrier
+    // is bigint since F2 — the audit's actual concern (round-trip identity) now
+    // holds for the full u64 range, so the pin asserts acceptance + identity.
     const proof = buildSyntheticProof({
       m: 1,
       k: 1,
@@ -123,20 +127,11 @@ describe('parseProof error cases', () => {
     const sentinel = new Uint8Array(32);
     proof.prefix[0]!.interlinks = [sentinel];
     proof.suffixHead.interlinks = [sentinel];
-    proof.suffixHead.header.timestamp = Number.MAX_SAFE_INTEGER + 1; // 2^53 (first lossy value)
-    let bytes: Uint8Array;
-    try {
-      bytes = serializeProof(proof);
-    } catch {
-      return;
-    }
-    try {
-      parseProof(bytes);
-      throw new Error('expected throw on parse');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ProofParseError);
-      expect((e as ProofParseError).code).toBe('vlq-overflow');
-    }
+    proof.suffixHead.header.timestamp = 2n ** 53n; // first value the number carrier lost
+    const bytes = serializeProof(proof);
+    const parsed = parseProof(bytes);
+    expect(parsed.suffixHead.header.timestamp).toBe(2n ** 53n);
+    expect(serializeProof(parsed)).toEqual(bytes);
   });
 
   test('NIP-07: parseProof rejects header.height > u32 max', () => {
