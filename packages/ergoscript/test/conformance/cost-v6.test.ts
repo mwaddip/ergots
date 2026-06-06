@@ -15,6 +15,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evalSantaEntry, svalueToSantaJson, type SantaVector, type SantaEntry } from './_santa'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { hexToBytes, captureEvalError, synthesizeStubBox } from '../_helpers'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
@@ -53,7 +57,7 @@ const VECTOR_FILES = [
   //   multi-input-wrong-type-at-idx1: → None (type mismatch), cost 17.
   //   multi-input-present-false-at-idx1: → Some(false), cost 17.
   //   oob-input-index: inputIdx 5 ≥ 2 inputs → None, cost 17.
-  //   negative-varid-0xff: GetVar(-1) ≡ key 255 → Some(true), cost 17.
+  //   negative-varid-0xff: getVarFromInput[Boolean](0, -1) ≡ key 255 → Some(true), cost 17.
   //     First authoritative pin for var ids ≥ 0x80; byte-identity confirmed.
   'Context.getVarFromInput_multi_input.json',
   // Box.getReg adversarial (santa-eval/v2, 3 entries):
@@ -96,5 +100,47 @@ describe('v6 HOF gate — composite-function tree rejects below v3', () => {
     const e = doc.entries[0]!
     const v2: SantaEntry = { ...e, name: `${e.name}@v2`, version: { activated: 2, ergoTree: 2 } }
     expect(evalSantaEntry(v2).error).toBe('errored')
+  })
+})
+
+// Pin the actual EvalError codes for the two v2-envelope adversarial entries in
+// Box.getReg_adversarial.json. These use the same context the conformance arm
+// builds (blesser-mirroring SELF box + var-1 binding), so the assertions are
+// redundant but complementary: they catch any future code-rename at the gate.
+describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () => {
+  // getRegV5-live-reject#0: { SELF.getRegV5(getVar[Int](1).get) } @ ergoTree v3.
+  // 99:7 is unregistered in the handler map → 'method-not-implemented'.
+  it('getRegV5-live (99:7) rejects with method-not-implemented', () => {
+    const treeBytesHex = '1b0a00dc6307a701e4e30104'
+    const treeBytes = hexToBytes(treeBytesHex)
+    const tree = parseTree(treeBytes)
+    const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: treeBytes }
+    const ctx = makeContext({
+      treeVersion: 3,
+      constants: tree.constants,
+      extension: { values: { 1: { tpe: { tag: 'SInt' as const }, value: { kind: 'Int' as const, value: 4 } } } },
+      selfBox,
+    })
+    const err = captureEvalError(() => evaluateWith(tree, ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('method-not-implemented')
+  })
+
+  // getReg-v6-method-in-v2-tree-reject#2: { SELF.getReg[Long](getVar[Int](1).get) }
+  // @ ergoTree v2. 99:19 has minVersion=3 → dispatcher throws 'tree-version-too-low'.
+  it('getReg (99:19) in ergoTree-v2 rejects with tree-version-too-low', () => {
+    const treeBytesHex = '1a0b00dc6313a701e4e3010405'
+    const treeBytes = hexToBytes(treeBytesHex)
+    const tree = parseTree(treeBytes)
+    const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: treeBytes }
+    const ctx = makeContext({
+      treeVersion: 2,
+      constants: tree.constants,
+      extension: { values: { 1: { tpe: { tag: 'SInt' as const }, value: { kind: 'Int' as const, value: 4 } } } },
+      selfBox,
+    })
+    const err = captureEvalError(() => evaluateWith(tree, ctx))
+    expect(err).toBeInstanceOf(EvalError)
+    expect(err.code).toBe('tree-version-too-low')
   })
 })

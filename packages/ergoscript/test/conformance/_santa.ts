@@ -95,7 +95,8 @@ export interface SantaActual {
  *   - `Option` → `{ kind, value }` (NO elem — SANTA schema has no elem for Option).
  *   - `Coll` → `{ kind, elem, items }` (elem IS included for Coll).
  *   - `GroupElement` → `{ kind, bytes_hex }`.
- *   - `SigmaProp` → `{ kind, raw_hex }`.
+ * NOTE: `SigmaProp` is NOT handled — the function throws on that kind; the
+ * comment has been kept accurate to what is actually implemented.
  */
 export function svalueToSantaJson(v: SValue): unknown {
   switch (v.kind) {
@@ -136,16 +137,29 @@ function bytesToHex(bytes: Uint8Array): string {
 
 /** Run one SANTA entry → ergots' actual {value, cost, error}. */
 export function evalSantaEntry(e: SantaEntry): SantaActual {
-  const tree = parseTree(hexToBytes(e.tree_bytes_hex))
+  const treeBytes = hexToBytes(e.tree_bytes_hex)
+  const tree = parseTree(treeBytes)
   const treeVersion = e.version.ergoTree
 
+  // All non-v3 envelopes mirror the blesser's EvalCore.scala:505-511 SELF box:
+  //   value=1_000_000n, ergoTreeBytes=<the tree bytes under evaluation>,
+  //   txId=32×0x00, index=0, creationHeight=0, tokens=[], registers={}.
+  // (v3 / multi-input context omits a SELF box — the blesser uses dummyContext there.)
+  function blesserSelfBox(extraRegisters?: ErgoBox['registers']): ErgoBox {
+    return {
+      ...synthesizeStubBox(),
+      ergoTreeBytes: treeBytes, // mirror blesser: ergoTree = tree under evaluation
+      registers: extraRegisters ?? {},
+    }
+  }
+
   // Build the eval context based on the entry's envelope variant.
-  // v1: no input field → minimal context.
-  // v2: single `input` → bind at ctx var 1.
+  // v1: no input field → minimal context + blesser-mirroring SELF box.
+  // v2: single `input` → bind at ctx var 1 + blesser-mirroring SELF box.
   // v3: `inputs` array → populate inputExtensions (per-spending-tx-input
-  //      ContextExtensions), no var-1 binding.
-  // v4: `input` + `selfRegisters` → var-1 binding + SELF box with R4..R9
-  //      populated from selfRegisters.
+  //      ContextExtensions), no var-1 binding, no explicit SELF box.
+  // v4: `input` + `selfRegisters` → var-1 binding + blesser-mirroring SELF box
+  //      with R4..R9 populated from selfRegisters.
   let ctx
   if (e.inputs !== undefined) {
     // santa-eval/v3: multi-input context — populate inputExtensions.
@@ -160,7 +174,7 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
     })
     ctx = makeContext({ treeVersion, constants: tree.constants, inputExtensions })
   } else if (e.selfRegisters !== undefined) {
-    // santa-eval/v4: var-1 input binding + SELF box with additional registers.
+    // santa-eval/v4: var-1 input binding + blesser-mirroring SELF box with R4..R9.
     const inputValue = hydrateSValue(e.input)
     const inputTpe = sTypeOfSValue(inputValue)
     const registers: ErgoBox['registers'] = {}
@@ -169,25 +183,25 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
       const value = hydrateSValue(raw)
       registers[regId] = { tpe: sTypeOfSValue(value), value }
     }
-    const selfBox: ErgoBox = { ...synthesizeStubBox(), registers }
     ctx = makeContext({
       treeVersion,
       constants: tree.constants,
       extension: { values: { 1: { tpe: inputTpe, value: inputValue } } },
-      selfBox,
+      selfBox: blesserSelfBox(registers),
     })
   } else if (e.input !== undefined) {
-    // santa-eval/v2: single input bound to ctx var 1.
+    // santa-eval/v2: single input bound to ctx var 1 + blesser-mirroring SELF box.
     const value = hydrateSValue(e.input)
     const tpe = sTypeOfSValue(value)
     ctx = makeContext({
       treeVersion,
       constants: tree.constants,
       extension: { values: { 1: { tpe, value } } },
+      selfBox: blesserSelfBox(),
     })
   } else {
-    // santa-eval/v1: closed tree, no input.
-    ctx = makeContext({ treeVersion, constants: tree.constants })
+    // santa-eval/v1: closed tree, no input + blesser-mirroring SELF box.
+    ctx = makeContext({ treeVersion, constants: tree.constants, selfBox: blesserSelfBox() })
   }
 
   try {
