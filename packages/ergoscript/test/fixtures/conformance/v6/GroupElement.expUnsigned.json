@@ -1,0 +1,71 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "GroupElement.expUnsigned",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-expunsigned",
+  "entries" : [
+    {
+      "name" : "exp-1#0",
+      "script" : "{ GroupGenerator.expUnsigned(1) }",
+      "tree_bytes_hex" : "1b2e02070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798090101dc07067300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 906,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exp-0#1",
+      "script" : "{ GroupGenerator.expUnsigned(0) }",
+      "tree_bytes_hex" : "1b2d02070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980900dc07067300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "cost" : 906,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exp-order#2",
+      "script" : "{ GroupGenerator.expUnsigned(115792089237316195423570985008687907852837564279074904382605163141518161494337) }",
+      "tree_bytes_hex" : "1b4d02070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980920fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141dc07067300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "cost" : 906,
+        "error" : null
+      }
+    }
+  ]
+}

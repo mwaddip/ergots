@@ -1,0 +1,65 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Box.getReg adversarial MethodCall rejects",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-get-reg-adversarial",
+  "entries" : [
+    {
+      "name" : "getRegV5-live-reject#0",
+      "script" : "{ SELF.getRegV5(getVar[Int](1).get) }",
+      "tree_bytes_hex" : "1b0a00dc6307a701e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 4
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getRegV5-dead-branch-accept#1",
+      "script" : "{ if (true) true else SELF.getRegV5(getVar[Int](1).get).isDefined }",
+      "tree_bytes_hex" : "1b1402010101019573007301e6dc6307a701e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 4
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 12,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getReg-v6-method-in-v2-tree-reject#2",
+      "script" : "{ SELF.getReg[Long](getVar[Int](1).get) } /* ErgoTree header v2 */",
+      "tree_bytes_hex" : "1a0b00dc6313a701e4e3010405",
+      "input" : {
+        "kind" : "Int",
+        "value" : 4
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

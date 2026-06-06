@@ -2,15 +2,19 @@
  * SANTA v6 conformance — ergots vs JVM (`jvm:sigma-state-6.0.3`).
  * Vectors imported verbatim from SANTA (`vectors/eval/v6/`) into
  * `test/fixtures/conformance/v6/`. Asserting whole-tree value+cost against the
- * JVM-blessed oracle. VECTOR_FILES grows as SANTA blesses more v6 vectors (the
- * powHit k≠32 follow-up below; the P6 adversarial A/B/C/FunDef HOF vectors next).
+ * JVM-blessed oracle. VECTOR_FILES grows as SANTA blesses more v6 vectors.
+ *
+ * Envelope variants used here (runner-contract.md §3):
+ *   v2 — single `input` bound to ctx var 1 (most vectors).
+ *   v3 — `inputs` array: per-spending-tx-input ContextExtensions (multi-input).
+ *   v4 — `input` + `selfRegisters`: var-1 binding + SELF R4..R9 population.
+ * The `evalSantaEntry` dispatcher in _santa.ts handles all three transparently.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evalSantaEntry, type SantaVector, type SantaEntry } from './_santa'
-import { hydrateSValue } from '../_helpers'
+import { evalSantaEntry, svalueToSantaJson, type SantaVector, type SantaEntry } from './_santa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
@@ -30,6 +34,34 @@ const VECTOR_FILES = [
   // exercised, plus the (k+1)·7 cost coefficient.
   'Global.powHit_varying_k.json',
   'Global.powHit_require_boundary.json',
+  // P7a (SANTA 2026-06-06): 16 JVM-blessed entries across 4 families.
+  //
+  // GroupElement.expUnsigned (santa-eval/v2, 3 entries):
+  //   exp-1→generator (906), exp-0→identity (906), exp-order→identity (906).
+  //   Flat ExponentiateUnsignedMethod cost = FixedCost(900) + 6 tree overhead.
+  'GroupElement.expUnsigned.json',
+  // Box.getReg dynamic index MethodCall (santa-eval/v4, 4 entries):
+  //   accept-r4-long: R4=Long 7, idx→4, typeArg Long → Some(Long 7), cost 89.
+  //   reject-wrong-type: R4=Long 7, typeArg Int → eval REJECT (InvalidType).
+  //   none-absent-r5: idx→5, R5 unset → None, cost 89.
+  //   none-out-of-range-10: idx→10 → None, cost 89.
+  //   Uses v4 envelope: per-entry selfRegisters (R4..R9) + var-1 index binding.
+  'Box.getReg_dynamic_index.json',
+  // Context.getVarFromInput multi-input (santa-eval/v3, 6 entries):
+  //   multi-input-no-var-at-idx1: in-range, var absent → None, cost 17.
+  //   multi-input-present-true-at-idx1: → Some(true), cost 17.
+  //   multi-input-wrong-type-at-idx1: → None (type mismatch), cost 17.
+  //   multi-input-present-false-at-idx1: → Some(false), cost 17.
+  //   oob-input-index: inputIdx 5 ≥ 2 inputs → None, cost 17.
+  //   negative-varid-0xff: GetVar(-1) ≡ key 255 → Some(true), cost 17.
+  //     First authoritative pin for var ids ≥ 0x80; byte-identity confirmed.
+  'Context.getVarFromInput_multi_input.json',
+  // Box.getReg adversarial (santa-eval/v2, 3 entries):
+  //   getRegV5-live-reject: SELF.getRegV5(i) on v5 live path → eval REJECT.
+  //   getRegV5-dead-branch-accept: dead-branch if(true) → Boolean true, cost 12.
+  //   getReg-v6-method-in-v2-tree-reject: 99:19 in ergoTree-v2 → eval REJECT
+  //     (ValidationRule 1011 CheckAndGetMethod at deserialize, soft-fork-wrapped).
+  'Box.getReg_adversarial.json',
 ]
 
 for (const file of VECTOR_FILES) {
@@ -41,7 +73,11 @@ for (const file of VECTOR_FILES) {
         if (e.expected.error !== null) {
           expect(actual.error).toBe('errored')
         } else {
-          expect(actual.value).toEqual(hydrateSValue(e.expected.value))
+          // Compare at SANTA canonical JSON level: ergots' runtime SValue carries
+          // extra fields (e.g. `elem` on Option) that the blessed JSON omits.
+          // Converting actual to SANTA form normalizes the representation, so the
+          // comparison exactly mirrors the runner-contract §5 structural equality.
+          expect(svalueToSantaJson(actual.value!)).toEqual(e.expected.value)
           expect(actual.cost).toBe(e.expected.cost)
         }
       })
