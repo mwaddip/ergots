@@ -190,11 +190,37 @@ blessed table in the authorship section above (get/contains 257 · ladder 207→
 flexible — F4 may run before F3. Warrants its own mini-spec (DynamicCost + the chunk-vs-height
 cost decomposition + proof-shape coverage).
 
-### F5 — manifest-derived gap-fill (PLACEHOLDER — content lands when the manifest does)
-Known members so far: substConstants `treeVersion≥3`+hasSize conformance pins (code
-believed correct from A2-b — pin it) · atLeast 255-cap vector (+ fix if not taken as
-F1 rider) · EQ short-circuit pins (if not absorbed in F3) · whatever else the
-manifest-vs-registry diff reveals.
+### F5 — manifest-derived gap-fill (CONTENT LANDED 2026-06-06 — manifest received)
+
+**Manifest:** `~/projects/santa/docs/coverage/eval-coverage.json` (`santa-coverage/v1`,
+suite-gated current; consumer doc `docs/coverage/README.md`; announcement
+`santa-to-ergots-coverage-manifest.md`). 155 families · 2,143 entries (1,952 accept /
+191 reject) · 75 ops · 95 methods. Diff vs our registry @ `56582c5` (125 keys):
+- **Corpus ∖ registry = `99:7` only** (their adversarial getRegV5 — correctly
+  unregistered). **Zero genuine eval not-impls our side** — triage §3 re-confirmed.
+- **Registry ∖ corpus = 31 keys implemented but never exercised** (the authoring
+  demand list): Header accessors `104:1..15` (ALL — only checkPow 104:16 covered;
+  F2-adjacent: accessor-read vectors would pin timestamp>2⁵³ at the EVAL tier) ·
+  Context props `101:1/2/3/8/9/10` (first four method-only; 101:9/10 op-forms also
+  absent) · PreHeader accessors `105:2/3/5/6` (zero 105:* coverage) · UBI `9:18 mod` +
+  `9:19 toSigned` · AvlTree `100:16 insertOrUpdate` · Option `36:7 map` · Global
+  `106:9 some` + `106:10 none`. Re-diff post-F2: extract keys, set-diff vs
+  `jq -r '.method_index | keys[]' eval-coverage.json`.
+- **substConstants v3+hasSize: SETTLED — covered on BOTH readings** (outer tree
+  `Fix_substConstants_in_v6.0_…` is v3+hasSize ×2 accepts; entry #1 embeds a
+  `0x1b`-header v3+size+segregation script as the bytes argument). Optional small
+  authoring: an embedded-v3 REJECT twin (truncated-size) if hardening wants it.
+- Manifest limits (honest): structural presence not edge-depth; embedded script
+  bytes are data (not walked); our minVersion gates not modeled in the diff.
+
+F5 members now: the 31-key vector-authoring batch (priority answer owed to SANTA —
+their suggested first block = the 15 Header accessors, which also empirically pins
+F2's ≥2⁵³/≥2⁶³ timestamp behavior) · signed-view sweep + its vectors (see §Coordination
+F2 final-review finding — Box.value/R0/token-amount ≥2⁶³, vectors FIRST to pin the JVM
+before coding) · atLeast 255-cap vector + fix (+ the JVM-vs-eni ordering verification
+below) · optional substConstants embedded-reject twin · the full-corpus vendoring task
+(Decision #3 middle path) · 5-tuple-register serialize vector (from the eni routing
+note's ask #2).
 - **atLeast 255-CHILDREN cap (sharpened by the F1 Task-2 review, 2026-06-06):** ergots
   enforces NO cap on the input-coll length (`ConcreteCollection` parses to u16=65535;
   `extractSigmaPropColl`/`cthresholdReduce` uncapped) → `atLeast(k, Coll[SigmaProp] of
@@ -248,7 +274,7 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 
 - [x] UBI re-grade consumed; surviving rows re-triaged (47 = 26 diagnosed + 21 scope)
 - [x] Every ergots-bug family root-caused at ≥95% confidence (6 root causes, 95–99%)
-- [ ] Gap inventory settled against the corpus manifest (avltree, substConstants-v3, atLeast 255-cap, anything else)
+- [x] Gap inventory settled against the corpus manifest — ✅ manifest received 2026-06-06 (`eval-coverage.json`): zero genuine not-impls our side; substConstants-v3 SETTLED-covered (hypothesis refuted); avltree settled via the Tier-2 batch (→F4); 31-key never-exercised list = F5 authoring demand; atLeast 255-cap remains vectorless (→F5 member). Gap-FILL itself is F5 execution, tracked there.
 - [x] Captured-tx twins verified both directions (our 2 reds; their 2 possible-greens) — folded into F1 (Task 5, 2026-06-06: 4/4 settled, no new latent divergence — see Captured tier)
 - [x] Phased fix plan DRAFTED (F1–F5 above), reachability-ordered — **user approval pending**
 - [ ] Open scope questions answered: tx codec in/out; corpus vendoring policy; F1 rider; per-phase process weight
@@ -259,7 +285,13 @@ SANTA channel: kitty win 2 (autonomous messaging granted 2026-06-06; file routin
 per-authorization). sigma-rust session: kitty win 3 (no direct grant — route via SANTA
 or user). This spec is the phase's living ledger; update tables in place.
 
-**F2 follow-up — eni type-length divergence routing (pending user go):** eni does NOT charge the four type-serializer length-byte `put_u8` sites (>4-tuple `types.rs:456`, SFunc tDom `:467`, SFunc tpeParams `:475`, STypeVar name `stype_param.rs:81`) NOR the STypeVar name-bytes chunk cost. JVM canonical charges all five. Route to sigma-rust via SANTA with the exact eni source line refs + the JVM dispatch chain proof (verified 4 ways in F2). Only the >4-tuple site is adversarially reachable (5-tuple register types; cost pin 84 confirmed). Awaiting user go.
+**F2 follow-up — eni type-length divergence routing: ✅ ROUTED 2026-06-06 (user-authorized).**
+`~/projects/santa/prompts/ergots-eni-serialize-type-length-cost-divergence.md` + kitty ping (win 7).
+Content: the 4 uncharged type-serializer length-byte `put_u8` sites (>4-tuple `types.rs:456`,
+SFunc tDom `:467`, SFunc tpeParams `:475`, STypeVar name `stype_param.rs:81`) + the STypeVar
+name-bytes chunk cost, with the JVM dispatch-chain proof (verified 4 ways incl. scorex-util jar
+bytecode) and an honest "not verified either way" flag on eni's expr-Tuple count byte. Asks:
+sigma-rust alignment + a low-priority 5-tuple-register vector. Awaiting SANTA ack / sigma-rust fix.
 
 **F2 final-review finding — signed-view sweep (follow-up phase item, pre-existing, NOT an F2 regression):**
 the signed-i64-view principle F2 established for the two timestamp accessors stops there; four other
