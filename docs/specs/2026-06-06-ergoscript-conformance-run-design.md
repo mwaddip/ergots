@@ -91,6 +91,18 @@ not asserted). `bigint-downcast-2666` + `powhit-return-type-28474` have NO ergot
 twin — verify ergots handles them (powhit-return-type ≈ the #877 return-type concern P5c
 closed via `method-signatures.ts`); if green, route that to sigma-rust via SANTA.
 
+**Verification results (F1 Task 5, 2026-06-06 — read-only).** All four settled; **no new
+latent divergence.** Directories are descriptively named (`testnet-<slug>`); height = the
+acceptance-block suffix. Per seed: eval-vector (twin or not) / ergots status / aspect of the
+real tx the distilled vector does NOT cover.
+
+| seed (height) | eval-vector | ergots status | uncovered by the distilled vector |
+|---|---|---|---|
+| atleast-degenerate-bound (184137) | **TWIN** — `atLeast_with_a_degenerate_bound.json` `empty-input-False#6` = `atLeast(1, Coll[SigmaProp] size 0)` → FalseProp (`d2`), cost 44 (`test/conformance/cost-v5.test.ts`, value+cost) | ✅ **FIXED by F1** — `eval/atleast.ts:72–77` bound>size → TrivialProp(false); real tx (bound 1, size 0) hits exactly that branch | real tree is a V0 self-replicating contract reading INPUTS/OUTPUTS/SELF + R4–R7 + a token; end-to-end ACCEPT through full reduce/verify needs the block tier. Vector reduces atLeast in isolation (+ a bound=256>255 superset case the tx never exercises) |
+| deserialize-context (111927) | **TWIN** — `DeserializeContext_over_absent_wrong_typed_var.json` `dead-branch-absent#0` = `if(true) true else deserializeContext[Boolean](0)` → true, cost 20; `live-absent#2` → errored (`cost-v6.test.ts`, value+cost) | ✅ **FIXED by F1** — `eval/_substitute-deserialize.ts:176–202` absent/wrong-typed ctx var → leave node unchanged (JVM `None`); live-path leftover still throws at eval | real tree's `if/else` guard (HEIGHT/`SELF.R7`/`dataInputs(0).R4`/OUTPUTS/INPUTS preservation) + empty-proof ACCEPT needs the block tier; vector forces the branch dead with a constant-true `if`, not the tx's height-comparison guard. (Non-load-bearing: source comment `:195` still says cost 12; fixture carries the re-blessed 20.) |
+| bigint-downcast-v3 (2666) | NOT a twin — sigma-rust eval-blind (its runner pre-sets `tree_version`); block-tier only | ✅ **already green** — `eval/downcast.ts:131` correct V3 gate **and** `eval/evaluate.ts:75` derives `treeVersion = tree.header.version` in the production `evaluate()` path (the exact derivation the sigma-rust bug skipped, defaulting V0). Targeted check: `Downcast(BigInt(67500000000), SLong)` @V3 → `Long 67500000000` (= JVM); @V0 → throws `tree-version-too-low` | no eval-tier vector (block-tier only). No dedicated regression test of BigInt→primitive @V3 — `downcast.test.ts` is V0-only by design (a coverage gap, **not** a divergence); behavior pinned here by the targeted check + the walker's V3 tip-reach |
+| powhit-return-type (28474) | NOT a twin — block-tier real tree; the distilled `map(powHit).{exists,filter,forall}` item-2 vector lives SANTA-side | ✅ **already green** — `mir/method-signatures.ts:194–197` (106,8) `tRange=SUnsignedBigInt` (closed); `mir/expr-tpe.ts:352` MethodCall → `resolveReturnTpe` ⇒ `map(powHit)` types `Coll[UnsignedBigInt]`; eval returns UnsignedBigInt (`test/eval/global-pow-hit.test.ts`, incl. V3 `evalMethodCall` round-trip; conformance `Global.powHit_*`) | the `map(powHit).exists` HOF-domain composition + the real context-guard tree's ACCEPT need the block tier; ergots pins the bare call + the type-resolution mechanism, not the map/exists composite as one vector (type resolution is deterministic from the closed signature) |
+
 ## Phased fix plan (DRAFT 2026-06-06 — awaiting user approval; nothing executes from this)
 
 Reachability-ordered. Each phase follows the established chain (writing-plans →
@@ -224,7 +236,7 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 - [x] UBI re-grade consumed; surviving rows re-triaged (47 = 26 diagnosed + 21 scope)
 - [x] Every ergots-bug family root-caused at ≥95% confidence (6 root causes, 95–99%)
 - [ ] Gap inventory settled against the corpus manifest (avltree, substConstants-v3, atLeast 255-cap, anything else)
-- [ ] Captured-tx twins verified both directions (our 2 reds; their 2 possible-greens) — folded into F1
+- [x] Captured-tx twins verified both directions (our 2 reds; their 2 possible-greens) — folded into F1 (Task 5, 2026-06-06: 4/4 settled, no new latent divergence — see Captured tier)
 - [x] Phased fix plan DRAFTED (F1–F5 above), reachability-ordered — **user approval pending**
 - [ ] Open scope questions answered: tx codec in/out; corpus vendoring policy; F1 rider; per-phase process weight
 
