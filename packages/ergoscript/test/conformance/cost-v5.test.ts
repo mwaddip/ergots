@@ -9,6 +9,8 @@
  *
  * Asserting the whole-tree cost against JVM surfaces every divergence in an
  * entry's tree, so a clean pass means the entry's tree matches JVM end-to-end.
+ * The file also carries later JVM-blessed authored families (e.g. F1 atLeast
+ * degenerate bounds) that are not cost-divergence vectors.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -21,8 +23,6 @@ import { hydrateSValue } from '../_helpers'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v5')
 
-// Imported SANTA cost-arm vectors. Add the other three (indexOf, propBytes,
-// NEQ-nested) as each arm is brought into conformance.
 const VECTOR_FILES = [
   'Coll_flatMap_method_equivalence.json',
   'Coll_indexOf_method_equivalence.json',

@@ -66,6 +66,8 @@ const VECTOR_FILES = [
   //   getReg-v6-method-in-v2-tree-reject: 99:19 in ergoTree-v2 → eval REJECT
   //     (ValidationRule 1011 CheckAndGetMethod at deserialize, soft-fork-wrapped).
   'Box.getReg_adversarial.json',
+  // F1 (SANTA 2026-06-06): DeserializeContext dead-branch tolerance —
+  // 2 dead-branch accepts (RED until the F1 fix) + 2 live rejects.
   'DeserializeContext_over_absent_wrong_typed_var.json',
 ]
 
@@ -82,6 +84,7 @@ for (const file of VECTOR_FILES) {
           // extra fields (e.g. `elem` on Option) that the blessed JSON omits.
           // Converting actual to SANTA form normalizes the representation, so the
           // comparison exactly mirrors the runner-contract §5 structural equality.
+          expect(actual.error, `entry ${e.name} errored: ${actual.error}`).toBeNull()
           expect(svalueToSantaJson(actual.value!)).toEqual(e.expected.value)
           expect(actual.cost).toBe(e.expected.cost)
         }
@@ -143,5 +146,14 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const err = captureEvalError(() => evaluateWith(tree, ctx))
     expect(err).toBeInstanceOf(EvalError)
     expect(err.code).toBe('tree-version-too-low')
+  })
+})
+
+describe('svalueToSantaJson — SigmaProp arm', () => {
+  it('svalueToSantaJson encodes SigmaProp as serialized-SigmaBoolean raw_hex', () => {
+    expect(svalueToSantaJson({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }))
+      .toEqual({ kind: 'SigmaProp', raw_hex: 'd3' })
+    expect(svalueToSantaJson({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: false } }))
+      .toEqual({ kind: 'SigmaProp', raw_hex: 'd2' })
   })
 })
