@@ -286,8 +286,8 @@ export function serializeCost(t: SType, v: SValue, ctx: EvalContext): void {
  *     CoreByteWriter → Writer trait put(x.toByte) → virtual put(Byte):45-48).
  *   - STypeVar name bytes via `putBytes(name)` = PutChunkCost (3 + n).
  * Note: eni skips FOUR put_u8 length sites (>4-tuple len types.rs:456; SFunc tDom
- * len :467; SFunc tpeParams len :475; STypeVar name len stype_param.rs:81) AND the
- * STypeVar name-bytes chunk cost (stype_param.rs:81-82, no add_put_chunk_cost) — a
+ * len :467; SFunc tpeParams len :475; STypeVar name len types/stype_param.rs:81) AND the
+ * STypeVar name-bytes chunk cost (types/stype_param.rs:81-82, no add_put_chunk_cost) — a
  * known eni divergence (JVM canonical; flagged for SANTA routing). These costs are
  * JVM-faithful.
  *

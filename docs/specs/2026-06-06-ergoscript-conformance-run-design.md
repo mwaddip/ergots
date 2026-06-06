@@ -154,7 +154,7 @@ combined with Task 2's `'atleast-bound-out-of-range'` removal: net 81→79).
 
 **putUByte=1 model verified 4 ways:** JVM dispatch chain (`Writer.putUByte`→`put(x.toByte)`→`SigmaByteWriter.put(Byte):45-48`→`addFixedCost(PutByteCost=1)`); scorex-util jar bytecode; eni `add_put_byte_cost` sites; arithmetic confirmation from the blessed row `serialize_Header: 333 = StartWriter(10) + serializeHeaderWithoutPow(244) + putUByte(1) + powSolution(78)`.
 
-**eni type-length divergence flagged for routing (pending user go):** eni does NOT charge the four type-serializer length-byte `put_u8` sites (>4-tuple len `types.rs:456`, SFunc tDom len `:467`, SFunc tpeParams len `:475`, STypeVar name len `stype_param.rs:81`) NOR the STypeVar name-bytes chunk cost (`stype_param.rs:81-82`). JVM is canonical; only the >4-tuple site is adversarially reachable (5-tuple register types, cost pin 84). Routing via SANTA pending user go.
+**eni type-length divergence flagged for routing (pending user go):** eni does NOT charge the four type-serializer length-byte `put_u8` sites (>4-tuple len `types.rs:456`, SFunc tDom len `:467`, SFunc tpeParams len `:475`, STypeVar name len `types/stype_param.rs:81`) NOR the STypeVar name-bytes chunk cost (`types/stype_param.rs:81-82`). JVM is canonical; only the >4-tuple site is adversarially reachable (5-tuple register types, cost pin 84). ✅ ROUTED 2026-06-06 + SANTA-verified in place (all five sites confirmed real against `.santa/blitzen-eni` @ `dae8443f`; path erratum adopted here; costing lands `jit-costing-final` first per maintainer rule). See §Coordination.
 
 **Gate:** avltree 156 / ergoscript 3987 / nipopow 247 / scorex 187 — all green; tsc clean.
 
@@ -288,7 +288,7 @@ or user). This spec is the phase's living ledger; update tables in place.
 **F2 follow-up — eni type-length divergence routing: ✅ ROUTED 2026-06-06 (user-authorized).**
 `~/projects/santa/prompts/ergots-eni-serialize-type-length-cost-divergence.md` + kitty ping (win 7).
 Content: the 4 uncharged type-serializer length-byte `put_u8` sites (>4-tuple `types.rs:456`,
-SFunc tDom `:467`, SFunc tpeParams `:475`, STypeVar name `stype_param.rs:81`) + the STypeVar
+SFunc tDom `:467`, SFunc tpeParams `:475`, STypeVar name `types/stype_param.rs:81`) + the STypeVar
 name-bytes chunk cost, with the JVM dispatch-chain proof (verified 4 ways incl. scorex-util jar
 bytecode) and an honest "not verified either way" flag on eni's expr-Tuple count byte. Asks:
 sigma-rust alignment + a low-priority 5-tuple-register vector. Awaiting SANTA ack / sigma-rust fix.
