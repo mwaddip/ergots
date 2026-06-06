@@ -6,7 +6,7 @@
  *   handles this arm before eval; reaching this code at eval time means
  *   substitution did not rewrite the node.)
  *
- * Two cases reach this defensive throw:
+ * Three cases reach this defensive throw:
  *   (a) Outer DeserializeContext where the substitute pass DID succeed:
  *       the decoded inner Expr itself contains a DeserializeContext. Sigma-rust
  *       `try_rewrite_bu` does NOT re-walk substituted children
@@ -16,6 +16,12 @@
  *       same mechanism — eventually trips this throw on a recursive evalExpr
  *       reaching an unsubstituted node (or `'cost-limit-exceeded'` first,
  *       depending on depth).
+ *   (c) The context var is ABSENT, or present but not Coll[Byte]: the
+ *       substitute pass LEAVES the node unchanged (failure-tolerant
+ *       substitution — JVM `substDeserialize` returns None; F1), so a LIVE such
+ *       node reaches this throw while a DEAD-branch one never does. This is the
+ *       eval-time half of the h=111927 testnet-wedge fix: dead branches stay
+ *       evaluable, live reaches still error.
  *
  * No eval of e.input (there is no input field — the arm's payload is just
  * the SType + var id). No cost charged.

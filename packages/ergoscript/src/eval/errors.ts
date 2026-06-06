@@ -7,7 +7,8 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 80 codes added through v6 P6 (HOF lambdas; see history)
+ *   - documents the 79 codes through v6 P6 (HOF lambdas) + F1 (which removed
+ *     'deserialize-context-key-not-found': 80 → 79; see history)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -38,22 +39,23 @@
  *        - 'group-op-input-not-group-element' (T3+T4 — MultiplyGroup + Exponentiate base)
  *        - 'predef-input-not-bigint' (T4 — Exponentiate's BigInt exponent)
  *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/valueLength)
- *    + 5 codes added in phase 2i-c (deserialize family):
- *        - 'deserialize-context-key-not-found' (DC: ctx.extension.values[id] missing)
+ *    + 4 codes added in phase 2i-c (deserialize family; was 5 — F1 later
+ *      removed 'deserialize-context-key-not-found', see note below):
  *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
  *        - 'deserialize-parse-failed' (both: inner Expr bytes malformed)
  *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed) !== e.tpe)
  *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
- *          for DR with register absent + default null OR recursive-Deserialize)
- *   = 64 codes total after phase 2i-c.
+ *          for DR with register absent + default null OR recursive-Deserialize
+ *          OR — post-F1 — a LIVE DC over an absent/wrong-typed var)
+ *   = 63 codes total after phase 2i-c (F1-adjusted from 64).
  *    + 2 codes from v5 Coll methods (coll-update-index-out-of-range,
- *        coll-update-many-length-mismatch) → 66
+ *        coll-update-many-length-mismatch) → 65
  *    + 2 codes from v6 P1 numeric methods (numeric-shift-out-of-range,
- *        bigint-result-out-of-range) → 68
- *    + 1 code from v6 P1 C1 final-review (numeric-method-bad-operand) → 69
+ *        bigint-result-out-of-range) → 67
+ *    + 1 code from v6 P1 C1 final-review (numeric-method-bad-operand) → 68
  *    + 4 codes from v6 P2 SUnsignedBigInt (v6-type-in-pre-v3-tree,
  *        unsigned-bigint-op-unsupported, unsigned-bigint-out-of-range,
- *        unsigned-bigint-not-invertible) → 73 (housekeeping 2026-06-03: used in
+ *        unsigned-bigint-not-invertible) → 72 (housekeeping 2026-06-03: used in
  *        the P2 arms but omitted from this union until now)
  */
 
@@ -555,14 +557,11 @@ export type EvalErrorCode =
   // does NOT rewrite — either DR with register absent + default null, or
   // recursive Deserialize inside a substituted inner Expr).
   // -------------------------------------------------------------------------
-  /**
-   * `DeserializeContext` substitute pass: `ctx.extension.values[e.id]` is
-   * undefined. Mirrors sigma-rust `SubstDeserializeError::ExtensionKeyNotFound(id)`
-   * at `ergotree-ir/src/mir/expr.rs:457`. Message includes the id for symmetry.
-   *
-   * Source: ergotree-ir/src/mir/expr.rs:453-457
-   */
-  | 'deserialize-context-key-not-found'
+  // NOTE: 'deserialize-context-key-not-found' was REMOVED in F1 — an absent
+  // DeserializeContext var now LEAVES the node unchanged (JVM `substDeserialize`
+  // `else None`), so it no longer throws at substitution. A LIVE such node
+  // errors at eval via 'deserialize-not-substituted' (below); a DEAD branch is
+  // evaluable. See _substitute-deserialize.ts:substituteDeserializeContext.
   /**
    * `DeserializeContext` / `DeserializeRegister` substitute pass: the
    * context-extension entry or register entry does NOT carry a Coll[Byte]

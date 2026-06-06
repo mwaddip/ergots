@@ -40,12 +40,25 @@
  *
  * ── Per-entry equivalence classes (PER_ENTRY_EXEMPT) ─────────────────────
  *
- * **`dc_throw_key_not_found`** — extension is empty, so ALL var ids miss
- *   with the same `'deserialize-context-key-not-found'` code. Three of the
- *   nine offset-3 (var id) mutations survive because the failure mode is
- *   universal across var-id values. Exempted from per-entry threshold; the
- *   aggregate captures the remaining kill surface (tree-opcode + SType
- *   mutations, all of which kill via wire-parse-error code shift).
+ * **`dc_throw_key_not_found`** — extension is empty, so ALL var ids miss.
+ *   Post-F1 an absent DC var LEAVES the node unchanged (no substitution-time
+ *   throw), so every var-id value reaches the SAME eval-time
+ *   `'deserialize-not-substituted'` defensive throw. Three of the nine offset-3
+ *   (var id) mutations survive because the failure mode is universal across
+ *   var-id values. Exempted from per-entry threshold; the aggregate captures
+ *   the remaining kill surface (tree-opcode + SType mutations, all of which
+ *   kill via wire-parse-error code shift).
+ *
+ * **`dc_throw_wrong_input_type`** — var 1 is present but SInt (not Coll[Byte]).
+ *   Post-F1 a wrong-typed DC var ALSO leaves the node unchanged → it reaches
+ *   the SAME eval-time `'deserialize-not-substituted'` throw as an absent var.
+ *   The three offset-3 (var id) mutations point at absent vars, which now
+ *   produce the SAME code as the baseline — so they no longer kill (pre-F1 they
+ *   killed, because an absent var gave the distinct
+ *   `'deserialize-context-key-not-found'` substitution throw). With offset-3
+ *   collapsed, the entry lands at 6/9 = 0.667 and cannot reach 90% alone; it is
+ *   exempted, with the aggregate as the load-bearing safety net. (offset-1
+ *   opcode + offset-2 SType mutations still kill via wire-parse-error.)
  *
  * **`dc_throw_parse_failed`** — inner bytes are `[0xff, 0xff, 0xff]`. Most
  *   byte flips still produce a `'deserialize-parse-failed'` code (different
@@ -223,6 +236,7 @@ describe('DeserializeContext mutation testing (Layer C3.a)', () => {
   const PER_ENTRY_EXEMPT = new Set<string>([
     'dc_bool_true',
     'dc_throw_key_not_found',
+    'dc_throw_wrong_input_type',
     'dc_throw_parse_failed',
     'dc_throw_tpe_mismatch',
   ])

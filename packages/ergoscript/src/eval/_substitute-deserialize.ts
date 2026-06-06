@@ -158,7 +158,20 @@ function rewriteBottomUp(e: Expr, tree: ErgoTree, ctx: EvalContext): Expr {
  * `ctx.extension.values[e.id]`, decoding the bytes as an inner Expr, and
  * type-checking the parsed result against the declared `e.tpe`.
  *
- * Mirrors sigma-rust `mir/expr.rs:451-465, 486-491` (DC branch + tpe check).
+ * Failure-tolerant substitution (mirrors the DR arm below): if the context var
+ * is ABSENT, or PRESENT but not a `Coll[Byte]`, LEAVE the node unchanged rather
+ * than throwing. The JVM `Interpreter.substDeserialize` returns `None` in both
+ * cases — `else None` for absent (Interpreter.scala:124-125), inner
+ * `case _ => None` for wrong-typed (:121-122) — and `everywherebu` leaves a
+ * `None` node in place. A leftover node errors ONLY if the live reduction path
+ * evaluates it (eval-time 'deserialize-not-substituted'); a DEAD branch is
+ * harmless. This is how the JVM accepts the h=111927 testnet tx that wedged the
+ * Rust node under the old eager-throw model. Only a present-AND-`Coll[Byte]`
+ * var proceeds to the per-byte cost + parse + tpe check below.
+ *
+ * Mirrors sigma-rust eni `mir/expr.rs:442-465, 486-491` (DC branch: absent
+ * `None => return Ok(())` :453, wrong-typed `Err(_) => return Ok(())` :462,
+ * then parse + tpe check).
  */
 function substituteDeserializeContext(
   e: DeserializeContext,
@@ -173,16 +186,21 @@ function substituteDeserializeContext(
   }
   const entry = ctx.extension.values[e.id]
   if (entry === undefined) {
-    throw new EvalError(
-      `DeserializeContext: extension.values[${e.id}] not found`,
-      'deserialize-context-key-not-found',
-    )
+    // Absent var: LEAVE the node unchanged. The JVM `substDeserialize` returns
+    // None via the `else None` (Interpreter.scala:124-125) — `everywherebu`
+    // leaves a None node in place, so the node errors only IF EVALUATED, via
+    // the eval-time 'deserialize-not-substituted' throw; a dead branch never
+    // errors. sigma-rust eni matches (`None => return Ok(())`, expr.rs:453).
+    // The old eager throw here was the h=111927 testnet wedge shape. Blessed:
+    // DeserializeContext_over_absent_wrong_typed_var #0 (dead, true@12) /
+    // #2 (live, errored).
+    return e
   }
   if (entry.tpe.tag !== 'SColl' || entry.tpe.elem.tag !== 'SByte') {
-    throw new EvalError(
-      `DeserializeContext: extension.values[${e.id}].tpe must be Coll[Byte], got ${entry.tpe.tag}`,
-      'deserialize-input-not-byte-array',
-    )
+    // Wrong-typed var: same leave-unchanged contract. JVM inner `case _ => None`
+    // (Interpreter.scala:121-122); sigma-rust eni `Err(_) => return Ok(())`
+    // (expr.rs:462). Blessed: entries #1 (dead, true@12) / #3 (live, errored).
+    return e
   }
   const bytes = collByteToUint8Array(
     entry.value,
@@ -240,6 +258,22 @@ function substituteDeserializeRegister(
   }
   const entry = ctx.selfBox.registers[e.reg]
   if (entry !== undefined) {
+    // Wrong-typed register: EAGER throw is correct here — DR semantics DIFFER
+    // from the DC arm above (which leaves the node). F1 verified that BOTH
+    // references error eagerly at substitution for a present-but-not-Coll[Byte]
+    // register:
+    //   - JVM ErgoLikeInterpreter.substDeserialize matches with
+    //     `case eba: EvaluatedValue[SByteArray]@unchecked` (type param erased —
+    //     `@unchecked` precisely because it matches ANY register), then
+    //     `eba.value.toArray` throws ClassCastException for a non-Coll value
+    //     (ErgoLikeInterpreter.scala:21-22; its `case _ => None` is documented
+    //     as never-reached, :29-36).
+    //   - sigma-rust eni: `constant.try_extract_into::<Vec<u8>>()?` (expr.rs:482)
+    //     propagates SubstDeserializeError via `.transpose()?` (:492).
+    // The JVM throws inside the WHOLE-TREE everywherebu pass, so even a DEAD-
+    // branch DR with a wrong-typed register is rejected — `return e` here would
+    // FORK (ergots would accept a dead branch the JVM rejects). No blessed
+    // vector covers this shape; the eager throw is the confirmed-faithful path.
     if (entry.tpe.tag !== 'SColl' || entry.tpe.elem.tag !== 'SByte') {
       throw new EvalError(
         `DeserializeRegister: selfBox.registers[${e.reg}].tpe must be Coll[Byte], got ${entry.tpe.tag}`,
