@@ -13,7 +13,7 @@
  *   - atleast_2_of_3_with_true_child: k=2, TrivialTrue absorbed → Cor([P,Q])
  *   - atleast_2_of_3_with_false_child: k=2, TrivialFalse skipped → Cand([P,Q])
  *   - atleast_cost_limit_exceeded: tight limit → 'cost-limit-exceeded'
- *   - atleast_bound_exceeds_input_len: k=4 of 3 → 'atleast-bound-out-of-range'
+ *   - atleast_bound_exceeds_input_len: k=4 of 3 → TrivialProp(false) [JVM-faithful: bound>size reduces, not errors]
  *
  * Inline-only error cases (not expressible via sigma-rust tree construction):
  *   - non-Int bound → 'atleast-bound-not-int'

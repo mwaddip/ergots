@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 81 codes added through v6 P6 (HOF lambdas; see history)
+ *   - documents the 80 codes added through v6 P6 (HOF lambdas; see history)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -207,8 +207,8 @@ export type EvalErrorCode =
   | 'sigma-prop-input-not-group-element'
 
   // -------------------------------------------------------------------------
-  // Phase 2g-combinators — Atleast + sigma helpers (4 new codes)
-  // Total taxonomy: 36 → 40.
+  // Phase 2g-combinators — Atleast + sigma helpers (3 new codes)
+  // Total taxonomy: 36 → 39.
   // -------------------------------------------------------------------------
   /**
    * `Atleast`: bound expression evaluated to a non-Int SValue. Wire-format
@@ -238,15 +238,6 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/atleast.rs:31-37
    */
   | 'sigma-prop-input-not-coll'
-  /**
-   * `Atleast`: bound value is out of the valid range [0, 255] (i.e., does
-   * not fit in a u8) or bound > items.length (impossible to prove k of n
-   * when k > n). Both conditions map to `EvalError::Misc` in sigma-rust.
-   *
-   * Source: ergotree-interpreter/src/eval/atleast.rs:49-56
-   */
-  | 'atleast-bound-out-of-range'
-
   // -------------------------------------------------------------------------
   // Phase 2g.5 — method-call dispatch + SigmaPropBytes + SContext.dataInputs
   // (3 new codes; 40 → 43)
