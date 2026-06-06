@@ -550,12 +550,14 @@ export type EvalErrorCode =
   | 'create-avl-tree-shape-mismatch'
 
   // -------------------------------------------------------------------------
-  // Phase 2i-c — Deserialize family (5 new codes; 59 → 64). Substitute-pre-pass
-  // architecture mirroring sigma-rust eval.rs:203-250 + mir/expr.rs:442-496.
-  // Codes 1-4 are thrown by substituteDeserialize; code 5 is the defensive
+  // Phase 2i-c — Deserialize family (originally 5 new codes; 59 → 64; F1 removed
+  // 'deserialize-context-key-not-found' → 4 codes, 59 → 63). Substitute-pre-pass
+  // architecture mirroring sigma-rust eni eval.rs:203-250 + mir/expr.rs:442-496.
+  // Codes 1-3 are thrown by substituteDeserialize; code 4 is the defensive
   // eval-time throw on the Deserialize* arms (reached when substitute pass
-  // does NOT rewrite — either DR with register absent + default null, or
-  // recursive Deserialize inside a substituted inner Expr).
+  // does NOT rewrite — DR with register absent + default null, a recursive
+  // Deserialize inside a substituted inner Expr, OR — post-F1 — a LIVE DC over
+  // an absent/wrong-typed var).
   // -------------------------------------------------------------------------
   // NOTE: 'deserialize-context-key-not-found' was REMOVED in F1 — an absent
   // DeserializeContext var now LEAVES the node unchanged (JVM `substDeserialize`
@@ -563,14 +565,15 @@ export type EvalErrorCode =
   // errors at eval via 'deserialize-not-substituted' (below); a DEAD branch is
   // evaluable. See _substitute-deserialize.ts:substituteDeserializeContext.
   /**
-   * `DeserializeContext` / `DeserializeRegister` substitute pass: the
-   * context-extension entry or register entry does NOT carry a Coll[Byte]
-   * value (either `entry.tpe.tag !== 'SColl'` / `entry.tpe.elem.tag !== 'SByte'`
-   * or the Coll's items contain non-Byte elements). Mirrors sigma-rust
-   * `SubstDeserializeError::TryExtractFromError` via
-   * `try_extract_into::<Vec<u8>>()` failure.
+   * Raised by: (1) `DeserializeRegister` substitute pass when the register
+   * entry is present but NOT a Coll[Byte] (eager throw — DR rejects at
+   * substitution, unlike DC which leaves the node post-F1); (2) the downstream
+   * `collByteToUint8Array` value-shape check on a present Coll[Byte]-typed entry
+   * whose items contain non-Byte elements (both DC and DR). Mirrors sigma-rust
+   * eni `try_extract_into::<Vec<u8>>()` failure.
    *
-   * Source: ergotree-ir/src/mir/expr.rs:459 (DC), :472 (DR)
+   * Source (eni): DR `try_extract` at mir/expr.rs:482 (.transpose()? :492).
+   * (Post-F1 the DC tpe path at :459-462 LEAVES the node — no longer this code.)
    */
   | 'deserialize-input-not-byte-array'
   /**
