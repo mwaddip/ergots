@@ -202,7 +202,13 @@ export class ByteReader {
     for (let i = 0; i < MAX_VLQ_BYTES; i++) {
       const byte = this.readU8();
       result |= BigInt(byte & 0x7f) << shift;
-      if ((byte & 0x80) === 0) return result;
+      if ((byte & 0x80) === 0) {
+        // References accumulate into a 64-bit int: bits shifted past bit 63 are
+        // silently discarded (sigma-rust vlq_encode.rs get_u64; JVM scorex-util
+        // getULong — both the protobuf CodedInputStream loop). See vlq.ts
+        // decodeVlqU for the same fix and rationale.
+        return BigInt.asUintN(64, result);
+      }
       shift += 7n;
     }
     throw new ReaderError(`readVlqBigInt: VLQ exceeds ${MAX_VLQ_BYTES} bytes at ${this._position}`, 'vlq-overflow');

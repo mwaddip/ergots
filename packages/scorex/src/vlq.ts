@@ -7,6 +7,11 @@ export function encodeVlqU(value: bigint): Uint8Array {
   if (value < 0n) {
     throw new Error('encodeVlqU: negative value');
   }
+  if (value > 0xffffffffffffffffn) {
+    // The wire carries u64 only (references encode from u64/Long); a wider
+    // value would decode WRAPPED on their side — reject at the source.
+    throw new Error('encodeVlqU: value exceeds u64');
+  }
   const out: number[] = [];
   let v = value;
   while (v >= 0x80n) {
@@ -23,7 +28,13 @@ export function decodeVlqU(reader: ByteReader): bigint {
   for (let i = 0; i < MAX_VLQ_BYTES; i++) {
     const byte = reader.readU8();
     result |= BigInt(byte & 0x7f) << shift;
-    if ((byte & 0x80) === 0) return result;
+    if ((byte & 0x80) === 0) {
+      // References accumulate into a 64-bit int: bits shifted past bit 63 are
+      // silently discarded (sigma-rust vlq_encode.rs get_u64; JVM scorex-util
+      // getULong — both the protobuf CodedInputStream loop). Mask to match:
+      // a 10-byte encoding with payload above 2^64 wraps, it does NOT error.
+      return BigInt.asUintN(64, result);
+    }
     shift += 7n;
   }
   throw new ReaderError('decodeVlqU: VLQ exceeds 10 bytes (overflow)', 'vlq-overflow');

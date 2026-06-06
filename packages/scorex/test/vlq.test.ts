@@ -55,6 +55,32 @@ describe('VLQ unsigned (scorex free functions)', () => {
   test('encode rejects negative', () => {
     expect(() => encodeVlqU(-1n)).toThrow(/negative/);
   });
+
+  test('encode rejects values above u64 max', () => {
+    expect(() => encodeVlqU(0x10000000000000000n)).toThrow();
+  });
+
+  test('decode wraps mod 2^64 like the references (10th-byte high bits drop)', () => {
+    // sigma-rust get_u64 / JVM getULong: result |= (b & 0x7F) << shift on a 64-bit
+    // int — at shift=63 only bit 0 of the 10th byte survives. [0x80×9, 0x02]
+    // encodes 2^64 via a 7-bit payload of 2 at shift=63, which wraps to 0 in both
+    // references (2 << 63 = 2^64 mod 2^64 = 0).
+    const r = new ByteReader(new Uint8Array([0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x02]));
+    expect(decodeVlqU(r)).toBe(0n);
+  });
+
+  test('decode of u64 max round-trips', () => {
+    const max = 0xffffffffffffffffn;
+    const r = new ByteReader(encodeVlqU(max));
+    expect(decodeVlqU(r)).toBe(max);
+  });
+
+  test('readVlqBigInt wraps mod 2^64 like the references (reader method form)', () => {
+    // Same bytes as the decodeVlqU wrap test above, exercised through the reader
+    // method (readVlqBigInt) to confirm both decode sites are fixed.
+    const r = new ByteReader(new Uint8Array([0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x02]));
+    expect(r.readVlqBigInt()).toBe(0n);
+  });
 });
 
 describe('VLQ zigzag / signed (scorex free functions)', () => {
