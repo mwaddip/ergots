@@ -188,12 +188,10 @@ describe('SAvlTree.update — F4 construct-fail + empty-ops pins', () => {
     // Value: Some(AvlTree) with digest BYTE-EQUAL to the input starting digest.
     // The verifier ran zero ops → newDigest = starting digest (tree unchanged).
     expect(result.kind).toBe('Option')
-    expect(result.value).not.toBeNull()
-    if (result.value !== null && result.value.kind === 'AvlTree') {
-      expect(result.value.value.digest).toEqual(digest)
-    } else {
+    if (result.kind !== 'Option' || result.value === null || result.value.kind !== 'AvlTree') {
       throw new Error('expected Some(AvlTree) but got a different shape')
     }
+    expect(result.value.value.digest).toEqual(digest)
 
     // Exact cost: 15 + 150 + 0 + 40 = 205
     expect(ctx.jitCost).toBe(205) // isUpdateAllowed(15) + cv(85→150) + 0 ops + updateDigest(40)

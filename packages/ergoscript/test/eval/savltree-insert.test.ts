@@ -216,7 +216,7 @@ describe('SAvlTree.insert — F4 construct-fail + empty-ops pins', () => {
     //   no updateDigest (failure path)
     //   TOTAL: 15 + 130 + 50 = 195
     const digestHex = '931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900'
-    const proofHex = '0200ff0000000004' // 8 bytes — the valid proof from insert_success_1_entry
+    // (The valid proof for this tree is 0200ff0000000004 — unused here.)
     const digest = hexToBytes(digestHex)
     // Garbage proof (8 bytes of zeros) to force construct failure:
     const garbageProof = new Uint8Array(8) // all zeros
@@ -363,12 +363,10 @@ describe('SAvlTree.insert — F4 construct-fail + empty-ops pins', () => {
 
     // Value: Some(AvlTree) with digest BYTE-EQUAL to starting digest (0 ops → no change).
     expect(result.kind).toBe('Option')
-    expect(result.value).not.toBeNull()
-    if (result.value !== null && result.value.kind === 'AvlTree') {
-      expect(result.value.value.digest).toEqual(digest)
-    } else {
+    if (result.kind !== 'Option' || result.value === null || result.value.kind !== 'AvlTree') {
       throw new Error('expected Some(AvlTree) but got a different shape')
     }
+    expect(result.value.value.digest).toEqual(digest)
 
     // Exact cost: 15 + 130 + 0 + 40 = 185
     expect(ctx.jitCost).toBe(185) // isInsertAllowed(15) + cv(8→130) + 0 ops + updateDigest(40)

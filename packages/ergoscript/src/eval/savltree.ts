@@ -41,12 +41,23 @@
  *   Failure model — insert(V<3):throw/(V3+):None; update:None; remove:None (never throws);
  *   insertOrUpdate:None (V<3 rejected at dispatcher). ALL DONE (F4 Tasks 3-6).
  *
- * ## Known pre-existing limitation
+ * ## Op-shape + construct-shape routing (F4 Task 7.5 — RESOLVED)
  *
- * Shape-mismatch inputs (e.g. key length ≠ tree.keyLength) currently surface as
- * `AvlVerifyError` from `@ergots/avltree`'s pre-validation — a known pre-existing
- * divergence class under verification in F4 Task 7.5 (scorex per-op semantics to
- * be confirmed vs JVM source).
+ * Shape-mismatch inputs no longer surface as foreign `AvlVerifyError` throws.
+ * Verified against scrypto 3.0.0 bytecode + ergo_avltree_rust (see the
+ * routing helpers' block comment): scorex checks key shape (wrong length,
+ * ±infinity keys) per-op at the head of returnResultOfOneOperation, and value
+ * length (fixed-value trees, insert-family) at the modifyHelper write
+ * branches — each violation is a Failure AT THAT OP'S INDEX, joining the
+ * per-op-failure routing above (contains→false, get/getMany→throw, insert
+ * V<3→throw/V3+→None, update/insertOrUpdate→None, remove→None with ALL ops
+ * charged). Handlers pre-scan ops with the same predicates
+ * (`firstShapeBadOpIndex`) and replay only the prefix before the first
+ * violation (`verifyWithShapeRouting`); ops before it genuinely replay
+ * against the proof. Construct-shape violations (keyLength ≤ 0, fixed
+ * valueLength < 0, digest ≠ 33 bytes — scorex reconstruction requires) route
+ * as construct-fail with treeHeight 0 (`constructShapeBad`; the requires fire
+ * before rootNodeHeight is assigned).
  *
  * Source: ergotree-interpreter/src/eval/savltree.rs:29-75 (Tier 1),
  *         ergotree-interpreter/src/eval/savltree.rs:104-381,383-439
@@ -67,6 +78,7 @@ import { EvalError } from './eval-context'
 import type { AvlTreeData, SType, SValue } from '../mir/types'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { verifyAvlBatchPartial } from '@ergots/avltree'
+import type { AvlTreeConfig, Operation } from '@ergots/avltree'
 import {
   avlTreeDataToConfig,
   buildInsertOps,
@@ -252,6 +264,143 @@ function treeHeight(data: AvlTreeData): number {
   return (data.digest[32] ?? 0) & 0xff
 }
 
+// ---------------------------------------------------------------------------
+// Op-shape + construct-shape routing (F4 Task 7.5).
+//
+// scorex per-op semantics (verified twice, 2026-06-07):
+//  1. scrypto 3.0.0 bytecode (decompiled from the coursier jar):
+//     `AuthenticatedTreeOps.returnResultOfOneOperation` = `Try { ... }` whose
+//     body OPENS with three requires —
+//       require(compare(key, NegativeInfinityKey) > 0)  // -inf = 0x00 × keyLength
+//       require(compare(key, PositiveInfinityKey) < 0)  // +inf = 0xFF × keyLength
+//       require(key.length == keyLength)
+//     — and modifyHelper's two write branches require
+//       require(value.length == fixedValueLength)        // insert-family only
+//     Any violation → IllegalArgumentException inside the Try → Failure AT
+//     THAT OP'S INDEX; `BatchAVLVerifier.performOneOperation` then poisons
+//     topNode = None (all later ops fail, digest None).
+//  2. ergo_avltree_rust authenticated_tree_ops.rs:226-229 (`ensure!` triple)
+//     + :291/:314 (value length, `assert!` — Rust panics where the JVM
+//     Failure-routes; JVM canonical), batch_avl_verifier.rs:157-172 (Err →
+//     root = None).
+//
+// `@ergots/avltree` lifted those per-op guards into upfront THROWS
+// (verify.ts validateOperationShape / validateConfig / validateStartingDigest,
+// by design — its public contract, unchanged here). The handlers therefore
+// pre-scan ops with the SAME predicates and emulate the JVM routing: ops
+// before the first shape-violating index still replay against the proof
+// (slice), and the violating op fails at its index, joining each method's
+// existing per-op-failure path. Whichever failure comes FIRST in op order
+// wins — a proof failure inside the prefix fails earlier, exactly as the
+// JVM's sequential replay would.
+// ---------------------------------------------------------------------------
+
+/**
+ * Construct-time shape violations — scorex `BatchAVLVerifier.reconstructedTree`
+ * (lazy val forced at construction) opens with `require(keyLength > 0)`,
+ * `valueLengthOpt.foreach(vl => require(vl >= 0))`, and
+ * `require(startingDigest.length == 33)`, all swallowed into topNode = None
+ * (construct-fail; CAvlTreeVerifier silences logError). These mirror
+ * `@ergots/avltree`'s validateConfig/validateStartingDigest throw conditions.
+ *
+ * Cost detail (scrypto bytecode): the requires fire BEFORE
+ * `rootNodeHeight = startingDigest.last & 0xff` is assigned, so the JVM's
+ * `bv.treeHeight` is 0 (field default) for this class — NOT digest[32].
+ * Callers must charge with height 0 when this returns true.
+ *
+ * Reachability: keyLength = 0 is wire-craftable (VLQ u32); short/long digests
+ * and negative valueLengthOpt are currently blocked by createAvlTree /
+ * updateDigest input checks but guarded here so the routing stays faithful
+ * if a producer path changes.
+ *
+ * Wrapped-negative range (AvlTreeData.scala:84-88): JVM parses keyLength and
+ * valueLengthOpt as `getUInt().toInt` — wire values in [2^31, 2^32) wrap
+ * NEGATIVE (acknowledged by the JVM's own comment at :84-88).  ergots parses
+ * them as positive u32, so a plain `<= 0` / `< 0` comparison misses that
+ * range.  `| 0` reinterprets the stored u32 as a signed i32 before comparing,
+ * matching the JVM's actual Int arithmetic.
+ */
+function constructShapeBad(data: AvlTreeData): boolean {
+  return (
+    (data.keyLength | 0) <= 0 ||
+    (data.valueLengthOpt !== null && (data.valueLengthOpt | 0) < 0) ||
+    data.digest.length !== 33
+  )
+}
+
+/**
+ * True iff `key` would fail one of scorex's three per-op key requires
+ * (see block comment above): wrong length, == NegativeInfinityKey
+ * (all-0x00 × keyLength), or == PositiveInfinityKey (all-0xFF × keyLength).
+ * For equal-length unsigned byte arrays the two strict lexicographic bounds
+ * reduce exactly to the all-0x00 / all-0xFF equality checks; wrong-length
+ * keys fail require #3 even when the compares pass — any violation routes
+ * to the same per-op Failure, so a single boolean suffices.
+ */
+function keyShapeBad(key: Uint8Array, keyLength: number): boolean {
+  if (key.length !== keyLength) return true
+  let allZero = true
+  let allFF = true
+  for (const b of key) {
+    if (b !== 0x00) allZero = false
+    if (b !== 0xff) allFF = false
+    if (!allZero && !allFF) return false
+  }
+  return allZero || allFF
+}
+
+/**
+ * Index of the first op that would fail scorex's per-op shape requires, or
+ * `ops.length` when none would. Key checks apply to EVERY op kind (the
+ * requires open returnResultOfOneOperation before any descent); the value
+ * check applies to value-carrying ops on fixed-value-length trees
+ * (modifyHelper write branches — and when update_fn fails first, e.g.
+ * insert-on-present, the op fails at the same index anyway, so flagging it
+ * here is observationally identical).
+ */
+function firstShapeBadOpIndex(ops: Operation[], config: AvlTreeConfig): number {
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i]!
+    if (keyShapeBad(op.key, config.keyLength)) return i
+    if (
+      'value' in op &&
+      config.valueLengthOpt !== null &&
+      op.value.length !== config.valueLengthOpt
+    ) {
+      return i
+    }
+  }
+  return ops.length
+}
+
+/**
+ * Run `verifyAvlBatchPartial` with JVM-faithful shape routing: construct-shape
+ * violations short-circuit to `null` (construct-fail — the verifier is never
+ * built; `@ergots/avltree` would throw `AvlVerifyError` on them), and ops are
+ * sliced to the prefix BEFORE the first shape-violating op (which the JVM
+ * fails at its index — never replayed). The caller's existing failure
+ * predicates (`partial === null || partial.opsCompleted < ops.length`,
+ * against the ORIGINAL ops.length) and `chargedOps` arithmetic then yield
+ * the JVM-exact routing for free:
+ *   - construct-fail → null (first op attempted+failed; chargedOps = min(1, n))
+ *   - proof/precondition failure inside the prefix → opsCompleted < badIdx
+ *     (the earlier failure wins, as in sequential replay)
+ *   - clean prefix + shape-bad op → opsCompleted = badIdx (< n) — the bad op
+ *     is the first failure; chargedOps = badIdx + 1
+ *   - no shape violations → unchanged full-batch call.
+ */
+function verifyWithShapeRouting(
+  data: AvlTreeData,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  ops: Operation[]
+): ReturnType<typeof verifyAvlBatchPartial> {
+  if (constructShapeBad(data)) return null
+  const badIdx = firstShapeBadOpIndex(ops, config)
+  const opsToReplay = badIdx === ops.length ? ops : ops.slice(0, badIdx)
+  return verifyAvlBatchPartial(data.digest, proof, config, opsToReplay)
+}
+
 /** CreateAvlVerifier_Info — PerItemCost(110, 20, 64) on proof byte length. */
 function chargeCreateVerifier(ctx: EvalContext, proofLen: number): void {
   ctx.addPerItemCost(110, 20, 64, proofLen)
@@ -384,14 +533,17 @@ export function evalSAvlTreeContains(
   // CreateAvlVerifier — charged before construction (JVM addSeqCost wraps it).
   chargeCreateVerifier(ctx, proof.length)
   // LookupAvlTree ×1 on RAW treeHeight (contains/get take no max-1 floor —
-  // CErgoTreeEvaluator.scala:80 `val nItems = bv.treeHeight`).
-  chargePerOp(ctx, 40, 10, treeHeight(obj.value), 1)
+  // CErgoTreeEvaluator.scala:80 `val nItems = bv.treeHeight`). Construct-shape
+  // violations see height 0 — rootNodeHeight is never assigned (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  chargePerOp(ctx, 40, 10, h, 1)
   const config = avlTreeDataToConfig(obj.value)
-  const partial = verifyAvlBatchPartial(
-    obj.value.digest, proof, config, buildSingleLookupOp(key)
+  const partial = verifyWithShapeRouting(
+    obj.value, proof, config, buildSingleLookupOp(key)
   )
   // JVM contains NEVER throws (CErgoTreeEvaluator.scala:84-90): construct
-  // failure and lookup failure both surface as Failure → false; a successful
+  // failure and lookup failure (incl. the per-op key-shape requires — wrong
+  // length / ±inf, T7.5) both surface as Failure → false; a successful
   // lookup maps Some→true / None→false. Construct failure is not a distinct
   // observable — scorex swallows reconstruction errors (topNode = None) and
   // every subsequent op fails.
@@ -427,14 +579,17 @@ export function evalSAvlTreeGet(
   const key = extractBytes(args[0]!)
   const proof = extractBytes(args[1]!)
   chargeCreateVerifier(ctx, proof.length)
-  // LookupAvlTree ×1 on RAW treeHeight (CErgoTreeEvaluator.scala:97).
-  chargePerOp(ctx, 40, 10, treeHeight(obj.value), 1)
+  // LookupAvlTree ×1 on RAW treeHeight (CErgoTreeEvaluator.scala:97);
+  // construct-shape violations see height 0 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  chargePerOp(ctx, 40, 10, h, 1)
   const config = avlTreeDataToConfig(obj.value)
-  const partial = verifyAvlBatchPartial(
-    obj.value.digest, proof, config, buildSingleLookupOp(key)
+  const partial = verifyWithShapeRouting(
+    obj.value, proof, config, buildSingleLookupOp(key)
   )
   // JVM get throws on Lookup Failure (syntax.error, CErgoTreeEvaluator.scala:106)
-  // — construct failure manifests as that same Failure, so both throw.
+  // — construct failure and the per-op key-shape requires (wrong length /
+  // ±inf, T7.5) manifest as that same Failure, so all throw.
   if (partial === null || partial.opsCompleted < 1) {
     throw new EvalError(
       'SAvlTree.get: tree proof is incorrect',
@@ -479,12 +634,14 @@ export function evalSAvlTreeGetMany(
   chargeCreateVerifier(ctx, proof.length)
   const config = avlTreeDataToConfig(obj.value)
   const ops = buildLookupOps(keys)
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
   // One LookupAvlTree charge per key the JVM's keys.map reached: all keys on
   // success; the successful prefix + the failing key on failure (the JVM
-  // throws out of the map at the first Failure — CErgoTreeEvaluator.scala:126).
-  // RAW treeHeight (no max-1 floor), loop-constant.
-  chargePerOp(ctx, 40, 10, treeHeight(obj.value), chargedOps(partial, ops.length))
+  // throws out of the map at the first Failure — CErgoTreeEvaluator.scala:126;
+  // a shape-bad key fails at its own index, keys before it replay — T7.5).
+  // RAW treeHeight (no max-1 floor; 0 on construct-shape), loop-constant.
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  chargePerOp(ctx, 40, 10, h, chargedOps(partial, ops.length))
   // ops.length === 0: the JVM's keys.map over an empty coll runs zero lookups —
   // no Failure can surface even on a construct-broken verifier → empty Coll
   // (charges: createVerifier only). CErgoTreeEvaluator.scala:111-130.
@@ -540,9 +697,11 @@ export function evalSAvlTreeInsert(
   chargeCreateVerifier(ctx, proof.length)
   // InsertIntoAvlTree PerItem(40,10,1) × charged ops on max(height, 1)
   // ("when the tree is empty we still need to add the insert cost",
-  // CErgoTreeEvaluator.scala:139).
-  const nItems = Math.max(treeHeight(obj.value), 1)
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  // CErgoTreeEvaluator.scala:139). Construct-shape violations see height 0
+  // → max(0,1) = 1 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
   chargePerOp(ctx, 40, 10, nItems, chargedOps(partial, ops.length))
   if (partial === null || partial.opsCompleted < ops.length) {
     // An op actually failed (construct failure manifests as the first op
@@ -598,9 +757,11 @@ export function evalSAvlTreeUpdate(
   const config = avlTreeDataToConfig(obj.value)
   chargeCreateVerifier(ctx, proof.length)
   // UpdateAvlTree PerItem(120,20,1) × charged ops on max(height, 1)
-  // (CErgoTreeEvaluator.scala:175-181).
-  const nItems = Math.max(treeHeight(obj.value), 1)
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  // (CErgoTreeEvaluator.scala:175-181). Construct-shape violations see
+  // height 0 → max(0,1) = 1 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
   chargePerOp(ctx, 120, 20, nItems, chargedOps(partial, ops.length))
   if (partial === null || partial.opsCompleted < ops.length) {
     // JVM update never throws: per-op Failure breaks the forall (no version
@@ -660,9 +821,11 @@ export function evalSAvlTreeRemove(
   chargeCreateVerifier(ctx, proof.length)
   // RemoveAvlTree PerItem(100,15,1) × ALL ops on max(height, 1).
   // The JVM uses cfor with per-op results DISCARDED (CErgoTreeEvaluator.scala:240-245):
-  // no fast-break, every op is charged even after the verifier is poisoned.
-  const nItems = Math.max(treeHeight(obj.value), 1)
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  // no fast-break, every op is charged even after the verifier is poisoned —
+  // shape-bad keys included (T7.5). Construct-shape → height 0 → max(0,1)=1.
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
   chargePerOp(ctx, 100, 15, nItems, ops.length)
   // digest_Info Fixed(15) — UNCONDITIONAL (:246), before the digest inspect.
   ctx.addCost(15)
@@ -803,8 +966,10 @@ export function evalSAvlTreeInsertOrUpdate(
   chargeCreateVerifier(ctx, proof.length)
   // UpdateAvlTree_Info (120,20,1) — insertOrUpdate shares update's descriptor
   // (CErgoTreeEvaluator.scala:215), × charged ops on max(height, 1).
-  const nItems = Math.max(treeHeight(obj.value), 1)
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  // Construct-shape violations see height 0 → max(0,1) = 1 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
   chargePerOp(ctx, 120, 20, nItems, chargedOps(partial, ops.length))
   if (partial === null || partial.opsCompleted < ops.length) {
     // Failures discarded (forall fast-break), digest None → None
