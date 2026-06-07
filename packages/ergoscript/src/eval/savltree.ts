@@ -872,7 +872,7 @@ export function evalSAvlTreeUpdateOperations(
 }
 
 /**
- * `SAvlTree.updateDigest` (100:15) — replaces the 33-byte digest.
+ * `SAvlTree.updateDigest` (100:15) — replaces the digest with any-length bytes.
  * Source: savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
  *
  * Pattern A Fixed(40) — addCost(40) BEFORE shape check (matches sigma-rust's
@@ -881,14 +881,18 @@ export function evalSAvlTreeUpdateOperations(
  *
  * SType: (SAvlTree, SColl(SByte)) → SAvlTree.
  *
- * Defensive 33-byte length check — sigma-rust surfaces the same condition
- * via `ADDigest::try_from(bytes_vec)` failing inside `map_eval_err`. Reachable
- * from script-controlled data (any Coll[Byte] can be passed); thrown
- * specifically as 'avl-tree-bad-digest-length' (NEW code; not reused).
+ * JVM `CAvlTree.scala:31-34` has NO length require on `updateDigest` — the
+ * implementation simply does `AvlTreeData(newDigest, ...)`. Any Coll[Byte]
+ * length is accepted verbatim. The previous 33-byte gate mirrored sigma-rust's
+ * `ADDigest::try_from` shape (a convergent over-reject not present in the JVM);
+ * it is now removed per the F4 epilogue acceptance-corpus bless (2026-06-07).
  *
- * `withUpdatedDigest` (existing helper, _avltree-adapter.ts:68-75) does NOT
- * validate length — it's pure field-substitution. The handler's pre-check
- * is the sole length gate.
+ * Blessed vectors: AvlTree.updateDigest_any_length.json (3-byte/empty/40-byte
+ * → Some(AvlTree) cost 46; 3-byte readback via `.digest` → Coll[1,2,3] cost 65).
+ * `'avl-tree-bad-digest-length'` code retired from the taxonomy (codes 81→80).
+ *
+ * `withUpdatedDigest` (_avltree-adapter.ts:68-75) is pure field-substitution
+ * with no length gate — exactly the JVM semantics.
  */
 export function evalSAvlTreeUpdateDigest(
   ctx: EvalContext,
@@ -899,12 +903,6 @@ export function evalSAvlTreeUpdateDigest(
   expectAvlTree('SAvlTree.updateDigest', obj)
   expectOneArg('SAvlTree.updateDigest', args)
   const newDigest = extractBytes(args[0]!)
-  if (newDigest.length !== 33) {
-    throw new EvalError(
-      `SAvlTree.updateDigest: digest must be 33 bytes, got ${newDigest.length}`,
-      'avl-tree-bad-digest-length'
-    )
-  }
   return { kind: 'AvlTree', value: withUpdatedDigest(obj.value, newDigest) }
 }
 

@@ -394,11 +394,18 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       // SAvlTree wire encoding (sigma-rust `mir/avl_tree_data.rs:72-78`).
       //
       // Write sequence:
-      //   digest          — 33 RAW bytes (ADDigest scorex_serialize is
-      //                     `write_all(self.0)` — no length prefix). The
-      //                     33-byte length check is load-bearing because
-      //                     anything else would silently desynchronize
-      //                     the wire cursor on read-back.
+      //   digest          — RAW bytes VERBATIM (no length prefix). The JVM
+      //                     `DataSerializer` writes `AvlTreeData.digest` raw
+      //                     via `putBytes` with no length requirement. Any
+      //                     digest length is written as-is.
+      //                     NOTE: the JVM parse side reads a FIXED 33 bytes
+      //                     (ADDigest scorex_parse `read_exact(33)`), so an
+      //                     AvlTree SValue with a non-33-byte digest serializes
+      //                     fine here but DOES NOT round-trip through parse —
+      //                     an intentional JVM asymmetry. Pin this asymmetry
+      //                     via tests rather than guarding against it here.
+      //                     (`'savltree-digest-length'` retired in F4 epilogue,
+      //                     2026-06-07 — JVM CAvlTree.scala:31-34 no-require.)
       //   treeFlags       — single u8 (`put_u8`). Caller-supplied byte
       //                     written verbatim, including any high reserved
       //                     bits that the parser tolerated.
@@ -414,13 +421,6 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //                     canonical form so round-trips are stable).
       assertKind(t, v, 'AvlTree')
       const a = v.value
-      if (a.digest.length !== 33) {
-        throw new SValueSerializeError(
-          `SAvlTree digest length ${a.digest.length} must be 33 ` +
-            '(32-byte root hash + 1-byte tree height)',
-          'savltree-digest-length'
-        )
-      }
       if (!Number.isInteger(a.treeFlags) || a.treeFlags < 0 || a.treeFlags > 0xff) {
         throw new SValueSerializeError(
           `SAvlTree treeFlags ${a.treeFlags} out of u8 range`,

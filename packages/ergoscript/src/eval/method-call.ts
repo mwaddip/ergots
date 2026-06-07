@@ -932,7 +932,7 @@ function registerHandlers(): void {
 
   // ---------- SAvlTree.updateDigest (100:15) — phase 2h-d Task 7 ----------
   // Pattern A Fixed(40); V0+. Pure projection over AvlTreeData.digest.
-  // Defensive 33-byte length check throws 'avl-tree-bad-digest-length'.
+  // Accepts ANY digest length (JVM CAvlTree.scala:31-34 no-require; F4 epilogue).
   // Source: ergotree-interpreter/src/eval/savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
   // Handler body lives in ./savltree.ts; signature is (ctx, obj, args) so the
   // wrapper here flips argument order to match `MethodHandler` shape.

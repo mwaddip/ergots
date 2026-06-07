@@ -7,10 +7,12 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 80 codes through v6 P6 (HOF lambdas) + F1 (which removed
+ *   - documents the 79 codes through v6 P6 (HOF lambdas) + F1 (which removed
  *     'deserialize-context-key-not-found': 80 → 79; see history) + F3 (79 → 80)
- *     + F4 epilogue (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
+ *     + F4 epilogue Task 2 (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
  *     which the unconditional CreateAvlTree reject orphaned: net 80 → 80)
+ *     + F4 epilogue Task 3 (−'avl-tree-bad-digest-length': JVM accepts any digest
+ *     length, CAvlTree.scala:31-34 no-require; net 80 → 79)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -378,20 +380,17 @@ export type EvalErrorCode =
   | 'autolykos-v1-not-supported'
 
   // -------------------------------------------------------------------------
-  // Phase 2h-d — SAvlTree.updateDigest (1 new code; 47 → 48)
+  // Phase 2h-d — SAvlTree.updateDigest (1 new code added; then REMOVED in
+  // F4 epilogue Task 3, 2026-06-07: JVM CAvlTree.scala:31-34 has no length
+  // require on updateDigest — the 33-byte gate was the sigma-rust
+  // ADDigest::try_from shape, a convergent over-reject; net count: 47 → 48 → 47)
   // -------------------------------------------------------------------------
-  /**
-   * `SAvlTree.updateDigest`: the Coll[Byte] argument is not exactly 33 bytes
-   * (the required ADDigest length: 32-byte root hash + 1 tree-height byte).
-   * Mirrors sigma-rust's `ADDigest::try_from` length-check failure surfaced
-   * as `EvalError::Misc`.
-   *
-   * Source: ergotree-interpreter/src/eval/savltree.rs:98
-   */
-  | 'avl-tree-bad-digest-length'
+  // 'avl-tree-bad-digest-length' REMOVED here (was 47 → 48; now retired).
+  // Blessed vectors: AvlTree.updateDigest_any_length.json (3-byte/empty/40-byte
+  // all succeed). The code is no longer thrown anywhere in src/.
 
   // -------------------------------------------------------------------------
-  // Phase 2i-a — Pure-bytes predefs (7 new codes; 48 → 52). Per-code purposes
+  // Phase 2i-a — Pure-bytes predefs (7 new codes; 47 → 54). Per-code purposes
   // span T2-T9: predef-input-not-byte-array (T2-T9 shared); byte-array-to-
   // long-too-short (T4); predef-input-not-long (T5); byte-array-to-bigint-
   // empty / -out-of-range (T6); decode-point-invalid (T8); subst-constants-
@@ -512,13 +511,13 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2i-b — Curve + AVL + sigma-trivial predefs. T2 added 1 code
-  // (sigma-prop-is-proven-no-eval; 52 → 53). T3 adds 1 code
-  // (group-op-input-not-group-element; 53 → 54). T4 adds 1 code
-  // (predef-input-not-bigint; 54 → 55). T5 added 1 code
-  // (create-avl-tree-shape-mismatch; 55 → 56) — REMOVED in the F4 epilogue
+  // (sigma-prop-is-proven-no-eval; 54 → 55). T3 adds 1 code
+  // (group-op-input-not-group-element; 55 → 56). T4 adds 1 code
+  // (predef-input-not-bigint; 56 → 57). T5 added 1 code
+  // (create-avl-tree-shape-mismatch; 57 → 58) — REMOVED in the F4 epilogue
   // (2026-06-07): the CreateAvlTree arm became an unconditional
   // 'unsupported-eval-node' reject (no JVM eval override), orphaning all 3
-  // shape-mismatch throw paths.
+  // shape-mismatch throw paths. Net 2i-b contribution: 3 codes (54 → 57).
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no

@@ -224,14 +224,19 @@ export function serializeCost(t: SType, v: SValue, ctx: EvalContext): void {
 
     case 'SAvlTree': {
       // AvlTreeData.serializer.serialize (core/.../data/AvlTreeData.scala:73-79):
-      //   putBytes(digest 33)            = 3 + 33 = 36   (digest is always 33 bytes)
+      //   putBytes(digest n)             = 3 + n  (putBytes = PerItemCost(3,1,1);
+      //                                            n = actual digest length — NOT
+      //                                            fixed 33; JVM CAvlTree.scala:31-34
+      //                                            accepts any length, F4 epilogue
+      //                                            2026-06-07 bless)
       //   putUByte(flags)                = 1   (F2 #5; AvlTreeData.scala:76)
       //   putUInt(keyLength)     [no-arg] = 0   (putUInt(x:Long):105-107 — VLQ writer,
       //                                          NO put() delegation — genuinely 0)
       //   putOption(valueLengthOpt) tag   = 1
       //     if Some: putUInt(valueLength) [no-arg] = 0   (same overload)
-      // walk = 36 + 1 + 0 + 1 + 0 = 38.
-      ctx.addCost(3 + 33) // putBytes(digest, 33)
+      // walk = (3 + n) + 1 + 0 + 1 + 0 = 5 + n   (n = digest.length).
+      const digestLen = (v as Extract<SValue, { kind: 'AvlTree' }>).value.digest.length
+      ctx.addCost(3 + digestLen) // putBytes(digest, n)
       ctx.addCost(PUT_BYTE) // putUByte(flags) = 1 (AvlTreeData.scala:76; F2 #5)
       ctx.addCost(PUT_BYTE) // putOption tag
       return

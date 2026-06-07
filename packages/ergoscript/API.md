@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6).** `evaluate` / `evaluateWith` cover **67 of 67 implementable `Expr` arms** plus a **123-entry method-call handler registry** and **81 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F4).** `evaluate` / `evaluateWith` cover **67 of 67 implementable `Expr` arms** plus a **125-entry method-call handler registry** and **79 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 
 What this package is NOT:
@@ -315,7 +315,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 80 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Postcondition (failure):** Throws `EvalError` with one of the 79 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
 - **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 18 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'` — `FunDef` (`0xd7`) was the 19th but is now parsed+evaluated as a `ValDef` from v6 P6. A further 4 (`LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are routed through other dispatch paths in sigma-rust and their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or one of 5 defensive `EvalError 'not-implemented-yet'` sites still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
@@ -368,11 +368,11 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 80 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 79 codes in facts/ergoscript-eval.md
 }
 ```
 
-All 80 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (80 codes)". Notable codes:
+All 79 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (79 codes)". Notable codes:
 
 | Code | When thrown |
 |---|---|
