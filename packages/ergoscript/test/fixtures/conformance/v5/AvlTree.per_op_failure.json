@@ -1,0 +1,398 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.per_op_failure",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-op-shapes",
+  "entries" : [
+    {
+      "name" : "contains-wrong-len-false",
+      "script" : "{ tree.contains(wrong-len, validProof) }  // op Failure → false",
+      "tree_bytes_hex" : "1aeb010364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e04010203040eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640973000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 257,
+        "error" : null
+      }
+    },
+    {
+      "name" : "contains--inf-false",
+      "script" : "{ tree.contains(-inf, validProof) }  // op Failure → false",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2000000000000000000000000000000000000000000000000000000000000000000eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640973000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 257,
+        "error" : null
+      }
+    },
+    {
+      "name" : "contains-+inf-false",
+      "script" : "{ tree.contains(+inf, validProof) }  // op Failure → false",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640973000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 257,
+        "error" : null
+      }
+    },
+    {
+      "name" : "get-wrong-len-errored",
+      "script" : "{ tree.get(wrong-len, validProof) }  // op Failure → raise",
+      "tree_bytes_hex" : "1aeb010364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e04010203040eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "get--inf-errored",
+      "script" : "{ tree.get(-inf, validProof) }  // op Failure → raise",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2000000000000000000000000000000000000000000000000000000000000000000eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "get-+inf-errored",
+      "script" : "{ tree.get(+inf, validProof) }  // op Failure → raise",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getMany-wrong-len-errored",
+      "script" : "{ tree.getMany([wrong-len], validProof) }  // per-key Failure → raise",
+      "tree_bytes_hex" : "1aee010364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e04010203040eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640b73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getMany--inf-errored",
+      "script" : "{ tree.getMany([-inf], validProof) }  // per-key Failure → raise",
+      "tree_bytes_hex" : "1a8a020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2000000000000000000000000000000000000000000000000000000000000000000eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640b73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getMany-+inf-errored",
+      "script" : "{ tree.getMany([+inf], validProof) }  // per-key Failure → raise",
+      "tree_bytes_hex" : "1a8a020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640b73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "insert-wrong-len-key-errored",
+      "script" : "{ tree.insert(wrong-len-key, validProof) }  // pre-v3: op Failure → raise (#908)",
+      "tree_bytes_hex" : "1afe010464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e04010203040e08000000005a17a0320eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc640c73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "insert--inf-key-errored",
+      "script" : "{ tree.insert(-inf-key, validProof) }  // pre-v3: op Failure → raise (#908)",
+      "tree_bytes_hex" : "1a9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2000000000000000000000000000000000000000000000000000000000000000000e08000000005a17a0320eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc640c73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "insert-+inf-key-errored",
+      "script" : "{ tree.insert(+inf-key, validProof) }  // pre-v3: op Failure → raise (#908)",
+      "tree_bytes_hex" : "1a9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0e08000000005a17a0320eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc640c73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "insert-wrong-val-len-errored",
+      "script" : "{ tree.insert(wrong-val-len, validProof) }  // pre-v3: op Failure → raise (#908)",
+      "tree_bytes_hex" : "1a96020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e209a39c57d13039b50bfe4aa21b2c8238be31d133db1fbe4549b16d9b94338b4e20e04090909090eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc640c73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "update-wrong-len-key-none",
+      "script" : "{ tree.update(wrong-len-key, validProof) }  // op Failure discarded → None",
+      "tree_bytes_hex" : "1afe010464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e04010203040e08000000005a17a04d0eb10103f9859bd9b3050c599dc5b506caa4f2367f286c60a9af489e69d797ab16b9cff5020b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1114466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55000000005a17a003000348e315af8e8893ff66ea7350dfc82fe84e1922b4e2dce07547bb93a6f0fcff330003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010403dc640d73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 428,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update--inf-key-none",
+      "script" : "{ tree.update(-inf-key, validProof) }  // op Failure discarded → None",
+      "tree_bytes_hex" : "1a9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2000000000000000000000000000000000000000000000000000000000000000000e08000000005a17a04d0eb10103f9859bd9b3050c599dc5b506caa4f2367f286c60a9af489e69d797ab16b9cff5020b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1114466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55000000005a17a003000348e315af8e8893ff66ea7350dfc82fe84e1922b4e2dce07547bb93a6f0fcff330003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010403dc640d73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 428,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update-+inf-key-none",
+      "script" : "{ tree.update(+inf-key, validProof) }  // op Failure discarded → None",
+      "tree_bytes_hex" : "1a9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0e08000000005a17a04d0eb10103f9859bd9b3050c599dc5b506caa4f2367f286c60a9af489e69d797ab16b9cff5020b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1114466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55000000005a17a003000348e315af8e8893ff66ea7350dfc82fe84e1922b4e2dce07547bb93a6f0fcff330003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010403dc640d73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 428,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update-wrong-val-len-none",
+      "script" : "{ tree.update(wrong-val-len, validProof) }  // op Failure discarded → None",
+      "tree_bytes_hex" : "1a96020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e200b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1110e04090909090eb10103f9859bd9b3050c599dc5b506caa4f2367f286c60a9af489e69d797ab16b9cff5020b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1114466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55000000005a17a003000348e315af8e8893ff66ea7350dfc82fe84e1922b4e2dce07547bb93a6f0fcff330003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010403dc640d73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 428,
+        "error" : null
+      }
+    },
+    {
+      "name" : "remove-wrong-len-none",
+      "script" : "{ tree.remove([wrong-len], validProof) }  // op results ignored → None",
+      "tree_bytes_hex" : "1a98020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e04010203040edb0103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b03a373298f0a6c4bfe54090ebf3b8b0637dab0992b91659925aad993fb78e1267d0380425223028505cc2316f57221daaf7780ec8e2aa3aca01474bc95a0c680dd1202db958abd56951adf47f8142fc63e1a9ac8b9e7cdb2c5b03ba67eb86260dd6e9ee62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff000000005a17a0070002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000005a17a004ff01010400dc640e73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 407,
+        "error" : null
+      }
+    },
+    {
+      "name" : "remove--inf-none",
+      "script" : "{ tree.remove([-inf], validProof) }  // op results ignored → None",
+      "tree_bytes_hex" : "1ab4020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2000000000000000000000000000000000000000000000000000000000000000000edb0103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b03a373298f0a6c4bfe54090ebf3b8b0637dab0992b91659925aad993fb78e1267d0380425223028505cc2316f57221daaf7780ec8e2aa3aca01474bc95a0c680dd1202db958abd56951adf47f8142fc63e1a9ac8b9e7cdb2c5b03ba67eb86260dd6e9ee62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff000000005a17a0070002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000005a17a004ff01010400dc640e73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 407,
+        "error" : null
+      }
+    },
+    {
+      "name" : "remove-+inf-none",
+      "script" : "{ tree.remove([+inf], validProof) }  // op results ignored → None",
+      "tree_bytes_hex" : "1ab4020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0edb0103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b03a373298f0a6c4bfe54090ebf3b8b0637dab0992b91659925aad993fb78e1267d0380425223028505cc2316f57221daaf7780ec8e2aa3aca01474bc95a0c680dd1202db958abd56951adf47f8142fc63e1a9ac8b9e7cdb2c5b03ba67eb86260dd6e9ee62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff000000005a17a0070002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000005a17a004ff01010400dc640e73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 407,
+        "error" : null
+      }
+    }
+  ]
+}

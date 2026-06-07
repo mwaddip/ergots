@@ -1,0 +1,80 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.empty_ops_valid_proof",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-degenerate",
+  "entries" : [
+    {
+      "name" : "insert-empty-ops-some#0",
+      "script" : "{ tree.insert([], validEmptyProof) }  // → Some(starting tree)",
+      "tree_bytes_hex" : "1a580264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2203fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04dc640c73000283003c0e0e7301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c0407200108"
+          }
+        },
+        "cost" : 211,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update-empty-ops-some#1",
+      "script" : "{ tree.update([], validEmptyProof) }  // → Some(starting tree)",
+      "tree_bytes_hex" : "1a580264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2203fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04dc640d73000283003c0e0e7301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c0407200108"
+          }
+        },
+        "cost" : 211,
+        "error" : null
+      }
+    },
+    {
+      "name" : "remove-empty-ops-some#2",
+      "script" : "{ tree.remove([], validEmptyProof) }  // → Some(starting tree)",
+      "tree_bytes_hex" : "1a560264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2203fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04dc640e73000283000e7301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c0407200108"
+          }
+        },
+        "cost" : 226,
+        "error" : null
+      }
+    }
+  ]
+}

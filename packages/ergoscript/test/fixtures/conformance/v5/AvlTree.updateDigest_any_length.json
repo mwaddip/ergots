@@ -1,0 +1,108 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.updateDigest_any_length",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-accessors",
+  "entries" : [
+    {
+      "name" : "updateDigest-3byte#0",
+      "script" : "{ tree.updateDigest(Coll[Byte](1,2,3)) }  // 3-byte digest accepted",
+      "tree_bytes_hex" : "1a340264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e03010203dc640f7300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "01020307200108"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "updateDigest-3byte-readback#1",
+      "script" : "{ tree.updateDigest(Coll[Byte](1,2,3)).digest }  // reads the 3 bytes back",
+      "tree_bytes_hex" : "1a370264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e03010203db6401dc640f7300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 3
+            }
+          ]
+        },
+        "cost" : 65,
+        "error" : null
+      }
+    },
+    {
+      "name" : "updateDigest-empty#2",
+      "script" : "{ tree.updateDigest(Coll[Byte]()) }  // empty digest accepted",
+      "tree_bytes_hex" : "1a310264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e00dc640f7300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "07200108"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "updateDigest-40byte#3",
+      "script" : "{ tree.updateDigest(40-byte) }  // over-length digest accepted",
+      "tree_bytes_hex" : "1a590264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e280102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728dc640f7300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526272807200108"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    }
+  ]
+}

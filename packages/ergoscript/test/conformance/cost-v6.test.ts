@@ -87,6 +87,28 @@ const VECTOR_FILES = [
   // (createVerifier + ONE UpdateAvlTree on the broken verifier, no
   // updateDigest — the JVM-has-no-construct-throw pin).
   'AvlTree.insertOrUpdate.json',
+  // F4 Epilogue — acceptance-corpus round (2026-06-07). SANTA reply:
+  // ~/projects/santa/prompts/f4-santa-asks.md §SANTA REPLY.
+  //
+  // bad_proof_bytes_v6 (1 entry): insert-0x00-none#0 — v6 insert bad-proof → None.
+  // Green via existing construct-fail routing (T7.5).
+  'AvlTree.bad_proof_bytes_v6.json',
+  // degenerate_edges_v6 (1 entry): insert-empty-entries-none#0 — v6 insert 0-op bad-proof → None.
+  'AvlTree.degenerate_edges_v6.json',
+  // empty_ops_valid_proof_v6 (1 entry): insertOrUpdate-empty-ops-some#0 — v6 0-op valid → Some.
+  'AvlTree.empty_ops_valid_proof_v6.json',
+  // per_op_failure_v6 (8 entries): insert/insertOrUpdate wrong-len/±inf key + wrong-val-len → None.
+  // Pins v6 per-op-fail routing for the two v3-only methods.
+  'AvlTree.per_op_failure_v6.json',
+  // insert_wrong_tree (1 entry): insert-none#0 — v6 insert bad-proof (wrong tree) → None.
+  'AvlTree.insert_wrong_tree.json',
+  // negative_keylength_tree_v6 (1 entry): insert-none#0 — v6 insert construct-shape keyLength<0 → None.
+  // Green via T7.5 construct-shape routing.
+  'AvlTree.negative_keylength_tree_v6.json',
+  // unsupported_eval_nodes_v6 (2 entries):
+  //   tree_lookup-errored#0 @v3 — RED until Task 2 (JVM no eval override).
+  //   create_avl_tree-errored#1 @v3 — RED until Task 2 (same class; dasher panic → clean reject).
+  'AvlTree.unsupported_eval_nodes_v6.json',
 ]
 
 for (const file of VECTOR_FILES) {

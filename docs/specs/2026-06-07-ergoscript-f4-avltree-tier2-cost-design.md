@@ -240,3 +240,25 @@ range faithfully at the cost-charging level.
 - Fixtures: savltree-*.json re-blessed; HAND-BLESSED marker in fixture-gen/src/main.rs; mutation suites adjusted (contains_key_absent removed — 0%-killable under never-throws).
 - Gate: avltree 156 / ergoscript 4114 / nipopow 247 / scorex 187 — all green; tsc clean. EvalError codes: 80 (0 new).
 - Adjacent findings routed to F5: TreeLookup over-accept (JVM has no eval override — trees.scala:1322-1338) + Tier-1 accessor-view family (updateDigest any-length / CreateAvlTree negative lengths / keyLength accessor wrapping — JVM-verified 2026-06-07).
+
+## Epilogue amendment — acceptance-corpus round (2026-06-07)
+
+SANTA resolved all 5 F4 asks same-day (reply in `~/projects/santa/prompts/f4-santa-asks.md`):
+14 files / 57 entries across 4 blesser families; the F4 failure-model predictions held exactly
+(op-shape sweep, ±inf keys, empty-ops, bad-proof-bytes all dasher-GREEN). sigma-rust shipped its
+construct-fail routing same-day (eni `a4ee7442`, PR #890) — three-implementation convergence.
+Remaining 9-row acceptance corpus, all JVM-blessed:
+1. **TreeLookup over-accept (2)** — JVM has no eval override (`trees.scala:1322-1338`,
+   `costKind = notSupportedError`; blessed errored @v2 AND @v3). ergots evaluated it
+   (sigma-rust port). Fix: unconditional eval-reject `'unsupported-eval-node'`.
+2. **CreateAvlTree over-accept (1, dasher panic)** — same class: no JVM eval override; blessed
+   errored @v3 (unserializable @v5 JVM-side). Same fix; the panic resolves to a clean reject.
+3. **updateDigest over-reject (4)** — JVM `CAvlTree.scala:31-34` accepts ANY digest length;
+   blessed: 3-byte/empty/40-byte → Some(AvlTree) cost 46, `.digest` readback cost 65, canonical
+   bytes carry the digest VERBATIM. ergots' `'avl-tree-bad-digest-length'` (eval) and
+   `'savltree-digest-length'` (wire serializer) both retire.
+4. **keyLength sign (2)** — deserialize-only asymmetry (`AvlTreeData.scala:84-85`
+   `getUInt().toInt`; the serializer requires unsigned range, so only parse wraps): wire
+   `0x80000001` → JVM `.keyLength` = −2147483647. Fix: i32 view at the accessor
+   (`keyLength | 0`), consistent with T7.5's construct-shape predicate; valueLengthOpt gets the
+   same view (same JVM parse line; source-backed, vector-unblessed — flagged for a future bless).

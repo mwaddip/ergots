@@ -48,6 +48,38 @@ const VECTOR_FILES = [
   'AvlTree.update.json',
   'AvlTree.remove.json',
   'AvlTree.updateOperations_updateDigest.json',
+  // F4 Epilogue — acceptance-corpus round (2026-06-07). SANTA reply:
+  // ~/projects/santa/prompts/f4-santa-asks.md §SANTA REPLY. 16 files (9 v5 + 7 v6)
+  // across 4 fix families; Tasks 2-4 close the 9 reds.
+  //
+  // bad_proof_bytes (5 entries): bad-proof-bytes routing — contains→false, get/insert→errored.
+  // Validates construct-fail routing for the three one-op methods (T7.5 class).
+  'AvlTree.bad_proof_bytes.json',
+  // degenerate_edges (4 entries): mismatched-op-type remove→None, empty-keys/entries batches.
+  // Pins zero-op-loop and op-type-mismatch routing per method.
+  'AvlTree.degenerate_edges.json',
+  // empty_ops_valid_proof (3 entries): insert/update/remove with 0-op valid proof → Some(AvlTree).
+  // Pins that a zero-ops valid proof charges updateDigest(40) and returns Some(starting digest).
+  'AvlTree.empty_ops_valid_proof.json',
+  // per_op_failure (20 entries): wrong-length key / ±inf key / wrong-val-len, all methods.
+  // Pins the per-op-fail routing per method (contains→false, get/getMany→errored, modify→None/v-split).
+  'AvlTree.per_op_failure.json',
+  // wrong_tree_proof (6 entries): proof for a different tree (bad-proof class, all 6 methods).
+  // Pins the full bad-proof routing matrix.
+  'AvlTree.wrong_tree_proof.json',
+  // negative_keylength_tree (5 entries): construct-shape keyLength<0 routing. 4 entries GREEN
+  // via T7.5 (contains→false, get→errored, insert→errored, remove→None). 1 RED (Task 4):
+  // keyLength-negative#4 — accessor returns Int(-2147483648) not u32(2147483648).
+  'AvlTree.negative_keylength_tree.json',
+  // keyLength_wrapped_negative (1 entry): wire 0x80000001 → keyLength accessor Int(-2147483647).
+  // RED until Task 4 (i32 view on accessor). SANTA reply §C.
+  'AvlTree.keyLength_wrapped_negative.json',
+  // updateDigest_any_length (4 entries): 3-byte/empty/40-byte digest → Some(AvlTree) cost 46;
+  // readback → Coll[1,2,3] cost 65. RED ×4 until Task 3 (JVM accepts ANY digest length).
+  'AvlTree.updateDigest_any_length.json',
+  // unsupported_eval_nodes (1 entry): tree_lookup-errored#0 @v2. RED until Task 2
+  // (JVM has no eval override — trees.scala:1322-1338, costKind=notSupportedError).
+  'AvlTree.unsupported_eval_nodes.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the
