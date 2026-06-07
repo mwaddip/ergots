@@ -809,14 +809,15 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr): Expr {
       return r
     }
 
-    // `impl_traversable_expr!(CreateAvlTree, boxed flags, boxed digest, boxed key_length, opt value_length)`.
+    // JVM layout: 4 expr operands (valueLength is an Option-TYPED expr,
+    // always present — trees.scala:79-91; see wire/mir/create-avl-tree.ts).
     case 'CreateAvlTree': {
       const r: CreateAvlTree = {
         tag: 'CreateAvlTree',
         flags: fn(e.flags),
         digest: fn(e.digest),
         keyLength: fn(e.keyLength),
-        valueLength: e.valueLength !== null ? fn(e.valueLength) : null,
+        valueLength: fn(e.valueLength),
       }
       return r
     }
@@ -1020,7 +1021,7 @@ export function* childrenOf(e: Expr): Generator<Expr, void, void> {
       yield e.flags
       yield e.digest
       yield e.keyLength
-      if (e.valueLength !== null) yield e.valueLength
+      yield e.valueLength
       return
     default: {
       const _exhaust: never = e

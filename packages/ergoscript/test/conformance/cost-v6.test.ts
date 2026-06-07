@@ -105,9 +105,14 @@ const VECTOR_FILES = [
   // negative_keylength_tree_v6 (1 entry): insert-none#0 — v6 insert construct-shape keyLength<0 → None.
   // Green via T7.5 construct-shape routing.
   'AvlTree.negative_keylength_tree_v6.json',
-  // unsupported_eval_nodes_v6 (2 entries):
-  //   tree_lookup-errored#0 @v3 — RED until Task 2 (JVM no eval override).
-  //   create_avl_tree-errored#1 @v3 — RED until Task 2 (same class; dasher panic → clean reject).
+  // unsupported_eval_nodes_v6 (2 entries) — GREEN since the F4-epilogue
+  // unconditional eval-reject ('unsupported-eval-node'; JVM has no eval
+  // override for either node):
+  //   tree_lookup-errored#0 @v3.
+  //   create_avl_tree-errored#1 @v3 — also needed the CreateAvlTree WIRE fix
+  //   (JVM 4-expr operand layout; the old sigma-rust presence-tag arm crashed
+  //   parsing this vector's bytes — the dasher-panic analog, now a clean
+  //   errored).
   'AvlTree.unsupported_eval_nodes_v6.json',
 ]
 

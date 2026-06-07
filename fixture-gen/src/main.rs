@@ -466,24 +466,24 @@ fn main() -> anyhow::Result<()> {
     let exponentiate_fixture = cmds::ergoscript::eval::exponentiate::generate()?;
     write_ergoscript_json("eval/exponentiate.json", &exponentiate_fixture)?;
 
-    // Phase 2i-b T5: CreateAvlTree Expr arm — no inline cost (children-only).
-    // 4-input constructor: Byte flags + Coll[Byte] digest + Int keyLength +
-    // Option[Int] valueLength → AvlTreeData. Sigma-rust ref:
-    // ergotree-interpreter/src/eval/create_avl_tree.rs:15-41. AvlTreeFlags::parse
-    // canonicalizes flags to bits 0..2 (mir/avl_tree_data.rs:32-38).
-    // 7 success + 4 throw entries.
-    let create_avl_tree_fixture = cmds::ergoscript::eval::create_avl_tree::generate()?;
-    write_ergoscript_json("eval/create-avl-tree.json", &create_avl_tree_fixture)?;
-
-    // Phase 2i-b T6: TreeLookup Expr arm — no inline cost (children-only).
-    // 3-input verifier delegate: AvlTree + Coll[Byte] key + Coll[Byte] proof
-    // → Option[Coll[Byte]]. Sigma-rust ref:
-    // ergotree-interpreter/src/eval/tree_lookup.rs:20-65. Double-null semantic:
-    // outer null = proof construct fail → 'avl-tree-proof-failed';
-    // {value:null} = key absent → Option None.
-    // 4 happy + 3 throw entries.
-    let tree_lookup_fixture = cmds::ergoscript::eval::tree_lookup::generate()?;
-    write_ergoscript_json("eval/tree-lookup.json", &tree_lookup_fixture)?;
+    // ⚠ HAND-BLESSED (F4 epilogue, 2026-06-07): eval/create-avl-tree.json and
+    // eval/tree-lookup.json are now HAND-AUTHORED reject pins — the JVM has NO
+    // eval override for either node (trees.scala:79-91 + 1322-1338; blessed
+    // vectors AvlTree.unsupported_eval_nodes{,_v6}.json), so every entry
+    // expects `'unsupported-eval-node'`. The sigma-rust generators below are
+    // RETIRED, not just stale: sigma-rust EVALUATES both nodes (convergent
+    // over-accept, routed via SANTA), and for CreateAvlTree it also writes a
+    // FORKED wire shape (presence-tag valueLength vs the JVM's 4th expr
+    // operand — see facts/ergoscript-wire.md). Regenerating would clobber the
+    // JVM-shaped bytes with sigma-rust-shaped ones. Do NOT re-enable.
+    //
+    // Phase 2i-b T5 (RETIRED): CreateAvlTree Expr arm.
+    // let create_avl_tree_fixture = cmds::ergoscript::eval::create_avl_tree::generate()?;
+    // write_ergoscript_json("eval/create-avl-tree.json", &create_avl_tree_fixture)?;
+    //
+    // Phase 2i-b T6 (RETIRED): TreeLookup Expr arm.
+    // let tree_lookup_fixture = cmds::ergoscript::eval::tree_lookup::generate()?;
+    // write_ergoscript_json("eval/tree-lookup.json", &tree_lookup_fixture)?;
 
     // Phase 2i-c T6: DeserializeContext oracle fixtures (8 scenarios).
     // No inline cost charge; cost arrives via substituted inner Expr's eval.

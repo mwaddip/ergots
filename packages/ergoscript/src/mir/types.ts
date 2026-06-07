@@ -780,14 +780,21 @@ export interface TreeLookup {
   proof: Expr
 }
 
-// CreateAvlTree: construct an AVL tree value. sigma-rust mir/create_avl_tree.rs.
+// CreateAvlTree: construct an AVL tree value. JVM trees.scala:79-91.
 export interface CreateAvlTree {
   tag: 'CreateAvlTree'
   flags: Expr
   digest: Expr
   keyLength: Expr
-  /** Optional value-length expr; sigma-rust uses `Option<Box<Expr>>`. */
-  valueLength: Expr | null
+  /**
+   * Value-length operand — ALWAYS present, an expr whose *type* is
+   * SOption[SInt] (JVM `valueLengthOpt: Value[SIntOption]`,
+   * trees.scala:82). "No value length" is an Option-typed expr evaluating
+   * to None (e.g. `Const(SOption[SInt], None)`), not an absent operand.
+   * sigma-rust's `Option<Box<Expr>>` (presence-tag wire shape) is a fork —
+   * see wire/mir/create-avl-tree.ts.
+   */
+  valueLength: Expr
 }
 
 /**

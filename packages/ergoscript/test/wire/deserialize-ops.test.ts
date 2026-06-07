@@ -21,8 +21,10 @@ import { expectParseError } from './_helpers'
  *
  * The Option<Box<Expr>> tag uses the same shape as sigma-rust's
  * `impl<T: SigmaSerializable> SigmaSerializable for Option<Box<T>>`
- * (`serialization/serializable.rs`) — the same encoding used by
- * `CreateAvlTree.valueLength` (Task 20).
+ * (`serialization/serializable.rs`) — JVM-confirmed for DeserializeRegister
+ * (`DeserializeRegisterSerializer.scala` `r.getOption(r.getValue())`).
+ * (No longer citing CreateAvlTree.valueLength — that was a sigma-rust wire
+ * fork vs the JVM 4-expr layout, fixed in the F4 epilogue.)
  *
  * SType byte codes used below (see `wire/serialize-stype.ts`):
  *   - SBoolean = 0x01

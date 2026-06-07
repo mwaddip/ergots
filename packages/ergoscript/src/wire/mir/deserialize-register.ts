@@ -17,8 +17,13 @@
  * the bytes into an `Expr` and inlines it; if the register is empty, the
  * `default` Expr is executed. The Option<Box<Expr>> uses the same wire
  * shape as `impl<T: SigmaSerializable> SigmaSerializable for Option<Box<T>>`
- * in sigma-rust's `serialization/serializable.rs` — the same Option<Box<Expr>>
- * encoding used by `CreateAvlTree.valueLength` (Task 20).
+ * in sigma-rust's `serialization/serializable.rs`. JVM-confirmed for THIS
+ * node: `DeserializeRegisterSerializer.scala` parses
+ * `r.getOption(r.getValue())` — a presence tag IS the JVM shape here.
+ * (CreateAvlTree.valueLength, previously cited as the same encoding, turned
+ * out to be a sigma-rust wire FORK — the JVM serializes it as a 4th expr
+ * operand; fixed in the F4 epilogue. Do not generalize the presence-tag
+ * shape across nodes without a per-node JVM serializer read.)
  *
  * Sigma-rust's `sigma_parse` reads `reg` first then `tpe` then `default`,
  * and sets the reader's `set_deserialize(true)` flag (relevant only to its

@@ -467,6 +467,30 @@ The previous `wire/mir/explicit-type-args.ts` entry `99:7 → ['T']` was transcr
 
 **`expUnsigned` (7:6) — no wire change:** monomorphic (`SFunc([SGroupElement, SUnsignedBigInt], SGroupElement)`), zero explicit type args; `explicitTypeArgNames(7, 6)` is absent (or `[]`) — no type bytes on the wire.
 
+## F4-epilogue wire correction — `CreateAvlTree` operand layout (sigma-rust presence-tag → JVM 4-expr)
+
+**Source: JVM `CreateAvlTreeSerializer.scala:24-37` + `trees.scala:79-91`, verified 2026-06-07.**
+
+The JVM serializes `CreateAvlTree` (opcode `0xb6`) as FOUR expr operands, all through the expr channel (`w.putValue(...)` ×4 / `r.getValue()` ×4):
+
+```
+[flags: Expr]            -- type SByte
+[digest: Expr]           -- type SColl(SByte)
+[keyLength: Expr]        -- type SInt
+[valueLengthOpt: Expr]   -- type SOption(SInt)
+```
+
+The 4th operand is an expr whose *type* is Option (`valueLengthOpt: Value[SIntOption]`, trees.scala:82) — "no value length" is an Option-typed expr evaluating to None (the compiler emits `Const(SOption[SInt], None)`), NOT an absent operand. No presence tag anywhere in the run.
+
+**sigma-rust forks this layout** (eni `ergotree-ir/src/mir/create_avl_tree.rs`): its 4th operand is `Option<Box<Expr>>` — a one-byte presence tag (`0x00` absent / `0x01` expr follows). The two shapes are mutually unparseable: JVM-emitted bytes put an expr lead byte (e.g. ConstantPlaceholder `0x73`) where sigma-rust expects the tag, and sigma-rust-emitted bytes put a tag byte where the JVM expects an expr. ergots originally ported the sigma-rust shape; the JVM-blessed vector `AvlTree.unsupported_eval_nodes_v6.json#create_avl_tree-errored#1` exposed the fork as a parse crash (`'invalid-option-tag'`, "got 115"). **Fixed to the JVM layout in the F4 epilogue (2026-06-07)**; the fork is routed to sigma-rust via SANTA.
+
+Consequences:
+
+- MIR `CreateAvlTree.valueLength` is now `Expr` (was `Expr | null`) — always present, Option-typed (`mir/types.ts`).
+- `wire/mir/create-avl-tree.ts` parse/serialize: four `parseExpr`/`serializeExpr` calls, no tag byte. The blessed vector's tree bytes round-trip byte-identically (pinned in `test/wire/avl.test.ts`).
+- `'invalid-option-tag'` no longer has a CreateAvlTree throw site; it keeps its `DeserializeRegister.default` site (`wire/mir/deserialize-register.ts` — that Option IS a presence-tag `Option<Box<Expr>>` in both references).
+- Eval-tier: both `CreateAvlTree` and `TreeLookup` now reject unconditionally (`'unsupported-eval-node'` — the JVM has no eval override for either); see [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Parse stays — the JVM parses both nodes fine.
+
 ## Coverage
 
 100% of MIR variants parse and serialize byte-identically against the PR 862 corpora (45 legacy + 14 ecosystem + 9 sig-15 = 68 trees), plus mainnet boxes (12,712 from Task B's wider corpus + 173 from the original C2 corpus). Phase 2a corpus test: 255 passing fixtures + 1 mainnet stub + 6 `known_unstable` (sigma-rust itself does not round-trip them).

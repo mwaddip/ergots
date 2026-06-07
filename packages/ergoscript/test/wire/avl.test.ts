@@ -1,64 +1,110 @@
 import { describe, it, expect } from 'vitest'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
-import { expectParseError } from './_helpers'
 
 /**
- * Task 20 tests: `CreateAvlTree` and `TreeLookup` round-trips. Drives the
- * parsers end-to-end via the `parseTree` / `serializeTree` envelope so the
+ * `CreateAvlTree` and `TreeLookup` round-trips. Drives the parsers
+ * end-to-end via the `parseTree` / `serializeTree` envelope so the
  * per-variant code runs in its real call context.
  *
- * Wire format reminders (verified against sigma-rust source):
- *   - `CreateAvlTree` (opcode 0xb6):
- *       [flags: Expr]                  -- post-eval type SByte
- *       [digest: Expr]                 -- post-eval type SColl(SByte)
- *       [keyLength: Expr]              -- post-eval type SInt
- *       [valueLength: Option<Box<Expr>>]
- *         tag byte: 0x00 = None, 0x01 = Some (Expr follows)
+ * Wire format (verified against the JVM, which is canonical):
+ *   - `CreateAvlTree` (opcode 0xb6) — FOUR expr operands, all written via
+ *     the expr channel (`CreateAvlTreeSerializer.scala:24-37` — four
+ *     `w.putValue(...)` / four `r.getValue()` calls):
+ *       [flags: Expr]                  -- type SByte
+ *       [digest: Expr]                 -- type SColl(SByte)
+ *       [keyLength: Expr]              -- type SInt
+ *       [valueLengthOpt: Expr]         -- type SOption(SInt) — an EXPR whose
+ *                                         *type* is Option; "no value length"
+ *                                         is `Const(SOption[SInt], None)`,
+ *                                         NOT an absent operand
  *     (No length prefix on the run — fixed 4 elements.)
  *
- *   - `TreeLookup` (opcode 0xb7, sigma-rust constant: AVT_TREE_GET):
- *       [tree: Expr]                   -- post-eval type SAvlTree
- *       [key: Expr]                    -- post-eval type SColl(SByte)
- *       [proof: Expr]                  -- post-eval type SColl(SByte)
+ *     ⚠ sigma-rust forks here (ergo-node-integration
+ *     `ergotree-ir/src/mir/create_avl_tree.rs` `sigma_parse`/`sigma_serialize`):
+ *     it writes the 4th operand as `Option<Box<Expr>>` — a one-byte presence
+ *     tag (0x00/0x01) followed by the expr when Some. JVM-emitted bytes
+ *     (4th operand = an Option-typed expr, e.g. ConstantPlaceholder 0x73)
+ *     are unparseable under that shape and vice-versa. ergots originally
+ *     ported the sigma-rust shape; the F4-epilogue blessed vector
+ *     `AvlTree.unsupported_eval_nodes_v6.json#create_avl_tree-errored#1`
+ *     exposed the fork (parse crash on `0x73` where the tag byte was
+ *     expected). The JVM layout below is the consensus shape.
  *
- * The Option<Box<Expr>> tag uses the same shape as sigma-rust's
- * `impl<T: SigmaSerializable> SigmaSerializable for Option<Box<T>>`
- * (`serialization/serializable.rs`).
- *
- * Full AVL+ membership-proof verification is deferred to phase 2h. This
- * codec only handles the wire shape; the `proof` Expr at runtime carries
- * the merkle-path bytes that the future verifier will consume.
+ *   - `TreeLookup` (opcode 0xb7) — three expr operands (identical in JVM
+ *     and sigma-rust):
+ *       [tree: Expr]                   -- type SAvlTree
+ *       [key: Expr]                    -- type SColl(SByte)
+ *       [proof: Expr]                  -- type SColl(SByte)
  *
  * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/create_avl_tree.rs
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/tree_lookup.rs
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/serializable.rs
+ *   ~/projects/sigmastate-interpreter/data/shared/src/main/scala/sigma/
+ *     serialization/CreateAvlTreeSerializer.scala (canonical)
+ *   external/sigma-rust @ ergo-node-integration:
+ *     ergotree-ir/src/mir/create_avl_tree.rs (forked presence-tag shape,
+ *     routed to sigma-rust via SANTA)
  */
 
 describe('CreateAvlTree variant', () => {
-  it('round-trips CreateAvlTree(flags=Byte 6, digest=ColByte[..], keyLen=Int 32, valueLen=None)', () => {
+  it('round-trips the JVM-blessed vector bytes (segregated v3 tree, valueLengthOpt = placeholder → Const(SOption[SInt], None))', () => {
+    // AvlTree.unsupported_eval_nodes_v6.json #create_avl_tree-errored#1
+    // (blessed_by jvm:sigma-state-6.0.3) — script `CreateAvlTree(flags,
+    // digest, 32, None)`. Layout:
+    //   0x1b              header (v3 | hasSize | constant segregation)
+    //   0x33              size = 51 bytes
+    //   0x04              4 segregated constants:
+    //     0x02 0x07                 SByte 7            (flags)
+    //     0x0e 0x21 <33 bytes>      SColl(SByte) len33 (digest)
+    //     0x04 0x40                 SInt 32            (keyLength)
+    //     0x28 0x00                 SOption(SInt) None (valueLengthOpt)
+    //   body:
+    //     0xb6              OP_AVL_TREE
+    //     0x73 0x00..0x03   FOUR ConstantPlaceholders — the 4th IS the
+    //                       valueLengthOpt operand (expr channel, no
+    //                       presence tag)
+    const hex =
+      '1b330402070e21fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fb' +
+      'c02c0404402800b67300730173027303'
+    const bytes = Uint8Array.from(
+      hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)),
+    )
+
+    const tree = parseTree(bytes)
+    expect(tree.body.tag).toBe('CreateAvlTree')
+    if (tree.body.tag !== 'CreateAvlTree') throw new Error('unreachable')
+
+    // 4th operand parsed through the expr channel.
+    expect(tree.body.valueLength.tag).toBe('ConstPlaceholder')
+
+    const out = serializeTree(tree)
+    expect(Array.from(out)).toEqual(Array.from(bytes))
+  })
+
+  it('round-trips inline CreateAvlTree with valueLengthOpt = Const(SOption[SInt], None)', () => {
     // AST: CreateAvlTree(
-    //        flags     = Const(SByte 0x06),
-    //        digest    = Const(SColl(SByte) [0xde,0xad,0xbe,0xef]),
-    //        keyLength = Const(SInt 32),
-    //        valueLength = None
+    //        flags       = Const(SByte 0x06),
+    //        digest      = Const(SColl(SByte) [0xde,0xad,0xbe,0xef]),
+    //        keyLength   = Const(SInt 32),
+    //        valueLength = Const(SOption[SInt], None)
     //      )
     //
-    // bytes:
-    //   0x00                header (v0, no size, no segregation)
+    // bytes (v3 header + size, non-segregated, matching the blessed
+    // vector's tree version):
+    //   0x0b                header (v3 | hasSize)
+    //   0x0d                size = 13 bytes
     //   0xb6                OP_AVL_TREE
     //   0x02 0x06           flags = Const(SByte 0x06)
     //   0x0e 0x04           digest = Const(SColl(SByte), len=4) ...
     //     0xde 0xad 0xbe 0xef    ... 4 raw bytes (NativeColl byte path)
     //   0x04 0x40           keyLength = Const(SInt, ZigZag(32)=64)
-    //   0x00                valueLength Option tag = 0 (None)
+    //   0x28 0x00           valueLength = Const(SOption[SInt], None)
+    //                       (type code 0x28 = 36+4; data tag 0x00 = None)
     const bytes = new Uint8Array([
-      0x00,
+      0x0b, 0x0d,
       0xb6,
       0x02, 0x06,
       0x0e, 0x04, 0xde, 0xad, 0xbe, 0xef,
       0x04, 0x40,
-      0x00,
+      0x28, 0x00,
     ])
 
     const tree = parseTree(bytes)
@@ -77,57 +123,45 @@ describe('CreateAvlTree variant', () => {
     if (tree.body.keyLength.tag !== 'Const') throw new Error('unreachable')
     expect(tree.body.keyLength.value).toEqual({ kind: 'Int', value: 32 })
 
-    expect(tree.body.valueLength).toBeNull()
+    if (tree.body.valueLength.tag !== 'Const') throw new Error('unreachable')
+    expect(tree.body.valueLength.tpe).toEqual({
+      tag: 'SOption',
+      elem: { tag: 'SInt' },
+    })
+    expect(tree.body.valueLength.value).toEqual({
+      kind: 'Option',
+      elem: { tag: 'SInt' },
+      value: null,
+    })
 
     const out = serializeTree(tree)
     expect(Array.from(out)).toEqual(Array.from(bytes))
   })
 
-  it('round-trips CreateAvlTree with valueLength=Some(Int 32)', () => {
-    // Same as above but valueLength = Some(Const(SInt 32)).
-    //
-    // bytes:
-    //   0x00              header
-    //   0xb6              OP_AVL_TREE
-    //   0x02 0x06         flags = Const(SByte 0x06)
-    //   0x0e 0x04 ...     digest = Const(SColl(SByte) 4 bytes)
-    //     0xde 0xad 0xbe 0xef
-    //   0x04 0x40         keyLength = Const(SInt 32)
-    //   0x01              valueLength Option tag = 1 (Some)
-    //   0x04 0x40         inner = Const(SInt 32)
+  it('round-trips inline CreateAvlTree with valueLengthOpt = Const(SOption[SInt], Some(32))', () => {
+    // Same as above but valueLength = Const(SOption[SInt], Some(32)):
+    //   0x28 0x01 0x40      type SOption(SInt); data tag 0x01 = Some;
+    //                       payload ZigZag(32)=64
     const bytes = new Uint8Array([
-      0x00,
+      0x0b, 0x0e,
       0xb6,
       0x02, 0x06,
       0x0e, 0x04, 0xde, 0xad, 0xbe, 0xef,
       0x04, 0x40,
-      0x01,
-      0x04, 0x40,
+      0x28, 0x01, 0x40,
     ])
 
     const tree = parseTree(bytes)
     if (tree.body.tag !== 'CreateAvlTree') throw new Error('unreachable')
-    expect(tree.body.valueLength).not.toBeNull()
-    if (tree.body.valueLength === null) throw new Error('unreachable')
     if (tree.body.valueLength.tag !== 'Const') throw new Error('unreachable')
-    expect(tree.body.valueLength.value).toEqual({ kind: 'Int', value: 32 })
+    expect(tree.body.valueLength.value).toEqual({
+      kind: 'Option',
+      elem: { tag: 'SInt' },
+      value: { kind: 'Int', value: 32 },
+    })
 
     const out = serializeTree(tree)
     expect(Array.from(out)).toEqual(Array.from(bytes))
-  })
-
-  it('rejects CreateAvlTree with invalid Option tag (>= 2)', () => {
-    // Same prefix as the first test but the Option tag is 0x02 (invalid;
-    // sigma-rust accepts only 0 or 1).
-    const bytes = new Uint8Array([
-      0x00,
-      0xb6,
-      0x02, 0x06,
-      0x0e, 0x04, 0xde, 0xad, 0xbe, 0xef,
-      0x04, 0x40,
-      0x02, // INVALID Option tag
-    ])
-    expectParseError(() => parseTree(bytes), 'invalid-option-tag')
   })
 })
 

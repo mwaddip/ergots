@@ -386,6 +386,7 @@ All 80 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'avl-tree-proof-failed'` | AvlTree proof verification failed where the JVM throws: `get`/`getMany` (≥1 key) on any failure, `insert` at treeVersion<3 with ≥1 op. `contains`→false, `update`/`remove`/`insertOrUpdate`→None instead (F4 JVM-canonical surface) |
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
 | `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |
+| `'unsupported-eval-node'` | Evaluating `TreeLookup` or `CreateAvlTree` — the JVM has no eval override for either node (both still parse); unconditional, nothing charged (F4 epilogue) |
 
 ---
 

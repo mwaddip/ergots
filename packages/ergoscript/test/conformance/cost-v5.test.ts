@@ -77,8 +77,9 @@ const VECTOR_FILES = [
   // updateDigest_any_length (4 entries): 3-byte/empty/40-byte digest → Some(AvlTree) cost 46;
   // readback → Coll[1,2,3] cost 65. RED ×4 until Task 3 (JVM accepts ANY digest length).
   'AvlTree.updateDigest_any_length.json',
-  // unsupported_eval_nodes (1 entry): tree_lookup-errored#0 @v2. RED until Task 2
-  // (JVM has no eval override — trees.scala:1322-1338, costKind=notSupportedError).
+  // unsupported_eval_nodes (1 entry): tree_lookup-errored#0 @v2. GREEN since the
+  // F4-epilogue unconditional eval-reject ('unsupported-eval-node' — JVM has no
+  // eval override, trees.scala:1322-1338, costKind=notSupportedError).
   'AvlTree.unsupported_eval_nodes.json',
 ]
 

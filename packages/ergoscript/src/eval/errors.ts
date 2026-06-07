@@ -9,6 +9,8 @@
  *     for ergonomic construction in each arm without needing to import this type)
  *   - documents the 80 codes through v6 P6 (HOF lambdas) + F1 (which removed
  *     'deserialize-context-key-not-found': 80 → 79; see history) + F3 (79 → 80)
+ *     + F4 epilogue (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
+ *     which the unconditional CreateAvlTree reject orphaned: net 80 → 80)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -38,7 +40,9 @@
  *        - 'sigma-prop-is-proven-no-eval' (T2 — frontend-only structural throw)
  *        - 'group-op-input-not-group-element' (T3+T4 — MultiplyGroup + Exponentiate base)
  *        - 'predef-input-not-bigint' (T4 — Exponentiate's BigInt exponent)
- *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/valueLength)
+ *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/
+ *          valueLength; REMOVED in the F4 epilogue — the unconditional
+ *          CreateAvlTree eval-reject orphaned every throw path)
  *    + 4 codes added in phase 2i-c (deserialize family; was 5 — F1 later
  *      removed 'deserialize-context-key-not-found', see note below):
  *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
@@ -312,12 +316,10 @@ export type EvalErrorCode =
    *   - `insert` at `ctx.treeVersion < 3` with ≥1 op in the batch →
    *     throw (CErgoTreeEvaluator.scala:150 V<3 path). V3+ and zero-op:
    *     None (never throws).
-   *   - `TreeLookup` MIR arm (`tree-lookup.ts:94`, opcode 0xd4) — construct
-   *     failure → throw. ⚠ Inherited sigma-rust semantics, NOT F4-assessed:
-   *     the JVM JIT cannot evaluate TreeLookup at all (trees.scala:1322-1338
-   *     — no eval override, costKind = notSupportedError), so the whole arm
-   *     is an over-accept divergence candidate tracked in the conformance-run
-   *     ledger (§F5) — outside F4's blessed-vector scope.
+   *
+   * (The `TreeLookup` MIR arm bullet retired in the F4 epilogue: the arm
+   * now rejects unconditionally with `'unsupported-eval-node'` — the JVM
+   * has no eval override for the node; see that code's entry below.)
    *
    * **NOT thrown by (F4 JVM-canonical, final state):**
    *   - `contains` — always returns false on any failure; never throws.
@@ -512,8 +514,11 @@ export type EvalErrorCode =
   // Phase 2i-b — Curve + AVL + sigma-trivial predefs. T2 added 1 code
   // (sigma-prop-is-proven-no-eval; 52 → 53). T3 adds 1 code
   // (group-op-input-not-group-element; 53 → 54). T4 adds 1 code
-  // (predef-input-not-bigint; 54 → 55). T5 adds 1 code
-  // (create-avl-tree-shape-mismatch; 55 → 56).
+  // (predef-input-not-bigint; 54 → 55). T5 added 1 code
+  // (create-avl-tree-shape-mismatch; 55 → 56) — REMOVED in the F4 epilogue
+  // (2026-06-07): the CreateAvlTree arm became an unconditional
+  // 'unsupported-eval-node' reject (no JVM eval override), orphaning all 3
+  // shape-mismatch throw paths.
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no
@@ -554,27 +559,6 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/exponentiate.rs:21
    */
   | 'predef-input-not-bigint'
-  /**
-   * `CreateAvlTree` arm: compact umbrella code covering 3 distinct shape-
-   * mismatch throw paths. The `.message` text carries the specific field
-   * name (flags / keyLength / valueLength):
-   *   - flags `kind !== 'Byte'`        — mirrors sigma-rust try_extract_into::<i8>() at create_avl_tree.rs:21
-   *   - keyLength `kind !== 'Int'`     — mirrors sigma-rust try_extract_into::<i32>() at create_avl_tree.rs:23
-   *   - valueLength `kind !== 'Int'`   — mirrors sigma-rust try_extract_into::<i32>() at create_avl_tree.rs:26
-   *
-   * Wire-format invariants (`CreateAvlTree::new` enforces SByte / SColl(SByte)
-   * / SInt / Option<SInt> at construction — `ergotree-ir/src/mir/create_avl_tree.rs:31-59`)
-   * make these unreachable for parser-produced trees; defensive against
-   * `ConstantPlaceholder` injection or hand-crafted MIR.
-   *
-   * Distinct from `'avl-tree-bad-digest-length'` (2h-d, reused here) which
-   * covers the eval-time digest length check, and from `'predef-input-not-byte-array'`
-   * (2i-a, reused here via `collByteToUint8Array`) which covers the
-   * digest non-Coll[Byte] path.
-   *
-   * Source: ergotree-interpreter/src/eval/create_avl_tree.rs:21, 23, 26
-   */
-  | 'create-avl-tree-shape-mismatch'
 
   // -------------------------------------------------------------------------
   // Phase 2i-c — Deserialize family (originally 5 new codes; 59 → 64; F1 removed
@@ -899,3 +883,38 @@ export type EvalErrorCode =
    * Source: JVM DataValueComparer.scala:278-281; _sigma-boolean-eq.ts.
    */
   | 'sigma-boolean-compare-unsupported'
+
+  // -------------------------------------------------------------------------
+  // F4 epilogue — TreeLookup + CreateAvlTree unconditional eval reject
+  // (1 new code, and the same change REMOVED the orphaned
+  // 'create-avl-tree-shape-mismatch' above: net 80 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * The `TreeLookup` (opcode 0xb7) and `CreateAvlTree` (opcode 0xb6) MIR
+   * arms: the JVM has NO eval override for either node — `costKind =
+   * Value.notSupportedError` (trees.scala:1334-1337 TreeLookup,
+   * trees.scala:87-91 CreateAvlTree) and the default `Value.eval` fires
+   * `sys.error("Should be overriden in ...")` (values.scala:102). EVERY
+   * evaluation throws JVM-side, so both arms reject unconditionally —
+   * nothing charged, no operand evaluated.
+   *
+   * Both nodes still PARSE fine (the JVM parses them; parse/serialize
+   * arms unchanged). Mainnet history is JVM-validated, so no mainnet
+   * block ever evaluated either node — the reject cannot fork against
+   * chain history. ergots' previous evaluating arms were sigma-rust
+   * ports; sigma-rust (eni) convergently over-accepts both (routed to
+   * sigma-rust via SANTA).
+   *
+   * Source: JVM-blessed vectors AvlTree.unsupported_eval_nodes.json
+   * (tree_lookup @v2) + AvlTree.unsupported_eval_nodes_v6.json
+   * (tree_lookup + create_avl_tree @v3), blessed_by jvm:sigma-state-6.0.3;
+   * trees.scala:79-91 + 1322-1338.
+   *
+   * ⚠ Grading coupling (load-bearing — do NOT rename to a not-impl code):
+   * SANTA's dasher maps ONLY 'method-not-implemented' to its
+   * not-implemented category (santa ts-runner/src/runner.ts:152); every
+   * other EvalError grades as errored. These vectors EXPECT errored — a
+   * distinct code is what makes the reject visible as a reject. The 4
+   * unit/mutation suites pin the exact code as a local tripwire.
+   */
+  | 'unsupported-eval-node'
