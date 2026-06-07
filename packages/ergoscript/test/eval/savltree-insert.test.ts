@@ -1,13 +1,19 @@
 /**
  * SAvlTree.insert (100:12) — Tier-2 verification op handler.
  *
- * Source: ergotree-interpreter/src/eval/savltree.rs:214-277 — INSERT_EVAL_FN.
+ * Source (F4, JVM-canonical): CErgoTreeEvaluator.scala:132-164 insert_eval.
+ * Cost: isInsertAllowed Fixed(15) charge-then-check + CreateAvlVerifier
+ * PerItem(110,20,64) on proof.length + InsertIntoAvlTree PerItem(40,10,1)
+ * × chargedOps on max(digest[32],1) + updateDigest Fixed(40) on success.
  *
- * Failure model:
- *   - !insert_allowed (line 218-220) → `Option None` BEFORE any avltree call
- *   - verifier construct fail (line 251 `?`) → throw 'avl-tree-proof-failed'
- *   - V<3 per-op fail (line 263-267) → throw same code
- *   - V3+ per-op fail (line 260-261 `break`) → `Option None` via poisoned digest
+ * Failure model (construct fail is NOT a distinct observable — it manifests
+ * as the first op failing; the JVM swallows reconstruction failure):
+ *   - !insert_allowed → `Option None` after the flag charge
+ *   - op fail (incl. construct fail) at V<3 with ≥1 op attempted → throw
+ *     'avl-tree-proof-failed' (JVM syntax.error, gated
+ *     !isV3OrLaterErgoTreeVersion)
+ *   - op fail at V3+ → `Option None` via poisoned digest; 0-ops construct
+ *     fail → None at EVERY version (empty forall never reaches the throw)
  *   - full success → `Some(AvlTree(new_digest))`
  */
 import { describe, expect, it } from 'vitest'
