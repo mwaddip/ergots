@@ -7,13 +7,15 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 79 codes through v6 P6 (HOF lambdas) + F1 (which removed
+ *   - documents the 80 codes through v6 P6 (HOF lambdas) + F1 (which removed
  *     'atleast-bound-out-of-range' AND 'deserialize-context-key-not-found':
  *     81 → 79; see history) + F3 (79 → 80)
  *     + F4 epilogue Task 2 (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
  *     which the unconditional CreateAvlTree reject orphaned: net 80 → 80)
  *     + F4 epilogue Task 3 (−'avl-tree-bad-digest-length': JVM accepts any digest
  *     length, CAvlTree.scala:31-34 no-require; net 80 → 79)
+ *     + F5 batch 1 (+'tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
+ *     values.scala:795-798; net 79 → 80)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -66,6 +68,8 @@
  *        the P2 arms but omitted from this union until now)
  *    + 1 code added in F3 (conformance run — EQ-of-SigmaProp costed walk):
  *        'sigma-boolean-compare-unsupported' (JVM DataValueComparer sys.error mirror)
+ *    + 1 code added in F5 batch 1 ('tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
+ *        values.scala:795-798; net 79 → 80)
  */
 
 /**
@@ -918,3 +922,22 @@ export type EvalErrorCode =
    * unit/mutation suites pin the exact code as a local tripwire.
    */
   | 'unsupported-eval-node'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 1 — Tuple eval arity gate (1 new code; 79 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * Tuple EXPR node evaluated with arity ≠ 2. JVM values.scala:797-798: the
+   * v5.0+ evaluator supports only pairs — `syntax.error("Invalid tuple …")`
+   * thrown BEFORE any item eval and BEFORE the Fixed(15) envelope (zero cost
+   * contribution from the failing arm). Distinct code (NOT
+   * 'unsupported-eval-node'): the node IS supported at arity 2. Grades as
+   * errored on dasher (any non-'method-not-implemented' EvalError).
+   * Inline tuple-N CONSTANTS in non-checkType'd positions (e.g. tree root)
+   * still evaluate on both sides (Constant.eval bypasses Tuple.eval;
+   * CoreDataSerializer:134-139 no gate); in checkType'd positions the JVM
+   * rejects via Value.checkType (values.scala:801,804 + 408-414) — a residual
+   * ergots over-accept tracked as the F5 checkType-class item.
+   * SANTA pin: Tuple.non_pair_arity3.json.
+   */
+  | 'tuple-invalid-arity'

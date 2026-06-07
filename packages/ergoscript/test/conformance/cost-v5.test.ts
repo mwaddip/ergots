@@ -90,6 +90,10 @@ const VECTOR_FILES = [
   'ArithOp.numeric_kind_mismatch.json',
   'Box.sub_min_value.json',
   'AvlTree.valueLengthOpt_wrapped_negative.json',
+  // Tuple non-pair = eval-layer reject (values.scala:795-798 "Invalid tuple": arity≠2 throws
+  // BEFORE items + cost; constants exempt). The walker-era flat-tuple JVM-alignment follow-up,
+  // now JVM-pinned. Tree 0086030101020703a413 = v0 Tuple(true, 7.toByte, 1234.toShort).
+  'Tuple.non_pair_arity3.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

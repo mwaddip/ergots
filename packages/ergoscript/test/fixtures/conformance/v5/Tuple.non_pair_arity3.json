@@ -1,0 +1,26 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.non_pair_arity3",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-arith-tuple",
+  "entries" : [
+    {
+      "name" : "flat_triple-errored#0",
+      "script" : "{ (true, 7.toByte, 1234.toShort) as a flat arity-3 Tuple }  // JVM rejects: sigma-state tuples are nested pairs",
+      "tree_bytes_hex" : "0086030101020703a413",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

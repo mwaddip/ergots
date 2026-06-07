@@ -33,6 +33,11 @@ pub fn generate() -> anyhow::Result<EvalFixtureFile> {
             "tuple_pair_int_long",
             vec![Expr::Const(1i32.into()), Expr::Const(100i64.into())],
         ),
+        // ⚠️ HAND-BLESSED DIVERGENCE (F5 batch 1, 2026-06-07): the emitted `tuple_triple_bool_byte_short`
+        // entry has been hand-edited in tuple.json to an ERROR pin (`tuple-invalid-arity`) — the JVM
+        // rejects arity≠2 Tuple EXPR at eval (values.scala:795-798) while sigma-rust evaluates it
+        // (sigma-rust fork). A regen diff on this entry is EXPECTED; do NOT take the regenerated
+        // value-pin. See test/fixtures/eval/tuple.json.
         (
             "tuple_triple_bool_byte_short",
             vec![

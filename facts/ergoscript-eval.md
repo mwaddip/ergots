@@ -942,11 +942,14 @@ Committed 2026-06-06 (commits `eb09892`/`f5dd083` atLeast, `5580a75`/`b614d6e` D
 
 ### F5 batch 1 code (Tuple arity gate, 2026-06-07)
 
-- **`'tuple-invalid-arity'`** — Tuple EXPR node evaluated with arity ≠ 2. JVM `values.scala:795-798`:
+- **`'tuple-invalid-arity'`** — Tuple EXPR node evaluated with arity ≠ 2. JVM `values.scala:797-798`:
   v5.0+ evaluates only pairs; thrown BEFORE any item eval and BEFORE the Fixed(15) envelope (zero
   cost contribution). Distinct from `'unsupported-eval-node'` — the node IS supported at arity 2.
-  Constants exempt: arity-N tuple CONSTANTS evaluate on the JVM (`Constant.eval` bypasses
-  `Tuple.eval`; `CoreDataSerializer:134-139` no gate; `toDslTuple` → `Coll[Any]`). Shipped F5
+  Inline tuple-N CONSTANTS at non-checkType'd positions evaluate on both sides (`Constant.eval`
+  bypasses `Tuple.eval`; `CoreDataSerializer:134-139` no gate; `toDslTuple` → `Coll[Any]`); at
+  checkType'd positions the JVM rejects (`Value.checkType`, `values.scala:801,804` + the
+  ConstantPlaceholder path `:408-414`) — residual over-accept, tracked as the F5 checkType-class
+  item (witness tree `008602480101010101010402`). Shipped F5
   batch 1 (2026-06-07), SANTA `Tuple.non_pair_arity3`.
 
 No other error codes are emitted by the current evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
