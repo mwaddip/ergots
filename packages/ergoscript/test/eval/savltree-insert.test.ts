@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
+import { evalSAvlTreeInsert } from '../../src/eval/savltree'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
 
 interface InsertEntry {
@@ -184,4 +185,192 @@ describe('SAvlTree.insert — V<3 per-op-fail-throw (hardening, carry-forward fr
       }
     })
   }
+})
+
+// ---------------------------------------------------------------------------
+// F4 Task 7 — construct-fail + empty-ops unit pins (unvectored class)
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree.insert — F4 construct-fail + empty-ops pins', () => {
+  // All three pins use direct handler calls — no envelope overhead.
+  // Precedent: getMany empty-keys pin in savltree-getmany.test.ts.
+  //
+  // Fixture source: insert_success_1_entry
+  //   digest: 931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900
+  //   height byte: digest[32] = 0x00 → h=0 → max(h,1)=1
+  //   proof (8 bytes): 0200ff0000000004  (= bytes after tag "0e08" in fixture hex)
+  //   treeFlags: 1 (insert allowed)  keyLength: 1
+
+  it('pin 3 — V3 construct-fail (≥1 op) → None, not throw (JVM-canonical)', () => {
+    // JVM insert V3+: forall breaks on first op failure → digest None → None.
+    // Construct-fail = first-op-fail (scorex swallows reconstruction errors;
+    // broken verifier → every op fails immediately). So V3 + garbage proof +
+    // ≥1 op → None, never throws.  Cost: flag(15) + cv(8→130) + 1×Insert(40+10×1=50) + 0.
+    // (The existing V0 test in "throw paths" already pins V0 construct-fail → throw.)
+    //
+    // Cost decomposition (handler; no envelope):
+    //   isInsertAllowed Fixed(15)
+    //   createVerifier PerItem(110,20,64) on proofLen=8:
+    //     chunks = Math.trunc((8-1)/64)+1 = 0+1 = 1 → 110+20=130
+    //   chargedOps(null, ops.length=1) = min(1,1) = 1 → InsertIntoAvlTree(40+10×max(0,1)=50)×1
+    //   no updateDigest (failure path)
+    //   TOTAL: 15 + 130 + 50 = 195
+    const digestHex = '931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900'
+    const proofHex = '0200ff0000000004' // 8 bytes — the valid proof from insert_success_1_entry
+    const digest = hexToBytes(digestHex)
+    // Garbage proof (8 bytes of zeros) to force construct failure:
+    const garbageProof = new Uint8Array(8) // all zeros
+    expect(digest.length).toBe(33)
+
+    const treeObj = {
+      kind: 'AvlTree' as const,
+      value: { digest, treeFlags: 0x01, keyLength: 1, valueLengthOpt: null as number | null },
+    }
+    // One insert entry: key=[0x01], value=[0x01] — Coll[Tuple[Coll[Byte],Coll[Byte]]]
+    const oneEntry = {
+      kind: 'Coll' as const,
+      elem: {
+        tag: 'STuple' as const,
+        items: [
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+        ],
+      },
+      items: [
+        {
+          kind: 'Tuple' as const,
+          items: [
+            { kind: 'Coll' as const, elem: { tag: 'SByte' as const }, items: [{ kind: 'Byte' as const, value: 0x01 }] },
+            { kind: 'Coll' as const, elem: { tag: 'SByte' as const }, items: [{ kind: 'Byte' as const, value: 0x01 }] },
+          ],
+        },
+      ],
+    }
+    const garbageProofColl = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SByte' as const },
+      items: Array.from(garbageProof, () => ({ kind: 'Byte' as const, value: 0 })),
+    }
+
+    const ctx = makeContext({ treeVersion: 3 })
+    const result = evalSAvlTreeInsert(ctx, treeObj, [oneEntry, garbageProofColl])
+
+    expect(result).toEqual({ kind: 'Option', elem: { tag: 'SAvlTree' }, value: null })
+    // Exact cost: 15 + 130 + 50 = 195
+    expect(ctx.jitCost).toBe(195) // isInsertAllowed(15) + cv(8→130) + 1×Insert(50)
+  })
+
+  it('pin 4 — V0 + empty ops + garbage proof → None (not throw) at every version', () => {
+    // JVM insert: "when the tree is empty we still need to add the insert cost"
+    // (CErgoTreeEvaluator.scala:139 comment). But with ops.length=0, the forall
+    // body NEVER executes — the V<3 throw is inside the forall body (after per-op
+    // failure). An empty forall has no iteration, so even a construct-broken
+    // verifier cannot reach the throw path → returns None at EVERY version.
+    //
+    // spec: "ops.length === 0: empty forall never runs; even a construct failure
+    // cannot surface → digest → None at every version." (F4 spec failure table row)
+    //
+    // This pin uses V0 (makeContext({})) to confirm the zero-ops carve-out overrides
+    // the V<3 throw. If the handler incorrectly checked version BEFORE ops.length,
+    // it would throw for V0 — this pin would fail and reveal the regression.
+    //
+    // Cost decomposition (handler; no envelope):
+    //   isInsertAllowed Fixed(15)
+    //   createVerifier PerItem(110,20,64) on proofLen=100 (garbage):
+    //     chunks = Math.trunc((100-1)/64)+1 = 1+1 = 2 → 110+40=150
+    //   chargedOps(null, ops.length=0) = min(1,0) = 0 → 0 InsertIntoAvlTree charges
+    //   no updateDigest (failure path — verifier poisoned, digest None)
+    //   TOTAL: 15 + 150 + 0 = 165
+    const digest = hexToBytes('931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900')
+    const treeObj = {
+      kind: 'AvlTree' as const,
+      value: { digest, treeFlags: 0x01, keyLength: 1, valueLengthOpt: null as number | null },
+    }
+    const emptyEntries = {
+      kind: 'Coll' as const,
+      elem: {
+        tag: 'STuple' as const,
+        items: [
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+        ],
+      },
+      items: [] as never[],
+    }
+    const garbageProofColl = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SByte' as const },
+      items: Array.from({ length: 100 }, () => ({ kind: 'Byte' as const, value: 0 })),
+    }
+
+    const ctx = makeContext({}) // V0 — the most restrictive version
+    const result = evalSAvlTreeInsert(ctx, treeObj, [emptyEntries, garbageProofColl])
+
+    // Must return None, NOT throw — even in V0. Zero-ops carve-out overrides V<3 throw.
+    expect(result).toEqual({ kind: 'Option', elem: { tag: 'SAvlTree' }, value: null })
+    // Exact cost: 15 + 150 + 0 = 165
+    expect(ctx.jitCost).toBe(165) // isInsertAllowed(15) + cv(100→150) + 0 ops
+  })
+
+  it('pin 5 — empty-ops + VALID proof → Some(starting digest), cost exact', () => {
+    // With zero insert entries, verifyAvlBatchPartial(ops=[]) runs 0 ops →
+    // newDigest = starting digest → success → updateDigest(40) fired.
+    // Result: Some(AvlTree) with digest BYTE-EQUAL to the input starting digest.
+    //
+    // Source fixture: insert_success_1_entry (proof 8 bytes, valid for this tree)
+    //   digest: 931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900
+    //   height byte: digest[32] = 0x00 → h=0 → max(h,1)=1 (floor applied for insert)
+    //   proof hex (8 bytes): 0200ff0000000004
+    //   treeFlags: 1 (insert allowed)
+    //
+    // Cost decomposition (handler; no envelope):
+    //   isInsertAllowed Fixed(15)
+    //   createVerifier PerItem(110,20,64) on proofLen=8:
+    //     chunks = Math.trunc((8-1)/64)+1 = 0+1 = 1 → 110+20=130
+    //   chargedOps(partial_success_0ops, 0) = 0 InsertIntoAvlTree charges
+    //   updateDigest Fixed(40) on success
+    //   TOTAL: 15 + 130 + 0 + 40 = 185
+    const digestHex = '931febe9170def63e50b66e4f923a9af40ac80ee43342ebf4fde9f0d5d1fc45900'
+    const proofHex = '0200ff0000000004' // 8-byte proof from insert_success_1_entry
+    const digest = hexToBytes(digestHex)
+    const proofBytes = hexToBytes(proofHex)
+    expect(digest.length).toBe(33)
+    expect(proofBytes.length).toBe(8)
+
+    const treeObj = {
+      kind: 'AvlTree' as const,
+      value: { digest, treeFlags: 0x01, keyLength: 1, valueLengthOpt: null as number | null },
+    }
+    const emptyEntries = {
+      kind: 'Coll' as const,
+      elem: {
+        tag: 'STuple' as const,
+        items: [
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+        ],
+      },
+      items: [] as never[],
+    }
+    const proofColl = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SByte' as const },
+      items: Array.from(proofBytes, (b) => ({ kind: 'Byte' as const, value: (b << 24) >> 24 })),
+    }
+
+    const ctx = makeContext({})
+    const result = evalSAvlTreeInsert(ctx, treeObj, [emptyEntries, proofColl])
+
+    // Value: Some(AvlTree) with digest BYTE-EQUAL to starting digest (0 ops → no change).
+    expect(result.kind).toBe('Option')
+    expect(result.value).not.toBeNull()
+    if (result.value !== null && result.value.kind === 'AvlTree') {
+      expect(result.value.value.digest).toEqual(digest)
+    } else {
+      throw new Error('expected Some(AvlTree) but got a different shape')
+    }
+
+    // Exact cost: 15 + 130 + 0 + 40 = 185
+    expect(ctx.jitCost).toBe(185) // isInsertAllowed(15) + cv(8→130) + 0 ops + updateDigest(40)
+  })
 })
