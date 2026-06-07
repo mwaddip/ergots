@@ -165,6 +165,12 @@ serializeTree(parseTree(b)) === b   (byte-equal)
 
 This holds for every ErgoTree variant we ship. The phase 2a corpus test asserts this on 255 passing fixtures plus 1 mainnet-fixture stub plus 6 upstream-buggy fixtures (the 6 are excluded from byte-equality; sigma-rust itself does not round-trip them — see `fixture-gen/known_unstable.json`).
 
+**Carve-out (F5 batch 1, 2026-06-08):** trees whose serialized types include an arity-0/1
+generic-tuple TYPE (`0x60` + len 0/1) PARSE but cannot re-serialize — `serializeSTuple` throws
+`'tuple-too-short'`, mirroring the JVM's own asymmetry (`TypeSerializer.scala:188-194` parse
+has no arity require; `:93-94` serialize `sys.error`s < 2). First parse→serialize exception;
+the reverse-direction precedent is the AvlTree any-length-digest note.
+
 For the body-only round-trip (i.e., parsing a `parseExpr` output and reserializing through `serializeExpr` into a fresh `ByteWriter`), the same byte-equality invariant holds.
 
 ## Type invariants (wire-side shapes)

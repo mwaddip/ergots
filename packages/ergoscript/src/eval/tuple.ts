@@ -28,6 +28,10 @@
  * multiple arms (ConcreteCollection/MethodCall/BlockValue/Apply + the
  * ConstantPlaceholder path, values.scala:408-414) and is tracked as its own
  * F5 ledger item rather than patched per-arm.
+ * NB the tracked class also covers non-checkType mechanisms (e.g.
+ * SelectField's runtime Tuple2-only match, transformers.scala:300-307, and
+ * the eq-comparer's Coll-representation dispatch for tuple-N values) — see
+ * the ledger item's scope amendment.
  *
  * Constant seam, precisely: inline tuple-N constants in positions WITHOUT a
  * JVM checkType (e.g. the tree root) evaluate on both sides — Constant.eval

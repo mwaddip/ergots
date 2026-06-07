@@ -217,21 +217,18 @@ function readArgType(r: ByteReader, primId: number): SType {
 function parseHighTypeCode(r: ByteReader, c: number): SType {
   switch (c) {
     case TUPLE_TYPECODE: {
-      // Tuple with explicit length (5+ items): u8 length, then each item.
+      // Tuple with explicit length (the 5+-item wire form; 2..4 normally use
+      // the pair/triple/quadruple codes). JVM TypeSerializer.scala:188-194:
+      // getUByte + bare STuple(items) — NO arity require, so arity-0/1
+      // generic-tuple TYPES parse (the TYPE serializer rejects < 2,
+      // TypeSerializer.scala:93-94 sys.error; our serialize-stype
+      // 'tuple-too-short' mirrors it — an asymmetry the JVM itself has).
+      // The old [2,255] reject was sigma-rust STuple::try_from semantics —
+      // a JVM over-reject fork on 0/1.
       const len = r.readU8()
       const items: SType[] = []
       for (let i = 0; i < len; i++) {
         items.push(parseSType(r))
-      }
-      // STuple invariant 2..=255: enforced on serialize, and a too-short
-      // tuple here would be a malformed input — but reproducing sigma-rust's
-      // permissive behavior (it goes through `STuple::try_from` and rejects
-      // there) we likewise reject here.
-      if (items.length < 2 || items.length > 255) {
-        throw new STypeParseError(
-          `STuple length ${items.length} out of [2, 255]`,
-          'invalid-tuple-length'
-        )
       }
       return { tag: 'STuple', items }
     }

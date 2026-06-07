@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
-import { expectParseError } from './_helpers'
+import { evaluateWith } from '../../src/eval/evaluate'
+import { makeContext } from '../../src/eval/eval-context'
+import { captureEvalError } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**
@@ -8,11 +10,12 @@ import type { ErgoTree } from '../../src/mir/types'
  * round-trips. Drives the parsers end-to-end via the `parseTree` /
  * `serializeTree` envelope so per-variant code runs in its real call context.
  *
- * Wire format reminders (verified against sigma-rust source):
+ * Wire format reminders (JVM canonical: TupleSerializer.scala):
  *   - `Tuple` (opcode 0x86):
- *       [items_count: u8]            -- raw byte, NOT VLQ (sigma-rust
- *                                       `mir/tuple.rs:56-65`); bounded 2..=255
- *                                       by `TupleItems` (`types/stuple.rs:14`).
+ *       [items_count: u8]            -- raw byte, NOT VLQ; JVM reads via signed
+ *                                       getByte() (TupleSerializer.scala:27-36);
+ *                                       parse window 0..127 (≥128 sign-extends
+ *                                       negative → NegativeArraySizeException).
  *       [item_0: Expr] ... [item_n-1: Expr]
  *   - `Collection.Exprs` (opcode 0x83):
  *       [items_count: u16]           -- VLQ-encoded (Scorex `put_u16` is VLQ).
@@ -31,9 +34,12 @@ import type { ErgoTree } from '../../src/mir/types'
  * `coll_sigma_serialize` peeks `kind` and emits one or the other. We mirror
  * both directions.
  *
- * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/tuple.rs
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/collection.rs
+ * Cross-reference (JVM canonical):
+ *   ~/projects/sigmastate-interpreter/data/shared/src/main/scala/sigma/serialization/
+ *     TupleSerializer.scala       (parse window 0..127; serialize no gate)
+ *   ~/projects/sigmastate-interpreter/data/shared/src/main/scala/sigma/serialization/
+ *     ErgoTreeSerializer.scala
+ *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/collection.rs  (Coll only)
  *   ~/projects/sigma-rust/sigma-rust/sigma-ser/src/vlq_encode.rs
  *     (put_u16, put_bits, get_u16, get_bits)
  */
@@ -122,15 +128,25 @@ describe('Tuple variant', () => {
     expect(Array.from(out)).toEqual([0x00, 0x86, 0x02, 0x04, 0x0e, 0x04, 0x01])
   })
 
-  it('rejects Tuple with declared item count 1', () => {
-    // Sigma-rust's `TupleItems` newtype enforces 2..=255; a count of 1
-    // propagates `BoundedVecOutOfBounds` as a parse error
-    // (`mir/tuple.rs:60-63`).
+  it('arity-1 Tuple EXPR parses and byte-round-trips (JVM TupleSerializer no lower gate)', () => {
+    // JVM TupleSerializer.scala:27-36: count via signed getByte(); NO lower
+    // arity gate (mkTuple bare, SigmaBuilder.scala:481-482; Tuple.tpe lazy,
+    // values.scala:783). Arity-1 parses on the JVM and rejects only at EVAL
+    // (values.scala:797 → 'tuple-invalid-arity'). Old sigma-rust BoundedVec
+    // [2,255] window was a JVM over-reject fork — retired.
     const bytes = new Uint8Array([0x00, 0x86, 0x01, 0x04, 0x02])
-    expectParseError(() => parseTree(bytes), 'tuple-arity-out-of-range')
+    const tree = parseTree(bytes)
+    // Byte-round-trip identity (serialize produces same bytes, re-parses OK).
+    expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
+    // Eval-layer arity gate fires (values.scala:797).
+    const ctx = makeContext({ treeVersion: 0, constants: tree.constants })
+    expect(captureEvalError(() => evaluateWith(tree, ctx)).code).toBe('tuple-invalid-arity')
   })
 
-  it('rejects serializing Tuple with 1 item', () => {
+  it('arity-1 Tuple EXPR serializes (JVM TupleSerializer.serialize no arity gate)', () => {
+    // JVM TupleSerializer.serialize = putUByte(length) + items — NO arity gate.
+    // Arity-1 serializes on the JVM (and re-parses). Old sigma-rust
+    // [2,255] lower-bound reject was a JVM fork — retired.
     const tree: ErgoTree = {
       header: {
         version: 0,
@@ -147,7 +163,9 @@ describe('Tuple variant', () => {
         ],
       },
     }
-    expect(() => serializeTree(tree)).toThrow(/tuple-arity-out-of-range|Tuple item count/)
+    // ZigZag(1) = 2 = 0x02.
+    const out = serializeTree(tree)
+    expect(Array.from(out)).toEqual([0x00, 0x86, 0x01, 0x04, 0x02])
   })
 })
 
