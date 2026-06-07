@@ -91,7 +91,7 @@ describe('SAvlTree.updateDigest (100:15) — fixture-driven', () => {
 // Since the 33-byte length gate is removed (F4 epilogue, JVM any-length),
 // the 0-byte and 34-byte cases now SUCCEED and are pinned as acceptance cases.
 //
-// Four cases:
+// Five cases:
 //   1. non-AvlTree receiver      → 'avl-tree-obj-not-avl-tree'
 //   2. non-Coll arg              → 'method-not-implemented' (via extractBytes)
 //   3. 0-byte Coll[Byte] arg     → Some(AvlTree with 0-byte digest) @ cost 54

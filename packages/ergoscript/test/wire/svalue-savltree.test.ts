@@ -137,7 +137,7 @@ describe('SAvlTree wire — JVM serializer asymmetry (non-33 digest, F4 epilogue
     //                 0x07             (treeFlags: insert+update+remove)
     //                 0x20             (VLQ u32 keyLength=32)
     //                 0x00             (valueLengthOpt = None)
-    // = 7 bytes total
+    // = 6 bytes total
     const avlTreeValue = {
       kind: 'AvlTree' as const,
       value: {
@@ -180,5 +180,37 @@ describe('SAvlTree wire — JVM serializer asymmetry (non-33 digest, F4 epilogue
     // shorter than what parse expects, confirming non-round-tripability.
     expect(serialized.length).toBe(6)
     expect(serialized.length).toBeLessThan(33) // digest-only budget for parse
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Wrapped-keyLength round-trip stability (Task-3 review item h, F4 epilogue)
+//
+// The i32 view is eval-layer only: `keyLength | 0` is applied at the accessor
+// (evalSAvlTreeKeyLength) but NOT at parse or serialize. Storage stays u32.
+//
+// Consequence: a tree with keyLength 0x80000001 (VLQ-encoded wire bytes)
+// serializes back to the SAME VLQ bytes — parse reads the raw u32, stores it,
+// serialize writes the raw u32 back. The JVM serializer writes putUInt
+// (unsigned range), matching this behaviour. The round-trip is byte-stable.
+//
+// Pinned against the SANTA-blessed conformance vector tree bytes from
+// AvlTree.keyLength_wrapped_negative.json entry#0.
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree wire — wrapped-keyLength round-trip (F4 epilogue)', () => {
+  it('keyLength 0x80000001 tree round-trips byte-identically (storage stays u32)', () => {
+    // Tree bytes from AvlTree.keyLength_wrapped_negative.json#0 (SANTA-blessed).
+    // The ErgoTree contains a Const(SAvlTree, {digest=32-byte, treeFlags=0x07,
+    // keyLength=0x80000001 VLQ-encoded as 0x8180808008, valueLengthOpt=Some(8)}).
+    const treeBytesHex =
+      '1a300164fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c040781808080080108db64037300'
+    const treeBytes = hexToBytes(treeBytesHex)
+    const parsed = parseTree(treeBytes)
+    const reserialized = serializeTree(parsed)
+    expect(
+      bytesEqual(reserialized, treeBytes),
+      `wrapped-keyLength round-trip failed: reserialized=${bytesToHex(reserialized)} original=${treeBytesHex}`
+    ).toBe(true)
   })
 })

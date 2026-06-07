@@ -483,3 +483,43 @@ describe('SAvlTree.remove — wrapped-negative keyLength, h-discriminator (F4 T7
     expect(ctx.jitCost).toBe(390)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Digest-length disjunct pin (F4 epilogue, 2026-06-07).
+//
+// updateDigest now accepts any-length bytes, so a 3-byte digest IS reachable
+// from script via tree.updateDigest(Coll(1,2,3)).contains(...). The digest-
+// length disjunct in constructShapeBad (`data.digest.length !== 33`) is now
+// the load-bearing gate for Tier-2 verify ops on such trees.
+//
+// This is the FIRST direct pin of the digest-length disjunct: verifies that
+// contains on a 3-byte-digest tree routes through constructShapeBad (h forced
+// to 0) → false, at the same cost as any other construct-fail tree with h=0.
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree.contains — 3-byte-digest tree (digest-length disjunct, F4 epilogue)', () => {
+  it('3-byte digest → constructShapeBad fires → false; h=0 NOT digest[2] @170', () => {
+    // Build a tree with a 3-byte digest (instead of the required 33).
+    // updateDigest can produce such a tree since the F4 epilogue any-length bless.
+    // Cost decomposition (direct handler, 8-byte valid proof):
+    //   createVerifier PerItem(110,20,64) on 8 → chunks trunc(7/64)+1=1 → 130
+    //   LookupAvlTree PerItem(40,10,1) × 1 on h=0 (constructShapeBad fires
+    //     BEFORE rootNodeHeight assigned → treeHeight field stays 0) →
+    //     chunks trunc(-1/1)+1=0 → 40
+    //   TOTAL 170
+    const threeByteDigest = new Uint8Array([0x01, 0x02, 0x05]) // last byte 5 would be h if 33 bytes
+    const ctx = makeContext({})
+    const result = evalSAvlTreeContains(
+      ctx,
+      avlTreeObj({ treeFlags: 0, keyLength: 1, digest: threeByteDigest }),
+      [collByte([0x01]), validProof()]
+    )
+    // constructShapeBad: digest.length !== 33 → true → h=0.
+    // If the disjunct were missing, h would be read from digest[32] (out of
+    // bounds → undefined → 0 via & 0xff on undefined = 0; but the key point is
+    // the construct-fail routing: without the disjunct the verifier is called
+    // with a 3-byte digest and would throw a foreign AvlVerifyError).
+    expect(result).toEqual({ kind: 'Boolean', value: false })
+    expect(ctx.jitCost).toBe(170)
+  })
+})

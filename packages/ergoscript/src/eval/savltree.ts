@@ -172,7 +172,14 @@ export function evalSAvlTreeKeyLength(
 ): SValue {
   ctx.addCost(ACCESSOR_COST)
   expectAvlTree('SAvlTree.keyLength', obj)
-  return { kind: 'Int', value: obj.value.keyLength }
+  // JVM AvlTreeData.scala:84-88: keyLength is parsed via `getUInt().toInt` —
+  // wire values in [2^31, 2^32) wrap NEGATIVE and the accessor surfaces the
+  // negative Int (deserialize-only asymmetry: the JVM serializer requires
+  // unsigned range so only parse wraps). `| 0` = the JS i32 reinterpretation,
+  // consistent with constructShapeBad's `(data.keyLength | 0) <= 0` predicate.
+  // Blessed vectors: keyLength_wrapped_negative#0 (0x80000001 → −2147483647),
+  //                  negative_keylength_tree#4 (0x80000000 → −2147483648).
+  return { kind: 'Int', value: obj.value.keyLength | 0 }
 }
 
 /**
@@ -181,6 +188,11 @@ export function evalSAvlTreeKeyLength(
  *
  * Rust: maps `Option<Box<u32>>` to `Option<Box<Value::Int>>`. In TS,
  * `valueLengthOpt === null` → None; otherwise wrap as `Some(Int)`.
+ *
+ * JVM AvlTreeData.scala:85: valueLengthOpt parsed via `getUInt().toInt` —
+ * same deserialize-only asymmetry as keyLength (see above). The Some payload
+ * receives the same `| 0` i32 reinterpretation. Source-backed by the same JVM
+ * parse line; vector-unblessed (queued for future SANTA bless).
  */
 export function evalSAvlTreeValueLengthOpt(
   obj: SValue,
@@ -193,7 +205,7 @@ export function evalSAvlTreeValueLengthOpt(
   return {
     kind: 'Option',
     elem: SINT_TYPE,
-    value: v === null ? null : { kind: 'Int', value: v },
+    value: v === null ? null : { kind: 'Int', value: v | 0 },
   }
 }
 
@@ -309,10 +321,11 @@ function treeHeight(data: AvlTreeData): number {
  * `bv.treeHeight` is 0 (field default) for this class — NOT digest[32].
  * Callers must charge with height 0 when this returns true.
  *
- * Reachability: keyLength = 0 is wire-craftable (VLQ u32); short/long digests
- * and negative valueLengthOpt are currently blocked by createAvlTree /
- * updateDigest input checks but guarded here so the routing stays faithful
- * if a producer path changes.
+ * Reachability: keyLength = 0 is wire-craftable (VLQ u32); updateDigest
+ * accepts any digest length post-F4-epilogue (CreateAvlTree rejects eval
+ * entirely), so the digest-length disjunct is now the load-bearing gate for
+ * Tier-2 verify ops on script-produced short/long-digest trees; negative
+ * valueLengthOpt remains wire-craftable but rare.
  *
  * Wrapped-negative range (AvlTreeData.scala:84-88): JVM parses keyLength and
  * valueLengthOpt as `getUInt().toInt` — wire values in [2^31, 2^32) wrap
@@ -888,8 +901,8 @@ export function evalSAvlTreeUpdateOperations(
  * it is now removed per the F4 epilogue acceptance-corpus bless (2026-06-07).
  *
  * Blessed vectors: AvlTree.updateDigest_any_length.json (3-byte/empty/40-byte
- * → Some(AvlTree) cost 46; 3-byte readback via `.digest` → Coll[1,2,3] cost 65).
- * `'avl-tree-bad-digest-length'` code retired from the taxonomy (codes 81→80).
+ * → AvlTree cost 46; 3-byte readback via `.digest` → Coll[1,2,3] cost 65).
+ * `'avl-tree-bad-digest-length'` code retired from the taxonomy (codes 80→79).
  *
  * `withUpdatedDigest` (_avltree-adapter.ts:68-75) is pure field-substitution
  * with no length gate — exactly the JVM semantics.

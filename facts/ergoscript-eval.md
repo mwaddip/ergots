@@ -796,7 +796,7 @@ Single code per the compact-taxonomy decision from 2g.5; granular per-cause code
 
 ### Phase 2h-d codes (SAvlTree.updateDigest) — F4 epilogue update
 
-- **`'avl-tree-bad-digest-length'`** — **RETIRED in F4 epilogue (2026-06-07).** JVM `CAvlTree.scala:31-34` has no length require on `updateDigest`; any `Coll[Byte]` length is accepted verbatim. The code mirrored sigma-rust's `ADDigest::try_from` length-check failure, which was a convergent over-reject not present in the JVM. Codes: 80 → 79. Blessed vectors: `AvlTree.updateDigest_any_length.json` (3-byte, empty, 40-byte → Some(AvlTree) cost 46; 3-byte readback via `.digest` → Coll[1,2,3] cost 65).
+- **`'avl-tree-bad-digest-length'`** — **RETIRED in F4 epilogue (2026-06-07).** JVM `CAvlTree.scala:31-34` has no length require on `updateDigest`; any `Coll[Byte]` length is accepted verbatim. The code mirrored sigma-rust's `ADDigest::try_from` length-check failure, which was a convergent over-reject not present in the JVM. Codes: 80 → 79. Blessed vectors: `AvlTree.updateDigest_any_length.json` (3-byte, empty, 40-byte → AvlTree cost 46; 3-byte readback via `.digest` → Coll[1,2,3] cost 65).
 
 ### Phase 2i-a codes (pure-bytes predefs)
 
@@ -964,8 +964,8 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 8 | `SPreHeader.timestamp` | 105:3 | 10 | A | `{kind:'Long', value: BigInt.asIntN(64, obj.value.timestamp)}` — presents the signed i64 view of the u64 struct field (`SPreHeader.timestamp` is typed `SLong` = signed; JVM `as Long`; u64-max surfaces as Long(−1)). The struct field itself is a u64 bigint; `hydratePreHeader` stores it losslessly (no `MAX_SAFE_INTEGER` guard). F2: **bigint** (was number pre-F2). | `eval/spreheader.rs:20-24` |
 | 9 | `SAvlTree.digest` | 100:1 | 15 | A | `Coll[Byte]` | `eval/savltree.rs:28-34` |
 | 10 | `SAvlTree.enabledOperations` | 100:2 | 15 | A | `Byte` | `eval/savltree.rs:36-40` |
-| 11 | `SAvlTree.keyLength` | 100:3 | 15 | A | `Int` | `eval/savltree.rs:42-46` |
-| 12 | `SAvlTree.valueLengthOpt` | 100:4 | 15 | A | `Option[Int]` | `eval/savltree.rs:48-57` |
+| 11 | `SAvlTree.keyLength` | 100:3 | 15 | A | `Int` — i32 view: `keyLength \| 0` (JVM `AvlTreeData.scala:84` `getUInt().toInt`; wire [2^31,2^32) wraps negative; deserialize-only asymmetry — JVM serializer requires unsigned range. Blessed: `keyLength_wrapped_negative#0` (0x80000001→−2147483647), `negative_keylength_tree#4` (0x80000000→−2147483648)) | `eval/savltree.rs:42-46` |
+| 12 | `SAvlTree.valueLengthOpt` | 100:4 | 15 | A | `Option[Int]` — same i32 view on the Some payload (`valueLengthOpt \| 0`; JVM `AvlTreeData.scala:85` same parse line; source-backed, **vector-unblessed** — queued for future SANTA bless) | `eval/savltree.rs:48-57` |
 | 13 | `SAvlTree.isInsertAllowed` | 100:5 | 15 | A | `Boolean` | `eval/savltree.rs:59-63` |
 | 14 | `SAvlTree.isUpdateAllowed` | 100:6 | 15 | A | `Boolean` | `eval/savltree.rs:65-69` |
 | 15 | `SAvlTree.isRemoveAllowed` | 100:7 | 15 | A | `Boolean` | `eval/savltree.rs:71-75` |
