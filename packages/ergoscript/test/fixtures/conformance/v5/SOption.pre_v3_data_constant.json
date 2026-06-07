@@ -1,0 +1,26 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "SOption.pre_v3_data_constant",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-option-semantics",
+  "entries" : [
+    {
+      "name" : "option-const-pre-v3-errored#0",
+      "script" : "{ SOption[SInt] Some DATA constant in an ErgoTree-v2 tree }  // JVM rejects Option data pre-v3 (DataSerializer gate)",
+      "tree_bytes_hex" : "1a060128010a7300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

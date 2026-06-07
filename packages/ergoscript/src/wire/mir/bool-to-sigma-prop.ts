@@ -39,9 +39,10 @@ export function parseBoolToSigmaProp(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): BoolToSigmaProp {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'BoolToSigmaProp', input }
 }
 
@@ -52,7 +53,8 @@ export function parseBoolToSigmaProp(
  */
 export function serializeBoolToSigmaProp(
   b: BoolToSigmaProp,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(b.input, w)
+  serializeExpr(b.input, w, treeVersion)
 }

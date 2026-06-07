@@ -41,10 +41,11 @@ export function parseExponentiate(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Exponentiate {
-  const left = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const right = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const left = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const right = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Exponentiate', left, right }
 }
 
@@ -53,7 +54,7 @@ export function parseExponentiate(
  * emits the OP_EXPONENTIATE opcode byte). Writes the left (GroupElement) Expr,
  * then the right (BigInt exponent) Expr.
  */
-export function serializeExponentiate(e: Exponentiate, w: ByteWriter): void {
-  serializeExpr(e.left, w)
-  serializeExpr(e.right, w)
+export function serializeExponentiate(e: Exponentiate, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.left, w, treeVersion)
+  serializeExpr(e.right, w, treeVersion)
 }

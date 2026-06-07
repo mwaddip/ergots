@@ -81,6 +81,8 @@ interface SyntheticSValueEntry {
   tpe: SType
   value: any
   bytes_hex: string
+  /** treeVersion for parse/serialize; defaults to 0. SOption requires 3. */
+  treeVersion?: number
 }
 
 interface SyntheticExprEntry {
@@ -142,16 +144,17 @@ describe('Corpus round-trip — synthetic SValue', () => {
     it(`SValue: ${entry.name}`, () => {
       const bytes = hexToBytes(entry.bytes_hex)
       const expected = hydrateSValue(entry.value)
+      const tv = entry.treeVersion ?? 0
 
       // Parse: bytes → SValue (type-driven)
       const reader = new ByteReader(bytes)
-      const parsed = parseSValue(entry.tpe, 0, reader)
+      const parsed = parseSValue(entry.tpe, tv, reader)
       expect(reader.remaining, `${entry.name}: parser left ${reader.remaining} byte(s) unread`).toBe(0)
       expect(parsed).toEqual(expected)
 
       // Serialize: SValue → bytes (round-trip)
       const writer = new ByteWriter()
-      serializeSValue(entry.tpe, parsed, 0, writer)
+      serializeSValue(entry.tpe, parsed, tv, writer)
       const serialized = writer.toBytes()
       expect(
         bytesEqual(serialized, bytes),
@@ -176,12 +179,12 @@ describe('Corpus round-trip — synthetic Expr (body-only)', () => {
 
       // Parse: bytes → Expr (no segregated constants)
       const reader = new ByteReader(bytes)
-      const parsed = parseExpr(reader, [], [])
+      const parsed = parseExpr(reader, [], [], new Map(), 0)
       expect(reader.remaining, `${entry.name}: parser left ${reader.remaining} byte(s) unread`).toBe(0)
 
       // Serialize: Expr → bytes (round-trip)
       const writer = new ByteWriter()
-      serializeExpr(parsed, writer)
+      serializeExpr(parsed, writer, 0)
       const serialized = writer.toBytes()
       expect(
         bytesEqual(serialized, bytes),

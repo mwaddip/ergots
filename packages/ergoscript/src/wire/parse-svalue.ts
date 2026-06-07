@@ -32,13 +32,12 @@
  *         sigma-rust's `WriteSigmaVlqExt::put_bits` / `get_bits` via
  *         `bitvec::BitVec<u8, Lsb0>`.
  *   - SOption[T]: 1-byte tag (1 = Some, anything else = None) + (if Some)
- *     inner value parsed by T. Mirrors sigma-rust's `get_option` in
- *     `sigma-ser/src/vlq_encode.rs`: only the exact byte `1` triggers the
- *     inner read; every other byte (including `0`, `2`, `0xff`) is treated
- *     as None and the cursor advances by exactly one byte. Available for
- *     serialization only on ErgoTreeVersion::V3+ in sigma-rust; older trees
- *     return `NotSupported`. We accept either at the parser level — the
- *     caller is responsible for tree-version enforcement.
+ *     inner value parsed by T. JVM tag: any nonzero = Some (scorex-util
+ *     VLQReader.getOption); sigma-rust diverges (only exact 1 = Some, other
+ *     nonzero = None) — JVM canonical per F5 batch 1 (2026-06-07).
+ *     V3-gated: tree-version < 3 throws `SValueParseError('soption-tree-version-too-low')`.
+ *     Version-gated DATA kinds (SOption, SHeader) enforce their gates from the
+ *     threaded `treeVersion`; remaining kinds are version-free.
  *   - STuple[T1, T2, ...]: items in order, NO length prefix on the wire.
  *     The arity is recoverable from the SType.
  *
@@ -325,6 +324,20 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
     }
 
     case 'SOption': {
+      // V3-gated DATA: the JVM deserializes Option DATA only at tree-version
+      // ≥ 3 (CoreDataSerializer.scala:140-143 — the SOption arm is guarded by
+      // isV3OrLaterErgoTreeVersion; pre-v3 falls through to
+      // CheckSerializableTypeCode/ValidationRule 1009 + SerializerException).
+      // Recursive by construction: Option nested anywhere inside a constant's
+      // type tree (Coll[Option[T]], pairs, …) reaches this arm via recursion —
+      // the same shape as the JVM's recursive deserialize. Same gate family as
+      // the SHeader gate below.
+      if (treeVersion < 3) {
+        throw new SValueParseError(
+          `SOption SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+          'soption-tree-version-too-low'
+        )
+      }
       // 1-byte tag: exactly `1` means Some (parse inner via `t.elem`); any
       // other byte means None (cursor stops at the tag, no further read).
       // Mirrors sigma-rust's `get_option` in `sigma-ser/src/vlq_encode.rs`:

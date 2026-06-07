@@ -41,10 +41,11 @@ export function parseMultiplyGroup(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): MultiplyGroup {
-  const left = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const right = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const left = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const right = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'MultiplyGroup', left, right }
 }
 
@@ -53,7 +54,7 @@ export function parseMultiplyGroup(
  * emits the OP_MULTIPLY_GROUP opcode byte). Writes the left (GroupElement)
  * Expr, then the right (GroupElement) Expr.
  */
-export function serializeMultiplyGroup(e: MultiplyGroup, w: ByteWriter): void {
-  serializeExpr(e.left, w)
-  serializeExpr(e.right, w)
+export function serializeMultiplyGroup(e: MultiplyGroup, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.left, w, treeVersion)
+  serializeExpr(e.right, w, treeVersion)
 }

@@ -32,9 +32,10 @@ export function parseOr(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Or {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Or', input }
 }
 
@@ -42,6 +43,6 @@ export function parseOr(
  * Serialize an `Or` payload (the dispatcher in {@link serializeExpr} emits
  * the OP_OR opcode byte). Writes the input Expr.
  */
-export function serializeOr(o: Or, w: ByteWriter): void {
-  serializeExpr(o.input, w)
+export function serializeOr(o: Or, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(o.input, w, treeVersion)
 }

@@ -61,7 +61,8 @@ export function parseDeserializeRegister(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): DeserializeRegister {
   const reg = r.readU8()
   if (reg > 9) {
@@ -74,7 +75,7 @@ export function parseDeserializeRegister(
   const tag = r.readU8()
   let defaultExpr = null
   if (tag === 1) {
-    defaultExpr = parseExpr(r, constantTypes, constantValues, valDefTypes)
+    defaultExpr = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   } else if (tag !== 0) {
     throw new ExprParseError(
       `DeserializeRegister.default Option tag must be 0 or 1, got ${tag}`,
@@ -94,7 +95,8 @@ export function parseDeserializeRegister(
  */
 export function serializeDeserializeRegister(
   e: DeserializeRegister,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
   if (!Number.isInteger(e.reg) || e.reg < 0 || e.reg > 9) {
     throw new ExprSerializeError(
@@ -104,5 +106,5 @@ export function serializeDeserializeRegister(
   }
   w.writeU8(e.reg)
   serializeSType(e.tpe, w)
-  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w))
+  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w, treeVersion))
 }

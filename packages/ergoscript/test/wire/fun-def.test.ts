@@ -30,10 +30,10 @@ const funDefBlock: Expr = {
 describe('FunDef wire round-trip', () => {
   it('serializes with OP_FUN_DEF (0xd7) and round-trips byte-exact', () => {
     const w = new ByteWriter()
-    serializeExpr(funDefBlock, w)
+    serializeExpr(funDefBlock, w, 0)
     const bytes = w.toBytes()
     expect([...bytes]).toContain(0xd7) // FunDef opcode present
-    const parsed = parseExpr(new ByteReader(bytes), [], [], new Map())
+    const parsed = parseExpr(new ByteReader(bytes), [], [], new Map(), 0)
     expect(parsed).toEqual(funDefBlock) // full structural round-trip (incl. tpeArgs)
   })
 
@@ -44,10 +44,10 @@ describe('FunDef wire round-trip', () => {
       result: { tag: 'ValUse', valId: 1, tpe: { tag: 'SInt' } },
     }
     const w = new ByteWriter()
-    serializeExpr(plain, w)
+    serializeExpr(plain, w, 0)
     const bytes = w.toBytes()
     expect([...bytes]).toContain(0xd6)
     expect([...bytes]).not.toContain(0xd7)
-    expect(parseExpr(new ByteReader(bytes), [], [], new Map())).toEqual(plain)
+    expect(parseExpr(new ByteReader(bytes), [], [], new Map(), 0)).toEqual(plain)
   })
 })

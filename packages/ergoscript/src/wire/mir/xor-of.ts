@@ -32,9 +32,10 @@ export function parseXorOf(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): XorOf {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'XorOf', input }
 }
 
@@ -42,6 +43,6 @@ export function parseXorOf(
  * Serialize a `XorOf` payload (the dispatcher in {@link serializeExpr} emits
  * the OP_XOR_OF opcode byte). Writes the input Expr.
  */
-export function serializeXorOf(x: XorOf, w: ByteWriter): void {
-  serializeExpr(x.input, w)
+export function serializeXorOf(x: XorOf, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(x.input, w, treeVersion)
 }

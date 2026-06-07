@@ -42,11 +42,12 @@ export function parseCollFold(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Fold {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const zero = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const foldOp = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const zero = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const foldOp = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Fold', input, zero, foldOp }
 }
 
@@ -55,8 +56,8 @@ export function parseCollFold(
  * emits the OP_FOLD opcode byte). Writes the input Expr, then the zero
  * Expr, then the fold_op Expr.
  */
-export function serializeCollFold(e: Fold, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.zero, w)
-  serializeExpr(e.foldOp, w)
+export function serializeCollFold(e: Fold, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.zero, w, treeVersion)
+  serializeExpr(e.foldOp, w, treeVersion)
 }

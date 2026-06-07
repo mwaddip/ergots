@@ -61,7 +61,8 @@ export function parseBlockValue(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): BlockValue {
   const count = r.readVlqU()
   if (count > MAX_BLOCK_ITEMS) {
@@ -72,9 +73,9 @@ export function parseBlockValue(
   }
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
-  const result = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const result = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'BlockValue', items, result }
 }
 
@@ -83,10 +84,10 @@ export function parseBlockValue(
  * emits the OP_BLOCK_VALUE opcode byte). Writes the items count as VLQ-u32,
  * each item Expr in order, then the result Expr.
  */
-export function serializeBlockValue(b: BlockValue, w: ByteWriter): void {
+export function serializeBlockValue(b: BlockValue, w: ByteWriter, treeVersion: number): void {
   w.writeVlqU(b.items.length)
   for (const item of b.items) {
-    serializeExpr(item, w)
+    serializeExpr(item, w, treeVersion)
   }
-  serializeExpr(b.result, w)
+  serializeExpr(b.result, w, treeVersion)
 }

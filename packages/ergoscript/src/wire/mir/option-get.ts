@@ -42,9 +42,10 @@ export function parseOptionGet(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): OptionGet {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'OptionGet', input }
 }
 
@@ -52,6 +53,6 @@ export function parseOptionGet(
  * Serialize an `OptionGet` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_OPTION_GET opcode byte). Writes the input Expr.
  */
-export function serializeOptionGet(e: OptionGet, w: ByteWriter): void {
-  serializeExpr(e.input, w)
+export function serializeOptionGet(e: OptionGet, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
 }

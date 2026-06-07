@@ -66,11 +66,12 @@ export function parseMethodCall(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): MethodCall {
   const typeId = r.readU8()
   const methodId = r.readU8()
-  const obj = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const obj = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const argsCount = r.readVlqU()
   if (argsCount > MAX_METHOD_ARGS) {
     throw new ExprParseError(
@@ -80,7 +81,7 @@ export function parseMethodCall(
   }
   const args: Expr[] = []
   for (let i = 0; i < argsCount; i++) {
-    args.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    args.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
   const explicitTypeArgs: Record<string, SType> = {}
   for (const name of explicitTypeArgNames(typeId, methodId)) {
@@ -101,7 +102,7 @@ export function parseMethodCall(
  * If a name is missing we throw — sigma-rust's writer would have panicked
  * on `self.explicit_type_args[type_arg]` against a missing key.
  */
-export function serializeMethodCall(e: MethodCall, w: ByteWriter): void {
+export function serializeMethodCall(e: MethodCall, w: ByteWriter, treeVersion: number): void {
   if (!Number.isInteger(e.typeId) || e.typeId < 0 || e.typeId > 0xff) {
     throw new ExprSerializeError(
       `MethodCall.typeId ${e.typeId} out of u8 range`,
@@ -116,10 +117,10 @@ export function serializeMethodCall(e: MethodCall, w: ByteWriter): void {
   }
   w.writeU8(e.typeId)
   w.writeU8(e.methodId)
-  serializeExpr(e.obj, w)
+  serializeExpr(e.obj, w, treeVersion)
   w.writeVlqU(e.args.length)
   for (const arg of e.args) {
-    serializeExpr(arg, w)
+    serializeExpr(arg, w, treeVersion)
   }
   for (const name of explicitTypeArgNames(e.typeId, e.methodId)) {
     const tpe = e.explicitTypeArgs[name]

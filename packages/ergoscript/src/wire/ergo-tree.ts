@@ -446,7 +446,9 @@ export function substituteConstantsBytes(
 
   const r = new ByteReader(scriptBytes)
   const rawHeader = r.readU8()
-  const version = (rawHeader & VERSION_MASK) as TreeHeader['version']
+  // The template header's version byte drives ONLY structure flags (hasSize,
+  // constantSegregation); data-layer version gates use `treeVersion` (the
+  // eval-ambient outer version). See comment at parseSValue calls below.
   const hasSize = (rawHeader & HAS_SIZE_FLAG) !== 0
   const seg = (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0
 
@@ -473,7 +475,12 @@ export function substituteConstantsBytes(
     for (let i = 0; i < count; i++) {
       const tpe = parseSType(r)
       constantTypes.push(tpe)
-      constants.push(parseSValue(tpe, version, r))
+      // Constants in the template parse/serialize under the EVAL-AMBIENT tree
+      // version (the JVM's substituteConstants chain installs no VersionContext
+      // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
+      // is ambient, trees.scala:673-676). The template's own header version byte
+      // governs only its structure flags, NOT the DATA-layer version gates.
+      constants.push(parseSValue(tpe, treeVersion, r))
     }
   }
   const numConstants = constants.length
@@ -505,7 +512,8 @@ export function substituteConstantsBytes(
     const iPos = backref[i]!
     if (iPos === -1) {
       serializeSType(constantTypes[i]!, constW)
-      serializeSValue(constantTypes[i]!, constants[i]!, version, constW)
+      // Same rationale: use eval-ambient treeVersion, not template's version byte.
+      serializeSValue(constantTypes[i]!, constants[i]!, treeVersion, constW)
     } else {
       // JVM `require(c.tpe == newConst.tpe)` — structural sType-equality.
       if (!sTypeEquals(newValuesElem, constantTypes[i]!)) {
@@ -515,7 +523,8 @@ export function substituteConstantsBytes(
         )
       }
       serializeSType(newValuesElem, constW)
-      serializeSValue(newValuesElem, newValues[iPos]!, version, constW)
+      // Same rationale: use eval-ambient treeVersion, not template's version byte.
+      serializeSValue(newValuesElem, newValues[iPos]!, treeVersion, constW)
     }
   }
   const constBytes = constW.toBytes()

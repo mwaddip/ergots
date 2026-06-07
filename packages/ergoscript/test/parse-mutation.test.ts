@@ -81,7 +81,7 @@ function exprParser(): MutationParser {
   return {
     parse(bytes: Uint8Array): void {
       const reader = new ByteReader(bytes)
-      parseExpr(reader, [], [])
+      parseExpr(reader, [], [], new Map(), 0)
     },
   }
 }

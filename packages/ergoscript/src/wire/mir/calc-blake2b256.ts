@@ -38,9 +38,10 @@ export function parseCalcBlake2b256(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): CalcBlake2b256 {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'CalcBlake2b256', input }
 }
 
@@ -51,7 +52,8 @@ export function parseCalcBlake2b256(
  */
 export function serializeCalcBlake2b256(
   c: CalcBlake2b256,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(c.input, w)
+  serializeExpr(c.input, w, treeVersion)
 }

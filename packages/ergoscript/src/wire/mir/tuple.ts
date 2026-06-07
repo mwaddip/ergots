@@ -63,7 +63,8 @@ export function parseTuple(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Tuple {
   const count = r.readU8()
   if (count > 127) {
@@ -82,7 +83,7 @@ export function parseTuple(
   }
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
   return { tag: 'Tuple', items }
 }
@@ -98,7 +99,7 @@ export function parseTuple(
  * own output (the signed-byte asymmetry, mirrored here). Only > 255 is
  * rejected because a u8 count cannot represent it.
  */
-export function serializeTuple(t: Tuple, w: ByteWriter): void {
+export function serializeTuple(t: Tuple, w: ByteWriter, treeVersion: number): void {
   const n = t.items.length
   if (n > MAX_TUPLE_ITEMS) {
     // JVM TupleSerializer.serialize = putUByte(length) + items — NO arity
@@ -112,6 +113,6 @@ export function serializeTuple(t: Tuple, w: ByteWriter): void {
   }
   w.writeU8(n)
   for (const item of t.items) {
-    serializeExpr(item, w)
+    serializeExpr(item, w, treeVersion)
   }
 }

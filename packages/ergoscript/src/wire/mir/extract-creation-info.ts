@@ -34,9 +34,10 @@ export function parseExtractCreationInfo(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractCreationInfo {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ExtractCreationInfo', input }
 }
 
@@ -47,7 +48,8 @@ export function parseExtractCreationInfo(
  */
 export function serializeExtractCreationInfo(
   e: ExtractCreationInfo,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.input, w)
+  serializeExpr(e.input, w, treeVersion)
 }

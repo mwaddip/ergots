@@ -53,17 +53,22 @@ import { serializeExpr } from '../serialize'
  *
  * Mirrors the JVM `CreateAvlTreeSerializer.parse`
  * (`CreateAvlTreeSerializer.scala:31-37`) — four `r.getValue()` calls.
+ *
+ * `treeVersion` is required to correctly gate version-dependent constant
+ * encodings (e.g. Const(SOption[SInt], …) in the valueLengthOpt operand
+ * requires tree-version ≥ 3 per CoreDataSerializer.scala:140-143).
  */
 export function parseCreateAvlTree(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): CreateAvlTree {
-  const flags = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const digest = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const keyLength = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const valueLength = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const flags = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const digest = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const keyLength = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const valueLength = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'CreateAvlTree', flags, digest, keyLength, valueLength }
 }
 
@@ -73,10 +78,13 @@ export function parseCreateAvlTree(
  *
  * Mirrors the JVM `CreateAvlTreeSerializer.serialize`
  * (`CreateAvlTreeSerializer.scala:24-29`) — four `w.putValue(...)` calls.
+ *
+ * `treeVersion` is forwarded to `serializeExpr` so that version-dependent
+ * constant encodings (e.g. Const(SOption[SInt], …)) are gated correctly.
  */
-export function serializeCreateAvlTree(e: CreateAvlTree, w: ByteWriter): void {
-  serializeExpr(e.flags, w)
-  serializeExpr(e.digest, w)
-  serializeExpr(e.keyLength, w)
-  serializeExpr(e.valueLength, w)
+export function serializeCreateAvlTree(e: CreateAvlTree, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.flags, w, treeVersion)
+  serializeExpr(e.digest, w, treeVersion)
+  serializeExpr(e.keyLength, w, treeVersion)
+  serializeExpr(e.valueLength, w, treeVersion)
 }

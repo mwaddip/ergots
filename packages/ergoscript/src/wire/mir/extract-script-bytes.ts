@@ -33,9 +33,10 @@ export function parseExtractScriptBytes(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractScriptBytes {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ExtractScriptBytes', input }
 }
 
@@ -46,7 +47,8 @@ export function parseExtractScriptBytes(
  */
 export function serializeExtractScriptBytes(
   e: ExtractScriptBytes,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.input, w)
+  serializeExpr(e.input, w, treeVersion)
 }

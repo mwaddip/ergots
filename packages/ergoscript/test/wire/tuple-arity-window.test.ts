@@ -73,12 +73,12 @@ describe('Tuple EXPR wire window (TupleSerializer.scala)', () => {
       tag: 'Tuple',
       items: Array.from({ length: 200 }, () => ({ ...item })) as Expr[],
     }
-    expect(() => serializeTuple(t200, new ByteWriter())).not.toThrow()
+    expect(() => serializeTuple(t200, new ByteWriter(), 0)).not.toThrow()
     const t256: Tuple = {
       tag: 'Tuple',
       items: Array.from({ length: 256 }, () => ({ ...item })) as Expr[],
     }
-    expect(() => serializeTuple(t256, new ByteWriter())).toThrow(/exceeds 255/)
+    expect(() => serializeTuple(t256, new ByteWriter(), 0)).toThrow(/exceeds 255/)
   })
 })
 

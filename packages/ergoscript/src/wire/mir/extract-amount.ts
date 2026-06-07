@@ -39,9 +39,10 @@ export function parseExtractAmount(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractAmount {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ExtractAmount', input }
 }
 
@@ -50,6 +51,6 @@ export function parseExtractAmount(
  * {@link serializeExpr} emits the OP_EXTRACT_AMOUNT opcode byte). Writes
  * only the input Expr.
  */
-export function serializeExtractAmount(e: ExtractAmount, w: ByteWriter): void {
-  serializeExpr(e.input, w)
+export function serializeExtractAmount(e: ExtractAmount, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
 }

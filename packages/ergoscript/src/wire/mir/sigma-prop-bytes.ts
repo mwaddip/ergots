@@ -38,9 +38,10 @@ export function parseSigmaPropBytes(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): SigmaPropBytes {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'SigmaPropBytes', input }
 }
 
@@ -51,7 +52,8 @@ export function parseSigmaPropBytes(
  */
 export function serializeSigmaPropBytes(
   s: SigmaPropBytes,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(s.input, w)
+  serializeExpr(s.input, w, treeVersion)
 }

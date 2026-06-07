@@ -94,6 +94,12 @@ const VECTOR_FILES = [
   // BEFORE items + cost; constants exempt). The walker-era flat-tuple JVM-alignment follow-up,
   // now JVM-pinned. Tree 0086030101020703a413 = v0 Tuple(true, 7.toByte, 1234.toShort).
   'Tuple.non_pair_arity3.json',
+  // SOption DATA constant in a pre-v3 tree = deserialize-time reject
+  // (CoreDataSerializer.scala:140-143: the SOption arm is guarded by
+  // isV3OrLaterErgoTreeVersion; pre-v3 falls through to CheckSerializableTypeCode
+  // /ValidationRule 1009 + SerializerException). Tree 1a060128010a7300 = v2 tree,
+  // Option[Int] Some(5) constant. ergots was parsing Option DATA at any version.
+  'SOption.pre_v3_data_constant.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

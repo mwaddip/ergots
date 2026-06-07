@@ -44,9 +44,10 @@ export function parseSelectField(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): SelectField {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const fieldIndex = r.readU8()
   if (fieldIndex < 1) {
     throw new ExprParseError(
@@ -62,7 +63,7 @@ export function parseSelectField(
  * emits the OP_SELECT_FIELD opcode byte). Writes the input Expr, then the
  * one-byte field index.
  */
-export function serializeSelectField(e: SelectField, w: ByteWriter): void {
+export function serializeSelectField(e: SelectField, w: ByteWriter, treeVersion: number): void {
   if (
     !Number.isInteger(e.fieldIndex) ||
     e.fieldIndex < 1 ||
@@ -73,6 +74,6 @@ export function serializeSelectField(e: SelectField, w: ByteWriter): void {
       'select-field-index-out-of-range'
     )
   }
-  serializeExpr(e.input, w)
+  serializeExpr(e.input, w, treeVersion)
   w.writeU8(e.fieldIndex)
 }

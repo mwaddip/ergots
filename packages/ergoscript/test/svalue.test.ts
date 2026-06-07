@@ -53,6 +53,8 @@ interface RoundTripCase {
   t: SType
   v: SValue
   bytes: number[]
+  /** treeVersion passed to parse/serialize; defaults to 0. SOption requires 3. */
+  treeVersion?: number
 }
 
 const cases: RoundTripCase[] = [
@@ -248,18 +250,20 @@ const cases: RoundTripCase[] = [
     bytes: [0x03, 0x01, 0x02, 0x00, 0x02, 0x04, 0x06],
   },
 
-  // -- SOption (v6/V3+ encoding: 1-byte tag + optional inner) --
+  // -- SOption (V3+ gate: CoreDataSerializer.scala:140-143 + :78-82) --
   {
     name: 'SOption[SInt] None',
     t: { tag: 'SOption', elem: { tag: 'SInt' } },
     v: { kind: 'Option', elem: { tag: 'SInt' }, value: null },
     bytes: [0x00],
+    treeVersion: 3, // Option DATA requires tree-version >= 3
   },
   {
     name: 'SOption[SInt] Some(42)',
     t: { tag: 'SOption', elem: { tag: 'SInt' } },
     v: { kind: 'Option', elem: { tag: 'SInt' }, value: { kind: 'Int', value: 42 } },
     bytes: [0x01, 0x54],
+    treeVersion: 3, // Option DATA requires tree-version >= 3
   },
 
   // -- STuple (no length prefix; arity comes from the SType) --
@@ -315,16 +319,16 @@ const cases: RoundTripCase[] = [
 ]
 
 describe('SValue wire round-trip', () => {
-  for (const { name, t, v, bytes } of cases) {
+  for (const { name, t, v, bytes, treeVersion: tv = 0 } of cases) {
     it(`parses ${name}`, () => {
       const r = new ByteReader(new Uint8Array(bytes))
-      expect(parseSValue(t, 0, r)).toEqual(v)
+      expect(parseSValue(t, tv, r)).toEqual(v)
       // After parsing the value, the reader must be exhausted (no trailing bytes).
       expect(r.isExhausted).toBe(true)
     })
     it(`serializes ${name}`, () => {
       const w = new ByteWriter()
-      serializeSValue(t, v, 0, w)
+      serializeSValue(t, v, tv, w)
       expect(Array.from(w.toBytes())).toEqual(bytes)
     })
   }
@@ -552,9 +556,9 @@ describe('SValue SOption tag semantics', () => {
     // [0x02, 0x42] — bogus tag, plus a junk byte that should NOT be consumed.
     // sigma-rust's `get_option` reads only the tag byte and returns None for
     // anything other than `1`; the cursor must stop at +1, leaving the 0x42
-    // for the next read.
+    // for the next read. Option DATA requires tree-version >= 3 (V3 gate).
     const r = new ByteReader(new Uint8Array([0x02, 0x42]))
-    const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, 0, r)
+    const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, 3, r)
     expect(result).toEqual({ kind: 'Option', elem: { tag: 'SInt' }, value: null })
     // The 0x42 byte should NOT have been consumed — cursor stops after tag.
     expect(r.remaining).toBe(1)

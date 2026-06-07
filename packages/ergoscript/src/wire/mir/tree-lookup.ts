@@ -43,11 +43,12 @@ export function parseTreeLookup(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): TreeLookup {
-  const tree = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const key = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const proof = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const tree = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const key = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const proof = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'TreeLookup', tree, key, proof }
 }
 
@@ -58,8 +59,8 @@ export function parseTreeLookup(
  * Mirrors sigma-rust's `<TreeLookup as SigmaSerializable>::sigma_serialize`
  * (`mir/tree_lookup.rs:50-54`).
  */
-export function serializeTreeLookup(e: TreeLookup, w: ByteWriter): void {
-  serializeExpr(e.tree, w)
-  serializeExpr(e.key, w)
-  serializeExpr(e.proof, w)
+export function serializeTreeLookup(e: TreeLookup, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.tree, w, treeVersion)
+  serializeExpr(e.key, w, treeVersion)
+  serializeExpr(e.proof, w, treeVersion)
 }

@@ -33,9 +33,10 @@ export function parseAnd(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): And {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'And', input }
 }
 
@@ -43,6 +44,6 @@ export function parseAnd(
  * Serialize an `And` payload (the dispatcher in {@link serializeExpr} emits
  * the OP_AND opcode byte). Writes the input Expr.
  */
-export function serializeAnd(a: And, w: ByteWriter): void {
-  serializeExpr(a.input, w)
+export function serializeAnd(a: And, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(a.input, w, treeVersion)
 }

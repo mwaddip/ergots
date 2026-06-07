@@ -42,9 +42,10 @@ export function parseUpcast(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Upcast {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const tpe = parseSType(r)
   return { tag: 'Upcast', input, tpe }
 }
@@ -54,7 +55,7 @@ export function parseUpcast(
  * emits the OP_UPCAST opcode byte). Writes the input Expr followed by
  * the target SType.
  */
-export function serializeUpcast(u: Upcast, w: ByteWriter): void {
-  serializeExpr(u.input, w)
+export function serializeUpcast(u: Upcast, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(u.input, w, treeVersion)
   serializeSType(u.tpe, w)
 }

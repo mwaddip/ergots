@@ -53,9 +53,10 @@ export function parseExtractRegisterAs(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractRegisterAs {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   // i8: read u8 byte, sign-extend if the top bit is set. Mirrors
   // sigma-rust's `get_i8 -> get_u8 as i8`.
   const rawByte = r.readU8()
@@ -72,7 +73,8 @@ export function parseExtractRegisterAs(
  */
 export function serializeExtractRegisterAs(
   e: ExtractRegisterAs,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
   if (!Number.isInteger(e.registerId) || e.registerId < -128 || e.registerId > 127) {
     throw new ExprSerializeError(
@@ -80,7 +82,7 @@ export function serializeExtractRegisterAs(
       'extract-register-as-id-out-of-range'
     )
   }
-  serializeExpr(e.input, w)
+  serializeExpr(e.input, w, treeVersion)
   // i8: two's-complement byte. Mirrors sigma-rust's `put_i8 -> put_u8(v as u8)`.
   w.writeU8(e.registerId & 0xff)
   serializeSType(e.elemTpe, w)

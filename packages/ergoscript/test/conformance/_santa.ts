@@ -28,13 +28,17 @@
  * core of the published canonical-JSON codec; until then they stay test-only.
  */
 import type { ContextExtension, ErgoBox, SType, SValue } from '../../src/mir/types'
-import { parseTree } from '../../src/wire/ergo-tree'
+import { parseTree, ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { hydrateSValue, hexToBytes, synthesizeStubBox } from '../_helpers'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
-import { ByteWriter } from '@ergots/scorex'
+import { ByteWriter, ReaderError } from '@ergots/scorex'
+import { ExprParseError } from '../../src/wire/errors'
+import { STypeParseError } from '../../src/wire/parse-stype'
+import { SValueParseError } from '../../src/wire/parse-svalue'
+import { SigmaBooleanParseError } from '../../src/wire/sigma-boolean'
 
 export interface SantaEntry {
   name: string
@@ -159,10 +163,34 @@ function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * JVM-blessed "errored" covers deserialize-time rejects too — the blesser's
+ * exceptions during tree parse grade as errored, exactly like eval throws
+ * (e.g. CoreDataSerializer's pre-v3 Option SerializerException). Map ergots'
+ * wire-layer parse errors the same way; anything else is a harness bug and
+ * rethrows loudly.
+ */
+function isWireParseError(err: unknown): boolean {
+  return (
+    err instanceof ErgoTreeParseError ||
+    err instanceof ExprParseError ||
+    err instanceof STypeParseError ||
+    err instanceof SValueParseError ||
+    err instanceof SigmaBooleanParseError ||
+    err instanceof ReaderError
+  )
+}
+
 /** Run one SANTA entry → ergots' actual {value, cost, error}. */
 export function evalSantaEntry(e: SantaEntry): SantaActual {
   const treeBytes = hexToBytes(e.tree_bytes_hex)
-  const tree = parseTree(treeBytes)
+  let tree: ReturnType<typeof parseTree>
+  try {
+    tree = parseTree(treeBytes)
+  } catch (err) {
+    if (isWireParseError(err)) return { value: null, cost: null, error: 'errored' }
+    throw err
+  }
   const treeVersion = e.version.ergoTree
 
   // All non-v3 envelopes mirror the blesser's EvalCore.scala:505-511 SELF box:

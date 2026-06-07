@@ -39,9 +39,10 @@ export function parseSigmaPropIsProven(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): SigmaPropIsProven {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'SigmaPropIsProven', input }
 }
 
@@ -52,7 +53,8 @@ export function parseSigmaPropIsProven(
  */
 export function serializeSigmaPropIsProven(
   s: SigmaPropIsProven,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(s.input, w)
+  serializeExpr(s.input, w, treeVersion)
 }

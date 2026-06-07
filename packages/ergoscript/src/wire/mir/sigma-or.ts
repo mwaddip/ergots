@@ -43,12 +43,13 @@ export function parseSigmaOr(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): SigmaOr {
   const count = r.readVlqU()
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
   return { tag: 'SigmaOr', items }
 }
@@ -62,9 +63,9 @@ export function parseSigmaOr(
  * (`mir/sigma_or.rs:63-65`) and the `Vec<T>::sigma_serialize` impl
  * (`serialization/serializable.rs:173-176`).
  */
-export function serializeSigmaOr(e: SigmaOr, w: ByteWriter): void {
+export function serializeSigmaOr(e: SigmaOr, w: ByteWriter, treeVersion: number): void {
   w.writeVlqU(e.items.length)
   for (const item of e.items) {
-    serializeExpr(item, w)
+    serializeExpr(item, w, treeVersion)
   }
 }

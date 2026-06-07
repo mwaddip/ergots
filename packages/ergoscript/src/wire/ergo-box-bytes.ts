@@ -38,7 +38,13 @@ import { SValueSerializeError, writeBoxBodyWithoutRef } from './serialize-svalue
  */
 export function serializeBoxBytes(box: ErgoBox): Uint8Array {
   const w = new ByteWriter()
-  writeBoxBodyWithoutRef(box, w)
+  // Standalone box-bytes serialization pins version 0 deliberately: the JVM
+  // prevents version-gated DATA (Option/SHeader/SUnsignedBigInt) from ever
+  // ENTERING box registers via rule 1019 CheckV6Type (ErgoBoxCandidate.scala:232)
+  // — ergots' 1019 mirror is a tracked F5 item; until it lands, the in-tree
+  // SBox-constant path threads the real version while these standalone
+  // entrypoints stay at the pre-activation baseline.
+  writeBoxBodyWithoutRef(box, w, 0)
 
   // transaction_id (32 raw bytes)
   if (box.txId.length !== 32) {
@@ -70,6 +76,12 @@ export function serializeBoxBytes(box: ErgoBox): Uint8Array {
  */
 export function serializeBoxBytesWithoutRef(box: ErgoBox): Uint8Array {
   const w = new ByteWriter()
-  writeBoxBodyWithoutRef(box, w)
+  // Standalone box-bytes serialization pins version 0 deliberately: the JVM
+  // prevents version-gated DATA (Option/SHeader/SUnsignedBigInt) from ever
+  // ENTERING box registers via rule 1019 CheckV6Type (ErgoBoxCandidate.scala:232)
+  // — ergots' 1019 mirror is a tracked F5 item; until it lands, the in-tree
+  // SBox-constant path threads the real version while these standalone
+  // entrypoints stay at the pre-activation baseline.
+  writeBoxBodyWithoutRef(box, w, 0)
   return w.toBytes()
 }

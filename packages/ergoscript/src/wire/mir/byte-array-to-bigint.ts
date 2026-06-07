@@ -40,9 +40,10 @@ export function parseByteArrayToBigInt(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ByteArrayToBigInt {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ByteArrayToBigInt', input }
 }
 
@@ -53,7 +54,8 @@ export function parseByteArrayToBigInt(
  */
 export function serializeByteArrayToBigInt(
   b: ByteArrayToBigInt,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(b.input, w)
+  serializeExpr(b.input, w, treeVersion)
 }

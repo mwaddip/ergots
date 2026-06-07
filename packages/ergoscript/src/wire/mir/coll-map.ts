@@ -38,10 +38,11 @@ export function parseCollMap(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): CollMap {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const mapper = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const mapper = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Map', input, mapper }
 }
 
@@ -49,7 +50,7 @@ export function parseCollMap(
  * Serialize a `Map` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_MAP opcode byte). Writes the input Expr, then the mapper Expr.
  */
-export function serializeCollMap(e: CollMap, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.mapper, w)
+export function serializeCollMap(e: CollMap, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.mapper, w, treeVersion)
 }

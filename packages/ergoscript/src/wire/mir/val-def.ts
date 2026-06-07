@@ -69,7 +69,8 @@ export function parseValDef(
   constantTypes: SType[],
   constantValues: SValue[],
   valDefTypes: Map<number, SType>,
-  isFunDef = false
+  isFunDef = false,
+  treeVersion: number
 ): ValDef {
   const id = r.readVlqU()
   let tpeArgs: STypeVar[] | undefined
@@ -91,7 +92,7 @@ export function parseValDef(
     }
     tpeArgs = args
   }
-  const rhs = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const rhs = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   // Side effect: register the binding for the scope. Sigma-rust uses
   // HashMap::insert which silently overwrites; we mirror that semantic.
   try {
@@ -121,7 +122,7 @@ export function parseValDef(
  * the JVM `ValDefSerializer.scala`), followed by the rhs Expr. A plain ValDef
  * (no `tpeArgs`) emits `id` then `rhs` directly — byte-identical to pre-P6.
  */
-export function serializeValDef(d: ValDef, w: ByteWriter): void {
+export function serializeValDef(d: ValDef, w: ByteWriter, treeVersion: number): void {
   w.writeVlqU(d.id)
   if (d.tpeArgs && d.tpeArgs.length > 0) {
     w.writeU8(d.tpeArgs.length) // raw u8 (JVM ValDefSerializer: w.put(len)), NOT VLQ
@@ -129,5 +130,5 @@ export function serializeValDef(d: ValDef, w: ByteWriter): void {
       serializeSType({ tag: 'STypeVar', name: tv.name }, w)
     }
   }
-  serializeExpr(d.rhs, w)
+  serializeExpr(d.rhs, w, treeVersion)
 }

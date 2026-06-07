@@ -33,9 +33,10 @@ export function parseExtractBytesWithNoRef(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractBytesWithNoRef {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ExtractBytesWithNoRef', input }
 }
 
@@ -46,7 +47,8 @@ export function parseExtractBytesWithNoRef(
  */
 export function serializeExtractBytesWithNoRef(
   e: ExtractBytesWithNoRef,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.input, w)
+  serializeExpr(e.input, w, treeVersion)
 }

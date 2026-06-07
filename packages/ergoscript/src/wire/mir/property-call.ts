@@ -60,11 +60,12 @@ export function parsePropertyCall(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): PropertyCall {
   const typeId = r.readU8()
   const methodId = r.readU8()
-  const obj = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const obj = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const explicitTypeArgs: Record<string, SType> = {}
   for (const name of explicitTypeArgNames(typeId, methodId)) {
     explicitTypeArgs[name] = parseSType(r)
@@ -84,7 +85,7 @@ export function parsePropertyCall(
  * malformed node (the parser always populates every registered name); we throw
  * rather than emit a short, un-round-trippable encoding.
  */
-export function serializePropertyCall(e: PropertyCall, w: ByteWriter): void {
+export function serializePropertyCall(e: PropertyCall, w: ByteWriter, treeVersion: number): void {
   if (!Number.isInteger(e.typeId) || e.typeId < 0 || e.typeId > 0xff) {
     throw new ExprSerializeError(
       `PropertyCall.typeId ${e.typeId} out of u8 range`,
@@ -99,7 +100,7 @@ export function serializePropertyCall(e: PropertyCall, w: ByteWriter): void {
   }
   w.writeU8(e.typeId)
   w.writeU8(e.methodId)
-  serializeExpr(e.obj, w)
+  serializeExpr(e.obj, w, treeVersion)
   for (const name of explicitTypeArgNames(e.typeId, e.methodId)) {
     const tpe = e.explicitTypeArgs[name]
     if (tpe === undefined) {

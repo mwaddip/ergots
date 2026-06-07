@@ -43,9 +43,10 @@ export function parseDowncast(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Downcast {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const tpe = parseSType(r)
   return { tag: 'Downcast', input, tpe }
 }
@@ -55,7 +56,7 @@ export function parseDowncast(
  * emits the OP_DOWNCAST opcode byte). Writes the input Expr followed by
  * the target SType.
  */
-export function serializeDowncast(d: Downcast, w: ByteWriter): void {
-  serializeExpr(d.input, w)
+export function serializeDowncast(d: Downcast, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(d.input, w, treeVersion)
   serializeSType(d.tpe, w)
 }

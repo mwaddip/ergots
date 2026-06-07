@@ -32,9 +32,10 @@ export function parseExtractBytes(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractBytes {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ExtractBytes', input }
 }
 
@@ -43,6 +44,6 @@ export function parseExtractBytes(
  * {@link serializeExpr} emits the OP_EXTRACT_BYTES opcode byte). Writes
  * only the input Expr.
  */
-export function serializeExtractBytes(e: ExtractBytes, w: ByteWriter): void {
-  serializeExpr(e.input, w)
+export function serializeExtractBytes(e: ExtractBytes, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
 }

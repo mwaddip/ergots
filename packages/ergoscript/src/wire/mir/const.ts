@@ -34,12 +34,11 @@ import { serializeSValue } from '../serialize-svalue'
  * Expr dispatcher (and is the first byte of the SType). Mirrors
  * sigma-rust's `Constant::parse_with_tag`.
  *
- * `treeVersion` gates SHeader: see `parseSValue` for details. For inline body
- * constants, `treeVersion` should be the ErgoTree header version of the
- * enclosing tree (0 = safe default for pre-V3 trees).
- * Required (not defaulted) so call sites inherited from the Expr dispatcher
- * always thread an explicit value — the default lives at the public
- * parseExpr / parseExprWithFirstByte boundary.
+ * `treeVersion` gates SOption + SHeader: see `parseSValue` for details.
+ * Required (not defaulted): every call site must thread the enclosing tree's
+ * version explicitly. There is no defaulted public boundary anymore (removed
+ * F5 batch 1, 2026-06-08 — the default-to-0 form was a threading-class
+ * landmine that silently parsed nested constants at v0).
  */
 export function parseConstFromByte(firstByte: number, treeVersion: number, r: ByteReader): Const {
   const tpe = parseSTypeWithFirstByte(firstByte, r)
@@ -52,9 +51,8 @@ export function parseConstFromByte(firstByte: number, treeVersion: number, r: By
  * byte in the surrounding Expr stream; the caller {@link serializeExpr} does
  * not (and must not) emit an opcode prefix for Const.
  *
- * `treeVersion` gates SHeader: see `serializeSValue` for details.
- * Required (not defaulted) for the same reason as parseConstFromByte — the
- * default lives at the serializeExpr boundary.
+ * `treeVersion` gates SOption + SHeader: see `serializeSValue` for details.
+ * Required (not defaulted) for the same reason as `parseConstFromByte`.
  */
 export function serializeConst(c: Const, treeVersion: number, w: ByteWriter): void {
   serializeSType(c.tpe, w)

@@ -49,7 +49,7 @@ export class SValueSerializeError extends Error {
  * the body. The SBox arm below also calls this helper — a single
  * implementation, two consumers.
  */
-export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion = 0): void {
+export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion: number): void {
   // value (unsigned VLQ u64 — NOT ZigZag)
   w.writeVlqBigInt(box.value)
 
@@ -321,6 +321,13 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
     }
 
     case 'SOption': {
+      // Serialize-side mirror of the V3 DATA gate (CoreDataSerializer.scala:78-82).
+      if (treeVersion < 3) {
+        throw new SValueSerializeError(
+          `SOption SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+          'soption-tree-version-too-low'
+        )
+      }
       assertKind(t, v, 'Option')
       w.writeOption(v.value, (w, inner) => serializeSValue(t.elem, inner, treeVersion, w))
       return

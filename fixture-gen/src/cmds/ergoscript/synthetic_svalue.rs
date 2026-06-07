@@ -423,6 +423,14 @@ pub fn generate() -> anyhow::Result<SvalueFixtures> {
     )?);
 
     // SOption[SInt] — V3+ encoding: 1-byte tag + (Some ? inner : nothing).
+    // ⚠️ HAND-BLESSED FIELD (F5 batch 1, 2026-06-08): the two SOption entries
+    // in the emitted synthetic_svalue.json carry a hand-added `"treeVersion": 3`
+    // field (this generator does NOT emit it). Option DATA is V3-gated
+    // (JVM CoreDataSerializer.scala:140-143; ergots 'soption-tree-version-too-low')
+    // — the corpus tests parse these entries at treeVersion 3.
+    // A regen would DROP the field and break test/corpus.test.ts. Preferable
+    // long-term fix: emit `treeVersion` from SvalueEntry for Option-typed entries.
+    // Until then: re-add by hand after any regen.
     entries.push(entry(
         "SOption[SInt] None",
         opt_t(SType::SInt),
