@@ -288,6 +288,28 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 
 **F5 members (additions from epilogue):** the Option-semantics family (3 sub-items above with cites) · valueLengthOpt wrapped-negative vector bless (unblessed leg of Task 4) · composite updateDigest(short)→Tier-2-verify vector (digest-length construct-shape path, unit-pinned our side at cost 170).
 
+**Post-epilogue SANTA round (2026-06-07, same-day) — 3 NEW non-AvlTree vectors, locally probed:**
+1. `v5/authored/ArithOp.numeric_kind_mismatch.json` (`Int + Long` @ ergoTree 0 → Long 3 @ 35) —
+   **probed GREEN** (the 2026-06-01 mismatched-numeric coercion class covers it, cost exact).
+   Vendor as a regression pin at F5.
+2. `v5/authored/Box.sub_min_value.json` (`b.value` on a sub-min-value box @ v2 → Long 1 @ 33) —
+   **probed GREEN** (eval-layer surfaces the value; min-box-value is tx-layer). Vendor as pin.
+3. `v5/authored/Tuple.non_pair_arity3.json` (flat arity-3 Tuple literal @ ergoTree 0 →
+   **JVM errored**) — **probed RED: ergots EVALUATES it** (returns a value). The walker-era
+   "flat-tuple JVM-alignment" follow-up ([[project_ergots_direction]] non-blocking list), now
+   JVM-pinned as an over-accept fork. F5 member. Fix needs the REJECT-LAYER investigation first
+   (TreeLookup-pattern): where does the JVM reject — Tuple eval? `STuple` arity gate at
+   parse/typer? sigma-state "tuples are nested pairs" per the vector script note; ergots parses
+   OP_TUPLE 0x86 arity-N (iter-18) AND evaluates. NOTE the seam: arity-N Tuple CONSTANTS in
+   registers parse opaquely (iter-18 opaqueBytes) — only the Tuple EXPR node + constants in the
+   live tree are in question. Mechanism verdict before fix, per the established pattern.
+
+**eni board context (same round):** 21 eni reds = 5 sigma-rust finding-classes (garbage-proof-bytes
+PANIC · negative-keyLength-tree PANIC · wrong-VALUE-length PANIC · updateDigest over-reject ·
+TreeLookup over-accept) — routed to sigma-rust by SANTA (`sigma-rust-f4-avl-degenerate-findings.md`,
+develop-first/eni-cherry-pick). The two CONVERGENT classes (updateDigest, TreeLookup) are now
+ergots-FIXED by the epilogue — ergots leads both; sigma-rust follows.
+
 ### Decisions needed before/during execution (user)
 1. F1 rider: atLeast 255-cap in F1 or F5?
 2. tx-tier scope (21 not-impl rows): Transaction codec on the roadmap (own future
