@@ -7,7 +7,11 @@ the plan + F1 execution 2026-06-06; F2 DONE 2026-06-06).
 **Progress:** ✅ **F1 DONE + PUSHED** (`origin/ergoscript-v6` @ `d7cef2f`; atLeast + DC value forks,
 6 eval-tier reds closed). ✅ **F2 DONE 2026-06-06** (commits `7bf3bff..531c8fa`, 9 commits; timestamp
 bigint + putUByte cost class; 16 rows closed at blessed costs). Next: **F3** (EQ_of_SigmaProp +
-serialize(SigmaProp) cost, pending user "go").
+serialize(SigmaProp) cost) — **READY, zero external dependencies** (both vector files landed
+SANTA-side 2026-06-06; vendor in-task). SANTA deliveries (re-grade, authoring batches) are a
+PARALLEL track — no F-phase waits on them unless its plan section says so. The signed-view
+micro-phase (§Coordination) is also unblocked (JVM-adjudicated) and should land before SANTA's
+vector batch arrives.
 
 ## Why
 
@@ -305,3 +309,16 @@ reference. Fix class: `BigInt.asIntN(64, ·)` at the four surfaces + JVM DataSer
 (adversarial-verify rule) + SANTA vector request (Box value / token amount ≥ 2^63, AND a ≥2^63
 Header-timestamp vector to pin F2's asIntN sign-flip empirically — currently unit-pinned only).
 Candidate slot: F5 or its own micro-phase; does not gate F3/F4.
+
+**→ JVM-ADJUDICATED 2026-06-06/07 (SANTA spike, `santa-header-signedview-spike-findings.md`):
+the JVM uniformly blesses the SIGNED view** — no oracle crash anywhere: `new ErgoBox(value=-1L)`
+constructs; spliced u64-max box bytes parse to `value == -1L` (confirms our unbounded-getULong
+reading); eval surfaces `SELF.value` → Long(-1) **cost 18** · `SELF.R0[Long].get` → Long(-1)
+**cost 75** · `SELF.tokens(0)._2` → Long(-1) **cost 70** · `preHeader.timestamp` → Long(-1)
+**cost 34** (= our F2 unit pin, pre-confirmed) · Header accessors flat **cost 39** (3-range
+timestamp incl. u64-max → -1). The asIntN(64) fix class is CONFIRMED faithful. Incoming vectors
+use the Box INPUT channel (`{ (b: Box) => b.value }` over `{kind:'Box', bytes_hex}`) — pins the
+exact hydration seam where sigma-rust's `try_from` fires (their boxes never hydrate → routed to
+sigma-rust develop-first with the vectors, per their maintainer rule). Until ergots applies the
+asIntN fix, these vectors will RED on us (raw unsigned bigint ≥2⁶³) — the micro-phase should
+ideally land BEFORE the batch arrives.
