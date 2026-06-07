@@ -166,7 +166,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 19
+      "expected_cost": 349
     },
     {
       "name": "get_many_mixed_2_of_3",
@@ -294,7 +294,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 19
+      "expected_cost": 349
     },
     {
       "name": "get_many_all_absent",
@@ -344,7 +344,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 19
+      "expected_cost": 349
     }
   ]
 }

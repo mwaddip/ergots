@@ -340,6 +340,15 @@ fn main() -> anyhow::Result<()> {
     // Phase 2h-b Phase B wave 2: 6 Tier-2 SAvlTree.* verification op handlers
     // (MethodCall typeId=100, methodIds 9..=14). Each constructs a real AD
     // proof via BatchAVLProver and captures eval result via try_eval_out.
+    //
+    // ⚠ HAND-BLESSED (F4, 2026-06-07): the savltree-*.json eval fixtures'
+    // expected_cost values were re-blessed to the JVM Tier-2 cost model
+    // (CreateAvlVerifier/LookupAvlTree/InsertIntoAvlTree/UpdateAvlTree/
+    // RemoveAvlTree + flag/digest/updateDigest charges) which this sigma-rust
+    // fork PREDATES. A `cargo run -p fixture-gen` regen will show
+    // expected_cost diffs on every savltree fixture — EXPECTED, not a
+    // regression. Canonical model:
+    // docs/specs/2026-06-07-ergoscript-f4-avltree-tier2-cost-design.md.
     let savltree_contains_fixture = cmds::ergoscript::eval::savltree_contains::generate()?;
     write_ergoscript_json("eval/savltree-contains.json", &savltree_contains_fixture)?;
     let savltree_get_fixture = cmds::ergoscript::eval::savltree_get::generate()?;

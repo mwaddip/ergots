@@ -37,6 +37,13 @@ const VECTOR_FILES = [
   'EQ_of_SigmaProp_conjecture_mismatch.json',
   'Box.signed_view_u64.json',
   'Option.map.json',
+  // F4 — AvlTree Tier-2 cost faithfulness (JVM-blessed, santa:authored-avl-tier2).
+  // Spec: docs/specs/2026-06-07-ergoscript-f4-avltree-tier2-cost-design.md.
+  'AvlTree.get.json',
+  'AvlTree.contains.json',
+  'AvlTree.getMany.json',
+  'AvlTree.get_proof_ladder.json',
+  'AvlTree.proof_adversarial.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

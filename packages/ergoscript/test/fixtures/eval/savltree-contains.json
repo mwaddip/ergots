@@ -9,7 +9,7 @@
         "kind": "Boolean",
         "value": true
       },
-      "expected_cost": 19
+      "expected_cost": 229
     },
     {
       "name": "contains_key_absent",
@@ -19,7 +19,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 19
+      "expected_cost": 229
     },
     {
       "name": "contains_proof_mutated",
@@ -29,7 +29,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 19
+      "expected_cost": 229
     },
     {
       "name": "contains_bytes_key_32",
@@ -39,7 +39,7 @@
         "kind": "Boolean",
         "value": true
       },
-      "expected_cost": 19
+      "expected_cost": 249
     }
   ]
 }

@@ -1,20 +1,23 @@
 /**
  * SAvlTree.contains (100:9) — Tier-2 verification op handler.
  *
- * Fixture-driven success/absent/mutated suite + a TS-only throw-path test
- * that asserts construct-failure raises EvalError 'avl-tree-proof-failed'.
+ * Fixture-driven success/absent/mutated suite + a TS-only hand-crafted case
+ * that pins the construct-failure → false behavior (JVM-canonical, F4).
  *
- * Source: ergotree-interpreter/src/eval/savltree.rs:339-381 — CONTAINS_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:67-90 (JVM-canonical, F4).
+ *         ergotree-interpreter/src/eval/savltree.rs:339-381 (sigma-rust diverges:
+ *         keeps the construct `?`-throw; eni savltree.rs:361).
  *
- * Failure model summary (per source-read confirmation):
- *   - verifier construct failure (line 372 `.map_err(map_eval_err)?`) → throw
- *   - per-op Lookup failure (line 379 `Err(_) => Boolean(false)`) → false
- *   - per-op result None / Some → false / true
+ * JVM failure model (F4-canonical):
+ *   - verifier construct failure → false (scorex swallows, topNode = None;
+ *     every subsequent op returns Failure → maps to false)
+ *   - per-op Lookup failure → false
+ *   - per-op result None → false (key absent)
+ *   - per-op result Some(_) → true (key present)
  *
- * So the fixture `contains_proof_mutated` (per-op fail, not construct fail)
- * lands as `false`; a construct-failure case (which fixture-gen can't capture
- * because sigma-rust would throw before producing JSON) is exercised here as
- * a hand-crafted throw test below.
+ * contains NEVER throws; all failure paths converge on false.
+ * `contains_proof_mutated` (per-op fail) → false.
+ * The construct-failure case is hand-crafted (mutation below) and also → false.
  */
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -23,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
 
 interface ContainsEntry {
   name: string
@@ -54,78 +57,19 @@ describe('SAvlTree.contains — fixture-driven', () => {
   }
 })
 
-describe('SAvlTree.contains — throw paths', () => {
-  it('throws avl-tree-proof-failed when verifier construct fails (truncated proof)', () => {
-    // Take the success fixture, truncate the proof's directions byte to 0
-    // bytes -> ByteReader will hit EOF inside reconstruct_tree.
-    // The trick: we need a tree whose proof bytes inside the wire ErgoTree
-    // are short enough to fail construction. We'll edit the existing fixture
-    // entry by mutating the proof's first byte (the packed-tree's "tag" byte
-    // for the root node) to an invalid encoding 0xff — sigma-rust's
-    // reconstruct_tree rejects unknown tags.
+describe('SAvlTree.contains — construct-failure → false (JVM-canonical, F4)', () => {
+  it('construct-failure returns false (JVM: no throw path exists; scorex swallows reconstruction errors)', () => {
+    // Take the success fixture, zero out the proof's packed-tree payload so the
+    // verifier's reconstruct_tree pass fails structurally. Uses the same
+    // hex-mutation approach as the get/getMany throw tests for consistency.
     const present = fixture.entries.find((e) => e.name === 'contains_key_present')
     if (present === undefined) throw new Error('test setup: missing fixture entry')
 
-    // Mutate a byte deep in the proof's packed-tree section (offset chosen so
-    // it lands inside the proof, not the proof-length VLQ or constants).
-    // The Const encoding for proof Coll[Byte] starts ~position varies by tree;
-    // use a heuristic: replace a known-good byte at offset (length - 5)
-    // with 0xff. If the verifier accepts it, this test would fail at the
-    // assertion below — flagging that the throw path isn't exercised. In
-    // practice, the packed-tree's leaf tags and node-header bytes pepper the
-    // proof, so flipping a late byte breaks structural integrity.
-    //
-    // Hard-cast: this is a construct-time failure if we pick wisely. If the
-    // mutation lands in the directions section, we get a per-op false. To
-    // force a construct failure reliably, prepend an extra constant slot:
-    // easier path -- just stuff bytes that make the proof shorter than the
-    // packed-tree wants. We use length-VLQ tampering: rewriting the
-    // proof-length-VLQ byte to claim more bytes than follow makes
-    // reconstruct_tree underrun.
-    //
-    // Pragmatic alternative: synthesize the tree from scratch with a known-
-    // bad proof. But that's complex. Skip a sub-optimal mutation and use a
-    // dedicated synthesizer below.
-    //
-    // For this initial throw-test, use a HAND-CONSTRUCTED case: parse a
-    // working tree, then mutate the proof's IN-MEMORY constants payload via
-    // re-encoding. We do this by editing the hex string directly at a known
-    // proof offset.
-    //
-    // Construct-failure recipe: in the contains fixture, the proof's first
-    // byte after its length VLQ is the packed-tree's root node-tag (0x00 =
-    // LabelOnly, 0x01 = LeafWithKey, 0x02 = InternalWithLabel, etc.).
-    // Setting it to 0xff yields "Unknown node header" failure deep inside
-    // reconstruct_tree — which surfaces as construct-fail in sigma-rust's
-    // BatchAVLVerifier::new().
-    //
-    // Locate the proof: scan the tree-bytes for the constant prefix
-    // "55 03 0d 3b a8" (5 bytes of a known proof) — fragile; better to
-    // mutate the LAST byte of the proof which is the trailing directions
-    // count. Setting that to a value > available bits also triggers
-    // reconstruct_tree underrun.
-    //
-    // Easiest reliable mutation: append a length-0 proof. Build a custom
-    // tree from scratch in test fixtures. For now, do the simple thing:
-    // mutate the bytes inside the packed-tree section of contains_key_present.
-    // We rely on the parsed tree's `proof` Const value being at a stable
-    // offset within tree.constants[1] (second constant). We can simply
-    // re-construct the ErgoTree bytes with a trashed proof Const.
-    //
-    // Concretely: the fixture's hex is the FULL ErgoTree wire bytes. The
-    // proof Const lives inside the constants section. We find the proof
-    // hex run ("0e55..." onwards) and zero out the FIRST byte of the
-    // packed-tree (the byte right after the length VLQ). This is a
-    // construct failure because the packed-tree expects the root header
-    // byte first.
-    const goodHex = present.tree_bytes_hex
     // Substitute the bytes after the proof Const header "0e55" with all-zeros
     // (preserving length). 0e = SColl Byte tag, 55 = VLQ length 85.
-    // Wait — proof length here is 0x55 = 85, so the proof spans the next 85
-    // bytes (170 hex chars) after the "0e55" tag+length pair. We replace
-    // those 170 hex chars with all "00" -> a proof of all zeros, which
-    // is INVALID (zero is LabelOnly which expects a label, but the digest
-    // won't anchor the empty-label root).
+    // The proof spans 85 bytes after the "0e55" tag+length pair. Zeroing
+    // those 85 bytes forces a construct failure inside BatchAVLVerifier.new().
+    const goodHex = present.tree_bytes_hex
     const proofTagIdx = goodHex.indexOf('0e55030d3b')
     if (proofTagIdx < 0) throw new Error('test setup: proof prefix not found')
     const proofBodyStart = proofTagIdx + 4 // skip "0e55"
@@ -137,7 +81,19 @@ describe('SAvlTree.contains — throw paths', () => {
 
     const tree = parseTree(hexToBytes(mutated))
     const ctx = makeContext({})
-    const err = captureEvalError(() => evaluateWith(tree, ctx))
-    expect(err.code).toBe('avl-tree-proof-failed')
+    const value = evaluateWith(tree, ctx)
+    // JVM CErgoTreeEvaluator.scala:84-90 — Lookup Failure → false; scorex
+    // swallows construct failure (no construct-throw path exists). Pre-F4
+    // ergots threw 'avl-tree-proof-failed' here: that was the sigma-rust
+    // `?`-on-construct fork (eni savltree.rs:361 still has it).
+    expect(value).toEqual({ kind: 'Boolean', value: false })
+    // Cost is outcome-independent — same as the success path (charges precede
+    // construction and lookup; failure does not reduce them):
+    //   envelope   = 19   (dispatcher + Const-arg eval overhead)
+    //   createVerifier(85) = 110 + 20 * (Math.trunc(84/64)+1) = 110 + 20*2 = 150
+    //   LookupAvlTree(h=2) = 40 + 10 * (Math.trunc(1/1)+1)   = 40 + 10*2  = 60
+    //   total = 19 + 150 + 60 = 229
+    // Matches expected_cost in the contains_key_present fixture entry.
+    expect(ctx.jitCost).toBe(229)
   })
 })

@@ -19,9 +19,9 @@
  *   5. SURVIVED = same baseline outcome under mutation (proof region byte
  *      flip tolerated). Per-handler threshold ≥ 0.90.
  *
- * Per-handler kill criteria (from Phase F source-read of savltree.rs):
- *   - `contains` — kill if throw OR result becomes `false` (vs baseline `true`)
- *      OR result becomes `true` (vs baseline `false`).
+ * Per-handler kill criteria (JVM-canonical, F4):
+ *   - `contains` — result flip only (true↔false); NEVER throws (F4: construct and
+ *      per-op failures both → false; "kill if throw" is impossible for contains).
  *   - `get` / `getMany` / `remove` — kill if throw OR Option content differs.
  *   - `insert` / `update` — kill if throw OR returned successor digest differs.
  *
@@ -78,7 +78,11 @@ const HANDLERS: Array<{
     name: 'contains',
     file: 'savltree-contains.json',
     collIndex: 1,
-    successEntries: ['contains_key_present', 'contains_key_absent', 'contains_bytes_key_32'],
+    // JVM (F4): contains NEVER throws; all failure paths → false.
+    // `contains_key_absent` baseline is already false; a mutated proof also
+    // returns false (bad proof collapses to "absent") → 0% kill rate is
+    // expected and not a test gap. Only true-baseline entries can detect kills.
+    successEntries: ['contains_key_present', 'contains_bytes_key_32'],
   },
   {
     name: 'get',

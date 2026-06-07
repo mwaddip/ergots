@@ -1,0 +1,548 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.get proof ladder",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-tier2",
+  "entries" : [
+    {
+      "name" : "n=1#0",
+      "script" : "{ tree(n=1).get(key0, proof) }",
+      "tree_bytes_hex" : "1ac2010364c3b84a834ecbb8c68ea4973fbaafa1be3f080b6dda070bb474bdcf2207447bd801072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0e6d033e8276aafe1fcb324b7f479de080398b8e0936bd00860fecb97bdb9bc9b14d22028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ceffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000005a17a000000400dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 207,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=2#1",
+      "script" : "{ tree(n=2).get(key0, proof) }",
+      "tree_bytes_hex" : "1ae50103643334aca7cf0d3cecd8924777b82a48c3f5ff3c3419c446a9e72231d88065a31d02072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0e8f01033e8276aafe1fcb324b7f479de080398b8e0936bd00860fecb97bdb9bc9b14d22028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cec4e67333f14133fce4ed7bbf147642b3e7b2b8324268ea6ded1be0caa2da237f000000005a17a000039594489172346c6b22ac52210d14be7fdb02f6ec52b9e525b3a9c77114374cd900010402dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 237,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=4#2",
+      "script" : "{ tree(n=4).get(key0, proof) }",
+      "tree_bytes_hex" : "1ae5010364fd8b856b5430a38695c7c686a4a888d6b3182e952ca51a7bc10641ab8cc4e0d803072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0e8f0103fcbfd9e0c4781263bb161625674719024acef64654799a00c41cc148bdc4a891028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cec4e67333f14133fce4ed7bbf147642b3e7b2b8324268ea6ded1be0caa2da237f000000005a17a000039594489172346c6b22ac52210d14be7fdb02f6ec52b9e525b3a9c77114374cd900ff0402dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 247,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=8#3",
+      "script" : "{ tree(n=8).get(key0, proof) }",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 257,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=16#4",
+      "script" : "{ tree(n=16).get(key0, proof) }",
+      "tree_bytes_hex" : "1aa9020364895e1f5073d14ece2da40edc2be3b690cbfe41d509346acab0875b9c614c138f05072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0ed30103b7ada05bb6aea10301e9f72287c40b5e0e8fc90728210520c12526e812796805028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce9a3df62638efb89b6c3ef2059fa40b634cfc8e44912ad8fea220d68235564bc6000000005a17a000034c50212a466ec36ca2a63561124a5e18ed3d84f3de75d4be09f2be33e1bf9214000352fc0c606dd6127e4b54b30b6d5cc825520dad2a64f13e78a44b9ce798fa6f0000ff0300552d3e6d5230c0f851a4c3680217d6c68816fedf75f6d3c002fdc374223796ff040ddc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 287,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=32#5",
+      "script" : "{ tree(n=32).get(key0, proof) }",
+      "tree_bytes_hex" : "1acb0203644f6b8c8fd8381e47a96ace57f6b6605086dc18d3f48ecb23cd15c87746abd9d106072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0ef50103c6621fcfd09f771c6a0214d70beb0f60670fbc60cd74a7ee55a8148a2d52c7c203bb49f01a7255de3a2aff584f289598258603aea763f6f54f437c196e28619351028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce9a3df62638efb89b6c3ef2059fa40b634cfc8e44912ad8fea220d68235564bc6000000005a17a000033633017eab20973ecc8b48eefdd5571eb165f8287155ae6ae1198f1cae4c727e01031ea6b1027499a9c3358c82b5a38fa9f5a263b0b9ef0a878dc2fe76196ca49bb400000003ae45051ebe8d8f38e9b121bd5e653e971348957d53e7f98d164aba0864d6f788ff0419dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 297,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=64#6",
+      "script" : "{ tree(n=64).get(key0, proof) }",
+      "tree_bytes_hex" : "1aed02036477b0b2cabf1764069a339246d886156b2759f5999d1377a86bafc48af18104fc07072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0e97020310b8bf58a41dd3214a442fe29dcab93175bba77e774e957ab43885bcce35223203c2cdf04d313f4ba4d338ff65c1fd0300c47d063a2055037982f981bd31b7a0c0028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce994b529a954e2a12898a433948db07c2db71b68b35e9569f963f925bd3315f01000000005a17a00003c282b0b444ee4360af2544eb1547c4162173edadf95751bd555286fc57dc25300103a48a845ae4ed0b44920df5bddc3953c3771be14216bbaec8635063c72f2a5fdfff036ecc2655084ee4d16455bb8ccbb0923cb0e39c759e807c921f8c90a5937e2cf6000003721ecc5c42f2633573a12da7ebe2ea506b08c967125a2fdfd95a0909593ec86c0001043adc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 327,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=128#7",
+      "script" : "{ tree(n=128).get(key0, proof) }",
+      "tree_bytes_hex" : "1aed02036495f4d56337c814c7c2929b7b8a249c3db8c7a37477e01d129f0e76258846641f09072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0e970203264b47435269b29013191a2ae54d36938e09c597e380f15e26895def5a7290ee028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce8f23ec5ce6294789812c189dd571a607ed21e211b13493d1a436b62391774f32000000005a17a00003445f9deb114670af3d4c657a6e657ea07da9d66e6870a3556827650ca20b024b0103d7bb17c0dff14497c622c604a1dcabf84e461209537be98baa74da841c1c11520003bf8e2b68056251dd532b16d4a3c7f3cccde7df2c04770336ee3704e67d0c911c00039c1120dfb0fb9be3aeb1de92ad5c02d511a6331cf66c6928e68ddb6a04c123a300037e4057e37c4b8d4fd9d60895fbad6267749df18621f0d9e7d4352526a58e123f01ff043edc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 347,
+        "error" : null
+      }
+    },
+    {
+      "name" : "n=256#8",
+      "script" : "{ tree(n=256).get(key0, proof) }",
+      "tree_bytes_hex" : "1a8f0303644f5b5a84bd0e2be2742ae506a78c4718ecaa0cdffbe1d9e1685d11aa440eab0b0a072001080e208f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce0eb902035e85254e09ecada89b417bade5f3506697bdb3651858fbb93a8869e0134d3d88028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85ce8f23ec5ce6294789812c189dd571a607ed21e211b13493d1a436b62391774f32000000005a17a000031c9abef85c050a8156a00041347a8f206db4d4472b28c2403a073646a5782e9f010312b4424cee57495edda9fe028ab8dc128ca56548017ee7cf74b5700ec64c9599ff03d155aa18893059ceb53a1ef6b87a4e1d20ffd801f9fac74b5b4df39d33644f660003cc1dfe0078cd6c2f0b72e7b71b939893596b7902c637d200dc7e14e994e37250ff032159d297c6cf5b43537029e2bc1d434c356f7428a845f273fc9254d5b43d929b000383d90d790fd6f8ddd9e1d3f69eba869f9ffdd7effe28e9c1e9ce2af19c62cbe901ff047edc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 23
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        },
+        "cost" : 357,
+        "error" : null
+      }
+    }
+  ]
+}

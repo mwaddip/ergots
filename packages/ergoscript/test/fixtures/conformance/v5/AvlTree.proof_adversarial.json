@@ -1,0 +1,44 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.proof adversarial",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-tier2",
+  "entries" : [
+    {
+      "name" : "tampered-proof#0",
+      "script" : "{ tree(n=8).get(key2, tamperedProof) }",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e204466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec550eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731cc8e656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "wrong-key-for-proof#1",
+      "script" : "{ tree(n=8).get(key3, proofForKey2) }",
+      "tree_bytes_hex" : "1a87020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e200b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1110eb10103a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731c9de656b81d88d8f6ec79000000005a17a00203a1d45715969cbe24521454a0e00318b2b36650c19d7065ab30df4b9416ae3cc5000003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010405dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}
