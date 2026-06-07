@@ -262,3 +262,17 @@ Remaining 9-row acceptance corpus, all JVM-blessed:
    `0x80000001` → JVM `.keyLength` = −2147483647. Fix: i32 view at the accessor
    (`keyLength | 0`), consistent with T7.5's construct-shape predicate; valueLengthOpt gets the
    same view (same JVM parse line; source-backed, vector-unblessed — flagged for a future bless).
+
+### Epilogue outcome
+
+**9/9 acceptance-corpus rows CLOSED** (commits `1bc276a..e5bb117`, 4 commits, 2026-06-07).
+
+Gate post-epilogue: avltree **156** / ergoscript **4173** / nipopow **247** / scorex **187** — all green; tsc clean (all 4 packages). EvalError codes: **79** (net-zero from Task 2 +1/−1; Task 3 −1; final count = 79).
+
+Fix classes:
+- TreeLookup/CreateAvlTree → `'unsupported-eval-node'` unconditional reject (no JVM eval override, trees.scala; sigma-rust port was an over-accept).
+- updateDigest any-length → eval gate + wire serializer throw + hardcoded-33 cost all removed (JVM CAvlTree.scala:31-34 no require; code `'avl-tree-bad-digest-length'` retired).
+- keyLength/valueLengthOpt → i32 view at the accessors (`| 0`; JVM AvlTreeData.scala:84-85 `getUInt().toInt`).
+- CreateAvlTree wire layout → JVM 4-expr operand form (no presence-tag; sigma-rust was a wire FORK).
+
+**Queued for F5:** valueLengthOpt wrapped-negative vector bless (source-backed, unblessed leg of Task 4); Option-semantics family (3 sub-items: nonzero-tag Option data constant / DeserializeRegister tag ≥2 / pre-v3 Option constant — source-verified JVM divergences, adversarial-only); composite updateDigest(short)→Tier-2-verify vector. See `prompts/f4-santa-asks.md` §Epilogue follow-up asks (2026-06-07).

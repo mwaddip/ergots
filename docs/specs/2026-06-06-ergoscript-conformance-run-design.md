@@ -270,6 +270,24 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 
 (tx-tier 21 stay out-of-scope unless the codec decision flips them in. After F4, eval-tier ergots-bug reds = 0.)
 
+**F4 epilogue outcome (2026-06-07, commits `1bc276a..e5bb117`, 4 commits) — 9/9 acceptance-corpus rows CLOSED:**
+1. **TreeLookup over-accept ×2** (commits `975fff3`): `trees.scala:1322-1338` has no eval override (`costKind = notSupportedError`); unconditional `'unsupported-eval-node'` reject on both TreeLookup v2 and v3 — no cost charged, no operand evaluated.
+2. **CreateAvlTree over-accept ×1** (`975fff3`): same class — `trees.scala:79-91` no eval override; same reject code. WIRE FIX also in this commit: sigma-rust serializes presence-tag for `valueLengthOpt` but JVM `CreateAvlTreeSerializer.scala:24-37` uses a plain 4-operand layout (flags, digest, keyLength, valueLengthOpt — always present, never tagged); ergots now matches the JVM layout. This is a genuine sigma-rust wire FORK; dasher panic on CreateAvlTree resolved.
+3. **updateDigest over-reject ×4** (`8313011`): JVM `CAvlTree.scala:31-34` has no length require on `updateDigest`; any `Coll[Byte]` length is accepted verbatim. Fixed: (a) `'avl-tree-bad-digest-length'` eval gate removed (code retired — net 80→79); (b) wire serializer throw on non-33-byte digest removed; (c) hardcoded-33 serialize-cost corrected to use actual digest length (latent cost divergence, now closed). Blessed: 3-byte/empty/40-byte → `Some(AvlTree)` cost 46.
+4. **keyLength sign ×2** (`e5bb117`): JVM `AvlTreeData.scala:84-85` parses `keyLength`/`valueLengthOpt` as `getUInt().toInt`; wire values in [2^31, 2^32) wrap negative. Fixed: `keyLength | 0` i32 view at the accessor. `valueLengthOpt` gets the same view (same JVM parse line; source-backed, **vector-unblessed** — queued for SANTA bless in F5).
+
+**EvalError codes after epilogue: 79** (Task 2 net-zero: `+unsupported-eval-node −create-avl-tree-shape-mismatch` orphaned; Task 3: `−avl-tree-bad-digest-length`). Gate post-epilogue: avltree **156** / ergoscript **4173** / nipopow **247** / scorex **187** — all green; tsc clean.
+
+**NEW findings from the epilogue — NOT fixed (route to F5):**
+- **Option-tag/data semantics vs JVM (3 sub-items, source-verified):**
+  (i) Option DATA tag: JVM `VLQReader.getOption` (scorex-util, bytecode-verified) treats ANY nonzero tag as Some; ergots `parse-svalue.ts:327-340` only-1=Some (comment asserts sigma-rust semantics as if canonical — wrong for JVM).
+  (ii) `deserialize-register.ts:69-78` tag ≥2: JVM Some(parse), ergots throws `'invalid-option-tag'`.
+  (iii) Pre-v3 Option-constant gate: JVM parse-rejects Option DATA in pre-v3 trees (`isV3OrLaterErgoTreeVersion` gate); ergots parses at any version.
+  All adversarial-only (mainnet JVM-validated). F5 members + SANTA vector asks (see §F5 members and `prompts/f4-santa-asks.md`).
+- **sigma-rust convergent over-accepts** for TreeLookup/CreateAvlTree eval and updateDigest over-reject routed to sigma-rust by SANTA via the epilogue (eni PR #890 shipped construct-fail routing same-day — `a4ee7442`; the over-accept routing is queued).
+
+**F5 members (additions from epilogue):** the Option-semantics family (3 sub-items above with cites) · valueLengthOpt wrapped-negative vector bless (unblessed leg of Task 4) · composite updateDigest(short)→Tier-2-verify vector (digest-length construct-shape path, unit-pinned our side at cost 170).
+
 ### Decisions needed before/during execution (user)
 1. F1 rider: atLeast 255-cap in F1 or F5?
 2. tx-tier scope (21 not-impl rows): Transaction codec on the roadmap (own future

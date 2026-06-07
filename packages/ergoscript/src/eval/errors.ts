@@ -8,7 +8,8 @@
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
  *   - documents the 79 codes through v6 P6 (HOF lambdas) + F1 (which removed
- *     'deserialize-context-key-not-found': 80 → 79; see history) + F3 (79 → 80)
+ *     'atleast-bound-out-of-range' AND 'deserialize-context-key-not-found':
+ *     81 → 79; see history) + F3 (79 → 80)
  *     + F4 epilogue Task 2 (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
  *     which the unconditional CreateAvlTree reject orphaned: net 80 → 80)
  *     + F4 epilogue Task 3 (−'avl-tree-bad-digest-length': JVM accepts any digest
