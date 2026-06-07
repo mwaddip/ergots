@@ -167,7 +167,7 @@ combined with Task 2's `'atleast-bound-out-of-range'` removal: net 81→79).
 - ~~scorex `Header.timestamp` number→bigint (root cause #4)~~ ✅ done `7bf3bff`
 - ~~putUByte = 1 sweep (root cause #5)~~ ✅ done `02b17fe`, `855044b`, `6bfae86`
 
-### F3 — cost-only remainder (EQ_of_SigmaProp + serialize(SigmaProp))  ·  closes 8 rows (3 identical + 5 unequal EQ + serialize_SigmaProp)
+### F3 — cost-only remainder (EQ_of_SigmaProp + serialize(SigmaProp))  ·  closes 9 rows (3 identical + 5 unequal EQ + serialize_SigmaProp) · ✅ DONE 2026-06-07 (commits c9b85f0/85466a1/e2b0ab5/fd5a054)
 - **EQ_of_SigmaProp** (root cause #1): recursive SigmaBoolean cost walk in
   `relation.ts` — MatchType(1) per node + EQ_GroupElement(172) per ECPoint + outer
   MatchType, mirroring JVM `DataValueComparer` incl. && short-circuit. **BOTH arms now
@@ -180,6 +180,16 @@ combined with Task 2's `'atleast-bound-out-of-range'` removal: net 81→79).
   `serialize-cost.ts` mirroring the `serializeSigmaBoolean` walk (opcode 1; ProveDlog
   +36; DHT +144; conjectures putUShort(3) + recurse). TDD: the 1 blessed entry +
   composite-prop unit pins.
+
+**Outcome:** all 9 rows green at blessed costs (EQ identical 224/740/398 · unequal 176/4/176/692/350 ·
+serialize_SigmaProp 126). putUShort-vs-putUByte flag SETTLED at source: conjecture counts are putUShort
+= PutUnsignedNumericCost(3) (`SigmaByteWriter.scala:83-86,:248`). **Three bonus consensus fixes:**
+(1) conjecture-left vs different-variant-right now THROWS `'sigma-boolean-compare-unsupported'`
+(JVM `sys.error` mirror, `DataValueComparer.scala:278-281`; was accept-as-false — value fork,
+reachable from honest `(pkA && pkB) == pkC`); (2) ECPoint 0x00-lead identity class in the walk AND
+the bare-GroupElement EQ arms (`EQ(GE(0x00‖A), GE(0x00‖B))` false→true per JVM parse-to-identity);
+(3) `eq_sigma_prop_*` fixture re-bless 13→12 (JVM TrivialProp walk) + fixture-gen ⚠️ HAND-BLESSED
+marker (regen diff EXPECTED). Codes 79→80. Gate: ergoscript 4031, tsc clean.
 
 ### F4 — AvlTree Tier-2 cost faithfulness (the original P7b finding)  ·  closes 22 cost rows
 Transcribe the JVM cost model into the 7 Tier-2 handlers (`savltree.ts`):
@@ -224,7 +234,7 @@ F2 final-review finding — Box.value/R0/token-amount ≥2⁶³, vectors FIRST t
 before coding) · atLeast 255-cap vector + fix (+ the JVM-vs-eni ordering verification
 below) · optional substConstants embedded-reject twin · the full-corpus vendoring task
 (Decision #3 middle path) · 5-tuple-register serialize vector (from the eni routing
-note's ask #2).
+note's ask #2) · cross-kind EQ cost-matrix residual (kind-mismatch arm flat EQ_PRIM=3 vs JVM per-LEFT-arm 1/3/4/172; SAny-reachable only, value-identical — vector ask BEFORE fixing) · conjecture-throw vector ask ("(pkA && pkB) == pkA" → JVM exception; F3 closed it source-verified + unit-pinned, needs a blessed pin) · GE struct-equality identity-class family (boxEqual/headerEqual/preHeaderEqual byte-compare GE fields vs JVM point-object equality — own JVM source read first) · GE constant parse-validation (ergots accepts any 33 bytes; JVM curve-validates at parse — wire-layer class).
 - **atLeast 255-CHILDREN cap (sharpened by the F1 Task-2 review, 2026-06-06):** ergots
   enforces NO cap on the input-coll length (`ConcreteCollection` parses to u16=65535;
   `extractSigmaPropColl`/`cthresholdReduce` uncapped) → `atLeast(k, Coll[SigmaProp] of
@@ -252,7 +262,7 @@ ergots-bug reds = 74 − 21 tx = 53). Atleast's 4 already flipped (Task 2 commit
 | Task 2 (✅ done `eb09892`) | 49 | −4 atLeast value |
 | F1 Task 3 (✅ done `5580a75` — DC cost resolved: SANTA re-blessed 12→20, Decision A) | 47 | −2 DC value |
 | F2 ✅ DONE | **31** | −16 (timestamp+putUByte cost rows, incl. the 3 that were panicking). *(The old "−19" arithmetic double-counted the 3 panic rows across both the "panics" and "cost" subtotals — they are the same rows. Correct flip count = 16.)* |
-| F3 | 22 | −9 (EQ_of_SigmaProp: 3 identical + 5 unequal = 8 rows; serialize_SigmaProp: 1 row) |
+| F3 ✅ DONE 2026-06-07 | 22 | −9 (EQ_of_SigmaProp: 3 identical + 5 unequal = 8 rows; serialize_SigmaProp: 1 row) |
 | F4 | 0 eval-tier ergots-bug reds | −22 AvlTree Tier-2 cost (after F3: 22 remaining = exactly the 22 AvlTree Tier-2 cost rows; tx-tier 21 stay out-of-scope) |
 | F5 | gap-fill; NEW green pins extend corpus | |
 
@@ -322,3 +332,8 @@ exact hydration seam where sigma-rust's `try_from` fires (their boxes never hydr
 sigma-rust develop-first with the vectors, per their maintainer rule). Until ergots applies the
 asIntN fix, these vectors will RED on us (raw unsigned bigint ≥2⁶³) — the micro-phase should
 ideally land BEFORE the batch arrives.
+
+**F3 close-out (2026-06-07):** re-grade requested (expect 31 → 22: the 8 EQ rows + serialize_SigmaProp).
+Two vector asks queued for SANTA (see §F5): the conjecture-throw pin and, lower priority, cross-kind
+EQ cost shapes. Cost-then-write residual in `global-serialize.ts` reviewed and verified UNREACHABLE
+for JVM-constructible values (every SigmaBoolean producer keeps the byte serializer throw-free).

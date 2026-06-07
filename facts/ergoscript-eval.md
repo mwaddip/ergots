@@ -19,7 +19,7 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 - 3 more arms wired: `BinOp` (central dispatcher delegating on `e.op.kind` to 4 per-family sub-arms), `LogicalNot`, `BoolToSigmaProp`.
 - All 22 `BinOp` sub-ops implemented across 4 families: **Arith** (7: Plus, Minus, Multiply, Divide, Modulo, Max, Min; checks bounds per kind; throws `'arith-overflow'` on bounds violation, `'arith-divide-by-zero'` for `/0` and `%0`); **Relation** (6: Lt, Le, Gt, Ge, Eq, NEq); **Logical** (3: And, Or short-circuit on Boolean operands — right-side cost NOT charged when short-circuited — and eager Xor); **Bit** (3 of 6: BitAnd, BitOr, BitXor with kind-uniform bigint masking + sign-preserving re-narrowing; the 3 shift ops throw `'not-implemented-yet'` — sigma-rust delegates them to `SNumericTypeMethods` not the BinOp arm).
-- `sValueEquals` recursive structural comparer covering primitives, `GroupElement` (byte-equal), `SigmaProp` (byte-equal on opaque `.raw`), `Coll`, `Tuple`, `Option`. Cross-kind comparison returns `false` (no coercion) — **later version-gated (2026-06-01): at `ctx.treeVersion < 3`, mismatched-NUMERIC `Eq`/`NEq` operands are coerced to the wider kind before comparison (JVM pre-V3 auto-upcast); see the `'bin-op-kind-mismatch'` taxonomy entry.** `Box` / `AvlTree` throw `'not-implemented-yet'` **(2c snapshot — superseded: structural equality via `boxEqual`/`avlTreeEqual`/`preHeaderEqual`/`headerEqual` landed phase 2e/2h)**. Cost charged per sigma-rust's `data_value_comparer.rs` constants.
+- `sValueEquals` recursive structural comparer covering primitives, `GroupElement` (byte-equal), `SigmaProp` (byte-equal on opaque `.raw`) **(superseded F3 2026-06-07: recursive costed SigmaBoolean walk + identity-class ECPoints; see the F3 changelog line)**, `Coll`, `Tuple`, `Option`. Cross-kind comparison returns `false` (no coercion) — **later version-gated (2026-06-01): at `ctx.treeVersion < 3`, mismatched-NUMERIC `Eq`/`NEq` operands are coerced to the wider kind before comparison (JVM pre-V3 auto-upcast); see the `'bin-op-kind-mismatch'` taxonomy entry.** `Box` / `AvlTree` throw `'not-implemented-yet'` **(2c snapshot — superseded: structural equality via `boxEqual`/`avlTreeEqual`/`preHeaderEqual`/`headerEqual` landed phase 2e/2h)**. Cost charged per sigma-rust's `data_value_comparer.rs` constants.
 - 5 new `EvalError` codes: `'arith-overflow'`, `'arith-divide-by-zero'`, `'bin-op-kind-mismatch'`, `'bin-op-not-numeric'`, `'bin-op-not-boolean'`.
 
 **Phase 2d-A — numeric-poly unary arms** (additive):
@@ -539,6 +539,16 @@ For cross-cutting guarantees (browser-compat, determinism, etc.) see [`facts/erg
 
 - **1 new `EvalError` code** (80 → **81**): `'apply-unresolved-type-var'`. Wire-layer `ExprParseError('fun-def-tpe-arg-not-type-var')` (Task 3, `19c5481`) was added earlier in P6 and is documented in [`facts/ergoscript-wire.md`](./ergoscript-wire.md). Source: JVM `data/shared/src/main/scala/sigma/ast/values.scala:911-1004` (`FunDef`-is-`ValDef`; `BlockValue.eval` ignores `tpeArgs`), `serialization/TypeSerializer.scala:111,211` (`SFunc` V3 gate), `LanguageSpecificationV6.scala:1603-1672` (the canonical HOF feature). Spec: `docs/specs/2026-06-05-ergoscript-v6-p6-higher-order-lambdas-design.md`.
 
+**F3 (2026-06-07):** SigmaProp `Eq`/`NEq` cost = MatchType(1)/node + EQ_GroupElement(172)/ECPoint
+compared (recursive walk in `eval/bin-op/_sigma-boolean-eq.ts`, JVM `DataValueComparer.scala:253-282,353-361`),
+replacing the flat `EQ_PRIM_COST=3` byte-compare; conjecture-left vs different-variant-right throws
+`'sigma-boolean-compare-unsupported'` (value fork closed); ECPoint equality gains the 0x00-lead
+identity class — in the walk AND the bare-GroupElement scalar/bulk arms (second value fork closed).
+`serializeCost` gains the `SSigmaProp` arm (`addSigmaBooleanCost`: opcode 1/node, dlog +36, DHT +144,
+conjecture counts putUShort(3) each; putUShort=3 source-verified). The walks recurse depth-guard-free:
+parse-bounded (reader level 110) for wire trees, cost-bounded for eval-constructed conjectures —
+the JVM's own posture. Codes 79→80.
+
 ## Public surface (v0.3.0)
 
 ```ts
@@ -661,9 +671,9 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (79 codes)
+## `EvalError` taxonomy (80 codes)
 
-`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted. P2b added 1 new code (`'unsigned-bigint-out-of-range'`) and extended `'unsigned-bigint-op-unsupported'` (P2a) to also cover UBI cast arm rejects. P2d-2 added `'unsigned-bigint-not-invertible'` (73 total). P3 adds 0 new codes. P4 adds 1 new code (`'method-call-empty-args'`; 74 total). P5a adds 2 new codes (`'global-serialize-failed'`, `'global-deserialize-failed'`; 76 total). P5b-1 adds 1 new code (`'global-from-bigendian-bytes-failed'`; 77 total). P5b-2 adds 2 new codes (`'global-encode-nbits-failed'`, `'global-decode-nbits-failed'`; 79 total). P5c adds 1 new code (`'pow-hit-invalid-params'`; 80 total). P6 adds 1 new code (`'apply-unresolved-type-var'`; 81 total). **F1 (2026-06-06) removes 2 codes** (`'atleast-bound-out-of-range'` Task 2, `'deserialize-context-key-not-found'` Task 3): 81 → **79**.
+`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted. P2b added 1 new code (`'unsigned-bigint-out-of-range'`) and extended `'unsigned-bigint-op-unsupported'` (P2a) to also cover UBI cast arm rejects. P2d-2 added `'unsigned-bigint-not-invertible'` (73 total). P3 adds 0 new codes. P4 adds 1 new code (`'method-call-empty-args'`; 74 total). P5a adds 2 new codes (`'global-serialize-failed'`, `'global-deserialize-failed'`; 76 total). P5b-1 adds 1 new code (`'global-from-bigendian-bytes-failed'`; 77 total). P5b-2 adds 2 new codes (`'global-encode-nbits-failed'`, `'global-decode-nbits-failed'`; 79 total). P5c adds 1 new code (`'pow-hit-invalid-params'`; 80 total). P6 adds 1 new code (`'apply-unresolved-type-var'`; 81 total). **F1 (2026-06-06) removes 2 codes** (`'atleast-bound-out-of-range'` Task 2, `'deserialize-context-key-not-found'` Task 3): 81 → **79**. **F3 (2026-06-07) adds 1 new code** (`'sigma-boolean-compare-unsupported'`): 79 → **80**.
 
 ### Phase 2b codes
 
@@ -889,6 +899,15 @@ Committed 2026-06-06 (commits `eb09892`/`f5dd083` atLeast, `5580a75`/`b614d6e` D
 **Task 2 — `'atleast-bound-out-of-range'` REMOVED.** `Atleast` now applies JVM-faithful degenerate-bound reductions: `bound ≤ 0 → TrivialProp(true)`; `bound > items.length → TrivialProp(false)`. Both reductions fire AFTER the per-item cost pass (cost unchanged — Pattern B `addPerItemCost(20, 3, 5, n)` is always charged). The removed code guarded `bound < 0 || bound > 255 || bound > items.length`; the 255-bound cap is a separate concern (deferred to F5 — the 255-CHILDREN cap on input-coll length remains un-enforced in ergots; see §F5 in the conformance-run spec for the ordering question). `'atleast-bound-not-int'` stays (non-Int `bound` is still an error). Source: JVM `CSigmaDslBuilder.atLeast`; sigma-rust `atleast.ts` (ergo-node-integration).
 
 **Task 3 — `'deserialize-context-key-not-found'` REMOVED.** `DeserializeContext` substitution is now failure-tolerant: absent ctx var AND wrong-typed ctx var both return the node UNCHANGED (no throw during the substitute pass). The node is only evaluated if it reaches a live branch; at eval-time the defensive `'deserialize-not-substituted'` throw fires instead. **DR/DC asymmetry preserved:** `DeserializeRegister` with a wrong-typed register entry STILL throws eagerly (`'deserialize-input-not-byte-array'`) — the JVM erases to `ClassCastException` there. Source: JVM `Interpreter.scala:110-125`; sigma-rust `mir/expr.rs:442-496` (ergo-node-integration confirms failure-tolerant DC). Pinned by SANTA `dead-branch-absent#0` / `dead-branch-wrong-type#1` at **blessed cost 20** — the F1 failure-tolerant path itself adds no charge; the cost is the `substituteConstants` pre-pass that `treeHasDeserialize` triggers (CP→Const @ 5 each), mainnet-validated at h=3850. Initially blessed 12 (SANTA's lazy eval seam), re-blessed 12→20 as Decision A (JVM/consensus leads); see the conformance-run spec §F1 OPEN BLOCKER → RESOLVED.
+
+### F3 code (EQ-of-SigmaProp costed walk, 2026-06-07)
+
+- **`'sigma-boolean-compare-unsupported'`** — `Eq`/`NEq` over two `SigmaProp`s where the LEFT
+  SigmaBoolean is a conjecture (`Cand`/`Cor`/`Cthreshold`) and the RIGHT is a different
+  variant. Mirrors the JVM `DataValueComparer.equalSigmaBoolean` `case _ => sys.error`
+  (`:278-281`) — the guarded conjecture cases fall through. ASYMMETRIC by design:
+  leaf-left vs conjecture-right returns `false` (no throw). Cost-then-throw (the node's
+  MatchType is charged at entry). Reachable from honest scripts: `(pkA && pkB) == pkC`.
 
 No other error codes are emitted by the current evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
