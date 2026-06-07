@@ -30,8 +30,12 @@ import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
 import { isNumeric, valueToBigInt, bigIntToValue, widerKind, upcastCost } from './_numeric'
 import { compareUBI } from './_ubi-binop'
-import { serializeSigmaBoolean } from '../../wire/sigma-boolean'
-import { ByteWriter } from '@ergots/scorex'
+import {
+  equalSigmaBooleanCosted,
+  sigmaBooleanStructuralEq,
+  MATCH_TYPE_COST,
+  EQ_GROUP_ELEMENT_COST,
+} from './_sigma-boolean-eq'
 
 /** Cost for ordering Relation ops. sigma-rust bin_op.rs:210. */
 const RELATION_ORDERING_COST = 20
@@ -49,10 +53,6 @@ const EQ_PRIM_COST = 3
 /** Per-comparison cost for BigInt.
  *  data_value_comparer.rs:16 `EQ_BIGINT_COST: u64 = 5` */
 const EQ_BIGINT_COST = 5
-
-/** Per-comparison cost for GroupElement (secp256k1 point comparison).
- *  data_value_comparer.rs:17 `EQ_GROUP_ELEMENT_COST: u64 = 172` */
-const EQ_GROUP_ELEMENT_COST = 172
 
 /** Tuple equality base cost (plus recursive element costs).
  *  data_value_comparer.rs:18 `EQ_TUPLE_COST: u64 = 4` */
@@ -367,7 +367,8 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  *   Option                       → EQ_OPTION_COST = 4 + recursive inner cost if both Some (line 19)
  *   Coll                         → COLL_MATCH_TYPE_COST = 1 always, then if lengths equal:
  *                                   addPerItemJitCost(perItemCost(elem), n) (lines 27, 108-117)
- *   Unit/SigmaProp/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
+ *   Unit/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
+ *   SigmaProp → MatchType(1) + recursive SigmaBoolean walk (_sigma-boolean-eq.ts; JVM DataValueComparer.scala:253-282,353-361) — F3
  *   Box/AvlTree/PreHeader/Header → throw 'not-implemented-yet' (runtime shapes land in 2e/2h)
  *
  * Different `kind` → `false` (no cross-type coercion, matching sigma-rust's
@@ -483,19 +484,22 @@ function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
       return true
     }
 
-    // SigmaProp: byte-equal on canonical wire bytes (serialized via structural walker).
-    // Falls into sigma-rust's catch-all `_` arm (line 132): EQ_PRIM_COST + lv == rv.
-    // SigmaProp's PartialEq compares the inner SigmaBoolean structurally, which is
-    // equivalent to comparing the canonical wire bytes.
+    // SigmaProp — JVM DataValueComparer.scala:353-361: MatchType for the
+    // SigmaProp dispatch, then equalSigmaBoolean walks the tree (MatchType
+    // per node + EQ_GroupElement per ECPoint compared, && short-circuit;
+    // conjecture-left vs different-variant-right THROWS, mirroring the JVM
+    // sys.error :278-281). Replaces the flat EQ_PRIM_COST byte-compare
+    // (sigma-rust catch-all posture) — F3 root cause #1; blessed vectors
+    // EQ_of_SigmaProp{,_unequal} pin all three cost classes. The cost-free
+    // path (sValueStructuralEq — JVM's uncosted Scala ==) compares
+    // structurally with NO throw.
     case 'SigmaProp': {
-      ctx?.addCost(EQ_PRIM_COST)
-      const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
-      const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
-      if (ra.length !== rb.length) return false
-      for (let i = 0; i < ra.length; i++) {
-        if (ra[i] !== rb[i]) return false
+      const rv = (b as typeof a).value
+      if (ctx) {
+        ctx.addCost(MATCH_TYPE_COST)
+        return equalSigmaBooleanCosted(a.value, rv, ctx)
       }
-      return true
+      return sigmaBooleanStructuralEq(a.value, rv)
     }
 
     // Unit: falls into catch-all arm → EQ_PRIM_COST, always equal.
@@ -625,13 +629,10 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
       for (let i = 0; i < ba.length; i++) if (ba[i] !== bb[i]) return false
       return true
     }
-    case 'SigmaProp': {
-      const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
-      const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
-      if (ra.length !== rb.length) return false
-      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return false
-      return true
-    }
+    case 'SigmaProp':
+      // Scala case-class == (uncosted, used by indexOf): structural walk
+      // with identity-class ECPoint semantics, NO conjecture-mismatch throw.
+      return sigmaBooleanStructuralEq(a.value, (b as typeof a).value)
     case 'Coll': {
       const ca = a, cb = b as typeof a
       if (ca.items.length !== cb.items.length) return false

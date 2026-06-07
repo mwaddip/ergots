@@ -7,8 +7,8 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 79 codes through v6 P6 (HOF lambdas) + F1 (which removed
- *     'deserialize-context-key-not-found': 80 → 79; see history)
+ *   - documents the 80 codes through v6 P6 (HOF lambdas) + F1 (which removed
+ *     'deserialize-context-key-not-found': 80 → 79; see history) + F3 (79 → 80)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -57,6 +57,8 @@
  *        unsigned-bigint-op-unsupported, unsigned-bigint-out-of-range,
  *        unsigned-bigint-not-invertible) → 72 (housekeeping 2026-06-03: used in
  *        the P2 arms but omitted from this union until now)
+ *    + 1 code added in F3 (conformance run — EQ-of-SigmaProp costed walk):
+ *        'sigma-boolean-compare-unsupported' (JVM DataValueComparer sys.error mirror)
  */
 
 /**
@@ -853,3 +855,22 @@ export type EvalErrorCode =
    *         (blessed_by jvm:sigma-state-6.0.3).
    */
   | 'apply-unresolved-type-var'
+
+  // -------------------------------------------------------------------------
+  // F3 — conformance run, EQ-of-SigmaProp costed walk (1 code; 79 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * `compareSValues` SigmaProp arm: the LEFT SigmaBoolean is a conjecture
+   * (Cand / Cor / Cthreshold) and the RIGHT is a DIFFERENT variant (or a leaf
+   * when the left is a conjecture). Mirrors JVM `DataValueComparer.scala`
+   * `equalSigmaBoolean` `:278-281`:
+   *   `case _ => sys.error("Unknown SigmaBoolean type ...")`.
+   * The node MatchType(1) is charged BEFORE the throw (cost-then-throw).
+   * ASYMMETRY: leaf-left vs conjecture-right → plain `false`; conjecture-left
+   * vs different-right → throw. Applies only to the costed path (ctx present).
+   * The cost-free structural twin (`sValueStructuralEq` / `primitiveValueEqual`)
+   * uses plain `false` for all tag mismatches — no throw.
+   *
+   * Source: JVM DataValueComparer.scala:278-281; _sigma-boolean-eq.ts.
+   */
+  | 'sigma-boolean-compare-unsupported'

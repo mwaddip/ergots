@@ -454,7 +454,7 @@
         "kind": "Boolean",
         "value": true
       },
-      "expected_cost": 13,
+      "expected_cost": 12,
       "expected_error_code": null
     },
     {
@@ -465,7 +465,7 @@
         "kind": "Boolean",
         "value": false
       },
-      "expected_cost": 13,
+      "expected_cost": 12,
       "expected_error_code": null
     },
     {

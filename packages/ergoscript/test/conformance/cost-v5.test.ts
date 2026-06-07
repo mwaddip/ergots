@@ -33,6 +33,8 @@ const VECTOR_FILES = [
   'SigmaProp.propBytes_equivalence.json',
   'substConstants_equivalence.json',
   'atLeast_with_a_degenerate_bound.json',
+  'EQ_of_SigmaProp.json',
+  'EQ_of_SigmaProp_unequal.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

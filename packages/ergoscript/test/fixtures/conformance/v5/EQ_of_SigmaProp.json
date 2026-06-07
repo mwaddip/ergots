@@ -1,0 +1,71 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "EQ of SigmaProp",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-sigmaprop-eq",
+  "entries" : [
+    {
+      "name" : "proveDlog#0",
+      "script" : "{ getVar[SigmaProp](1).get == getVar[SigmaProp](1).get }",
+      "tree_bytes_hex" : "1a0a0093e4e30108e4e30108",
+      "input" : {
+        "kind" : "SigmaProp",
+        "raw_hex" : "cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 224,
+        "error" : null
+      }
+    },
+    {
+      "name" : "proveDHTuple#1",
+      "script" : "{ getVar[SigmaProp](1).get == getVar[SigmaProp](1).get }",
+      "tree_bytes_hex" : "1a0a0093e4e30108e4e30108",
+      "input" : {
+        "kind" : "SigmaProp",
+        "raw_hex" : "ce0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 740,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAND#2",
+      "script" : "{ getVar[SigmaProp](1).get == getVar[SigmaProp](1).get }",
+      "tree_bytes_hex" : "1a0a0093e4e30108e4e30108",
+      "input" : {
+        "kind" : "SigmaProp",
+        "raw_hex" : "9602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 398,
+        "error" : null
+      }
+    }
+  ]
+}
