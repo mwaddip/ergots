@@ -22,11 +22,12 @@
  *                                  Tier-2 verification op handlers when obj is not AvlTree
  *                                  (defensive; unreachable for parser-produced trees).
  *                                  Code originated in `./savltree.ts` (phase 2h-b Tier 1).
- *   'avl-tree-proof-failed'     — thrown by `get` / `getMany` / `insert` (V<3 per-op + construct) /
- *                                  `update` (construct only) / `remove` (any) / `contains` (construct
- *                                  only). See per-handler doc-comments in savltree.ts for the
- *                                  per-handler failure model. Code originated in `./savltree.ts`
- *                                  (phase 2h-b Tier 2 / Phase F).
+ *   'avl-tree-proof-failed'     — thrown by `get` (any fail) / `getMany` (any fail, ≥1 key) /
+ *                                  `insert` at treeVersion<3 with ≥1 op (F4 JVM-canonical surface;
+ *                                  contains/update/remove/insertOrUpdate never throw it — see the
+ *                                  authoritative taxonomy entry in `./errors.ts` and the per-handler
+ *                                  doc-comments in savltree.ts). Code originated in `./savltree.ts`
+ *                                  (phase 2h-b Tier 2 / Phase F; surface narrowed in F4).
  *   'header-obj-not-header'     — thrown by the 15 SHeader property accessor handlers (typeId 104,
  *                                  methodIds 1-15) when obj is not a Header SValue.
  *                                  Code originated in `./sheader.ts` (phase 2h-c.1).

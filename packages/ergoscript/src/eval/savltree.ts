@@ -32,14 +32,14 @@
  * ## Tier 2 — modify family (insert / update / remove / insertOrUpdate)
  *
  * JVM cost model (CErgoTreeEvaluator.scala:132-254, F4):
- *   insert/update/remove: isXxxAllowed Fixed(15) + createVerifier PerItem(110,20,64)
+ *   insert/update/remove/insertOrUpdate: isXxxAllowed Fixed(15) [insertOrUpdate:
+ *   isUpdateAllowed(15) + isInsertAllowed(15)] + createVerifier PerItem(110,20,64)
  *   + per-op PerItemCost × max(treeHeight,1) + updateDigest Fixed(40) on success.
  *   insert: InsertIntoAvlTree(40,10,1) × chargedOps; update: UpdateAvlTree(120,20,1) × chargedOps;
- *   remove: RemoveAvlTree(100,15,1) × ALL ops (cfor, no break) + digest Fixed(15) unconditional.
- *   insertOrUpdate (V3-gated): isUpdateAllowed + isInsertAllowed both Fixed(15) + cv + UpdateAvlTree.
+ *   remove: RemoveAvlTree(100,15,1) × ALL ops (cfor, no break) + digest Fixed(15) unconditional;
+ *   insertOrUpdate (V3-gated): shares update's UpdateAvlTree(120,20,1) descriptor × chargedOps.
  *   Failure model — insert(V<3):throw/(V3+):None; update:None; remove:None (never throws);
- *   insertOrUpdate:None (V<3 rejected at dispatcher).
- *   insert/update/remove: DONE (F4 Tasks 3-5). insertOrUpdate pending Task 6.
+ *   insertOrUpdate:None (V<3 rejected at dispatcher). ALL DONE (F4 Tasks 3-6).
  *
  * ## Known pre-existing limitation
  *
@@ -746,32 +746,51 @@ export function evalSAvlTreeUpdateDigest(
 
 /**
  * `SAvlTree.insertOrUpdate` (100:16) — V3-gated InsertOrUpdate batch.
- * Source: savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN. Descriptor at
- * types/savltree.rs:377-403 with min_version: ErgoTreeVersion::V3.
+ * Source: CErgoTreeEvaluator.scala:196-228 (JVM-canonical, F4).
+ *         savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN (reference, pre-F4
+ *         sigma-rust still has the `?`-on-construct fork; ergots leads here).
  *
  * V-gating: dispatcher-level via `minVersion: 3` on the HANDLERS entry. The
  * dispatcher throws 'tree-version-too-low' BEFORE invoking this handler when
  * (ctx.treeVersion ?? 0) < 3. Mirrors sigma-rust's MethodDesc.min_version
  * gate. Receiver-eval + envelope cost (4) are still charged; the handler's
- * zero per-handler cost is not.
+ * per-handler costs are not.
  *
- * Pre-check: BOTH insert_allowed AND update_allowed must be set
- * (line 444). Asymmetric vs insert (insert_allowed only) and update
- * (update_allowed only). Either flag unset → Option None.
+ * JVM cost model (F4):
+ *   1. isUpdateAllowed_Info Fixed(15) — charged FIRST (CErgoTreeEvaluator.scala:199).
+ *   2. isInsertAllowed_Info Fixed(15) — charged SECOND (CErgoTreeEvaluator.scala:200).
+ *      BOTH charges occur before the combined flag check. Blessed flags-deny 73
+ *      = envelope 43 + 15 + 15 pins the double charge.
+ *   3. Combined flag check (insert AND update both required): either unset → None.
+ *   4. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   5. UpdateAvlTree PerItem(120,20,1) × chargedOps on `max(treeHeight, 1)`.
+ *      insertOrUpdate shares update's descriptor (CErgoTreeEvaluator.scala:215).
+ *   6. updateDigest Fixed(40) on success only (CErgoTreeEvaluator.scala:223).
  *
- * Verifier path: verifyAvlBatchPartial with InsertOrUpdate ops:
- *   - partial === null (construct fail) → throw 'avl-tree-proof-failed'
- *   - partial.opsCompleted < ops.length → graceful break (always; no V<3
- *     throw path because dispatcher already rejected V<3) → Option None
- *   - Full success → Some(AvlTree(new_digest))
+ * Failure model (JVM-canonical, F4):
+ *   JVM has NO construct-throw path (scorex swallows reconstruction errors;
+ *   broken verifier → topNode=None → every op returns Failure).
+ *   Construct-fail = first-op-fail → forall breaks → digest None → None.
+ *   The blessed bad-proof entry (None @ 443) pins this path: flags 30 +
+ *   createVerifier(143 B → 170) + ONE UpdateAvlTree(120+20·4) on the
+ *   construct-broken verifier, NO updateDigest. Pre-F4 ergots threw
+ *   'avl-tree-proof-failed' here — the sigma-rust `?`-on-construct fork;
+ *   ergots leads the fix (JVM canonical). V<3 unreachable (dispatcher gate).
+ *
+ * Route the divergence note to sigma-rust via SANTA post-F4.
  */
 export function evalSAvlTreeInsertOrUpdate(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
   expectAvlTree('SAvlTree.insertOrUpdate', obj)
   expectTwoArgs('SAvlTree.insertOrUpdate', args)
+  // BOTH flag costs, isUpdateAllowed FIRST (CErgoTreeEvaluator.scala:199-200),
+  // charged before the combined check — blessed flags-deny 73 = envelope 43
+  // + 15 + 15 pins the double charge.
+  ctx.addCost(15) // isUpdateAllowed_Info
+  ctx.addCost(15) // isInsertAllowed_Info
   if (
     (obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0 ||
     (obj.value.treeFlags & UPDATE_ALLOWED_BIT) === 0
@@ -781,18 +800,23 @@ export function evalSAvlTreeInsertOrUpdate(
   const ops = buildInsertOrUpdateOps(args[0]!)
   const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-
+  chargeCreateVerifier(ctx, proof.length)
+  // UpdateAvlTree_Info (120,20,1) — insertOrUpdate shares update's descriptor
+  // (CErgoTreeEvaluator.scala:215), × charged ops on max(height, 1).
+  const nItems = Math.max(treeHeight(obj.value), 1)
   const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
-  if (partial === null) {
-    throw new EvalError(
-      'SAvlTree.insertOrUpdate: verifier construct failed',
-      'avl-tree-proof-failed'
-    )
-  }
-  if (partial.opsCompleted < ops.length) {
-    // V<3 already rejected at dispatcher; V3+ break path: bv.digest()
-    // returns None post-poison → Option None (matches savltree.rs:495-497).
+  chargePerOp(ctx, 120, 20, nItems, chargedOps(partial, ops.length))
+  if (partial === null || partial.opsCompleted < ops.length) {
+    // Failures discarded (forall fast-break), digest None → None
+    // (CErgoTreeEvaluator.scala:209-226). V<3 unreachable (dispatcher
+    // minVersion 3). The blessed bad-proof entry (None @ 443) pins this
+    // exact path: flags 30 + createVerifier(143 B → 170) + ONE
+    // UpdateAvlTree(120+20·4) on the construct-broken verifier. Pre-F4
+    // ergots threw 'avl-tree-proof-failed' here — the sigma-rust
+    // `?`-on-construct fork shared by all three conformers; ergots leads
+    // the fix (JVM canonical).
     return noneAvlTree()
   }
+  ctx.addCost(40) // updateDigest_Info on success (CErgoTreeEvaluator.scala:223)
   return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }

@@ -22,7 +22,7 @@
           }
         }
       },
-      "expected_cost": 19,
+      "expected_cost": 719,
       "expected_error_code": null
     },
     {
@@ -38,7 +38,7 @@
         "kind": "Option",
         "value": null
       },
-      "expected_cost": 19,
+      "expected_cost": 49,
       "expected_error_code": null
     },
     {
@@ -54,7 +54,7 @@
         "kind": "Option",
         "value": null
       },
-      "expected_cost": 19,
+      "expected_cost": 49,
       "expected_error_code": null
     },
     {
@@ -70,7 +70,7 @@
         "kind": "Option",
         "value": null
       },
-      "expected_cost": 19,
+      "expected_cost": 519,
       "expected_error_code": null
     },
     {
@@ -79,9 +79,15 @@
       "opts_json": {
         "treeVersion": 3
       },
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "avl-tree-proof-failed"
+      "expected_value_json": {
+        "elem": {
+          "tag": "SAvlTree"
+        },
+        "kind": "Option",
+        "value": null
+      },
+      "expected_cost": 359,
+      "expected_error_code": null
     },
     {
       "name": "insert_or_update_v2_dispatcher_reject",

@@ -82,6 +82,11 @@ const VECTOR_FILES = [
   'Header_new_methods.json',
   // F3 root cause #6: serialize(SigmaProp) cost arm (ProveDlog).
   'Global.serialize_SigmaProp.json',
+  // F4 — AvlTree.insertOrUpdate (100:16, minVersion 3): fresh-key/existing-key
+  // Some @ 483, flags-deny None @ 73 (BOTH flag charges), bad-proof None @ 443
+  // (createVerifier + ONE UpdateAvlTree on the broken verifier, no
+  // updateDigest — the JVM-has-no-construct-throw pin).
+  'AvlTree.insertOrUpdate.json',
 ]
 
 for (const file of VECTOR_FILES) {

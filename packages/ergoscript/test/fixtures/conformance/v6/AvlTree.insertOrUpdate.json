@@ -1,0 +1,98 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.insertOrUpdate",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-insert-or-update",
+  "entries" : [
+    {
+      "name" : "insertOrUpdate#fresh-key",
+      "script" : "{ (t: AvlTree) => t.insertOrUpdate([(key50,val50)], proof) }  // absent key50 → insert path",
+      "tree_bytes_hex" : "1b9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e209a39c57d13039b50bfe4aa21b2c8238be31d133db1fbe4549b16d9b94338b4e20e08000000005a17a0320eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc641073000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "f1b5df03eaef0fc804d5db5ad0be313d36e9be3aecbd10ec9175fd2a489a3cc60407200108"
+          }
+        },
+        "cost" : 483,
+        "error" : null
+      }
+    },
+    {
+      "name" : "insertOrUpdate#existing-key",
+      "script" : "{ (t: AvlTree) => t.insertOrUpdate([(key3,newVal)], proof) }  // existing key3 → update path",
+      "tree_bytes_hex" : "1b9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e200b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1110e08000000005a17a0630eb10103f9859bd9b3050c599dc5b506caa4f2367f286c60a9af489e69d797ab16b9cff5020b65ce5d0a76265e6734964bf1a7620da7c4fb2659a9047a7b61869a007fb1114466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55000000005a17a003000348e315af8e8893ff66ea7350dfc82fe84e1922b4e2dce07547bb93a6f0fcff330003b8846210cd8746f75b9570272c7acfc82474a350a9e5ca6ad558120629e6cbc5010403dc641073000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "cf089b593216660a7b7662afe595c9626f2042734661b29994312d4994be6c9b0407200108"
+          }
+        },
+        "cost" : 483,
+        "error" : null
+      }
+    },
+    {
+      "name" : "insertOrUpdate#flags-deny",
+      "script" : "{ (t: AvlTree) => t.insertOrUpdate(ops, proof) }  // insertAllowed=false → pre-check → None",
+      "tree_bytes_hex" : "1b9a020464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04062001080e209a39c57d13039b50bfe4aa21b2c8238be31d133db1fbe4549b16d9b94338b4e20e08000000005a17a0320eb10103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cea2e24b31c75cd0db8510d3caa4bf236d4c1f533321f18f8cee44a18f587f7825000000005a17a000033aefcaecefeb4c481ee3cade5e9973a6217bbe0471c410ef891b2c980858ad70000366e9f80a6f892f74c316c5b929f5c0456bbc9403e41fccb9fb821acb2541d98001010406dc641073000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 73,
+        "error" : null
+      }
+    },
+    {
+      "name" : "insertOrUpdate#bad-proof",
+      "script" : "{ (t: AvlTree) => t.insertOrUpdate(ops, wrongTreeProof) }  // valid flags, wrong-tree proof → None",
+      "tree_bytes_hex" : "1bf8010464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e209a39c57d13039b50bfe4aa21b2c8238be31d133db1fbe4549b16d9b94338b4e20e08000000005a17a0320e8f0103fcbfd9e0c4781263bb161625674719024acef64654799a00c41cc148bdc4a891028f23c5ee24a49084f24812ee9dbcdc9e11974b05cad682c21e88fca866bc85cec4e67333f14133fce4ed7bbf147642b3e7b2b8324268ea6ded1be0caa2da237f000000005a17a000039594489172346c6b22ac52210d14be7fdb02f6ec52b9e525b3a9c77114374cd900ff0402dc641073000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 443,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -295,29 +295,54 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2h-b Tier 2 — SAvlTree verification ops (1 new code; 44 → 45)
+  // F4 rewrite: final throw surface after JVM-canonical construct-fail routing.
   // -------------------------------------------------------------------------
   /**
-   * Any of the 6 SAvlTree Tier-2 verification op handlers (`get` / `getMany` /
-   * `insert` / `update` / `remove`) when proof verification fails. Two failure
-   * modes both surface as this code:
-   *   - verifier construct failure (proof bytes malformed, digest mismatch,
-   *     length-validation failure) — thrown by all 5 of those handlers; also
-   *     thrown by `contains` despite its overall return-`false`-on-per-op
-   *     failure semantics (per sigma-rust line 372: `.map_err(map_eval_err)?`
-   *     unwraps construct failure before reaching the match on the per-op
-   *     result).
-   *   - per-op failure surfacing in `get` / `getMany` / `remove` /
-   *     (V<3-only) `insert` — per-key Lookup/Remove failure forces the
-   *     `EvalError::AvlTree("Tree proof is incorrect ...")` path in
-   *     sigma-rust. `contains` swallows per-op failure (returns `false`);
-   *     `update` always breaks (no throw); V3+ `insert` also breaks.
+   * SAvlTree Tier-2 verification op handlers throw this code when the proof
+   * verification fails AND the JVM-canonical semantics mandate a throw (not a
+   * return-false or return-None).
    *
-   * Source:
-   *   - savltree.rs:148-149  (GET_EVAL_FN per-op fail)
-   *   - savltree.rs:200-203  (GET_MANY_EVAL_FN per-op fail)
-   *   - savltree.rs:262-266  (INSERT_EVAL_FN V<3 per-op fail)
-   *   - savltree.rs:322-325  (REMOVE_EVAL_FN per-op fail)
-   *   - savltree.rs:372      (CONTAINS_EVAL_FN construct fail via `?`)
+   * **Thrown by:**
+   *   - `get` — any verification failure (construct fail OR per-op Lookup
+   *     fail) → throw (CErgoTreeEvaluator.scala:106 `syntax.error`).
+   *   - `getMany` — any verification failure with ≥1 key in the batch
+   *     (construct fail → first Lookup fails; per-op fail at key i) →
+   *     throw (CErgoTreeEvaluator.scala:126). Zero-key batch: empty Coll,
+   *     no throw even on construct failure.
+   *   - `insert` at `ctx.treeVersion < 3` with ≥1 op in the batch →
+   *     throw (CErgoTreeEvaluator.scala:150 V<3 path). V3+ and zero-op:
+   *     None (never throws).
+   *   - `TreeLookup` MIR arm (`tree-lookup.ts:94`, opcode 0xd4) — construct
+   *     failure → throw. ⚠ Inherited sigma-rust semantics, NOT F4-assessed:
+   *     the JVM JIT cannot evaluate TreeLookup at all (trees.scala:1322-1338
+   *     — no eval override, costKind = notSupportedError), so the whole arm
+   *     is an over-accept divergence candidate tracked in the conformance-run
+   *     ledger (§F5) — outside F4's blessed-vector scope.
+   *
+   * **NOT thrown by (F4 JVM-canonical, final state):**
+   *   - `contains` — always returns false on any failure; never throws.
+   *   - `update` — per-op failure or construct fail → None; never throws.
+   *   - `remove` — per-op results discarded (cfor, no break); digest None
+   *     → None; never throws.
+   *   - `insertOrUpdate` — construct fail or per-op fail → None; never
+   *     throws (V<3 rejected at dispatcher before handler runs).
+   *   - `getMany` with zero keys — empty Coll returned; no throw.
+   *   - `insert` at V3+ or zero ops — None; never throws.
+   *
+   * The JVM has NO construct-throw path: scorex `BatchAVLVerifier` wraps
+   * reconstruction in `Try{…}.toOption` (logError overridden to swallow in
+   * `CAvlTreeVerifier`); a bad proof yields a verifier with `topNode = None`,
+   * and every subsequent op returns Failure. The observable behavior is
+   * determined entirely by each method's per-op/digest semantics. Pre-F4,
+   * ergots followed the sigma-rust `?`-on-construct fork (construct fail
+   * threw on all six handlers) — that wider throw surface is now closed.
+   *
+   * Source (JVM-canonical):
+   *   - CErgoTreeEvaluator.scala:106  (get throw)
+   *   - CErgoTreeEvaluator.scala:126  (getMany throw)
+   *   - CErgoTreeEvaluator.scala:150  (insert V<3 throw)
+   *   - docs/specs/2026-06-07-ergoscript-f4-avltree-tier2-cost-design.md
+   *     (failure model table)
    */
   | 'avl-tree-proof-failed'
 
