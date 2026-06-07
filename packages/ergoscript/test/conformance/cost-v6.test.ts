@@ -80,6 +80,8 @@ const VECTOR_FILES = [
   'Global.serialize_Header.json',
   'Global.deserializeTo_header.json',
   'Header_new_methods.json',
+  // F3 root cause #6: serialize(SigmaProp) cost arm (ProveDlog).
+  'Global.serialize_SigmaProp.json',
 ]
 
 for (const file of VECTOR_FILES) {

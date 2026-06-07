@@ -25,12 +25,12 @@
  *   SBoolean, SByte, SShort, SInt, SLong, SUnit,
  *   SBigInt, SUnsignedBigInt, SGroupElement,
  *   SColl (SByte NativeColl, SBoolean bit-packed, general),
- *   SOption, STuple, SString.
+ *   SOption, STuple, SString, SSigmaProp.
  */
 
 import { EvalError } from './eval-context'
 import type { EvalContext } from './eval-context'
-import type { ErgoBox, SType, SValue } from '../mir/types'
+import type { ErgoBox, SigmaBoolean, SType, SValue } from '../mir/types'
 import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
 import { parseSValue } from '../wire/parse-svalue'
 import { parseSTypeWithFirstByte } from '../wire/parse-stype'
@@ -252,9 +252,21 @@ export function serializeCost(t: SType, v: SValue, ctx: EvalContext): void {
       return
     }
 
+    // ── SSigmaProp ────────────────────────────────────────────────────────────
+    //
+    // Wire: CoreDataSerializer.scala:45-47 → SigmaBoolean.serializer.serialize.
+    // Cost walk in addSigmaBooleanCost (SigmaBoolean.scala:40-68).
+    // F3 root cause #6 — the missing arm made serialize(sigmaProp) throw
+    // 'global-serialize-failed' despite a fine byte path in serializeSValue.
+
+    case 'SSigmaProp': {
+      addSigmaBooleanCost((v as Extract<SValue, { kind: 'SigmaProp' }>).value, ctx)
+      return
+    }
+
     // ── Non-data types ────────────────────────────────────────────────────────
     //
-    // SAny, SFunc, SPreHeader, SContext, SGlobal, SSigmaProp, STypeVar,
+    // SAny, SFunc, SPreHeader, SContext, SGlobal, STypeVar,
     // STypeApply, STupleKind, etc. — serializeSValue throws for these, so
     // the cost walk should never be reached. Throw here defensively.
     default: {
@@ -626,3 +638,48 @@ function unsignedMagnitudeLen(d: bigint | null): number {
   return len
 }
 
+/**
+ * Cost of serializing a SigmaBoolean tree, as accrued by SigmaByteWriter
+ * through SigmaBoolean.serializer.serialize (SigmaBoolean.scala:40-68):
+ *
+ *   w.put(opCode)                       = 1 per node      (:41, PutByteCost)
+ *   ProveDlog    → GroupElementSerializer putBytes(33) = 36   (:43)
+ *   ProveDHTuple → 4 × 36 = 144                               (:44)
+ *   TrivialProp  → opcode only                                (:45)
+ *   CAND/COR     → putUShort(nChildren) = 3 + recurse         (:46-59)
+ *   CTHRESHOLD   → putUShort(k) + putUShort(nChildren) = 6
+ *                  + recurse                                  (:60-67)
+ *
+ * putUShort charges PutUnsignedNumericCost(3) (SigmaByteWriter.scala:83-86,
+ * :248) — source-verified at F3 plan time; NOT the putUByte(1) class (the
+ * F2 root-cause table's putUShort claim stands).
+ *
+ * Anchor: blessed Global.serialize_SigmaProp (dlog) = 126 vs the green
+ * serialize_GroupElement twin 125 — Δ = +1 = exactly the opcode byte.
+ */
+function addSigmaBooleanCost(sb: SigmaBoolean, ctx: EvalContext): void {
+  ctx.addCost(PUT_BYTE) // opcode byte (SigmaBoolean.scala:41)
+  switch (sb.tag) {
+    case 'TrivialProp':
+      return // opcode only (:45)
+    case 'ProveDlog':
+      ctx.addCost(3 + 33) // GroupElementSerializer putBytes(33) (:43)
+      return
+    case 'ProveDhTuple':
+      ctx.addCost(4 * (3 + 33)) // g, h, u, v (:44)
+      return
+    case 'Cand':
+    case 'Cor':
+      ctx.addCost(PUT_NUM3) // putUShort(nChildren) (:48/:55)
+      for (const c of sb.items) addSigmaBooleanCost(c, ctx)
+      return
+    case 'Cthreshold':
+      ctx.addCost(PUT_NUM3 + PUT_NUM3) // putUShort(k) + putUShort(nChildren) (:61-63)
+      for (const c of sb.items) addSigmaBooleanCost(c, ctx)
+      return
+    default: {
+      const _exhaust: never = sb
+      throw new Error(`addSigmaBooleanCost: unreachable ${JSON.stringify(_exhaust)}`)
+    }
+  }
+}
