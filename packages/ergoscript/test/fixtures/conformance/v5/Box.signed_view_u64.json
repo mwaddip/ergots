@@ -1,0 +1,197 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Box.signed_view_u64",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-box-signed-view",
+  "entries" : [
+    {
+      "name" : "b.value#nominal",
+      "script" : "{ (b: Box) => b.value }",
+      "tree_bytes_hex" : "1a0600c1e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1000000"
+        },
+        "cost" : 33,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.value#2^63",
+      "script" : "{ (b: Box) => b.value }",
+      "tree_bytes_hex" : "1a0600c1e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "808080808080808080010008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 33,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.value#u64-max",
+      "script" : "{ (b: Box) => b.value }",
+      "tree_bytes_hex" : "1a0600c1e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "ffffffffffffffffff010008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-1"
+        },
+        "cost" : 33,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.R0#nominal",
+      "script" : "{ (b: Box) => b.R0[Long].get }",
+      "tree_bytes_hex" : "1a0900e4c6e4e301630005",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1000000"
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.R0#2^63",
+      "script" : "{ (b: Box) => b.R0[Long].get }",
+      "tree_bytes_hex" : "1a0900e4c6e4e301630005",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "808080808080808080010008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.R0#u64-max",
+      "script" : "{ (b: Box) => b.R0[Long].get }",
+      "tree_bytes_hex" : "1a0900e4c6e4e301630005",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "ffffffffffffffffff010008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-1"
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.tokens(0)._2#nominal",
+      "script" : "{ (b: Box) => b.tokens(0)._2 }",
+      "tree_bytes_hex" : "1a100104008cb2db6308e4e3016373000002",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000107070707070707070707070707070707070707070707070707070707070707072a00000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "42"
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.tokens(0)._2#2^63",
+      "script" : "{ (b: Box) => b.tokens(0)._2 }",
+      "tree_bytes_hex" : "1a100104008cb2db6308e4e3016373000002",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000107070707070707070707070707070707070707070707070707070707070707078080808080808080800100000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    },
+    {
+      "name" : "b.tokens(0)._2#u64-max",
+      "script" : "{ (b: Box) => b.tokens(0)._2 }",
+      "tree_bytes_hex" : "1a100104008cb2db6308e4e3016373000002",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179800010707070707070707070707070707070707070707070707070707070707070707ffffffffffffffffff0100000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-1"
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    }
+  ]
+}

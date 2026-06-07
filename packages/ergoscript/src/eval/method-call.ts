@@ -1235,9 +1235,10 @@ function tokensCollOf(box: ErgoBox): SValue {
   return {
     kind: 'Coll',
     elem: STUPLE_COLLBYTE_LONG,
+    // token amounts: signed-i64 view (JVM as Long; F3.5)
     items: box.tokens.map((t) => ({
       kind: 'Tuple',
-      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: t.amount }],
+      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: BigInt.asIntN(64, t.amount) }],
     })),
   }
 }
