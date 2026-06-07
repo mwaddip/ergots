@@ -33,6 +33,7 @@ import { compareUBI } from './_ubi-binop'
 import {
   equalSigmaBooleanCosted,
   sigmaBooleanStructuralEq,
+  ecPointEqual,
   MATCH_TYPE_COST,
   EQ_GROUP_ELEMENT_COST,
 } from './_sigma-boolean-eq'
@@ -405,16 +406,15 @@ function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
     // BigInt — data_value_comparer.rs:62-65.
     case 'BigInt':  ctx?.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
 
-    // GroupElement — data_value_comparer.rs:67-70.
+    // GroupElement — DataValueComparer.scala:340-341 / :294-300.
+    // addFixedCost(EQ_GroupElement=172) charged unconditionally (flat, no MatchType
+    // wrapper at this arm), then equalGroupElement — object equality on parsed points.
+    // JVM GroupElementSerializer parses any 0x00-lead to THE identity object, so two
+    // identity encodings with different tail bytes compare equal (sigma-rust ec_point.rs
+    // :139-151 mirrors this). Route through ecPointEqual for the identity class.
     case 'GroupElement': {
       ctx?.addCost(EQ_GROUP_ELEMENT_COST)
-      const ba = a.value
-      const bb = (b as typeof a).value
-      if (ba.length !== bb.length) return false
-      for (let i = 0; i < ba.length; i++) {
-        if (ba[i] !== bb[i]) return false
-      }
-      return true
+      return ecPointEqual(a.value, (b as typeof a).value)
     }
 
     // Tuple — data_value_comparer.rs:83-93.
@@ -603,10 +603,10 @@ export function sValueStructuralEq(a: SValue, b: SValue): boolean {
  * — meaning it doesn't recurse into eq_with_cost per element but uses Rust's
  * structural PartialEq. We mirror this by doing plain value comparison here.
  *
- * This function is also exported for use by SColl.indexOf (`method-call.ts`),
- * which uses `==` (PartialEq) directly in sigma-rust, not `eq_with_cost` — so
- * no cost is charged per comparison in the search loop. Any semantics change
- * here requires coordinating with that handler.
+ * Real callers: Coll bulk-element compare in the `compareSValues` Coll arm
+ * (the COA/non-recursive element path), and `registersEqual` for box-register
+ * equality. SColl.indexOf uses the COSTED `sValueEquals` (`method-call.ts:414`,
+ * JVM `equalDataValues` at `methods.scala:1091`) — not this function.
  *
  * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through:
  * Box/AvlTree/PreHeader/Header throw 'not-implemented-yet'; Lambda and Context
@@ -623,15 +623,14 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Long':    return a.value === (b as typeof a).value
     case 'BigInt':  return a.value === (b as typeof a).value
     case 'Unit':    return true
-    case 'GroupElement': {
-      const ba = a.value, bb = (b as typeof a).value
-      if (ba.length !== bb.length) return false
-      for (let i = 0; i < ba.length; i++) if (ba[i] !== bb[i]) return false
-      return true
-    }
+    // GroupElement: identity class applies (0x00-lead → identity, tails dead).
+    // JVM GroupElementSerializer parse-to-identity + DataValueComparer.scala:294-300.
+    case 'GroupElement':
+      return ecPointEqual(a.value, (b as typeof a).value)
     case 'SigmaProp':
-      // Scala case-class == (uncosted, used by indexOf): structural walk
-      // with identity-class ECPoint semantics, NO conjecture-mismatch throw.
+      // Scala case-class == (uncosted — box-register / Coll-bulk path):
+      // structural walk with identity-class ECPoint semantics, NO
+      // conjecture-mismatch throw.
       return sigmaBooleanStructuralEq(a.value, (b as typeof a).value)
     case 'Coll': {
       const ca = a, cb = b as typeof a

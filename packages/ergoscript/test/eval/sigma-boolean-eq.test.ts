@@ -138,8 +138,46 @@ describe('cost-free structural twin (Scala case-class ==): no costs, no throws',
   it('sValueStructuralEq: identity-class equality holds on the uncosted path too', () => {
     expect(sValueStructuralEq(sp(dlog(ID_A)), sp(dlog(ID_B)))).toBe(true)
   })
-  it('primitiveValueEqual (indexOf path): structural compare, k respected on Cthreshold', () => {
+  it('primitiveValueEqual (box-register / Coll-bulk path): structural compare, k respected on Cthreshold', () => {
     expect(primitiveValueEqual(sp(cthreshold(1, [dlog(P1)])), sp(cthreshold(1, [dlog(P1)])))).toBe(true)
     expect(primitiveValueEqual(sp(cthreshold(1, [dlog(P1)])), sp(cthreshold(1, [dlog(P2)])))).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Fix 1: bare GroupElement EQ — identity ECPoint class (review fix)
+// ---------------------------------------------------------------------------
+// GE scalar dispatch (compareSValues 'GroupElement' arm): flat EQ_GROUP_ELEMENT_COST(172),
+// no MatchType — DataValueComparer.scala:340-341 `addFixedCost(EQ_GroupElement)` only.
+// Coll[GE] bulk path (primitiveValueEqual): uncosted; sValueEquals Coll arm charges
+// COLL_MATCH_TYPE_COST(1) + addPerItemJitCost({base:15,perChunk:5,chunkSize:1}, n).
+// n=1: chunks = (1-1)/1+1 = 1; cost = 15 + 1*5 = 20; total Coll cost = 1 + 20 = 21.
+// ---------------------------------------------------------------------------
+
+const ge = (v: Uint8Array): SValue => ({ kind: 'GroupElement', value: v })
+const collGe = (items: SValue[]): SValue => ({ kind: 'Coll', elem: { tag: 'SGroupElement' }, items })
+
+function geCosted(a: SValue, b: SValue): [boolean, number] {
+  const ctx = makeContext()
+  const res = sValueEquals(a, b, ctx)
+  return [res, ctx.jitCost]
+}
+
+describe('bare GroupElement EQ — identity ECPoint class (review fix)', () => {
+  it('GE(ID_A) == GE(ID_B): 0x00-lead → identity class → true, cost 172 (flat EQ_GroupElement, no MatchType)', () => {
+    // DataValueComparer.scala:340-341: addFixedCost(EQ_GroupElement=172) then equalGroupElement
+    // (object equality on parsed identity points) — no MatchType wrapping at this arm.
+    expect(geCosted(ge(ID_A), ge(ID_B))).toEqual([true, 172])
+  })
+  it('GE(ID_A) == GE(P1): identity vs non-identity → false, cost 172', () => {
+    expect(geCosted(ge(ID_A), ge(P1))).toEqual([false, 172])
+  })
+  it('primitiveValueEqual GE(ID_A) == GE(ID_B): identity class → true (Coll bulk / register path)', () => {
+    expect(primitiveValueEqual(ge(ID_A), ge(ID_B))).toBe(true)
+  })
+  it('Coll[GE]([ID_A]) == Coll[GE]([ID_B]): identity elements equal → true, cost 21', () => {
+    // COLL_MATCH_TYPE_COST(1) + addPerItemJitCost({base:15,perChunk:5,chunkSize:1}, n=1)
+    // = 1 + (15 + ceil(1/1)*5) = 1 + 15 + 5 = 21
+    expect(geCosted(collGe([ge(ID_A)]), collGe([ge(ID_B)]))).toEqual([true, 21])
   })
 })
