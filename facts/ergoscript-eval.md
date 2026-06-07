@@ -683,9 +683,9 @@ type SValue =
 - `PreHeader` (added phase 2f medium; wrapped in `SValue.PreHeader` variant in phase 2g.6): `{ version, parentId: Uint8Array(32), timestamp: bigint, nBits, height, minerPk: Uint8Array(33), votes: Uint8Array(3) }`.
 - `ContextExtension` (added phase 2f medium): `{ values: Record<number, { tpe: SType; value: SValue }> }` — keyed by varId, same `{ tpe, value }` shape as `ErgoBox.registers`.
 
-## `EvalError` taxonomy (79 codes)
+## `EvalError` taxonomy (80 codes)
 
-`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted. P2b added 1 new code (`'unsigned-bigint-out-of-range'`) and extended `'unsigned-bigint-op-unsupported'` (P2a) to also cover UBI cast arm rejects. P2d-2 added `'unsigned-bigint-not-invertible'` (73 total). P3 adds 0 new codes. P4 adds 1 new code (`'method-call-empty-args'`; 74 total). P5a adds 2 new codes (`'global-serialize-failed'`, `'global-deserialize-failed'`; 76 total). P5b-1 adds 1 new code (`'global-from-bigendian-bytes-failed'`; 77 total). P5b-2 adds 2 new codes (`'global-encode-nbits-failed'`, `'global-decode-nbits-failed'`; 79 total). P5c adds 1 new code (`'pow-hit-invalid-params'`; 80 total). P6 adds 1 new code (`'apply-unresolved-type-var'`; 81 total). **F1 (2026-06-06) removes 2 codes** (`'atleast-bound-out-of-range'` Task 2, `'deserialize-context-key-not-found'` Task 3): 81 → **79**. **F3 (2026-06-07) adds 1 new code** (`'sigma-boolean-compare-unsupported'`): 79 → **80**. **F4 epilogue Task 2 (2026-06-07) adds 1 + removes 1** (`'unsupported-eval-node'` added for the TreeLookup/CreateAvlTree unconditional rejects; `'create-avl-tree-shape-mismatch'` removed — orphaned by the CreateAvlTree reject): net 80 → **80**. **F4 epilogue Task 3 (2026-06-07) removes 1** (`'avl-tree-bad-digest-length'` retired — JVM `CAvlTree.scala:31-34` no-require, any digest length accepted): 80 → **79**.
+`EvalError` carries a `code: string` distinct from the wire-layer error classes. Every code below is emitted by current source under the conditions noted. P2b added 1 new code (`'unsigned-bigint-out-of-range'`) and extended `'unsigned-bigint-op-unsupported'` (P2a) to also cover UBI cast arm rejects. P2d-2 added `'unsigned-bigint-not-invertible'` (73 total). P3 adds 0 new codes. P4 adds 1 new code (`'method-call-empty-args'`; 74 total). P5a adds 2 new codes (`'global-serialize-failed'`, `'global-deserialize-failed'`; 76 total). P5b-1 adds 1 new code (`'global-from-bigendian-bytes-failed'`; 77 total). P5b-2 adds 2 new codes (`'global-encode-nbits-failed'`, `'global-decode-nbits-failed'`; 79 total). P5c adds 1 new code (`'pow-hit-invalid-params'`; 80 total). P6 adds 1 new code (`'apply-unresolved-type-var'`; 81 total). **F1 (2026-06-06) removes 2 codes** (`'atleast-bound-out-of-range'` Task 2, `'deserialize-context-key-not-found'` Task 3): 81 → **79**. **F3 (2026-06-07) adds 1 new code** (`'sigma-boolean-compare-unsupported'`): 79 → **80**. **F4 epilogue Task 2 (2026-06-07) adds 1 + removes 1** (`'unsupported-eval-node'` added for the TreeLookup/CreateAvlTree unconditional rejects; `'create-avl-tree-shape-mismatch'` removed — orphaned by the CreateAvlTree reject): net 80 → **80**. **F4 epilogue Task 3 (2026-06-07) removes 1** (`'avl-tree-bad-digest-length'` retired — JVM `CAvlTree.scala:31-34` no-require, any digest length accepted): 80 → **79**. **F5 batch 1 (2026-06-07) adds 1 new code** (`'tuple-invalid-arity'`): 79 → **80**.
 
 ### Phase 2b codes
 
@@ -940,6 +940,15 @@ Committed 2026-06-06 (commits `eb09892`/`f5dd083` atLeast, `5580a75`/`b614d6e` D
   `AvlTree.unsupported_eval_nodes_v6.json` (tree_lookup + create_avl_tree @v3),
   blessed_by jvm:sigma-state-6.0.3.
 
+### F5 batch 1 code (Tuple arity gate, 2026-06-07)
+
+- **`'tuple-invalid-arity'`** — Tuple EXPR node evaluated with arity ≠ 2. JVM `values.scala:795-798`:
+  v5.0+ evaluates only pairs; thrown BEFORE any item eval and BEFORE the Fixed(15) envelope (zero
+  cost contribution). Distinct from `'unsupported-eval-node'` — the node IS supported at arity 2.
+  Constants exempt: arity-N tuple CONSTANTS evaluate on the JVM (`Constant.eval` bypasses
+  `Tuple.eval`; `CoreDataSerializer:134-139` no gate; `toDslTuple` → `Coll[Any]`). Shipped F5
+  batch 1 (2026-06-07), SANTA `Tuple.non_pair_arity3`.
+
 No other error codes are emitted by the current evaluator. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those represent contract violations and are bugs, not eval-input issues.
 
 ## Dispatcher minVersion gating (phase 2h-c.2)
@@ -965,7 +974,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 9 | `SAvlTree.digest` | 100:1 | 15 | A | `Coll[Byte]` | `eval/savltree.rs:28-34` |
 | 10 | `SAvlTree.enabledOperations` | 100:2 | 15 | A | `Byte` | `eval/savltree.rs:36-40` |
 | 11 | `SAvlTree.keyLength` | 100:3 | 15 | A | `Int` — i32 view: `keyLength \| 0` (JVM `AvlTreeData.scala:84` `getUInt().toInt`; wire [2^31,2^32) wraps negative; deserialize-only asymmetry — JVM serializer requires unsigned range. Blessed: `keyLength_wrapped_negative#0` (0x80000001→−2147483647), `negative_keylength_tree#4` (0x80000000→−2147483648)) | `eval/savltree.rs:42-46` |
-| 12 | `SAvlTree.valueLengthOpt` | 100:4 | 15 | A | `Option[Int]` — same i32 view on the Some payload (`valueLengthOpt \| 0`; JVM `AvlTreeData.scala:85` same parse line; source-backed, **vector-unblessed** — queued for future SANTA bless) | `eval/savltree.rs:48-57` |
+| 12 | `SAvlTree.valueLengthOpt` | 100:4 | 15 | A | `Option[Int]` — same i32 view on the Some payload (`valueLengthOpt \| 0`; JVM `AvlTreeData.scala:85` same parse line; source-backed, SANTA-blessed 2026-06-07 (AvlTree.valueLengthOpt_wrapped_negative — Some(-2147483647) @ 20)) | `eval/savltree.rs:48-57` |
 | 13 | `SAvlTree.isInsertAllowed` | 100:5 | 15 | A | `Boolean` | `eval/savltree.rs:59-63` |
 | 14 | `SAvlTree.isUpdateAllowed` | 100:6 | 15 | A | `Boolean` | `eval/savltree.rs:65-69` |
 | 15 | `SAvlTree.isRemoveAllowed` | 100:7 | 15 | A | `Boolean` | `eval/savltree.rs:71-75` |

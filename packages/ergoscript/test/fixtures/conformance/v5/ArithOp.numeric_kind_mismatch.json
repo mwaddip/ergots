@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "ArithOp.numeric_kind_mismatch",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-arith-tuple",
+  "entries" : [
+    {
+      "name" : "int_long_coerced#0",
+      "script" : "{ Int + Long (mismatched numeric kinds) }  // JVM coerces to the wider type → Long 3",
+      "tree_bytes_hex" : "009a04020504",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "3"
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    }
+  ]
+}

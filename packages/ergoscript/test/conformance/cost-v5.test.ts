@@ -81,6 +81,15 @@ const VECTOR_FILES = [
   // F4-epilogue unconditional eval-reject ('unsupported-eval-node' — JVM has no
   // eval override, trees.scala:1322-1338, costKind=notSupportedError).
   'AvlTree.unsupported_eval_nodes.json',
+  // F5 batch 1 — f4-divergences green pins (2026-06-07, SANTA re-grade off santa a1e0876;
+  // prompt ~/projects/santa/prompts/ergots-f4-divergences.md):
+  // ArithOp Int+Long @v0 → Long 3 @ 35 (2026-06-01 mismatched-numeric coercion class);
+  // Box.value on a sub-min-value box → Long 1 @ 33 (min-box-value is tx-layer, eval surfaces it);
+  // AvlTree valueLengthOpt wire 0x80000001 → Some(-2147483647) cost 20 (epilogue Task-4 `| 0`
+  // i32 view, now SANTA-blessed — closes the vector-unblessed leg).
+  'ArithOp.numeric_kind_mismatch.json',
+  'Box.sub_min_value.json',
+  'AvlTree.valueLengthOpt_wrapped_negative.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the
