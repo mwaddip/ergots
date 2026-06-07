@@ -33,6 +33,7 @@ import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { hydrateSValue, hexToBytes, synthesizeStubBox } from '../_helpers'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ByteWriter } from '@ergots/scorex'
 
 export interface SantaEntry {
@@ -133,6 +134,21 @@ export function svalueToSantaJson(v: SValue): unknown {
       serializeSigmaBoolean(v.value, w)
       return { kind: 'SigmaProp', raw_hex: bytesToHex(w.toBytes()) }
     }
+    case 'AvlTree':
+    case 'Box':
+    case 'Header': {
+      // Canonical-bytes channel — exact inverse of hydrateCanonicalBytes
+      // (test/_helpers/index.ts:51): serializeSValue at version 3, the
+      // version-free data-layer constant (F2 531c8fa rationale).
+      const tag: SType['tag'] =
+        v.kind === 'AvlTree' ? 'SAvlTree' : v.kind === 'Box' ? 'SBox' : 'SHeader'
+      const w = new ByteWriter()
+      serializeSValue({ tag } as SType, v, 3, w)
+      return { kind: v.kind, bytes_hex: bytesToHex(w.toBytes()) }
+    }
+    // PreHeader: deliberately NOT added — no canonical-bytes channel exists
+    // (no JVM DataSerializer for SPreHeader either); the loud default-throw
+    // stays as the tripwire if a vector ever carries one.
     default:
       throw new Error(`svalueToSantaJson: unhandled SValue kind '${(v as SValue).kind}'`)
   }
