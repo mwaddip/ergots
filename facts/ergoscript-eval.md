@@ -549,6 +549,18 @@ conjecture counts putUShort(3) each; putUShort=3 source-verified). The walks rec
 parse-bounded (reader level 110) for wire trees, cost-bounded for eval-constructed conjectures —
 the JVM's own posture. Codes 79→80.
 
+- **F3.5 (2026-06-07):** signed-i64 view extended from the F2 timestamps to ALL u64-wire→SLong
+  surfaces — `Box.value` (ExtractAmount + R0), token amounts (SBox.tokens 99:8 + R2 tuples):
+  `BigInt.asIntN(64,·)` at the view, raw u64 kept on `ErgoBox` (JVM unbounded-getULong + `as Long`;
+  SANTA `Box.signed_view_u64` ×9 blessed; the boundary fix also closed latent consumer throws —
+  pre-fix `serialize(b.value)` of a >2⁶³ box hit `numeric-out-of-range` where the JVM serializes
+  the signed Long). `SOption.map` charges `ADD_TO_ENV_COST(5)` per lambda invocation on the Some
+  path (JVM AddToEnvironmentDesc, charge order verified exact incl. the type-var reject between
+  the 20 and the 5; blessed 65/65/39; second site of the Apply class — the 5 remaining Coll HOF
+  arms are vector-ask-gated, see the conformance ledger). 0 new EvalError codes. The F3
+  conjecture-throw fix is now empirically blessed (`EQ_of_SigmaProp_conjecture_mismatch` ×4
+  vendored green; sigma-rust shared the fork, routed via SANTA).
+
 ## Public surface (v0.3.0)
 
 ```ts

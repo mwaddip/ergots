@@ -234,7 +234,7 @@ F2 final-review finding — Box.value/R0/token-amount ≥2⁶³, vectors FIRST t
 before coding) · atLeast 255-cap vector + fix (+ the JVM-vs-eni ordering verification
 below) · optional substConstants embedded-reject twin · the full-corpus vendoring task
 (Decision #3 middle path) · 5-tuple-register serialize vector (from the eni routing
-note's ask #2) · cross-kind EQ cost-matrix residual (kind-mismatch arm flat EQ_PRIM=3 vs JVM per-LEFT-arm 1/3/4/172; SAny-reachable only, value-identical — vector ask BEFORE fixing) · conjecture-throw vector ask ("(pkA && pkB) == pkA" → JVM exception; F3 closed it source-verified + unit-pinned, needs a blessed pin) · GE struct-equality identity-class family (boxEqual/headerEqual/preHeaderEqual byte-compare GE fields vs JVM point-object equality — own JVM source read first) · GE constant parse-validation (ergots accepts any 33 bytes; JVM curve-validates at parse — wire-layer class).
+note's ask #2) · cross-kind EQ cost-matrix residual (RE-FILED 2026-06-07: unconstructible — SAny over-accept family; see Coordination) · ~~conjecture-throw vector ask~~ RESOLVED 2026-06-07 (blessed + vendored; see Coordination) · GE struct-equality identity-class family (boxEqual/headerEqual/preHeaderEqual byte-compare GE fields vs JVM point-object equality — own JVM source read first) · GE constant parse-validation (ergots accepts any 33 bytes; JVM curve-validates at parse — wire-layer class) · Coll-HOF per-element ADD_TO_ENV vector ask (5 arms) · SAny over-accept family consolidation (cross-kind EQ refile + the v6-method-in-dead-branch + arg-count sweeps — candidate own phase).
 - **atLeast 255-CHILDREN cap (sharpened by the F1 Task-2 review, 2026-06-06):** ergots
   enforces NO cap on the input-coll length (`ConcreteCollection` parses to u16=65535;
   `extractSigmaPropColl`/`cthresholdReduce` uncapped) → `atLeast(k, Coll[SigmaProp] of
@@ -332,8 +332,33 @@ exact hydration seam where sigma-rust's `try_from` fires (their boxes never hydr
 sigma-rust develop-first with the vectors, per their maintainer rule). Until ergots applies the
 asIntN fix, these vectors will RED on us (raw unsigned bigint ≥2⁶³) — the micro-phase should
 ideally land BEFORE the batch arrives.
+**→ LANDED 2026-06-07 (F3.5 `de0cc93`):** the 4 asIntN sites + pins; `Box.signed_view_u64` ×9
+green (33/90/85). Bonus: the boundary fix closed the latent consumer class (serialize/Upcast/
+Downcast/arith of >2⁶³ carriers threw where the JVM computes on the signed Long). Item CLOSED.
 
 **F3 close-out (2026-06-07):** re-grade requested (expect 31 → 22: the 8 EQ rows + serialize_SigmaProp).
 Two vector asks queued for SANTA (see §F5): the conjecture-throw pin and, lower priority, cross-kind
 EQ cost shapes. Cost-then-write residual in `global-serialize.ts` reviewed and verified UNREACHABLE
 for JVM-constructible values (every SigmaBoolean producer keeps the byte serializer throw-free).
+
+**F3 vector asks RESOLVED (2026-06-07, same-day):** (1) conjecture-throw — BLESSED+COMMITTED
+(`EQ_of_SigmaProp_conjecture_mismatch` ×4; dasher green on our `9781706`; vendored as regression
+pins). sigma-rust shared the pre-F3 fork on BOTH branches (returns false where JVM throws) —
+SANTA routed `sigma-rust-conjecture-eq-throw.md`; the asymmetry entry is now the 3-implementation
+pin. (2) cross-kind EQ cost — **UNCONSTRUCTIBLE, RE-FILED**: the JVM's two-layer guard (parse
+`check2(SameType)` + eval-time per-operand `Value.checkType`, `trees.scala:1203-1210`;
+`isValueOfType` has no SAny arm; same post-eval checkType on MethodCall/ValUse/CP,
+`values.scala:412/962/1005`) makes the cross-kind comparer unreachable — the REAL divergence is
+ergots evaluating type-lying trees the JVM rejects at eval (SAny over-accept family; candidate
+future pass: per-operand/per-node post-eval type check). SANTA's blessed-REJECT-vector offer open.
+
+**F3.5 close-out (2026-06-07, commits `de0cc93`/`9cef06a`):** SANTA batch reds closed 6+2;
+Option.map iter-29 fixtures re-blessed +5 (HAND-BLESSED marker; NOTE e-n-i's LambdaInvoker
+already charges it — marker self-inverts on pin bump). NEW vector ask queued: per-element
+ADD_TO_ENV on the 5 remaining Coll HOF arms (filter/fold/forall/exists/map — flatMap & Option.map
+charge it; these 5 are sigma-rust-aligned, unverified vs JVM; one entry per arm). F4
+PREREQUISITE recorded: `_santa.ts svalueToSantaJson` needs Box/AvlTree/Header/PreHeader arms
+(canonical-bytes, symmetric with hydrateSValue) before AvlTree-valued vectors can compare.
+flatMap charge-order nit (charge-before-typecheck, inverted vs JVM; coarse-equivalent) — swap
+when next touched. Expected dasher surface post-push: 25 cost (all AvlTree) · 4 value
+(stateRoot · powOnetimePk · LastBlockUtxoRootHash · insertOrUpdate-bad-proof) · 25 not-impl.

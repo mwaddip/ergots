@@ -34,6 +34,7 @@ const VECTOR_FILES = [
   'atLeast_with_a_degenerate_bound.json',
   'EQ_of_SigmaProp.json',
   'EQ_of_SigmaProp_unequal.json',
+  'EQ_of_SigmaProp_conjecture_mismatch.json',
   'Box.signed_view_u64.json',
   'Option.map.json',
 ]
