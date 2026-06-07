@@ -1,6 +1,6 @@
 # F4 — AvlTree Tier-2 cost faithfulness + construct-failure value class (mini-spec)
 
-**Date:** 2026-06-07 · **Status:** APPROVED (user, 2026-06-07 — incl. the full construct-fail class) · **Branch:** `ergoscript-v6`
+**Date:** 2026-06-07 · **Status:** ✅ DONE 2026-06-07 (commits `0665f84..cbaad45`) · **Branch:** `ergoscript-v6`
 **Parent:** `2026-06-06-ergoscript-conformance-run-design.md` §F4 (the conformance-run living ledger)
 **Closes:** 25 cost rows (22 v5 + 3 v6 insertOrUpdate) + 1 value row (insertOrUpdate#bad-proof)
 + the latent construct-failure value class in the other five proof-carrying methods (unvectored,
@@ -230,3 +230,13 @@ range faithfully at the cost-charging level.
 - Per-op cost growth on small-tree many-op batches (the JVM's own "cost is not properly
   approximated" comment at CErgoTreeEvaluator.scala:212-214 — nItems is loop-constant in
   the JVM; we mirror, including the imprecision).
+
+## Outcome
+
+**Delivered vs planned:**
+- Planned: 22 v5 cost rows. Delivered: 22 v5 + 3 v6 insertOrUpdate cost rows + 1 value row (bad-proof→None) = 26 total rows.
+- Task 7.5 (beyond plan): op-shape + construct-shape routing — scorex verdict from DECOMPILED scrypto 3.0.0 bytecode + ergo_avltree_rust; 18 op-shape pins + wrapped-negative u32 fix. Closed a LIVE acceptance fork.
+- Pin counts: 18 op-shape pins + 12 Task-7 pins (construct-fail + empty-ops classes) + prior per-method cost vectors (25+1 blessed).
+- Fixtures: savltree-*.json re-blessed; HAND-BLESSED marker in fixture-gen/src/main.rs; mutation suites adjusted (contains_key_absent removed — 0%-killable under never-throws).
+- Gate: avltree 156 / ergoscript 4114 / nipopow 247 / scorex 187 — all green; tsc clean. EvalError codes: 80 (0 new).
+- Adjacent findings routed to F5: TreeLookup over-accept (JVM has no eval override — trees.scala:1322-1338) + Tier-1 accessor-view family (updateDigest any-length / CreateAvlTree negative lengths / keyLength accessor wrapping — JVM-verified 2026-06-07).

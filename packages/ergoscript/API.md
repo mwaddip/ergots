@@ -315,7 +315,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 81 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Postcondition (failure):** Throws `EvalError` with one of the 80 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
 - **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 18 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'` — `FunDef` (`0xd7`) was the 19th but is now parsed+evaluated as a `ValDef` from v6 P6. A further 4 (`LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are routed through other dispatch paths in sigma-rust and their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or one of 5 defensive `EvalError 'not-implemented-yet'` sites still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
@@ -368,11 +368,11 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 81 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 80 codes in facts/ergoscript-eval.md
 }
 ```
 
-All 81 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (81 codes)". Notable codes:
+All 80 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (80 codes)". Notable codes:
 
 | Code | When thrown |
 |---|---|
@@ -383,7 +383,7 @@ All 81 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'method-not-implemented'` | `MethodCall`/`PropertyCall` hit an unregistered `(typeId, methodId)` |
 | `'tree-version-too-low'` | A V3-gated method or type encountered in a `treeVersion < 3` tree |
 | `'v6-type-in-pre-v3-tree'` | `SUnsignedBigInt` or serialized `SFunc` annotation in a pre-V3 tree |
-| `'avl-tree-proof-failed'` | `@ergots/avltree` verifier returned `null` (proof failure) |
+| `'avl-tree-proof-failed'` | AvlTree proof verification failed where the JVM throws: `get`/`getMany` (≥1 key) on any failure, `insert` at treeVersion<3 with ≥1 op. `contains`→false, `update`/`remove`/`insertOrUpdate`→None instead (F4 JVM-canonical surface) |
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
 | `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |
 

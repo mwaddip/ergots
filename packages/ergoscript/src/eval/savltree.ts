@@ -17,7 +17,7 @@
  *      BEFORE construction. Outcome-independent (charged even on construct failure).
  *   2. LookupAvlTree_Info — PerItem(40, 10, 1) × chargedOps on RAW `digest[32]`
  *      tree height (no max-1 floor); `contains`/`get` always charge ×1;
- *      `getMany` charges ×chargedOps (see helper above).
+ *      `getMany` charges ×chargedOps (see the chargedOps helper below).
  *
  * Failure model (JVM-canonical, F4) — construct failure is NOT a distinct
  * observable: scorex BatchAVLVerifier swallows reconstruction errors (topNode =
@@ -70,7 +70,8 @@
  * make this unreachable for parser-produced trees — guard against
  * hand-crafted MIR or future `ConstantPlaceholder` injection.
  *
- * facts/ergoscript-eval.md: Method-handler registry rows 9-21.
+ * facts/ergoscript-eval.md: Method-handler registry rows 9-21 + 40-42
+ * (updateOperations / updateDigest / insertOrUpdate).
  */
 
 import type { EvalContext } from './eval-context'

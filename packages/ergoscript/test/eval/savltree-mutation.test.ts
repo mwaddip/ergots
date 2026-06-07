@@ -22,8 +22,11 @@
  * Per-handler kill criteria (JVM-canonical, F4):
  *   - `contains` — result flip only (true↔false); NEVER throws (F4: construct and
  *      per-op failures both → false; "kill if throw" is impossible for contains).
- *   - `get` / `getMany` / `remove` — kill if throw OR Option content differs.
- *   - `insert` / `update` — kill if throw OR returned successor digest differs.
+ *   - `get` / `getMany` — kill if throw OR Option content differs.
+ *   - `remove` — kill if Option content differs (NEVER throws post-F4; throw
+ *      would also kill, but is unreachable).
+ *   - `insert` / `update` — kill if throw OR returned successor digest differs
+ *      (update never throws post-F4; insert throws only at V<3 with ≥1 op).
  *
  * Source: ergotree-interpreter/src/eval/savltree.rs:104-439.
  * Established pattern: `eval-mutation.test.ts` (Phase 2f Coll HOFs Layer C3.a)
