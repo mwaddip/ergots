@@ -11,6 +11,9 @@
  * invoked for None). Lambda invocation mirrors SColl.flatMap's env-extend; there
  * is NO body restriction (contrast flatMap).
  *
+ * Some-path lambda invocation additionally charges ADD_TO_ENV_COST(5) before the
+ * body eval (F3.5). None path uncharged — lambda is never invoked.
+ *
  * Output Option elem type = `exprTpe(closure.body)` — same convention as flatMap.
  * The walker only checks cost (the oracle returns no value), so the elem only
  * matters for the offline byte-equality fixtures, which use BinOp bodies whose
@@ -82,6 +85,11 @@ export function evalSOptionMap(
   // after the None early-return above ⇒ Option.map over None never invokes the
   // lambda, so it never throws (matches the JVM: no invocation, no resolution).
   assertArgTypeResolved(closure.argTpes[0]!)
+  // Lambda-arg env binding: ADD_TO_ENV_COST (5) per FuncValue application —
+  // JVM AddToEnvironmentDesc; same class as apply.ts:74 / scoll-flat-map.ts
+  // per-element charge. F3.5 (SANTA Option.map vectors: Some 65 incl. the 5;
+  // None 39 without — the lambda is never invoked on None).
+  ctx.addCost(5)
   // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
   // JVM-faithful for v6. For inline map lambdas capturedEnv == the caller env
   // (no-op); differs only for out-of-scope-captured lambdas.

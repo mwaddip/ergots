@@ -17,8 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { evalSantaEntry, type SantaVector } from './_santa'
-import { hydrateSValue } from '../_helpers'
+import { evalSantaEntry, svalueToSantaJson, type SantaVector } from './_santa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v5')
@@ -36,6 +35,7 @@ const VECTOR_FILES = [
   'EQ_of_SigmaProp.json',
   'EQ_of_SigmaProp_unequal.json',
   'Box.signed_view_u64.json',
+  'Option.map.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the
@@ -59,7 +59,11 @@ for (const file of VECTOR_FILES) {
         if (e.expected.error !== null) {
           expect(actual.error).toBe('errored')
         } else {
-          expect(actual.value).toEqual(hydrateSValue(e.expected.value))
+          // Compare at SANTA canonical JSON level to avoid false mismatches on
+          // ergots' internal fields (e.g. Option.elem, which SANTA omits).
+          // svalueToSantaJson normalises the actual before comparison; the
+          // expected is already in SANTA canonical JSON form in the vector.
+          expect(svalueToSantaJson(actual.value!)).toEqual(e.expected.value)
           expect(actual.cost).toBe(e.expected.cost)
         }
       })
