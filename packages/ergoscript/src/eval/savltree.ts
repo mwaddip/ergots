@@ -31,10 +31,15 @@
  *
  * ## Tier 2 — modify family (insert / update / remove / insertOrUpdate)
  *
- * Cost model: conversion to the same JVM PerItemCost charging pattern lands in
- * F4 Tasks 4-6. Header will be finalized then. The in-flight inconsistency
- * between the lookup family (F4-canonical) and modify family (sigma-rust-canonical
- * cost, pre-F4) is documented here rather than silent.
+ * JVM cost model (CErgoTreeEvaluator.scala:132-254, F4):
+ *   insert/update/remove: isXxxAllowed Fixed(15) + createVerifier PerItem(110,20,64)
+ *   + per-op PerItemCost × max(treeHeight,1) + updateDigest Fixed(40) on success.
+ *   insert: InsertIntoAvlTree(40,10,1) × chargedOps; update: UpdateAvlTree(120,20,1) × chargedOps;
+ *   remove: RemoveAvlTree(100,15,1) × ALL ops (cfor, no break) + digest Fixed(15) unconditional.
+ *   insertOrUpdate (V3-gated): isUpdateAllowed + isInsertAllowed both Fixed(15) + cv + UpdateAvlTree.
+ *   Failure model — insert(V<3):throw/(V3+):None; update:None; remove:None (never throws);
+ *   insertOrUpdate:None (V<3 rejected at dispatcher).
+ *   insert/update/remove: DONE (F4 Tasks 3-5). insertOrUpdate pending Task 6.
  *
  * ## Known pre-existing limitation
  *
@@ -61,7 +66,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import type { AvlTreeData, SType, SValue } from '../mir/types'
 import { bytesToCollByteSValue } from './_byte-coll'
-import { verifyAvlBatch, verifyAvlBatchPartial } from '@ergots/avltree'
+import { verifyAvlBatchPartial } from '@ergots/avltree'
 import {
   avlTreeDataToConfig,
   buildInsertOps,
@@ -610,30 +615,41 @@ export function evalSAvlTreeUpdate(
 
 /**
  * `SAvlTree.remove` (100:14) — batch-Remove returning successor AvlTree.
- * Source: savltree.rs:279-337 — REMOVE_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:230-254 (JVM-canonical, F4).
  *
- * Pre-check: `!remove_allowed` (line 283-285) → None.
+ * JVM cost model (F4):
+ *   1. isRemoveAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:233).
+ *   2. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   3. RemoveAvlTree PerItem(100,15,1) × ALL ops.length on max(treeHeight, 1).
+ *      The JVM uses `cfor` (CErgoTreeEvaluator.scala:240-245) — no break, no fast-exit
+ *      on failure; every op is charged even after the verifier is poisoned by a bad proof.
+ *   4. digest_Info Fixed(15) — UNCONDITIONAL (:246), charged before the digest inspect
+ *      regardless of whether any op succeeded.
+ *   5. updateDigest_Info Fixed(40) on the success path only (:249).
  *
- * Failure model (NO V3+ break):
- *   - verifier construct fail (line 316 `?`) → throw `'avl-tree-proof-failed'`
- *   - per-op Remove fail (line 318-326 — always-throw `return Err`) → throw
- *     same code
+ * Failure model (JVM-canonical, F4) — remove NEVER throws:
+ *   scorex `BatchAVLVerifier` swallows construction errors (topNode = None); every
+ *   subsequent op returns Failure; per-op results are DISCARDED by the cfor (no break).
+ *   After the loop, `bv.digest()` returns None (construct-fail or any op-fail), so
+ *   the digest match falls to the None arm → return None (:247-252).
  *
- * Confirmed: `remove` is the only modify-style handler with no V3+ partial-
- * success path. Per the design spec / source-read this is intentional.
+ *   - construct-fail → verifier poisoned → digest None → None
+ *   - any per-op Remove fail → result discarded (cfor continues) → digest None → None
+ *   - full success → digest Some(newDigest) → Some(AvlTree(newDigest)) + updateDigest(40)
  *
- * Result block (line 328-336): same as insert/update — Some(AvlTree) on
- * full success, Option None if `bv.digest()` returns None (only reachable
- * with an empty-keys batch yielding no digest update; sigma-rust returns
- * None then too).
+ * Pre-F4 ergots threw on both construct-fail and per-op-fail, matching sigma-rust's
+ * `?`-on-construct fork (savltree.rs:316,322). That divergence is now closed;
+ * ergots leads per JVM. Route divergence note to sigma-rust via SANTA post-F4.
  */
 export function evalSAvlTreeRemove(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
   expectAvlTree('SAvlTree.remove', obj)
   expectTwoArgs('SAvlTree.remove', args)
+  // isRemoveAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:233).
+  ctx.addCost(15)
   if ((obj.value.treeFlags & REMOVE_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
@@ -641,17 +657,23 @@ export function evalSAvlTreeRemove(
   const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
   const ops = buildRemoveOps(keys)
-
-  // Remove uses verifyAvlBatch (all-or-nothing) per source — any failure
-  // collapses to throw.
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
-    throw new EvalError(
-      'SAvlTree.remove: incorrect remove',
-      'avl-tree-proof-failed'
-    )
+  chargeCreateVerifier(ctx, proof.length)
+  // RemoveAvlTree PerItem(100,15,1) × ALL ops on max(height, 1).
+  // The JVM uses cfor with per-op results DISCARDED (CErgoTreeEvaluator.scala:240-245):
+  // no fast-break, every op is charged even after the verifier is poisoned.
+  const nItems = Math.max(treeHeight(obj.value), 1)
+  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
+  chargePerOp(ctx, 100, 15, nItems, ops.length)
+  // digest_Info Fixed(15) — UNCONDITIONAL (:246), before the digest inspect.
+  ctx.addCost(15)
+  if (partial === null || partial.opsCompleted < ops.length) {
+    // JVM remove NEVER throws: failures (construct or per-op) poison the verifier;
+    // digest → None → None (:247-252). Pre-F4 ergots threw on both (the only modify
+    // handler with a per-op throw — sigma-rust fork, now closed).
+    return noneAvlTree()
   }
-  return someAvlTree(withUpdatedDigest(obj.value, r.newDigest))
+  ctx.addCost(40) // updateDigest_Info on success (:249)
+  return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }
 
 /**

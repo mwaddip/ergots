@@ -1,0 +1,53 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.remove",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-tier2",
+  "entries" : [
+    {
+      "name" : "valid#0",
+      "script" : "{ tree(n=8).remove([key4], proof) }",
+      "tree_bytes_hex" : "1ab4020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e20e62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff0edb0103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b03a373298f0a6c4bfe54090ebf3b8b0637dab0992b91659925aad993fb78e1267d0380425223028505cc2316f57221daaf7780ec8e2aa3aca01474bc95a0c680dd1202db958abd56951adf47f8142fc63e1a9ac8b9e7cdb2c5b03ba67eb86260dd6e9ee62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff000000005a17a0070002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000005a17a004ff01010400dc640e73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "ec5d589512673b06c532b430f162b32dac9df5954440ef5e8d5c9f3e0d6084fa0307200108"
+          }
+        },
+        "cost" : 447,
+        "error" : null
+      }
+    },
+    {
+      "name" : "disallowed-none#1",
+      "script" : "{ noRemoveTree(n=8).remove([key4], proof) }",
+      "tree_bytes_hex" : "1ab4020364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04032001080e20e62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff0edb0103db593c8983b79966469b42fec18abc010a64c4018b9edc3af02014c517562c6b03a373298f0a6c4bfe54090ebf3b8b0637dab0992b91659925aad993fb78e1267d0380425223028505cc2316f57221daaf7780ec8e2aa3aca01474bc95a0c680dd1202db958abd56951adf47f8142fc63e1a9ac8b9e7cdb2c5b03ba67eb86260dd6e9ee62f35b3287d0865f5da1ce370bc9ec2e51532795939fe32c4baf9dcdfce19ff000000005a17a0070002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000005a17a004ff01010400dc640e73000283010e73017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 42,
+        "error" : null
+      }
+    }
+  ]
+}

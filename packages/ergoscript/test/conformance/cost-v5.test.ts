@@ -46,6 +46,8 @@ const VECTOR_FILES = [
   'AvlTree.proof_adversarial.json',
   'AvlTree.insert.json',
   'AvlTree.update.json',
+  'AvlTree.remove.json',
+  'AvlTree.updateOperations_updateDigest.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

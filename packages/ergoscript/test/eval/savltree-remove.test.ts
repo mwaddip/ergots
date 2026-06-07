@@ -1,16 +1,18 @@
 /**
- * SAvlTree.remove (100:14) — Tier-2 verification op handler.
+ * SAvlTree.remove (100:14) — Tier-2 verification op handler (JVM-canonical, F4).
  *
- * Source: ergotree-interpreter/src/eval/savltree.rs:279-337 — REMOVE_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:230-254 (JVM), savltree.rs:279-337 (sigma-rust ref).
  *
- * Failure model (NO V3+ break — only modify-style handler without it):
- *   - !remove_allowed (line 283-285) → `Option None` BEFORE any avltree call
- *   - verifier construct fail (line 316 `?`) → throw 'avl-tree-proof-failed'
- *   - per-op Remove fail (line 318-326 always-throw) → throw same code
- *   - full success → `Some(AvlTree(new_digest))`
+ * Failure model (JVM-canonical, F4) — remove NEVER throws:
+ *   - !remove_allowed → isRemoveAllowed Fixed(15) charged, return `Option None`.
+ *   - verifier construct fail → verifier poisoned; per-op results discarded (cfor);
+ *     digest None → `Option None` (NO throw — pre-F4 ergots threw; sigma-rust fork).
+ *   - any per-op Remove fail → result discarded (cfor continues); digest None → `Option None`.
+ *   - full success → `Some(AvlTree(new_digest))`.
  *
- * Confirmed: line 322 is unconditional `return Err(...)`. No ctx.tree_version
- * branching anywhere in remove.
+ * Pre-F4 ergots threw on both construct-fail and per-op-fail, matching sigma-rust's
+ * `?`-on-construct fork (savltree.rs:316,322). F4 fixes this to match JVM; ergots leads.
+ * The 'avl-tree-proof-failed' code is no longer reachable from remove.
  */
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -19,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
 
 interface RemoveEntry {
   name: string
@@ -50,9 +52,17 @@ describe('SAvlTree.remove — fixture-driven', () => {
   }
 })
 
-describe('SAvlTree.remove — throw paths', () => {
-  it('throws avl-tree-proof-failed when proof bytes are zeroed (construct fail)', () => {
+describe('SAvlTree.remove — construct-fail model (JVM: never-throws → None)', () => {
+  it('returns None (not throw) when proof bytes are zeroed (construct fail)', () => {
+    // JVM-canonical (F4): remove NEVER throws. Construct failure poisons the verifier;
+    // per-op results are discarded (cfor, no break); digest() → None → None.
+    // Pre-F4 ergots threw 'avl-tree-proof-failed' here — that was the sigma-rust fork.
+    //
     // remove_success_1_key uses a length-100 proof: "0e64 03 85ab460a..."
+    // Cost decomposition for zeroed-proof case (treeHeight=2, 1 op, proof 100 B):
+    //   envelope(19) + isRemoveAllowed(15) + createVerifier(110+20×2=150)
+    //   + RemoveAvlTree(100+15×2=130)×1 + digest_unconditional(15) = 329
+    //   (no updateDigest(40) — construct fail → None before success path)
     const sample = fixture.entries.find((e) => e.name === 'remove_success_1_key')
     if (sample === undefined) throw new Error('test setup: missing fixture entry')
     const goodHex = sample.tree_bytes_hex
@@ -66,7 +76,8 @@ describe('SAvlTree.remove — throw paths', () => {
       goodHex.slice(proofBodyStart + proofBodyLen)
     const tree = parseTree(hexToBytes(mutated))
     const ctx = makeContext({})
-    const err = captureEvalError(() => evaluateWith(tree, ctx))
-    expect(err.code).toBe('avl-tree-proof-failed')
+    const result = evaluateWith(tree, ctx)
+    expect(result).toEqual({ kind: 'Option', elem: { tag: 'SAvlTree' }, value: null })
+    expect(ctx.jitCost).toBe(329)
   })
 })

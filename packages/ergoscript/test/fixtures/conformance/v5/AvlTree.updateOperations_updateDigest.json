@@ -1,0 +1,50 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.updateOperations updateDigest",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-tier2",
+  "entries" : [
+    {
+      "name" : "updateOperations-readonly#0",
+      "script" : "{ tree(n=8).updateOperations(0) }",
+      "tree_bytes_hex" : "1a310264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080200dc64087300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c0400200108"
+        },
+        "cost" : 51,
+        "error" : null
+      }
+    },
+    {
+      "name" : "updateDigest#1",
+      "script" : "{ tree(n=8).updateDigest(altDigest33) }",
+      "tree_bytes_hex" : "1a520264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e21070707070707070707070707070707070707070707070707070707070707070707dc640f7300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "07070707070707070707070707070707070707070707070707070707070707070707200108"
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    }
+  ]
+}
