@@ -361,6 +361,35 @@ same day:
    stateRoot · powOnetimePk · getRegV5 taxonomy · 21 tx-tier scope + 1 tx-captured overlap).
    Asks 1-7 routed (in flight). **F4 + F5-batch-1 round CLOSED.**
 
+### F5 batch 2 — eval-tier closure (the 6 actionable rows) ✅ DONE 2026-06-08 (LOCAL, not pushed)
+
+Plan (untracked): `docs/superpowers/plans/2026-06-08-ergoscript-f5-batch2-eval-tier-closure.md`.
+Closes ALL 6 post-F4 eval-tier actionable rows. 4 commits `1af55c3`(facts) `97eb7e3`(T2 A+B+C)
+`1ca5bb3`(T3 D) `492966f`(T4 conformance). Subagent-driven TDD per task; 4/4 reviews SHIP, 0
+Critical/Important. JVM-canonical source-confirmed — **the ledger's preHeader-accessor "Fixed(15)"
+was WRONG: methods.scala:1841-1849 = Fixed(10)** (34 = envelope 24 + 10).
+
+| # | row | fix | JVM source | lead |
+|---|---|---|---|---|
+| 1 | preHeader.version/nBits/votes | +3 handlers 105:1/4/7, Fixed(10), no version gate; registry 125→128 | methods.scala:1841-1849 | — |
+| 2 | SHeader.stateRoot | Coll[Byte] → AvlTree synth (avlTreeFromDigest: flags 0x07/kl 32/None) | CHeader.scala:29 | ergots LEADS sigma-rust |
+| 3 | SHeader.powOnetimePk | v2 identity → generator | ErgoHeader.scala:57-58 | ergots LEADS sigma-rust |
+| 4 | SContext.lastBlockUtxoRootHash | headers[0].stateRoot derivation → independent `ctx.lastBlockUtxoRootHash` field; no fallback (user decision) | ErgoLikeContext.lastBlockUtxoRoot | — |
+
+T4 wired the universal runner-contract dummy ctx (`runner-contract.md:80-88`) into `_santa.ts` +
+vendored 3 JVM-blessed files (preHeader_accessors v5 ×7, Context.properties v5 ×5,
+Header.property_accessors v6 ×17). **+29 conformance pins, all green.** Codes eval 80 (0 new).
+Gate: package tests 4835 green (ergoscript 4245 / avltree 156 / nipopow 247 / scorex 187),
+conformance 270→299, tsc ×4 clean. ⚠ 3 PRE-EXISTING harness-test failures (F2 number→bigint debt
+in `validate-block.header.test.ts`, NOT batch-2 regression, dev-tooling only).
+
+**Coordination (route via `prompts/f4-santa-asks.md`):** (a) dasher ergots-adapter must populate
+`lastBlockUtxoRootHash` = AvlTreeData.dummy (runner-contract:88) for the LastBlockUtxoRootHash#dummy
+row to flip green on dasher; (b) B/C ergots-leads routing notes → sigma-rust (stateRoot Coll[Byte];
+powOnetimePk identity). **Prediction: dasher 28→22** (the 6 rows flip; preHeader/stateRoot/powOnetimePk
+unconditionally, LastBlockUtxoRootHash only after the dasher-adapter ask lands; remaining 22 =
+getRegV5 taxonomy + 21 tx-tier).
+
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
 Eval-tier reds at F1 start = 53 (the 47-row inventory's 26 ergots-bug minus the 21 tx-scope

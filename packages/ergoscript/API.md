@@ -351,6 +351,7 @@ interface EvalOpts {
   inputExtensions?: ContextExtension[]  // per-input extensions, indexed by spending-transaction input position (v6 P7a)
   dataInputs?: ErgoBox[]         // transaction data-inputs
   headers?: Header[]             // block headers (up to 10; sigma-rust [Header; 10]); Header type from @ergots/scorex
+  lastBlockUtxoRootHash?: AvlTreeData  // SContext.lastBlockUtxoRootHash (101:9) source — JVM ErgoLikeContext.lastBlockUtxoRoot; absent ⇒ 101:9 throws 'context-field-missing'
 }
 
 interface EvalContext extends EvalOpts {
