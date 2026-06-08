@@ -111,6 +111,25 @@ function parseRegisterExprWithTag(
     if (tag <= LAST_CONSTANT_CODE) {
       // Constant Expr: tag is the SType lead byte.
       const tpe = parseSTypeWithFirstByte(tag, r)
+      // Rule-1019 `CheckV6Type` (JVM ValidationRules.scala:165-205, enforced at
+      // ErgoBoxCandidate.scala:232): reject — at register deserialize, BEFORE
+      // the value parse — any register type containing SOption / SHeader /
+      // SUnsignedBigInt (recursing STuple items + SColl elemType). UNCONDITIONAL
+      // across all tree versions (the rule is in BOTH ruleSpecsV5 and
+      // ruleSpecsV6). Gating here (before `parseSValue`) takes precedence over
+      // the value-side `soption-tree-version-too-low` gate: an Option-typed
+      // register on a pre-v3 tree rejects as 'register-v6-type', not via the
+      // inner Option DATA version gate (matching the JVM's deserialize-time
+      // CheckV6Type fire, which runs on the parsed Constant's declared type).
+      // A Tuple-Expr register (the OP_TUPLE arm below) is covered by recursion:
+      // each item parses through this same Const arm, so a v6-typed item is
+      // gated at its own node — mirroring the JVM `step(Tuple)` over item tpes.
+      if (containsV6RegisterType(tpe)) {
+        throw new SValueParseError(
+          'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
+          'register-v6-type'
+        )
+      }
       const value = parseSValue(tpe, treeVersion, r)
       return { tpe, value }
     }
@@ -153,6 +172,50 @@ export class SValueParseError extends Error {
   ) {
     super(message)
     this.name = 'SValueParseError'
+  }
+}
+
+/**
+ * Rule-1019 `CheckV6Type` predicate: true iff `tpe`, recursing through `STuple`
+ * items and `SColl`/`SCollection` elemType, contains a leaf that is an
+ * `SOption` (any element type), `SHeader`, or `SUnsignedBigInt`.
+ *
+ * Mirrors JVM `ValidationRules.scala:165-205` (`CheckV6Type`):
+ *   - `v6TypeCheck(tpe)` rejects iff `tpe.isOption` OR `tpe.typeCode == SHeader`
+ *     (104) OR `tpe.typeCode == SUnsignedBigInt` (9).
+ *   - `step(STuple)` → `items.foreach(step)`; `step(SCollection)` →
+ *     `step(elemType)` — and STuple is matched BEFORE SCollection in the JVM
+ *     (STuple <: SCollection). Our `SType` union tags STuple / SColl / SOption
+ *     disjointly, so the explicit STuple-before-SColl ordering is moot here,
+ *     but the per-arm shape is kept identical to the JVM `step`.
+ *
+ * DISTINCT from `eval/validate-v6-types.ts::containsV6Type` — that predicate
+ * gates the tree BODY for the v6 version-gate type set `{ SUnsignedBigInt,
+ * SFunc }`. This one gates box REGISTERS (and, on the JVM, context-extension
+ * vars) for the set `{ SOption, SHeader, SUnsignedBigInt }`. Different type
+ * set, different surface; do NOT merge.
+ *
+ * Residual: the JVM enforces `CheckV6Type` at TWO ingress points — box
+ * registers (`ErgoBoxCandidate.scala:232`) and context-extension vars
+ * (`ContextExtension.scala:60`). ergots gates only the register leg: it has no
+ * context-extension WIRE parser (extensions are built in `makeContext`, not
+ * deserialized from bytes), so there is nothing to gate on that leg. The
+ * JVM-blessed witness W7 is a register case.
+ */
+function containsV6RegisterType(tpe: SType): boolean {
+  switch (tpe.tag) {
+    // STuple first, matching the JVM `step` (STuple <: SCollection).
+    case 'STuple':
+      return tpe.items.some(containsV6RegisterType)
+    case 'SColl':
+      return containsV6RegisterType(tpe.elem)
+    // Leaf v6TypeCheck: any Option, SHeader (104), SUnsignedBigInt (9).
+    case 'SOption':
+    case 'SHeader':
+    case 'SUnsignedBigInt':
+      return true
+    default:
+      return false
   }
 }
 
