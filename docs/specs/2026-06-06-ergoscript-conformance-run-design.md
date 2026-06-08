@@ -353,6 +353,14 @@ same day:
    mirror · rule-1012 size-bit gate. SANTA asks 1-7 staged in prompts/f4-santa-asks.md (epilogue
    asks struck as resolved).
 
+   **✅ SANTA RE-GRADE CONFIRMED (2026-06-08, reply appended to prompts/f4-santa-asks.md):**
+   F5 batch-1 verified — acceptance corpus + all 3 epilogue divergences GREEN on dasher. The
+   `SOption.pre_v3` "panicked" red was THEIR classifier (wire parse-rejects not mapped to
+   errored — fixed santa-side, mirroring our Task-4 harness widening). dasher 31→28; the
+   remainder = the standing ledger (3 preHeader accessors · LastBlockUtxoRootHash ·
+   stateRoot · powOnetimePk · getRegV5 taxonomy · 21 tx-tier scope + 1 tx-captured overlap).
+   Asks 1-7 routed (in flight). **F4 + F5-batch-1 round CLOSED.**
+
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
 Eval-tier reds at F1 start = 53 (the 47-row inventory's 26 ergots-bug minus the 21 tx-scope
