@@ -100,6 +100,14 @@ const VECTOR_FILES = [
   // /ValidationRule 1009 + SerializerException). Tree 1a060128010a7300 = v2 tree,
   // Option[Int] Some(5) constant. ergots was parsing Option DATA at any version.
   'SOption.pre_v3_data_constant.json',
+  // F5 batch 2 — context-surface accessors under the universal dummy context
+  // (runner-contract §2; harness now supplies preHeader/headers/height/
+  // dataInputs/lastBlockUtxoRootHash + inputs=[SELF]). preHeader.* (7 entries:
+  // version=Byte 3, nBits=Long 0, votes/parentId/timestamp/height/minerPk) and
+  // CONTEXT.* (5 entries: dataInputs/headers empty, selfBoxIndex=Int 0,
+  // LastBlockUtxoRootHash=AvlTree.dummy, minerPubKey=generator).
+  'Context.preHeader_accessors.json',
+  'Context.properties.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

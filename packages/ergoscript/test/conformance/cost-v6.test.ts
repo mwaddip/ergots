@@ -120,6 +120,11 @@ const VECTOR_FILES = [
   // tag≥2 (the dasher "panic"). Tree 1b060128020a7300 = v3 tree, Option[Int]
   // constant with tag 0x02.
   'SOption.nonzero_data_tag.json',
+  // F5 batch 2 — SHeader property accessors (17 entries: all 15 accessors + 2
+  // timestamp signed-view edge cases). stateRoot→AvlTree and powOnetimePk→
+  // generator are the T2 flips; timestamp gt-2^53/u64-max exercise the F2
+  // signed-Long view. Bound SHeader input via the v2 envelope.
+  'Header.property_accessors.json',
 ]
 
 for (const file of VECTOR_FILES) {
