@@ -7,7 +7,7 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 80 codes through v6 P6 (HOF lambdas) + F1 (which removed
+ *   - documents the 81 codes through v6 P6 (HOF lambdas) + F1 (which removed
  *     'atleast-bound-out-of-range' AND 'deserialize-context-key-not-found':
  *     81 → 79; see history) + F3 (79 → 80)
  *     + F4 epilogue Task 2 (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
@@ -16,6 +16,9 @@
  *     length, CAvlTree.scala:31-34 no-require; net 80 → 79)
  *     + F5 batch 1 (+'tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
  *     values.scala:795-798; net 79 → 80)
+ *     + F5 batch 3 (+'unsupported-value-type': checkType non-pair-STuple /
+ *     non-unary-SFunc declared type, SType.scala:200-205; net 80 → 81. T3 adds
+ *     'select-field-non-pair' → 82)
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -936,8 +939,52 @@ export type EvalErrorCode =
    * Inline tuple-N CONSTANTS in non-checkType'd positions (e.g. tree root)
    * still evaluate on both sides (Constant.eval bypasses Tuple.eval;
    * CoreDataSerializer:134-139 no gate); in checkType'd positions the JVM
-   * rejects via Value.checkType (values.scala:801,804 + 408-414) — a residual
-   * ergots over-accept tracked as the F5 checkType-class item.
+   * rejects via Value.checkType (values.scala:801,804 + 408-414) — closed by
+   * the F5 batch-3 checkType class ('unsupported-value-type', below).
    * SANTA pin: Tuple.non_pair_arity3.json.
    */
   | 'tuple-invalid-arity'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 3 — checkType class: declared-type representability (1 new code;
+  // 80 → 81; T3 adds 'select-field-non-pair' → 82)
+  // -------------------------------------------------------------------------
+  /**
+   * A value flowing through a checkType seam has a DECLARED type that is a
+   * non-pair `STuple` (`items.length !== 2`) or a non-unary `SFunc`
+   * (`args.length !== 1`). Mirrors JVM `SType.isValueOfType` (SType.scala:200-205)
+   * which `sys.error`s "Unsupported tuple type"/"Unsupported function type" —
+   * the JVM runtime has only `Tuple2` / `Function1`, so it cannot represent a
+   * value of such a type and rejects regardless of the runtime value. These
+   * declared types ARE wire-constructible (arity-N tuple constant types parse;
+   * multi-arg SFunc annotations are representable).
+   *
+   * Emitted by the shared `assertValueTypeSupported(tpe)` helper
+   * (eval/_check-type.ts), called from `Value.checkType`'s seams:
+   *   - Tuple items (eval/tuple.ts; values.scala:801,804). Covers W1
+   *     `008602480101010101010402`.
+   *   - ConstantPlaceholder (eval/const-placeholder.ts; values.scala:412).
+   *     Covers W2 `1002480101010101010402860273007301`.
+   *   - ConcreteCollection items (eval/collection.ts).
+   *   - BlockValue valdef-rhs + result (eval/block-value.ts).
+   *   - ValUse (eval/val-use.ts).
+   * TOP-LEVEL check (non-recursive — matches the JVM single isValueOfType call;
+   * nesting is covered because each seam runs its own checkType on the
+   * sub-value it surfaces). Hooked INSIDE the eval arms (not a whole-tree
+   * pre-eval pass) ⇒ JVM-faithful laziness: a non-pair-tuple-typed const in a
+   * DEAD branch is never evaluated, so it never rejects.
+   *
+   * Adversarial-only (honest compilers never emit these). Residual: the
+   * FuncValue/Apply param+body SFunc arms (P6 closure path) are NOT hooked — no
+   * SFunc witness; tracked F5 item. The helper still rejects a non-unary SFunc
+   * VALUE flowing through a data seam.
+   *
+   * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the Tuple EXPR
+   * node's own arity≠2 gate (values.scala:797); this is the DECLARED-type
+   * representability check on a value flowing through a seam (W1's outer Tuple
+   * is a valid pair — the violation is item0's TYPE, a different mechanism).
+   *
+   * Source: JVM SType.scala:200-205, values.scala:251-254;
+   *         eval/_check-type.ts.
+   */
+  | 'unsupported-value-type'

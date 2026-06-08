@@ -15,6 +15,7 @@ import type { SValue, ValUse } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { assertValueTypeSupported } from './_check-type'
 
 export function evalValUse(e: ValUse, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(5)
@@ -22,5 +23,9 @@ export function evalValUse(e: ValUse, env: Env, ctx: EvalContext): SValue {
   if (v === undefined) {
     throw new EvalError(`ValUse(id=${e.valId}): no binding in env`, 'val-use-unbound')
   }
+  // checkType seam: a non-pair STuple / non-unary SFunc declared type rejects
+  // (the JVM cannot represent such a value). The declared type is the node's
+  // own `tpe`. See eval/_check-type.ts.
+  assertValueTypeSupported(e.tpe)
   return v
 }

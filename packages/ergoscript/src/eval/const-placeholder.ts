@@ -36,6 +36,7 @@ import type { ConstPlaceholder, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { assertValueTypeSupported } from './_check-type'
 
 export function evalConstPlaceholder(
   e: ConstPlaceholder,
@@ -55,5 +56,12 @@ export function evalConstPlaceholder(
       'const-placeholder-id-out-of-range'
     )
   }
+  // values.scala:412 — ConstantPlaceholder.eval runs Value.checkType(c, res)
+  // after resolving the constant. The placeholder node's `tpe` is the resolved
+  // constant's declared type (parser couples them: e.tpe === constantTypes[id]),
+  // so a non-pair STuple / non-unary SFunc declared type rejects (the JVM
+  // cannot represent such a value). Covers W2
+  // `1002480101010101010402860273007301`. See eval/_check-type.ts.
+  assertValueTypeSupported(e.tpe)
   return ctx.constants[e.id]!
 }

@@ -15,6 +15,8 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { exprTpe } from '../mir/expr-tpe'
+import { assertValueTypeSupported } from './_check-type'
 
 export function evalBlockValue(e: BlockValue, env: Env, ctx: EvalContext): SValue {
   ctx.addPerItemCost(1, 1, 10, e.items.length)
@@ -28,8 +30,15 @@ export function evalBlockValue(e: BlockValue, env: Env, ctx: EvalContext): SValu
       )
     }
     const v = evalExpr(item.rhs, scope, ctx)
+    // checkType seam on the val-def rhs: a non-pair STuple / non-unary SFunc
+    // declared type rejects (the JVM cannot represent such a value). The
+    // declared type is the rhs's static type. See eval/_check-type.ts.
+    assertValueTypeSupported(exprTpe(item.rhs))
     ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust block.rs:30
     scope = scope.extend(item.id, v)
   }
-  return evalExpr(e.result, scope, ctx)
+  const result = evalExpr(e.result, scope, ctx)
+  // checkType seam on the block result (same representability check).
+  assertValueTypeSupported(exprTpe(e.result))
+  return result
 }
