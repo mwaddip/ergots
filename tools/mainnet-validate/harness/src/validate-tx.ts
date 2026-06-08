@@ -759,6 +759,19 @@ export function validateTx(
             dataInputs: dataInputBoxes,
             preHeader,
             headers,
+            // F5 batch 2 (2026-06-08): SContext.lastBlockUtxoRootHash (101:9) is
+            // now an INDEPENDENT context field (JVM ErgoLikeContext.lastBlockUtxoRoot)
+            // rather than headers-derived. The walker preserves the exact AvlTreeData
+            // the old handler synthesized from headers[0].stateRoot (byte-identical:
+            // digest, treeFlags 0b111, keyLength 32, valueLengthOpt null), so this is
+            // behavior-preserving. `headers` is guaranteed non-empty here
+            // (buildHeadersArray returns 10 or null; null returned early above).
+            lastBlockUtxoRootHash: {
+                digest: headers[0]!.stateRoot,
+                treeFlags: 0b00000111,
+                keyLength: 32,
+                valueLengthOpt: null,
+            },
             extension,
             jitCostLimit,
             treeVersion,

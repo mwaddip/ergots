@@ -1035,11 +1035,15 @@ function registerHandlers(): void {
   } })
 
   // SContext.lastBlockUtxoRootHash (PropertyCall, typeId=101, methodId=9)
-  // Source: ergotree-interpreter/src/eval/scontext.rs:83-99 — LAST_BLOCK_UTXO_ROOT_HASH_EVAL_FN
-  // Pattern A cost 15 (charged before obj check). Synthesizes AvlTreeData from
-  // ctx.headers[0].stateRoot. treeFlags=0b00000111 means insert/update/remove
-  // all allowed (sigma-rust AvlTreeFlags::new(true, true, true)). keyLength=32,
-  // valueLengthOpt=null.
+  // Source: JVM ErgoLikeContext.lastBlockUtxoRoot (canonical).
+  // Pattern A cost 15 (charged before obj check). F5 batch 2 (2026-06-08):
+  // reads the INDEPENDENT ctx.lastBlockUtxoRootHash field directly; it is NO
+  // LONGER derived from ctx.headers[0].stateRoot (that was the sigma-rust quirk
+  // at scontext.rs:83-99, which the JVM does not share — it models the
+  // last-block UTXO root as its own ErgoLikeContext field, decoupled from the
+  // headers array; the runner-contract dummy context pins it to AvlTreeData.dummy
+  // with headers EMPTY, a state header-derivation cannot represent). Absent ⇒
+  // 'context-field-missing'.
   HANDLERS.set(handlerKey(101, 9), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
     ctx.addCost(15)
     if (obj.kind !== 'Context') {
@@ -1048,21 +1052,13 @@ function registerHandlers(): void {
         'context-obj-not-context'
       )
     }
-    if (ctx.headers === undefined || ctx.headers.length === 0) {
+    if (ctx.lastBlockUtxoRootHash === undefined) {
       throw new EvalError(
-        `SContext.lastBlockUtxoRootHash: ctx.headers is ${ctx.headers === undefined ? 'undefined' : 'empty'}`,
+        'SContext.lastBlockUtxoRootHash: ctx.lastBlockUtxoRootHash is undefined',
         'context-field-missing'
       )
     }
-    return {
-      kind: 'AvlTree',
-      value: {
-        digest: ctx.headers[0]!.stateRoot,
-        treeFlags: 0b00000111,
-        keyLength: 32, // blake2b-256 digest length; hard-coded in sigma-rust AvlTreeData
-        valueLengthOpt: null,
-      },
-    }
+    return { kind: 'AvlTree', value: ctx.lastBlockUtxoRootHash }
   } })
 
   // SContext.getVarFromInput (MethodCall, typeId=101, methodId=12) — v6 P7a.

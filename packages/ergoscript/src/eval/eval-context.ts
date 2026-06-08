@@ -10,7 +10,7 @@
  */
 
 import type { Header } from '@ergots/scorex'
-import type { ErgoBox, PreHeader, ContextExtension, SValue } from '../mir/types'
+import type { ErgoBox, PreHeader, ContextExtension, SValue, AvlTreeData } from '../mir/types'
 
 /**
  * Evaluator error. `code` is a stable string key for programmatic matching.
@@ -94,6 +94,18 @@ export interface EvalOpts {
    * domain (& 0xff, byte identity with the JVM's signed-Byte Map keys).
    */
   inputExtensions?: ContextExtension[]
+  /**
+   * Last-block UTXO state-tree root, as an INDEPENDENT context field — mirrors
+   * JVM `ErgoLikeContext.lastBlockUtxoRoot`. F5 batch 2 (2026-06-08): the
+   * `SContext.lastBlockUtxoRootHash` handler (101:9) reads THIS field directly
+   * rather than deriving an AvlTree from `headers[0].stateRoot` (the sigma-rust
+   * quirk at `scontext.rs:83-99`). Absent ⇒ 101:9 throws
+   * `'context-field-missing'`. The walker supplies
+   * `{ digest: headers[0].stateRoot, treeFlags: 0b111, keyLength: 32,
+   * valueLengthOpt: null }`; the conformance dummy context supplies
+   * `AvlTreeData.dummy`.
+   */
+  lastBlockUtxoRootHash?: AvlTreeData
 }
 
 export interface EvalContext extends EvalOpts {
@@ -129,6 +141,7 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     dataInputs: opts.dataInputs,
     headers: opts.headers,
     inputExtensions: opts.inputExtensions,
+    lastBlockUtxoRootHash: opts.lastBlockUtxoRootHash,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {
