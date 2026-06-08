@@ -988,3 +988,29 @@ export type EvalErrorCode =
    *         eval/_check-type.ts.
    */
   | 'unsupported-value-type'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 3 — SelectField non-pair (1 new code; 81 → 82)
+  // -------------------------------------------------------------------------
+  /**
+   * `SelectField`: the input evaluated to a Tuple SValue whose arity is ≠ 2 (a
+   * non-pair, e.g. a 1-tuple `(5,)` or a 3-tuple). JVM `SelectField.eval`
+   * (transformers.scala:300-307) matches ONLY a runtime `Tuple2`; a non-pair
+   * tuple is a `Coll[Any]` at runtime and falls through to `Value.typeError`
+   * (line 306) → "Invalid type returned by evaluator". Cost
+   * (`SelectField.costKind = FixedCost(10)`, transformers.scala:314) is charged
+   * at line 299 — before the `Tuple2` match — so this is cost-then-throw.
+   *
+   * Distinct from `'select-field-input-not-tuple'` (non-Tuple input) and
+   * `'select-field-index-out-of-range'` (Tuple but field index OOB); this is
+   * the "Tuple but arity ≠ 2" case. Honest compiler-produced trees never select
+   * a field of a non-pair tuple; this is an adversarial over-accept (a 1-tuple
+   * CONSTANT reaches `evalSelectField` — the input parses as a Const, not a
+   * Tuple EXPR, so batch-1's `'tuple-invalid-arity'` does not fire, and the
+   * SelectField input is not a checkType seam so `'unsupported-value-type'`
+   * does not fire either).
+   *
+   * Source: JVM transformers.scala:297-308 (Value.typeError on non-Tuple2);
+   *         eval/select-field.ts.
+   */
+  | 'select-field-non-pair'
