@@ -374,6 +374,55 @@ function registerHandlers(): void {
     return { kind: 'GroupElement', value: obj.value.minerPk }
   } })
 
+  // SPreHeader.version (PropertyCall, typeId=105, methodId=1)
+  // Source (JVM canonical): methods.scala:1841 (SPreHeaderMethods) — all 7
+  // accessors FixedCost(JitCost(10)). Returns SByte. NO version gate (v1+).
+  // Pattern A cost 10 (charged before obj check). Sign-extends the u8 version
+  // to a signed i8 Byte, mirroring SHeader.version (sheader.ts:60).
+  HANDLERS.set(handlerKey(105, 1), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.version expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'Byte', value: (obj.value.version << 24) >> 24 }
+  } })
+
+  // SPreHeader.nBits (PropertyCall, typeId=105, methodId=4)
+  // Source (JVM canonical): methods.scala:1844 (SPreHeaderMethods) —
+  // FixedCost(JitCost(10)). Returns SLong. NO version gate (v1+).
+  // Pattern A cost 10 (charged before obj check). nBits is a u32 number; the
+  // accessor is typed SLong, so BigInt(nBits) — a POSITIVE Long up to 2^32-1
+  // (NOT a signed-i64 view like timestamp).
+  HANDLERS.set(handlerKey(105, 4), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.nBits expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'Long', value: BigInt(obj.value.nBits) }
+  } })
+
+  // SPreHeader.votes (PropertyCall, typeId=105, methodId=7)
+  // Source (JVM canonical): methods.scala:1847 (SPreHeaderMethods) —
+  // FixedCost(JitCost(10)). Returns Coll[Byte] (3 bytes). NO version gate (v1+).
+  // Pattern A cost 10 (charged before obj check). Wraps via bytesToCollByteSValue
+  // (per-byte sign-extend), same as SPreHeader.parentId (105:2).
+  HANDLERS.set(handlerKey(105, 7), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.votes expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return bytesToCollByteSValue(obj.value.votes)
+  } })
+
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
   // Source: ergotree-interpreter/src/eval/scoll.rs:21-50 — INDEX_OF_EVAL_FN
   // Cost (JVM indexOf_eval): per-comparison element eq cost during the scan +

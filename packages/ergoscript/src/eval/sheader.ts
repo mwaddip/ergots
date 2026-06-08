@@ -16,15 +16,13 @@
 import { EvalError } from './eval-context'
 import type { EvalContext } from './eval-context'
 import { bytesToCollByteSValue } from './_byte-coll'
+import { GROUP_GENERATOR_BYTES } from './_group-generator'
 import type { SValue } from '../mir/types'
 import type { Header } from '@ergots/scorex'
 import { verifyAutolykosV2, AutolykosV1NotSupportedError } from '@ergots/scorex'
 
 /** Pattern A cost charged by every SHeader accessor. Source: sheader.rs:16-113. */
 const ACCESSOR_COST = 10
-
-/** 33 zero bytes — sigma-rust EcPoint::default() (identity point) encoding. Source: ec_point.rs:127-137. */
-const IDENTITY_POINT_BYTES = new Uint8Array(33)
 
 /** Defensive receiver check shared by all 15 SHeader handlers. */
 function assertHeaderObj(
@@ -81,18 +79,31 @@ export function evalSHeaderAdProofsRoot(obj: SValue, _args: SValue[], ctx: EvalC
 }
 
 /**
- * SHeader.stateRoot (104:5) — 33-byte ADDigest as Coll[Byte].
- * Source: sheader.rs:40-44.
+ * SHeader.stateRoot (104:5) — 33-byte ADDigest as AvlTree.
+ * Source (JVM canonical): CHeader.scala:29
+ *   `stateRoot = CAvlTree(avlTreeFromDigest(stateRoot))`.
  *
- * Note: types/sheader.rs:127 declares return type as SAvlTree, but the evaluator
- * returns Coll[Byte] (Vec<i8> wrapped in a CollByte). This is an intentional
- * quirk in sigma-rust: the type-system layer declares SAvlTree for type inference,
- * while the evaluator returns the raw digest bytes.
+ * `avlTreeFromDigest` (core AvlTreeData.scala) builds an AvlTreeData with flags
+ * (insert, update, remove) = 0b111, keyLength = crypto.hashLength = 32, and
+ * valueLengthOpt = None; the digest is the verbatim 33-byte ADDigest. Identical
+ * shape to SContext.lastBlockUtxoRootHash (method-call.ts) and SAvlTree literals.
+ *
+ * ergots LEADS sigma-rust here: sigma-rust's evaluator returns the raw digest as
+ * Coll[Byte] (sheader.rs:40-44) even though types/sheader.rs:127 declares
+ * SAvlTree. The JVM is canonical. See facts/ergoscript-eval.md row 26.
  */
 export function evalSHeaderStateRoot(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'stateRoot')
-  return bytesToCollByteSValue(obj.value.stateRoot)
+  return {
+    kind: 'AvlTree',
+    value: {
+      digest: obj.value.stateRoot,
+      treeFlags: 0b00000111,
+      keyLength: 32,
+      valueLengthOpt: null,
+    },
+  }
 }
 
 /**
@@ -171,16 +182,21 @@ export function evalSHeaderMinerPk(obj: SValue, _args: SValue[], ctx: EvalContex
 
 /**
  * SHeader.powOnetimePk (104:12) — one-time PoW public key as GroupElement (33 bytes).
- * Source: sheader.rs:82-86.
+ * Source (JVM canonical): CHeader.scala:52 `powOnetimePk = CGroupElement(powSolution.w)`.
  *
- * Rust: `header.autolykos_solution.pow_onetime_pk.unwrap_or_default()`.
- * For V2 headers where our scorex `powOnetimePk === null`, we return 33 zero bytes,
- * which is sigma-rust's EcPoint::default() encoding (identity point per ec_point.rs:127-137).
+ * V1 headers carry a parsed `w` (returned verbatim). For Autolykos v2 our scorex
+ * sets `powOnetimePk === null`; the JVM returns the GENERATOR in that case
+ * (ErgoHeader.scala:57-58 `wForV2 = dlogGroup.generator`). ergots LEADS sigma-rust
+ * here: sigma-rust returns EcPoint::default() (identity, sheader.rs:82-86). The JVM
+ * is canonical. See facts/ergoscript-eval.md row 33.
+ *
+ * `.slice()` copies the module-level generator constant so callers can't mutate it
+ * (mirrors the GlobalVars.GroupGenerator arm at global-vars.ts).
  */
 export function evalSHeaderPowOnetimePk(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'powOnetimePk')
-  const pk = obj.value.autolykosSolution.powOnetimePk ?? IDENTITY_POINT_BYTES
+  const pk = obj.value.autolykosSolution.powOnetimePk ?? GROUP_GENERATOR_BYTES.slice()
   return { kind: 'GroupElement', value: pk }
 }
 
