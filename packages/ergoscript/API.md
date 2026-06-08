@@ -274,6 +274,7 @@ Internal modules (`wire/`, `mir/`) emit additional typed error classes (`ExprPar
 | `'body-size-overflow'` | Declared body size (from the `hasSize` field) exceeds remaining bytes |
 | `'too-many-constants'` | Segregated-constant count exceeds 4096 |
 | `'header-inconsistent'` | (reserved for future header-validation checks) |
+| `'header-version-requires-size'` | Tree header with version > 0 and the size bit (0x08) clear (rule-1012 `CheckHeaderSizeBit`; all 3 ingresses: main, substConstants template, box-carried script) |
 
 ### `ErgoTreeSerializeError` codes
 
@@ -369,11 +370,11 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 79 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 82 codes in facts/ergoscript-eval.md
 }
 ```
 
-All 79 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy (79 codes)". Notable codes:
+All 82 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|
@@ -388,6 +389,8 @@ All 79 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
 | `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |
 | `'unsupported-eval-node'` | Evaluating `TreeLookup` or `CreateAvlTree` — the JVM has no eval override for either node (both still parse); unconditional, nothing charged (F4 epilogue) |
+| `'unsupported-value-type'` | A value flowing through a checkType seam (Tuple item, ConcreteCollection item, BlockValue, ValUse, ConstantPlaceholder) has a declared non-pair `STuple` (arity≠2) or non-unary `SFunc` (arity≠1) type — JVM `SType.isValueOfType` sys.error (F5 batch 3; adversarial-only) |
+| `'select-field-non-pair'` | `SelectField` input is a Tuple of arity≠2 — JVM `SelectField.eval` matches only `Tuple2` (F5 batch 3; adversarial-only) |
 
 ---
 

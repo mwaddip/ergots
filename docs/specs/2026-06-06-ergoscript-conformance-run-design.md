@@ -388,7 +388,51 @@ in `validate-block.header.test.ts`, NOT batch-2 regression, dev-tooling only).
 row to flip green on dasher; (b) B/C ergots-leads routing notes → sigma-rust (stateRoot Coll[Byte];
 powOnetimePk identity). **Prediction: dasher 28→22** (the 6 rows flip; preHeader/stateRoot/powOnetimePk
 unconditionally, LastBlockUtxoRootHash only after the dasher-adapter ask lands; remaining 22 =
-getRegV5 taxonomy + 21 tx-tier).
+getRegV5 taxonomy + 21 tx-tier). **→ SANTA RE-GRADE CONFIRMED 2026-06-08: dasher 28→23** (5 flipped:
+3 preHeader + stateRoot + powOnetimePk; LastBlockUtxoRootHash stayed red pending the dasher-adapter
+ask, exactly as predicted; remaining eval reds = 2, both SANTA-side).
+
+### F5 batch 3 — checkType class + register/header ingress gates ✅ DONE 2026-06-08 (LOCAL, not pushed)
+
+Spec: `docs/specs/2026-06-08-ergoscript-f5-batch3-checktype-ingress-design.md`. Closes the 5 dasher
+over-accepts SANTA pinned with the batch-1 witnesses (dasher 23→28 when authored; fixes flip them back).
+7 commits `d5c8493`(facts) `2697adc`(T2 checkType) `c3c7d85`(T3 SelectField) `d9cb19e`(T5 rule-1019)
+`bfaea08`(T4 rule-1012) `4bca1f4`(T6 vendor). Subagent-driven TDD per task; reviews caught a real
+consensus item at T4 (see below).
+
+| W | fix | code | JVM source | layer |
+|---|---|---|---|---|
+| W1+W2 | checkType: reject non-pair STuple / non-unary SFunc declared type at value-flow seams | `'unsupported-value-type'` | SType.scala:200-205 | eval |
+| W3 | SelectField rejects non-pair (arity≠2) input | `'select-field-non-pair'` | transformers.scala:297-308 | eval |
+| W6 | rule-1012: version>0 requires size bit — ALL 3 ErgoTree ingresses | `'header-version-requires-size'` | ValidationRules.scala:138-151 | wire |
+| W7 | rule-1019 CheckV6Type: reject SOption/SHeader/UBI in box registers, recursive, ALL versions | `'register-v6-type'` | ValidationRules.scala:165-205 | wire |
+
+Codes: eval 80→82 (+2); wire +2 (no central union). **Ledger corrections from the investigation:**
+(1) rule-1019 is UNCONDITIONAL/all-versions (in both ruleSpecsV5+V6) — NOT v≥3 (that was the
+body-constant SOption gate); (2) W4 EQ-of-non-pair-tuples is NOT a cost pin (JVM arity-errors at
+Tuple.eval before EQ; ergots already errors via tuple-invalid-arity) — the ledger's "comparer scope"
+sub-item drops; (3) W5a/W5b substConstants already green both directions (batch-1 C1).
+
+**T4 review finding (fixed in-batch):** rule-1012 must gate the THIRD ErgoTree ingress
+`consumeTreeFromReader` (box-carried scripts), not just main + substConstants — the JVM's
+`deserializeHeaderAndSize` (CheckHeaderSizeBit) runs at every `deserializeErgoTree` call before the
+body try/catch (ErgoTreeSerializer.scala:144), so a v>0/no-size box-script throws uncaught (never
+the Unparsed fallback, which needs sizeOpt=Some). Left ungated it was an internal split matching
+neither reference. Also: T4 fixed 5 pre-existing test fixtures that encoded JVM-illegal v>0/no-size
+headers (relied on the missing gate). **T2 review finding (no fix, important):** the checkType seams
+call the partial `exprTpe`; the reviewer proved every input where it throws is reference-rejected too
+(sigma-rust bounds-checks at parse, JVM .tpe throws at construction) — a try/catch→skip "fix" would
+have introduced a real over-accept fork, so it was deliberately NOT added.
+
+Gate: ergoscript 4284 / avltree 156 / nipopow 247 / scorex 187, conformance 299→307 (+8: 5 red→green
++ W4/W5a/W5b green pins), full monorepo 5013 pass / 0 fail (1 pending), tsc ×4 clean. Walker h=2..10
+green in-suite. Codes 82.
+
+**Residuals (tracked, ask SANTA):** checkType FuncValue/Apply SFunc-arity arms + the If-branch/
+ByIndex-default checkType seams (no SFunc witness; pre-existing broader-class scope) · rule-1019
+context-extension leg (no extension wire-parser in ergots). **Convergence:** the witnesses also caught
+5 sigma-rust eni divergences (W1/W2 checkType, W5a, W6, W5b under-accept) — SANTA routing to sigma-rust;
+ergots LEADS on checkType/SelectField/rule-1012/rule-1019 (both libs diverged).
 
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
