@@ -151,23 +151,36 @@ describe('substituteConstantsBytes — version source is OUTER tree version, not
   // (hasSize, segregation) only; the DATA-layer version gate (SOption, SHeader)
   // must use the OUTER eval-ambient tree version — the `treeVersion` param.
   //
-  // Template shared structure (segregated, no size, 1 Option[Int] Some(5) constant):
-  //   header  : v3 = 0x13 (0x10 | 0x03, CONSTANT_SEGREGATION | version=3)
-  //           : v2 = 0x12 (0x10 | 0x02, CONSTANT_SEGREGATION | version=2)
+  // Template shared structure (segregated, SIZE BIT SET, 1 Option[Int] Some(5)
+  // constant). The size bit (0x08) is REQUIRED on any version>0 header — a
+  // version>0 / no-size header is JVM-invalid (rule-1012 CheckHeaderSizeBit,
+  // ValidationRules.scala:138-151, applied via deserializeHeaderWithTreeBytes →
+  // deserializeHeaderAndSize → ErgoTreeSerializer.scala:219, the SAME path
+  // substituteConstants takes). The earlier no-size headers (0x13 / 0x12) would
+  // be rejected at the template header read BEFORE the SOption gate could run,
+  // so they could not isolate the treeVersion axis. Rebuilt with size headers:
+  //   header  : v3 = 0x1b (0x10 | 0x08 | 0x03, CONSTANT_SEGREGATION | SIZE | version=3)
+  //           : v2 = 0x1a (0x10 | 0x08 | 0x02, CONSTANT_SEGREGATION | SIZE | version=2)
+  //   06      : declared body size = 6 (covers 01 28 01 0a de ad)
   //   01      : 1 constant
   //   28      : SOption[SInt] type code (OPTION_CONSTR_ID=3 * PRIM_RANGE=12 + SInt_primId=4 = 0x28)
   //   01 0a   : Some tag (0x01) + ZigZag(5) = 0x0a
   //   de ad   : arbitrary verbatim body bytes
+  //
+  // substituteConstantsBytes reads+discards the size slot, then parses the
+  // constants and copies the body verbatim — so the size bit does not change
+  // which axis these tests exercise (treeVersion-param vs template-header
+  // version for the SOption DATA gate); it only makes the template JVM-legal.
 
   // Template A: header claims v3; outer treeVersion = 2.
   // Bug (before fix): parseSValue uses template version (3) → gate passes → over-accept.
   // Correct:          parseSValue uses treeVersion param (2) → gate rejects → throws.
-  const TEMPLATE_V3_HEADER = new Uint8Array([0x13, 0x01, 0x28, 0x01, 0x0a, 0xde, 0xad])
+  const TEMPLATE_V3_HEADER = new Uint8Array([0x1b, 0x06, 0x01, 0x28, 0x01, 0x0a, 0xde, 0xad])
 
   // Template B: header claims v2; outer treeVersion = 3.
   // Bug (before fix): parseSValue uses template version (2) → gate rejects → false-throws.
   // Correct:          parseSValue uses treeVersion param (3) → gate passes → success.
-  const TEMPLATE_V2_HEADER = new Uint8Array([0x12, 0x01, 0x28, 0x01, 0x0a, 0xde, 0xad])
+  const TEMPLATE_V2_HEADER = new Uint8Array([0x1a, 0x06, 0x01, 0x28, 0x01, 0x0a, 0xde, 0xad])
 
   const SOPTION_SINT: SType = { tag: 'SOption', elem: { tag: 'SInt' } }
   const someInt5: import('../../src/mir/types').SValue = {
@@ -189,8 +202,11 @@ describe('substituteConstantsBytes — version source is OUTER tree version, not
       TEMPLATE_V2_HEADER, [0], [someInt5], SOPTION_SINT, 3
     )
     expect(numConstants).toBe(1)
-    // Output header keeps the v2 template header byte; body is the verbatim tail.
-    expect(bytes[0]).toBe(0x12)
+    // Output header keeps the v2+size template header byte; body is the verbatim
+    // tail. (treeVersion=3 && hasSize → the size slot is re-emitted after the
+    // header per ErgoTreeSerializer.scala:372-374, but the trailing body bytes
+    // are still copied verbatim.)
+    expect(bytes[0]).toBe(0x1a)
     expect(Array.from(bytes.slice(-2))).toEqual([0xde, 0xad])
   })
 })

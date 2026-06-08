@@ -12,9 +12,15 @@
  * the wire/sunsigned-bigint-codec.test.ts suite validates the codec
  * primitives in isolation).
  *
- * Wire format recap for an inline Const(SUnsignedBigInt):
- *   [header byte] [type-code 0x09] [VLQ length] [magnitude bytes, BE]
- *   - header 0x03 = version 3, no hasSize (bit 3), no segregation (bit 4)
+ * Wire format recap for an inline Const(SUnsignedBigInt) in a v6 tree:
+ *   [header byte] [VLQ body size] [type-code 0x09] [VLQ length] [magnitude bytes, BE]
+ *   - header 0x0b = version 3 WITH hasSize (bit 3) set, no segregation (bit 4).
+ *     The size bit is REQUIRED on a version>0 header — a v3 / no-size header is
+ *     JVM-invalid (rule-1012 CheckHeaderSizeBit, ValidationRules.scala:138-151,
+ *     enforced at ErgoTreeSerializer.scala:219 before the body is parsed). The
+ *     earlier 0x03 (no-size) header used here parsed only because ergots lacked
+ *     that gate; it does not occur on any real v6 tree.
+ *   - VLQ body size = byte length of (type-code + length + magnitude) = the body
  *   - type code 9 doubles as the Expr opcode (≤ LAST_CONSTANT_CODE=112)
  *   - length byte = number of magnitude bytes (0 for value 0)
  *
@@ -31,14 +37,18 @@ import type { ErgoTree, Expr } from '../../src/mir/types'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/** Build a minimal v6 ErgoTree (version=3) whose body is a single UBI Const. */
+/**
+ * Build a minimal v6 ErgoTree (version=3, hasSize) whose body is a single UBI
+ * Const. The size bit is mandatory for version>0 (rule-1012); a v3/no-size
+ * header is JVM-invalid and rejected at parse.
+ */
 function ubiConstTree(value: bigint): ErgoTree {
   return {
     header: {
       version: 3,
-      hasSize: false,
+      hasSize: true,
       constantSegregation: false,
-      rawHeader: 0x03,
+      rawHeader: 0x0b, // 0x08 (size) | 0x03 (version 3)
     },
     constantTypes: [],
     constants: [],
@@ -104,15 +114,18 @@ describe('SUnsignedBigInt constant — evaluate (v6 tree, version 3)', () => {
 
 describe('SUnsignedBigInt constant — parse/serialize round-trip', () => {
   /**
-   * Wire bytes for a v6 tree with a UBI Const body:
-   *   0x03              header (version=3, no hasSize, no segregation)
+   * Wire bytes for a v6 tree with a UBI Const body (size-bit header — required
+   * for version>0 per rule-1012):
+   *   0x0b              header (version=3, hasSize set, no segregation)
+   *   <VLQ body size>   byte length of the body region that follows
    *   0x09              type code 9 (SUnsignedBigInt) = Expr opcode
    *   <VLQ len>         number of magnitude bytes
    *   <magnitude bytes> unsigned BE
    */
 
-  it('round-trips value 5n: bytes [0x03, 0x09, 0x01, 0x05]', () => {
-    const bytes = new Uint8Array([0x03, 0x09, 0x01, 0x05])
+  it('round-trips value 5n: bytes [0x0b, 0x03, 0x09, 0x01, 0x05]', () => {
+    // body = 09 01 05 (3 bytes) → size VLQ = 0x03
+    const bytes = new Uint8Array([0x0b, 0x03, 0x09, 0x01, 0x05])
     const tree = parseTree(bytes)
     expect(tree.body).toEqual({
       tag: 'Const',
@@ -123,10 +136,11 @@ describe('SUnsignedBigInt constant — parse/serialize round-trip', () => {
     expect(Array.from(reserialised)).toEqual(Array.from(bytes))
   })
 
-  it('round-trips value 0n: bytes [0x03, 0x09, 0x00] (VLQ len 0, no value bytes)', () => {
-    // 0 → empty magnitude → length byte 0, no value bytes.
-    // This differs from SBigInt which emits [0x01, 0x00] (len 1, byte 0x00).
-    const bytes = new Uint8Array([0x03, 0x09, 0x00])
+  it('round-trips value 0n: bytes [0x0b, 0x02, 0x09, 0x00] (VLQ len 0, no value bytes)', () => {
+    // 0 → empty magnitude → length byte 0, no value bytes. body = 09 00 (2 bytes)
+    // → size VLQ = 0x02. This differs from SBigInt which emits [0x01, 0x00]
+    // (len 1, byte 0x00) for the value-0 magnitude.
+    const bytes = new Uint8Array([0x0b, 0x02, 0x09, 0x00])
     const tree = parseTree(bytes)
     expect(tree.body).toEqual({
       tag: 'Const',
@@ -137,9 +151,10 @@ describe('SUnsignedBigInt constant — parse/serialize round-trip', () => {
     expect(Array.from(reserialised)).toEqual(Array.from(bytes))
   })
 
-  it('round-trips value 128n: bytes [0x03, 0x09, 0x01, 0x80] (no sign-pad unlike SBigInt)', () => {
+  it('round-trips value 128n: bytes [0x0b, 0x03, 0x09, 0x01, 0x80] (no sign-pad unlike SBigInt)', () => {
     // SBigInt would need [0x02, 0x00, 0x80] for 128. UBI emits no sign byte.
-    const bytes = new Uint8Array([0x03, 0x09, 0x01, 0x80])
+    // body = 09 01 80 (3 bytes) → size VLQ = 0x03.
+    const bytes = new Uint8Array([0x0b, 0x03, 0x09, 0x01, 0x80])
     const tree = parseTree(bytes)
     expect(tree.body).toEqual({
       tag: 'Const',
@@ -155,11 +170,11 @@ describe('SUnsignedBigInt constant — parse/serialize round-trip', () => {
     // produces the expected encoding — proves serializeSType + serializeSValue.
     const tree = ubiConstTree(5n)
     const out = serializeTree(tree)
-    expect(Array.from(out)).toEqual([0x03, 0x09, 0x01, 0x05])
+    expect(Array.from(out)).toEqual([0x0b, 0x03, 0x09, 0x01, 0x05])
   })
 
   it('programmatic build + serialize matches expected bytes for 0n', () => {
     const out = serializeTree(ubiConstTree(0n))
-    expect(Array.from(out)).toEqual([0x03, 0x09, 0x00])
+    expect(Array.from(out)).toEqual([0x0b, 0x02, 0x09, 0x00])
   })
 })
