@@ -244,6 +244,114 @@ note's ask #2) · cross-kind EQ cost-matrix residual (RE-FILED 2026-06-07: uncon
   ordering from `CSigmaDslBuilder.scala` + `trees.scala`; (b) place the cap per the JVM;
   (c) get a SANTA vector for `atLeast(≤0, >255 children)` to pin the ordering. Adversarial-
   only (compilers never emit >255-prop atLeast), no honest/mainnet path.
+- **checkType class (F5 item, discovered by the batch-1 Task-2 quality review, 2026-06-08):** the
+  JVM runs `Value.checkType(value, evaluated)` after child eval at multiple arms
+  (`Tuple` values.scala:801,804 · `ConcreteCollection` :865 · `MethodCall` :962 · `BlockValue`
+  :998 · `FuncValue`/`Apply` :1045/:1051 · `ConstantPlaceholder.eval` :408-414) →
+  `isValueOfType` (`SType.scala:187-213`) which `sys.error`s for declared non-pair STuple
+  ("Unsupported tuple type", :200-202) and non-unary SFunc (:203-205) — wire-constructible
+  adversarial trees the JVM eval-rejects and ergots accepts. **Live witness (reviewer-run):**
+  `008602480101010101010402` (pair Tuple, item0 = inline constant of type (Bool,Bool,Bool)) —
+  JVM rejects at checkType, ergots accepts @ cost 25. Class fix = a shallow declared-tpe
+  conformance check after child eval (incl. the two sys.error arms), landed ONCE not per-arm;
+  needs a SANTA JVM-blessed vector for the witness + a ConstantPlaceholder-path twin
+  (segregated constant of tuple-N type). Until then the batch-1 Tuple arm documents the
+  residual (src/eval/tuple.ts header).
+  **Scope amendment (Task-3 review, 2026-06-08): the class is WIDER than checkType sites.**
+  `SelectField.eval` matches ONLY runtime `Tuple2` (transformers.scala:300-307 — the JVM
+  represents non-pair tuple values as `Coll[Any]`, Evaluation.scala:99-102; non-pair input →
+  `Value.typeError` eval-reject) with NO checkType involved. Live witness (reviewer-run):
+  `008c6001040a01` = SelectField(Const((Int,)[5]), 1) — JVM rejects; ergots evaluates Int 5
+  @ cost 15. Same family: EQ of two tuple-N constants — ergots fires the relation.ts 'Tuple'
+  arm (EQ_TUPLE shape, witnessed cost 17); the JVM comparer dispatches on the runtime Coll
+  representation (Coll cost shape; same boolean, divergent cost). The class fix must cover
+  BOTH mechanisms (checkType sites + runtime-representation dispatch sites), and the SANTA
+  vector set needs a SelectField(tuple-N-const, 1) witness + an EQ-of-tuple-N cost pin.
+- **Rule-1019 (CheckV6Type) register/extension ingress mirror (F5 item, Task-4 review, 2026-06-08):**
+  the JVM eagerly rejects Option/SHeader/SUnsignedBigInt-TYPED values in box REGISTERS
+  (`ErgoBoxCandidate.scala:232`, rule `ValidationRules.scala:165-194`, recursive through
+  Tuple/Coll) and context-extension vars (`ContextExtension.scala:60`) — unconditionally, any
+  version, even dead code. ergots `parseRegisterExprWithTag` (parse-svalue.ts:93-146) has no
+  equivalent → a v3 tree with Const(SBox) whose R4 is Option[Int] parses here, JVM rejects
+  (over-accept; pre-batch it existed at ALL versions — the SOption gate narrowed it to v≥3).
+  Scope: register ingress + extension ingress + the box-bytes eval arms' version threading
+  rider (extract-bytes/-with-no-ref/-id currently serialize at explicit 0 — fine while this
+  item is open, thread ctx.treeVersion when it lands).
+- **Rule-1012 (CheckHeaderSizeBit) gap (F5 item, Task-4 review, 2026-06-08):** ergots has NO
+  header-size-bit check anywhere — trees with version>0 and no size bit parse + evaluate;
+  the JVM rejects at `ErgoTreeSerializer.scala:219` (`ValidationRules.scala:138-151`).
+  Reachable via SubstConstants templates (JVM enforces 1012 on the template header inside
+  `deserializeHeaderAndSize`) and box-carried trees. Over-accept, adversarial-only.
+
+**F5 batch 1 — f4-divergences ✅ DONE (2026-06-07→08, 5 commits + amends):** SANTA focused prompt
+received (`~/projects/santa/prompts/ergots-f4-divergences.md`, re-grade off santa `a1e0876`): the
+F4 round is GREEN on dasher (updateDigest / keyLength / TreeLookup / CreateAvlTree all confirmed;
+**valueLengthOpt wrapped-negative now BLESSED** at `Some(-2147483647)` cost 20 — the epilogue
+Task-4 unblessed leg closes). 3 fix targets remain; all three mechanisms JVM-source-confirmed
+same day:
+
+1. **Tuple non-pair = eval-layer reject, Tuple EXPR node ONLY** (`values.scala:795-798`):
+   `items.length != 2` → `syntax.error("Invalid tuple …")` BEFORE any item eval and BEFORE cost
+   (JVM charges Fixed(15) AFTER both items, `values.scala:806` — opposite of sigma-rust/ergots).
+   Parse layer: `TupleSerializer.parse` has NO arity gate (`mkTuple` bare, `tpe` lazy) but reads
+   the count via SIGNED `getByte()` → accepts arity 0..127, ≥128 = negative →
+   `NegativeArraySizeException` at parse (dead-branch-observable both ways). Constants EXEMPT:
+   `CoreDataSerializer:134-139` no arity/version gate; `toDslTuple` (`Evaluation.scala:99-102`)
+   returns non-pairs as `Coll[Any]` without throwing; `Constant.eval` bypasses `Tuple.eval` —
+   arity-N tuple constants parse AND evaluate on the JVM (iter-18 seam intuition confirmed).
+   Type layer asymmetric: generic-tuple TYPE parse = `getUByte` + bare `STuple(items)` (no
+   require → arity-0/1 types PARSE); serialize rejects <2 (`TypeSerializer:93-94`).
+
+   | # | Site | ergots today | JVM | Class |
+   |---|---|---|---|---|
+   | T1 | `eval/tuple.ts` | evaluates any arity | ≠2 → throw before items+cost | **over-accept — the vector** |
+   | T2 | `wire/mir/tuple.ts` | parse rejects <2, accepts ≤255 | parse accepts 0..127, rejects ≥128 | over-reject (0/1) AND over-accept (128..255) |
+   | T3 | `parse-stype.ts:230` | generic-tuple type gated [2,255] | accepts 0..255 | over-reject (0/1) on constant types |
+   | T4 | `eval/tuple.ts` cost order | Fixed(15) before items (sigma-rust) | after items | consensus-unobservable (monotonic running sums, same total) |
+
+   T2 also forces the EXPR serializer's lower gate out (JVM `TupleSerializer.serialize` =
+   `putUByte`, no arity gate) else post-fix parse output can't round-trip.
+
+2. **Option pre-v3 DATA gate = deserialize-time, constants only, recursive**
+   (`CoreDataSerializer.deserialize:140` `case SOption if isV3OrLaterErgoTreeVersion` → pre-v3
+   falls through to `CheckSerializableTypeCode` + `SerializerException`; serialize side mirrored
+   at `:78`). ergots `parseSValue` ALREADY threads `treeVersion` and `parse-svalue.ts:537` (the
+   SHeader v3 gate) is the exact precedent — one-arm addition at the JVM-faithful layer, no
+   pre-eval pass needed.
+
+3. **Option tag: JVM `getOption` = ANY nonzero → Some.** All four wire contexts swept:
+   `parse-svalue.ts:327-340` Option DATA arm `==1`→Some-else-None — **FIX** (the dasher "panic"
+   on tag-02 is byte-desync: None leaves the cursor on the payload byte, body parse chokes);
+   `wire/mir/deserialize-register.ts:74-83` default-Expr tag ≥2 → `'invalid-option-tag'` throw —
+   **FIX** to Some(parseExpr) per `DeserializeRegisterSerializer.scala:30` (code retires, sole
+   site; covers SANTA's deferred Ask-2b at the same root); `coll-by-index.ts` default `!==0` ✓
+   already faithful per `ByIndexSerializer.scala:34` (pin it); `parse-svalue.ts:522` AvlTree
+   `valueLengthOpt` `!==0` ✓ already faithful per `AvlTreeData.scala:85`.
+
+   **Decisions (user, 2026-06-07):** new EvalError code `'tuple-invalid-arity'` for T1 (79→80;
+   the node IS supported at arity 2 — reusing `'unsupported-eval-node'` would be dishonest); T4
+   **FLIP to JVM order** (one line, same task as T1, ends the divergence instead of documenting
+   it; the old "envelope-charged-before-child-throw" comment semantics flip with it); process
+   weight = ledger amendment + plan, NO mini-spec (root causes fully nailed, no unknowns left).
+   Task decomposition: **A** tuple family T1–T4 · **B** Option pre-v3 gate · **C** Option tag
+   semantics (2 fixes + 1 pin) · **D** vendor the 3 new vectors + valueLengthOpt bless +
+   conformance registration. Subagent-driven TDD chain per task (implementer → spec review →
+   quality review, F4 cadence).
+
+   **Outcome (2026-06-08):** all 3 dasher fix targets CLOSED + the adversarial corners landed:
+   commits `7a1f9ce`(contract+3 green pins) `5789c06`(tuple eval T1+T4) `c479462`(tuple wire
+   window T2+T3) `8f8f9c8`(SOption pre-v3 gate + treeVersion threading class-fix ~50 fns +
+   substConstants version-source C1 + harness parse-error classification) `f2d2897`(Option tag
+   getOption semantics, 'invalid-option-tag' retired, mutation recalibrations). 6 SANTA vectors
+   vendored (3 green pins + 3 red→green). Codes: eval 79→80 (+'tuple-invalid-arity'); wire
+   −'invalid-option-tag' −'invalid-tuple-length' +'soption-tree-version-too-low' (parse+serialize).
+   Gate: avltree 156 / ergoscript 4203 / nipopow 247 / scorex 187, tsc ×4 clean. Reviews caught
+   consensus items at EVERY task (checkType-class discovery + SelectField scope amendment;
+   substConstants C1 fork; rule-1019 + rule-1012 gaps; threading class-incompleteness; mutation
+   recalibration mechanism) — all fixed in-batch or tracked as the new F5 items above. NEW F5
+   members from this batch: checkType class (+SelectField/comparer scope) · rule-1019 ingress
+   mirror · rule-1012 size-bit gate. SANTA asks 1-7 staged in prompts/f4-santa-asks.md (epilogue
+   asks struck as resolved).
 
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
