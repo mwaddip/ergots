@@ -1,0 +1,26 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "EQ.non_pair_tuple_operand",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-checktype",
+  "entries" : [
+    {
+      "name" : "eq-non-pair-tuple-errored#0",
+      "script" : "{ EQ((1,2,3), (1,2,3)) — non-pair tuple operands }  // JVM: Invalid tuple — Tuple.eval rejects arity!=2 before EQ compares (ergots over-accepts → true @ 17)",
+      "tree_bytes_hex" : "10060402040404060402040404069386037300730173028603730373047305",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "substConstants:version_source_outer_v3",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ingress-rules",
+  "entries" : [
+    {
+      "name" : "subst-outer-v3-option-const-accept#0",
+      "script" : "{ substConstants(template@v2 with Option const, …) } in an OUTER v3 tree  // JVM: SUCCESS — substituted template bytes as Coll[Byte] (8 bytes), cost 222",
+      "tree_bytes_hex" : "1b15020e081a060128010a730010007473007301830028",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 26
+            },
+            {
+              "kind" : "Byte",
+              "value" : 6
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 40
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 10
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 222,
+        "error" : null
+      }
+    }
+  ]
+}

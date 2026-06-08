@@ -125,6 +125,12 @@ const VECTOR_FILES = [
   // generator are the T2 flips; timestamp gt-2^53/u64-max exercise the F2
   // signed-Long view. Bound SHeader input via the v2 envelope.
   'Header.property_accessors.json',
+  // F5 batch 3 — wire-layer rejects (parse-time) + the already-green substConstants pin.
+  // Rule1012_header_size_bit (W6 → 'header-version-requires-size'), Rule1019_check_v6_type
+  // (W7 → 'register-v6-type'), substConstants_version_source_outer_v3 (W5b — SUCCESS @222, batch-1 C1).
+  'Rule1012_header_size_bit.json',
+  'Rule1019_check_v6_type.json',
+  'substConstants_version_source_outer_v3.json',
 ]
 
 for (const file of VECTOR_FILES) {

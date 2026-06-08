@@ -108,6 +108,15 @@ const VECTOR_FILES = [
   // LastBlockUtxoRootHash=AvlTree.dummy, minerPubKey=generator).
   'Context.preHeader_accessors.json',
   'Context.properties.json',
+  // F5 batch 3 — checkType class + SelectField non-pair (eval rejects) + the
+  // already-green pins. Tuple.checkType_unsupported (W1 inline + W2 placeholder →
+  // 'unsupported-value-type'), SelectField.non_pair (W3 → 'select-field-non-pair'),
+  // EQ.non_pair_tuple_operand (W4 — already errored via tuple-invalid-arity, NOT a
+  // cost pin), substConstants_version_source_outer_v2 (W5a — errored, batch-1 C1).
+  'Tuple.checkType_unsupported.json',
+  'SelectField.non_pair.json',
+  'EQ.non_pair_tuple_operand.json',
+  'substConstants_version_source_outer_v2.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the
