@@ -552,15 +552,27 @@ describe('SValue serialize: type-mismatch detection', () => {
 })
 
 describe('SValue SOption tag semantics', () => {
-  it('SOption: tag byte ≠ {0,1} is treated as None (matches sigma-rust)', () => {
-    // [0x02, 0x42] — bogus tag, plus a junk byte that should NOT be consumed.
-    // sigma-rust's `get_option` reads only the tag byte and returns None for
-    // anything other than `1`; the cursor must stop at +1, leaving the 0x42
-    // for the next read. Option DATA requires tree-version >= 3 (V3 gate).
+  it('SOption: tag byte 0x02 is Some (JVM getOption: any nonzero = Some)', () => {
+    // [0x02, 0x42] — noncanonical Some tag, followed by ZigZag VLQ payload.
+    // scorex-util VLQReader.getOption: ANY nonzero tag → Some, payload follows.
+    // The previous sigma-rust-mirroring behavior (only exact 1 = Some) was a
+    // fork retired in F5 batch 1 (2026-06-08). Option DATA requires v3 gate.
+    //
+    // 0x42 = ZigZag(33) in SInt VLQ: decode_zigzag(0x42) = (0x42 >>> 1) ^ 0 = 33.
+    // Both bytes are consumed (tag + payload).
     const r = new ByteReader(new Uint8Array([0x02, 0x42]))
     const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, 3, r)
+    expect(result).toEqual({ kind: 'Option', elem: { tag: 'SInt' }, value: { kind: 'Int', value: 33 } })
+    // Both bytes consumed — cursor is at end.
+    expect(r.remaining).toBe(0)
+  })
+
+  it('SOption: tag byte 0x00 is None (zero = None in both JVM and sigma-rust)', () => {
+    // Zero tag always means None in both implementations.
+    const r = new ByteReader(new Uint8Array([0x00, 0x42]))
+    const result = parseSValue({ tag: 'SOption', elem: { tag: 'SInt' } }, 3, r)
     expect(result).toEqual({ kind: 'Option', elem: { tag: 'SInt' }, value: null })
-    // The 0x42 byte should NOT have been consumed — cursor stops after tag.
+    // Only the tag byte consumed; 0x42 remains.
     expect(r.remaining).toBe(1)
   })
 })

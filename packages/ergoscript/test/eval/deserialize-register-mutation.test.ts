@@ -60,19 +60,25 @@
  *   in tree at offsets 5-6. Register absent (registers={}). Tree
  *   mutations at offset 2 (reg byte 0x05 XOR 0x01 → 0x04): both R4 and
  *   R5 are absent in registers={}, so the substitution path returns
- *   `default` Expr in both cases → value-equivalent `Int 1`. 1 of 18 tree
- *   mutations survives via reg-absent equivalence. 17/18 = 0.944 → passes
- *   0.90 per-entry without exemption.
+ *   `default` Expr in both cases → value-equivalent `Int 1`. 1 survivor
+ *   via reg-absent equivalence. Offset 4 (default-tag 0x01) XOR 0xff/0x80
+ *   produce nonzero tags → Some → parse same default Expr → value-equivalent
+ *   (JVM getOption semantics); these 2 are consensus-dead and excluded from
+ *   the denominator (see SOME_DEFAULT_TAG_OFFSET below). XOR 0x01 at offset 4
+ *   flips 0x01→0x00 (Some→None) — value-changing, counted + must kill.
+ *   Effective surface: 16 mutations; 1 survivor (reg-absent). 15/16 = 0.9375
+ *   → passes 0.90 per-entry without exemption.
  *
  * **`dr_default_used_when_register_absent`** — default Expr `94 a3 04 00`
  *   = NEq(Height, Const(SInt, 0)) embedded in tree at offsets 5-8.
  *   Register absent, default returns `Boolean true` (Height=999999 ≠ 0).
- *   Three tree mutations survive: offset 2 (reg R5→R4, both absent →
- *   same default returned), offset 7 (default-expr Const-SInt opcode
- *   0x04→0x05 Const(SLong, 0) — still ≠ Height), offset 8 (VLQ 0x00→0x01
- *   = ZigZag(−1), Height ≠ −1 → still true). 21/24 = 0.875 — exempted
- *   from per-entry threshold (reg-absent + Height-NEq mathematical
- *   equivalence classes).
+ *   Three tree mutations survive: offset 2 (reg R5→R4, both absent),
+ *   offset 7 (SLong 0 still ≠ Height), offset 8 (ZigZag(−1) still ≠
+ *   Height). Offset 4 XOR 0xff/0x80 are excluded from the denominator
+ *   (consensus-dead, see SOME_DEFAULT_TAG_OFFSET). Effective surface: 22
+ *   mutations; 3 survivors (reg-absent + Height-NEq). 19/22 = 0.864 —
+ *   exempted from per-entry threshold (reg-absent + Height-NEq equivalence
+ *   classes).
  *
  * **`dr_throw_register_wrong_type`** — register holds Const(SInt, 1) (a
  *   single SValue, not a Coll[Byte]). The fixture's `value` field is
@@ -110,14 +116,18 @@
  *   isKillStrict's same-code rule. Exempted from per-entry threshold.
  *
  * **`dr_throw_default_wrong_type`** — default Expr `01 01` inline at tree
- *   offsets 5..6. Default-tag 0x01 + opcode 0x01 (OpTrue, a single-byte
- *   SBoolean Const-like). The wrong-type assertion is SBoolean ≠ SInt
+ *   offsets 5..6. Default-tag 0x01 + byte 6 is the boolean VALUE byte of
+ *   `Const(SBoolean, true)` (byte 5 = SBoolean TYPE code 0x01). The
+ *   wrong-type assertion is SBoolean ≠ SInt
  *   (declared tpe = SInt at offset 3). Most tree mutations preserve
  *   `'deserialize-tpe-mismatch'` (any default-Expr parse that yields ≠
  *   SInt produces the same code under isKillStrict's same-code rule).
  *   Several mutations survive: e.g. XOR 0x01 at offset 6 flips opcode
- *   0x01 (OpTrue) → 0x00, which is OpFalse (still SBoolean, same
- *   mismatch) → not a kill. Exempted from per-entry threshold.
+ *   0x01 (OpTrue) → 0x00, which is OpFalse (still SBoolean, same mismatch).
+ *   Offset 4 XOR 0xff/0x80 are excluded from the denominator (consensus-dead,
+ *   see SOME_DEFAULT_TAG_OFFSET). XOR 0x01 at offset 4 (Some→None) is
+ *   value-changing → counted + kills. Exempted from per-entry threshold
+ *   (same-code tpe-mismatch equivalence class).
  *
  * Kill rule: `isKillStrict` everywhere (matches DC mutation test). Under
  * `isKillStrict` both-threw mutations are kills iff error codes differ;
@@ -130,32 +140,31 @@
  *
  * ── Aggregate threshold rationale (sub-90% escalation) ───────────────────
  *
- * Empirical aggregate: 127/147 = 0.864. The DR fixture set is dominated
- * by small-payload entries (5-9 tree bytes; 2-4 inner bytes); the
- * combined mutation surface produces 147 mutations, of which 20 land in
- * legitimate equivalence classes:
+ * Empirical aggregate: 121/141 = 0.858 (6 consensus-dead JVM getOption
+ * nonzero-tag mutations excluded from denominator; see SOME_DEFAULT_TAG_OFFSET).
+ * The DR fixture set is dominated by small-payload entries (5-9 tree bytes;
+ * 2-4 inner bytes); the effective mutation surface (141 after exclusions) has
+ * 20 survivors in legitimate equivalence classes:
  *
  *   - 5 reg-absent equivalences (R0..R9 absent → same default path)
  *   - 4 Height-NEq mathematical equivalences (Height=999999 dominates
  *     small Const-SInt values; NEq returns `true` regardless of small
  *     payload mutations)
  *   - 11 same-code throw equivalences (parse-failed bytes still produce
- *     parse-failed; tpe-mismatch bytes still produce tpe-mismatch)
+ *     parse-failed; tpe-mismatch bytes still produce tpe-mismatch; subset
+ *     of the full class — others are kills under isKillStrict's code-diff rule)
  *
- * Each of these mirrors sigma-rust's behaviour byte-for-byte; there is
- * no behavioural drift to catch. The DC mutation test reaches 0.925
- * aggregate only because of the 32-byte inline SigmaProp fixture
- * (`dc_const_sigmaprop_inner` contributes 114/114 kills); the DR fixture
- * set has no comparable large-payload entry to dilute the small-fixture
- * equivalence classes.
+ * Each of these mirrors JVM behaviour correctly; there is no behavioural
+ * drift to catch. The DC mutation test reaches 0.925 aggregate only because
+ * of the 32-byte inline SigmaProp fixture (`dc_const_sigmaprop_inner`
+ * contributes 114/114 kills); the DR fixture set has no comparable
+ * large-payload entry to dilute the small-fixture equivalence classes.
  *
  * Per OVERRIDES rule #2 ("Don't ship sub-90% kill rates without
- * investigation + documented rationale"): the 0.864 aggregate is the
- * structural ceiling for this fixture composition; pushing higher would
- * require adding fixtures with larger byte payloads (out of scope for
- * T12). The 0.85 aggregate threshold is the load-bearing safety net
- * against regressions; per-entry exemptions are the equivalence-class
- * filter for individual fixtures.
+ * investigation + documented rationale"): the structural ceiling for this
+ * fixture composition is ~0.86 after correct exclusions; the 0.85 aggregate
+ * threshold is the load-bearing safety net against regressions; per-entry
+ * exemptions are the equivalence-class filter.
  *
  * Source: ergotree-ir/src/mir/expr.rs:466-491 (DR branch of
  *           substitute_deserialize)
@@ -204,6 +213,36 @@ const fixture = JSON.parse(readFileSync(fixturePath, 'utf-8')) as FixtureFile
  * (version bits + reserved bits) — see top-of-file note for the rationale.
  */
 const TREE_EXCLUDED_OFFSETS: ReadonlySet<number> = new Set<number>([0])
+
+/**
+ * The Option<Box<Expr>> tag byte sits at wire offset 4 in every
+ * DeserializeRegister tree:
+ *   [0] header  [1] 0xd5  [2] reg  [3] SType  [4] tag  [5..] inline Expr
+ *
+ * For the three Some-defaulted fixtures (dr_r5_default_int,
+ * dr_default_used_when_register_absent, dr_throw_default_wrong_type) this
+ * byte holds 0x01. Under JVM getOption semantics ANY nonzero tag = Some, so
+ * XOR 0xff (0x01→0xfe) and XOR 0x80 (0x01→0x81) produce nonzero→nonzero
+ * flips: the parser reads the same inline Expr → same MIR → same canonical
+ * bytes. These are consensus-dead mutations; excluded from the denominator.
+ * XOR 0x01 (0x01→0x00, Some→None) changes the value and must still count.
+ *
+ * Exclusion mechanism: SOME_DEFAULT_FIXTURES entries pass an extended
+ * excludedOffsets set (TREE_EXCLUDED_OFFSETS ∪ {4}) to runMutationLoop, then
+ * manually test the single value-changing mutation (offset 4, XOR 0x01).
+ * Same recalibration mechanism as the F4 decodePoint identity-bytes exclusion
+ * in multiply-group-mutation.test.ts.
+ */
+const SOME_DEFAULT_TAG_OFFSET = 4
+const SOME_DEFAULT_FIXTURES: ReadonlySet<string> = new Set<string>([
+  'dr_r5_default_int',
+  'dr_default_used_when_register_absent',
+  'dr_throw_default_wrong_type',
+])
+const TREE_EXCLUDED_OFFSETS_WITH_TAG: ReadonlySet<number> = new Set<number>([
+  0,
+  SOME_DEFAULT_TAG_OFFSET,
+])
 
 /**
  * Entries whose `selfBox.registers["4"]` carries no Coll[Byte] items
@@ -333,18 +372,48 @@ describe('DeserializeRegister mutation testing (Layer C3.a)', () => {
       // surface as errorCode=undefined under evalSafely), shift the
       // substitution outcome to a different EvalError code, or change a
       // success value.
-      const treeResult = runMutationLoop({
+      //
+      // For Some-defaulted fixtures, the tag byte (offset 4) has 2 of 3 XOR
+      // patterns that are consensus-dead (nonzero→nonzero tag → same Expr →
+      // same value; JVM getOption). Those 2 are excluded from the denominator
+      // via TREE_EXCLUDED_OFFSETS_WITH_TAG; the one value-changing mutation
+      // (XOR 0x01 → 0x00, Some→None) is added back manually below.
+      // See SOME_DEFAULT_TAG_OFFSET note above for full rationale.
+      const isSomeDefault = SOME_DEFAULT_FIXTURES.has(entry.name)
+      const treeLoopResult = runMutationLoop({
         treeBytes,
         region: { start: 0, end: treeBytes.length },
         optsJson: entry.opts_json,
         isKill: isKillStrict,
-        excludedOffsets: TREE_EXCLUDED_OFFSETS,
+        excludedOffsets: isSomeDefault
+          ? TREE_EXCLUDED_OFFSETS_WITH_TAG
+          : TREE_EXCLUDED_OFFSETS,
       })
+      let treeKilled = treeLoopResult.killed
+      let treeTotal = treeLoopResult.total
+      if (isSomeDefault) {
+        // Consensus-dead mutation class (JVM getOption: ANY nonzero tag = Some →
+        // a nonzero→nonzero tag flip parses the identical Expr/MIR/canonical bytes;
+        // DeserializeRegisterSerializer.scala:30). Excluded from the denominator —
+        // same recalibration mechanism as the F4 decodePoint identity-bytes
+        // exclusion (multiply-group-mutation.test.ts). nonzero→ZERO flips still
+        // count (Some→None is value-changing) and must kill.
+        const tagMutated = new Uint8Array(treeBytes)
+        tagMutated[SOME_DEFAULT_TAG_OFFSET] = (treeBytes[SOME_DEFAULT_TAG_OFFSET]! ^ 0x01) & 0xff
+        const tagOutcome = evalSafely(tagMutated, entry.opts_json)
+        treeTotal += 1
+        if (isKillStrict(baseline, tagOutcome)) treeKilled += 1
+        // Direct kill assertion: Some→None (offset 4, XOR 0x01) MUST kill
+        // regardless of per-entry threshold exemptions. Pin it explicitly so
+        // the "value-changing mutation kills" claim is test-enforced, not
+        // only captured in the aggregate rate.
+        expect(isKillStrict(baseline, tagOutcome)).toBe(true)
+      }
       // eslint-disable-next-line no-console
       console.log(
-        `[mutation] deserialize_register.${entry.name}#tree: killed=${treeResult.killed} ` +
-          `total=${treeResult.total} rate=${treeResult.rate.toFixed(3)} ` +
-          `inputLen=${treeBytes.length} excludedOffsets=[0]`,
+        `[mutation] deserialize_register.${entry.name}#tree: killed=${treeKilled} ` +
+          `total=${treeTotal} rate=${(treeTotal === 0 ? 1 : treeKilled / treeTotal).toFixed(3)} ` +
+          `inputLen=${treeBytes.length} excludedOffsets=${isSomeDefault ? '[0,4]' : '[0]'}`,
       )
 
       // ── Region 2: inner Expr bytes inside selfBox.registers["4"] ───────
@@ -362,8 +431,8 @@ describe('DeserializeRegister mutation testing (Layer C3.a)', () => {
           `inputLen=${innerResult.inputLen}`,
       )
 
-      const entryKilled = treeResult.killed + innerResult.killed
-      const entryTotal = treeResult.total + innerResult.total
+      const entryKilled = treeKilled + innerResult.killed
+      const entryTotal = treeTotal + innerResult.total
       const entryRate = entryTotal === 0 ? 1 : entryKilled / entryTotal
       // eslint-disable-next-line no-console
       console.log(
@@ -383,10 +452,10 @@ describe('DeserializeRegister mutation testing (Layer C3.a)', () => {
   // Aggregate threshold lowered from DEFAULT_KILL_THRESHOLD (0.90) to 0.85
   // per OVERRIDES rule #2 with documented rationale. See top-of-file
   // preamble "Aggregate threshold rationale" — the DR fixture set's
-  // composition has a structural ceiling at ~0.864 driven by small-payload
-  // equivalence classes (reg-absent, Height-NEq mathematical equivalence,
-  // same-code throws). Each survived mutation mirrors sigma-rust byte-for-
-  // byte; no behavioural drift to catch.
+  // composition has a structural ceiling at ~0.86 (after consensus-dead
+  // JVM getOption tag-byte mutations are excluded from the denominator).
+  // Surviving equivalence classes: reg-absent, Height-NEq, same-code throws.
+  // Each reflects correct JVM behaviour; no drift to catch.
   const AGGREGATE_KILL_THRESHOLD = 0.85
   it(`DeserializeRegister: aggregate kill rate >=${(AGGREGATE_KILL_THRESHOLD * 100).toFixed(0)}%`, () => {
     const rate = aggTotal === 0 ? 1 : aggKilled / aggTotal

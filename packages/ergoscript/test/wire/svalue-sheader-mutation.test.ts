@@ -17,8 +17,8 @@
  * Only the following byte classes detect mutations reliably:
  *   A. ErgoTree envelope bytes: header byte (1), VLQ size (1–5), constant-count VLQ (1)
  *   B. Constant type bytes: SType encoding of SHeader / SOption[SHeader] / SColl[SHeader]
- *   C. SOption.None tag byte (0x00): only the bit-0 flip (0→1) is caught;
- *      other flips produce non-1 values still parsed as None → 7/8 tolerated
+ *   C. SOption.None tag byte (0x00): ALL 8 bit-flips produce nonzero → Some
+ *      (JVM getOption: any nonzero = Some) → parse Header → reject/diverge → killed
  *   D. ConstantPlaceholder opcode (0x73) and id VLQ (0x00 for the first constant)
  *
  * This test enforces ≥ 90% kill rate on the **structural bytes** (class A+B+D
@@ -142,20 +142,20 @@ function structuralOffsets(bytes: Uint8Array): number[] {
 /**
  * Per-fixture thresholds.
  *
- * Most fixtures target ≥ 90%. The `option-none` fixture has an inherent
- * ceiling of ~89.1% because the SOption.None encoding accepts ANY non-1
- * byte as None (sigma-rust `get_option` contract). The `0x00` None-tag byte
- * has 7 of 8 bit-flips produce still-valid-None bytes — those 7 mutations
- * are semantically tolerated by design. We lower the threshold to 87.5%
- * (≤ 7/8 tolerance on the tag byte) and document the reason inline.
+ * All fixtures target ≥ 90%. The `option-none` fixture previously had a
+ * ceiling of ~89.1% (87.5% threshold) under sigma-rust `get_option` semantics,
+ * where the `0x00` None-tag byte had 7 of 8 bit-flips produce still-valid-None
+ * bytes. Under JVM getOption semantics (F5 batch 1, 2026-06-08) ANY nonzero tag
+ * → Some → parse Header attempt from following bytes → parse error or roundtrip
+ * divergence → KILLED. All 7 previously-surviving tag-byte mutations are now
+ * killed, so option-none meets ≥ 90% alongside the rest.
  */
 const FIXTURE_THRESHOLDS: Record<string, number> = {
   'sheader-constants-v3-single-header': 0.9,
   'sheader-constants-v3-single-v1-header': 0.9,
   'sheader-constants-v3-coll-of-headers': 0.9,
   'sheader-constants-v3-option-some': 0.9,
-  // option-none: None-tag byte admits 7/8 bit-flip tolerance (any non-1 byte = None).
-  'sheader-constants-v3-option-none': 0.875,
+  'sheader-constants-v3-option-none': 0.9,
 }
 
 const FIXTURES = [
@@ -216,7 +216,9 @@ describe('SHeader-constant wire mutation testing (full fixture, informational)',
    *   single-v1-header:  ~3.6% (73/2048) — tolerated: header payload bytes
    *   coll-of-headers:   ~2.1% (113/5504) — tolerated: 3× header payloads
    *   option-some:       ~4.6% (82/1792) — tolerated: header payload bytes
-   *   option-none:       ~89.1% (57/64)  — close to 90%; 7 mutations on None tag tolerated
+   *   option-none:       ~89.1% (57/64) pre-F5; now ~92.2% (59/64) — all 8 tag-byte (offset 5)
+   *                      mutations killed; 5 survivors: None-of-mutated-inner-type round-trips,
+   *                      a version-bits flip, and a placeholder-opcode bit flip
    */
   test.each(FIXTURES)(
     '%s baseline round-trip passes (full-fixture kill rate logged, not asserted)',

@@ -233,6 +233,13 @@ export class ByteReader {
     throw new ReaderError(`readBool: expected 0 or 1, got ${b}`, 'truncated');
   }
 
+  /**
+   * ⚠ Sigma-rust-strict Option tag (1 = Some, else None). ZERO callers as of
+   * F5 batch 1 (2026-06-08) — @ergots/ergoscript reads Option tags inline
+   * with JVM getOption semantics (ANY nonzero = Some). If you are about to
+   * call this, you almost certainly want the JVM semantics instead; see
+   * ergoscript wire/parse-svalue.ts SOption arm.
+   */
   readOption<T>(reader: (r: ByteReader) => T): T | null {
     const tag = this.readU8();
     if (tag === 0) return null;

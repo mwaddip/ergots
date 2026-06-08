@@ -531,9 +531,15 @@ function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
     // Constant Expr: lead byte IS the SType lead byte. Recover (tpe, value) from
     // the wire to charge the data-form cost (putType + DataSerializer).
     const tpe = parseSTypeWithFirstByte(lead, r)
-    const value = parseSValue(tpe, 0, r) // treeVersion irrelevant: register data is
-    // concrete; SHeader-in-register (the only version-gated kind) is not a register
-    // value shape (registers are Const/Tuple of data types).
+    const value = parseSValue(tpe, 0, r)
+    // treeVersion at the register-data walk: TWO version-gated DATA kinds exist
+    // (SHeader since 2h-c.1, SOption since F5 batch 1). Neither can legally
+    // ENTER a register on the JVM (rule 1019 CheckV6Type rejects Option/Header/
+    // UBI-typed register values at box ingress — ergots' 1019 mirror is a
+    // tracked F5 item); until that mirror lands, an Option-carrying register
+    // walked here would throw SValueParseError from the v0 re-parse — outside
+    // the EvalError envelope (global-serialize.ts wraps only its own try block).
+    // See the rule-1019 ledger item.
     ctx.addCost(putTypeCost(tpe)) // putType(tpe)
     serializeCost(tpe, value, ctx) // DataSerializer.serialize(value)
     return

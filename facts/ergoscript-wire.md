@@ -165,11 +165,22 @@ serializeTree(parseTree(b)) === b   (byte-equal)
 
 This holds for every ErgoTree variant we ship. The phase 2a corpus test asserts this on 255 passing fixtures plus 1 mainnet-fixture stub plus 6 upstream-buggy fixtures (the 6 are excluded from byte-equality; sigma-rust itself does not round-trip them — see `fixture-gen/known_unstable.json`).
 
-**Carve-out (F5 batch 1, 2026-06-08):** trees whose serialized types include an arity-0/1
-generic-tuple TYPE (`0x60` + len 0/1) PARSE but cannot re-serialize — `serializeSTuple` throws
-`'tuple-too-short'`, mirroring the JVM's own asymmetry (`TypeSerializer.scala:188-194` parse
-has no arity require; `:93-94` serialize `sys.error`s < 2). First parse→serialize exception;
-the reverse-direction precedent is the AvlTree any-length-digest note.
+**A parse→serialize exception class (F5 batch 1, 2026-06-08):** trees whose serialized types
+include an arity-0/1 generic-tuple TYPE (`0x60` + len 0/1) PARSE but cannot re-serialize —
+`serializeSTuple` throws `'tuple-too-short'`, mirroring the JVM's own asymmetry
+(`TypeSerializer.scala:188-194` parse has no arity require; `:93-94` serialize `sys.error`s < 2).
+The reverse-direction precedent is the AvlTree any-length-digest note.
+
+**Carve-out 2 (F5 batch 1, 2026-06-08) — noncanonical Option tags:** any wire Option tag byte
+> 0x01 parses as Some (JVM scorex-util `getOption`: ANY nonzero = Some) but re-serializes to
+the canonical `0x01` — so `serializeTree(parseTree(b)) ≠ b` for trees carrying noncanonical
+tags (SOption DATA constants, `DeserializeRegister.default`, `ByIndex.default`, SAvlTree
+`valueLengthOpt`). The JVM has the identical asymmetry (`putOption` emits 1/0); it round-trips
+such trees only because `ErgoTree` RETAINS original bytes rather than re-serializing
+(`ErgoTree.scala:65-67,123-131`) — ergots likewise retains verbatim slices where consensus
+reads bytes (SBox `ergoTreeBytes`). Tooling note: `addressFromErgoTree` re-serializes, so a
+noncanonical on-chain tree yields a different P2S address than a JVM node derives from
+retained bytes — tooling-level, not consensus.
 
 For the body-only round-trip (i.e., parsing a `parseExpr` output and reserializing through `serializeExpr` into a fresh `ByteWriter`), the same byte-equality invariant holds.
 
@@ -296,7 +307,7 @@ Signature change: both `parseSValue` and `serializeSValue` gain a `treeVersion: 
 
 The internal helpers `parseExpr`, `serializeExpr`, `parseConstFromByte`, and `serializeConst` also gain `treeVersion` parameters. Their **public entry points** (`parseExpr`, `serializeExpr`) accept `treeVersion` as a **required** parameter (the optional-defaulted-to-0 form was a threading-class landmine — compound nodes silently parsed nested constants at v0); callers state the version explicitly. The top-level `parseTree` / `serializeTree` always pass the correct version from the header (F5 batch 1, 2026-06-08).
 
-Round-trip invariant byte-equal verified on 5 V3 SHeader-constant ErgoTree fixtures (single V1 header, single V2 header, `Coll[Header]` of 3, `Option[Header] = Some`, `Option[Header] = None`) plus 1 negative V2 fixture (rejects with `'sheader-tree-version-too-low'`). Mutation testing achieves ≥ 90% kill rate on structural bytes per fixture (87.5% on `Option[Header] = None`).
+Round-trip invariant byte-equal verified on 5 V3 SHeader-constant ErgoTree fixtures (single V1 header, single V2 header, `Coll[Header]` of 3, `Option[Header] = Some`, `Option[Header] = None`) plus 1 negative V2 fixture (rejects with `'sheader-tree-version-too-low'`). Mutation testing achieves ≥ 90% kill rate on structural bytes per fixture (all fixtures including `Option[Header] = None` — previously 87.5% under sigma-rust `get_option`; now all tag-byte mutations kill under JVM getOption semantics, F5 batch 1).
 
 SOption[T] DATA: 1-byte tag — `0` = None; ANY nonzero = Some, payload follows (JVM scorex-util
 `VLQReader.getOption`; SANTA-blessed `SOption.nonzero_data_tag`). NB sigma-rust `get_option`

@@ -294,15 +294,29 @@ describe('DeserializeRegister variant', () => {
     )
   })
 
-  it('rejects DeserializeRegister with invalid Option tag (>= 2)', () => {
-    // bytes:
+  it('tag 0x02 in DeserializeRegister.default is accepted as Some (JVM getOption: any nonzero = Some)', () => {
+    // JVM DeserializeRegisterSerializer.scala:30 `r.getOption(r.getValue())`:
+    // scorex-util VLQReader.getOption — ANY nonzero tag → Some(parse Expr).
+    // The previous 'invalid-option-tag' throw was a sigma-rust-mirroring over-reject;
+    // retired in F5 batch 1 (2026-06-08). Tag 0x02 ≡ tag 0x01 for parse purposes;
+    // serializer always emits canonical 0x01 (no byte round-trip for noncanonical tags).
+    //
+    // bytes (tag-02 twin of the tag-01 Some round-trip case):
     //   0x00      header
     //   0xd5      OP_DESERIALIZE_REGISTER
-    //   0x04      reg = 4
-    //   0x01      tpe = SBoolean
-    //   0x02      Option tag = 2 (INVALID — sigma-rust accepts only 0 or 1)
-    const bytes = new Uint8Array([0x00, 0xd5, 0x04, 0x01, 0x02])
-    expectParseError(() => parseTree(bytes), 'invalid-option-tag')
+    //   0x05      reg = 5
+    //   0x04      tpe = SInt
+    //   0x02      Option tag = 2 (noncanonical Some — JVM getOption accepts)
+    //   0x04 0x02 inner = Const(SInt, ZigZag(1)=2)
+    const bytes02 = new Uint8Array([0x00, 0xd5, 0x05, 0x04, 0x02, 0x04, 0x02])
+    // Canonical twin (tag = 0x01):
+    const bytes01 = new Uint8Array([0x00, 0xd5, 0x05, 0x04, 0x01, 0x04, 0x02])
+    const tree02 = parseTree(bytes02)
+    const tree01 = parseTree(bytes01)
+    // Both parse to identical MIR:
+    expect(tree02.body).toEqual(tree01.body)
+    // Serialize emits the canonical form (tag 0x01), not the original 0x02:
+    expect(Array.from(serializeTree(tree02))).toEqual(Array.from(bytes01))
   })
 
   it('rejects DeserializeRegister.reg out of range on serialize', () => {

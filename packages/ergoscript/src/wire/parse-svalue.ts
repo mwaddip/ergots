@@ -31,10 +31,12 @@
  *         (`ceil(len/8)` bytes; trailing bits zero-padded). Mirrors
  *         sigma-rust's `WriteSigmaVlqExt::put_bits` / `get_bits` via
  *         `bitvec::BitVec<u8, Lsb0>`.
- *   - SOption[T]: 1-byte tag (1 = Some, anything else = None) + (if Some)
- *     inner value parsed by T. JVM tag: any nonzero = Some (scorex-util
- *     VLQReader.getOption); sigma-rust diverges (only exact 1 = Some, other
- *     nonzero = None) — JVM canonical per F5 batch 1 (2026-06-07).
+ *   - SOption[T]: 1-byte tag (0 = None, any nonzero = Some) + (if Some)
+ *     inner value parsed by T. scorex-util VLQReader.getOption: ANY nonzero
+ *     tag → Some (bytecode-verified F4-epilogue + SANTA-blessed F5 batch 1).
+ *     sigma-rust `get_option` diverges (only exact 1 = Some; tag ≥ 2 → None,
+ *     causing stream desync) — JVM canonical. Serializer emits canonical
+ *     0x01/0x00; nonzero-noncanonical tags do not byte-round-trip (same on JVM).
  *     V3-gated: tree-version < 3 throws `SValueParseError('soption-tree-version-too-low')`.
  *     Version-gated DATA kinds (SOption, SHeader) enforce their gates from the
  *     threaded `treeVersion`; remaining kinds are version-free.
@@ -338,14 +340,15 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           'soption-tree-version-too-low'
         )
       }
-      // 1-byte tag: exactly `1` means Some (parse inner via `t.elem`); any
-      // other byte means None (cursor stops at the tag, no further read).
-      // Mirrors sigma-rust's `get_option` in `sigma-ser/src/vlq_encode.rs`:
-      // `match is_opt { 1 => Some(get_value(self)?), _ => None }`. Critical
-      // for adversarial inputs: a byte like `0x02` reads as None with the
-      // cursor at +1, NOT as Some-with-recurse into inner parsing.
+      // Option DATA tag (scorex-util VLQReader.getOption — bytecode-verified
+      // F4-epilogue + SANTA-blessed SOption.nonzero_data_tag): `0` → None;
+      // ANY nonzero → Some, payload follows. NB sigma-rust `get_option`
+      // (`1 => Some, _ => None`) is a FORK on tags ≥ 2 — a 0x02-tag Some
+      // mis-reads as None and desyncs the byte stream; no longer mirrored
+      // (F5 batch 1, 2026-06-08). Serialize emits canonical 0x01/0x00, so a
+      // nonzero-noncanonical tag does not byte-round-trip — same on the JVM.
       const tag = r.readU8()
-      if (tag === 1) {
+      if (tag !== 0) {
         const inner = parseSValue(t.elem, treeVersion, r)
         return { kind: 'Option', elem: t.elem, value: inner }
       }
@@ -522,12 +525,13 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       //                     rejects values above `2^32 - 1`). Stored as JS
       //                     number; mirrors the serializer's u32 cap.
       //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
-      //                     (`serialization/serializable.rs:223-230`).
+      //                     (`serialization/serializable.rs:223-230`; JVM
+      //                     `AvlTreeData.scala:85` reads via `r.getOption(...)`
+      //                     — scorex-util getOption: any nonzero tag → Some).
       //                     Read 1-byte tag: any non-zero tag means Some,
       //                     `0` means None. Parser is permissive (`tag != 0`)
       //                     where serializer writes only `0` or `1`; the
-      //                     serializer round-trip will canonicalize to
-      //                     `0x01` for Some.
+      //                     serializer round-trip will canonicalize to `0x01`.
       const digest = r.readBytes(33).slice()
       const treeFlags = r.readU8()
       const keyLength = readVlqU32(r, 'SAvlTree.keyLength')

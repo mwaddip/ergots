@@ -114,6 +114,12 @@ const VECTOR_FILES = [
   //   parsing this vector's bytes — the dasher-panic analog, now a clean
   //   errored).
   'AvlTree.unsupported_eval_nodes_v6.json',
+  // F5 batch 1 — Option DATA tag semantics: scorex-util VLQReader.getOption
+  // treats ANY nonzero tag as Some (bytecode-verified F4-epilogue + this bless).
+  // ergots' sigma-rust-mirroring `==1 → Some else None` desynced the stream on
+  // tag≥2 (the dasher "panic"). Tree 1b060128020a7300 = v3 tree, Option[Int]
+  // constant with tag 0x02.
+  'SOption.nonzero_data_tag.json',
 ]
 
 for (const file of VECTOR_FILES) {

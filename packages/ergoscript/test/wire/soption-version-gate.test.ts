@@ -7,7 +7,7 @@
  * SHeader gate ('sheader-tree-version-too-low').
  */
 import { describe, it, expect } from 'vitest'
-import { parseTree, substituteConstantsBytes } from '../../src/wire/ergo-tree'
+import { parseTree, serializeTree, substituteConstantsBytes } from '../../src/wire/ergo-tree'
 import { serializeSValue, SValueSerializeError } from '../../src/wire/serialize-svalue'
 import { hexToBytes } from '../_helpers'
 import { ByteWriter } from '@ergots/scorex'
@@ -192,5 +192,63 @@ describe('substituteConstantsBytes — version source is OUTER tree version, not
     // Output header keeps the v2 template header byte; body is the verbatim tail.
     expect(bytes[0]).toBe(0x12)
     expect(Array.from(bytes.slice(-2))).toEqual([0xde, 0xad])
+  })
+})
+
+describe('Version gate fires before tag read (composed order)', () => {
+  it('v2 tree + noncanonical tag 0x02: the VERSION gate fires first (composed order)', () => {
+    // Gate-before-tag composition (JVM order: the DATA-arm guard is checked
+    // before getOption runs). A future hoist of the tag read above the gate
+    // would desync the stream here instead of throwing the version code.
+    expect(() => parseTree(hexToBytes('1a060128020a7300'))).toThrow(
+      expect.objectContaining({ code: 'soption-tree-version-too-low' })
+    )
+  })
+})
+
+describe('Option DATA tag semantics (scorex-util getOption: any nonzero = Some)', () => {
+  // Byte layout shared by the two Some trees:
+  //   1b  = v3 header (0x08 hasSize | 0x10 segregation | 0x03 version = 0x1b)
+  //   06  = inner section size (6 bytes: 01 28 <tag> 0a 73 00)
+  //   01  = 1 constant
+  //   28  = SOption[SInt] type code (OPTION_CONSTR_ID=3 * PRIM_RANGE=12 + SInt_primId=4 = 0x28)
+  //   <tag> = 0x01 (canonical Some) or 0x02 (nonzero-noncanonical Some)
+  //   0a  = ZigZag(5) = 0x0a (the Int payload)
+  //   73 00 = ConstantPlaceholder(id=0) body
+  //
+  // None tree (no payload byte, size shrinks by 1):
+  //   1b 05 01 28 00 73 00
+  //     size = 5 bytes (01 28 00 73 00)
+
+  it('tag 0x02 parses as Some and the payload is consumed (v3 tree)', () => {
+    // SANTA vector SOption.nonzero_data_tag / option-tag-02-some#0.
+    // JVM VLQReader.getOption: any nonzero tag → Some (bytecode-verified,
+    // F4-epilogue + F5 batch 1). sigma-rust get_option only accepts exact 1
+    // (fork). We follow JVM canonical.
+    const tree = parseTree(hexToBytes('1b060128020a7300'))
+    // Hand-verify against the tag-01 canonical twin — same MIR shape.
+    const twin = parseTree(hexToBytes('1b060128010a7300'))
+    expect(tree.constants).toEqual(twin.constants)
+  })
+
+  it('tag 0x02 canonicalizes to 0x01 on re-serialize (putOption writes 1/0 — JVM-identical asymmetry)', () => {
+    // The parser accepts any nonzero tag as Some; the serializer always emits
+    // canonical 0x01. So a nonzero-noncanonical tag does NOT byte-round-trip —
+    // same behavior on the JVM (writeOption / CoreDataSerializer both write 1).
+    const tree = parseTree(hexToBytes('1b060128020a7300'))
+    const twin = parseTree(hexToBytes('1b060128010a7300'))
+    expect(serializeTree(tree)).toEqual(serializeTree(twin))
+  })
+
+  it('tag 0x00 still parses as None', () => {
+    // None constant: type 0x28, tag 0x00; no payload byte.
+    // Derived None tree: 1b 05 01 28 00 73 00 (size 5 = 01 28 00 73 00).
+    const tree = parseTree(hexToBytes('1b050128007300'))
+    expect(tree.constants.length).toBe(1)
+    const c = tree.constants[0]!
+    expect(c.kind).toBe('Option')
+    if (c.kind === 'Option') {
+      expect(c.value).toBeNull()
+    }
   })
 })

@@ -11,7 +11,7 @@
  *   [default: Option<Box<Expr>>]
  *      tag byte:
  *        0x00 → None
- *        0x01 → Some (Expr follows)
+ *        nonzero → Some (Expr follows; canonical emit 0x01)
  *
  * `DeserializeRegister` reads `SELF.R{reg}` as a `Coll[Byte]`, deserializes
  * the bytes into an `Expr` and inlines it; if the register is empty, the
@@ -74,13 +74,13 @@ export function parseDeserializeRegister(
   const tpe = parseSType(r)
   const tag = r.readU8()
   let defaultExpr = null
-  if (tag === 1) {
+  if (tag !== 0) {
+    // JVM DeserializeRegisterSerializer.scala:30 `r.getOption(r.getValue())` —
+    // scorex-util getOption: ANY nonzero tag → Some(parse Expr). The previous
+    // tag∈{0,1}-else-throw ('invalid-option-tag', now retired) was an
+    // over-reject fork. Serialize emits canonical 0x01/0x00 (writeOption), so
+    // a noncanonical tag does not byte-round-trip — same on the JVM.
     defaultExpr = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
-  } else if (tag !== 0) {
-    throw new ExprParseError(
-      `DeserializeRegister.default Option tag must be 0 or 1, got ${tag}`,
-      'invalid-option-tag'
-    )
   }
   return { tag: 'DeserializeRegister', reg, tpe, default: defaultExpr }
 }
