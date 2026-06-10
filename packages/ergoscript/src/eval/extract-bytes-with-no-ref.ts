@@ -22,7 +22,7 @@
  * (wire/ergo-box-bytes.ts → writeBoxBodyWithoutRef):
  *   value (VLQ u64) + ergoTree bytes + creation_height (VLQ u32)
  *   + tokens (raw u8 count; 32-byte id + VLQ u64 amount each)
- *   + registers (raw u8 count; Constant wire each)   (NO tx_id, NO index)
+ *   + registers (raw u8 count; Constant-or-Expr wire each — opaque-verbatim for parsed non-Const registers)   (NO tx_id, NO index)
  *
  * Cost-charging order: envelope BEFORE eval-child (Pattern A —
  * [[reference-cost-charging-order-patterns]] memory). JVM costKind:
