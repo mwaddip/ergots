@@ -434,7 +434,31 @@ context-extension leg (no extension wire-parser in ergots). **Convergence:** the
 5 sigma-rust eni divergences (W1/W2 checkType, W5a, W6, W5b under-accept) — SANTA routing to sigma-rust;
 ergots LEADS on checkType/SelectField/rule-1012/rule-1019 (both libs diverged).
 
-### F5 batch 4 — standing-tail closure (corpus pins + atLeast cap + GE canonicalization + equality basis) — OPEN 2026-06-10
+### F5 batch 4 — standing-tail closure (corpus pins + atLeast cap + GE canonicalization + equality basis) — ✅ DONE 2026-06-10 (LOCAL, not pushed)
+
+**Outcome (same-day open→close; 22 commits `43edb0b..` incl. two SANTA-delivery additions 4.5/4.7):**
+T1 cap `9da117e`+`11d5683`+`cc03a3e` · T2 GE-SValue `2ddd0cd`(+2 nits) · T3 leaves+Header `de1f805`
+· T4 box-EQ `d089863`(+1) · T4.5 0xa6 op-form `dbf743f`+`99bace7` · T4.7 byte-accessors
+`98e1295`+`2f1072f` · T5/6 corpus `bbb4c5e`+`f859f21`+`9ad8aaf` · T7 docs `3b6a633`+`2d2c524`+`d3ae8b1`.
+**Gate: monorepo 6,969 green** (ergoscript 6,379 node AND jsdom / avltree 156 / nipopow 247 / scorex
+187), conformance **2,347** (209 vendored files / 2,340 entries — full corpus, ZERO genuine
+divergences at probe; 43 initial reds were ALL our-harness hydration gaps, fixed), tsc ×4 clean,
+build clean. Codes: eval **84** (+1 batch `'atleast-too-many-children'`; +1 pre-existing defensive
+code found uncounted at close-out), wire +2 (`'group-element-invalid-point'`, `'ec-point-invalid'`).
+**Final holistic review: READY TO PUSH** (cross-task basis seam traced end-to-end + JVM-verified;
+the Global.serialize-vs-.bytes asymmetry confirmed faithful BOTH sides). Reviews caught real items
+at every task (exact-cost pins · the 33k BC-vs-noble battery · the 3 scorex findings · the
+token-cap + accessor-basis gaps · the corpus tripwire). **Ask-11 seam finding:** Apply rejects
+non-unary via the structural arity guard `'apply-arity-mismatch'`; FuncValue rejects ride the
+batch-3 checkType seam `'unsupported-value-type'` AT THE ValDef BINDING (bound-never-applied
+rejects; dead-branch accepts) — two mechanisms, both JVM-faithful, 7 witnesses pinned.
+**Push prediction: dasher 31 → 21 (roadmap-only)** — the 10 live pins flip (2 cap + 6 GE + 0xa6 +
+bytesnoref). Residual nit: tsup warns on sigma-boolean.ts's intentional `ReaderError` re-export
+(pre-existing, cosmetic). Open items live in the NEW-findings block below (scorex ×3 = USER
+DECISION pending; token-cap verdict; 99:2..6 method-form family + its next-batch SANTA ask) +
+the 3 remaining `'not-implemented-yet'` wire sites pending their own review.
+
+#### (opening record below — superseded by the outcome above)
 
 **Context at batch start:** SANTA `1738862` landed Ask 8 (dasher adapter populates `lastBlockUtxoRootHash`)
 + the getRegV5 classifier carve-out ((99,7)-narrow → errored) — **dasher 23→21, eval-tier ergots-bug
@@ -534,6 +558,16 @@ them in — all sigma-rust-inherited ingress shapes where the JVM is canonical):
    `ErgoBoxCandidate.serializer.parse` has NO count check (`getUByte` alone, MaxTokens=255 binds
    elsewhere) → 123-255-token Box constants/deserializeTo payloads: JVM parses, ergots over-rejects.
    Adversarial-only. Needs its own verdict (where MaxTokens actually binds JVM-side) before any fix.
+3. **Box accessor METHOD-form family 99:2..6 not registered (T4.7 implementer + quality review,
+   2026-06-10):** the JVM catalogues BytesMethod/BytesWithoutRefMethod/IdMethod (99:3/4/5,
+   methods.scala:1308-1319; also 99:2 propositionBytes, 99:6 creationInfo) and `MethodCall.eval`
+   evaluates ANY catalogued FixedCost method via `invokeFixed` reflection (values.scala:1332-1352)
+   — hand-crafted PropertyCall(99,3..) wire trees EVALUATE JVM-side (envelope 4 + Fixed 12, same
+   retained/canonical bases as the op-forms); ergots throws `'method-not-implemented'`; sigma-rust
+   errors too (registers only 99:1/7/8/19). ergots == sigma-rust ≠ JVM; mainnet-unreachable
+   (compilers emit op-forms; walker tip-complete). Fix shape known + trivial post-T4.7 (route 3
+   handlers through `boxBytesOf`/`boxIdOf`/`serializeBoxBytesWithoutRef`); NEXT-BATCH SANTA ask:
+   method-form pins for the family (99:1 value as the registered control) to bless costs first.
 
 **Process:** batch-3 cadence — per-task subagent TDD chain (implementer → spec review → quality
 review), per-task commits, full gate (monorepo + tsc ×4) at close-out, push on user go.
