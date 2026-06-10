@@ -18,6 +18,7 @@
  *   1. eval bound → must be Int.
  *   2. eval input → must be Coll[SigmaProp], extract SigmaBoolean[].
  *   3. charge Pattern B cost.
+ *   3.5. 255-children cap — throws 'atleast-too-many-children' if items.length > 255.
  *   4-5. JVM degenerate-bound reductions (bound ≤ 0 ⇒ TrivialProp(true);
  *        bound > size ⇒ TrivialProp(false)).
  *   6. call cthresholdReduce(bound, items).
@@ -26,6 +27,7 @@
  *   'atleast-bound-not-int'           — bound eval didn't return Int
  *   'sigma-prop-input-not-coll'       — input eval didn't return Coll
  *   'sigma-prop-coll-elem-not-sigma-prop' — Coll element isn't SigmaProp
+ *   'atleast-too-many-children'       — input coll length > 255 (MaxChildrenCountForAtLeastOp)
  */
 
 import type { Atleast, SValue } from '../mir/types'
@@ -54,6 +56,22 @@ export function evalAtleast(e: Atleast, env: Env, ctx: EvalContext): SValue {
   // Source: atleast.rs:34 — ctx.add_per_item_jit_cost(20, 3, 5, n)
   ctx.addPerItemCost(20, 3, 5, items.length)
 
+  // Step 3.5: 255-children cap — JVM order is charge → cap-throw → degenerate
+  // reductions: CSigmaDslBuilder.atLeast (CSigmaDslBuilder.scala:102-108)
+  // throws BEFORE AtLeast.reduce; the bound≤0 / bound>n reductions live INSIDE
+  // reduce (trees.scala:340-359). So atLeast(0, >255 children) THROWS — it does
+  // not reduce to TrivialProp. MaxChildrenCountForAtLeastOp = 255
+  // (SigmaConstants.scala:65); CTHRESHOLD GF(2^192) polynomial arithmetic takes
+  // single-byte inputs, so >255 children are unrepresentable. eni caps only in
+  // the non-degenerate path (TrueProp for atLeast(≤0, >255)) — a JVM↔sigma-rust
+  // fork; ergots follows the JVM (F5 batch 4, verdict 1).
+  if (items.length > 255) {
+    throw new EvalError(
+      `Atleast: ${items.length} children exceeds MaxChildrenCount (255)`,
+      'atleast-too-many-children',
+    )
+  }
+
   // Steps 4-5: JVM degenerate-bound reductions — canonical authority is
   // JVM AtLeast.reduce (trees.scala:340-359): bound ≤ 0 ⇒ TrivialProp(true);
   // bound > size ⇒ TrivialProp(false). ergots follows the JVM.
@@ -64,11 +82,7 @@ export function evalAtleast(e: Atleast, env: Env, ctx: EvalContext): SValue {
   // sigma-rust (ergo-node-integration) was fixed 2026-06-04 to reduce, matching
   // the JVM. Blessed fixtures: atLeast_with_a_degenerate_bound #1/#4/#5/#6
   // (cost 46/46/46/44 — Pattern-B charge above is unchanged for degenerate cases).
-  //
-  // NOTE: a 255-CHILDREN cap (JVM MaxChildrenCount, on input-coll length, NOT the
-  // bound) is NOT enforced here — deferred to F5 (conformance-run spec,
-  // user-decision-pending). When added it must sit BEFORE these degenerate
-  // reductions; cap-vs-reduce ordering is an open JVM-vs-sigma-rust question.
+  // See Step 3.5 above for the 255-children cap that now precedes these reductions.
   const k = boundV.value
   if (k <= 0) {
     return { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }

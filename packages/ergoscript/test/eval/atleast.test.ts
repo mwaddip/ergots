@@ -18,6 +18,7 @@
  * Inline-only error cases (not expressible via sigma-rust tree construction):
  *   - non-Int bound → 'atleast-bound-not-int'
  *   - non-Coll input → 'sigma-prop-input-not-coll'
+ *   - >255 children → 'atleast-too-many-children' (F5 batch 4)
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -117,5 +118,67 @@ describe('Atleast eval arm — inline error cases', () => {
     const ctx = makeContext()
     const err = captureEvalError(() => evalExpr(mirNode, Env.empty(), ctx))
     expect(err.code).toBe('sigma-prop-input-not-coll')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 255-children cap (F5 batch 4, member C)
+// JVM order: charge Pattern-B cost → cap-throw → degenerate reductions.
+// CSigmaDslBuilder.atLeast (CSigmaDslBuilder.scala:102-108) throws BEFORE
+// AtLeast.reduce (trees.scala:340-359), so atLeast(bound≤0, >255 children)
+// THROWS — it does NOT reduce to TrivialProp(true).
+// ---------------------------------------------------------------------------
+
+describe('Atleast 255-children cap (F5 batch 4)', () => {
+  // Build an Atleast node with n TrivialProp children and the given Int bound.
+  // Mirrors the inline-error-case Const construction idiom above.
+  const atleastOf = (bound: number, n: number): Atleast => ({
+    tag: 'Atleast',
+    bound: {
+      tag: 'Const',
+      tpe: { tag: 'SInt' },
+      value: { kind: 'Int', value: bound },
+    },
+    input: {
+      tag: 'Const',
+      tpe: { tag: 'SColl', elem: { tag: 'SSigmaProp' } },
+      value: {
+        kind: 'Coll',
+        elem: { tag: 'SSigmaProp' },
+        items: Array.from({ length: n }, (_, i) => ({
+          kind: 'SigmaProp' as const,
+          value: { tag: 'TrivialProp' as const, value: i % 2 === 0 },
+        })),
+      },
+    },
+  })
+
+  it('256 children, bound 0 → throws (cap precedes degenerate TrueProp)', () => {
+    const err = captureEvalError(() => evalExpr(atleastOf(0, 256), Env.empty(), makeContext()))
+    expect(err.code).toBe('atleast-too-many-children')
+  })
+
+  it('256 children, bound 1 → throws', () => {
+    const err = captureEvalError(() => evalExpr(atleastOf(1, 256), Env.empty(), makeContext()))
+    expect(err.code).toBe('atleast-too-many-children')
+  })
+
+  it('256 children, bound 300 → throws (cap precedes degenerate FalseProp)', () => {
+    const err = captureEvalError(() => evalExpr(atleastOf(300, 256), Env.empty(), makeContext()))
+    expect(err.code).toBe('atleast-too-many-children')
+  })
+
+  it('255 children, bound 0 → TrivialProp(true) (cap is exclusive)', () => {
+    const out = evalExpr(atleastOf(0, 255), Env.empty(), makeContext())
+    expect(out).toEqual({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } })
+  })
+
+  it('charges the Pattern-B per-item cost before throwing', () => {
+    const ctx = makeContext()
+    captureEvalError(() => evalExpr(atleastOf(0, 256), Env.empty(), ctx))
+    // Two Const children each cost 5 (evalConst Fixed(5)), plus
+    // per-item(20, 3, 5, 256): base=20, chunks=ceil(256/5)=52, total=20+52*3=176.
+    // Grand total = 5 (bound Const) + 5 (input Const) + 176 = 186.
+    expect(ctx.jitCost).toBeGreaterThanOrEqual(176)
   })
 })
