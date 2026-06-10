@@ -176,9 +176,49 @@ describe('Atleast 255-children cap (F5 batch 4)', () => {
   it('charges the Pattern-B per-item cost before throwing', () => {
     const ctx = makeContext()
     captureEvalError(() => evalExpr(atleastOf(0, 256), Env.empty(), ctx))
-    // Two Const children each cost 5 (evalConst Fixed(5)), plus
-    // per-item(20, 3, 5, 256): base=20, chunks=ceil(256/5)=52, total=20+52*3=176.
-    // Grand total = 5 (bound Const) + 5 (input Const) + 176 = 186.
-    expect(ctx.jitCost).toBeGreaterThanOrEqual(176)
+    // Const(5) bound + Const(5) input + per-item(20,3,5,256) = 20 + 52·3 = 176
+    // → total 186 (Const cost is the pinned Fixed(5), eval/const.ts).
+    expect(ctx.jitCost).toBe(186)
+  })
+
+  it('limit-vs-cap precedence: cost-limit-exceeded fires before atleast-too-many-children', () => {
+    // jitCostLimit=100: first Const(5) + second Const(5) + per-item base=20 = 30 charged so far;
+    // but per-item charge of 20+52*3=176 total exceeds 100 during addPerItemCost →
+    // 'cost-limit-exceeded' fires inside the charge, BEFORE the >255 cap block runs.
+    const ctx = makeContext({ jitCostLimit: 100 })
+    const err = captureEvalError(() => evalExpr(atleastOf(0, 256), Env.empty(), ctx))
+    expect(err.code).toBe('cost-limit-exceeded')
+  })
+
+  it('255 children, bound 300 → TrivialProp(false) (cap is exclusive, FalseProp boundary)', () => {
+    const out = evalExpr(atleastOf(300, 255), Env.empty(), makeContext())
+    expect(out).toEqual({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: false } })
+  })
+
+  it('256 ProveDlog children, bound 0 → throws (cap is kind-independent)', () => {
+    // Build Atleast with 256 ProveDlog leaves instead of TrivialProp to confirm
+    // the >255 cap does not depend on the child SigmaBoolean variant.
+    const proveDlogNode: Atleast = {
+      tag: 'Atleast',
+      bound: {
+        tag: 'Const',
+        tpe: { tag: 'SInt' },
+        value: { kind: 'Int', value: 0 },
+      },
+      input: {
+        tag: 'Const',
+        tpe: { tag: 'SColl', elem: { tag: 'SSigmaProp' } },
+        value: {
+          kind: 'Coll',
+          elem: { tag: 'SSigmaProp' },
+          items: Array.from({ length: 256 }, () => ({
+            kind: 'SigmaProp' as const,
+            value: { tag: 'ProveDlog' as const, h: new Uint8Array(33) },
+          })),
+        },
+      },
+    }
+    const err = captureEvalError(() => evalExpr(proveDlogNode, Env.empty(), makeContext()))
+    expect(err.code).toBe('atleast-too-many-children')
   })
 })
