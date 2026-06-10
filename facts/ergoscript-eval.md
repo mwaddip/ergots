@@ -584,6 +584,23 @@ the JVM's own posture. Codes 79→80.
     → `CSigmaDslBuilder.atLeast` cap CSigmaDslBuilder.scala:102-108 → `AtLeast.reduce` degenerates
     trees.scala:340-359). eni caps only in the non-degenerate path (TrueProp for `atLeast(≤0, >255)`)
     — a JVM↔sigma-rust fork; ergots follows the JVM. Codes 82 → **83**.
+  - **`LastBlockUtxoRootHash` op-form arm (T4.5, Ask-13)** — the bare `0xa6` opcode is a new `Expr`
+    variant (68 → 69; JVM-only case object, `CaseObjectSerialization` ValueSerializer.scala:87 —
+    sigma-rust errors on these bytes) with a new eval arm `eval/last-block-utxo-root-hash.ts`:
+    FixedCost(15) Pattern A (values.scala:1490-1501), reads the F5-batch-2 `ctx.lastBlockUtxoRootHash`
+    field — the same field as the 101:9 PropertyCall handler; only the COST differs by wire shape
+    (15 op-form vs 20 PropertyCall), both SANTA-pinned (`Context.op_forms.json` /
+    `Context.properties.json`). Eval coverage 67 → **68 of 68**; +0 new EvalError codes (the absent-field
+    throw reuses `'context-field-missing'`).
+  - **Ask-11 seam finding (non-unary closures)** — the two non-unary-`SFunc` reject mechanisms are
+    JVM-faithfully SPLIT: `Apply` rejects a wrong-arg-count application via the structural arity guard
+    `'apply-arity-mismatch'` (apply.ts, BEFORE any arg eval), while a non-unary `FuncValue` rejects via
+    the batch-3 checkType seam `'unsupported-value-type'` at the BlockValue valdef BINDING (fires when
+    the Lambda value flows through the binding even if never applied; a dead-branch FuncValue still
+    accepts). Pinned by the 7 vendored witnesses
+    (`test/fixtures/conformance/v5/authored/{Apply,FuncValue}.non_unary_arity.json`, 3 + 4 entries,
+    blessed jvm:sigma-state-6.0.3). No closure-path `assertValueTypeSupported` hook needed — closes the
+    batch-3 "no SFunc witness" residual (see the `'unsupported-value-type'` taxonomy entry).
 
 ## Public surface (v0.3.0)
 
@@ -602,7 +619,7 @@ class EvalError extends Error { code: string }
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`). `opts.constants`, when provided, must be parallel to whatever set of `ConstantPlaceholder` ids the tree's body references.
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body` under a freshly constructed `EvalContext`. The context is initialised with `constants: opts.constants ?? tree.constants` and `jitCostLimit: opts.jitCostLimit` (defaulting to `undefined` = unlimited).
 - **Postcondition (failure):** Throws `EvalError` with one of the codes enumerated below. Errors raised inside the recursive evaluator bubble up unwrapped — `evaluate` does not catch and rewrap.
-- **Coverage caveat:** 67 of 67 implementable `Expr` variants have implemented arms. 18 wire opcodes (ModQ family, OpTrue/False, UnitConstant, Select1-5, CollShift/Rotate families, SomeValue, NoneValue) are reserved in sigma-rust's `OpCode` enum but unconditionally parse-rejected — sigma-rust itself never dispatches them. We mirror via `ExprParseError 'opcode-reserved'`. (`FunDef` (`0xd7`) was the 19th — v6 P6 now parses it as a `ValDef` carrying `tpeArgs` and evaluates it via the `ValDef` arm; see the P6 changelog above and [`facts/ergoscript-wire.md`](./ergoscript-wire.md).) A further 4 (LastBlockUtxoRootHash, FlatMap, TrivialPropFalse, TrivialPropTrue) are routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or an eval path with a defensive `EvalError 'not-implemented-yet'` (5 sites: `eval.ts:229`, `global-vars.ts:136`, `bin-op/relation.ts` ×2, `bin-op/bit.ts:58`) still throw at runtime. The `evaluate` signature itself is stable; phase 2j adds cost calibration.
+- **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added the 68th — `LastBlockUtxoRootHash`, the bare `0xa6` op-form; the 3 remaining `'not-implemented-yet'` wire sites stay unevaluable-by-design pending their review). 18 wire opcodes (ModQ family, OpTrue/False, UnitConstant, Select1-5, CollShift/Rotate families, SomeValue, NoneValue) are reserved in sigma-rust's `OpCode` enum but unconditionally parse-rejected — sigma-rust itself never dispatches them. We mirror via `ExprParseError 'opcode-reserved'`. (`FunDef` (`0xd7`) was the 19th — v6 P6 now parses it as a `ValDef` carrying `tpeArgs` and evaluates it via the `ValDef` arm; see the P6 changelog above and [`facts/ergoscript-wire.md`](./ergoscript-wire.md).) A further 3 (FlatMap, TrivialPropFalse, TrivialPropTrue; was 4 — LastBlockUtxoRootHash left in F5 batch 4) are routed through other dispatch paths in sigma-rust (SColl method-call, SSigmaProp nesting); their top-level direct-dispatch `'not-implemented-yet'` status remains under separate review. Trees whose body reaches a not-yet-implemented method-call handler or an eval path with a defensive `EvalError 'not-implemented-yet'` (5 sites: `eval.ts:229`, `global-vars.ts:136`, `bin-op/relation.ts` ×2, `bin-op/bit.ts:58`) still throw at runtime. The `evaluate` signature itself is stable; phase 2j adds cost calibration.
 
 ### `evaluateWith(tree, ctx)`
 
@@ -639,7 +656,7 @@ interface EvalOpts {
    *  Invariant (documented, not enforced): when both are supplied, inputExtensions[selfIndex] ≡ extension.
    *  Absent ⇒ every getVarFromInput lookup → None. */
   inputExtensions?: ContextExtension[]    // phase v6 P7a — getVarFromInput context model
-  lastBlockUtxoRootHash?: AvlTreeData      // F5 batch 2 — independent SContext.lastBlockUtxoRootHash (101:9) source; JVM ErgoLikeContext.lastBlockUtxoRoot. Absent ⇒ 101:9 throws 'context-field-missing'. Walker supplies avlTreeFromDigest(headers[0].stateRoot); conformance dummy ctx supplies AvlTreeData.dummy.
+  lastBlockUtxoRootHash?: AvlTreeData      // F5 batch 2 — independent SContext.lastBlockUtxoRootHash (101:9) source; JVM ErgoLikeContext.lastBlockUtxoRoot. TWO readers since F5 batch 4: the 101:9 PropertyCall handler AND the bare 0xa6 op-form arm (eval/last-block-utxo-root-hash.ts, FixedCost(15), values.scala:1490-1501). Absent ⇒ either reader throws 'context-field-missing'. Cost differs by wire form: 15 op-form vs 20 PropertyCall (4 dispatcher + 1 Context obj + 15 handler) — both SANTA-pinned (Context.op_forms.json / Context.properties.json). Walker supplies avlTreeFromDigest(headers[0].stateRoot); conformance dummy ctx supplies AvlTreeData.dummy.
 }
 
 interface EvalContext extends EvalOpts {
@@ -701,7 +718,7 @@ type SValue =
   | { kind: 'Header'; value: Header }               // phase 2h-c.1 — Header value carrier
 ```
 
-`Expr` is the 68-variant discriminated union over MIR nodes, keyed on `tag`. Each variant's payload mirrors sigma-rust's `mir/<variant>.rs` struct fields. Full list and per-variant shapes live in `packages/ergoscript/src/mir/types.ts`; adding a variant requires corresponding arms in `wire/parse.ts` and `wire/serialize.ts` (both files use exhaustive switches to make additions compile-time-visible).
+`Expr` is the 69-variant discriminated union over MIR nodes, keyed on `tag`. Each variant's payload mirrors sigma-rust's `mir/<variant>.rs` struct fields (except `LastBlockUtxoRootHash`, F5 batch 4 — a JVM-only case object with no sigma-rust MIR counterpart). Full list and per-variant shapes live in `packages/ergoscript/src/mir/types.ts`; adding a variant requires corresponding arms in `wire/parse.ts` and `wire/serialize.ts` (both files use exhaustive switches to make additions compile-time-visible).
 
 - `constantTypes` (on `ErgoTree`) is parallel to `constants[]` and carries the per-constant `SType` recovered from the wire. It's necessary because a parsed `SValue` does not unambiguously encode its `SType` for some edge cases (empty `Coll`, `None` for `SOption`).
 - `ErgoBox`, `AvlTreeData`, and `Closure` are forward-declared in phase 2a. Their shapes are stable; evaluator-only fields may be added in later phases.
@@ -767,7 +784,7 @@ type SValue =
 - **`'select-field-index-out-of-range'`** — `SelectField.fieldIndex` (1-based) resolved to a zero-based index outside `[0, items.length)`. Unreachable from parser-produced trees.
 - **`'select-field-input-not-tuple'`** — `SelectField` received an input `SValue` whose `kind !== 'Tuple'`.
 - **`'select-field-non-pair'`** (F5 batch 3) — `SelectField` received a `Tuple` input whose arity ≠ 2 (a non-pair tuple, e.g. a 1-tuple). The JVM `SelectField.eval` matches ONLY a runtime `Tuple2` (`transformers.scala:297-308`); a non-pair tuple is a `Coll[Any]` at runtime → `Value.typeError` "Invalid type returned by evaluator". Adversarial-only.
-- **`'unsupported-value-type'`** (F5 batch 3) — a value flowing through a checkType seam (Tuple item, ConcreteCollection item, BlockValue valdef/result, ValUse, ConstantPlaceholder) has a DECLARED type that is a non-pair `STuple` (items.length ≠ 2) or non-unary `SFunc` (tDom.length ≠ 1). Mirrors JVM `SType.isValueOfType` (`SType.scala:200-205`) which `sys.error`s "Unsupported tuple type"/"Unsupported function type" — these declared types are wire-constructible (arity-N tuple constant types parse) but the JVM cannot represent their values. Emitted by the shared `assertValueTypeSupported(tpe)` helper. Top-level check (non-recursive, matching the JVM single call; nesting covered by per-item seam calls). Adversarial-only. **Residual:** the FuncValue/Apply param+body SFunc arms (P6 closure path) are NOT yet hooked — no SFunc witness; tracked F5 item.
+- **`'unsupported-value-type'`** (F5 batch 3) — a value flowing through a checkType seam (Tuple item, ConcreteCollection item, BlockValue valdef/result, ValUse, ConstantPlaceholder) has a DECLARED type that is a non-pair `STuple` (items.length ≠ 2) or non-unary `SFunc` (tDom.length ≠ 1). Mirrors JVM `SType.isValueOfType` (`SType.scala:200-205`) which `sys.error`s "Unsupported tuple type"/"Unsupported function type" — these declared types are wire-constructible (arity-N tuple constant types parse) but the JVM cannot represent their values. Emitted by the shared `assertValueTypeSupported(tpe)` helper. Top-level check (non-recursive, matching the JVM single call; nesting covered by per-item seam calls). Adversarial-only. **Residual CLOSED (F5 batch 4, Ask-11):** the FuncValue/Apply param+body SFunc arms (P6 closure path) are deliberately NOT hooked — the 7 JVM-blessed witnesses (`{Apply,FuncValue}.non_unary_arity.json`) confirm the unhooked state is faithful: non-unary FuncValue rejects via this code at the BlockValue valdef-rhs DATA seam when the Lambda flows through a binding (bound-never-applied rejects; dead-branch accepts), and wrong-arg-count Apply rejects via apply.ts's own structural `'apply-arity-mismatch'` guard pre-arg-eval. See the F5 batch 4 changelog entry.
 
 ### Phase 2f Coll HOFs codes (SizeOf, Append, ByIndex, Slice, MapColl, Filter, Fold, Exists, ForAll)
 
@@ -1140,7 +1157,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 
 ## Coverage and stability
 
-**67 of 67 implementable `Expr` variants** have arms (post-2i-c). 18 variants in sigma-rust's `OpCode` enum are reserved-but-never-dispatched and parse-reject via `ExprParseError 'opcode-reserved'` (was 19 — `FunDef` (`0xd7`) is parsed + evaluated as a `ValDef` from v6 P6); 4 more (LastBlockUtxoRootHash, FlatMap, TrivialPropFalse, TrivialPropTrue) parse-reject via `'not-implemented-yet'` pending separate review of their top-level direct-dispatch status (routed elsewhere in sigma-rust). The 67 implementable variants:
+**68 of 68 implementable `Expr` variants** have arms (67 post-2i-c; 68th added in F5 batch 4). 18 variants in sigma-rust's `OpCode` enum are reserved-but-never-dispatched and parse-reject via `ExprParseError 'opcode-reserved'` (was 19 — `FunDef` (`0xd7`) is parsed + evaluated as a `ValDef` from v6 P6); 3 more (FlatMap, TrivialPropFalse, TrivialPropTrue; was 4 — LastBlockUtxoRootHash left in F5 batch 4) parse-reject via `'not-implemented-yet'` pending separate review of their top-level direct-dispatch status (routed elsewhere in sigma-rust). The 68 implementable variants:
 - 8 from phase 2b
 - 3 from phase 2c: `BinOp`, `LogicalNot`, `BoolToSigmaProp`
 - 4 from phase 2d-A: `Negation`, `BitInversion`, `Upcast`, `Downcast`
@@ -1158,6 +1175,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 - 8 from phase 2i-a: `CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`, `LongToByteArray`, `ByteArrayToBigInt`, `Xor`, `DecodePoint`, `SubstConstants`
 - 5 from phase 2i-b: `SigmaPropIsProven`, `MultiplyGroup`, `Exponentiate`, `CreateAvlTree`, `TreeLookup` — `CreateAvlTree` + `TreeLookup` flipped to unconditional rejects (`'unsupported-eval-node'`) in the F4 epilogue (the JVM has no eval override for either; they still parse). `SigmaPropIsProven` was already an unconditional structural throw.
 - 2 from phase 2i-c: `DeserializeContext`, `DeserializeRegister`
+- 1 from F5 batch 4: `LastBlockUtxoRootHash` — the bare `0xa6` op-form (JVM-only case object; FixedCost(15) values.scala:1495, reads the same `ctx.lastBlockUtxoRootHash` field as the 101:9 PropertyCall handler — cost 15 vs 20 by wire shape)
 
 Everything else throws `'not-implemented-yet'`. Real-world ErgoTree trees from the `mainnet_boxes` corpus are filtered against this coverage by `test/corpus-eval.test.ts` — only fixtures whose body uses exclusively the supported variants are exercised against the sigma-rust eval oracle for byte-equality. As of phase 2g.6 complete, the mainnet corpus aggregate is `success=18 not-impl=0 other=0` (synthetic-context stubs: `outputs: []`, `inputs: []`, `selfBox: synthetic`, `dataInputs: []`). Phase 2h-b adds 13 method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-b uplift to C2 corpus TBD on next corpus run. Phase 2h-c.1 adds 17 more method handlers but no new `Expr` arms — coverage remains 52 / ~70; post-2h-c.1 uplift to C2 corpus TBD on next corpus run. Phase 2h-c.2 adds 1 more method handler but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-d adds 3 more method handlers (closing the final three `SAvlTree.*` methods) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2h-f adds 2 more method handlers (`SGroupElement.getEncoded` + `SColl.flatMap`) but no new `Expr` arms — coverage remains 52 / ~70. Phase 2i-a adds 8 new `Expr` arms (pure-bytes predefs) — coverage advances to 60 / ~70; post-2i-a uplift to C2 corpus TBD on next corpus run.
 

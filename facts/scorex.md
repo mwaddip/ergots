@@ -198,6 +198,19 @@ export function serializeHeader(header: Header): Uint8Array
 export function serializeHeaderWithoutPow(header: Header): Uint8Array
 
 // Derive the Header ID: blake2b256 of the full serialized header bytes.
+// ⚠ Basis caveat (F5 batch 4, 2026-06-10 — FIX PENDING a user scope decision, ergoscript
+// ledger NEW-findings #1): this derives the id from a RE-SERIALIZATION
+// (`blake2b256(serializeHeader(header))`), and `parseHeader` assigns it that way
+// (header.ts:112). The canonical JVM derives the id from the CONSUMED INPUT SLICE retained
+// at parse — `ErgoHeader.sigmaSerializer.parse` snapshots reader position, re-reads the
+// exact consumed bytes as `_bytes` (ErgoHeader.scala:167-180), and
+// `id = Blake2b256(_bytes)` (ErgoHeader.scala:132-140). sigma-rust (branch
+// `ergo-node-integration`) has adopted the same consumed-slice basis
+// (ergo-chain-types/src/header.rs:196-204). The two bases coincide for canonically-encoded
+// (honest) headers; they DIVERGE on adversarial non-minimal encodings (non-minimal VLQ,
+// v1 d-bytes). `@ergots/ergoscript` overrides the id with the JVM basis locally at its
+// SHeader data arm (parse-svalue.ts SHeader case, F5 batch 4); `@ergots/nipopow` still
+// consumes scorex's re-serialization basis.
 export function deriveHeaderId(header: Header): Uint8Array  // 32 bytes
 
 // Parse / serialize AutolykosSolution (version determines v1 vs v2 wire layout).
@@ -346,11 +359,11 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | `sigma-ser/src/zig_zag_encode.rs::encode` / `decode` | `ByteWriter.writeVlqBigIntSigned` / `ByteReader.readVlqBigIntSigned` (`writer.ts`, `reader.ts`) | ZigZag `(v<<1)^(v>>63)` — sign-aware shift emulated via BigInt masking |
 | `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag` (`vlq.ts`) | Free-function API; same algorithm as the reader/writer methods |
 | `sigma-ser/src/scorex_serialize.rs::SigmaSerializable` | `ByteReader` / `ByteWriter` classes | Scorex reader/writer pattern; Fleet SDK ergonomic helpers (readOption/writeOption/readArray/writeArray/readBool/writeBool) are TS-only additions not present in sigma-ser |
-| `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived in-process by `deriveHeaderId` |
+| `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived in-process by `deriveHeaderId` — ⚠ RE-SERIALIZATION basis, see the `deriveHeaderId` caveat in the public-surface section (JVM + sigma-rust e-n-i hash the consumed input slice instead; diverges on adversarial non-minimal encodings; fix pending user scope decision) |
 | `ergo-chain-types/src/header.rs::Header::scorex_serialize` | `serializeHeader` (`header.ts`) | Full header bytes = `serializeHeaderWithoutPow` + `serializeAutolykosSolution` |
 | `ergo-chain-types/src/header.rs::Header::serialize_without_pow` | `serializeHeaderWithoutPow` (`header.ts`) | Used as Autolykos message input |
 | `ergo-chain-types/src/header.rs::AutolykosSolution::serialize_bytes` | `parseAutolykosSolution`, `serializeAutolykosSolution` (`autolykos-solution.ts`) | version parameter selects v1 (minerPk + powOnetimePk + nonce + d_len + d_bytes) vs v2 (minerPk + nonce) layout |
-| (TS-only) | `deriveHeaderId` (`header.ts`) | `blake2b256(serializeHeader(header))`; sigma-rust computes this inside `scorex_parse` rather than exposing it as a standalone function |
+| (TS-only) | `deriveHeaderId` (`header.ts`) | `blake2b256(serializeHeader(header))` — a RE-SERIALIZATION basis. The canonical JVM hashes the CONSUMED INPUT SLICE retained at parse (`ErgoHeader.scala:167-180` capture, `:132-140` id), and sigma-rust `ergo-node-integration` has adopted the same consumed-slice basis (`ergo-chain-types/src/header.rs:196-204`, no longer a re-serialization inside `scorex_parse`). Identical for canonical (honest) encodings; diverges on adversarial non-minimal ones. `@ergots/ergoscript` pins the JVM basis locally (parse-svalue.ts SHeader arm, F5 batch 4); nipopow still consumes this basis — fix pending a user scope decision (ergoscript ledger NEW-findings #1) |
 | (TS-only) | `readFixed`, `writeFixed` (`digests.ts`) | Named-field wrappers over `readBytes`/`writeBytes` with length checks; simplify fixed-size digest reads in `header.ts` and `autolykos-solution.ts` |
 | (TS-only) | `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN` (`digests.ts`) | Named length constants for clarity |
 | (TS-only) | `MAX_ARRAY_LENGTH` (`reader.ts`) | DoS cap for `readArray`; 1 << 24 = 16,777,216 |

@@ -19,6 +19,8 @@
  *     + F5 batch 3 (+'unsupported-value-type': checkType non-pair-STuple /
  *     non-unary-SFunc declared type, SType.scala:200-205; net 80 → 81. T3 adds
  *     'select-field-non-pair' → 82)
+ *     + F5 batch 4 (+'atleast-too-many-children': Atleast >255-children cap,
+ *     CSigmaDslBuilder.scala:102-108; net 82 → 83) — current total: 83
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -69,10 +71,34 @@
  *        unsigned-bigint-op-unsupported, unsigned-bigint-out-of-range,
  *        unsigned-bigint-not-invertible) → 72 (housekeeping 2026-06-03: used in
  *        the P2 arms but omitted from this union until now)
+ *    + 8 codes across v6 P4–P6 ('method-call-empty-args' P4 → 73;
+ *        'global-serialize-failed' + 'global-deserialize-failed' P5a → 75;
+ *        'global-from-bigendian-bytes-failed' P5b-1 → 76;
+ *        'global-encode-nbits-failed' + 'global-decode-nbits-failed' P5b-2 → 78;
+ *        'pow-hit-invalid-params' P5c → 79; 'apply-unresolved-type-var' P6 → 80)
+ *    − 1 code removed in F1 ('atleast-bound-out-of-range'; F1's other removal,
+ *        'deserialize-context-key-not-found', is already netted in the
+ *        "F1-adjusted" 63 above) → 79
  *    + 1 code added in F3 (conformance run — EQ-of-SigmaProp costed walk):
- *        'sigma-boolean-compare-unsupported' (JVM DataValueComparer sys.error mirror)
+ *        'sigma-boolean-compare-unsupported' (JVM DataValueComparer sys.error
+ *        mirror) → 80
+ *    + 1 − 2 in the F4 epilogue (+'unsupported-eval-node' T2;
+ *        −'create-avl-tree-shape-mismatch' T2, −'avl-tree-bad-digest-length' T3) → 79
  *    + 1 code added in F5 batch 1 ('tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
  *        values.scala:795-798; net 79 → 80)
+ *    + 2 codes added in F5 batch 3 ('unsupported-value-type' — checkType
+ *        non-pair-STuple / non-unary-SFunc declared type; 'select-field-non-pair'
+ *        T3 — SelectField on a runtime non-pair Tuple) → 82
+ *    + 1 code added in F5 batch 4 ('atleast-too-many-children' — Atleast
+ *        >255-children cap, CSigmaDslBuilder.scala:102-108) → 83
+ *
+ *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
+ *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
+ *   P4–P6 / F1 / F3-total / F4-epilogue intermediate steps and the F5 batch 3
+ *   (+2 → 82) and batch 4 (+1 → 83) tail were missing; the header chain above
+ *   lacked the batch 4 step; and the union below was missing batch 4's
+ *   'atleast-too-many-children' even though the throw site (eval/atleast.ts)
+ *   and facts/ergoscript-eval.md already carried it.)
  */
 
 /**
@@ -161,7 +187,25 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // Phase 2f medium — GlobalVars / GetVar / Option / SelectField (6 codes)
   // -------------------------------------------------------------------------
-  /** GlobalVars: required context field is missing (e.g. ctx.selfBox is undefined). */
+  /**
+   * A required `EvalOpts`/context field is `undefined`. Originally a
+   * GlobalVars-only code; the producer set has grown (census at the F5 batch 4
+   * close-out, 2026-06-10):
+   *   - the GlobalVars arms (`eval/global-vars.ts` — e.g. ctx.height,
+   *     ctx.selfBox);
+   *   - GetVar on absent `ctx.extension` (`eval/get-var.ts`);
+   *   - the Deserialize substitute pass (`eval/_substitute-deserialize.ts` —
+   *     DeserializeContext needs `ctx.extension`, DeserializeRegister needs
+   *     `ctx.selfBox`);
+   *   - the SContext handlers `preHeader` 101:3, `selfBoxIndex` 101:8,
+   *     `lastBlockUtxoRootHash` 101:9, `minerPubKey` 101:10
+   *     (`eval/method-call.ts`; NOT `headers` 101:2 — absent headers is the
+   *     empty Coll, no throw);
+   *   - the bare `0xa6` LastBlockUtxoRootHash op-form arm
+   *     (`eval/last-block-utxo-root-hash.ts`, F5 batch 4 — reads the same
+   *     `ctx.lastBlockUtxoRootHash` field as the 101:9 handler; only the cost
+   *     differs by wire shape, 15 op-form vs 20 PropertyCall).
+   */
   | 'context-field-missing'
   /** GetVar: variable's stored type doesn't match requested type. */
   | 'get-var-type-mismatch'
@@ -1014,3 +1058,24 @@ export type EvalErrorCode =
    *         eval/select-field.ts.
    */
   | 'select-field-non-pair'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 4 — Atleast children cap (1 new code; 82 → 83)
+  // -------------------------------------------------------------------------
+  /**
+   * `Atleast`: the evaluated input collection holds MORE than 255 SigmaProps
+   * (`MaxChildrenCountForAtLeastOp = 255` — CTHRESHOLD's GF(2^192) polynomial
+   * arithmetic takes single-byte child indices, so >255 children are
+   * unrepresentable). Thrown AFTER the Pattern-B per-item cost charge and
+   * BEFORE the degenerate-bound reductions — JVM order: `AtLeast.eval`
+   * (trees.scala:314-320) charges `addSeqCost`, then `CSigmaDslBuilder.atLeast`'s
+   * cap throw (CSigmaDslBuilder.scala:102-108) precedes `AtLeast.reduce`'s
+   * degenerates (trees.scala:340-359). So `atLeast(0, >255 children)` THROWS —
+   * it does not reduce to TrivialProp(true). eni (sigma-rust) caps only in the
+   * non-degenerate path — a JVM↔sigma-rust fork; ergots follows the JVM.
+   * Adversarial-only (compilers never emit a >255-prop atLeast).
+   *
+   * Source: eval/atleast.ts; SANTA vector atLeast.children_cap.json
+   *         (blessed_by jvm:sigma-state-6.0.3).
+   */
+  | 'atleast-too-many-children'

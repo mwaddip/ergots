@@ -9,7 +9,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 Ships in this contract (phase 2a — wire format):
 
 1. Parse + serialize for the ErgoTree envelope: header byte, optional VLQ-u32 body size, optional segregated constants section, body Expr.
-2. Parse + serialize for the full `Expr` discriminated union (68 variants — see `mir/types.ts`), wired through a central opcode-dispatch switch.
+2. Parse + serialize for the full `Expr` discriminated union (69 variants — see `mir/types.ts`; the 69th is `LastBlockUtxoRootHash`, the bare `0xa6` op-form added in F5 batch 4), wired through a central opcode-dispatch switch.
 3. Parse + serialize for `SType` (the type-system union) and `SValue` (the runtime-value union), including all primitive variants, `SColl`, `STuple`, `SOption`, `SFunc`, `STypeVar`.
 4. Parse for `SigmaBoolean` (the recursive proposition tree inside `SSigmaProp` constants). Phase 2g-medium replaced the opaque-bytes representation with a structural 6-variant discriminated union — see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) for the runtime type and verifier; the wire parser produces all 6 variants byte-equal on round-trip.
 5. P2PK recognition + 33-byte public-key extraction.
@@ -244,7 +244,7 @@ Per-class code enumeration (every code below is emitted by current source):
 
 - **`ErgoTreeParseError`**: `'empty'`, `'oversized'`, `'body-size-overflow'`, `'too-many-constants'`, `'header-inconsistent'`, `'subst-length-mismatch'`, `'subst-type-mismatch'` (the last two from `substituteConstantsBytes`; the eval arm re-wraps them as `EvalError('subst-constants-error')`), `'header-version-requires-size'` (F5 batch 3 — rule-1012 `CheckHeaderSizeBit`: a tree header with version > 0 and the size bit (0x08) clear is rejected at parse, mirroring JVM `ValidationRules.scala:138-151` enforced at `ErgoTreeSerializer.scala:219`; applies to the main tree header AND substConstants template headers; unconditional; adversarial-only — mainnet v>0 trees carry the size bit).
 - **`ErgoTreeSerializeError`**: `'header-inconsistent'`, `'constants-arity-mismatch'`.
-- **`ExprParseError`**: `'opcode-reserved'` (18 sites — reserved in sigma-rust's `OpCode` enum but never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; covers `OpTrue`, `OpFalse`, `UnitConstant`, `Select1..Select5`, `SomeValue`, `NoneValue`, `ModQ`, `PlusModQ`, `MinusModQ`, `CollShiftLeft/Right/RightZeroed`, `CollRotateLeft/Right`; added phase 2i-d, renamed from `'not-implemented-yet'` to reflect permanent-state rather than forward-promise; **was 19 — `FunDef` (`0xd7`) removed in v6 P6, now parsed as a `ValDef` carrying `tpeArgs`, see the P6 wire section below**); `'not-implemented-yet'` (4 wire sites still using it — `LastBlockUtxoRootHash`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue` — routed through other dispatch paths in sigma-rust (PropertyCall id 9, SColl method-call, SSigmaProp nesting); top-level direct-dispatch status undetermined pending separate review; ALSO emitted by the `EvalError` class for legitimately-TBD eval support — distinguished from this wire-layer use by error class); `'unknown-opcode'` (byte not in sigma-rust's opcode table at all); plus per-variant codes including `'apply-too-many-args'`, `'block-too-many-items'`, `'collection-size-out-of-range'`, `'deserialize-context-id-out-of-range'`, `'deserialize-register-id-out-of-range'`, `'extract-register-as-id-out-of-range'`, `'func-value-too-many-args'`, `'fun-def-tpe-arg-not-type-var'` (v6 P6 — a declared `FunDef` type-arg did not parse to an `STypeVar`; see the P6 wire section below), `'get-var-id-out-of-range'`, `'invalid-binop-opcode'`, `'invalid-constant-placeholder-id'`, `'method-call-id-out-of-range'`, `'method-call-missing-type-arg'`, `'method-call-too-many-args'`, `'property-call-id-out-of-range'`, `'select-field-index-out-of-range'`, `'tuple-arity-out-of-range'`, `'unknown-binop-kind'`, `'val-def-rhs-tpe'`, `'val-use-unknown-id'`. (**`'invalid-option-tag'` RETIRED in F5 batch 1, 2026-06-07**: its sole remaining site,
+- **`ExprParseError`**: `'opcode-reserved'` (18 sites — reserved in sigma-rust's `OpCode` enum but never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; covers `OpTrue`, `OpFalse`, `UnitConstant`, `Select1..Select5`, `SomeValue`, `NoneValue`, `ModQ`, `PlusModQ`, `MinusModQ`, `CollShiftLeft/Right/RightZeroed`, `CollRotateLeft/Right`; added phase 2i-d, renamed from `'not-implemented-yet'` to reflect permanent-state rather than forward-promise; **was 19 — `FunDef` (`0xd7`) removed in v6 P6, now parsed as a `ValDef` carrying `tpeArgs`, see the P6 wire section below**); `'not-implemented-yet'` (3 wire sites still using it — `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue` — routed through other dispatch paths in sigma-rust (SColl method-call for FlatMap, SSigmaProp nesting for the TrivialProp pair); top-level direct-dispatch status undetermined pending separate review; **was 4 — `LastBlockUtxoRootHash` left in F5 batch 4: the bare `0xa6` op-form now parses + evaluates, see the F5 batch 4 LastBlockUtxoRootHash section below**; ALSO emitted by the `EvalError` class for legitimately-TBD eval support — distinguished from this wire-layer use by error class); `'unknown-opcode'` (byte not in sigma-rust's opcode table at all); plus per-variant codes including `'apply-too-many-args'`, `'block-too-many-items'`, `'collection-size-out-of-range'`, `'deserialize-context-id-out-of-range'`, `'deserialize-register-id-out-of-range'`, `'extract-register-as-id-out-of-range'`, `'func-value-too-many-args'`, `'fun-def-tpe-arg-not-type-var'` (v6 P6 — a declared `FunDef` type-arg did not parse to an `STypeVar`; see the P6 wire section below), `'get-var-id-out-of-range'`, `'invalid-binop-opcode'`, `'invalid-constant-placeholder-id'`, `'method-call-id-out-of-range'`, `'method-call-missing-type-arg'`, `'method-call-too-many-args'`, `'property-call-id-out-of-range'`, `'select-field-index-out-of-range'`, `'tuple-arity-out-of-range'`, `'unknown-binop-kind'`, `'val-def-rhs-tpe'`, `'val-use-unknown-id'`. (**`'invalid-option-tag'` RETIRED in F5 batch 1, 2026-06-07**: its sole remaining site,
 `DeserializeRegister.default`, now follows JVM `DeserializeRegisterSerializer.scala:30`
 `r.getOption(r.getValue())` — ANY nonzero tag → Some(parse Expr). **`'tuple-arity-out-of-range'`
 re-scoped same date**: parse rejects count ≥ 128 ONLY (JVM `TupleSerializer.parse` reads the
@@ -563,6 +563,24 @@ Every wire ingress that reads a 33-byte GE payload stops storing raw bytes and a
   (`@noble/curves` — already a dependency of this package; no new dependency).
 - Round-trip consequences: Carve-out 3 (§Round-trip invariant). Serialize side is unchanged —
   canonical values serialize verbatim, and the invariant guarantees canonicality.
+
+## F5 batch 4 wire updates (LastBlockUtxoRootHash op-form)
+
+The bare opcode `0xa6` (= `OpCodes.scala:95`, `LastBlockUtxoRootHash = newOpCode(54)` = 112+54)
+now parses to the dedicated payload-less `Expr` variant `LastBlockUtxoRootHash` and serializes
+back byte-faithful (the opcode byte is the entire encoding). JVM (canonical): registered via
+`CaseObjectSerialization(LastBlockUtxoRootHash, LastBlockUtxoRootHash)` (ValueSerializer.scala:87)
+— `serialize` writes nothing, `parse` returns the case object. sigma-rust has NO MIR variant and
+NO dispatch arm for this opcode (it errors on these bytes; the property is reachable there only
+as PropertyCall on SContext, method id 9) — the JVM accepts the bare op-form, so ergots parses +
+evaluates it. Cost differs by wire shape: the op-form charges the op's own `FixedCost(JitCost(15))`
+(values.scala:1495) while the PropertyCall form observably totals 20 (4 dispatcher + 1 Context obj
+arm + 15 handler) — both SANTA-pinned (`Context.op_forms.json` / `Context.properties.json`, blessed
+jvm:sigma-state-6.0.3). Modules: `wire/mir/last-block-utxo-root-hash.ts` (parse), the `0xa6` arms
+in `wire/parse.ts` / `wire/serialize.ts`, eval arm `eval/last-block-utxo-root-hash.ts`. This drops
+the wire `'not-implemented-yet'` site count from 4 to 3 (see the ExprParseError taxonomy above)
+and raises the `Expr` union to 69 variants / eval coverage to 68 of 68 (see
+[`facts/ergoscript-eval.md`](./ergoscript-eval.md)).
 
 ## Coverage
 
