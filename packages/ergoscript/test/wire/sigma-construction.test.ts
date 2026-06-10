@@ -60,7 +60,7 @@ import type { ErgoTree } from '../../src/mir/types'
  * :35-42 — GE canonical-bytes invariant, facts/ergoscript-eval.md), so the
  * former `0x02/0x03 + ascending-bytes` placeholders would parse-reject with
  * 'group-element-invalid-point'. Specifically: old gB (0x02 + 0x01..0x20) and
- * old gD (0x02 + 0x21..0x40) were off-curve and required replacement. Old gC
+ * old gD (0x02 + 0x81..0xA0) were off-curve and required replacement. Old gC
  * (0x03 + 0x41..0x60) happened to be a coincidentally valid curve point but
  * was swapped anyway for uniformity with real named points. These tests
  * exercise the sigma-construction op wire shapes, not GE validation, so we use
