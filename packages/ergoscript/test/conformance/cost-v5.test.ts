@@ -121,6 +121,8 @@ const VECTOR_FILES = [
   'substConstants_version_source_outer_v2.json',
   // F5 batch 4 — Ask 13: bare Context op-forms (0xa6 @ 15 / 0xac @ 20; cost differs by wire shape)
   'Context.op_forms.json',
+  // F5 batch 4 — addendum: box byte-accessor asymmetric basis (.bytes/.id retained, .bytesWithoutRef canonical)
+  'Box.bytes_byte_basis.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the
