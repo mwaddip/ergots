@@ -81,7 +81,13 @@ describe('rule-1012 CheckHeaderSizeBit — version > 0 requires the size bit (W6
 })
 
 describe('rule-1012 negative controls — these MUST still parse (no over-reject)', () => {
-  const pk = '02' + '00'.repeat(32) // dummy 33-byte compressed point
+  // secp256k1 generator G — a VALID compressed point. Recalibrated in F5
+  // batch 4: ProveDlog leaves are now curve-validated at parse (JVM
+  // SigmaBoolean.scala:36-44,71-80 via GroupElementSerializer), and the old
+  // dummy `02 || 00×32` (x=0, y²=7 a non-residue) is a point the JVM itself
+  // rejects — these negative controls must embed a genuinely parseable pk so
+  // they keep testing the rule-1012 header gate and nothing else.
+  const pk = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
 
   it('version 0, no size bit: gate does not apply', () => {
     // 0x00 header, body = SigmaPropConstant(0x08) + ProveDlog(0xcd) + 33-byte pk

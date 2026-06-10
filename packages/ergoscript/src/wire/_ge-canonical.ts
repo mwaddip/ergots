@@ -18,13 +18,19 @@ import { decodePoint } from '../crypto/secp256k1'
 
 /**
  * Validate + normalize a 33-byte GE wire payload.
- * 0x00-lead → fresh canonical 33-zero identity; valid 02/03 point → input
- * verbatim; anything else → throws `mkError(cause)`.
+ * Input MUST be exactly 33 bytes (asserted — non-33 throws `mkError`; call
+ * sites feed struct fields as well as fixed-width reader reads, so misuse is
+ * loud rather than silently treated as identity-or-point). Then: 0x00-lead →
+ * fresh canonical 33-zero identity; valid 02/03 point → input verbatim;
+ * anything else → throws `mkError(cause)`.
  */
 export function canonicalGePayload(
   bytes33: Uint8Array,
   mkError: (cause: string) => Error,
 ): Uint8Array {
+  if (bytes33.length !== 33) {
+    throw mkError(`expected exactly 33 bytes, got ${bytes33.length}`)
+  }
   if (bytes33[0] === 0x00) return new Uint8Array(33)
   try {
     decodePoint(bytes33) // validation only — valid input is already canonical

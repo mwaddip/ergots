@@ -70,6 +70,7 @@ import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { consumeTreeFromReader } from './ergo-tree'
 import { canonicalGePayload } from './_ge-canonical'
+import { blake2b256 } from '../crypto/hashes'
 
 // OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
 // (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
@@ -636,7 +637,37 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           'sheader-tree-version-too-low'
         )
       }
+      const start = r.position
       const header = parseHeader(r)
+      // id basis: the JVM retains the ORIGINAL consumed slice as `_bytes`
+      // (ErgoHeader.sigmaSerializer.parse capture, ErgoHeader.scala:167-180)
+      // and derives id = Blake2b256(_bytes) (:132-140) — id derivation
+      // precedes normalization. scorex parseHeader instead derives id from a
+      // RE-serialization (header.ts:112 → deriveHeaderId :183-185), which
+      // coincides only for canonical encodings (it diverges on adversarial
+      // non-minimal VLQ / v1 d-bytes encodings) — so pin the JVM basis here.
+      header.id = blake2b256(r.slice(start, r.position))
+      // F5 batch 4 — GE canonical-bytes invariant on the hydration leg. The
+      // JVM parses minerPk + (v1) powOnetimePk through GroupElementSerializer
+      // (AutolykosSolution.sigmaSerializerV1.parse ErgoHeader.scala:72-79,
+      // .sigmaSerializerV2.parse :89-93): 0x00-lead → identity POINT (tail
+      // discarded); invalid non-0x00-lead → throw (surfaced through the
+      // deserializeTo failure wrap on that ingress). scorex readFixed returns
+      // subarray VIEWS into the reader buffer — .slice() detaches the
+      // verbatim (valid-point) path; the normalize path is already fresh.
+      const sol = header.autolykosSolution
+      sol.minerPk = canonicalGePayload(sol.minerPk.slice(), (cause) =>
+        new SValueParseError(
+          `SHeader minerPk is not a valid curve point: ${cause}`,
+          'group-element-invalid-point',
+        ))
+      if (sol.powOnetimePk !== null) {
+        sol.powOnetimePk = canonicalGePayload(sol.powOnetimePk.slice(), (cause) =>
+          new SValueParseError(
+            `SHeader powOnetimePk is not a valid curve point: ${cause}`,
+            'group-element-invalid-point',
+          ))
+      }
       return { kind: 'Header', value: header }
     }
 

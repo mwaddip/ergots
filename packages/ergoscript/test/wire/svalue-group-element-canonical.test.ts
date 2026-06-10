@@ -24,6 +24,7 @@ import { describe, expect, test } from 'vitest'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseSValue } from '../../src/wire/parse-svalue'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
+import { canonicalGePayload } from '../../src/wire/_ge-canonical'
 import { decodePoint, encodePoint } from '../../src/crypto/secp256k1'
 import { hexToBytes } from '../_helpers'
 import type { SType } from '../../src/mir/types'
@@ -32,6 +33,8 @@ const SGROUP: SType = { tag: 'SGroupElement' }
 
 // secp256k1 generator G, SEC1 compressed (02-lead, valid point).
 const GENERATOR_HEX = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+// 6G — a valid 03-lead (odd-y) point; verified in-test by decoding, not trusted.
+const SIX_G_HEX = '03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556'
 // 0x00-lead with garbage tail: JVM parses to the identity POINT, tail discarded.
 const GARBAGE_IDENTITY = '00' + 'aa'.repeat(32)
 // Canonical identity encoding (what the JVM serializer emits for infinity).
@@ -89,8 +92,31 @@ describe('parseSValue SGroupElement — GE canonical-bytes invariant', () => {
     // Pins the property the helper relies on: for a payload that decodePoint
     // ACCEPTS, the input bytes are already the canonical SEC1 encoding
     // (fixed-width big-endian x + parity prefix), so returning them verbatim
-    // IS returning the canonical form.
-    const generatorBytes = hexToBytes(GENERATOR_HEX)
-    expect(encodePoint(decodePoint(generatorBytes))).toEqual(generatorBytes)
+    // IS returning the canonical form. Covers both parity prefixes: 02 (G)
+    // and 03 (6G) — the 03 hex is self-validated by the decode itself (a bad
+    // constant would throw here rather than silently pin the wrong bytes).
+    for (const hex of [GENERATOR_HEX, SIX_G_HEX]) {
+      const bytes = hexToBytes(hex)
+      expect(encodePoint(decodePoint(bytes))).toEqual(bytes)
+    }
+  })
+
+  test('(g) canonicalGePayload rejects non-33-byte inputs via mkError (F5 batch 4 Task 3 guard)', () => {
+    // Task-3 call sites feed struct fields (not fixed-width reader reads) into
+    // the helper — the length guard makes misuse loud instead of silently
+    // treating a short/long payload as identity-or-point.
+    class GuardError extends Error {}
+    for (const bad of [new Uint8Array(0), new Uint8Array(32), new Uint8Array(34)]) {
+      expect(() => canonicalGePayload(bad, (cause) => new GuardError(cause))).toThrow(
+        GuardError
+      )
+      expect(() => canonicalGePayload(bad, (cause) => new GuardError(cause))).toThrow(
+        /expected exactly 33 bytes/
+      )
+    }
+    // 33-byte inputs still pass through the normal validate+normalize paths.
+    expect(canonicalGePayload(new Uint8Array(33), () => new GuardError('unexpected'))).toEqual(
+      new Uint8Array(33)
+    )
   })
 })

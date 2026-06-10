@@ -20,6 +20,14 @@ function hex(s: string): Uint8Array {
   return out
 }
 
+// secp256k1 generator G — a VALID compressed point (33 bytes). Recalibrated in
+// F5 batch 4: ProveDlog leaves are now curve-validated at parse (JVM
+// SigmaBoolean.scala:36-44,71-80 via GroupElementSerializer), and the previous
+// synthetic pk (x = 0x0102…20, off-curve) is one the JVM itself rejects. The
+// "parseable body" tests below must embed a genuinely parseable pk to keep
+// testing consumption/delegation rather than the GE reject path.
+const VALID_PK = hex('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798')
+
 describe('consumeTreeFromReader — hasSize=true unparseable body (mainnet h=545,684 shape)', () => {
   it('skips past the body region without throwing, even when strict parse would fail', () => {
     // Mainnet h=545,684 tx 1 output 0 ergoTree: 9 bytes total.
@@ -56,10 +64,7 @@ describe('consumeTreeFromReader — hasSize=true parseable body (no regression)'
     // Construct: header=0x08 (hasSize, version=0, no constant-seg), size VLQ=...,
     // body=full P2PK shape `08cd02<33-byte pk>`. Total body = 1+1+33 = 35.
     // VLQ for 35 = 0x23 (single byte). So full tree = 1 + 1 + 35 = 37 bytes.
-    const pk = new Uint8Array(33)
-    pk[0] = 0x02
-    for (let i = 1; i < 33; i++) pk[i] = i
-    const body = new Uint8Array([0x08, 0xcd, ...pk])  // SigmaPropConstant + ProveDlog
+    const body = new Uint8Array([0x08, 0xcd, ...VALID_PK])  // SigmaPropConstant + ProveDlog
     const tree = new Uint8Array(2 + body.length)
     tree[0] = 0x08         // hasSize, version=0
     tree[1] = body.length  // VLQ size = 35
@@ -74,10 +79,7 @@ describe('consumeTreeFromReader — hasSize=false (strict; matches sigma-rust)',
   it('parses a well-formed hasSize=false tree (delegates to strict parser)', () => {
     // Standard P2PK: header=0x00 (hasSize=false, version=0), then SigmaPropConstant
     // + ProveDlog + 33-byte pk. Total = 1 + 1 + 1 + 33 = 36 bytes.
-    const pk = new Uint8Array(33)
-    pk[0] = 0x02
-    for (let i = 1; i < 33; i++) pk[i] = i
-    const tree = new Uint8Array([0x00, 0x08, 0xcd, ...pk])
+    const tree = new Uint8Array([0x00, 0x08, 0xcd, ...VALID_PK])
     const r = new ByteReader(tree)
     expect(() => consumeTreeFromReader(r)).not.toThrow()
     expect(r.position).toBe(tree.length)

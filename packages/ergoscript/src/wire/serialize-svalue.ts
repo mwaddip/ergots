@@ -245,9 +245,12 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       // 33 bytes, emitted verbatim. No per-site curve validation here: the
       // GE canonical-bytes invariant (facts/ergoscript-eval.md, F5 batch 4)
       // guarantees every SValue.GroupElement.value is already canonical SEC1
-      // — validated + normalized at every ingress (parse-svalue GE arm). The
-      // 33-byte length check is load-bearing because anything else would
-      // silently desynchronize the wire cursor on read-back.
+      // — validated + normalized at every ingress (see the invariant bullet
+      // in facts/ergoscript-eval.md for the enforcement-site list: GE data
+      // arm, SigmaBoolean leaves, deserializeTo[Header] hydration, and the
+      // canonical-emitting eval arms). The 33-byte length check is
+      // load-bearing because anything else would silently desynchronize the
+      // wire cursor on read-back.
       if (v.value.length !== 33) {
         throw new SValueSerializeError(
           `SGroupElement requires exactly 33 bytes, got ${v.value.length}`,

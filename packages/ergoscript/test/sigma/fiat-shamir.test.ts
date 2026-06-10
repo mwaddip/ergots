@@ -3,6 +3,20 @@ import { propBytes, fiatShamirHash, FIAT_SHAMIR_HASH_BYTES } from '../../src/sig
 import { parseTree } from '../../src/wire/ergo-tree'
 import type { SigmaBoolean } from '../../src/mir/types'
 
+function hexToBytes(s: string): Uint8Array {
+  const out = new Uint8Array(s.length / 2)
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16)
+  return out
+}
+
+// VALID compressed secp256k1 points (G and 6G). Recalibrated in F5 batch 4:
+// ProveDlog.h is curve-validated at parse (GE canonical-bytes invariant,
+// facts/ergoscript-sigma.md) and the previous synthetic h's (x = 0x010203… /
+// 0x030507…, off-curve) are points the JVM itself rejects — hand-built
+// SigmaBoolean leaves in tests must carry invariant-conforming points.
+const POINT_G = hexToBytes('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798')
+const POINT_6G = hexToBytes('03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556')
+
 describe('Fiat-Shamir primitives', () => {
   it('FIAT_SHAMIR_HASH_BYTES === 24', () => {
     expect(FIAT_SHAMIR_HASH_BYTES).toBe(24)
@@ -18,10 +32,7 @@ describe('Fiat-Shamir primitives', () => {
     // way to lock this is a fixture from sigma-rust — defer the byte-equality
     // assertion to the Task 6 verifier-fixture stage. Here we just verify
     // propBytes returns non-empty, starts with a valid ErgoTree header byte.
-    const h = new Uint8Array(33)
-    h[0] = 0x02  // SEC1 compressed pubkey tag
-    for (let i = 1; i < 33; i++) h[i] = i
-    const sb: SigmaBoolean = { tag: 'ProveDlog', h }
+    const sb: SigmaBoolean = { tag: 'ProveDlog', h: POINT_G }
     const bytes = propBytes(sb)
     expect(bytes.length).toBeGreaterThan(33)  // ErgoTree envelope adds bytes
     // ErgoTree v0 + constant-segregation: header byte should be 0x10 (bit 4 set).
@@ -36,10 +47,7 @@ describe('Fiat-Shamir primitives', () => {
   it('propBytes round-trips through parseTree correctly', () => {
     // The constructed ErgoTree should parse back cleanly via parseTree.
     // The body after parse should be ConstPlaceholder(0) (constant-segregation mode).
-    const h = new Uint8Array(33)
-    h[0] = 0x02
-    for (let i = 1; i < 33; i++) h[i] = i * 2 + 1
-    const sb: SigmaBoolean = { tag: 'ProveDlog', h }
+    const sb: SigmaBoolean = { tag: 'ProveDlog', h: POINT_6G }
     const bytes = propBytes(sb)
     const tree = parseTree(bytes)
     expect(tree.header.version).toBe(0)

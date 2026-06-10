@@ -9,10 +9,14 @@
  *
  * ErgoTree stores Header constants as parsed structs and re-emits their bytes
  * verbatim on serialization. Any bit-flip inside a Header's fixed-width field
- * (parentId, adProofsRoot, EC points, nonce, etc.) round-trips unchanged
- * through parse → re-serialize, so the mutated bytes pass through without
- * detection. This is correct behavior — the wire codec is a faithful
- * transcription layer, not a validation layer.
+ * (parentId, adProofsRoot, nonce, etc.) round-trips unchanged through
+ * parse → re-serialize, so the mutated bytes pass through without detection.
+ * This is correct behavior — the wire codec is a faithful transcription
+ * layer, not a validation layer. (EC-point fields are the exception since F5
+ * batch 4: minerPk/powOnetimePk flips that leave the curve now REJECT at
+ * parse, and flips to a 0x00 lead normalize → roundtrip-diverge; only flips
+ * landing on another valid point still pass through. GE canonical-bytes
+ * invariant, facts/ergoscript-eval.md.)
  *
  * Only the following byte classes detect mutations reliably:
  *   A. ErgoTree envelope bytes: header byte (1), VLQ size (1–5), constant-count VLQ (1)
