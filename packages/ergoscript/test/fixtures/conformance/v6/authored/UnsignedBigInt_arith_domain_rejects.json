@@ -1,0 +1,98 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "UnsignedBigInt arith domain rejects",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ubi-arith",
+  "entries" : [
+    {
+      "name" : "overflow-plus#0",
+      "script" : "{ MAX.toUBI + 1.toUBI }",
+      "tree_bytes_hex" : "1b2b020920ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0901019a73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "underflow-minus#1",
+      "script" : "{ 3.toUBI - 5.toUBI }",
+      "tree_bytes_hex" : "1b0c020901030901059973007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "overflow-multiply#2",
+      "script" : "{ MAX.toUBI * 2.toUBI }",
+      "tree_bytes_hex" : "1b2b020920ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0901029c73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "divide-by-zero#3",
+      "script" : "{ 7.toUBI / 0.toUBI }",
+      "tree_bytes_hex" : "1b0b0209010709009d73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "mod-by-zero#4",
+      "script" : "{ 7.toUBI % 0.toUBI }",
+      "tree_bytes_hex" : "1b0b0209010709009e73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

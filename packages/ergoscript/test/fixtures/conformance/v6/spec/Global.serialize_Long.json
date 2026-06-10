@@ -1,0 +1,95 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.serialize[Long]",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "-1#0",
+      "script" : "{ (x: Long) => serialize(x) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a03dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 92,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#1",
+      "script" : "{ (x: Long) => serialize(x) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a03dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 92,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#2",
+      "script" : "{ (x: Long) => serialize(x) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a03dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 92,
+        "error" : null
+      }
+    }
+  ]
+}

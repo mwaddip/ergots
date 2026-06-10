@@ -1,0 +1,188 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Fix substConstants in v6.0 for ErgoTree version > 0",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "(Coll(16,1,8,-45,115,0),0)#0",
+      "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
+      "tree_bytes_hex" : "1b21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 16
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 8
+              },
+              {
+                "kind" : "Byte",
+                "value" : -45
+              },
+              {
+                "kind" : "Byte",
+                "value" : 115
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : -46
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 351,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(27,5,1,8,-45,115,0),0)#1",
+      "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
+      "tree_bytes_hex" : "1b21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 27
+              },
+              {
+                "kind" : "Byte",
+                "value" : 5
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 8
+              },
+              {
+                "kind" : "Byte",
+                "value" : -45
+              },
+              {
+                "kind" : "Byte",
+                "value" : 115
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 27
+            },
+            {
+              "kind" : "Byte",
+              "value" : 5
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : -46
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 351,
+        "error" : null
+      }
+    }
+  ]
+}

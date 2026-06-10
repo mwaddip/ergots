@@ -1,0 +1,439 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll getOrElse method equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(Coll(),(0,10))#0",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(),(-1,10))#1",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : -1
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),(0,10))#2",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),(1,10))#3",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),(-1,10))#4",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : -1
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(0,10))#5",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(1,10))#6",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(2,10))#7",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 2
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(-1,10))#8",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) => x._1.getOrElse(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1a2500dad901013c1058d801d6038c720102b28c7201018c720301018c72030201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : -1
+              },
+              {
+                "kind" : "Int",
+                "value" : 10
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    }
+  ]
+}

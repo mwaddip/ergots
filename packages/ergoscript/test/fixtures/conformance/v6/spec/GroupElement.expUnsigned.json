@@ -1,0 +1,98 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "GroupElement.expUnsigned",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "(GroupElement(ECPoint(79be66,483ada,...)),CUnsignedBigInt(1))#0",
+      "script" : "{ (xs: (GroupElement, UnsignedBigInt)) => xs._1.expUnsigned(xs._2) }",
+      "tree_bytes_hex" : "1b1900dad901014309dc07068c720101018c72010201e4e3014309",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 999,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(79be66,483ada,...)),CUnsignedBigInt(0))#1",
+      "script" : "{ (xs: (GroupElement, UnsignedBigInt)) => xs._1.expUnsigned(xs._2) }",
+      "tree_bytes_hex" : "1b1900dad901014309dc07068c720101018c72010201e4e3014309",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "cost" : 999,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(79be66,483ada,...)),CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337))#2",
+      "script" : "{ (xs: (GroupElement, UnsignedBigInt)) => xs._1.expUnsigned(xs._2) }",
+      "tree_bytes_hex" : "1b1900dad901014309dc07068c720101018c72010201e4e3014309",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "cost" : 999,
+        "error" : null
+      }
+    }
+  ]
+}

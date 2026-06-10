@@ -1,0 +1,921 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "UnsignedBigInt methods",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "(CUnsignedBigInt(1),CUnsignedBigInt(2))#0",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseOr(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc09098c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "2"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "3"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(1001),CUnsignedBigInt(2002))#1",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseOr(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc09098c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "1001"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "2002"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "2043"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(100001),CUnsignedBigInt(20002))#2",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseOr(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc09098c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "100001"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "20002"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "118435"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(127)#3",
+      "script" : "{ (x: UnsignedBigInt) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010109db0908720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "127"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "115792089237316195423570985008687907853269984665640564039457584007913129639808"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(0)#4",
+      "script" : "{ (x: UnsignedBigInt) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010109db0908720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(1)#5",
+      "script" : "{ (x: UnsignedBigInt) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010109db0908720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "115792089237316195423570985008687907853269984665640564039457584007913129639934"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(2)#6",
+      "script" : "{ (x: UnsignedBigInt) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010109db0908720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "2"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "115792089237316195423570985008687907853269984665640564039457584007913129639933"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(10001)#7",
+      "script" : "{ (x: UnsignedBigInt) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010109db0908720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "10001"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "115792089237316195423570985008687907853269984665640564039457584007913129629934"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(3),CUnsignedBigInt(5))#8",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseAnd(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc090a8c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "3"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "5"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "1"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(10001),CUnsignedBigInt(2202))#9",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseAnd(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc090a8c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "10001"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "2202"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "16"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(3),CUnsignedBigInt(5))#10",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseXor(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc090b8c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "3"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "5"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "6"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(10001),CUnsignedBigInt(2202))#11",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.bitwiseXor(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc090b8c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "10001"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "2202"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "12171"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(127)#12",
+      "script" : "{ (x: UnsignedBigInt) => x.toBytes }",
+      "tree_bytes_hex" : "1b1000dad9010109db0906720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "127"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 127
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(32767)#13",
+      "script" : "{ (x: UnsignedBigInt) => x.toBytes }",
+      "tree_bytes_hex" : "1b1000dad9010109db0906720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "32767"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(2147483647)#14",
+      "script" : "{ (x: UnsignedBigInt) => x.toBytes }",
+      "tree_bytes_hex" : "1b1000dad9010109db0906720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "2147483647"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CUnsignedBigInt(83)#15",
+      "script" : "{ (x: UnsignedBigInt) => x.toBits }",
+      "tree_bytes_hex" : "1b1000dad9010109db0907720101e4e30109",
+      "input" : {
+        "kind" : "UnsignedBigInt",
+        "value" : "83"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SBoolean"
+          },
+          "items" : [
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(3),3)#16",
+      "script" : "{ (x: (UnsignedBigInt, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901014504dc090c8c720101018c72010201e4e3014504",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "3"
+          },
+          {
+            "kind" : "Int",
+            "value" : 3
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "24"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(3),8)#17",
+      "script" : "{ (x: (UnsignedBigInt, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901014504dc090c8c720101018c72010201e4e3014504",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "3"
+          },
+          {
+            "kind" : "Int",
+            "value" : 8
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "768"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(24),3)#18",
+      "script" : "{ (x: (UnsignedBigInt, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901014504dc090d8c720101018c72010201e4e3014504",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "24"
+          },
+          {
+            "kind" : "Int",
+            "value" : 3
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "3"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(1600),8)#19",
+      "script" : "{ (x: (UnsignedBigInt, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901014504dc090d8c720101018c72010201e4e3014504",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "1600"
+          },
+          {
+            "kind" : "Int",
+            "value" : 8
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "6"
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(24),-1)#20",
+      "script" : "{ (x: (UnsignedBigInt, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901014504dc090d8c720101018c72010201e4e3014504",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "24"
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(24),256)#21",
+      "script" : "{ (x: (UnsignedBigInt, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901014504dc090d8c720101018c72010201e4e3014504",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "24"
+          },
+          {
+            "kind" : "Int",
+            "value" : 256
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(24),(CUnsignedBigInt(24),CUnsignedBigInt(10)))#22",
+      "script" : "{ (x: (UnsignedBigInt, (UnsignedBigInt, UnsignedBigInt))) => x._1.plusMod(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1b2500dad90101455dd801d6038c720102dc090f8c720101028c7203018c72030201e4e301455d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "24"
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "24"
+              },
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "10"
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "8"
+        },
+        "cost" : 166,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(24),(CUnsignedBigInt(24),CUnsignedBigInt(24)))#23",
+      "script" : "{ (x: (UnsignedBigInt, (UnsignedBigInt, UnsignedBigInt))) => x._1.plusMod(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1b2500dad90101455dd801d6038c720102dc090f8c720101028c7203018c72030201e4e301455d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "24"
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "24"
+              },
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "24"
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 166,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337),(CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337),CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337)))#24",
+      "script" : "{ (x: (UnsignedBigInt, (UnsignedBigInt, UnsignedBigInt))) => x._1.plusMod(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1b2500dad90101455dd801d6038c720102dc090f8c720101028c7203018c72030201e4e301455d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+              },
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 166,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(0),(CUnsignedBigInt(24),CUnsignedBigInt(10)))#25",
+      "script" : "{ (x: (UnsignedBigInt, (UnsignedBigInt, UnsignedBigInt))) => x._1.subtractMod(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1b2500dad90101455dd801d6038c720102dc09108c720101028c7203018c72030201e4e301455d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "24"
+              },
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "10"
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "6"
+        },
+        "cost" : 166,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(24),(CUnsignedBigInt(24),CUnsignedBigInt(24)))#26",
+      "script" : "{ (x: (UnsignedBigInt, (UnsignedBigInt, UnsignedBigInt))) => x._1.subtractMod(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1b2500dad90101455dd801d6038c720102dc09108c720101028c7203018c72030201e4e301455d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "24"
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "24"
+              },
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "24"
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 166,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337),(CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337),CUnsignedBigInt(115792089237316195423570985008687907852837564279074904382605163141518161494337)))#27",
+      "script" : "{ (x: (UnsignedBigInt, (UnsignedBigInt, UnsignedBigInt))) => x._1.multiplyMod(x._2._1, x._2._2) }",
+      "tree_bytes_hex" : "1b2500dad90101455dd801d6038c720102dc09118c720101028c7203018c72030201e4e301455d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+              },
+              {
+                "kind" : "UnsignedBigInt",
+                "value" : "115792089237316195423570985008687907852837564279074904382605163141518161494337"
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 176,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CUnsignedBigInt(12),CUnsignedBigInt(5))#28",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.modInverse(x._2) }",
+      "tree_bytes_hex" : "1b1700dad901015ddc090e8c720101018c72010201e4e3015d",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "12"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "5"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "3"
+        },
+        "cost" : 249,
+        "error" : null
+      }
+    }
+  ]
+}

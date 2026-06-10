@@ -1,0 +1,185 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Long.toShort method",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "-9223372036854775808#0",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "-32769#1",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-32769"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "-32768#2",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-32768"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -32768
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#3",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -1
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#4",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 0
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#5",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 1
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "32767#6",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "32767"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 32767
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "32768#7",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "32768"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "-9223372036854775808#8",
+      "script" : "{ (x: Long) => x.toShort }",
+      "tree_bytes_hex" : "1a0f00dad90101057d72010301e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

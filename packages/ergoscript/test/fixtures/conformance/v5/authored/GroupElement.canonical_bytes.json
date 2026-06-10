@@ -1,0 +1,400 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "GroupElement.canonical_bytes",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ge-canonical",
+  "entries" : [
+    {
+      "name" : "invalid-point-dead-branch-errored#0",
+      "script" : "if (true) 5 else <tree carrying GE constant 0x02‖ff×32> — JVM: fails at DESERIALIZE though the branch is dead (decodePoint: 'x value invalid for SecP256K1FieldElement', blanket-wrapped in a misleading version-message SerializerException)",
+      "tree_bytes_hex" : "10060101040a070000000000000000000000000000000000000000000000000000000000000000000702ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff040c040e957300730195937302730373047305",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "invalid-point-eq-errored#1",
+      "script" : "{ identityGE == <invalid GE 0x02‖ff×32> }  // JVM: same parse-time reject in a live expression",
+      "tree_bytes_hex" : "1002070000000000000000000000000000000000000000000000000000000000000000000702ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "garbage-identity-eq-true#2",
+      "script" : "{ identityGE == <garbage-identity GE 0x00‖aa×32> }  // true — lead 0x00 ⇒ identity point, bytes 1..32 DISCARDED at parse",
+      "tree_bytes_hex" : "1002070000000000000000000000000000000000000000000000000000000000000000000700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 174,
+        "error" : null
+      }
+    },
+    {
+      "name" : "garbage-identity-dead-branch-accept#3",
+      "script" : "if (true) 5 else <tree carrying garbage-identity GE> — accepts: the non-canonical IDENTITY encoding parses fine (only non-zero leads curve-validate)",
+      "tree_bytes_hex" : "10060101040a070000000000000000000000000000000000000000000000000000000000000000000700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa040c040e957300730195937302730373047305",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 5
+        },
+        "cost" : 12,
+        "error" : null
+      }
+    },
+    {
+      "name" : "garbage-identity-getEncoded#4",
+      "script" : "{ <garbage-identity GE>.getEncoded }  // canonical 33 zeros — serialize always re-emits canonical",
+      "tree_bytes_hex" : "10010700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadb07027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 255,
+        "error" : null
+      }
+    },
+    {
+      "name" : "generator-getEncoded-control#5",
+      "script" : "{ generatorGE.getEncoded }  // control: the canonical compressed generator bytes",
+      "tree_bytes_hex" : "1001070279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798db07027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 121
+            },
+            {
+              "kind" : "Byte",
+              "value" : -66
+            },
+            {
+              "kind" : "Byte",
+              "value" : 102
+            },
+            {
+              "kind" : "Byte",
+              "value" : 126
+            },
+            {
+              "kind" : "Byte",
+              "value" : -7
+            },
+            {
+              "kind" : "Byte",
+              "value" : -36
+            },
+            {
+              "kind" : "Byte",
+              "value" : -69
+            },
+            {
+              "kind" : "Byte",
+              "value" : -84
+            },
+            {
+              "kind" : "Byte",
+              "value" : 85
+            },
+            {
+              "kind" : "Byte",
+              "value" : -96
+            },
+            {
+              "kind" : "Byte",
+              "value" : 98
+            },
+            {
+              "kind" : "Byte",
+              "value" : -107
+            },
+            {
+              "kind" : "Byte",
+              "value" : -50
+            },
+            {
+              "kind" : "Byte",
+              "value" : -121
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 7
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : -101
+            },
+            {
+              "kind" : "Byte",
+              "value" : -4
+            },
+            {
+              "kind" : "Byte",
+              "value" : -37
+            },
+            {
+              "kind" : "Byte",
+              "value" : 45
+            },
+            {
+              "kind" : "Byte",
+              "value" : -50
+            },
+            {
+              "kind" : "Byte",
+              "value" : 40
+            },
+            {
+              "kind" : "Byte",
+              "value" : -39
+            },
+            {
+              "kind" : "Byte",
+              "value" : 89
+            },
+            {
+              "kind" : "Byte",
+              "value" : -14
+            },
+            {
+              "kind" : "Byte",
+              "value" : -127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 91
+            },
+            {
+              "kind" : "Byte",
+              "value" : 22
+            },
+            {
+              "kind" : "Byte",
+              "value" : -8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 23
+            },
+            {
+              "kind" : "Byte",
+              "value" : -104
+            }
+          ]
+        },
+        "cost" : 255,
+        "error" : null
+      }
+    }
+  ]
+}

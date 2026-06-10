@@ -1,0 +1,92 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.decodeNbits",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "545259519#0",
+      "script" : "{(l: Long) => Global.decodeNbits(l) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a07dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "545259519"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "57896037716911750921221705069588091649609539881711309849342236841432341020672"
+        },
+        "cost" : 129,
+        "error" : null
+      }
+    },
+    {
+      "name" : "76690518#1",
+      "script" : "{(l: Long) => Global.decodeNbits(l) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a07dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "76690518"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-305419776"
+        },
+        "cost" : 129,
+        "error" : null
+      }
+    },
+    {
+      "name" : "68301910#2",
+      "script" : "{(l: Long) => Global.decodeNbits(l) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a07dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "68301910"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "305419776"
+        },
+        "cost" : 129,
+        "error" : null
+      }
+    },
+    {
+      "name" : "16790614#3",
+      "script" : "{(l: Long) => Global.decodeNbits(l) }",
+      "tree_bytes_hex" : "1b1200dad9010105dc6a07dd01720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "16790614"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "0"
+        },
+        "cost" : 129,
+        "error" : null
+      }
+    }
+  ]
+}

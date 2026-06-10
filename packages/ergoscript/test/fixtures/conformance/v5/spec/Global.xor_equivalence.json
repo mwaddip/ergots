@@ -1,0 +1,704 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.xor equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(Coll(),Coll())#0",
+      "script" : "{ (x: (Coll[Byte], Coll[Byte])) => xor(x._1, x._2) }",
+      "tree_bytes_hex" : "1a1800dad901013c0e0e9b8c7201018c72010201e4e3013c0e0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),Coll(1))#1",
+      "script" : "{ (x: (Coll[Byte], Coll[Byte])) => xor(x._1, x._2) }",
+      "tree_bytes_hex" : "1a1800dad901013c0e0e9b8c7201018c72010201e4e3013c0e0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,0),Coll(1,1))#2",
+      "script" : "{ (x: (Coll[Byte], Coll[Byte])) => xor(x._1, x._2) }",
+      "tree_bytes_hex" : "1a1800dad901013c0e0e9b8c7201018c72010201e4e3013c0e0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),Coll(1,1))#3",
+      "script" : "{ (x: (Coll[Byte], Coll[Byte])) => xor(x._1, x._2) }",
+      "tree_bytes_hex" : "1a1800dad901013c0e0e9b8c7201018c72010201e4e3013c0e0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,0),Coll(1))#4",
+      "script" : "{ (x: (Coll[Byte], Coll[Byte])) => xor(x._1, x._2) }",
+      "tree_bytes_hex" : "1a1800dad901013c0e0e9b8c7201018c72010201e4e3013c0e0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(-128,1,54,-2,-119,-81,-1,-128,42,-50,-90,113,40,-96,-1,0,127,-1,-29,73,-116,-128,1,-128,96,-128,1,43),Coll(100,-128,24,1,10,93,88,0,-11,-76,0,-91,-128,-25,-76,-128,-101,12,-46,115,-1,18,48,-65,-88,0,1,127,127,-37,0,39,73,-77,-84,43,-122,-1))#5",
+      "script" : "{ (x: (Coll[Byte], Coll[Byte])) => xor(x._1, x._2) }",
+      "tree_bytes_hex" : "1a1800dad901013c0e0e9b8c7201018c72010201e4e3013c0e0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 54
+              },
+              {
+                "kind" : "Byte",
+                "value" : -2
+              },
+              {
+                "kind" : "Byte",
+                "value" : -119
+              },
+              {
+                "kind" : "Byte",
+                "value" : -81
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : 42
+              },
+              {
+                "kind" : "Byte",
+                "value" : -50
+              },
+              {
+                "kind" : "Byte",
+                "value" : -90
+              },
+              {
+                "kind" : "Byte",
+                "value" : 113
+              },
+              {
+                "kind" : "Byte",
+                "value" : 40
+              },
+              {
+                "kind" : "Byte",
+                "value" : -96
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 127
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              },
+              {
+                "kind" : "Byte",
+                "value" : -29
+              },
+              {
+                "kind" : "Byte",
+                "value" : 73
+              },
+              {
+                "kind" : "Byte",
+                "value" : -116
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : 96
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 43
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 100
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : 24
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 10
+              },
+              {
+                "kind" : "Byte",
+                "value" : 93
+              },
+              {
+                "kind" : "Byte",
+                "value" : 88
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : -11
+              },
+              {
+                "kind" : "Byte",
+                "value" : -76
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : -91
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : -25
+              },
+              {
+                "kind" : "Byte",
+                "value" : -76
+              },
+              {
+                "kind" : "Byte",
+                "value" : -128
+              },
+              {
+                "kind" : "Byte",
+                "value" : -101
+              },
+              {
+                "kind" : "Byte",
+                "value" : 12
+              },
+              {
+                "kind" : "Byte",
+                "value" : -46
+              },
+              {
+                "kind" : "Byte",
+                "value" : 115
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 18
+              },
+              {
+                "kind" : "Byte",
+                "value" : 48
+              },
+              {
+                "kind" : "Byte",
+                "value" : -65
+              },
+              {
+                "kind" : "Byte",
+                "value" : -88
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 127
+              },
+              {
+                "kind" : "Byte",
+                "value" : 127
+              },
+              {
+                "kind" : "Byte",
+                "value" : -37
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 39
+              },
+              {
+                "kind" : "Byte",
+                "value" : 73
+              },
+              {
+                "kind" : "Byte",
+                "value" : -77
+              },
+              {
+                "kind" : "Byte",
+                "value" : -84
+              },
+              {
+                "kind" : "Byte",
+                "value" : 43
+              },
+              {
+                "kind" : "Byte",
+                "value" : -122
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -28
+            },
+            {
+              "kind" : "Byte",
+              "value" : -127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 46
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -125
+            },
+            {
+              "kind" : "Byte",
+              "value" : -14
+            },
+            {
+              "kind" : "Byte",
+              "value" : -89
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : -33
+            },
+            {
+              "kind" : "Byte",
+              "value" : 122
+            },
+            {
+              "kind" : "Byte",
+              "value" : -90
+            },
+            {
+              "kind" : "Byte",
+              "value" : -44
+            },
+            {
+              "kind" : "Byte",
+              "value" : -88
+            },
+            {
+              "kind" : "Byte",
+              "value" : 71
+            },
+            {
+              "kind" : "Byte",
+              "value" : 75
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : -28
+            },
+            {
+              "kind" : "Byte",
+              "value" : -13
+            },
+            {
+              "kind" : "Byte",
+              "value" : 49
+            },
+            {
+              "kind" : "Byte",
+              "value" : 58
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : -110
+            },
+            {
+              "kind" : "Byte",
+              "value" : 49
+            },
+            {
+              "kind" : "Byte",
+              "value" : 63
+            },
+            {
+              "kind" : "Byte",
+              "value" : -56
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 84
+            }
+          ]
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    }
+  ]
+}

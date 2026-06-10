@@ -1,0 +1,113 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "UnsignedBigInt.mod_toSigned",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ubi-mod-tosigned",
+  "entries" : [
+    {
+      "name" : "mod#basic",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.mod(x._2) }",
+      "tree_bytes_hex" : "1b0f02090111090105dc09127300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "2"
+        },
+        "cost" : 26,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mod#wrap",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.mod(x._2) }",
+      "tree_bytes_hex" : "1b2e0209208000000000000000000000000000000000000000000000000000000000000000090107dc09127300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "1"
+        },
+        "cost" : 26,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mod#m-gt-a",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.mod(x._2) }",
+      "tree_bytes_hex" : "1b0f02090105090111dc09127300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "5"
+        },
+        "cost" : 26,
+        "error" : null
+      }
+    },
+    {
+      "name" : "toSigned#small",
+      "script" : "{ (x: UnsignedBigInt) => x.toSigned }",
+      "tree_bytes_hex" : "1b0901090111db09137300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "17"
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    },
+    {
+      "name" : "toSigned#max-ok",
+      "script" : "{ (x: UnsignedBigInt) => x.toSigned }",
+      "tree_bytes_hex" : "1b280109207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdb09137300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    }
+  ]
+}

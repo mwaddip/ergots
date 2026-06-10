@@ -1,0 +1,128 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "GroupElement.exp equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(GroupElement(ECPoint(358d53,77a7ac,...)),CBigInt(-50220125140160318191756945821708248445))#0",
+      "script" : "{ (x: (GroupElement, BigInt)) => x._1.exp(x._2) }",
+      "tree_bytes_hex" : "1a1600dad9010143069f8c7201018c72010201e4e3014306",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "03358d53f01276211f92d0aefbd278805121d4ff6eb534b777af1ee8abae5b2056"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-50220125140160318191756945821708248445"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "023a850181b7b73f92a5bbfa0bfc78f5bbb6ff00645ddde501037017e1a2251e2e"
+        },
+        "cost" : 995,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(dba7b9,9b7393,...)),CBigInt(55986691954534644762431584115410936274537362534787065392))#1",
+      "script" : "{ (x: (GroupElement, BigInt)) => x._1.exp(x._2) }",
+      "tree_bytes_hex" : "1a1600dad9010143069f8c7201018c72010201e4e3014306",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "02dba7b94b111f3894e2f9120b577da595ec7d58d488485adf73bf4e153af63575"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "55986691954534644762431584115410936274537362534787065392"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "032045b928fb7774a4cd9ef5fa8209f4e493cd4cc5bd536b52746a53871bf73431"
+        },
+        "cost" : 995,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(904498,4faeb3,...)),CBigInt(-79551986070022177805286159131179083211077251155638739200))#2",
+      "script" : "{ (x: (GroupElement, BigInt)) => x._1.exp(x._2) }",
+      "tree_bytes_hex" : "1a1600dad9010143069f8c7201018c72010201e4e3014306",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-79551986070022177805286159131179083211077251155638739200"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "036128efaf14d8ac2812a662f6494dc617b87986a3dc6b4a59440048a7ac7d2729"
+        },
+        "cost" : 995,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(904498,4faeb3,...)),CBigInt(1))#3",
+      "script" : "{ (x: (GroupElement, BigInt)) => x._1.exp(x._2) }",
+      "tree_bytes_hex" : "1a1600dad9010143069f8c7201018c72010201e4e3014306",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+        },
+        "cost" : 995,
+        "error" : null
+      }
+    }
+  ]
+}

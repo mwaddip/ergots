@@ -1,0 +1,68 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "verify should respect Context.initCost",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(true,true)#0",
+      "script" : "{ (x: (Boolean, Boolean)) => x._1 ^ x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010155f48c7201018c72010201e4e30155",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(true,true)#1",
+      "script" : "{ (x: (Boolean, Boolean)) => x._1 ^ x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010155f48c7201018c72010201e4e30155",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,0 +1,218 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "&& sigma equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(SigmaProp(ProveDlog(ECPoint(ea9bf6,59b19c,...))),SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))))#0",
+      "script" : "{ (x:(SigmaProp, SigmaProp)) => x._1 && x._2 }",
+      "tree_bytes_hex" : "1a1500dad901015cea028c7201018c72010201e4e3015c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd02ea9bf6da7f512386c6ca509d40f8c5e7e0ffb3eea5dc3c398443ea17f4510798"
+          },
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "9602cd02ea9bf6da7f512386c6ca509d40f8c5e7e0ffb3eea5dc3c398443ea17f4510798cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(SigmaProp(TrueProp),SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))))#1",
+      "script" : "{ (x:(SigmaProp, SigmaProp)) => x._1 && x._2 }",
+      "tree_bytes_hex" : "1a1500dad901015cea028c7201018c72010201e4e3015c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "d3"
+          },
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(SigmaProp(FalseProp),SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))))#2",
+      "script" : "{ (x:(SigmaProp, SigmaProp)) => x._1 && x._2 }",
+      "tree_bytes_hex" : "1a1500dad901015cea028c7201018c72010201e4e3015c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "d2"
+          },
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))),SigmaProp(TrueProp))#3",
+      "script" : "{ (x:(SigmaProp, SigmaProp)) => x._1 && x._2 }",
+      "tree_bytes_hex" : "1a1500dad901015cea028c7201018c72010201e4e3015c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          },
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "d3"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))),SigmaProp(FalseProp))#4",
+      "script" : "{ (x:(SigmaProp, SigmaProp)) => x._1 && x._2 }",
+      "tree_bytes_hex" : "1a1500dad901015cea028c7201018c72010201e4e3015c",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          },
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "d2"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 109,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))),true)#5",
+      "script" : "{ (x:(SigmaProp, Boolean)) => x._1 && sigmaProp(x._2) }",
+      "tree_bytes_hex" : "1a1800dad901014401ea028c720101d18c72010201e4e3014401",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+        },
+        "cost" : 124,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(SigmaProp(ProveDlog(ECPoint(a426a6,3e9a6b,...))),false)#6",
+      "script" : "{ (x:(SigmaProp, Boolean)) => x._1 && sigmaProp(x._2) }",
+      "tree_bytes_hex" : "1a1800dad901014401ea028c720101d18c72010201e4e3014401",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "SigmaProp",
+            "raw_hex" : "cd03a426a66fc1af2792b35d9583904c3fb877b49ae5cea45b7a2aa105ffa4c68606"
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 124,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple size method equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(0,0)#0",
+      "script" : "{ (x: (Int, Int)) => x.size }",
+      "tree_bytes_hex" : "1a0f010404dad9010158730001e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 66,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,2)#1",
+      "script" : "{ (x: (Int, Int)) => x.size }",
+      "tree_bytes_hex" : "1a0f010404dad9010158730001e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 66,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,0 +1,355 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll fold with nested If",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(Coll(),0)#0",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 0
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(),2147483647)#1",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2147483647
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),2147483646)#2",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483646
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2147483647
+        },
+        "cost" : 222,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),2147483647)#3",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(Coll(-1),-2147483647)#4",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : -1
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -2147483647
+        },
+        "cost" : 202,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(-1),-2147483648)#5",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : -1
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -2147483648
+        },
+        "cost" : 202,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),0)#6",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 340,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,-1),0)#7",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 320,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,-1,1),0)#8",
+      "script" : "{ (x: (Coll[Byte], Int)) => x._1.fold(x._2, { (i1: Int, i2: Byte) => if (i2 > 0) i1 + i2 else i1 }) }",
+      "tree_bytes_hex" : "1a3a010400dad901014c0eb08c7201018c720102d901034002d802d6057e8c72030204d6068c7203019591720573009a72067205720601e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : -1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 438,
+        "error" : null
+      }
+    }
+  ]
+}

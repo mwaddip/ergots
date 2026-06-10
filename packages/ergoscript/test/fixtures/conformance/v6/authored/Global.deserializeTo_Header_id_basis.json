@@ -1,0 +1,246 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.deserializeTo_Header_id_basis",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ge-canonical",
+  "entries" : [
+    {
+      "name" : "header-eq-id-basis-false#0",
+      "script" : "{ deserializeTo[Header](h-idPk) == deserializeTo[Header](h-garbagePk) } — twins differing only in the minerPk ENCODING → FALSE: CHeader equality is id-based, id = Blake2b256 over the retained input slice",
+      "tree_bytes_hex" : "1bc404020e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000000000000000000000000000000000000000000000000000000000000000000002da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b0e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b93dc6a04dd01730068dc6a04dd01730168",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 802,
+        "error" : null
+      }
+    },
+    {
+      "name" : "minerpk-eq-value-basis-true#1",
+      "script" : "{ h1.minerPk == h2.minerPk } → TRUE: both pks decode to the identity point (the value basis)",
+      "tree_bytes_hex" : "1bca04020e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000000000000000000000000000000000000000000000000000000000000000000002da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b0e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b93db680bdc6a04dd01730068db680bdc6a04dd01730168",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 996,
+        "error" : null
+      }
+    },
+    {
+      "name" : "garbage-pk-getEncoded#2",
+      "script" : "{ deserializeTo[Header](h-garbagePk).minerPk.getEncoded } → canonical 33 zeros (deserializeTo ACCEPTS the garbage-identity pk; serialize normalizes)",
+      "tree_bytes_hex" : "1ba802010e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266bdb0702db680bdc6a04dd01730068",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 666,
+        "error" : null
+      }
+    },
+    {
+      "name" : "invalid-pk-errored#3",
+      "script" : "{ deserializeTo[Header](h-invalidPk 0x02‖ff×32) … } → errored at EVAL (decodePoint curve-validation inside deserializeTo)",
+      "tree_bytes_hex" : "1ba802010e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266bdb0702db680bdc6a04dd01730068",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "header-eq-control-true#4",
+      "script" : "{ deserializeTo[Header](h1) == deserializeTo[Header](h1) } → true — pins the flat EQ_Header comparer (DataValueComparer Fixed(6); the Ask-17 Header shape)",
+      "tree_bytes_hex" : "1bc404020e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000000000000000000000000000000000000000000000000000000000000000000002da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b0e9602010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000000000000000000000000000000000000000000000000000000000000000000000002da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b93dc6a04dd01730068dc6a04dd01730168",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 802,
+        "error" : null
+      }
+    }
+  ]
+}

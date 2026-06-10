@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "proveDlog equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "GroupElement(ECPoint(288f0e,3f37ee,...))#0",
+      "script" : "{ (x: GroupElement) => proveDlog(x) }",
+      "tree_bytes_hex" : "1a0e00dad9010107cd720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "02288f0e55610c3355c89ed6c5de43cf20da145b8c54f03a29f481e540d94e9a69"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "cd02288f0e55610c3355c89ed6c5de43cf20da145b8c54f03a29f481e540d94e9a69"
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    }
+  ]
+}

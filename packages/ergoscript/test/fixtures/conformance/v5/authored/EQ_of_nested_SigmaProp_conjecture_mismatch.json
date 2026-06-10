@@ -1,0 +1,86 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "EQ of nested SigmaProp conjecture mismatch",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-sigmaprop-eq",
+  "entries" : [
+    {
+      "name" : "coll-cand-vs-dlog#0",
+      "script" : "{ Coll[SigmaProp](pkA && pkB) == Coll[SigmaProp](pkA) }",
+      "tree_bytes_hex" : "1a7602089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee508cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989383010873008301087301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "coll-dlog-vs-cand#1",
+      "script" : "{ Coll[SigmaProp](pkA) == Coll[SigmaProp](pkA && pkB) }",
+      "tree_bytes_hex" : "1a760208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee59383010873008301087301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 57,
+        "error" : null
+      }
+    },
+    {
+      "name" : "tuple-cand-vs-dlog#2",
+      "script" : "{ (pkA && pkB, true) == (pkA, true) }",
+      "tree_bytes_hex" : "1a7c04089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5010108cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798010193860273007301860273027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "tuple-dlog-vs-cand#3",
+      "script" : "{ (pkA, true) == (pkA && pkB, true) }",
+      "tree_bytes_hex" : "1a7c0408cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980101089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5010193860273007301860273027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    }
+  ]
+}

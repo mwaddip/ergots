@@ -1,0 +1,71 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.powHit feeding Coll-HOF",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-powhit-hof",
+  "entries" : [
+    {
+      "name" : "exists#0",
+      "script" : "{ Coll(n0,n1).map{x => Global.powHit(2,msg,x,h,16)}.exists{u => u > upcast[UnsignedBigInt](getVar[Int](1).get)} }",
+      "tree_bytes_hex" : "1b6a060e0800000000000000000e08000102030405060704040e20000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0e04000000010420aead83020e73007301d901010edc6a08dd0573027303720173047305d90102099172027ee4e3010409",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 1230,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall#1",
+      "script" : "{ Coll(n0,n1).map{x => Global.powHit(2,msg,x,h,16)}.forall{u => u > upcast[UnsignedBigInt](getVar[Int](1).get)} }",
+      "tree_bytes_hex" : "1b6a060e0800000000000000000e08000102030405060704040e20000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0e04000000010420afad83020e73007301d901010edc6a08dd0573027303720173047305d90102099172027ee4e3010409",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 1315,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter.size#2",
+      "script" : "{ Coll(n0,n1).map{x => Global.powHit(2,msg,x,h,16)}.filter{u => u > upcast[UnsignedBigInt](getVar[Int](1).get)}.size }",
+      "tree_bytes_hex" : "1b6b060e0800000000000000000e08000102030405060704040e20000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0e04000000010420b1b5ad83020e73007301d901010edc6a08dd0573027303720173047305d90102099172027ee4e3010409",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 1346,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,0 +1,784 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll patch method equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(Coll(),(0,0))#0",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),(0,0))#1",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1),(0,1))#2",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(0,0))#3",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(1,0))#4",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(0,2))#5",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(0,3))#6",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 0
+              },
+              {
+                "kind" : "Int",
+                "value" : 3
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(1,2))#7",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(2,0))#8",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 2
+              },
+              {
+                "kind" : "Int",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(3,0))#9",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 3
+              },
+              {
+                "kind" : "Int",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(3,1))#10",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 3
+              },
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(1,2),(-1,1))#11",
+      "script" : "{ (x: (Coll[Int], (Int, Int))) =>\n  val coll = x._1\n  val l = x._2._1; val r = x._2._2\n  coll.patch(l, coll, r)\n}",
+      "tree_bytes_hex" : "1a2d00dad901013c1058d802d6038c720101d6048c720102dc0c137203038c72040172038c72040201e4e3013c1058",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SInt"
+            },
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : 1
+              },
+              {
+                "kind" : "Int",
+                "value" : 2
+              }
+            ]
+          },
+          {
+            "kind" : "Tuple",
+            "items" : [
+              {
+                "kind" : "Int",
+                "value" : -1
+              },
+              {
+                "kind" : "Int",
+                "value" : 1
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 183,
+        "error" : null
+      }
+    }
+  ]
+}

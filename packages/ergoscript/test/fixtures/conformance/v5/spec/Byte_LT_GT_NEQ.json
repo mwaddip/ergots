@@ -1,0 +1,3068 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Byte LT, GT, NEQ",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(-128,-128)#0",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-127)#1",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-1)#2",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,0)#3",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,1)#4",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,127)#5",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-128)#6",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-121)#7",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -121
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-120)#8",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-82)#9",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -82
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,-1)#10",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,0)#11",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,1)#12",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,127)#13",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-2)#14",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-1)#15",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,0)#16",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,1)#17",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-128)#18",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-1)#19",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,0)#20",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,1)#21",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,60)#22",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 60
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,127)#23",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-1)#24",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,0)#25",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,26)#26",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 26
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(7,-32)#27",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 7
+          },
+          {
+            "kind" : "Byte",
+            "value" : -32
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(7,0)#28",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 7
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(33,1)#29",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 33
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(126,127)#30",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 126
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,-128)#31",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,-47)#32",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -47
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,127)#33",
+      "script" : "{ (x: (Byte, Byte)) => x._1 < x._2 }",
+      "tree_bytes_hex" : "1a1400dad90101568f8c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-128)#34",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-127,-128)#35",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-128)#36",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-128)#37",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-128)#38",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,-128)#39",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-120)#40",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-121,-120)#41",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -121
+          },
+          {
+            "kind" : "Byte",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-120)#42",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-82,-120)#43",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -82
+          },
+          {
+            "kind" : "Byte",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-103)#44",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-103)#45",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-103)#46",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,-103)#47",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2,-1)#48",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -2
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-1)#49",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-1)#50",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-1)#51",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,0)#52",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,0)#53",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,0)#54",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,0)#55",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(60,0)#56",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 60
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,0)#57",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,1)#58",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,1)#59",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(26,1)#60",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 26
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-32,7)#61",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -32
+          },
+          {
+            "kind" : "Byte",
+            "value" : 7
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,7)#62",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 7
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,33)#63",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 33
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,126)#64",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : 126
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,127)#65",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-47,127)#66",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -47
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,127)#67",
+      "script" : "{ (x: (Byte, Byte)) => x._1 > x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156918c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-128)#68",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-127)#69",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,-1)#70",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,0)#71",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,1)#72",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-128,127)#73",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -128
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-128)#74",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-121)#75",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -121
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-120)#76",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-82)#77",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -120
+          },
+          {
+            "kind" : "Byte",
+            "value" : -82
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,-1)#78",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,0)#79",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,1)#80",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,127)#81",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -103
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-2)#82",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-1)#83",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,0)#84",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,1)#85",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : -1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-128)#86",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-1)#87",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,0)#88",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,1)#89",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,60)#90",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 60
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,127)#91",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-1)#92",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,0)#93",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,26)#94",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 1
+          },
+          {
+            "kind" : "Byte",
+            "value" : 26
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(7,-32)#95",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 7
+          },
+          {
+            "kind" : "Byte",
+            "value" : -32
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(7,0)#96",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 7
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(33,1)#97",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 33
+          },
+          {
+            "kind" : "Byte",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(126,127)#98",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 126
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,-128)#99",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -128
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,-47)#100",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : -47
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(127,127)#101",
+      "script" : "{ (x: (Byte, Byte)) => x._1 != x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010156948c7201018c72010201e4e30156",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 127
+          },
+          {
+            "kind" : "Byte",
+            "value" : 127
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    }
+  ]
+}

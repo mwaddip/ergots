@@ -1,0 +1,176 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "UnsignedBigInt arith table",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ubi-arith",
+  "entries" : [
+    {
+      "name" : "plus-small#0",
+      "script" : "{ 3.toUBI + 5.toUBI }",
+      "tree_bytes_hex" : "1b0c020901030901059a73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "8"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus-to-max#1",
+      "script" : "{ (2^256-2).toUBI + 1.toUBI }",
+      "tree_bytes_hex" : "1b2b020920fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0901019a73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "minus-small#2",
+      "script" : "{ 5.toUBI - 3.toUBI }",
+      "tree_bytes_hex" : "1b0c020901050901039973007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "2"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "minus-to-zero#3",
+      "script" : "{ 7.toUBI - 7.toUBI }",
+      "tree_bytes_hex" : "1b0c020901070901079973007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "multiply-small#4",
+      "script" : "{ 3.toUBI * 5.toUBI }",
+      "tree_bytes_hex" : "1b0c020901030901059c73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "15"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "multiply-big#5",
+      "script" : "{ 2^128.toUBI * 2^127.toUBI }",
+      "tree_bytes_hex" : "1b2b02091101000000000000000000000000000000000910800000000000000000000000000000009c73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819968"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "divide-floor#6",
+      "script" : "{ 7.toUBI / 2.toUBI }",
+      "tree_bytes_hex" : "1b0c020901070901029d73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "3"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mod-small#7",
+      "script" : "{ 7.toUBI % 5.toUBI }",
+      "tree_bytes_hex" : "1b0c020901070901059e73007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "2"
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,0 +1,1037 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Numeric Negation equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "-128#0",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : -128
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : -128
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-127#1",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : -127
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 127
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-40#2",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : -40
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 40
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#3",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : -1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#4",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 0
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#5",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : 1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : -1
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "45#6",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : 45
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : -45
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "127#7",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : 127
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : -127
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "127#8",
+      "script" : "{ (x: Byte) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010102f0720101e4e30102",
+      "input" : {
+        "kind" : "Byte",
+        "value" : 127
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : -127
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-32768#9",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -32768
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -32768
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-32767#10",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -32767
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 32767
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1528#11",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -1528
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 1528
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#12",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 1
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#13",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 0
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#14",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -1
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "7586#15",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 7586
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -7586
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "32767#16",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 32767
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -32767
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "32767#17",
+      "script" : "{ (x: Short) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010103f0720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 32767
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -32767
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-2147483648#18",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : -2147483648
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -2147483648
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-2147483647#19",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : -2147483647
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2147483647
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-63509744#20",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : -63509744
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 63509744
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#21",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : -1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#22",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 0
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#23",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -1
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "677062351#24",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 677062351
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -677062351
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "2147483647#25",
+      "script" : "{ (x: Int) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010104f0720101e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 2147483647
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -2147483647
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-9223372036854775808#26",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-9223372036854775807#27",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775807"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "9223372036854775807"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-957264171003115006#28",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-957264171003115006"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "957264171003115006"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#29",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#30",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "0"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#31",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-1"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "340835904095777627#32",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "340835904095777627"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-340835904095777627"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "9223372036854775807#33",
+      "script" : "{ (x: Long) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010105f0720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "9223372036854775807"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-9223372036854775807"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-631385708035245707289737198382264689355911972559169301462739793379330033280)#34",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-631385708035245707289737198382264689355911972559169301462739793379330033280"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "631385708035245707289737198382264689355911972559169301462739793379330033280"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-41597248976469900158098780694185188029736845631160468920)#35",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-41597248976469900158098780694185188029736845631160468920"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "41597248976469900158098780694185188029736845631160468920"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-40924642049069611269564281150108623485)#36",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-40924642049069611269564281150108623485"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "40924642049069611269564281150108623485"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-9223372036854775809)#37",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-9223372036854775809"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "9223372036854775809"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-9223372036854775808)#38",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "9223372036854775808"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-5237655444369054934)#39",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-5237655444369054934"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "5237655444369054934"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-2147483649)#40",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-2147483649"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "2147483649"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-2147483648)#41",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-2147483648"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "2147483648"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-1)#42",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "1"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(0)#43",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "0"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(1)#44",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-1"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(2147483647)#45",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "2147483647"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-2147483647"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(2147483648)#46",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "2147483648"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-2147483648"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(652613182901057116)#47",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "652613182901057116"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-652613182901057116"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(1545392092084143602685165541429614321918350928244952895030895443801123548280)#48",
+      "script" : "{ (x: BigInt) => -x }",
+      "tree_bytes_hex" : "1a0e00dad9010106f0720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "1545392092084143602685165541429614321918350928244952895030895443801123548280"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-1545392092084143602685165541429614321918350928244952895030895443801123548280"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    }
+  ]
+}

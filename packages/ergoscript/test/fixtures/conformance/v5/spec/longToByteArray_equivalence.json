@@ -1,0 +1,407 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "longToByteArray equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "-9223372036854775808#0",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1148502660425090565#1",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1148502660425090565"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 15
+            },
+            {
+              "kind" : "Byte",
+              "value" : -78
+            },
+            {
+              "kind" : "Byte",
+              "value" : -22
+            },
+            {
+              "kind" : "Byte",
+              "value" : 85
+            },
+            {
+              "kind" : "Byte",
+              "value" : -59
+            },
+            {
+              "kind" : "Byte",
+              "value" : 121
+            },
+            {
+              "kind" : "Byte",
+              "value" : -5
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#2",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#3",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#4",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "238790047448232028#5",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "238790047448232028"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 3
+            },
+            {
+              "kind" : "Byte",
+              "value" : 80
+            },
+            {
+              "kind" : "Byte",
+              "value" : 90
+            },
+            {
+              "kind" : "Byte",
+              "value" : 72
+            },
+            {
+              "kind" : "Byte",
+              "value" : 114
+            },
+            {
+              "kind" : "Byte",
+              "value" : 12
+            },
+            {
+              "kind" : "Byte",
+              "value" : -16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 92
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "9223372036854775807#6",
+      "script" : "{ (x: Long) => longToByteArray(x) }",
+      "tree_bytes_hex" : "1a0e00dad90101057a720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "9223372036854775807"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    }
+  ]
+}

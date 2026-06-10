@@ -1,0 +1,365 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "groupGenerator equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "-1#0",
+      "script" : "{ (x: Int) => groupGenerator }",
+      "tree_bytes_hex" : "1a0f00dad9010104db6a01dd01e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : -1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 84,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#1",
+      "script" : "{ (x: Int) => groupGenerator }",
+      "tree_bytes_hex" : "1a0f00dad9010104db6a01dd01e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 84,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#2",
+      "script" : "{ (x: Int) => Global.groupGenerator }",
+      "tree_bytes_hex" : "1a0f00dad9010104db6a01dd01e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : -1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 84,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#3",
+      "script" : "{ (x: Int) => Global.groupGenerator }",
+      "tree_bytes_hex" : "1a0f00dad9010104db6a01dd01e4e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 1
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 84,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-405944470703446729399937599951351256414214888658486283516679098859453639325)#4",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-405944470703446729399937599951351256414214888658486283516679098859453639325"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "023395bcba3d7cf21d73c50f8af79d09a8c404c15ce9d04f067d672823bae91a54"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-18023672218773263104237541985013290141575544414821483029)#5",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-18023672218773263104237541985013290141575544414821483029"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "02ddcf4c48105faf3c16f7399b5dbedd82ab0bb50ae292d8f88f49a3f86e78974e"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-71507859122898631658449119277876903384)#6",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-71507859122898631658449119277876903384"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "03b110ec9c7a8c20ed873818e976a0e96e5a17be979d3422d59b362de2a3ae043e"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-4541317044130591068)#7",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-4541317044130591068"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "02acf2657d0714cef8d65ae15c362faa09c0934c0bce872a23398e564c090b85c8"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-2147483649)#8",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-2147483649"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0391b418fd1778356ce947a5cbb46539fd29842aea168486fae91fc5317177a575"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-2147483648)#9",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-2147483648"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "025318f9b1a2697010c5ac235e9af475a8c7e5419f33d47b18d33feeb329eb99a4"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-1)#10",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(0)#11",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(1)#12",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(2147483648)#13",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "2147483648"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "035318f9b1a2697010c5ac235e9af475a8c7e5419f33d47b18d33feeb329eb99a4"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(1320038462390279829)#14",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "1320038462390279829"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "030fde7238b8dddfafab8f5481dc17b880505d6bacbe3cdf2ce975afdcadf66354"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(25207251742822286447968784235199295058)#15",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "25207251742822286447968784235199295058"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "028f2ccf13669461cb3cfbea281e2db08fbb67b38493a1628855203d3f69b82763"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(24781549592060861571106248941791350755721590604484620153)#16",
+      "script" : "{ (n: BigInt) => groupGenerator.exp(n) }",
+      "tree_bytes_hex" : "1a1200dad90101069fdb6a01dd720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "24781549592060861571106248941791350755721590604484620153"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "03ce82f431d115d45ad555084f8b2861ce5c4561d154e931e9f778594896e46a25"
+        },
+        "cost" : 989,
+        "error" : null
+      }
+    }
+  ]
+}

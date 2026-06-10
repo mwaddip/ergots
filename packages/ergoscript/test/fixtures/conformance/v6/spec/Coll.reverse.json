@@ -1,0 +1,82 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.reverse",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "Coll(1,2)#0",
+      "script" : "{(xs: Coll[Int]) => xs.reverse }",
+      "tree_bytes_hex" : "1b1000dad9010110db0c1e720101e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 96,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll()#1",
+      "script" : "{(xs: Coll[Int]) => xs.reverse }",
+      "tree_bytes_hex" : "1b1000dad9010110db0c1e720101e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 96,
+        "error" : null
+      }
+    }
+  ]
+}

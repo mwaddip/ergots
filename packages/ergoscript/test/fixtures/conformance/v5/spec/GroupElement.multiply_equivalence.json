@@ -1,0 +1,128 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "GroupElement.multiply equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(GroupElement(ECPoint(358d53,77a7ac,...)),GroupElement(ECPoint(e132ca,603e7f,...)))#0",
+      "script" : "{ (x: (GroupElement, GroupElement)) => x._1.multiply(x._2) }",
+      "tree_bytes_hex" : "1a1400dad901015ba08c7201018c72010201e4e3015b",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "03358d53f01276211f92d0aefbd278805121d4ff6eb534b777af1ee8abae5b2056"
+          },
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "03e132ca090614bd6c9f811e91f6daae61f16968a1e6c694ed65aacd1b1092320e"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "02bc48937b4a66f249a32dfb4d2efd0743dc88d46d770b8c5d39fd03325ba211df"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(dba7b9,9b7393,...)),GroupElement(ECPoint(e132ca,603e7f,...)))#1",
+      "script" : "{ (x: (GroupElement, GroupElement)) => x._1.multiply(x._2) }",
+      "tree_bytes_hex" : "1a1400dad901015ba08c7201018c72010201e4e3015b",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "02dba7b94b111f3894e2f9120b577da595ec7d58d488485adf73bf4e153af63575"
+          },
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "03e132ca090614bd6c9f811e91f6daae61f16968a1e6c694ed65aacd1b1092320e"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0359c3bb2ac4ea4dbd7b1e09d7b11198141a3263834fb84a88039629ec1e9311d1"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(904498,4faeb3,...)),GroupElement(ECPoint(e132ca,603e7f,...)))#2",
+      "script" : "{ (x: (GroupElement, GroupElement)) => x._1.multiply(x._2) }",
+      "tree_bytes_hex" : "1a1400dad901015ba08c7201018c72010201e4e3015b",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+          },
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "03e132ca090614bd6c9f811e91f6daae61f16968a1e6c694ed65aacd1b1092320e"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "02eca42e28548d3fb9fa77cdd0c983066c3ad141ebb086b5044ce46b9ba9b5a714"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(GroupElement(ECPoint(904498,4faeb3,...)),GroupElement(IDENTITY))#3",
+      "script" : "{ (x: (GroupElement, GroupElement)) => x._1.multiply(x._2) }",
+      "tree_bytes_hex" : "1a1400dad901015ba08c7201018c72010201e4e3015b",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+          },
+          {
+            "kind" : "GroupElement",
+            "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "GroupElement",
+          "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    }
+  ]
+}

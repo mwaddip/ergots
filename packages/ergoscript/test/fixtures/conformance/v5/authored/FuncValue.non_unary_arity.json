@@ -1,0 +1,83 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "FuncValue.non_unary_arity",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-sfunc-arity",
+  "entries" : [
+    {
+      "name" : "funcvalue-2arg-applied-errored#0",
+      "script" : "{ val add = (x:Int,y:Int) => x+y; add(3,4) }  // JVM: Function must have 1 argument — FuncValue.eval rejects non-unary arity at closure creation",
+      "tree_bytes_hex" : "100204060408d801d601d902020403049a72027203da72010273007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "funcvalue-2arg-bound-errored#0",
+      "script" : "{ val add = (x:Int,y:Int) => x+y; 5 }  // JVM: same error though NEVER APPLIED — BlockValue evals ValDefs eagerly (reject at closure creation, unlike the FunDef type-var family)",
+      "tree_bytes_hex" : "1001040ad801d601d902020403049a720272037300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "funcvalue-0arg-errored#0",
+      "script" : "{ val f = () => 5; f() }  // JVM: Function must have 1 argument — the tDom.length=0 side of the non-unary gate",
+      "tree_bytes_hex" : "1001040ad801d601d9007300da720100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "funcvalue-2arg-lazy-if-accept#0",
+      "script" : "if (true) 5 else { val add = (x:Int,y:Int) => x+y; add(3,4) }  // ACCEPTS: If.eval is lazy, the 2-arg lambda never evaluates — the reject is eval-time, NOT parse-time (over-reject guard)",
+      "tree_bytes_hex" : "10040101040a040604089573007301d801d601d902020403049a72027203da72010273027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 5
+        },
+        "cost" : 12,
+        "error" : null
+      }
+    }
+  ]
+}

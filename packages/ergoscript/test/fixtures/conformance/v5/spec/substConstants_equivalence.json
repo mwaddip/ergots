@@ -5,7 +5,38 @@
   "source" : "sigma-state:LanguageSpecificationV5",
   "entries" : [
     {
-      "name" : "(Coll(0,8,-45),0)#0",
+      "name" : "(Coll(),0)#0",
+      "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
+      "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(Coll(0,8,-45),0)#1",
       "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
       "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
       "input" : {
@@ -67,7 +98,7 @@
       }
     },
     {
-      "name" : "(Coll(0,0,8,-45),0)#1",
+      "name" : "(Coll(0,0,8,-45),0)#2",
       "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
       "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
       "input" : {
@@ -117,76 +148,6 @@
             {
               "kind" : "Byte",
               "value" : 0
-            },
-            {
-              "kind" : "Byte",
-              "value" : 0
-            },
-            {
-              "kind" : "Byte",
-              "value" : 8
-            },
-            {
-              "kind" : "Byte",
-              "value" : -45
-            }
-          ]
-        },
-        "cost" : 251,
-        "error" : null
-      }
-    },
-    {
-      "name" : "(Coll(16,0,8,-45),0)#2",
-      "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
-      "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
-      "input" : {
-        "kind" : "Tuple",
-        "items" : [
-          {
-            "kind" : "Coll",
-            "elem" : {
-              "tag" : "SByte"
-            },
-            "items" : [
-              {
-                "kind" : "Byte",
-                "value" : 16
-              },
-              {
-                "kind" : "Byte",
-                "value" : 0
-              },
-              {
-                "kind" : "Byte",
-                "value" : 8
-              },
-              {
-                "kind" : "Byte",
-                "value" : -45
-              }
-            ]
-          },
-          {
-            "kind" : "Int",
-            "value" : 0
-          }
-        ]
-      },
-      "version" : {
-        "activated" : 2,
-        "ergoTree" : 2
-      },
-      "expected" : {
-        "value" : {
-          "kind" : "Coll",
-          "elem" : {
-            "tag" : "SByte"
-          },
-          "items" : [
-            {
-              "kind" : "Byte",
-              "value" : 16
             },
             {
               "kind" : "Byte",
@@ -277,7 +238,7 @@
       }
     },
     {
-      "name" : "(Coll(16,1,8,-45,115,0),0)#4",
+      "name" : "(Coll(16,0,8,-45),0)#4",
       "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
       "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
       "input" : {
@@ -295,7 +256,7 @@
               },
               {
                 "kind" : "Byte",
-                "value" : 1
+                "value" : 0
               },
               {
                 "kind" : "Byte",
@@ -304,14 +265,6 @@
               {
                 "kind" : "Byte",
                 "value" : -45
-              },
-              {
-                "kind" : "Byte",
-                "value" : 115
-              },
-              {
-                "kind" : "Byte",
-                "value" : 0
               }
             ]
           },
@@ -338,7 +291,7 @@
             },
             {
               "kind" : "Byte",
-              "value" : 1
+              "value" : 0
             },
             {
               "kind" : "Byte",
@@ -346,19 +299,11 @@
             },
             {
               "kind" : "Byte",
-              "value" : -46
-            },
-            {
-              "kind" : "Byte",
-              "value" : 115
-            },
-            {
-              "kind" : "Byte",
-              "value" : 0
+              "value" : -45
             }
           ]
         },
-        "cost" : 351,
+        "cost" : 251,
         "error" : null
       }
     },
@@ -449,7 +394,93 @@
       }
     },
     {
-      "name" : "(Coll(16,1,8,-45,115,0),1)#6",
+      "name" : "(Coll(16,1,8,-45,115,0),0)#6",
+      "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
+      "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 16
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 8
+              },
+              {
+                "kind" : "Byte",
+                "value" : -45
+              },
+              {
+                "kind" : "Byte",
+                "value" : 115
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : -46
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 351,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(16,1,8,-45,115,0),1)#7",
       "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
       "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
       "input" : {
@@ -532,6 +563,77 @@
         },
         "cost" : 351,
         "error" : null
+      }
+    },
+    {
+      "name" : "(Coll(16,1,4,20,-47,-109,115,0,4,40),0)#8",
+      "script" : "{ (x: (Coll[Byte], Int)) => substConstants[Any](x._1, Coll[Int](x._2), Coll[Any](sigmaProp(false))) }",
+      "tree_bytes_hex" : "1a21010100dad901014c0e748c7201018301048c720102830108d1730001e4e3014c0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 16
+              },
+              {
+                "kind" : "Byte",
+                "value" : 1
+              },
+              {
+                "kind" : "Byte",
+                "value" : 4
+              },
+              {
+                "kind" : "Byte",
+                "value" : 20
+              },
+              {
+                "kind" : "Byte",
+                "value" : -47
+              },
+              {
+                "kind" : "Byte",
+                "value" : -109
+              },
+              {
+                "kind" : "Byte",
+                "value" : 115
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 4
+              },
+              {
+                "kind" : "Byte",
+                "value" : 40
+              }
+            ]
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
       }
     }
   ]
