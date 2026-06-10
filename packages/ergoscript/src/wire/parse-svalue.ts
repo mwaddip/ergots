@@ -478,6 +478,14 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       //   transaction_id  — 32 raw bytes
       //   index           — VLQ u16 (`put_u16` in sigma-ser = VLQ, NOT raw BE)
 
+      // Retained-bytes capture (F5 batch 4 E): the JVM parse snapshots the
+      // position before reading any field and hands the consumed slice to
+      // the ErgoBox constructor as `_bytes` (ErgoBox.scala:214-225). Box
+      // equality/id derive from these bytes, so non-canonical-but-accepted
+      // encodings (e.g. garbage-tail identity GE registers, normalized at
+      // the SValue layer) still yield JVM-faithful distinct ids.
+      const boxStart = r.position
+
       // --- value (VLQ u64, unsigned) ---
       const value = r.readVlqBigInt()
 
@@ -582,6 +590,9 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           creationHeight,
           txId,
           index,
+          // Detached copy — scorex `slice` returns a view over the reader's
+          // backing buffer.
+          retainedBytes: r.slice(boxStart, r.position).slice(),
         },
       }
     }

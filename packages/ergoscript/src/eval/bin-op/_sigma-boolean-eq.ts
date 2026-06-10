@@ -22,10 +22,11 @@
  *     CALL; short-circuited calls never charge.
  *
  * The cost-free twin `sigmaBooleanStructuralEq` mirrors Scala case-class `==`
- * (the UNCOSTED equality the JVM uses in startsWith / endsWith and
- * box-register equality (registersEqual → primitiveValueEqual)): same
- * structural recursion, NO costs, NO conjecture-mismatch throw (plain false)
- * — the sys.error lives only in equalSigmaBoolean.
+ * (the UNCOSTED equality the JVM uses in startsWith / endsWith and the
+ * Coll bulk-element path (primitiveValueEqual)): same structural recursion,
+ * NO costs, NO conjecture-mismatch throw (plain false) — the sys.error
+ * lives only in equalSigmaBoolean. (Box-register equality no longer walks
+ * SValues at all: F5 batch 4 made box equality id-basis over bytes.)
  *
  * ECPoint equality on the 33-byte compressed encodings ergots carries:
  * a 0x00 LEAD byte means the IDENTITY point and bytes 1..32 are never
@@ -138,10 +139,10 @@ function equalSigmaBooleansCosted(
 
 /**
  * Cost-free structural equality — Scala case-class `==` semantics (the
- * UNCOSTED comparator used by startsWith / endsWith and box-register equality
- * (registersEqual → primitiveValueEqual)). Same point semantics as the costed
- * walk (identity class), but NO costs and NO conjecture-mismatch throw: any
- * tag mismatch is plain false.
+ * UNCOSTED comparator used by startsWith / endsWith and the Coll
+ * bulk-element path (primitiveValueEqual)). Same point semantics as the
+ * costed walk (identity class), but NO costs and NO conjecture-mismatch
+ * throw: any tag mismatch is plain false.
  */
 export function sigmaBooleanStructuralEq(l: SigmaBoolean, r: SigmaBoolean): boolean {
   if (l.tag !== r.tag) return false

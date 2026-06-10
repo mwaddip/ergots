@@ -23,7 +23,7 @@
  */
 import type { BinOp, SValue, RelationOp, SType, ErgoBox, AvlTreeData, PreHeader } from '../../mir/types'
 import type { Header } from '@ergots/scorex'
-import { sTypeEquals as sTypeEqualsHelper } from '../../mir/stype-helpers'
+import { boxIdOf } from '../_box-id'
 import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
@@ -90,57 +90,19 @@ function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * Positional Vec<Token>-style equality. Mainnet stores tokens in deterministic
- * order (sigma-rust `BoxTokens: BoundedVec<Token, 1, 255>`); we mirror the
- * positional PartialEq.
- */
-function tokensEqual(a: ErgoBox['tokens'], b: ErgoBox['tokens']): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (!bytesEq(a[i]!.id, b[i]!.id)) return false
-    if (a[i]!.amount !== b[i]!.amount) return false
-  }
-  return true
-}
-
-/**
- * NonMandatoryRegisters equality. Sigma-rust's `NonMandatoryRegisters` is
- * `Vec<RegisterValue>` (positional); mainnet always stores registers
- * contiguously from R4 in ascending key order, so iterating R4..R9 and
- * checking presence + value + tpe equality at each slot is logically
- * equivalent to the underlying Vec PartialEq.
+ * Box equality = id equality (JVM ErgoBox.equals — Arrays.equals(id, x.id),
+ * ErgoBox.scala:94-99; id = Blake2b256 over retained-or-canonical bytes).
+ * BYTE basis, NOT value basis: garbage-vs-canonical identity GE register
+ * encodings are UNEQUAL even though both decode to the identity point.
+ * facts/ergoscript-eval.md F5 batch 4 changelog ("Equality bases").
  *
- * tpe equality is checked because sigma-rust's RegisterValue is a Constant
- * (tpe + bytes); two registers with the same SValue shape but different
- * declared STypes are NOT structurally equal in sigma-rust.
- */
-function registersEqual(a: ErgoBox['registers'], b: ErgoBox['registers']): boolean {
-  for (let k = 4; k <= 9; k++) {
-    const ra = a[k]
-    const rb = b[k]
-    if (ra === undefined && rb === undefined) continue
-    if (ra === undefined || rb === undefined) return false
-    if (!sTypeEqualsHelper(ra.tpe, rb.tpe)) return false
-    if (!primitiveValueEqual(ra.value, rb.value)) return false
-  }
-  return true
-}
-
-/**
- * Structural ErgoBox equality. Sigma-rust derives PartialEq on the struct
- * (`chain/ergo_box.rs`); we compare each field. `box_id` is skipped: it's a
- * cached blake2b256 of the sigma-serialized bytes, so equal-other-fields
- * boxes have equal box_ids by construction.
+ * (Replaces the pre-F5-batch-4 field walk, which routed register GE/
+ * SigmaProp compares through identity-aware ecPointEqual — value-basis
+ * logic that over-equaled the garbage-identity twins once the GE
+ * canonical-bytes invariant normalized them at the SValue layer.)
  */
 function boxEqual(a: ErgoBox, b: ErgoBox): boolean {
-  if (a.value !== b.value) return false
-  if (!bytesEq(a.ergoTreeBytes, b.ergoTreeBytes)) return false
-  if (!tokensEqual(a.tokens, b.tokens)) return false
-  if (!registersEqual(a.registers, b.registers)) return false
-  if (a.creationHeight !== b.creationHeight) return false
-  if (!bytesEq(a.txId, b.txId)) return false
-  if (a.index !== b.index) return false
-  return true
+  return bytesEq(boxIdOf(a), boxIdOf(b))
 }
 
 /**
@@ -176,7 +138,13 @@ function autolykosSolutionEqual(
   return true
 }
 
-/** Structural PreHeader equality (sigma-rust `ergo-chain-types/src/preheader.rs`). */
+/**
+ * Structural PreHeader equality (sigma-rust `ergo-chain-types/src/preheader.rs`).
+ * Basis note (F5 batch 4): the JVM verdict basis is FIELD equality too
+ * (`CPreHeader` case class ==, point-equality minerPk), but a second PreHeader
+ * value is adversarially unreachable (no SPreHeader DataSerializer arm, one
+ * preHeader per context) — byte-field compare kept as-is, document-only.
+ */
 function preHeaderEqual(a: PreHeader, b: PreHeader): boolean {
   if (a.version !== b.version) return false
   if (!bytesEq(a.parentId, b.parentId)) return false
@@ -190,9 +158,15 @@ function preHeaderEqual(a: PreHeader, b: PreHeader): boolean {
 
 /**
  * Structural Header equality (sigma-rust `ergo-chain-types/src/header.rs`
- * derived PartialEq across all 13 fields). `id` IS included (sigma-rust
- * compares it; it's a stored cache of the hash, but comparing it costs
- * little and matches the derive(PartialEq) field-by-field shape).
+ * derived PartialEq across all 13 fields). `id` IS included.
+ *
+ * Basis note (F5 batch 4): the JVM verdict basis is ID compare —
+ * `CHeader.equals` compares ids = blake2b over the CACHED INPUT bytes
+ * (ErgoHeader.scala:133-140 id-over-`_bytes`; :167-180 parse caches the
+ * consumed slice). The 13-field walk here (which includes `id`) is
+ * verdict-equivalent — every Header value ingresses through the byte
+ * parser, which derives `id` from those same bytes, so field-equal ⟺
+ * id-equal — and is kept as-is.
  */
 function headerEqual(a: Header, b: Header): boolean {
   if (a.version !== b.version) return false
@@ -603,10 +577,12 @@ export function sValueStructuralEq(a: SValue, b: SValue): boolean {
  * — meaning it doesn't recurse into eq_with_cost per element but uses Rust's
  * structural PartialEq. We mirror this by doing plain value comparison here.
  *
- * Real callers: Coll bulk-element compare in the `compareSValues` Coll arm
- * (the COA/non-recursive element path), and `registersEqual` for box-register
- * equality. SColl.indexOf uses the COSTED `sValueEquals` (`method-call.ts:414`,
- * JVM `equalDataValues` at `methods.scala:1091`) — not this function.
+ * Real caller: Coll bulk-element compare in the `compareSValues` Coll arm
+ * (the COA/non-recursive element path). SColl.indexOf uses the COSTED
+ * `sValueEquals` (`method-call.ts:414`, JVM `equalDataValues` at
+ * `methods.scala:1091`) — not this function. (The box-register caller
+ * `registersEqual` was deleted in F5 batch 4 — box equality is id-basis,
+ * see `boxEqual`.)
  *
  * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through:
  * Box/AvlTree/PreHeader/Header throw 'not-implemented-yet'; Lambda and Context

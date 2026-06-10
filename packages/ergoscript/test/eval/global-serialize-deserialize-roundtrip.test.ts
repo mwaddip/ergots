@@ -378,45 +378,56 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
   })
 
   // ── Box ────────────────────────────────────────────────────────────────────
+  //
+  // The box parse RETAINS the consumed bytes (ErgoBox.retainedBytes — the JVM
+  // ErgoBox._bytes analog, F5 batch 4 E), so the parsed shape carries exactly
+  // the bytes deserializeTo consumed. Mirrors the Header precedent above
+  // (parse-attached derived field goes on the EXPECTED value).
 
   it('round-trip Box (no tokens, no registers)', () => {
     const T: SType = { tag: 'SBox' }
-    const v: SValue = { kind: 'Box', value: makeBox() }
-    expect(roundTrip(T, v)).toEqual(v)
+    const box = makeBox()
+    const bytes = serializeValue(T, { kind: 'Box', value: box })
+    expect(deserializeValue(T, bytes)).toEqual({
+      kind: 'Box',
+      value: { ...box, retainedBytes: bytes },
+    })
   })
 
   it('round-trip Box with Int register (R4)', () => {
     const T: SType = { tag: 'SBox' }
-    const v: SValue = {
+    const box = makeBox({
+      registers: { 4: { tpe: SINT, value: { kind: 'Int', value: 42 } } },
+    })
+    const bytes = serializeValue(T, { kind: 'Box', value: box })
+    expect(deserializeValue(T, bytes)).toEqual({
       kind: 'Box',
-      value: makeBox({
-        registers: { 4: { tpe: SINT, value: { kind: 'Int', value: 42 } } },
-      }),
-    }
-    expect(roundTrip(T, v)).toEqual(v)
+      value: { ...box, retainedBytes: bytes },
+    })
   })
 
   it('round-trip Box with Coll[Byte] register (R4)', () => {
     const T: SType = { tag: 'SBox' }
-    const v: SValue = {
-      kind: 'Box',
-      value: makeBox({
-        registers: {
-          4: {
-            tpe: COLL_BYTE,
-            value: {
-              kind: 'Coll',
-              elem: SBYTE,
-              items: [
-                { kind: 'Byte', value: 10 },
-                { kind: 'Byte', value: 20 },
-              ],
-            },
+    const box = makeBox({
+      registers: {
+        4: {
+          tpe: COLL_BYTE,
+          value: {
+            kind: 'Coll',
+            elem: SBYTE,
+            items: [
+              { kind: 'Byte', value: 10 },
+              { kind: 'Byte', value: 20 },
+            ],
           },
         },
-      }),
-    }
-    expect(roundTrip(T, v)).toEqual(v)
+      },
+    })
+    const bytes = serializeValue(T, { kind: 'Box', value: box })
+    expect(deserializeValue(T, bytes)).toEqual({
+      kind: 'Box',
+      value: { ...box, retainedBytes: bytes },
+    })
   })
 })
 

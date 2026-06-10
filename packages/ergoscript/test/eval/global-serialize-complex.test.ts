@@ -521,13 +521,17 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
   })
 
   it('round-trip[Box] (one Int register)', () => {
-    const box: SValue = {
+    const inner = makeBox({
+      registers: { 4: { tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 7 } } },
+    })
+    const box: SValue = { kind: 'Box', value: inner }
+    // The box parse RETAINS the consumed bytes (ErgoBox.retainedBytes — the
+    // JVM ErgoBox._bytes analog, F5 batch 4 E); evalSer is deterministic so
+    // re-serializing yields the exact bytes deserializeTo consumed.
+    expect(roundTrip({ tag: 'SBox' }, box)).toEqual({
       kind: 'Box',
-      value: makeBox({
-        registers: { 4: { tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 7 } } },
-      }),
-    }
-    expect(roundTrip({ tag: 'SBox' }, box)).toEqual(box)
+      value: { ...inner, retainedBytes: evalSer({ tag: 'SBox' }, box).bytes },
+    })
   })
 
   it('round-trip[Header] (version 2)', () => {

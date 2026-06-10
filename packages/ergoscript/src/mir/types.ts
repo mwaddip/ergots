@@ -104,6 +104,14 @@ export interface ErgoBox {
   txId: Uint8Array
   /** Index of this box in the producing transaction's outputs (Rust `u16`). */
   index: number
+  /**
+   * Serialized box bytes retained by byte-ingress parsers (the SBox SValue
+   * data arm). JVM analog: ErgoBox._bytes — the parser hands the consumed
+   * slice to the constructor (ErgoBox.scala:214-226); in-memory-constructed
+   * boxes fall back to canonical re-serialization (:87-92). Box equality is
+   * id-basis over these bytes (eval/_box-id.ts).
+   */
+  retainedBytes?: Uint8Array
 }
 
 /**
