@@ -58,11 +58,14 @@ import type { ErgoTree } from '../../src/mir/types'
  * 33-byte GroupElement test payloads. F5 batch 4 recalibration: the parse arm
  * now curve-validates non-0x00-lead payloads (JVM GroupElementSerializer.parse
  * :35-42 — GE canonical-bytes invariant, facts/ergoscript-eval.md), so the
- * former `0x02/0x03 + ascending-bytes` placeholders (x not on the curve) would
- * parse-reject with 'group-element-invalid-point'. These tests exercise the
- * sigma-construction op wire shapes, not GE validation, so we use real curve
- * points with distinct content — keeping both 02/03 parity prefixes, as
- * before: identity, G, 6G (odd y → 03-lead), 2G.
+ * former `0x02/0x03 + ascending-bytes` placeholders would parse-reject with
+ * 'group-element-invalid-point'. Specifically: old gB (0x02 + 0x01..0x20) and
+ * old gD (0x02 + 0x21..0x40) were off-curve and required replacement. Old gC
+ * (0x03 + 0x41..0x60) happened to be a coincidentally valid curve point but
+ * was swapped anyway for uniformity with real named points. These tests
+ * exercise the sigma-construction op wire shapes, not GE validation, so we use
+ * real curve points with distinct content — keeping both 02/03 parity prefixes,
+ * as before: identity, G, 6G (odd y → 03-lead), 2G.
  */
 const gA = new Uint8Array(33) // canonical identity
 const gB = hexToBytes('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798') // G
