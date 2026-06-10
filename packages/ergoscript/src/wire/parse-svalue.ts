@@ -20,9 +20,11 @@
  *     big-endian signed two's-complement bytes (minimal encoding). The
  *     value's bit-width is determined by `bytes[0] & 0x80`: MSB set ⇒
  *     negative ⇒ sign-extend.
- *   - SGroupElement: 33 raw bytes (SEC1 compressed point, or 33 zero bytes
- *     for the identity / point at infinity). Phase 2a accepts the bytes
- *     as-is; curve-point validation is deferred to phase 2g.
+ *   - SGroupElement: 33 bytes, validated + normalized to canonical SEC1
+ *     (F5 batch 4): 0x00-lead → canonical 33-zero identity (tail discarded);
+ *     non-0x00-lead must curve-decode or throws
+ *     `'group-element-invalid-point'`. See the GE canonical-bytes invariant
+ *     in facts/ergoscript-eval.md.
  *   - SUnit: 0 bytes.
  *   - SColl[T]: VLQ-u16 length + each item parsed by T, EXCEPT:
  *       · SColl[SByte] → VLQ-u16 length + raw bytes (NativeColl optimization
@@ -56,8 +58,8 @@
  *     (canonical wire encoding)
  *   - `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/bigint256.rs::sigma_serialize`
  *     (SBigInt length-prefixed BE two's-complement)
- *   - `~/projects/sigma-rust/sigma-rust/ergo-chain-types/src/ec_point.rs`
- *     (SGroupElement = 33 raw bytes, identity = 33 zeros)
+ *   - `~/projects/sigmastate-interpreter/core/.../GroupElementSerializer.scala`
+ *     (SGroupElement canonical parse: 0x00-lead ⇒ identity, else decodePoint)
  *   - `~/projects/sigma-rust/sigma-rust/sigma-ser/src/vlq_encode.rs::put_bits`
  *     (SColl[SBoolean] bit packing)
  */
@@ -67,6 +69,7 @@ import { ByteReader, parseHeader, readVlqU32 } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { consumeTreeFromReader } from './ergo-tree'
+import { canonicalGePayload } from './_ge-canonical'
 
 // OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
 // (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
@@ -340,11 +343,24 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       return { kind: 'BigInt', value: decodeBigIntBE(bytes) }
     }
 
-    case 'SGroupElement':
-      // 33 raw bytes (compressed SEC1, or all zeros = identity). Defensive
-      // copy: `readBytes` returns a subarray view; the caller may mutate
-      // the underlying buffer later. We .slice() to detach.
-      return { kind: 'GroupElement', value: r.readBytes(33).slice() }
+    case 'SGroupElement': {
+      // F5 batch 4: validate + normalize per the GE canonical-bytes invariant
+      // (facts/ergoscript-eval.md). JVM GroupElementSerializer.parse:35-42 —
+      // 0x00-lead ⇒ identity (tail discarded); else decodePoint curve-validates.
+      // Defensive copy: `readBytes` returns a subarray view; .slice() detaches.
+      const raw = r.readBytes(33).slice()
+      return {
+        kind: 'GroupElement',
+        value: canonicalGePayload(
+          raw,
+          (cause) =>
+            new SValueParseError(
+              `SGroupElement payload is not a valid curve point: ${cause}`,
+              'group-element-invalid-point'
+            )
+        ),
+      }
+    }
 
     case 'SUnit':
       return { kind: 'Unit' }

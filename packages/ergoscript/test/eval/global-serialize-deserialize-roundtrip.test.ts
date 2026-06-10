@@ -29,6 +29,7 @@ import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseExpr } from '../../src/wire/parse'
 import { serializeExpr } from '../../src/wire/serialize'
 import { ByteReader, ByteWriter, deriveHeaderId } from '@ergots/scorex'
+import { hexToBytes } from '../_helpers'
 import type { MethodCall, SType, SValue, ErgoBox } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
 
@@ -301,12 +302,15 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
 
   // ── GroupElement ───────────────────────────────────────────────────────────
 
-  it('round-trip GroupElement (33 zero bytes with 0x02 prefix)', () => {
-    // Note: a real compressed point requires valid curve math. We use a
-    // "structurally valid" 33-byte encoding (0x02 prefix). parseSValue reads
-    // it as-is; the round-trip only checks byte-level fidelity.
-    const ge = new Uint8Array(33)
-    ge[0] = 0x02
+  it('round-trip GroupElement (secp256k1 generator point)', () => {
+    // F5 batch 4 recalibration: the GE data-parse arm now curve-validates
+    // non-0x00-lead payloads (JVM GroupElementSerializer.parse:35-42 — GE
+    // canonical-bytes invariant, facts/ergoscript-eval.md). The former
+    // placeholder `0x02 + 32 zero bytes` (x=0 is not on the curve) now
+    // parse-rejects in deserializeTo — same throw the JVM produces. This
+    // test's purpose is byte-fidelity of the serialize/deserializeTo pair,
+    // so use a real point: the generator G (verbatim = canonical for 02/03).
+    const ge = hexToBytes('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798')
     const T: SType = { tag: 'SGroupElement' }
     const v: SValue = { kind: 'GroupElement', value: ge }
     const result = roundTrip(T, v)

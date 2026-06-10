@@ -242,11 +242,12 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
 
     case 'SGroupElement': {
       assertKind(t, v, 'GroupElement')
-      // 33 raw bytes. We do NOT validate the SEC1 prefix here — phase 2a
-      // accepts the bytes as-is and defers curve-point validation to
-      // phase 2g (sigma-protocol evaluation). The 33-byte length check is
-      // load-bearing because anything else would silently desynchronize
-      // the wire cursor on read-back.
+      // 33 bytes, emitted verbatim. No per-site curve validation here: the
+      // GE canonical-bytes invariant (facts/ergoscript-eval.md, F5 batch 4)
+      // guarantees every SValue.GroupElement.value is already canonical SEC1
+      // — validated + normalized at every ingress (parse-svalue GE arm). The
+      // 33-byte length check is load-bearing because anything else would
+      // silently desynchronize the wire cursor on read-back.
       if (v.value.length !== 33) {
         throw new SValueSerializeError(
           `SGroupElement requires exactly 33 bytes, got ${v.value.length}`,

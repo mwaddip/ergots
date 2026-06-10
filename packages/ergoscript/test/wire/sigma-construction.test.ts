@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { hexToBytes } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**
@@ -29,8 +30,9 @@ import type { ErgoTree } from '../../src/mir/types'
  * satisfy the constraints; the AST is sigma-rust-equivalent regardless.
  *
  * Const-encoding cheat-sheet for the byte vectors:
- *   - SGroupElement (0x07): exactly 33 raw bytes (SEC1 compressed point or
- *     33 zeros for identity — wire layer doesn't validate curve membership).
+ *   - SGroupElement (0x07): 33 bytes, curve-validated + normalized at parse
+ *     (F5 batch 4 GE canonical-bytes invariant: 0x00-lead ⇒ canonical
+ *     identity; else must SEC1-decode — see facts/ergoscript-eval.md).
  *   - SBoolean      (0x01): SType code + one byte (0x00=false / 0x01=true).
  *     So `Const SBoolean true` is the two bytes `0x01 0x01`. The
  *     standalone OP_TRUE / OP_FALSE single-byte opcodes (0x7f / 0x80) are
@@ -53,20 +55,19 @@ import type { ErgoTree } from '../../src/mir/types'
  */
 
 /**
- * 33-byte placeholder GroupElements. The wire layer accepts them as-is and
- * defers SEC1 / curve-point validation to phase 2g. We use distinct content
- * for each so the round-trip distinguishes operands.
+ * 33-byte GroupElement test payloads. F5 batch 4 recalibration: the parse arm
+ * now curve-validates non-0x00-lead payloads (JVM GroupElementSerializer.parse
+ * :35-42 — GE canonical-bytes invariant, facts/ergoscript-eval.md), so the
+ * former `0x02/0x03 + ascending-bytes` placeholders (x not on the curve) would
+ * parse-reject with 'group-element-invalid-point'. These tests exercise the
+ * sigma-construction op wire shapes, not GE validation, so we use real curve
+ * points with distinct content — keeping both 02/03 parity prefixes, as
+ * before: identity, G, 6G (odd y → 03-lead), 2G.
  */
-const gA = new Uint8Array(33) // all zeros
-const gB = new Uint8Array(33)
-gB[0] = 0x02
-for (let i = 1; i < 33; i++) gB[i] = i & 0xff
-const gC = new Uint8Array(33)
-gC[0] = 0x03
-for (let i = 1; i < 33; i++) gC[i] = (i + 0x40) & 0xff
-const gD = new Uint8Array(33)
-gD[0] = 0x02
-for (let i = 1; i < 33; i++) gD[i] = (i + 0x80) & 0xff
+const gA = new Uint8Array(33) // canonical identity
+const gB = hexToBytes('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798') // G
+const gC = hexToBytes('03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556') // 6G
+const gD = hexToBytes('02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5') // 2G
 
 describe('CreateProveDlog variant', () => {
   it('round-trips CreateProveDlog(Const SGroupElement gA)', () => {
