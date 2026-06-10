@@ -20,7 +20,11 @@
  *     non-unary-SFunc declared type, SType.scala:200-205; net 80 → 81. T3 adds
  *     'select-field-non-pair' → 82)
  *     + F5 batch 4 (+'atleast-too-many-children': Atleast >255-children cap,
- *     CSigmaDslBuilder.scala:102-108; net 82 → 83) — current total: 83
+ *     CSigmaDslBuilder.scala:102-108; net 82 → 83)
+ *     + F5 batch-4 close-out tally fix (+'coll-map-elem-type-infer-failed':
+ *     pre-existing defensive code originated phase 2f, tsc-provably unreachable
+ *     default arm of the exhaustive SValue-kind switch in svalue-type.ts; net
+ *     83 → 84) — current total: 84
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -91,6 +95,10 @@
  *        T3 — SelectField on a runtime non-pair Tuple) → 82
  *    + 1 code added in F5 batch 4 ('atleast-too-many-children' — Atleast
  *        >255-children cap, CSigmaDslBuilder.scala:102-108) → 83
+ *    + 1 pre-existing code counted at F5 batch-4 close-out
+ *        ('coll-map-elem-type-infer-failed' — defensive default arm of the
+ *        exhaustive SValue-kind switch in svalue-type.ts, originated phase 2f,
+ *        tsc-provably unreachable) → 84
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -98,7 +106,9 @@
  *   (+2 → 82) and batch 4 (+1 → 83) tail were missing; the header chain above
  *   lacked the batch 4 step; and the union below was missing batch 4's
  *   'atleast-too-many-children' even though the throw site (eval/atleast.ts)
- *   and facts/ergoscript-eval.md already carried it.)
+ *   and facts/ergoscript-eval.md already carried it. A further gap —
+ *   'coll-map-elem-type-infer-failed' (pre-existing defensive code, phase 2f)
+ *   — was also never counted; found and added in the same close-out pass.)
  */
 
 /**
@@ -1079,3 +1089,31 @@ export type EvalErrorCode =
    *         (blessed_by jvm:sigma-state-6.0.3).
    */
   | 'atleast-too-many-children'
+
+  // -------------------------------------------------------------------------
+  // Phase 2f (pre-existing, discovered uncounted at F5 batch-4 close-out)
+  // Defensive unreachable guard — tsc-provably unreachable via the exhaustive
+  // switch on SValue.kind in svalue-type.ts. Counted per the defensive-code
+  // convention (precedent: 'unsigned-bigint-negative' counted as defensive
+  // unreachable guard). Originated phase 2f alongside Coll HOFs; first
+  // referenced in facts/ergoscript-eval.md line ~325 (v6 P2b changelog).
+  // -------------------------------------------------------------------------
+  /**
+   * `sValueType` (`eval/svalue-type.ts:66`): the default arm of the exhaustive
+   * `switch (v.kind)` over every `SValue` variant. `SValue` is a discriminated
+   * union fully covered by the switch's explicit arms, so tsc proves the default
+   * unreachable at compile time under strict mode. Thrown only if a NEW `SValue`
+   * kind is added to `mir/types.ts` without a corresponding arm being added here
+   * — the throw is the runtime tripwire that surfaces such a gap.
+   *
+   * Also emitted by `eval/coll-map.ts`'s local `inferSType` default arm (the
+   * predecessor of `sValueType`; same code, same tsc-unreachable posture).
+   *
+   * Counted per the defensive-code convention (same as
+   * `'unsigned-bigint-negative'` / `'sigma-prop-is-proven-no-eval'` which are
+   * documented as defensive unreachable guards and counted). Pre-existing code;
+   * tally gap discovered at the F5 batch-4 close-out (2026-06-10).
+   *
+   * Source: `eval/svalue-type.ts:66` (default arm).
+   */
+  | 'coll-map-elem-type-infer-failed'
