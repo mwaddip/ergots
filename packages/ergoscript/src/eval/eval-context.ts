@@ -96,11 +96,12 @@ export interface EvalOpts {
   inputExtensions?: ContextExtension[]
   /**
    * Last-block UTXO state-tree root, as an INDEPENDENT context field — mirrors
-   * JVM `ErgoLikeContext.lastBlockUtxoRoot`. F5 batch 2 (2026-06-08): the
-   * `SContext.lastBlockUtxoRootHash` handler (101:9) reads THIS field directly
-   * rather than deriving an AvlTree from `headers[0].stateRoot` (the sigma-rust
-   * quirk at `scontext.rs:83-99`). Absent ⇒ 101:9 throws
-   * `'context-field-missing'`. The walker supplies
+   * JVM `ErgoLikeContext.lastBlockUtxoRoot`. Readers: the
+   * `SContext.lastBlockUtxoRootHash` handler (101:9, method-call.ts) and the
+   * bare 0xa6 op-form arm (eval/last-block-utxo-root-hash.ts). Both read THIS
+   * field directly rather than deriving an AvlTree from `headers[0].stateRoot`
+   * (the sigma-rust quirk at `scontext.rs:83-99`). Absent ⇒ either reader
+   * throws `'context-field-missing'`. The walker supplies
    * `{ digest: headers[0].stateRoot, treeFlags: 0b111, keyLength: 32,
    * valueLengthOpt: null }`; the conformance dummy context supplies
    * `AvlTreeData.dummy`.
