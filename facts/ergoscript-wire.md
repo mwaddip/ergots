@@ -182,6 +182,16 @@ reads bytes (SBox `ergoTreeBytes`). Tooling note: `addressFromErgoTree` re-seria
 noncanonical on-chain tree yields a different P2S address than a JVM node derives from
 retained bytes — tooling-level, not consensus.
 
+**Carve-out 3 (F5 batch 4, 2026-06-10) — noncanonical identity GroupElements:** a GE payload with
+lead byte 0x00 and ANY bytes 1..32 (SValue GE data, ProveDlog/ProveDHTuple leaf points) parses as
+the identity and re-serializes CANONICAL (33 zeros) — so `serializeTree(parseTree(b)) ≠ b` for
+trees carrying garbage-tail identity encodings. The JVM behaves identically at the value layer
+(`GroupElementSerializer.parse` reads ANY 0x00-lead into the identity point object; serialize
+emits 33 zeros, :20-42) and round-trips such trees only via retained original bytes (the same
+mechanism as Carve-out 2). Invalid non-0x00-lead payloads now REJECT at parse
+(`'group-element-invalid-point'` / `'ec-point-invalid'`) instead of round-tripping raw — the old
+byte-faithful raw retention matched NEITHER reference's value semantics.
+
 For the body-only round-trip (i.e., parsing a `parseExpr` output and reserializing through `serializeExpr` into a fresh `ByteWriter`), the same byte-equality invariant holds.
 
 ## Type invariants (wire-side shapes)
@@ -250,13 +260,13 @@ arity require, so arity-0/1 generic-tuple TYPES parse; the TYPE serializer keeps
 < 2 (`'tuple-too-short'`, mirroring `TypeSerializer.scala:93-94` `sys.error`) — parse/serialize
 asymmetric on the JVM itself.)
 - **`STypeSerializeError`**: `'tuple-too-short'`, `'tuple-too-long'`, `'stypevar-name-length'`, `'sfunc-tdom-too-long'`, `'sfunc-tpe-params-too-long'`, `'unreachable'`.
-- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'not-implemented-phase-2a'` (still emitted for `SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue constant in a tree-version < 3 ErgoTree; mirrors sigma-rust `serialization/data.rs:196`), `'soption-tree-version-too-low'` (SOption SValue constant in a tree-version < 3 ErgoTree;
+- **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'group-element-invalid-point'` (F5 batch 4 — the SValue GE data-parse arm curve-validates non-0x00-lead 33-byte payloads via secp256k1 SEC1 decode (bad prefix or x-not-on-curve rejects), mirroring JVM `GroupElementSerializer.parse:35-42` → decodePoint throw; 0x00-lead payloads are NOT validated — they NORMALIZE to the canonical 33-zero identity (bytes 1..32 discarded; the JVM reads them into the identity point object); applies wherever GE DATA parses — body/segregated constants, box registers, `deserializeTo[GroupElement]`; all tree versions, dead branches included; adversarial-only — honest tools emit valid points. See the F5 batch 4 wire section below), `'not-implemented-phase-2a'` (still emitted for `SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue constant in a tree-version < 3 ErgoTree; mirrors sigma-rust `serialization/data.rs:196`), `'soption-tree-version-too-low'` (SOption SValue constant in a tree-version < 3 ErgoTree;
 mirrors JVM `CoreDataSerializer.scala:140-143` — pre-v3 Option DATA falls through to
 `CheckSerializableTypeCode`/ValidationRule 1009 + `SerializerException`; recursive — Option
 nested anywhere in a constant's type tree rejects; shipped F5 batch 1 2026-06-07), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-creation-height-out-of-range'` (parse rejects creation_height > u32, matching sigma-rust `get_u32`; audit follow-up), `'sbox-index-out-of-range'` (parse rejects index > u16, matching `get_u16`; previously serialize-only), `'unsigned-bigint-too-large'` (UBI payload > 32 bytes; mirrors `CoreDataSerializer.scala:120`; shipped v6 P2a T3), `'register-v6-type'` (F5 batch 3 — rule-1019 `CheckV6Type`: a box register whose declared type contains `SOption` / `SHeader` / `SUnsignedBigInt` (recursing through `STuple` items + `SColl` elemType) is rejected at register ingress in `parseRegisterExprWithTag`, mirroring JVM `ValidationRules.scala:165-205` enforced at `ErgoBoxCandidate.scala:232`; **UNCONDITIONAL — all tree versions** (the rule is in both ruleSpecsV5 and ruleSpecsV6); distinct from the body-constant `'soption-tree-version-too-low'` gate and the `validate-v6-types` body pass; adversarial-only — mainnet boxes can't carry these register types. Context-extension leg deferred: ergots has no extension wire-parser yet). (`'sbox-ergo-tree-no-size'` removed in phase 2j-pre fix-1 — see changelog below.)
 - **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue with tree-version < 3 passed to `serializeSValue`; mirrors sigma-rust `serialization/data.rs:98`), `'soption-tree-version-too-low'` (serialize-side mirror, `CoreDataSerializer.scala:78-82`;
 shipped F5 batch 1 2026-06-07), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-creation-height-out-of-range'` (serialize rejects creation_height > u32; audit follow-up), `'sbox-tokens-out-of-range'`, `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`, `'unsigned-bigint-too-large'` (defensive encoder guard — out-of-range UBI is an internal invariant violation, unreachable from valid parse or v6 method result, but guarded; shipped v6 P2a T3), `'unsigned-bigint-negative'` (defensive guard in `encodeUnsignedBigIntBE` when caller passes a negative bigint — unsigned type admits no negatives; shipped v6 P2a T3). (**`'savltree-digest-length'` RETIRED in F4 epilogue Task 3, 2026-06-07**: the serializer now writes the digest verbatim at any length — the JVM `DataSerializer` has no length require; parse-side remains fixed-33 — a JVM asymmetry. An AvlTree SValue with non-33-byte digest serializes fine but does NOT round-trip through parse.)
-- **`SigmaBooleanParseError`**: `'arity-out-of-range'`, `'unknown-opcode'`, `'cthreshold-k-out-of-range'` (Cthreshold's `k` outside `[1, items.length]`; added phase 2g-medium), `'sigma-conjecture-empty-items'` (Cand/Cor/Cthreshold parsed with `items.length === 0`; added phase 2g-medium).
+- **`SigmaBooleanParseError`**: `'arity-out-of-range'`, `'unknown-opcode'`, `'cthreshold-k-out-of-range'` (Cthreshold's `k` outside `[1, items.length]`; added phase 2g-medium), `'sigma-conjecture-empty-items'` (Cand/Cor/Cthreshold parsed with `items.length === 0`; added phase 2g-medium), `'ec-point-invalid'` (F5 batch 4 — ProveDlog.h and ProveDHTuple g/h/u/v leaf points get the same validate+normalize as the SValue GE arm: 0x00-lead → canonical identity, non-0x00-lead must curve-decode; the JVM parses these leaves through the same `GroupElementSerializer.parse` (SigmaBoolean.scala:36-44,71-80 via ProveDlogSerializer/ProveDHTupleSerializer); sibling of the pre-existing `'ec-point-length'`).
 - **`ExprTpeError`** (raised by `exprTpe`, the SType-of-Expr projection): `'apply-func-not-sfunc'`, `'bin-op-kind-unhandled'`, `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'select-field-input-not-stuple'`, `'select-field-out-of-range'`, `'tpe-not-implemented'`.
 - **`ReaderError`** (raised by `ByteReader`): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`.
 - **`AddressDecodeError`**: `'bad-base58'`, `'too-short'`, `'checksum-mismatch'`, `'invalid-p2pk-length'`, `'p2sh-unsupported'`, `'unknown-type'`.
@@ -528,6 +538,31 @@ Consequences:
 - `wire/mir/create-avl-tree.ts` parse/serialize: four `parseExpr`/`serializeExpr` calls, no tag byte. The blessed vector's tree bytes round-trip byte-identically (pinned in `test/wire/avl.test.ts`).
 - `'invalid-option-tag'` lost its CreateAvlTree throw site here, and its final `DeserializeRegister.default` site in F5 batch 1 (2026-06-07) — the code is now fully RETIRED (any nonzero default tag parses as Some per JVM `getOption`; see the ExprParseError retirement note above).
 - Eval-tier: both `CreateAvlTree` and `TreeLookup` now reject unconditionally (`'unsupported-eval-node'` — the JVM has no eval override for either); see [`facts/ergoscript-eval.md`](./ergoscript-eval.md). Parse stays — the JVM parses both nodes fine.
+
+## F5 batch 4 wire updates (GroupElement canonical parse)
+
+Every wire ingress that reads a 33-byte GE payload stops storing raw bytes and applies
+**validate + normalize**, establishing the GE canonical-bytes invariant (canonical home:
+`facts/ergoscript-eval.md` Type invariants):
+
+- **0x00-lead** (any bytes 1..32) → NORMALIZE to the canonical 33-zero identity. Mirrors JVM
+  `GroupElementSerializer.parse` (core/.../GroupElementSerializer.scala:35-42): any 0x00-lead
+  encoding reads into the identity POINT (payload tail discarded); every JVM egress re-serializes
+  canonically (:20-33). Same semantics the iter-24 lenient `decodePoint` already ships on the eval
+  `DecodePoint` arm.
+- **non-0x00-lead** → must curve-decode (secp256k1 SEC1 compressed): bad prefix or x-not-on-curve
+  throws (`'group-element-invalid-point'` at the SValue arm, `'ec-point-invalid'` at SigmaBoolean
+  leaves). The JVM rejects at the same layer — all tree versions, dead branches included.
+- **Ingress coverage:** the SValue GE data arm (body + segregated constants, box registers via
+  `parseRegisterExprWithTag`, `deserializeTo[GroupElement]`); SigmaBoolean leaf points
+  (ProveDlog.h, ProveDHTuple g/h/u/v — `wire/sigma-boolean.ts`); the `deserializeTo[Header]`
+  hydration leg (minerPk + v1 powOnetimePk — the JVM parses both through
+  `GroupElementSerializer.parse`, AutolykosSolution serializers, ErgoHeader.scala:157-180).
+  The eval `DecodePoint` arm is already conformant (decodes, then re-encodes canonically).
+- Curve validation reuses the existing `crypto/secp256k1.ts` `decodePoint` adapter
+  (`@noble/curves` — already a dependency of this package; no new dependency).
+- Round-trip consequences: Carve-out 3 (§Round-trip invariant). Serialize side is unchanged —
+  canonical values serialize verbatim, and the invariant guarantees canonicality.
 
 ## Coverage
 

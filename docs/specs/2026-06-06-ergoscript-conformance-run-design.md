@@ -434,6 +434,93 @@ context-extension leg (no extension wire-parser in ergots). **Convergence:** the
 5 sigma-rust eni divergences (W1/W2 checkType, W5a, W6, W5b under-accept) — SANTA routing to sigma-rust;
 ergots LEADS on checkType/SelectField/rule-1012/rule-1019 (both libs diverged).
 
+### F5 batch 4 — standing-tail closure (corpus pins + atLeast cap + GE canonicalization + equality basis) — OPEN 2026-06-10
+
+**Context at batch start:** SANTA `1738862` landed Ask 8 (dasher adapter populates `lastBlockUtxoRootHash`)
++ the getRegV5 classifier carve-out ((99,7)-narrow → errored) — **dasher 23→21, eval-tier ergots-bug
+reds = 0 across every v5+v6 slice (value+cost+reject)**. The remaining 21 = tx ×4 + wire-Transaction ×17
+roadmap rows. Decision #2 RESOLVED (see §Decisions). Batch 4 = proactive hardening; no red drives it.
+Stale standing entries struck at scoping: op-shape blesses (delivered+vendored), harness header-test
+bigint debt (fixed; 9/9 green at `34f6bbe`).
+
+**Members (design approved in-conversation 2026-06-10; investigation verdicts below):**
+
+| # | member | shape |
+|---|---|---|
+| T1 | facts/ contract (eval + wire) | contract-first; this commit |
+| A | asks routing — **WAITS on SANTA's in-flight delivery** (Ask 11 witness next in their queue); on arrival craft ONE consolidated prompt: 31-key tail (UBI 9:18 `mod` / 9:19 `toSigned`, Global 106:9 `some` / 106:10 `none`) + the never-routed F3.5 Coll-HOF per-element ADD_TO_ENV 5-arm ask + the new batch-4 asks (atLeast ordering/cap pins · GE invalid-point reject · 0x00-garbage identity pins: bare-GE EQ true / box-register EQ false / getEncoded canonical zeros · EQ-of-Header/Box flat-cost pins). Append to SANTA's copy (bus-sync lesson). | coordination |
+| B | full-corpus vendoring (Decision #3 execution): 155 files / 2,143 entries as permanent pins + one-command re-sync (cp -r + git-diff review), manifest-driven registration, node+jsdom runtime check | test infra |
+| C | atLeast 255-children cap (verdict 1) | eval fix, +1 code |
+| D | GE canonical-bytes invariant: parse-normalize + curve-validate (verdict 2 + leaf addendum) | wire fix, +2 codes (`'group-element-invalid-point'` SValue arm · `'ec-point-invalid'` SigmaBoolean leaves) |
+| E | equality-basis split: box-register byte-basis compare (verdict 3) | eval fix |
+| F | Ask-11 reserved slot: SFunc-arity checkType (FuncValue/Apply arms + If/ByIndex seams) TDD'd against the witness when routed; carries forward unblocked if it doesn't arrive in-batch | eval fix |
+
+**Verdict 1 — atLeast cap ordering (JVM-source-confirmed 2026-06-10).** `CSigmaDslBuilder.atLeast`
+(CSigmaDslBuilder.scala:102-108) throws `IllegalArgumentException` on `props.length > 255`
+(`MaxChildrenCountForAtLeastOp`, SigmaConstants.scala:65) BEFORE `AtLeast.reduce`; the degenerate
+reductions (bound≤0→TrueProp, bound>n→FalseProp) live INSIDE reduce (trees.scala:340-359), behind the
+cap. Eval path charges `addSeqCost(PerItem(20,3,5))` first (trees.scala:314-320). So JVM order =
+charge → cap-throw → degenerates — the F1 reviewer's claim CONFIRMED; eni (cap only in the
+non-degenerate path → TrueProp for `atLeast(≤0, >255)`) is a second JVM↔sigma-rust fork. ergots fix:
+insert the cap in `eval/atleast.ts` between the Pattern-B charge (step 3) and the degenerate
+reductions (steps 4-5); new EvalError code; adversarial-only (compilers never emit >255).
+
+**Verdict 2 — GE parse-validation + canonicalization (JVM-source-confirmed 2026-06-10).**
+JVM `GroupElementSerializer.parse` (core/.../GroupElementSerializer.scala:35-42): lead byte ≠ 0 →
+`decodePoint` curve-validates (throws on invalid x / bad prefix); lead byte = 0 → identity POINT,
+bytes 1..32 discarded (the in-memory value is the point object; serialize emits canonical 33 zeros,
+:20-33). ergots `parse-svalue.ts:343-347` stores raw 33 bytes unvalidated. Forks: (a) invalid-point
+GE constants parse here, JVM rejects — all versions, dead branches included; (b) `getEncoded` (raw
+`obj.value`) / `Global.serialize` emit stored garbage where the JVM emits canonical 33 zeros for
+identity (reachable v3+ via `deserializeTo[GroupElement]` → egress). Fix (root-cause shape, approved):
+**canonical-bytes invariant** — every `SValue.GroupElement.value` is canonical SEC1 (33 zeros |
+curve-validated 02/03-lead); enforced at ALL value ingresses: SValue GE data-parse arm (covers
+constants, registers, `deserializeTo[GroupElement]`), the `deserializeTo[Header]` hydration leg
+(minerPk + v1 powOnetimePk — JVM routes both through GroupElementSerializer.parse), and the
+DecodePoint eval arm (iter-24 lenient semantics → normalize output). **Contract-writing addendum
+(same day): SigmaBoolean leaf points (ProveDlog.h / ProveDHTuple g,h,u,v) are a FOURTH ingress** —
+the JVM parses them through the same GroupElementSerializer (SigmaBoolean.scala:36-44,71-80 via
+ProveDlogSerializer/ProveDHTupleSerializer); ergots `wire/sigma-boolean.ts:110-118` reads raw 33
+bytes → same validate+normalize, new `SigmaBooleanParseError` code `'ec-point-invalid'`. Egress (getEncoded / serialize /
+EQ) then needs no per-site handling. Byte-faithful round-trip gets a documented carve-out for the
+0x00-garbage class — the references themselves canonicalize (JVM point re-serialization; sigma-rust
+`EcPoint` parse drops bytes identically); our old byte-faithfulness here matched NEITHER reference's
+re-serialization. New wire-layer parse code (SValueParseError; dasher contract §3 maps typed parse
+refusals → errored).
+
+**Verdict 3 — equality bases (JVM-source-confirmed 2026-06-10; the ledger's old "GE struct-equality
+identity-class" framing was WRONG — the real bug is the opposite direction).** JVM bases:
+`CHeader.equals` = id compare with `id = blake2b(CACHED INPUT bytes)` (`ErgoHeader.sigmaSerializer.parse`
+hands the consumed slice to `_bytes`, ErgoHeader.scala:177-180,133-140) — id-basis ≡ input-byte-basis;
+`ErgoBox.equals` = `Arrays.equals(id, x.id)` (ErgoBox.scala:94-96) — same; bare GE + Coll[GE]
+elementwise = VALUE basis (`CGroupElement ==` under EQ_GroupElement(172), DataValueComparer.scala:284-291)
+— F3's identity-aware `ecPointEqual` is CORRECT there and stays; `CPreHeader` = field-basis but
+adversarially unreachable (NO SPreHeader arm in DataSerializer → no `deserializeTo[PreHeader]`; one
+preHeader per context) — document-only. ergots' field walks are faithful (boxEqual covers all 7
+id-contributing fields incl. txId/index; headerEqual all 13 incl. id) EXCEPT:
+`registersEqual → primitiveValueEqual → ecPointEqual` (relation.ts:628-634) applies VALUE-basis
+identity-aware compare (GE + SigmaProp arms) on the BYTE-basis box path → boxes differing only in
+garbage-vs-canonical identity register encodings: JVM unequal (different ids), ergots equal. Fix
+contract: **box-EQ verdict ≡ byte-equality of the serialized boxes** (JVM id-basis); mechanism decided
+at implementation with the ErgoBox representation in hand (id-compare if ids derive from original
+bytes — likely, the walker validates ids — else retained-bytes compare; NOTE re-serialization is NOT
+an option once D normalizes the SValue layer: canonical re-serialize would erase exactly the
+distinction the id preserves). Header-EQ: verify our id field derives from blake2b(input bytes) on
+the deserializeTo[Header] path. While there: verify flat EQ costs vs DataValueComparer (EQ_Box 6 /
+EQ_Header 6 / EQ_PreHeader 4 — :56-71).
+
+**D/E interlock:** D's normalization erases garbage-identity at the SValue layer; E's box-EQ must
+therefore compare on retained original bytes (or byte-derived ids), never on normalized values or
+their re-serialization.
+
+**Out of batch (tracked):** SAny over-accept consolidation (own phase) · Transaction codec (roadmap
+phase per Decision #2) · rule-1019 extension leg (needs extension wire-parser) · Ask 2b (parked
+SANTA-side) · optional blesses (substConstants embedded-reject twin · composite updateDigest(short)
+Tier-2 pin · 5-tuple-register vector — all queued SANTA-side, low priority).
+
+**Process:** batch-3 cadence — per-task subagent TDD chain (implementer → spec review → quality
+review), per-task commits, full gate (monorepo + tsc ×4) at close-out, push on user go.
+
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
 Eval-tier reds at F1 start = 53 (the 47-row inventory's 26 ergots-bug minus the 21 tx-scope
@@ -500,9 +587,12 @@ develop-first/eni-cherry-pick). The two CONVERGENT classes (updateDigest, TreeLo
 ergots-FIXED by the epilogue — ergots leads both; sigma-rust follows.
 
 ### Decisions needed before/during execution (user)
-1. F1 rider: atLeast 255-cap in F1 or F5?
+1. F1 rider: atLeast 255-cap in F1 or F5? ✅ **RESOLVED — F5 (executing as batch-4 member C).**
 2. tx-tier scope (21 not-impl rows): Transaction codec on the roadmap (own future
    phase, NOT part of this plan) or acknowledged-gap (rows stay as growth ledger)?
+   ✅ **RESOLVED 2026-06-10 (user) — Transaction codec ENTERS the roadmap as its own
+   future phase; the 21 rows stay not-impl growth-ledger rows until that phase lands.
+   The conformance run focuses on the standing tail first (batch 4).**
 3. Corpus vendoring policy: ✅ **RESOLVED 2026-06-06 (user) — middle path.** Vendor the
    FULL green corpus (2.9 MB / 155 files / 2143 entries) into `test/fixtures/conformance/`
    as permanent regression pins, with SANTA as upstream: one-command re-sync (`cp -r` +
@@ -522,7 +612,7 @@ ergots-FIXED by the epilogue — ergots leads both; sigma-rust follows.
 - [x] Gap inventory settled against the corpus manifest — ✅ manifest received 2026-06-06 (`eval-coverage.json`): zero genuine not-impls our side; substConstants-v3 SETTLED-covered (hypothesis refuted); avltree settled via the Tier-2 batch (→F4); 31-key never-exercised list = F5 authoring demand; atLeast 255-cap remains vectorless (→F5 member). Gap-FILL itself is F5 execution, tracked there.
 - [x] Captured-tx twins verified both directions (our 2 reds; their 2 possible-greens) — folded into F1 (Task 5, 2026-06-06: 4/4 settled, no new latent divergence — see Captured tier)
 - [x] Phased fix plan DRAFTED (F1–F5 above), reachability-ordered — **user approval pending**
-- [ ] Open scope questions answered: tx codec in/out; corpus vendoring policy; F1 rider; per-phase process weight
+- [x] Open scope questions answered: tx codec → roadmap phase (2026-06-10); corpus vendoring → middle path (2026-06-06, executing batch-4 B); F1 rider → F5 batch-4 C; per-phase process weight → established batch cadence (plan + subagent TDD chain; mini-spec only when mechanisms aren't nailed)
 
 ## Coordination
 

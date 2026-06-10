@@ -80,6 +80,7 @@ It is consumed by `verifySignature` (this slice) and by the eval-side `SigmaProp
 **Invariants** (held by `parseSigmaBoolean`):
 - `ProveDlog.h.length === 33`
 - `ProveDhTuple.{g,h,u,v}.length === 33`
+- **GE canonical-bytes (F5 batch 4, 2026-06-10):** `ProveDlog.h` and `ProveDhTuple.{g,h,u,v}` are canonical SEC1 — exactly 33 zero bytes (identity) or a curve-validated `0x02`/`0x03`-lead compressed point. 0x00-lead wire payloads NORMALIZE to the canonical identity; invalid non-0x00-lead payloads throw `SigmaBooleanParseError('ec-point-invalid')`. Mirrors the JVM, which parses these leaves through `GroupElementSerializer.parse` (SigmaBoolean.scala:36-44,71-80). Eval-side producers already conform (`CreateProveDlog`/`CreateProveDhTuple` consume canonical `SValue.GroupElement` values — see the GE canonical-bytes invariant in [`facts/ergoscript-eval.md`](./ergoscript-eval.md)). The verifier and `SigmaPropBytes` may rely on canonicality; the F3 identity-aware `ecPointEqual` stays as defense-in-depth.
 - `Cand.items.length >= 1`
 - `Cor.items.length >= 1`
 - `Cthreshold.items.length >= 1` (mirrors sigma-rust's `BoundedVec<T, 1, 255>`)
