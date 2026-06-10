@@ -32,6 +32,8 @@ const VECTOR_FILES = [
   'SigmaProp.propBytes_equivalence.json',
   'substConstants_equivalence.json',
   'atLeast_with_a_degenerate_bound.json',
+  // F5 batch 4 — Ask 15: 255-children cap pins (cap-before-degenerate ordering; bonus bound>n-at-boundary arm)
+  'atLeast.children_cap.json',
   'EQ_of_SigmaProp.json',
   'EQ_of_SigmaProp_unequal.json',
   'EQ_of_SigmaProp_conjecture_mismatch.json',
