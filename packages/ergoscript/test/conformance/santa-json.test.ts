@@ -10,15 +10,13 @@
  * bytes_hex sources:
  *   AvlTree — verbatim from SANTA's JVM-blessed AvlTree.insertOrUpdate.json
  *             fresh-key expected value (digest f1b5df03… + flags 07 +
- *             keyLength 32 + valueLengthOpt Some(8)). That vector vendors
- *             into test/fixtures/conformance/v6/ in F4 Task 6 — until then
- *             the upstream source is
- *             ~/projects/santa/vectors/eval/v6/authored/AvlTree.insertOrUpdate.json.
+ *             keyLength 32 + valueLengthOpt Some(8)); vendored at
+ *             test/fixtures/conformance/v6/authored/AvlTree.insertOrUpdate.json.
  *   Box     — first bytes_hex Box found in a vendored SANTA vector
- *             (currently v5/Box.signed_view_u64.json).
+ *             (scan order v5/spec → v5/authored → v6/spec → v6/authored,
+ *             filenames sorted).
  *   Header  — first bytes_hex Header found in a vendored SANTA vector
- *             (v6 — no v5 vector carries Header bytes_hex; any of the
- *             Header-carrying v6 files is equally valid, the pin only
+ *             (any Header-carrying file is equally valid, the pin only
  *             asserts the round-trip of whatever hex the scan returns).
  */
 import { describe, expect, it } from 'vitest'
@@ -59,18 +57,21 @@ describe('svalueToSantaJson — canonical-bytes struct arms', () => {
 })
 
 /**
- * Scan vendored SANTA vector files (v5 then v6) for the first `{kind,
- * bytes_hex}` SValue of the given kind (inputs or expected values) —
- * keeps the pins anchored to real JVM-blessed bytes without hardcoding
- * long hex strings here. v5 is preferred for Box; v6 is needed for Header.
+ * Scan vendored SANTA vector files (v5 then v6, spec then authored tier,
+ * filenames sorted) for the first `{kind, bytes_hex}` SValue of the given
+ * kind (inputs or expected values) — keeps the pins anchored to real
+ * JVM-blessed bytes without hardcoding long hex strings here.
  */
 function firstBytesHexOfKind(kind: string): string {
-  for (const dir of [v5dir, v6dir]) {
-    for (const f of fs.readdirSync(dir)) {
-      if (!f.endsWith('.json')) continue
-      const doc = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))
-      const found = scan(doc)
-      if (found !== null) return found
+  for (const base of [v5dir, v6dir]) {
+    for (const tier of ['spec', 'authored'] as const) {
+      const dir = path.join(base, tier)
+      for (const f of fs.readdirSync(dir).sort()) {
+        if (!f.endsWith('.json')) continue
+        const doc = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))
+        const found = scan(doc)
+        if (found !== null) return found
+      }
     }
   }
   throw new Error(`no ${kind} bytes_hex in any vendored SANTA vector`)

@@ -183,7 +183,7 @@ describe('Global.deserializeTo (106:4) — v6 P5a', () => {
 // header keeps its garbage-based id while the VALUE normalizes.
 //
 // Header material: the SANTA-blessed vectors in
-// test/fixtures/conformance/v6/Global.deserializeTo_header.json
+// test/fixtures/conformance/v6/spec/Global.deserializeTo_header.json
 // (jvm:sigma-state-6.0.3). Empirical pins from SANTA Ask 16 (vendored in a
 // later task): garbage-pk accepts with getEncoded → 33 zeros; invalid-pk →
 // eval-errored; header id-basis EQ false.

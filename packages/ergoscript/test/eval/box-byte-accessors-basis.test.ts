@@ -14,7 +14,7 @@
  *     NO retained candidate slice JVM-side, so the garbage/canonical twins
  *     CONVERGE byte-identical (and it is NOT a retained-minus-tail slice).
  *
- * Blessed pins: test/fixtures/conformance/v5/Box.bytes_byte_basis.json
+ * Blessed pins: test/fixtures/conformance/v5/authored/Box.bytes_byte_basis.json
  * (6 entries). This file pins the same verdicts at unit level, built like
  * box-eq-id-basis.test.ts: serialize a box whose R4 is the canonical identity
  * GE, flip one payload byte → the garbage-identity twin (still parses;

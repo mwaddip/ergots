@@ -35,7 +35,7 @@
  * tails are EQUAL points. Non-identity: SEC1-compressed is canonical, so
  * byte equality ⇔ point equality.
  *
- * Conformance: test/fixtures/conformance/v5/EQ_of_SigmaProp{,_unequal}.json
+ * Conformance: test/fixtures/conformance/v5/authored/EQ_of_SigmaProp{,_unequal}.json
  * (JVM-blessed 224/740/398 identical + 176/4/176/692/350 unequal).
  */
 import type { SigmaBoolean } from '../../mir/types'

@@ -34,9 +34,13 @@
  * still caught — by the item seam, not by recursion here.
  *
  * Residual: the FuncValue/Apply param+body SFunc arms (the P6 closure path) are
- * deliberately NOT hooked — there is no JVM-blessed SFunc witness, and the
- * closure path is its own tracked F5 item. The helper still rejects a
- * non-unary SFunc VALUE that flows through any of the hooked DATA seams.
+ * deliberately NOT hooked. The JVM-blessed witnesses (vendored at
+ * test/fixtures/conformance/v5/authored/{FuncValue,Apply}.non_unary_arity.json,
+ * F5 batch 4 Ask 11) confirm this unhooked state is faithful: a non-unary
+ * FuncValue rejects via the BlockValue valdef-rhs DATA seam when its Lambda
+ * value flows through a binding (bound-only still rejects; dead-branch
+ * accepts), and a wrong-arg-count Apply rejects via apply.ts's own structural
+ * arity guard ('apply-arity-mismatch') — no closure-path hook needed.
  *
  * Source: JVM SType.scala:200-205, values.scala:251-254.
  */

@@ -58,6 +58,38 @@ function hydrateCanonicalBytes(tag: 'SBox' | 'SHeader' | 'SAvlTree', hex: string
 }
 
 /**
+ * Derive an SValue's SType — only the kinds that appear as vector inputs.
+ * Coll/Option carry `elem` already (set by hydrateSValue); Tuple recurses.
+ *
+ * Lives here (not in test/conformance/_santa.ts, its original home) because
+ * hydrateSValue's Option arm needs it to derive the elem type that SANTA's
+ * canonical Option JSON omits (runner-contract §4 — Option carries no elem).
+ */
+export function sTypeOfSValue(v: SValue): SType {
+  switch (v.kind) {
+    case 'Boolean': return { tag: 'SBoolean' }
+    case 'Byte': return { tag: 'SByte' }
+    case 'Short': return { tag: 'SShort' }
+    case 'Int': return { tag: 'SInt' }
+    case 'Long': return { tag: 'SLong' }
+    case 'BigInt': return { tag: 'SBigInt' }
+    case 'UnsignedBigInt': return { tag: 'SUnsignedBigInt' }
+    case 'GroupElement': return { tag: 'SGroupElement' }
+    case 'SigmaProp': return { tag: 'SSigmaProp' }
+    case 'Box': return { tag: 'SBox' }
+    case 'AvlTree': return { tag: 'SAvlTree' }
+    case 'Header': return { tag: 'SHeader' }
+    case 'PreHeader': return { tag: 'SPreHeader' }
+    case 'Unit': return { tag: 'SUnit' }
+    case 'Coll': return { tag: 'SColl', elem: v.elem }
+    case 'Option': return { tag: 'SOption', elem: v.elem }
+    case 'Tuple': return { tag: 'STuple', items: v.items.map(sTypeOfSValue) }
+    default:
+      throw new Error(`sTypeOfSValue: unhandled SValue kind '${(v as SValue).kind}'`)
+  }
+}
+
+/**
  * Hydrate a JSON-stringified SValue (sigma-rust's `value_to_json` output)
  * into a runtime SValue. Long / BigInt round-trip as decimal strings (JSON
  * has no bigint literal); GroupElement / SigmaProp as hex strings; Coll /
@@ -112,12 +144,17 @@ export function hydrateSValue(json: any): SValue {
         kind: 'Tuple',
         items: (json.items as any[]).map(hydrateSValue),
       }
-    case 'Option':
-      return {
-        kind: 'Option',
-        elem: json.elem as SType,
-        value: json.value === null ? null : hydrateSValue(json.value),
+    case 'Option': {
+      // SANTA canonical Option JSON omits `elem` (runner-contract §4) —
+      // derive it from the hydrated Some value. A None without elem is
+      // untypeable: fail loudly rather than propagate an undefined SType.
+      const value = json.value === null ? null : hydrateSValue(json.value)
+      const elem = (json.elem as SType | undefined) ?? (value !== null ? sTypeOfSValue(value) : undefined)
+      if (elem === undefined) {
+        throw new Error('hydrateSValue: Option None without elem is untypeable')
       }
+      return { kind: 'Option', elem, value }
+    }
     case 'Box':
       if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SBox', json.bytes_hex)
       return { kind: 'Box', value: hydrateErgoBox(json.value) }

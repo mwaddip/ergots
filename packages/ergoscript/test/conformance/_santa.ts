@@ -15,10 +15,10 @@
  *         applied to SELF's additional registers (R4..R9). Used by dynamic
  *         Box.getReg MethodCall vectors.
  *
- * Reuses ergots' existing `hydrateSValue` decode bridge (test/_helpers) — the
- * fixture JSON format IS SANTA's canonical SValue JSON (Long/BigInt via
- * `BigInt(string)`, exact). The only addition is `sTypeOfSValue`, needed to
- * supply the var-1 binding's declared type.
+ * Reuses ergots' existing `hydrateSValue` + `sTypeOfSValue` bridge
+ * (test/_helpers) — the fixture JSON format IS SANTA's canonical SValue JSON
+ * (Long/BigInt via `BigInt(string)`, exact); `sTypeOfSValue` supplies the
+ * var-1 binding's declared type.
  *
  * NOTE: this asserts the WHOLE-tree cost against JVM, so it surfaces *every*
  * cost divergence in an entry's tree, not just the targeted op. (That is the
@@ -33,7 +33,7 @@ import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { GROUP_GENERATOR_BYTES } from '../../src/eval/_group-generator'
-import { hydrateSValue, hexToBytes, synthesizeStubBox } from '../_helpers'
+import { hydrateSValue, hexToBytes, synthesizeStubBox, sTypeOfSValue } from '../_helpers'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ByteWriter, ReaderError } from '@ergots/scorex'
@@ -61,30 +61,10 @@ export interface SantaVector {
   entries: SantaEntry[]
 }
 
-/** Derive an SValue's SType — only the kinds that appear as vector inputs.
- *  Coll/Option carry `elem` already (set by hydrateSValue); Tuple recurses. */
-export function sTypeOfSValue(v: SValue): SType {
-  switch (v.kind) {
-    case 'Boolean': return { tag: 'SBoolean' }
-    case 'Byte': return { tag: 'SByte' }
-    case 'Short': return { tag: 'SShort' }
-    case 'Int': return { tag: 'SInt' }
-    case 'Long': return { tag: 'SLong' }
-    case 'BigInt': return { tag: 'SBigInt' }
-    case 'GroupElement': return { tag: 'SGroupElement' }
-    case 'SigmaProp': return { tag: 'SSigmaProp' }
-    case 'Box': return { tag: 'SBox' }
-    case 'AvlTree': return { tag: 'SAvlTree' }
-    case 'Header': return { tag: 'SHeader' }
-    case 'PreHeader': return { tag: 'SPreHeader' }
-    case 'Unit': return { tag: 'SUnit' }
-    case 'Coll': return { tag: 'SColl', elem: v.elem }
-    case 'Option': return { tag: 'SOption', elem: v.elem }
-    case 'Tuple': return { tag: 'STuple', items: v.items.map(sTypeOfSValue) }
-    default:
-      throw new Error(`sTypeOfSValue: unhandled SValue kind '${(v as SValue).kind}'`)
-  }
-}
+// sTypeOfSValue moved to test/_helpers (hydrateSValue's Option arm needs it
+// to derive the elem SANTA's canonical Option JSON omits); re-exported here
+// so the harness surface is unchanged.
+export { sTypeOfSValue } from '../_helpers'
 
 export interface SantaActual {
   value: SValue | null

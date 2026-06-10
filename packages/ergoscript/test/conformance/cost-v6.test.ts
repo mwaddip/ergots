@@ -1,14 +1,33 @@
 /**
  * SANTA v6 conformance — ergots vs JVM (`jvm:sigma-state-6.0.3`).
- * Vectors imported verbatim from SANTA (`vectors/eval/v6/`) into
- * `test/fixtures/conformance/v6/`. Asserting whole-tree value+cost against the
- * JVM-blessed oracle. VECTOR_FILES grows as SANTA blesses more v6 vectors.
  *
- * Envelope variants used here (runner-contract.md §3):
+ * Registration is manifest-free: every vector file under
+ * `test/fixtures/conformance/v6/{spec,authored}/` runs (the FULL JVM-blessed
+ * corpus, vendored verbatim from SANTA `vectors/eval/v6/` — conformance-ledger
+ * Decision #3: SANTA is upstream, these are permanent regression pins;
+ * re-sync at phase boundaries via `tools/sync-santa-corpus.sh`).
+ *
+ * Tiers (upstream layout): `spec/` = vectors derived from the sigma-state
+ * v6.0 feature corpus; `authored/` = SANTA-authored adversarial/edge families.
+ *
+ * Envelope variants (runner-contract.md §3):
+ *   v1 — closed tree, no input.
  *   v2 — single `input` bound to ctx var 1 (most vectors).
  *   v3 — `inputs` array: per-spending-tx-input ContextExtensions (multi-input).
  *   v4 — `input` + `selfRegisters`: var-1 binding + SELF R4..R9 population.
- * The `evalSantaEntry` dispatcher in _santa.ts handles all three transparently.
+ * The `evalSantaEntry` dispatcher in _santa.ts handles all four transparently.
+ *
+ * Corpus provenance (condensed — per-family history lives in git: this file's
+ * pre-readdir VECTOR_FILES comments, and the SANTA-side blessing prompts under
+ * `~/projects/santa/prompts/`):
+ *   - P5c–P7a: powHit k-generalization, HOF/FunDef adversarial closures,
+ *     GroupElement.expUnsigned, Box.getReg (dynamic + adversarial),
+ *     Context.getVarFromInput multi-input.
+ *   - F1–F4: DeserializeContext dead-branch tolerance, Global.serialize walks
+ *     (Box/AvlTree/Header/SigmaProp) + deserializeTo round-trips,
+ *     AvlTree.insertOrUpdate + v6 epilogue acceptance corpus.
+ *   - F5 batches 1–4: SOption nonzero DATA tag, SHeader accessors,
+ *     wire-layer rejects (Rule 1012/1019), substConstants v3 source.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -23,119 +42,17 @@ import { hexToBytes, captureEvalError, synthesizeStubBox } from '../_helpers'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
 
-const VECTOR_FILES = [
-  'higher_order_lambdas.json',
-  // P6 Task 7 — JVM-blessed adversarial HOF (SANTA a66af91): FunDef (0xd7,
-  // concrete body) → 7/58, currying (Apply-of-Apply) → 4/119, function-in-
-  // Coll[SFunc] → 6/130. The adversarial-closure gate for first-class functions.
-  'HOF_FunDef_polymorphic_identity.json',
-  'HOF_currying_Apply_of_Apply.json',
-  'HOF_function_in_Coll_of_SFunc.json',
-  'HOF_FunDef_type_var_body.json', // type-var-body FunDef — reject at apply (SANTA), bind-only accepts
-  // P5c follow-up (SANTA fc3c1f4): JVM-blessed Global.powHit k≠32 value+cost
-  // (k=2/16/31) + require-boundary rejects (k=1/33, N=15). Independently pins
-  // the (0 until k) index generalization the k=32 verify-path fixtures never
-  // exercised, plus the (k+1)·7 cost coefficient.
-  'Global.powHit_varying_k.json',
-  'Global.powHit_require_boundary.json',
-  // P7a (SANTA 2026-06-06): 16 JVM-blessed entries across 4 families.
-  //
-  // GroupElement.expUnsigned (santa-eval/v2, 3 entries):
-  //   exp-1→generator (906), exp-0→identity (906), exp-order→identity (906).
-  //   Flat ExponentiateUnsignedMethod cost = FixedCost(900) + 6 tree overhead.
-  'GroupElement.expUnsigned.json',
-  // Box.getReg dynamic index MethodCall (santa-eval/v4, 4 entries):
-  //   accept-r4-long: R4=Long 7, idx→4, typeArg Long → Some(Long 7), cost 89.
-  //   reject-wrong-type: R4=Long 7, typeArg Int → eval REJECT (InvalidType).
-  //   none-absent-r5: idx→5, R5 unset → None, cost 89.
-  //   none-out-of-range-10: idx→10 → None, cost 89.
-  //   Uses v4 envelope: per-entry selfRegisters (R4..R9) + var-1 index binding.
-  'Box.getReg_dynamic_index.json',
-  // Context.getVarFromInput multi-input (santa-eval/v3, 6 entries):
-  //   multi-input-no-var-at-idx1: in-range, var absent → None, cost 17.
-  //   multi-input-present-true-at-idx1: → Some(true), cost 17.
-  //   multi-input-wrong-type-at-idx1: → None (type mismatch), cost 17.
-  //   multi-input-present-false-at-idx1: → Some(false), cost 17.
-  //   oob-input-index: inputIdx 5 ≥ 2 inputs → None, cost 17.
-  //   negative-varid-0xff: getVarFromInput[Boolean](0, -1) ≡ key 255 → Some(true), cost 17.
-  //     First authoritative pin for var ids ≥ 0x80; byte-identity confirmed.
-  'Context.getVarFromInput_multi_input.json',
-  // Box.getReg adversarial (santa-eval/v2, 3 entries):
-  //   getRegV5-live-reject: SELF.getRegV5(i) on v5 live path → eval REJECT.
-  //   getRegV5-dead-branch-accept: dead-branch if(true) → Boolean true, cost 12.
-  //   getReg-v6-method-in-v2-tree-reject: 99:19 in ergoTree-v2 → eval REJECT
-  //     (ValidationRule 1011 CheckAndGetMethod at deserialize, soft-fork-wrapped).
-  'Box.getReg_adversarial.json',
-  // F1 (SANTA 2026-06-06): DeserializeContext dead-branch tolerance —
-  // 2 dead-branch accepts (RED until the F1 fix) + 2 live rejects.
-  'DeserializeContext_over_absent_wrong_typed_var.json',
-  // F2 (2026-06-06): timestamp-bigint (#4) + putUByte=1 (#5) acceptance — the 16
-  // dasher reds of 2026-06-06. serialize walks over Box (nTokens/nRegs +2),
-  // AvlTree (flags +1), Header v1/v2 (dLen/unparsedLen +1); the three Header
-  // entries carry timestamp 4928911477310178288 > 2^53 (the #4 panic class).
-  // deserializeTo_header = serialize→deserializeTo→EQ round-trip (677 v2 / 804 v1).
-  'Global.serialize_Box.json',
-  'Global.serialize_Box_Int.json',
-  'Global.serialize_AvlTree.json',
-  'Global.serialize_Header.json',
-  'Global.deserializeTo_header.json',
-  'Header_new_methods.json',
-  // F3 root cause #6: serialize(SigmaProp) cost arm (ProveDlog).
-  'Global.serialize_SigmaProp.json',
-  // F4 — AvlTree.insertOrUpdate (100:16, minVersion 3): fresh-key/existing-key
-  // Some @ 483, flags-deny None @ 73 (BOTH flag charges), bad-proof None @ 443
-  // (createVerifier + ONE UpdateAvlTree on the broken verifier, no
-  // updateDigest — the JVM-has-no-construct-throw pin).
-  'AvlTree.insertOrUpdate.json',
-  // F4 Epilogue — acceptance-corpus round (2026-06-07). SANTA reply:
-  // ~/projects/santa/prompts/f4-santa-asks.md §SANTA REPLY.
-  //
-  // bad_proof_bytes_v6 (1 entry): insert-0x00-none#0 — v6 insert bad-proof → None.
-  // Green via existing construct-fail routing (T7.5).
-  'AvlTree.bad_proof_bytes_v6.json',
-  // degenerate_edges_v6 (1 entry): insert-empty-entries-none#0 — v6 insert 0-op bad-proof → None.
-  'AvlTree.degenerate_edges_v6.json',
-  // empty_ops_valid_proof_v6 (1 entry): insertOrUpdate-empty-ops-some#0 — v6 0-op valid → Some.
-  'AvlTree.empty_ops_valid_proof_v6.json',
-  // per_op_failure_v6 (8 entries): insert/insertOrUpdate wrong-len/±inf key + wrong-val-len → None.
-  // Pins v6 per-op-fail routing for the two v3-only methods.
-  'AvlTree.per_op_failure_v6.json',
-  // insert_wrong_tree (1 entry): insert-none#0 — v6 insert bad-proof (wrong tree) → None.
-  'AvlTree.insert_wrong_tree.json',
-  // negative_keylength_tree_v6 (1 entry): insert-none#0 — v6 insert construct-shape keyLength<0 → None.
-  // Green via T7.5 construct-shape routing.
-  'AvlTree.negative_keylength_tree_v6.json',
-  // unsupported_eval_nodes_v6 (2 entries) — GREEN since the F4-epilogue
-  // unconditional eval-reject ('unsupported-eval-node'; JVM has no eval
-  // override for either node):
-  //   tree_lookup-errored#0 @v3.
-  //   create_avl_tree-errored#1 @v3 — also needed the CreateAvlTree WIRE fix
-  //   (JVM 4-expr operand layout; the old sigma-rust presence-tag arm crashed
-  //   parsing this vector's bytes — the dasher-panic analog, now a clean
-  //   errored).
-  'AvlTree.unsupported_eval_nodes_v6.json',
-  // F5 batch 1 — Option DATA tag semantics: scorex-util VLQReader.getOption
-  // treats ANY nonzero tag as Some (bytecode-verified F4-epilogue + this bless).
-  // ergots' sigma-rust-mirroring `==1 → Some else None` desynced the stream on
-  // tag≥2 (the dasher "panic"). Tree 1b060128020a7300 = v3 tree, Option[Int]
-  // constant with tag 0x02.
-  'SOption.nonzero_data_tag.json',
-  // F5 batch 2 — SHeader property accessors (17 entries: all 15 accessors + 2
-  // timestamp signed-view edge cases). stateRoot→AvlTree and powOnetimePk→
-  // generator are the T2 flips; timestamp gt-2^53/u64-max exercise the F2
-  // signed-Long view. Bound SHeader input via the v2 envelope.
-  'Header.property_accessors.json',
-  // F5 batch 3 — wire-layer rejects (parse-time) + the already-green substConstants pin.
-  // Rule1012_header_size_bit (W6 → 'header-version-requires-size'), Rule1019_check_v6_type
-  // (W7 → 'register-v6-type'), substConstants_version_source_outer_v3 (W5b — SUCCESS @222, batch-1 C1).
-  'Rule1012_header_size_bit.json',
-  'Rule1019_check_v6_type.json',
-  'substConstants_version_source_outer_v3.json',
-]
+const vectorFiles = (['spec', 'authored'] as const).flatMap((tier) =>
+  fs
+    .readdirSync(path.join(vectorDir, tier))
+    .filter((f) => f.endsWith('.json'))
+    .sort()
+    .map((f) => path.join(tier, f)),
+)
 
-for (const file of VECTOR_FILES) {
+for (const file of vectorFiles) {
   const doc = JSON.parse(fs.readFileSync(path.join(vectorDir, file), 'utf8')) as SantaVector
-  describe(`SANTA v6 conformance — ${doc.op} (${doc.blessed_by})`, () => {
+  describe(`SANTA v6 conformance — ${file} — ${doc.op} (${doc.blessed_by})`, () => {
     for (const e of doc.entries) {
       it(e.name, () => {
         const actual = evalSantaEntry(e)
@@ -161,7 +78,7 @@ for (const file of VECTOR_FILES) {
 describe('v6 HOF gate — composite-function tree rejects below v3', () => {
   it('higher order lambdas tree at ergoTree v2 → errored', () => {
     const doc = JSON.parse(
-      fs.readFileSync(path.join(vectorDir, 'higher_order_lambdas.json'), 'utf8'),
+      fs.readFileSync(path.join(vectorDir, 'spec/higher_order_lambdas.json'), 'utf8'),
     ) as SantaVector
     const e = doc.entries[0]!
     const v2: SantaEntry = { ...e, name: `${e.name}@v2`, version: { activated: 2, ergoTree: 2 } }
@@ -170,9 +87,10 @@ describe('v6 HOF gate — composite-function tree rejects below v3', () => {
 })
 
 // Pin the actual EvalError codes for the two v2-envelope adversarial entries in
-// Box.getReg_adversarial.json. These use the same context the conformance arm
-// builds (blesser-mirroring SELF box + var-1 binding), so the assertions are
-// redundant but complementary: they catch any future code-rename at the gate.
+// authored/Box.getReg_adversarial.json. These use the same context the
+// conformance arm builds (blesser-mirroring SELF box + var-1 binding), so the
+// assertions are redundant but complementary: they catch any future code-rename
+// at the gate.
 describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () => {
   // getRegV5-live-reject#0: { SELF.getRegV5(getVar[Int](1).get) } @ ergoTree v3.
   // 99:7 is unregistered in the handler map → 'method-not-implemented'.

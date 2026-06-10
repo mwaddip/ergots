@@ -5,7 +5,7 @@
  * MatchType(1) per node + EQ_GroupElement(172) per ECPoint compared, &&
  * short-circuit, conjecture-left vs different-variant-right = sys.error
  * (:278-281, mirrored as EvalError 'sigma-boolean-compare-unsupported').
- * Conformance twins: test/fixtures/conformance/v5/EQ_of_SigmaProp{,_unequal}.json
+ * Conformance twins: test/fixtures/conformance/v5/authored/EQ_of_SigmaProp{,_unequal}.json
  * (blessed 224/740/398 + 176/4/176/692/350). Costs here are the WALK only
  * (outer MatchType + nodes), no tree envelope.
  */
