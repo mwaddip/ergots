@@ -41,9 +41,9 @@ export function serializeBoxBytes(box: ErgoBox): Uint8Array {
   // Standalone box-bytes serialization pins version 0 deliberately: the JVM
   // prevents version-gated DATA (Option/SHeader/SUnsignedBigInt) from ever
   // ENTERING box registers via rule 1019 CheckV6Type (ErgoBoxCandidate.scala:232)
-  // — ergots' 1019 mirror is a tracked F5 item; until it lands, the in-tree
-  // SBox-constant path threads the real version while these standalone
-  // entrypoints stay at the pre-activation baseline.
+  // — ergots' rule-1019 mirror is in effect (commit d9cb19e, 'register-v6-type'
+  // at register ingress), so v6-typed register values are rejected at parse time
+  // and this pinned-v0 path is unreachable from well-formed input.
   writeBoxBodyWithoutRef(box, w, 0)
 
   // transaction_id (32 raw bytes)
@@ -79,9 +79,9 @@ export function serializeBoxBytesWithoutRef(box: ErgoBox): Uint8Array {
   // Standalone box-bytes serialization pins version 0 deliberately: the JVM
   // prevents version-gated DATA (Option/SHeader/SUnsignedBigInt) from ever
   // ENTERING box registers via rule 1019 CheckV6Type (ErgoBoxCandidate.scala:232)
-  // — ergots' 1019 mirror is a tracked F5 item; until it lands, the in-tree
-  // SBox-constant path threads the real version while these standalone
-  // entrypoints stay at the pre-activation baseline.
+  // — ergots' rule-1019 mirror is in effect (commit d9cb19e, 'register-v6-type'
+  // at register ingress), so v6-typed register values are rejected at parse time
+  // and this pinned-v0 path is unreachable from well-formed input.
   writeBoxBodyWithoutRef(box, w, 0)
   return w.toBytes()
 }
