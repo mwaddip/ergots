@@ -91,7 +91,7 @@ function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
 
 /**
  * Box equality = id equality (JVM ErgoBox.equals — Arrays.equals(id, x.id),
- * ErgoBox.scala:94-99; id = Blake2b256 over retained-or-canonical bytes).
+ * ErgoBox.scala:94-97; id = Blake2b256 over retained-or-canonical bytes).
  * BYTE basis, NOT value basis: garbage-vs-canonical identity GE register
  * encodings are UNEQUAL even though both decode to the identity point.
  * facts/ergoscript-eval.md F5 batch 4 changelog ("Equality bases").
@@ -344,7 +344,10 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  *                                   addPerItemJitCost(perItemCost(elem), n) (lines 27, 108-117)
  *   Unit/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
  *   SigmaProp → MatchType(1) + recursive SigmaBoolean walk (_sigma-boolean-eq.ts; JVM DataValueComparer.scala:253-282,353-361) — F3
- *   Box/AvlTree/PreHeader/Header → throw 'not-implemented-yet' (runtime shapes land in 2e/2h)
+ *   Box        → `boxEqual` (id basis: Blake2b256 over retained/canonical bytes)
+ *   AvlTree    → `avlTreeEqual` (structural field comparison)
+ *   PreHeader  → `preHeaderEqual` (field comparison)
+ *   Header     → `headerEqual` (id basis: Blake2b256 over retained bytes)
  *
  * Different `kind` → `false` (no cross-type coercion, matching sigma-rust's
  * match-arm posture which returns Ok(false) for cross-type pairs).
@@ -584,10 +587,11 @@ export function sValueStructuralEq(a: SValue, b: SValue): boolean {
  * `registersEqual` was deleted in F5 batch 4 — box equality is id-basis,
  * see `boxEqual`.)
  *
- * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through:
- * Box/AvlTree/PreHeader/Header throw 'not-implemented-yet'; Lambda and Context
- * return `false`/`true` respectively via their explicit arms above. The `default` exhaustiveness arm
- * below covers any future additions.
+ * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through to the
+ * outer `compareSValues` caller which handles them via `boxEqual`/`avlTreeEqual`/
+ * `preHeaderEqual`/`headerEqual`; Lambda and Context return `false`/`true` respectively
+ * via their explicit arms above. The `default` exhaustiveness arm below covers any future
+ * additions.
  */
 export function primitiveValueEqual(a: SValue, b: SValue): boolean {
   if (a.kind !== b.kind) return false

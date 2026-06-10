@@ -9,10 +9,14 @@
  * path the SBox SValue serializer arm uses, byte-identical to
  * `serializeSValue({tag:'SBox'}, …)` output. It can THROW for pathological
  * in-memory-constructed boxes (non-dense registers, v6-typed register
- * values at its pinned tree-version 0); the JVM's own re-serialization
- * throws on the same shapes (ErgoBoxCandidate.scala:177-178 sys.error on
- * non-dense registers; version-gated DATA serializers), so the throw
- * propagates as an equality evaluation error rather than being swallowed.
+ * values at its pinned tree-version 0). The JVM throws for the same
+ * non-dense-register shape (ErgoBoxCandidate.scala:177-178 sys.error). The
+ * v6-typed-register shape is unreachable from parse in both implementations
+ * (rule-1019 blocks v6 register values at ingress); the JVM writer gates by
+ * the ACTIVATED VersionContext (not pinned v0), so under v6 activation it
+ * would succeed where our fallback throws — but that path is unreachable.
+ * The throw propagates as an equality evaluation error rather than being
+ * swallowed.
  */
 import { blake2b256 } from '../crypto/hashes'
 import { serializeBoxBytes } from '../wire/ergo-box-bytes'

@@ -566,7 +566,7 @@ the JVM's own posture. Codes 79→80.
     `Coll[GroupElement]`-elementwise Eq/NEq = **value basis** — identity-aware `ecPointEqual` (the F3
     class; JVM `CGroupElement ==` under EQ_GroupElement(172), DataValueComparer.scala:284-291,340-341).
     `Box` Eq/NEq = **byte basis** — JVM `ErgoBox.equals` compares ids = blake2b over the serialized
-    input bytes (ErgoBox.scala:94-99), so `boxEqual`'s register compare is byte-faithful, NOT
+    input bytes (ErgoBox.scala:94-97), so `boxEqual`'s register compare is byte-faithful, NOT
     identity-aware: two boxes differing only in garbage-vs-canonical identity GE register encodings
     are UNEQUAL (both decode to the identity point; the ids still differ). `Header` Eq/NEq = **id
     basis** — `CHeader.equals` compares ids = blake2b over the CACHED INPUT bytes

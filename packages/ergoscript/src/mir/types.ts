@@ -66,6 +66,10 @@ export type SType =
  * Stub: on-chain box. Mirrors sigma-rust `ergotree-ir/src/chain/ergo_box.rs`
  * `ErgoBox` fields. ErgoTree is held as raw bytes here (deferred parse — the
  * interpreter `parseTree` lives in a later phase).
+ *
+ * Boxes are treated as frozen after construction: equality ids are memoized
+ * per object (`eval/_box-id.ts`), so embedders must not mutate ErgoBox fields
+ * post-construction.
  */
 export interface ErgoBox {
   /** nanoErg value (Rust `BoxValue`, a u64 wrapper). */

@@ -1,7 +1,7 @@
 /**
  * Box equality = id equality (F5 batch 4 member E, ledger verdict 3).
  *
- * JVM `ErgoBox.equals` is `Arrays.equals(id, x.id)` (ErgoBox.scala:94-99)
+ * JVM `ErgoBox.equals` is `Arrays.equals(id, x.id)` (ErgoBox.scala:94-97)
  * where `id = Blake2b256(bytes)` (:73) and `bytes` is the RETAINED parse
  * slice (`_bytes`, captured by the serializer's parse at :214-226) or the
  * canonical re-serialization for in-memory-constructed boxes (:87-92).
