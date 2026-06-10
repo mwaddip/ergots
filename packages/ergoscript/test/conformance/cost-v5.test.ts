@@ -35,13 +35,21 @@ import { evalSantaEntry, svalueToSantaJson, type SantaVector } from './_santa'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v5')
 
-const vectorFiles = (['spec', 'authored'] as const).flatMap((tier) =>
-  fs
+const vectorFiles = (['spec', 'authored'] as const).flatMap((tier) => {
+  const files = fs
     .readdirSync(path.join(vectorDir, tier))
     .filter((f) => f.endsWith('.json'))
     .sort()
-    .map((f) => path.join(tier, f)),
-)
+  // Tripwire: the corpus is append-only (ledger Decision #3) — an empty or
+  // shrunken tier means a wipe or a partial sync, not a legitimate state.
+  if (files.length === 0) {
+    throw new Error(`conformance ${tier}/ tier is empty — wiped or partial sync?`)
+  }
+  return files.map((f) => path.join(tier, f))
+})
+if (vectorFiles.length < 100) {
+  throw new Error(`conformance v5 corpus shrank to ${vectorFiles.length} files (floor 100; 131 @ 2026-06-10) — partial sync?`)
+}
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the
 // cost arm under test). Skipped here with the reason so the suite stays green
@@ -69,6 +77,7 @@ for (const file of vectorFiles) {
           // ergots' internal fields (e.g. Option.elem, which SANTA omits).
           // svalueToSantaJson normalises the actual before comparison; the
           // expected is already in SANTA canonical JSON form in the vector.
+          expect(actual.error, `entry ${e.name} errored: ${actual.error}`).toBeNull()
           expect(svalueToSantaJson(actual.value!)).toEqual(e.expected.value)
           expect(actual.cost).toBe(e.expected.cost)
         }

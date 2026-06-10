@@ -62,8 +62,9 @@ export interface SantaVector {
 }
 
 // sTypeOfSValue moved to test/_helpers (hydrateSValue's Option arm needs it
-// to derive the elem SANTA's canonical Option JSON omits); re-exported here
-// so the harness surface is unchanged.
+// to derive the elem SANTA's canonical Option JSON omits; the move also gained
+// the UnsignedBigInt arm required by v6 corpus vectors); re-exported here so
+// the harness surface is unchanged.
 export { sTypeOfSValue } from '../_helpers'
 
 export interface SantaActual {

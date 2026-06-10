@@ -42,13 +42,21 @@ import { hexToBytes, captureEvalError, synthesizeStubBox } from '../_helpers'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
 
-const vectorFiles = (['spec', 'authored'] as const).flatMap((tier) =>
-  fs
+const vectorFiles = (['spec', 'authored'] as const).flatMap((tier) => {
+  const files = fs
     .readdirSync(path.join(vectorDir, tier))
     .filter((f) => f.endsWith('.json'))
     .sort()
-    .map((f) => path.join(tier, f)),
-)
+  // Tripwire: the corpus is append-only (ledger Decision #3) — an empty or
+  // shrunken tier means a wipe or a partial sync, not a legitimate state.
+  if (files.length === 0) {
+    throw new Error(`conformance ${tier}/ tier is empty — wiped or partial sync?`)
+  }
+  return files.map((f) => path.join(tier, f))
+})
+if (vectorFiles.length < 60) {
+  throw new Error(`conformance v6 corpus shrank to ${vectorFiles.length} files (floor 60; 78 @ 2026-06-10) — partial sync?`)
+}
 
 for (const file of vectorFiles) {
   const doc = JSON.parse(fs.readFileSync(path.join(vectorDir, file), 'utf8')) as SantaVector
