@@ -291,6 +291,11 @@ export function exprTpe(e: Expr): SType {
     case 'Context':
       // sigma-rust mir/expr.rs:267 — Expr::Context → SContext.
       return { tag: 'SContext' }
+    case 'LastBlockUtxoRootHash':
+      // JVM values.scala:1490 — `case object LastBlockUtxoRootHash extends
+      // NotReadyValueAvlTree`: tpe is SAvlTree (no sigma-rust counterpart;
+      // F5 batch 4, Ask-13).
+      return { tag: 'SAvlTree' }
     case 'ZkProofBlock':
       // mir/zk_proof.rs::ZkProofBlock::tpe → SBoolean (body is SSigmaProp, but
       // the ZK-scope block's value type is SBoolean).

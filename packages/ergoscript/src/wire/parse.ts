@@ -70,6 +70,7 @@ import { parseSelectField } from './mir/select-field'
 import { buildGlobalVarsFromOpcode } from './mir/global-vars'
 import { parseContext } from './mir/context'
 import { parseGlobal } from './mir/global'
+import { parseLastBlockUtxoRootHash } from './mir/last-block-utxo-root-hash'
 import { parseGetVar } from './mir/get-var'
 import { parseTuple } from './mir/tuple'
 import { parseCollection, parseCollectionOfBoolConst } from './mir/collection'
@@ -433,23 +434,33 @@ function parseExprBody(
       )
     case OP.OP_CONTEXT:
       return parseContext()
+    case OP.OP_LAST_BLOCK_UTXO_ROOT_HASH:
+      // F5 batch 4 (Ask-13): the bare op-form of CONTEXT.LastBlockUtxoRootHash.
+      // JVM dispatches it as its own case object (values.scala:1490, opcode
+      // 0xa6 via CaseObjectSerialization); sigma-rust ERRORS on this byte (no
+      // MIR variant, no serializer arm) — JVM is canonical, so we parse it.
+      // Distinct wire shape from the PropertyCall form (101:9); cost differs
+      // by shape (op FixedCost 15 vs PropertyCall 20).
+      return parseLastBlockUtxoRootHash()
     case OP.OP_XOR_OF:
       return parseXorOf(r, constantTypes, constantValues, valDefTypes, treeVersion)
     // Wire opcodes with no top-level Expr dispatch in sigma-rust. Split
     // into two taxonomies:
-    //   - 'opcode-reserved' (19 sites) — reserved in sigma-rust's
+    //   - 'opcode-reserved' (18 sites; was 19 until FunDef left in v6 P6)
+    //     — reserved in sigma-rust's
     //     `op_code.rs` enum but NEVER dispatched at the wire-Expr layer
     //     or implemented in `ergotree-interpreter/src/eval/`. We mirror
     //     via unconditional parse-reject. The opcodes exist in the wire
     //     enum for forward-compat / historical reasons but no
     //     `Evaluable` impl will ever ship.
-    //   - 'not-implemented-yet' (4 sites: LastBlockUtxoRootHash,
-    //     FlatMap, TrivialPropFalse, TrivialPropTrue) — routed through
-    //     other dispatch paths in sigma-rust (PropertyCall id 9 on
-    //     SContext for the first, SColl method-call for FlatMap,
-    //     SSigmaProp nesting for the TrivialProp pair). Top-level
-    //     direct dispatch may also be expected; status undetermined
-    //     pending separate review.
+    //   - 'not-implemented-yet' (3 sites: FlatMap, TrivialPropFalse,
+    //     TrivialPropTrue) — routed through other dispatch paths in
+    //     sigma-rust (SColl method-call for FlatMap, SSigmaProp nesting
+    //     for the TrivialProp pair). Top-level direct dispatch may also
+    //     be expected; status undetermined pending separate review.
+    //     (LastBlockUtxoRootHash 0xa6 left this group in F5 batch 4 —
+    //     the JVM dispatches it as its own case object; see the
+    //     OP_LAST_BLOCK_UTXO_ROOT_HASH arm above.)
     // Distinguished from truly unknown bytes via the `default` arm
     // below which throws 'unknown-opcode'.
     case OP.OP_TRUE:
@@ -466,18 +477,6 @@ function parseExprBody(
       throw new ExprParseError(
         'UnitConstant opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
         'opcode-reserved'
-      )
-    case OP.OP_LAST_BLOCK_UTXO_ROOT_HASH:
-      // Sigma-rust does NOT dispatch this opcode as a top-level Expr arm —
-      // `Context.LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY` is reached via a
-      // PropertyCall on the SContext companion (method id 9, see
-      // `types/scontext.rs:136`). We surface it as `not-implemented-yet`
-      // pending the property/method-call port; encountering this byte at
-      // the top level would be unusual (sigma-rust's serializer never emits
-      // it as a top-level opcode either).
-      throw new ExprParseError(
-        'LastBlockUtxoRootHash opcode not dispatched at top level — reached via PropertyCall on SContext (method id 9) in sigma-rust',
-        'not-implemented-yet'
       )
     case OP.OP_SELECT_1:
       throw new ExprParseError(

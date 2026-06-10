@@ -166,18 +166,19 @@ describe('ErgoTree envelope', () => {
     })
 
     it('reaches body parser for header with no size + no segregation', () => {
-      // Header 0x00 + a body opcode byte 0xa6 (= LAST_BLOCK_UTXO_ROOT_HASH, a
-      // real sigma-rust opcode that does NOT dispatch at the top level
-      // because it's reached via PropertyCall on SContext). Envelope parses
-      // header successfully, then parseExpr dispatches the
-      // LAST_BLOCK_UTXO_ROOT_HASH case and throws not-implemented-yet. This
-      // proves the envelope wiring delivered control to the body parser
-      // with the cursor at the right spot.
+      // Header 0x00 + a body opcode byte 0xb8 (= FLAT_MAP, a real
+      // sigma-rust opcode that does NOT dispatch at the top level because
+      // it's reached via an SColl method-call). Envelope parses header
+      // successfully, then parseExpr dispatches the FLAT_MAP case and
+      // throws not-implemented-yet. This proves the envelope wiring
+      // delivered control to the body parser with the cursor at the right
+      // spot.
       //
       // (Marker has rotated as variants land: XOR_OF (0xff) was used until
-      // Task 14, then CONTEXT (0xfe) until Task 17. Now LAST_BLOCK_UTXO_ROOT_HASH
-      // (0xa6) — pending PropertyCall support.)
-      const bytes = new Uint8Array([0x00, 0xa6])
+      // Task 14, then CONTEXT (0xfe) until Task 17, then
+      // LAST_BLOCK_UTXO_ROOT_HASH (0xa6) until it landed in F5 batch 4.
+      // Now FLAT_MAP (0xb8).)
+      const bytes = new Uint8Array([0x00, 0xb8])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
@@ -186,19 +187,19 @@ describe('ErgoTree envelope', () => {
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
         // Assert on the variant name rather than the raw byte — the dispatch
         // table identifies opcodes by name in its messages.
-        expect((e as Error).message).toContain('LastBlockUtxoRootHash')
+        expect((e as Error).message).toContain('FlatMap')
       }
     })
 
     it('parses header bits correctly: version=1, hasSize, segregation', () => {
       // 0x19 = 0b0001_1001 = version 1 (0b001), hasSize (bit 3), segregation
       // (bit 4). Body size = 3 bytes (constants_count=0 byte + opcode + 1
-      // arbitrary byte), constants_count = 0 (VLQ), then opcode 0xa6
-      // (LAST_BLOCK_UTXO_ROOT_HASH — see marker note above) and an arbitrary
-      // filler byte 0xCD. The envelope-only path is: read header, read
-      // size=3, slice inner buffer of 3 bytes, read constants_count=0, then
-      // dispatch to body which throws not-implemented-yet on opcode 0xa6.
-      const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xa6, 0xcd])
+      // arbitrary byte), constants_count = 0 (VLQ), then opcode 0xb8
+      // (FLAT_MAP — see marker note above) and an arbitrary filler byte
+      // 0xCD. The envelope-only path is: read header, read size=3, slice
+      // inner buffer of 3 bytes, read constants_count=0, then dispatch to
+      // body which throws not-implemented-yet on opcode 0xb8.
+      const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xb8, 0xcd])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
@@ -208,7 +209,7 @@ describe('ErgoTree envelope', () => {
         // The thrown error's message names the variant; assert on the
         // variant name rather than the byte to make the test robust to
         // formatting changes in the error message.
-        expect((e as Error).message).toContain('LastBlockUtxoRootHash')
+        expect((e as Error).message).toContain('FlatMap')
       }
     })
 
@@ -229,23 +230,23 @@ describe('ErgoTree envelope', () => {
   describe('segregated constants parsing', () => {
     it('parses a single SBoolean constant (true)', () => {
       // Header 0x10 (segregation, no size, v0), count=1 (VLQ 0x01),
-      // SType SBoolean (0x01), SValue true (0x01), then body byte 0xa6
-      // (= LAST_BLOCK_UTXO_ROOT_HASH, still not-implemented-yet — reached
-      // via PropertyCall on SContext in sigma-rust). The envelope reaching
-      // that throw proves: header parsed, count parsed, SType parsed,
-      // SValue parsed.
+      // SType SBoolean (0x01), SValue true (0x01), then body byte 0xb8
+      // (= FLAT_MAP, still not-implemented-yet — reached via an SColl
+      // method-call in sigma-rust). The envelope reaching that throw
+      // proves: header parsed, count parsed, SType parsed, SValue parsed.
       //
       // (Marker has rotated as variants land: XOR_OF (0xff) was used until
-      // Task 14, then CONTEXT (0xfe) until Task 17. Now LAST_BLOCK_UTXO_ROOT_HASH
-      // (0xa6) — pending PropertyCall support.)
-      const bytes = new Uint8Array([0x10, 0x01, 0x01, 0x01, 0xa6])
+      // Task 14, then CONTEXT (0xfe) until Task 17, then
+      // LAST_BLOCK_UTXO_ROOT_HASH (0xa6) until it landed in F5 batch 4.
+      // Now FLAT_MAP (0xb8).)
+      const bytes = new Uint8Array([0x10, 0x01, 0x01, 0x01, 0xb8])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
         expect((e as ExprParseError).code).toBe('not-implemented-yet')
-        expect((e as Error).message).toContain('LastBlockUtxoRootHash')
+        expect((e as Error).message).toContain('FlatMap')
       }
     })
 

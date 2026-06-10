@@ -119,6 +119,8 @@ const VECTOR_FILES = [
   'SelectField.non_pair.json',
   'EQ.non_pair_tuple_operand.json',
   'substConstants_version_source_outer_v2.json',
+  // F5 batch 4 — Ask 13: bare Context op-forms (0xa6 @ 15 / 0xac @ 20; cost differs by wire shape)
+  'Context.op_forms.json',
 ]
 
 // Entries that still diverge from JVM for a SEPARATE, tracked reason (not the

@@ -412,6 +412,23 @@ export interface GlobalVars {
   kind: 'Height' | 'Inputs' | 'Outputs' | 'SelfBox' | 'MinerPubKey' | 'GroupGenerator'
 }
 
+/**
+ * LastBlockUtxoRootHash: the bare dedicated-opcode form (0xa6) of the
+ * CONTEXT.LastBlockUtxoRootHash property — a payload-less leaf, like the
+ * GlobalVars kinds. JVM (canonical): `sigma.ast.LastBlockUtxoRootHash` case
+ * object (values.scala:1490-1501, opcode = newOpCode(54) = 0xa6,
+ * OpCodes.scala:95), serialized via CaseObjectSerialization (opcode byte
+ * only). sigma-rust has NO MIR variant for it (its GlobalVars enum omits it
+ * and `serialization/expr.rs` has no 0xa6 arm — it errors on these bytes);
+ * the JVM accepts them, so consensus requires the dispatch (F5 batch 4,
+ * Ask-13). Distinct wire shape from the PropertyCall form (101:9) of the
+ * same property — the two evaluate identically but cost differently
+ * (op-form FixedCost 15 vs the PropertyCall envelope's observable 20).
+ */
+export interface LastBlockUtxoRootHash {
+  tag: 'LastBlockUtxoRootHash'
+}
+
 // FuncArg: an argument descriptor for FuncValue. sigma-rust
 // mir/func_value.rs::FuncArg.
 export interface FuncArg {
@@ -810,8 +827,9 @@ export interface CreateAvlTree {
 }
 
 /**
- * Full ErgoTree MIR expression union. 68 variants, one per sigma-rust
- * `Expr` enum arm. Discriminated on `tag`.
+ * Full ErgoTree MIR expression union. 69 variants — one per sigma-rust
+ * `Expr` enum arm, plus `LastBlockUtxoRootHash` (a JVM-only case object;
+ * sigma-rust has no MIR variant for opcode 0xa6). Discriminated on `tag`.
  *
  * Adding a new variant requires a corresponding handler in both
  * `wire/parse.ts` (opcode → constructor) and `wire/serialize.ts`
@@ -833,6 +851,7 @@ export type Expr =
   | Context
   | Global
   | GlobalVars
+  | LastBlockUtxoRootHash
   | FuncValue
   | Apply
   | MethodCall

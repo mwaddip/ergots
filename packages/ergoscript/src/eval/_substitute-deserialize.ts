@@ -399,7 +399,7 @@ function rewriteConstantsBottomUp(
 // return the node unchanged) or has 1+ Expr children (apply `fn` to each,
 // reconstruct with the same tag + non-Expr fields).
 //
-// The switch is exhaustive over all 68 Expr variants. The `_exhaust: never`
+// The switch is exhaustive over all 69 Expr variants. The `_exhaust: never`
 // default ensures adding a new Expr variant is a compile-time error here.
 // ---------------------------------------------------------------------------
 
@@ -418,6 +418,8 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr): Expr {
     case 'Global':
       return e
     case 'GlobalVars':
+      return e
+    case 'LastBlockUtxoRootHash':
       return e
     case 'ValUse':
       return e
@@ -850,6 +852,7 @@ export function* childrenOf(e: Expr): Generator<Expr, void, void> {
     case 'Context':
     case 'Global':
     case 'GlobalVars':
+    case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
     case 'DeserializeContext':

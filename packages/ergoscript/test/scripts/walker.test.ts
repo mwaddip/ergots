@@ -160,12 +160,15 @@ describe('analyzeBox', () => {
     }
     const result = emptyResult()
     const knownMethods = new Map()
-    const unimplementedTags = new Set(['LastBlockUtxoRootHash'])
+    // FlatMap is a genuinely tag-less opcode (parse-rejected, no Expr
+    // variant) — the previous example, LastBlockUtxoRootHash, became a real
+    // Expr variant in F5 batch 4 so it rotated out of this fake.
+    const unimplementedTags = new Set(['FlatMap'])
 
-    const tree: Expr = { tag: 'LastBlockUtxoRootHash' } as unknown as Expr
+    const tree: Expr = { tag: 'FlatMap' } as unknown as Expr
     analyzeBox(tree, box, result, knownMethods, unimplementedTags)
 
-    const hit = result.unimplementedHits.get('LastBlockUtxoRootHash')!
+    const hit = result.unimplementedHits.get('FlatMap')!
     expect(hit.distinctBoxes).toBe(1)
     expect(hit.exampleBoxIds).toContain('box-with-unimplemented')
   })

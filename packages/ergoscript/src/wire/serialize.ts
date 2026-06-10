@@ -144,6 +144,13 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void
       // entire encoding is the single OP_GLOBAL opcode byte.
       w.writeU8(OP.OP_GLOBAL)
       return
+    case 'LastBlockUtxoRootHash':
+      // Payload-less leaf — the entire encoding is the opcode byte. JVM
+      // CaseObjectSerialization (ValueSerializer.scala:87): serialize writes
+      // nothing beyond the opcode. (sigma-rust never emits this byte — JVM
+      // is canonical here; see wire/mir/last-block-utxo-root-hash.ts.)
+      w.writeU8(OP.OP_LAST_BLOCK_UTXO_ROOT_HASH)
+      return
     case 'GlobalVars':
       // GlobalVars emits its own opcode (derived from the `kind`
       // discriminator) — there is no single fixed `OP_*` constant for the

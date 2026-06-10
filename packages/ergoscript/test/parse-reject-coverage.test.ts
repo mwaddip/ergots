@@ -22,10 +22,14 @@ import { ExprParseError } from '../src/wire/parse'
  * constant early-return in parseExpr does not intercept; dispatch fires
  * on the bare opcode. Matches the convention used by ergo-tree.test.ts:180.
  *
- * NOT in scope: the 4 routed-elsewhere opcodes (LastBlockUtxoRootHash 0xa6,
- * FlatMap 0xa9, TrivialPropFalse 0xd2, TrivialPropTrue 0xd3) still throw
+ * NOT in scope: the 3 routed-elsewhere opcodes (FlatMap 0xb8,
+ * TrivialPropFalse 0xd2, TrivialPropTrue 0xd3) still throw
  * 'not-implemented-yet'. Their dispatch may also be expected at top-level
- * Expr; status undetermined pending separate review.
+ * Expr; status undetermined pending separate review. (LastBlockUtxoRootHash
+ * 0xa6 left this group in F5 batch 4 — the JVM dispatches it as its own
+ * case object, so ergots now parses it; see
+ * wire/mir/last-block-utxo-root-hash.ts. The old "FlatMap 0xa9" byte here
+ * was a typo — OP_FLAT_MAP is 0xb8.)
  */
 
 interface OpEntry {

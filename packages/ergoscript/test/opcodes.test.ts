@@ -175,16 +175,27 @@ describe('parseExpr dispatch shell', () => {
     }
   })
 
-  it('LAST_BLOCK_UTXO_ROOT_HASH (0xa6) is a known opcode → not-implemented-yet', () => {
-    // LAST_BLOCK_UTXO_ROOT_HASH is in sigma-rust's opcode table but is NOT
-    // dispatched at the top level — it's reached via a PropertyCall on the
-    // SContext companion (method id 9). Until PropertyCall lands, this byte
-    // is the canary for "named in sigma-rust's opcode table but no TS
-    // handler yet" — earlier task suites used XOR_OF (landed in Task 14)
-    // and CONTEXT (landed in Task 17) for the same purpose.
-    const e = parseOne(OP.OP_LAST_BLOCK_UTXO_ROOT_HASH)
+  it('LAST_BLOCK_UTXO_ROOT_HASH (0xa6) is wired to its payload-less node', () => {
+    // F5 batch 4 (Ask-13): the bare op-form dispatches to the
+    // LastBlockUtxoRootHash leaf (JVM values.scala:1490 case object;
+    // sigma-rust errors on this byte — JVM is canonical). Earlier task
+    // suites used this byte as the "known opcode, no handler yet" canary;
+    // that role rotated to FLAT_MAP below.
+    const r = new ByteReader(new Uint8Array([OP.OP_LAST_BLOCK_UTXO_ROOT_HASH]))
+    const e = parseExpr(r, [], [], new Map(), 0)
+    expect(e).toEqual({ tag: 'LastBlockUtxoRootHash' })
+  })
+
+  it('FLAT_MAP (0xb8) is a known opcode → not-implemented-yet', () => {
+    // FLAT_MAP is in sigma-rust's opcode table but is NOT dispatched at the
+    // top level — it's reached via an SColl method-call. This byte is the
+    // canary for "named in the opcode table but no TS handler yet" —
+    // earlier task suites used XOR_OF (landed in Task 14), CONTEXT (Task 17)
+    // and LAST_BLOCK_UTXO_ROOT_HASH (landed in F5 batch 4) for the same
+    // purpose.
+    const e = parseOne(OP.OP_FLAT_MAP)
     expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('LastBlockUtxoRootHash')
+    expect(e.message).toContain('FlatMap')
   })
 
   it('unknown opcode 0xab (shift 59, reserved) throws unknown-opcode', () => {

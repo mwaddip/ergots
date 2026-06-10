@@ -222,3 +222,15 @@ describe('exprTpe — generic method resolution (v6 P0)', () => {
     expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SLong' } })
   })
 })
+
+/**
+ * LastBlockUtxoRootHash op-form (0xa6) — F5 batch 4, Ask-13. JVM
+ * values.scala:1490: `case object LastBlockUtxoRootHash extends
+ * NotReadyValueAvlTree` — its tpe is SAvlTree.
+ */
+describe('exprTpe — LastBlockUtxoRootHash (F5 batch 4)', () => {
+  it('LastBlockUtxoRootHash → SAvlTree', () => {
+    const e: Expr = { tag: 'LastBlockUtxoRootHash' }
+    expect(exprTpe(e)).toEqual({ tag: 'SAvlTree' })
+  })
+})

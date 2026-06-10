@@ -1,0 +1,186 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Context.op_forms",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-context-op-forms",
+  "entries" : [
+    {
+      "name" : "lastblockutxoroothash-opform#0",
+      "script" : "{ CONTEXT.LastBlockUtxoRootHash }  // the dedicated OP-FORM (0xa6) — costs 15 vs the PropertyCall form's 20 (Context.properties twin)",
+      "tree_bytes_hex" : "1000a6",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000072000"
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    },
+    {
+      "name" : "minerpubkey-opform#1",
+      "script" : "{ CONTEXT.minerPubKey }  // the dedicated OP-FORM (0xac) — the canonical generator pk bytes from the contract context",
+      "tree_bytes_hex" : "1000ac",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 121
+            },
+            {
+              "kind" : "Byte",
+              "value" : -66
+            },
+            {
+              "kind" : "Byte",
+              "value" : 102
+            },
+            {
+              "kind" : "Byte",
+              "value" : 126
+            },
+            {
+              "kind" : "Byte",
+              "value" : -7
+            },
+            {
+              "kind" : "Byte",
+              "value" : -36
+            },
+            {
+              "kind" : "Byte",
+              "value" : -69
+            },
+            {
+              "kind" : "Byte",
+              "value" : -84
+            },
+            {
+              "kind" : "Byte",
+              "value" : 85
+            },
+            {
+              "kind" : "Byte",
+              "value" : -96
+            },
+            {
+              "kind" : "Byte",
+              "value" : 98
+            },
+            {
+              "kind" : "Byte",
+              "value" : -107
+            },
+            {
+              "kind" : "Byte",
+              "value" : -50
+            },
+            {
+              "kind" : "Byte",
+              "value" : -121
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 7
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : -101
+            },
+            {
+              "kind" : "Byte",
+              "value" : -4
+            },
+            {
+              "kind" : "Byte",
+              "value" : -37
+            },
+            {
+              "kind" : "Byte",
+              "value" : 45
+            },
+            {
+              "kind" : "Byte",
+              "value" : -50
+            },
+            {
+              "kind" : "Byte",
+              "value" : 40
+            },
+            {
+              "kind" : "Byte",
+              "value" : -39
+            },
+            {
+              "kind" : "Byte",
+              "value" : 89
+            },
+            {
+              "kind" : "Byte",
+              "value" : -14
+            },
+            {
+              "kind" : "Byte",
+              "value" : -127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 91
+            },
+            {
+              "kind" : "Byte",
+              "value" : 22
+            },
+            {
+              "kind" : "Byte",
+              "value" : -8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 23
+            },
+            {
+              "kind" : "Byte",
+              "value" : -104
+            }
+          ]
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    }
+  ]
+}

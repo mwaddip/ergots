@@ -107,6 +107,7 @@ function getChildren(expr: Expr): (Expr | null)[] {
     case 'Context':
     case 'Global':
     case 'GlobalVars':
+    case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
     case 'DeserializeContext':
@@ -269,6 +270,7 @@ function replaceChild(expr: Expr, index: number, newChild: Expr): Expr {
     case 'Context':
     case 'Global':
     case 'GlobalVars':
+    case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
     case 'DeserializeContext':
