@@ -583,6 +583,17 @@ them in — all sigma-rust-inherited ingress shapes where the JVM is canonical):
    throw on parsed 123-token boxes); SANTA pin ask sharpened (122/123/124 minimal + fat-box
    reject + dT[Box] twins). Ask 18 ROUTED 2026-06-11 (`prompts/f5-batch5-santa-asks.md`, both
    repos; user dispatches manually); fix execution pending user go.**
+   **Ask 18 ANSWERED same-day (SANTA 2026-06-12, santa `4e27b84`; 6 entries / 2 families;
+   boundary MEASURED 4038/4071-FITS/4104): REFINEMENT — the window is LAZY (checkPositionLimit
+   BEFORE each read), so an overrun by the candidate's FINAL field ESCAPES (fat-trailing 4281B
+   ACCEPTS @ 4487; the fat-then-reg twin errors on R5's read) → the fix MUST be per-read-granular;
+   a strict span test over-rejects fat-trailing (the handoff's equivalence claim STRUCK, fix shape
+   amended there). Reachability: >122 via deserializeTo[Box] context-var ONLY (≥123 constant trees
+   die at the whole-tree MaxPropositionSize cap → NEW batch-5 verdict item: ergots parseTree cap
+   parity vs the JVM eval seam; no committable pin possible). Vendor rider: SANTA's new compact
+   Coll[Byte] `value_hex` input form (runner-contract §2) needs a hydration arm in our harness at
+   vendoring. dasher live: destobox-123 + fat-then-reg RED (flip at our landing); 122-const / 122
+   / 124 / fat-trailing green. eni 0→2 on the same two arms (routed their side).**
 3. **Box accessor METHOD-form family 99:2..6 not registered (T4.7 implementer + quality review,
    2026-06-10):** the JVM catalogues BytesMethod/BytesWithoutRefMethod/IdMethod (99:3/4/5,
    methods.scala:1308-1319; also 99:2 propositionBytes, 99:6 creationInfo) and `MethodCall.eval`
