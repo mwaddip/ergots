@@ -591,7 +591,7 @@ and raises the `Expr` union to 69 variants / eval coverage to 68 of 68 (see
 
 ## F5 batch 5 wire updates (SBox 4096-byte candidate window; token count-gate removed)
 
-**Source: JVM `ErgoBoxCandidate.scala:144,191-235` + `ErgoBox.scala:214-225` + `SigmaConstants.scala:24` + `CoreByteReader.scala:25-27,43-108,133-137` + `ValidationRules.scala:169-189`; LAZY semantics empirically pinned by SANTA (Ask 18, blessed santa@4e27b84).**
+**Source: JVM `ErgoBoxCandidate.scala:144,191-235` + `ErgoBox.scala:214-225` + `SigmaConstants.scala:24` + `CoreByteReader.scala:25-27,36-108,133-137` + `ValidationRules.scala:169-189`; LAZY semantics empirically pinned by SANTA (Ask 18, blessed santa@4e27b84).**
 
 ergots' SBox data parse previously rejected token count > 122 (`'sbox-tokens-out-of-range'`),
 mirroring sigma-rust's `BoundedVec<Token, 1, 122>` data-layer cap (their own comment,
@@ -609,7 +609,7 @@ binds tx-level only there). The JVM data layer has **no token-count rule at all*
   `CheckPositionLimit` = validation rule 1014 (`ValidationRules.scala:169-189`).
 
 **LAZY window semantics (SANTA-pinned):** the JVM checks `position > positionLimit` BEFORE each
-logical primitive read (`CoreByteReader.scala:25-27`; per-get call sites `:43-108`) — ONE check
+logical primitive read (`CoreByteReader.scala:25-27`; per-get call sites `:36-108`) — ONE check
 per logical read (`getULong` = one check, then its VLQ continuation bytes read unchecked;
 `getBytes` = one check, then N bytes). Consequences:
 

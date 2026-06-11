@@ -77,7 +77,7 @@ export class ByteReader {
 
   // ── Position-limit read window (F5 batch 5) ──────────────────────────────────
   // Faithful port of the JVM CoreByteReader.positionLimit (CoreByteReader.scala:25-27
-  // check, :43-108 per-get call sites, :133-137 accessor). Default on a fresh reader
+  // check, :36-108 per-get call sites, :133-137 accessor). Default on a fresh reader
   // = the buffer's byte length (JVM default: r.position + r.remaining = buffer end).
   // The setter is a PLAIN assignment with NO clamp (:135-137) — a nested window (e.g.
   // a box constant inside a register of an outer box) may legitimately EXCEED the
@@ -97,8 +97,12 @@ export class ByteReader {
   // continuation-byte loop and readBytes' N-byte run may STRADDLE the limit (start
   // ≤ limit, end past it), exactly like JVM getULong/getBytes — so an overrun by a
   // windowed span's FINAL read escapes entirely. readVlqU / readVlqS /
-  // readVlqBigIntSigned / readBool / readOption / readArray (and the free function
-  // readFixed) inherit the check through those three primitives. slice() is
+  // readVlqBigIntSigned / readBool / readOption / readArray inherit the check
+  // through those three primitives. The free function readFixed (digests.ts) does
+  // NOT participate: its catch-all re-codes any underlying reader error to
+  // 'truncated', so a window violation through it surfaces as 'truncated'; no
+  // windowed caller exists today (only the header/AutolykosSolution and
+  // nipopow-envelope codecs use it, never under a window). slice() is
   // non-consuming and does NOT check.
   get positionLimit(): number       // absolute offset; default = buffer byte length
   set positionLimit(limit: number)  // plain assignment — no clamp, no validation
@@ -360,7 +364,7 @@ These represent malformed or truncated wire input, not programming errors on the
 //                         Direct check sites: readU8, readBytes, readVlqBigInt (entry
 //                         check only — see the window block in the public surface);
 //                         readVlqU/readVlqS/readVlqBigIntSigned/readBool/readOption/
-//                         readArray/readFixed inherit through them. JVM analogue:
+//                         readArray inherit through them. JVM analogue:
 //                         CheckPositionLimit, validation rule 1014
 //                         (ValidationRules.scala:169-189; CoreByteReader.scala:25-27)
 ```
@@ -423,7 +427,7 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`) | `autolykosHitForMessageWithChecks` (`autolykos-v2.ts`) | Guarded hit core; throws `PowHitInvalidParamsError` on k/N violations |
 | JVM `scorex.utils.Ints.toByteArray` | `int32BE` (`autolykos-v2.ts`) | 4-byte big-endian int encoding; used to pass `height` as `h` bytes |
 | JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` param guards | `PowHitInvalidParamsError` (`errors.ts`) | Typed error for k<2 / k>32 / N<16 guard violations |
-| JVM `CoreByteReader.positionLimit` (`CoreByteReader.scala:25-27, 43-108, 133-137`) | `ByteReader.positionLimit` getter/setter + per-primitive entry checks (`reader.ts`) | Lazy read window: ONE check per logical read, strict `>`, no clamp on set; throws `ReaderError('position-limit-exceeded')` ≡ rule 1014 `CheckPositionLimit` (`ValidationRules.scala:169-189`). sigma-rust has NO equivalent (its `BoundedVec` token cap is a count-shaped approximation — see `facts/ergoscript-wire.md` F5 batch 5) |
+| JVM `CoreByteReader.positionLimit` (`CoreByteReader.scala:25-27, 36-108, 133-137`) | `ByteReader.positionLimit` getter/setter + per-primitive entry checks (`reader.ts`) | Lazy read window: ONE check per logical read, strict `>`, no clamp on set; throws `ReaderError('position-limit-exceeded')` ≡ rule 1014 `CheckPositionLimit` (`ValidationRules.scala:169-189`). sigma-rust has NO equivalent (its `BoundedVec` token cap is a count-shaped approximation — see `facts/ergoscript-wire.md` F5 batch 5) |
 
 ## Version note (v6 P5c)
 
