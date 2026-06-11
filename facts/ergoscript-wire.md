@@ -42,7 +42,7 @@ type ErgoTree, TreeHeader
 
 - **Precondition:** `bytes.length >= 1` and `bytes.length <= MAX_TREE_SIZE` (1 MB). The cap mirrors sigma-rust's practical bound (largest real-world ErgoTree in the PR 862 corpus is ergoraffle at 931 bytes); 1 MB is comfortably above that ceiling while bounding memory against adversarial inputs.
 - **Postcondition (success):** Returns an `ErgoTree` whose `serializeTree` is byte-identical to the input. See `Round-trip invariant` below.
-- **Postcondition (failure):** Throws `ErgoTreeParseError` for envelope-level malformations (`empty`, `oversized`, `body-size-overflow`, `too-many-constants`). Body-parse failures surface as `ExprParseError` from the body parser; SType / SValue failures surface as `STypeParseError` / `SValueParseError` / `SigmaBooleanParseError`. The envelope does not wrap them — callers see the typed failure surface from the innermost layer that rejected the bytes. `ReaderError` from the underlying cursor may also surface (`truncated`, `vlq-overflow`).
+- **Postcondition (failure):** Throws `ErgoTreeParseError` for envelope-level malformations (`empty`, `oversized`, `body-size-overflow`, `too-many-constants`). Body-parse failures surface as `ExprParseError` from the body parser; SType / SValue failures surface as `STypeParseError` / `SValueParseError` / `SigmaBooleanParseError`. The envelope does not wrap them — callers see the typed failure surface from the innermost layer that rejected the bytes. `ReaderError` from the underlying cursor may also surface (`truncated`, `vlq-overflow`, and — F5 batch 5 — `'position-limit-exceeded'` when an SBox-constant candidate overruns its 4096-byte window; see the F5 batch 5 wire section).
 
 ### `serializeTree(tree)`
 
@@ -263,12 +263,19 @@ asymmetric on the JVM itself.)
 - **`SValueParseError`**: `'bigint-too-large'`, `'coll-length-out-of-range'`, `'group-element-invalid-point'` (F5 batch 4 — the SValue GE data-parse arm curve-validates non-0x00-lead 33-byte payloads via secp256k1 SEC1 decode (bad prefix or x-not-on-curve rejects), mirroring JVM `GroupElementSerializer.parse:35-42` → decodePoint throw; 0x00-lead payloads are NOT validated — they NORMALIZE to the canonical 33-zero identity (bytes 1..32 discarded; the JVM reads them into the identity point object); applies wherever GE DATA parses — body/segregated constants, box registers, `deserializeTo[GroupElement]`; all tree versions, dead branches included; adversarial-only — honest tools emit valid points. See the F5 batch 4 wire section below), `'not-implemented-phase-2a'` (still emitted for `SPreHeader`/`SContext`/`SGlobal`/`SAny`/`SString`/`SFunc`/`STypeVar`; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue constant in a tree-version < 3 ErgoTree; mirrors sigma-rust `serialization/data.rs:196`), `'soption-tree-version-too-low'` (SOption SValue constant in a tree-version < 3 ErgoTree;
 mirrors JVM `CoreDataSerializer.scala:140-143` — pre-v3 Option DATA falls through to
 `CheckSerializableTypeCode`/ValidationRule 1009 + `SerializerException`; recursive — Option
-nested anywhere in a constant's type tree rejects; shipped F5 batch 1 2026-06-07), `'unreachable'`, `'sbox-tokens-out-of-range'`, `'sbox-registers-out-of-range'`, `'sbox-creation-height-out-of-range'` (parse rejects creation_height > u32, matching sigma-rust `get_u32`; audit follow-up), `'sbox-index-out-of-range'` (parse rejects index > u16, matching `get_u16`; previously serialize-only), `'unsigned-bigint-too-large'` (UBI payload > 32 bytes; mirrors `CoreDataSerializer.scala:120`; shipped v6 P2a T3), `'register-v6-type'` (F5 batch 3 — rule-1019 `CheckV6Type`: a box register whose declared type contains `SOption` / `SHeader` / `SUnsignedBigInt` (recursing through `STuple` items + `SColl` elemType) is rejected at register ingress in `parseRegisterExprWithTag`, mirroring JVM `ValidationRules.scala:165-205` enforced at `ErgoBoxCandidate.scala:232`; **UNCONDITIONAL — all tree versions** (the rule is in both ruleSpecsV5 and ruleSpecsV6); distinct from the body-constant `'soption-tree-version-too-low'` gate and the `validate-v6-types` body pass; adversarial-only — mainnet boxes can't carry these register types. Context-extension leg deferred: ergots has no extension wire-parser yet). (`'sbox-ergo-tree-no-size'` removed in phase 2j-pre fix-1 — see changelog below.)
+nested anywhere in a constant's type tree rejects; shipped F5 batch 1 2026-06-07), `'unreachable'`, `'sbox-registers-out-of-range'`, `'sbox-creation-height-out-of-range'` (parse rejects creation_height > u32, matching sigma-rust `get_u32`; audit follow-up), `'sbox-index-out-of-range'` (parse rejects index > u16, matching `get_u16`; previously serialize-only), `'unsigned-bigint-too-large'` (UBI payload > 32 bytes; mirrors `CoreDataSerializer.scala:120`; shipped v6 P2a T3), `'register-v6-type'` (F5 batch 3 — rule-1019 `CheckV6Type`: a box register whose declared type contains `SOption` / `SHeader` / `SUnsignedBigInt` (recursing through `STuple` items + `SColl` elemType) is rejected at register ingress in `parseRegisterExprWithTag`, mirroring JVM `ValidationRules.scala:165-205` enforced at `ErgoBoxCandidate.scala:232`; **UNCONDITIONAL — all tree versions** (the rule is in both ruleSpecsV5 and ruleSpecsV6); distinct from the body-constant `'soption-tree-version-too-low'` gate and the `validate-v6-types` body pass; adversarial-only — mainnet boxes can't carry these register types. Context-extension leg deferred: ergots has no extension wire-parser yet). (`'sbox-ergo-tree-no-size'` removed in phase 2j-pre fix-1 — see changelog below.) (**`'sbox-tokens-out-of-range'` REMOVED from parse in F5 batch 5, 2026-06-12**: the JVM data layer has NO
+token-count rule — `nTokens` is a bare `getUByte()` (`ErgoBoxCandidate.scala:200`), so the u8
+read is the natural ceiling 255; `SigmaConstants.MaxTokens` (255) binds only in SDK builders,
+unreachable from parse/eval. The real JVM gate is the **4096-byte candidate window** — the
+candidate span (value→registers; txId/index outside) parses under a `positionLimit` window, and
+overruns surface as scorex `ReaderError('position-limit-exceeded')`. So SBox parse can now throw
+`ReaderError`, not only `SValueParseError` — typed parse refusal either way. The code itself
+survives serialize-side at threshold >255. See the F5 batch 5 wire section below.)
 - **`SValueSerializeError`**: `'bigint-too-large'`, `'group-element-length'`, `'coll-length-out-of-range'`, `'coll-item-kind-mismatch'`, `'tuple-arity-mismatch'`, `'sigma-boolean-empty'`, `'type-value-mismatch'`, `'not-implemented-phase-2a'` (same deferred-kinds set as parse; `SBox` removed in phase 2f Stop α, `SAvlTree` removed in phase 2h-b, `SHeader` removed in phase 2h-c.1), `'sheader-tree-version-too-low'` (SHeader SValue with tree-version < 3 passed to `serializeSValue`; mirrors sigma-rust `serialization/data.rs:98`), `'soption-tree-version-too-low'` (serialize-side mirror, `CoreDataSerializer.scala:78-82`;
-shipped F5 batch 1 2026-06-07), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-creation-height-out-of-range'` (serialize rejects creation_height > u32; audit follow-up), `'sbox-tokens-out-of-range'`, `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`, `'unsigned-bigint-too-large'` (defensive encoder guard — out-of-range UBI is an internal invariant violation, unreachable from valid parse or v6 method result, but guarded; shipped v6 P2a T3), `'unsigned-bigint-negative'` (defensive guard in `encodeUnsignedBigIntBE` when caller passes a negative bigint — unsigned type admits no negatives; shipped v6 P2a T3). (**`'savltree-digest-length'` RETIRED in F4 epilogue Task 3, 2026-06-07**: the serializer now writes the digest verbatim at any length — the JVM `DataSerializer` has no length require; parse-side remains fixed-33 — a JVM asymmetry. An AvlTree SValue with non-33-byte digest serializes fine but does NOT round-trip through parse.)
+shipped F5 batch 1 2026-06-07), `'unreachable'`, `'token-id-length'`, `'txid-length'`, `'sbox-registers-not-dense'`, `'sbox-index-out-of-range'`, `'sbox-creation-height-out-of-range'` (serialize rejects creation_height > u32; audit follow-up), `'sbox-tokens-out-of-range'` (**re-scoped F5 batch 5, 2026-06-12: serialize-ONLY, threshold >255** — mirrors the JVM egress `putUByte(size)` (`ErgoBoxCandidate.scala:144`; scorex-util `putUByte` asserts 0..255). Was >122 on both parse and serialize, mirroring sigma-rust's `BoundedVec` cap; the parse side is REMOVED (see the `SValueParseError` note above) and the JVM has NO size window on egress — the 4096-byte window is a parse-only rule), `'savltree-tree-flags-out-of-range'`, `'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`, `'unsigned-bigint-too-large'` (defensive encoder guard — out-of-range UBI is an internal invariant violation, unreachable from valid parse or v6 method result, but guarded; shipped v6 P2a T3), `'unsigned-bigint-negative'` (defensive guard in `encodeUnsignedBigIntBE` when caller passes a negative bigint — unsigned type admits no negatives; shipped v6 P2a T3). (**`'savltree-digest-length'` RETIRED in F4 epilogue Task 3, 2026-06-07**: the serializer now writes the digest verbatim at any length — the JVM `DataSerializer` has no length require; parse-side remains fixed-33 — a JVM asymmetry. An AvlTree SValue with non-33-byte digest serializes fine but does NOT round-trip through parse.)
 - **`SigmaBooleanParseError`**: `'arity-out-of-range'`, `'unknown-opcode'`, `'cthreshold-k-out-of-range'` (Cthreshold's `k` outside `[1, items.length]`; added phase 2g-medium), `'sigma-conjecture-empty-items'` (Cand/Cor/Cthreshold parsed with `items.length === 0`; added phase 2g-medium), `'ec-point-invalid'` (F5 batch 4 — ProveDlog.h and ProveDHTuple g/h/u/v leaf points get the same validate+normalize as the SValue GE arm: 0x00-lead → canonical identity, non-0x00-lead must curve-decode; the JVM parses these leaves through the same `GroupElementSerializer.parse` (SigmaBoolean.scala:36-44,71-80 via ProveDlogSerializer/ProveDHTupleSerializer); sibling of the pre-existing `'ec-point-length'`).
 - **`ExprTpeError`** (raised by `exprTpe`, the SType-of-Expr projection): `'apply-func-not-sfunc'`, `'bin-op-kind-unhandled'`, `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'select-field-input-not-stuple'`, `'select-field-out-of-range'`, `'tpe-not-implemented'`.
-- **`ReaderError`** (raised by `ByteReader`): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`.
+- **`ReaderError`** (raised by `@ergots/scorex`'s `ByteReader`; canonical enumeration lives in [`facts/scorex.md`](./scorex.md)): `'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`, `'array-too-large'`, `'max-tree-depth-exceeded'`, `'position-limit-exceeded'` (F5 batch 5 — an SBox candidate's read begins past the 4096-byte window; see the F5 batch 5 wire section below).
 - **`AddressDecodeError`**: `'bad-base58'`, `'too-short'`, `'checksum-mismatch'`, `'invalid-p2pk-length'`, `'p2sh-unsupported'`, `'unknown-type'`.
 
 No other wire-layer error classes are emitted by this package. Internal panics (e.g. a bug in `@noble/hashes`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues. For runtime/eval errors see [`facts/ergoscript-eval.md`](./ergoscript-eval.md) `EvalError` taxonomy. For verifier errors see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) `VerifyError` taxonomy.
@@ -581,6 +588,79 @@ in `wire/parse.ts` / `wire/serialize.ts`, eval arm `eval/last-block-utxo-root-ha
 the wire `'not-implemented-yet'` site count from 4 to 3 (see the ExprParseError taxonomy above)
 and raises the `Expr` union to 69 variants / eval coverage to 68 of 68 (see
 [`facts/ergoscript-eval.md`](./ergoscript-eval.md)).
+
+## F5 batch 5 wire updates (SBox 4096-byte candidate window; token count-gate removed)
+
+**Source: JVM `ErgoBoxCandidate.scala:144,191-235` + `ErgoBox.scala:214-225` + `SigmaConstants.scala:24` + `CoreByteReader.scala:25-27,43-108,133-137` + `ValidationRules.scala:169-189`; LAZY semantics empirically pinned by SANTA (Ask 18, blessed santa@4e27b84).**
+
+ergots' SBox data parse previously rejected token count > 122 (`'sbox-tokens-out-of-range'`),
+mirroring sigma-rust's `BoundedVec<Token, 1, 122>` data-layer cap (their own comment,
+`ergo_box.rs:100-104`, marks it a count-shaped approximation of the size rule; `MAX_BOX_SIZE`
+binds tx-level only there). The JVM data layer has **no token-count rule at all**:
+
+- `ErgoBoxCandidate.serializer.parseBodyWithIndexedDigests` reads `nTokens = r.getUByte()` bare
+  (`ErgoBoxCandidate.scala:200`) — the u8 read's natural ceiling 255 is the only count bound.
+  `SigmaConstants.MaxTokens` (255) binds ONLY in SDK builders (`OutBoxBuilder.scala:34`,
+  `JavaHelpers.scala:369`) — unreachable from parse/eval.
+- The real gate is a **4096-byte candidate-size window**: `r.positionLimit = r.position +
+  ErgoBox.MaxBoxSize` (4096, `SigmaConstants.scala:24`) at candidate start
+  (`ErgoBoxCandidate.scala:191-192`), restored at `:235`. The window covers the candidate span
+  value→registers; `txId`/`index` sit OUTSIDE it (`ErgoBox.scala:214-225`). Crossing throws
+  `CheckPositionLimit` = validation rule 1014 (`ValidationRules.scala:169-189`).
+
+**LAZY window semantics (SANTA-pinned):** the JVM checks `position > positionLimit` BEFORE each
+logical primitive read (`CoreByteReader.scala:25-27`; per-get call sites `:43-108`) — ONE check
+per logical read (`getULong` = one check, then its VLQ continuation bytes read unchecked;
+`getBytes` = one check, then N bytes). Consequences:
+
+1. A read whose START is ≤ the limit may END past it (straddle tolerated).
+2. An overrun by the candidate's FINAL read ESCAPES entirely — pin
+   `destobox-fat-trailing-accept#3`: 2 tokens + a trailing 4200-byte R4 register, candidate
+   4281 B > 4096 → the JVM ACCEPTS. The `fat-then-reg` twin (a small R5 AFTER the fat R4)
+   errors, because R5's read begins past the limit.
+3. A read beginning exactly AT the limit passes (the check is strict `>`).
+
+**Measured boundary** (SANTA, per-entry byte lengths recorded; minimal candidates): 122 tokens
+= 4038 B; 123 tokens = 4071 B (fits → the JVM accepts — the old 122 cap was not even the right
+count approximation); 124 tokens = 4104 B (cannot fit → always rejects via rule 1014).
+
+**Nested-window widening:** the JVM `positionLimit_=` is a PLAIN assignment with NO clamp
+(`CoreByteReader.scala:133-137`), so a nested window (a box constant inside a register of an
+outer box) may legitimately EXCEED the outer limit for the inner span; the save/restore
+discipline reinstates the outer limit afterward. The scorex facility mirrors this exactly —
+canonical contract in [`facts/scorex.md`](./scorex.md) (positionLimit window block).
+
+ergots implementation (ships in T2 scorex / T3 ergoscript of the batch):
+
+- `@ergots/scorex`'s `ByteReader` gains the `positionLimit` facility: getter + setter (plain
+  assignment, no clamp), default = buffer byte length; entry check at the start of each logical
+  consuming primitive (`readU8`, `readBytes`, `readVlqBigInt`; the other read helpers inherit) →
+  `ReaderError('position-limit-exceeded')`. `forkSubReader` does NOT inherit a parent's limit
+  (its buffer is rebased; fresh default over its own buffer) — callers arm windows on the SHARED
+  reader; the JVM never forks. See [`facts/scorex.md`](./scorex.md).
+- The SBox data-parse arm (`parse-svalue.ts`) saves the prior limit, sets `r.position + 4096` at
+  candidate start (before the value read), and restores INLINE after the registers loop and
+  before the txId read — mirroring `:191`/`:235`. No try/finally: a window-overrun throw abandons
+  the parse exactly like the JVM. Applies wherever SBox DATA parses (body/segregated constants,
+  box registers, `deserializeTo[Box]`).
+- The >122 parse count-gate is DELETED — no token-count check remains at parse (u8 is the
+  natural ceiling). Window overruns surface as scorex `ReaderError('position-limit-exceeded')`,
+  so SBox parse can throw `ReaderError`, not only `SValueParseError`.
+- `serialize-svalue.ts` KEEPS `'sbox-tokens-out-of-range'` but relaxed to threshold >255 (u8
+  ceiling): mirrors the JVM egress `putUByte(size)` (`ErgoBoxCandidate.scala:144`; scorex-util
+  `putUByte` asserts 0..255). The JVM applies NO size window on egress — the 4096 window is a
+  parse-only rule.
+
+**Conformance families** (vendored in T4): `Box.token_window_const.json` /
+`Global.deserializeTo_Box_token_window.json` (SANTA Ask 18, blessed santa@4e27b84) — covering
+the 123-token accept, 124-token reject, fat-trailing escape-accept, and fat-then-reg reject
+shapes.
+
+**sigma-rust divergence (BOTH directions; ergots leads, routed via SANTA):** sigma-rust rejects
+123–255-token candidates the JVM accepts (count cap tighter than the real rule) AND accepts
+candidates whose non-final reads begin past 4096 that the JVM rejects (no window at the box data
+layer). Both directions are consensus-relevant on adversarial bytes; mainnet-honest boxes sit
+far inside both bounds.
 
 ## Coverage
 
