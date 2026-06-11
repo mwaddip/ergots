@@ -434,7 +434,7 @@ context-extension leg (no extension wire-parser in ergots). **Convergence:** the
 5 sigma-rust eni divergences (W1/W2 checkType, W5a, W6, W5b under-accept) — SANTA routing to sigma-rust;
 ergots LEADS on checkType/SelectField/rule-1012/rule-1019 (both libs diverged).
 
-### F5 batch 4 — standing-tail closure (corpus pins + atLeast cap + GE canonicalization + equality basis) — ✅ DONE 2026-06-10 (LOCAL, not pushed)
+### F5 batch 4 — standing-tail closure (corpus pins + atLeast cap + GE canonicalization + equality basis) — ✅ DONE 2026-06-10 · PUSHED `0be8b34` · RE-GRADE CONFIRMED 2026-06-11
 
 **Outcome (same-day open→close; 22 commits `43edb0b..` incl. two SANTA-delivery additions 4.5/4.7):**
 T1 cap `9da117e`+`11d5683`+`cc03a3e` · T2 GE-SValue `2ddd0cd`(+2 nits) · T3 leaves+Header `de1f805`
@@ -457,6 +457,17 @@ bytesnoref). Residual nit: tsup warns on sigma-boolean.ts's intentional `ReaderE
 (pre-existing, cosmetic). Open items live in the NEW-findings block below (scorex ×3 = USER
 DECISION pending; token-cap verdict; 99:2..6 method-form family + its next-batch SANTA ask) +
 the 3 remaining `'not-implemented-yet'` wire sites pending their own review.
+
+**✅ SANTA RE-GRADE CONFIRMED (2026-06-11, off `origin/ergoscript-v6` @ `0be8b34`; santa @
+`0ed5d00`, corpus 209 files / 2,340 eval entries): dasher 31 → 21, prediction EXACT.** All 10
+live pins flipped green — 2 atLeast-cap + 6 GE-canonical + the `0xa6` op-form (panic class gone;
+both wire forms parse+eval at the by-form costs 15/20) + `bytesnoref-garbage-canonical#2`
+(canonical re-serialization confirmed). **Eval tier value+cost+reject 100%** across all four
+slices (v5/spec 1610+147 · v5/authored 132+40 · v6/spec 243+26 · v6/authored 119+23); the 21 =
+4 transaction + 17 wire-Transaction not-impl — pure roadmap, zero divergences. Our vendored-corpus
+zero-divergence probe and SANTA's board agree from both ends. Board: rudolph 0 · donner 0 · eni 0
+(sigma-rust's fifth convergence) · dasher 21 · comet 28 · develop 113 · vixen 20. Second
+full-green, now at 2,340 entries. **Batch 4 closed BOTH sides.**
 
 #### (opening record below — superseded by the outcome above)
 
@@ -551,13 +562,27 @@ them in — all sigma-rust-inherited ingress shapes where the JVM is canonical):
    (`:76`), scorex accepts → negative i32 surfaced; (c) v1 powDistance ≥ 2²⁵⁵: JVM
    `toSignedBigIntValueExact` throws (`ErgoHeader.scala:77`), ergots accepts unbounded → violates
    our own signed-256 BigInt invariant. Reachable via SHeader constants (v3+) + deserializeTo[Header].
-   Proposed: Task 3.6 in-batch, scorex-side (user decision PENDING). Rider: facts/scorex.md needs the
+   Proposed: Task 3.6 in-batch, scorex-side. **DECIDED 2026-06-11: DEFERRED — own scorex v6 pass
+   on a separate branch (handoff `prompts/handoff-scorex-parseheader-jvm-faithfulness.md`; executes
+   on user go).** Rider: facts/scorex.md needs the
    `deriveHeaderId` re-serialization-basis caveat (JVM + eni both use the consumed-slice basis now).
 2. **SBox token-count cap 122-vs-255 (Task-4 quality review):** ergots parse rejects >122 tokens
    (`parse-svalue.ts` sbox-tokens-out-of-range, mirroring sigma-rust MAX_TOKENS_COUNT=122); the JVM
    `ErgoBoxCandidate.serializer.parse` has NO count check (`getUByte` alone, MaxTokens=255 binds
    elsewhere) → 123-255-token Box constants/deserializeTo payloads: JVM parses, ergots over-rejects.
    Adversarial-only. Needs its own verdict (where MaxTokens actually binds JVM-side) before any fix.
+   **VERDICT SETTLED 2026-06-11 (controller source-run; full detail in
+   `prompts/handoff-token-cap-122v255.md` §Verdict): neither 122 nor 255 — the JVM data-layer rule
+   is the 4096-byte candidate positionLimit window (ErgoBoxCandidate.scala:191-192 = validation
+   rule 1014); MaxTokens(255) is SDK-builder-only; the count ceiling is the natural u8. ergots
+   (= sigma-rust, whose 122 is a count-shaped approximation of the size rule per their own
+   comment) diverges BOTH ways: (A) over-rejects minimal 123-token boxes (JVM accepts — they fit
+   at ~4,070 bytes), (B) over-accepts any-count candidates >4096 bytes (JVM rule-1014 rejects) —
+   (B) is NEW, beyond the original framing, sigma-rust-shared. Fix shape revised in the handoff
+   (count gate → size window; lockstep serialize relax 122→255 so boxIdOf/bytesWithoutRef don't
+   throw on parsed 123-token boxes); SANTA pin ask sharpened (122/123/124 minimal + fat-box
+   reject + dT[Box] twins). Ask 18 ROUTED 2026-06-11 (`prompts/f5-batch5-santa-asks.md`, both
+   repos; user dispatches manually); fix execution pending user go.**
 3. **Box accessor METHOD-form family 99:2..6 not registered (T4.7 implementer + quality review,
    2026-06-10):** the JVM catalogues BytesMethod/BytesWithoutRefMethod/IdMethod (99:3/4/5,
    methods.scala:1308-1319; also 99:2 propositionBytes, 99:6 creationInfo) and `MethodCall.eval`
