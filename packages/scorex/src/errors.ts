@@ -18,9 +18,14 @@
  *                           maxTreeDepth (default 110). Faithful port of the JVM
  *                           DeserializeCallDepthExceeded thrown by
  *                           CoreByteReader.level_= (SigmaConstants.MaxTreeDepth = 110).
+ *   'position-limit-exceeded' -- a consuming read begins past positionLimit (strict >).
+ *                           Entry check fired once per logical primitive (readU8 /
+ *                           readBytes / readVlqBigInt; everything else inherits through
+ *                           them). JVM analogue: CheckPositionLimit, validation rule 1014
+ *                           (ValidationRules.scala:169-189; CoreByteReader.scala:25-27).
  */
 export class ReaderError extends Error {
-  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded') {
+  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded') {
     super(message);
     this.name = 'ReaderError';
   }

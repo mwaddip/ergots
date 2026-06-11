@@ -57,6 +57,15 @@ export class ByteReader {
   readonly maxTreeDepth: number;
 
   /**
+   * Lazy read-window limit (an ABSOLUTE offset into `bytes`). Faithful port of
+   * the JVM `CoreByteReader.positionLmt` (`CoreByteReader.scala:133`), whose
+   * default `r.position + r.remaining` on a fresh reader is the buffer end —
+   * with that default the strict-`>` entry check can never fire, because the
+   * existing 'truncated' EOF guards keep the cursor <= the buffer end.
+   */
+  private _positionLimit: number;
+
+  /**
    * @param bytes        the buffer to read from
    * @param maxTreeDepth recursion-depth cap (default {@link MAX_TREE_DEPTH});
    *                     a forked sub-reader inherits the parent's cap so a
@@ -64,6 +73,7 @@ export class ByteReader {
    */
   constructor(private readonly bytes: Uint8Array, maxTreeDepth: number = MAX_TREE_DEPTH) {
     this.maxTreeDepth = maxTreeDepth;
+    this._positionLimit = bytes.length;
   }
 
   get position(): number {
@@ -113,11 +123,63 @@ export class ByteReader {
    * (`ErgoTreeSerializer.scala:143-211`), so its `level` persists across the
    * size boundary. A naive `new ByteReader(slice)` would reset level to 0 and
    * under-count depth; this preserves the shared counter faithfully.
+   *
+   * Does NOT inherit `positionLimit`: the fork's buffer is rebased to offset 0,
+   * so the parent's absolute-offset limit would be meaningless over it — the
+   * fork gets the fresh default (its own buffer end); see facts/scorex.md.
    */
   forkSubReader(bytes: Uint8Array): ByteReader {
     const sub = new ByteReader(bytes, this.maxTreeDepth);
     sub._level = this._level;
     return sub;
+  }
+
+  /**
+   * Current read-window limit: an absolute offset; reads beginning past it
+   * throw. Default = the buffer's byte length. JVM
+   * `CoreByteReader.positionLimit` accessor (`CoreByteReader.scala:133-137`).
+   */
+  get positionLimit(): number {
+    return this._positionLimit;
+  }
+
+  /**
+   * PLAIN assignment — no clamp, no validation (the JVM `positionLimit_=` is a
+   * bare field write, `CoreByteReader.scala:135-137`). Callers scope windows
+   * manually via save/set/restore (the JVM `ErgoBoxCandidate.scala:191,235`
+   * pattern):
+   *
+   *   const saved = r.positionLimit;
+   *   r.positionLimit = r.position + maxSize;
+   *   // …windowed parse…
+   *   r.positionLimit = saved;
+   *
+   * A nested window may legitimately EXCEED the enclosing one for its inner
+   * span; the caller's restore reinstates the outer limit afterward.
+   */
+  set positionLimit(limit: number) {
+    this._positionLimit = limit;
+  }
+
+  /**
+   * Lazy window entry check, fired ONCE at the start of each logical consuming
+   * primitive: {@link readU8}, {@link readBytes}, {@link readVlqBigInt}
+   * (readVlqU / readVlqS / readVlqBigIntSigned / readBool / readOption /
+   * readArray inherit through those three). Strict `>` — a read beginning
+   * exactly AT the limit passes. Past this one check the primitive's bytes are
+   * read UNCHECKED, so readBytes' n-byte run and readVlqBigInt's
+   * continuation-byte loop may straddle the limit (start <= limit, end past
+   * it), exactly like the JVM getBytes/getULong. JVM `checkPositionLimit`
+   * (`CoreByteReader.scala:25-27`; per-get call sites `:36-108`) ≡ validation
+   * rule 1014 `CheckPositionLimit` (`ValidationRules.scala:169-189`).
+   */
+  private checkPositionLimit(): void {
+    if (this._position > this._positionLimit) {
+      throw new ReaderError(
+        `position limit ${this._positionLimit} is reached at position ${this._position}`,
+        'position-limit-exceeded',
+      );
+    }
   }
 
   get remaining(): number {
@@ -149,6 +211,17 @@ export class ByteReader {
   }
 
   readU8(): number {
+    this.checkPositionLimit();
+    return this.readU8Unchecked();
+  }
+
+  /**
+   * Bare byte read carrying ONLY the EOF/'truncated' guard — no window check.
+   * Used by {@link readVlqBigInt}'s continuation-byte loop, which must read
+   * unchecked after that primitive's single entry check (the JVM getULong
+   * checks once, then its VLQ loop reads bare bytes off the underlying reader).
+   */
+  private readU8Unchecked(): number {
     if (this._position >= this.bytes.length) {
       throw new ReaderError(`readU8: EOF at ${this._position}`, 'truncated');
     }
@@ -156,6 +229,9 @@ export class ByteReader {
   }
 
   readBytes(n: number): Uint8Array {
+    // Window entry check ONCE; the n-byte run below may straddle the limit
+    // (start <= limit, end past it), like the JVM getBytes.
+    this.checkPositionLimit();
     if (this.remaining < n) {
       throw new ReaderError(`readBytes(${n}): only ${this.remaining} available`, 'truncated');
     }
@@ -195,12 +271,19 @@ export class ByteReader {
   /**
    * Read a VLQ-encoded unsigned integer as a BigInt. Up to 64 bits.
    * Throws `ReaderError` with code `vlq-overflow` after 10 continuation bytes.
+   *
+   * Window: ONE position-limit entry check; the byte loop then reads UNCHECKED
+   * (readU8Unchecked), so a VLQ whose first byte begins <= the limit may
+   * straddle it — exactly the JVM getULong (checks once at entry,
+   * `CoreByteReader.scala:80-83`, then loops on the bare underlying reader).
+   * Per-byte checking here would over-reject straddling final fields.
    */
   readVlqBigInt(): bigint {
+    this.checkPositionLimit();
     let result = 0n;
     let shift = 0n;
     for (let i = 0; i < MAX_VLQ_BYTES; i++) {
-      const byte = this.readU8();
+      const byte = this.readU8Unchecked();
       result |= BigInt(byte & 0x7f) << shift;
       if ((byte & 0x80) === 0) {
         // References accumulate into a 64-bit int: bits shifted past bit 63 are
