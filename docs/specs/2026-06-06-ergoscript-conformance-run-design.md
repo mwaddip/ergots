@@ -608,7 +608,7 @@ them in — all sigma-rust-inherited ingress shapes where the JVM is canonical):
 **Process:** batch-3 cadence — per-task subagent TDD chain (implementer → spec review → quality
 review), per-task commits, full gate (monorepo + tsc ×4) at close-out, push on user go.
 
-### F5 batch 5 — SBox token window (Ask-18 verdict execution) — ✅ DONE 2026-06-12 (LOCAL, not pushed)
+### F5 batch 5 — SBox token window (Ask-18 verdict execution) — ✅ DONE 2026-06-12 · PUSHED `6e7631a`
 
 **Outcome (single-member batch; 8 commits `f12010d..a105fb5` + this close-out):** T1 contracts
 `f12010d`+`bcaab22` · T2 scorex positionLimit `ae30c14`+`3a3a5d5` · T3 SBox window `ee07f5a`+`48f327a`
@@ -647,7 +647,8 @@ consume-path comment). **scorex public API grew (additive) — rides the queued 
 
 **Push prediction: dasher 23 → 21** (the 2 token-window reds flip at our push; 21 = the roadmap
 rows). sigma-rust routing (BoundedVec-122 + no parse window, both directions) is SANTA's, already
-routed (`sigma-rust-…` per their reply).
+routed (`sigma-rust-…` per their reply). **PUSHED 2026-06-12 @ `6e7631a` (user go) — re-grade
+pending.**
 
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
