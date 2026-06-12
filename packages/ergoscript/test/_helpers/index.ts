@@ -139,6 +139,21 @@ export function hydrateSValue(json: any): SValue {
         elem: json.elem as SType,
         items: (json.items as any[]).map(hydrateSValue),
       }
+    case 'Coll[Byte]': {
+      // SANTA compact byte-collection form (runner-contract §4): semantically
+      // identical to per-item Coll/SByte, added upstream for large payloads
+      // (the SBox token-window family carries >4KB box bytes as context
+      // input). INPUT-side only — results still encode as per-item Coll, so
+      // svalueToSantaJson needs no counterpart. Hydrates to the exact SValue
+      // the per-item form produces: signed i8 items, mirroring parseSValue's
+      // NativeColl arm (parse-svalue.ts:390-397).
+      const bytes = hexToBytes(json.value_hex as string)
+      const items: SValue[] = new Array(bytes.length)
+      for (let i = 0; i < bytes.length; i++) {
+        items[i] = { kind: 'Byte', value: (bytes[i]! << 24) >> 24 }
+      }
+      return { kind: 'Coll', elem: { tag: 'SByte' }, items }
+    }
     case 'Tuple':
       return {
         kind: 'Tuple',
