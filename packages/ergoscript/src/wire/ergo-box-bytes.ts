@@ -7,7 +7,8 @@
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
  *   ergo_tree_bytes — raw bytes written verbatim (self-delimiting via header)
  *   creation_height — VLQ u32 (sigma-ser `put_u32`)
- *   tokens_count    — raw u8 (NOT VLQ), max 122
+ *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
+ *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
  *   per-token       — 32-byte id (raw) + VLQ u64 amount
  *   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
  *   [full only] transaction_id — 32 raw bytes

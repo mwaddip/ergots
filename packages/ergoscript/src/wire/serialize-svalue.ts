@@ -40,7 +40,8 @@ export class SValueSerializeError extends Error {
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
  *   ergo_tree_bytes — raw bytes verbatim (self-delimiting via ErgoTree header)
  *   creation_height — VLQ u32 (sigma-ser `put_u32`)
- *   tokens_count    — raw u8 (NOT VLQ), max 122
+ *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
+ *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
  *   per-token       — 32-byte id (raw) + VLQ u64 amount
  *   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
  *
@@ -69,10 +70,14 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   }
   w.writeVlqU(box.creationHeight)
 
-  // tokens (raw u8 count + per-token id + amount)
-  if (box.tokens.length > 122) {
+  // tokens (raw u8 count + per-token id + amount). The only egress bound is
+  // the u8 wire ceiling: the JVM writes `putUByte(size)` which asserts
+  // 0..255 (ErgoBoxCandidate.scala:144; scorex-util putUByte). The JVM
+  // applies NO size window on egress — the 4096-byte candidate window is a
+  // parse-only rule (F5 batch 5; see the parse-svalue.ts SBox arm).
+  if (box.tokens.length > 255) {
     throw new SValueSerializeError(
-      `SBox tokens length ${box.tokens.length} exceeds MAX_TOKENS_COUNT (122)`,
+      `SBox tokens length ${box.tokens.length} exceeds the u8 wire ceiling (255)`,
       'sbox-tokens-out-of-range'
     )
   }

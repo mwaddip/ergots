@@ -80,6 +80,16 @@ const LAST_CONSTANT_CODE = 112
 // OP_TUPLE opcode value (sigma-rust `serialization/op_code.rs:184`):
 // `new_op_code(22)` = LAST_CONSTANT_CODE + 22 = 134 = 0x86.
 const OP_TUPLE = 134
+// JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024
+// (SigmaConstants.scala:24, surfaced at ErgoBox.scala:127). The SBox data
+// parse reads the candidate span (value → registers) under a lazy
+// `positionLimit` window of this many bytes, armed at candidate start
+// (ErgoBoxCandidate.scala:191-192) and restored after the registers loop
+// (:235); txId/index sit OUTSIDE the window (ErgoBox.scala:214-225).
+// Crossing the window is JVM validation rule 1014 `CheckPositionLimit`
+// (ValidationRules.scala:169-189), surfaced here as scorex
+// `ReaderError('position-limit-exceeded')`.
+const ERGO_BOX_MAX_SIZE = 4096
 
 /**
  * Parse a register-level Expr (sigma-rust calls `Expr::sigma_parse` here and
@@ -471,7 +481,10 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       //                     is stored verbatim on the SBox; downstream
       //                     callers may re-parse via parseTree(bytes).
       //   creation_height — VLQ u32 (`put_u32`)
-      //   tokens_count    — raw u8 (`put_u8`, NOT VLQ), capped at 122
+      //   tokens_count    — raw u8 (`put_u8`, NOT VLQ); no count gate — the
+      //                     u8 ceiling 255 is the natural bound (JVM getUByte,
+      //                     ErgoBoxCandidate.scala:200); the real bound is the
+      //                     4096-byte candidate window below
       //   per-token       — 32-byte TokenId (raw) + VLQ u64 amount (`put_u64`)
       //   additional_regs — raw u8 count (`put_u8`) + per-register:
       //                     SType byte + SValue bytes (same as inline Const wire)
@@ -485,6 +498,18 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // encodings (e.g. garbage-tail identity GE registers, normalized at
       // the SValue layer) still yield JVM-faithful distinct ids.
       const boxStart = r.position
+
+      // 4096-byte candidate window (F5 batch 5): arm at candidate start —
+      // mirrors ErgoBoxCandidate.scala:191-192. The window is LAZY (one
+      // entry check per logical read, strict `>`, straddles tolerated, an
+      // overrun by the candidate's FINAL read escapes — see the positionLimit
+      // block in facts/scorex.md). The save/restore is INLINE, NOT
+      // try/finally: a window-overrun throw abandons the parse exactly like
+      // the JVM (the reader is not reused after a parse error). A nested box
+      // (in a register) legitimately arms a window EXCEEDING this one for its
+      // inner span — the setter has no clamp (CoreByteReader.scala:133-137).
+      const previousPositionLimit = r.positionLimit
+      r.positionLimit = r.position + ERGO_BOX_MAX_SIZE
 
       // --- value (VLQ u64, unsigned) ---
       const value = r.readVlqBigInt()
@@ -518,13 +543,14 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       }
 
       // --- tokens (raw u8 count + per-token 32-byte id + VLQ u64 amount) ---
+      // NO count gate: the JVM reads `nTokens = r.getUByte()` bare
+      // (ErgoBoxCandidate.scala:200) — the u8 read's natural ceiling 255 is
+      // the only count bound; the real gate is the 4096-byte candidate window
+      // armed above. (The pre-F5-batch-5 >122 gate mirrored sigma-rust's
+      // BoundedVec<Token, 1, 122> — their own comment, ergo_box.rs:100-104,
+      // marks it a count-shaped approximation of the size rule. SANTA-measured
+      // boundary: 123 tokens fits the window; the JVM accepts.)
       const tokenCount = r.readU8() // raw u8, NOT VLQ
-      if (tokenCount > 122) {
-        throw new SValueParseError(
-          `SBox tokens count ${tokenCount} exceeds MAX_TOKENS_COUNT (122)`,
-          'sbox-tokens-out-of-range'
-        )
-      }
       const tokens: { id: Uint8Array; amount: bigint }[] = []
       for (let i = 0; i < tokenCount; i++) {
         const id = r.readBytes(32).slice()
@@ -565,6 +591,12 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           registers[4 + i] = { tpe: parsed.tpe, value: parsed.value }
         }
       }
+
+      // Restore the enclosing window: the candidate span ends with the
+      // registers; txId/index sit OUTSIDE it — mirrors the
+      // ErgoBoxCandidate.scala:235 restore running BEFORE ErgoBox's
+      // txId/index reads (ErgoBox.scala:214-225).
+      r.positionLimit = previousPositionLimit
 
       // --- transaction_id (32 raw bytes) ---
       const txId = r.readBytes(32).slice()
