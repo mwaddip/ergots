@@ -106,6 +106,32 @@ describe('ByteReader positionLimit (lazy read window)', () => {
     expectPositionLimitThrow(() => r.readU8()); // next logical read: 4 > 1
   });
 
+  it('readVlqBigInt beginning past the limit throws (kills the entry-check mutation)', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 0x05]));
+    r.readBytes(2); // position 2
+    r.positionLimit = 1;
+    // readVlqBigInt's OWN entry check fires (2 > 1) before any byte is
+    // consumed; without it the unchecked loop would happily return 5n.
+    expectPositionLimitThrow(() => r.readVlqBigInt());
+  });
+
+  it('readBytes(n>0) beginning past the limit throws (kills the entry-check mutation)', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3, 4, 5]));
+    r.readBytes(3); // position 3
+    r.positionLimit = 2;
+    // 2 bytes remain, so without readBytes' entry check this would succeed.
+    expectPositionLimitThrow(() => r.readBytes(2));
+  });
+
+  it('readBytes(0) beginning past the limit throws (JVM getBytes checks before size)', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3]));
+    r.readBytes(3); // position 3 (= EOF; zero-length reads would still succeed)
+    r.positionLimit = 2;
+    // Entry check precedes the size logic — zero-length parity with JVM
+    // getBytes, which calls checkPositionLimit() before looking at size.
+    expectPositionLimitThrow(() => r.readBytes(0));
+  });
+
   it('save/set/restore: an inner window may exceed the outer; restore reinstates it', () => {
     const r = new ByteReader(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
     r.positionLimit = 2; // outer window

@@ -98,12 +98,14 @@ export class ByteReader {
   // ≤ limit, end past it), exactly like JVM getULong/getBytes — so an overrun by a
   // windowed span's FINAL read escapes entirely. readVlqU / readVlqS /
   // readVlqBigIntSigned / readBool / readOption / readArray inherit the check
-  // through those three primitives. The free function readFixed (digests.ts) does
-  // NOT participate: its catch-all re-codes any underlying reader error to
-  // 'truncated', so a window violation through it surfaces as 'truncated'; no
-  // windowed caller exists today (only the header/AutolykosSolution and
-  // nipopow-envelope codecs use it, never under a window). slice() is
-  // non-consuming and does NOT check.
+  // through those three primitives, and the vlq.ts free functions (decodeVlqU /
+  // decodeVlqZigZag / readVlqU32) DELEGATE to readVlqBigInt / readVlqBigIntSigned —
+  // one window check per logical read, never per-byte (T2 quality review C1: a
+  // per-byte loop over public readU8 would reject straddling VLQs the JVM accepts).
+  // readFixed (digests.ts) PARTICIPATES via readBytes' entry check and passes
+  // 'position-limit-exceeded' through UNMODIFIED; any other underlying failure
+  // keeps its named-field re-code to 'truncated' (T2 quality review I2). slice()
+  // is non-consuming and does NOT check.
   get positionLimit(): number       // absolute offset; default = buffer byte length
   set positionLimit(limit: number)  // plain assignment — no clamp, no validation
 
@@ -177,6 +179,9 @@ export class PowHitInvalidParamsError extends Error {
 // ─── VLQ free functions ───────────────────────────────────────────────────────
 
 // Encode/decode accept and return bigint (arbitrary precision; callers narrow to number as needed).
+// The decode-side functions are delegating wrappers over the ByteReader methods
+// (readVlqBigInt / readVlqBigIntSigned): ONE positionLimit check per logical read
+// (see the window block above); the encode side keeps its own emit loop.
 export function encodeVlqU(value: bigint): Uint8Array          // throws Error on negative
 export function decodeVlqU(reader: ByteReader): bigint         // throws ReaderError('vlq-overflow') on >10 bytes
 export function encodeVlqZigZag(value: bigint): Uint8Array     // i64 zigzag; throws Error on out-of-i64-range
@@ -198,7 +203,8 @@ export const EC_POINT_LEN = 33   // bytes (compressed secp256k1 point)
 // ─── Digest helpers ──────────────────────────────────────────────────────────
 
 export function readFixed(reader: ByteReader, len: number, name: string): Uint8Array
-  // throws ReaderError('truncated') if fewer than len bytes remain
+  // throws ReaderError('truncated') if fewer than len bytes remain;
+  // a 'position-limit-exceeded' from readBytes' window entry check passes through UNMODIFIED
 
 export function writeFixed(writer: ByteWriter, bytes: Uint8Array, expectedLen: number, name: string): void
   // throws Error if bytes.length !== expectedLen (programming error)
@@ -364,8 +370,11 @@ These represent malformed or truncated wire input, not programming errors on the
 //                         Direct check sites: readU8, readBytes, readVlqBigInt (entry
 //                         check only — see the window block in the public surface);
 //                         readVlqU/readVlqS/readVlqBigIntSigned/readBool/readOption/
-//                         readArray inherit through them. JVM analogue:
-//                         CheckPositionLimit, validation rule 1014
+//                         readArray inherit through them, as do the vlq.ts free
+//                         functions (decodeVlqU/decodeVlqZigZag/readVlqU32, by
+//                         delegation) and readFixed (passes the code through
+//                         UNMODIFIED — only other failures re-code to 'truncated').
+//                         JVM analogue: CheckPositionLimit, validation rule 1014
 //                         (ValidationRules.scala:169-189; CoreByteReader.scala:25-27)
 ```
 
@@ -395,7 +404,7 @@ Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdo
 - `nipopow-reader.test.ts` — `ByteReader` used in nipopow-style call patterns; exercises the VLQ path on real proof bytes.
 - `nipopow-writer.test.ts` — `ByteWriter` in nipopow-style serialization patterns.
 - `option-array.test.ts` — `readOption`/`writeOption`, `readArray`/`writeArray`, `readBool`/`writeBool`; null and present branches; multi-element arrays; `array-too-large` error path.
-- `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; u64 timestamp lossless round-trip (beyond 2^53).
+- `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; u64 timestamp lossless round-trip (beyond 2^53); `readFixed` 'position-limit-exceeded' pass-through (not re-coded to 'truncated').
 - `autolykos-solution.test.ts` — `parseAutolykosSolution`/`serializeAutolykosSolution` byte-equality; v1 and v2 layouts; `powDistance` minimal-encoding round-trip.
 - `autolykos-v2.test.ts` — `verifyAutolykosV2` against mainnet V2 headers; V1 throw path; helpers' unit tests.
 - `nbits.test.ts` — `decodeCompactBits` round-trip + boundary values.
@@ -408,7 +417,7 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 |---|---|---|
 | `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `ByteWriter.writeVlqBigInt` / `ByteReader.readVlqBigInt` (`writer.ts`, `reader.ts`) | VLQ loop; BigInt accumulator used to avoid 32-bit truncation |
 | `sigma-ser/src/zig_zag_encode.rs::encode` / `decode` | `ByteWriter.writeVlqBigIntSigned` / `ByteReader.readVlqBigIntSigned` (`writer.ts`, `reader.ts`) | ZigZag `(v<<1)^(v>>63)` — sign-aware shift emulated via BigInt masking |
-| `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag` (`vlq.ts`) | Free-function API; same algorithm as the reader/writer methods |
+| `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag` (`vlq.ts`) | Free-function API; the decode side is a delegating wrapper over `ByteReader.readVlqBigInt` / `readVlqBigIntSigned` (one positionLimit check per logical read — T2 quality review C1); the encode side keeps its own emit loop |
 | `sigma-ser/src/scorex_serialize.rs::SigmaSerializable` | `ByteReader` / `ByteWriter` classes | Scorex reader/writer pattern; Fleet SDK ergonomic helpers (readOption/writeOption/readArray/writeArray/readBool/writeBool) are TS-only additions not present in sigma-ser |
 | `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived in-process by `deriveHeaderId` — ⚠ RE-SERIALIZATION basis, see the `deriveHeaderId` caveat in the public-surface section (JVM + sigma-rust e-n-i hash the consumed input slice instead; diverges on adversarial non-minimal encodings; fix pending user scope decision) |
 | `ergo-chain-types/src/header.rs::Header::scorex_serialize` | `serializeHeader` (`header.ts`) | Full header bytes = `serializeHeaderWithoutPow` + `serializeAutolykosSolution` |
@@ -418,7 +427,7 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | (TS-only) | `readFixed`, `writeFixed` (`digests.ts`) | Named-field wrappers over `readBytes`/`writeBytes` with length checks; simplify fixed-size digest reads in `header.ts` and `autolykos-solution.ts` |
 | (TS-only) | `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN` (`digests.ts`) | Named length constants for clarity |
 | (TS-only) | `MAX_ARRAY_LENGTH` (`reader.ts`) | DoS cap for `readArray`; 1 << 24 = 16,777,216 |
-| (TS-only) | `readVlqU32` (`vlq.ts`) | Convenience wrapper: `decodeVlqU` + assert <= 0xffffffff |
+| (TS-only) | `readVlqU32` (`vlq.ts`) | Convenience wrapper: `ByteReader.readVlqBigInt` + assert <= 0xffffffff |
 | `@noble/hashes/blake2.js` (third-party) | `blake2b256` (`src/crypto/blake2b256.ts`) | Internal-only; not exported from index.ts |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::pow_hit` (lines 176-197) | `verifyAutolykosV2` + helpers (`autolykos-v2.ts`) | V2 path only; V1 sigma-rust returns pow_distance but our port throws AutolykosV1NotSupportedError |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::decode_compact_bits` | `decodeCompactBits` (`nbits.ts`) | Bitcoin-compact-bits target unpacking; bit-exact mirror |
@@ -443,9 +452,7 @@ These items are deferred from phase 2h-c.0 and documented here so successor sess
 
 - **`readBool` and `readOption` throw `'truncated'` for malformed-but-present tag bytes.** When `readBool` reads a byte that is present but neither 0 nor 1, it throws `ReaderError('truncated')`. This is technically wrong — the buffer is not truncated; the byte is malformed. A future minor revision may add a `'malformed-value'` code variant for these cases. Requires coordinating the `ReaderError` code union change with all catch sites in `@ergots/nipopow` and `@ergots/ergoscript` that dispatch on `.code`. Low priority: in practice these call sites see only well-formed data from sigma-rust-generated fixtures.
 
-- **`MAX_VLQ_BYTES` constant is declared twice.** Both `reader.ts` and `vlq.ts` declare `const MAX_VLQ_BYTES = 10` independently. This is a minor DRY gap. Moving it to a shared `_constants.ts` or having one file import from the other is a clean but non-urgent follow-up.
-
-- **VLQ encode/decode loops are duplicated between class methods and free functions.** `ByteReader.readVlqBigInt` and `decodeVlqU` implement the same 10-iteration loop; `ByteWriter.writeVlqBigInt` and `encodeVlqU` implement the same emit loop (~20 LOC each). The free functions were preserved as a stateless API for callers that don't have a cursor (e.g. constructing a VLQ prefix length to prepend). A unification via a `_vlq_core.ts` internal module is feasible but has no functional impact.
+- **VLQ ENCODE loop is duplicated between the writer method and the free function.** `ByteWriter.writeVlqBigInt` and `encodeVlqU` implement the same emit loop (~20 LOC). The decode-side duplication was eliminated by the T2 quality review (C1): `decodeVlqU` / `decodeVlqZigZag` / `readVlqU32` now DELEGATE to `ByteReader.readVlqBigInt` / `readVlqBigIntSigned` — the duplication was not cosmetic, it was a latent consensus fork (the free functions looped over public `readU8()`, firing a PER-BYTE positionLimit check under an armed window where the methods — and the JVM getULong — check once per logical read; a VLQ straddling the window limit was rejected instead of accepted). The remaining encode-side duplication has no equivalent hazard (writers carry no window); unifying it via a shared emit helper stays a clean but non-urgent follow-up. (`MAX_VLQ_BYTES` is now declared once, in `reader.ts` — the old double declaration went away with `decodeVlqU`'s loop.)
 
 - **`hexToBytes` / `bytesToHex` test helpers are duplicated.** `packages/scorex/test/helpers.ts` and `packages/nipopow/test/helpers.ts` both define these utilities. They are test-only and not in any published output. A shared `@ergots/test-utils` subpath export is a reasonable future step once the duplication burden grows.
 

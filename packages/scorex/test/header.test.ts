@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { parseHeader, serializeHeader, deriveHeaderId } from '../src/header.ts';
+import { readFixed } from '../src/digests.ts';
 import { ByteReader } from '../src/reader.ts';
 import { ReaderError } from '../src/errors.ts';
 import { hexToBytes, bytesToHex } from './helpers.ts';
@@ -64,6 +65,21 @@ describe('Header', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(ReaderError);
       expect((e as ReaderError).code).toBe('truncated');
+    }
+  });
+
+  test('readFixed passes position-limit-exceeded through unmodified (not re-coded to truncated)', () => {
+    // The window entry check is a consensus gate (JVM CheckPositionLimit, rule
+    // 1014); readFixed's truncation catch-all must not swallow its code.
+    const r = new ByteReader(new Uint8Array([1, 2, 3, 4, 5]));
+    r.readBytes(3); // position 3
+    r.positionLimit = 2;
+    try {
+      readFixed(r, 2, 'windowed'); // 2 bytes remain, so only the window can throw
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ReaderError);
+      expect((e as ReaderError).code).toBe('position-limit-exceeded');
     }
   });
 

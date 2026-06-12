@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag, ByteReader, ReaderError } from '../src/index.ts';
+import { encodeVlqU, decodeVlqU, encodeVlqZigZag, decodeVlqZigZag, readVlqU32, ByteReader, ReaderError } from '../src/index.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +80,29 @@ describe('VLQ unsigned (scorex free functions)', () => {
     // method (readVlqBigInt) to confirm both decode sites are fixed.
     const r = new ByteReader(new Uint8Array([0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x02]));
     expect(r.readVlqBigInt()).toBe(0n);
+  });
+});
+
+describe('VLQ free functions under a positionLimit window (delegation to reader methods)', () => {
+  test('readVlqU32 straddling the limit is ONE logical read: value returned, NEXT read throws', () => {
+    // VLQ(100000) = [0xa0, 0x8d, 0x06] — 3 bytes starting exactly AT the limit.
+    const r = new ByteReader(new Uint8Array([0x00, 0xa0, 0x8d, 0x06, 0x55]));
+    r.readU8(); // position 1
+    r.positionLimit = 1;
+    // Entry check passes (1 is not > 1); the 2nd and 3rd VLQ bytes sit at
+    // positions 2 and 3, past the limit. A free function looping over public
+    // readU8() would fire a PER-BYTE window check and reject here — a consensus
+    // fork against the JVM (getULong checks once, then reads bare). Delegating
+    // to ByteReader.readVlqBigInt gives the one-check-per-logical-read shape.
+    expect(readVlqU32(r, 'straddle')).toBe(100000);
+    // The window fires on the NEXT logical read (position 4 > 1).
+    try {
+      r.readU8();
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ReaderError);
+      expect((e as ReaderError).code).toBe('position-limit-exceeded');
+    }
   });
 });
 
