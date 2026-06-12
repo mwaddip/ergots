@@ -474,7 +474,7 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       //   ergo_tree_bytes — self-delimiting via ErgoTree header. Sigma-rust
       //                     calls `ErgoTree::sigma_parse(r)` on the shared
       //                     reader (chain/ergo_box.rs:350). We mirror via
-      //                     `parseTreeFromReader` which handles both
+      //                     `consumeTreeFromReader` which handles both
       //                     hasSize=true (size-prefixed body) and
       //                     hasSize=false (body grammar self-delimits) as
       //                     of phase 2j-pre fix-1. The captured byte range
@@ -516,12 +516,13 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
 
       // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
       // Sigma-rust calls `ErgoTree::sigma_parse(r)` on the shared reader
-      // at `chain/ergo_box.rs:350`. We mirror via `parseTreeFromReader`
+      // at `chain/ergo_box.rs:350`. We mirror via `consumeTreeFromReader`
       // which handles both `hasSize=true` (size-prefixed bounded body)
       // and `hasSize=false` (body grammar self-delimits) on the shared
-      // reader. The returned ErgoTree value is discarded here — the SBox
-      // only needs the raw bytes; downstream callers re-parse via the
-      // public `parseTree` if they want structural access.
+      // reader. No parsed tree is returned (the consumer only advances
+      // the cursor) — the SBox only needs the raw bytes; downstream
+      // callers re-parse via the public `parseTree` if they want
+      // structural access.
       // Use the lenient consumer: for `hasSize=true` trees, the body is
       // skipped without attempting to parse — sigma-rust similarly wraps
       // such trees as `ErgoTree::Unparsed { tree_bytes, error }` and

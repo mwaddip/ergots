@@ -184,6 +184,25 @@ describe('SBox 4096-byte candidate window (parse)', () => {
     expectPositionLimit(() => parseBox(bytes))
   })
 
+  // (i) Sized-tree skip straddling the window (T3 review rider): the box's
+  // ErgoTree field is a SIZED tree — header 0x08 (v0 + hasSize), VLQ size
+  // 4200 — whose body the lenient consumer SKIPS via one readBytes(4200) on
+  // the shared (windowed) reader. Walk: the skip BEGINS at 4 <= 4096 (entry
+  // check passes) and ENDS at 4204 — a straddle, tolerated like any logical
+  // read — then the creationHeight read begins at 4204 > 4096 -> rule-1014
+  // reject. Pins the skip-path readBytes inside `consumeTreeFromReader` to
+  // the candidate window (a refactor that consumed the sized body off-window
+  // — e.g. via a forked sub-reader — would accept this box).
+  it("rejects a sized-tree skip crossing the window with 'position-limit-exceeded' (reject at the creationHeight read)", () => {
+    const sizedTree = [0x08, ...vlq(4200), ...(Array(4200).fill(0x77) as number[])]
+    const { bytes, candidateLength } = buildBox({ tree: sizedTree })
+    // candidate = value(1) + tree(1 + 2 + 4200) + height(1) + tokenCount(1)
+    // + regCount(1) = 4207 > 4096
+    expect(candidateLength).toBe(4207)
+
+    expectPositionLimit(() => parseBox(bytes))
+  })
+
   // (c) Fat-trailing ACCEPT — the lazy pin (SANTA destobox-fat-trailing-accept):
   // 2 tokens + a LAST register that is a fat Coll[Byte] (4200-byte payload).
   // Layout: head 5 + 2*33 = 71 -> regCount at 71; R4 type 0x0e at 72, VLQ
