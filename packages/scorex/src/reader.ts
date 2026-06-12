@@ -288,8 +288,8 @@ export class ByteReader {
       if ((byte & 0x80) === 0) {
         // References accumulate into a 64-bit int: bits shifted past bit 63 are
         // silently discarded (sigma-rust vlq_encode.rs get_u64; JVM scorex-util
-        // getULong — both the protobuf CodedInputStream loop). See vlq.ts
-        // decodeVlqU for the same fix and rationale.
+        // getULong — both the protobuf CodedInputStream loop). vlq.ts decodeVlqU
+        // delegates here, so this is the single decode loop.
         return BigInt.asUintN(64, result);
       }
       shift += 7n;
