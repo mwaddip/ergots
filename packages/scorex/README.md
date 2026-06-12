@@ -32,6 +32,15 @@ w.writeArray([1, 2, 3], (sub, v) => sub.writeU8(v));
 const out = w.toBytes();            // Uint8Array
 ```
 
+`ByteReader.positionLimit` (getter/setter) arms a lazy read window: a consuming read that *begins* past the limit throws `ReaderError('position-limit-exceeded')`. ONE entry check per logical primitive (`readU8` / `readBytes` / `readVlqBigInt`; every other read inherits through them), strict `>` — a read that merely straddles the limit is tolerated. The setter is plain assignment (no clamp, no validation); the default is the buffer end. Save/restore around a bounded span mirrors the JVM `CoreByteReader.positionLimit` accessor (`CoreByteReader.scala:133-137`; validation rule 1014 `CheckPositionLimit`, `ValidationRules.scala:169-189`):
+
+```ts
+const saved = r.positionLimit;
+r.positionLimit = r.position + maxSize;
+// ... bounded reads; an overrunning read throws ReaderError('position-limit-exceeded') ...
+r.positionLimit = saved;
+```
+
 ### Block Header types and codecs
 
 ```ts
