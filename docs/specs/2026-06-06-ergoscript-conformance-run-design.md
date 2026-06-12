@@ -608,6 +608,47 @@ them in — all sigma-rust-inherited ingress shapes where the JVM is canonical):
 **Process:** batch-3 cadence — per-task subagent TDD chain (implementer → spec review → quality
 review), per-task commits, full gate (monorepo + tsc ×4) at close-out, push on user go.
 
+### F5 batch 5 — SBox token window (Ask-18 verdict execution) — ✅ DONE 2026-06-12 (LOCAL, not pushed)
+
+**Outcome (single-member batch; 8 commits `f12010d..a105fb5` + this close-out):** T1 contracts
+`f12010d`+`bcaab22` · T2 scorex positionLimit `ae30c14`+`3a3a5d5` · T3 SBox window `ee07f5a`+`48f327a`
+· T4 vendor+hydration `9a70f12` · T5 docs `a105fb5`. **The fix = the settled verdict's revised shape
+with SANTA's lazy refinement:** scorex ByteReader gained the JVM-faithful `positionLimit` facility
+(entry check at readU8/readBytes/readVlqBigInt, strict `>`, ONE check per logical read, no-clamp
+setter; ReaderError 5→6 codes, `'position-limit-exceeded'` = rule-1014 analog; **vlq free functions
+delegated to the reader methods — the T2 quality review caught their duplicated per-byte loop as a
+latent straddle-over-reject FORK** with five in-window callers; readFixed passes the code through);
+the SBox data-parse arm arms `position + 4096` over the candidate span (txId/index outside, inline
+restore = ErgoBoxCandidate.scala:191/:235), the >122 token-count gate is DELETED (u8 natural
+ceiling; JVM has none), serialize relaxed 122→255 in lockstep. T3 pins include the nested
+box-in-register widening pair (f1 reject-site @4105 proves no-clamp widening AND outer-limit
+restore; the "inner-candidate-crosses-outer + accept" shape proven structurally unconstructible,
+JVM included) and the straddling-final-VLQ integration pin. Ask-18 families vendored verbatim
+(6/6 green incl. the two former dasher reds destobox-123 @ 123/4295 + fat-then-reg errored) +
+the compact Coll[Byte] `value_hex` hydration arm (runner-contract §4). **Gate: monorepo 7,000
+green** (scorex 200 / avltree 156 / nipopow 247 / ergoscript 6,397; node AND jsdom for
+scorex+ergoscript), conformance **2,353** (+6), build + tsc ×4 clean. Eval codes **84 (unchanged)**;
+the new code is scorex wire-layer. Cadence held: per-task implementer → spec review → quality
+review; reviews caught real items at T1 (readFixed inheritance claim false vs digests.ts catch-all),
+T2 (the C1 fork + I1 mutation-kill gaps + I2 readFixed re-code), T3 (sized-tree-skip pin + stale
+consume-path comment). **scorex public API grew (additive) — rides the queued v6-delivery republish.**
+
+**NEW findings (recorded, NOT in batch):**
+4. **SBox creationHeight u32-vs-toIntExact (T3 carve-out):** JVM `getUIntExact` THROWS on
+   creationHeight > 2³¹−1 (ErgoBoxCandidate.scala:195-199, the NO-FORK v4→v5 note); ergots accepts
+   up to u32 (sigma-rust `get_u32` shape) → over-accept on (2³¹−1, 2³²−1], adversarial-only,
+   reachable via Box constants / deserializeTo[Box]. Same `getUInt().toIntExact` idiom family as
+   the deferred scorex parseHeader height finding (b). Batch-6 candidate; SANTA pin first.
+5. **deserializeErgoTree MaxPropositionSize windows (T3 spec-review observation):** the JVM arms a
+   second 4096 window around EVERY `deserializeErgoTree` (ErgoTreeSerializer.scala:141-144) —
+   derived verdict-equivalent INSIDE the box candidate (probe-pinned via the sized-tree-skip pin),
+   but the top-level/other call sites are exactly the queued **parseTree cap-parity** verdict item
+   (Ask-18 rider) — the observation folds there, strengthening that item's JVM cite set.
+
+**Push prediction: dasher 23 → 21** (the 2 token-window reds flip at our push; 21 = the roadmap
+rows). sigma-rust routing (BoundedVec-122 + no parse window, both directions) is SANTA's, already
+routed (`sigma-rust-…` per their reply).
+
 ### Re-grade prediction table (the phase-gate oracle) — updated for the 74-row surface
 
 Eval-tier reds at F1 start = 53 (the 47-row inventory's 26 ergots-bug minus the 21 tx-scope
