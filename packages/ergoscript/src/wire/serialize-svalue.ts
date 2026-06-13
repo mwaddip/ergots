@@ -39,7 +39,7 @@ export class SValueSerializeError extends Error {
  * `chain/ergo_box.rs:302-344`):
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
  *   ergo_tree_bytes — raw bytes verbatim (self-delimiting via ErgoTree header)
- *   creation_height — VLQ u32 (sigma-ser `put_u32`)
+ *   creation_height — VLQ; JVM reads via `getUIntExact` (i32 ceiling, 2^31-1)
  *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
  *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
  *   per-token       — 32-byte id (raw) + VLQ u64 amount
@@ -57,14 +57,21 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
   w.writeBytes(box.ergoTreeBytes)
 
-  // creation_height (VLQ u32)
+  // creation_height (VLQ). Reject > Int.MaxValue (2^31-1), mirroring the parse
+  // bound. The JVM SERIALIZER writes via `putUInt` (accepts full u32; only the
+  // READER `getUIntExact` throws on > 0x7fffffff), but a box can never arrive
+  // from a JVM-faithful parse with a height > 2^31-1, and we keep the
+  // parse/serialize bounds identical so round-trips stay stable — same
+  // serialize-symmetry rationale as the `index`/u16 cap below. (Prior bound was
+  // u32, mirroring non-canonical sigma-rust `get_u32`; re-anchored to the JVM
+  // `getUIntExact`, ErgoBoxCandidate.scala:195.)
   if (
     !Number.isInteger(box.creationHeight) ||
     box.creationHeight < 0 ||
-    box.creationHeight > 0xffffffff
+    box.creationHeight > 0x7fffffff
   ) {
     throw new SValueSerializeError(
-      `SBox creation_height ${box.creationHeight} out of u32 range`,
+      `SBox creation_height ${box.creationHeight} exceeds 2^31-1 (Int.MaxValue; JVM getUIntExact mirror)`,
       'sbox-creation-height-out-of-range'
     )
   }

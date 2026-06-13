@@ -106,13 +106,13 @@
     },
     {
       "name": "boundary",
-      "description": "Box at boundary values: value=MAX_RAW, height=u32::MAX, index=u16::MAX, txId=0xff*32",
-      "full_hex": "ffffffffffffffff7f09020101ffffffff0f0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff03",
-      "no_ref_hex": "ffffffffffffffff7f09020101ffffffff0f0000",
+      "description": "Box at boundary values: value=MAX_RAW, height=i32::MAX, index=u16::MAX, txId=0xff*32",
+      "full_hex": "ffffffffffffffff7f09020101ffffffff070000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff03",
+      "no_ref_hex": "ffffffffffffffff7f09020101ffffffff070000",
       "box_json": {
         "value": "9223372036854775807",
         "ergo_tree_hex": "09020101",
-        "creation_height": 4294967295,
+        "creation_height": 2147483647,
         "tokens": [],
         "registers": [],
         "tx_id_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",

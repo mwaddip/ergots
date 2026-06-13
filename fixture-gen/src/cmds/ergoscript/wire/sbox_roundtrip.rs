@@ -223,7 +223,17 @@ pub fn generate() -> anyhow::Result<SboxRoundtripFixture> {
 
     // -----------------------------------------------------------------------
     // Entry 5: box at boundary conditions (max reasonable size for test coverage):
-    //   value = u64::MAX (i64::MAX per BoxValue::MAX_RAW), index=65535, height=u32::MAX
+    //   value = u64::MAX (i64::MAX per BoxValue::MAX_RAW), index=65535, height=i32::MAX
+    //
+    // creation_height is i32::MAX (0x7fffffff), NOT u32::MAX. The JVM consensus
+    // reader is `r.getUIntExact` (ErgoBoxCandidate.scala:195) = `.toIntExact`,
+    // which throws an ArithmeticException for any value > Int.MaxValue — so a
+    // box with height u32::MAX is consensus-INVALID (the JVM rejects it at
+    // parse). sigma-rust's reader is looser (`r.get_u32()`, ergo_box.rs:433,
+    // accepts the full u32) which is the divergence ergots closes; even
+    // sigma-rust's own proptest generator only emits `0..i32::MAX`
+    // (ergo_box.rs:505). i32::MAX is the genuine consensus ceiling, so this
+    // boundary fixture exercises the real edge.
     // -----------------------------------------------------------------------
     {
         let value = BoxValue::new(BoxValue::MAX_RAW).expect("BoxValue max");
@@ -234,7 +244,7 @@ pub fn generate() -> anyhow::Result<SboxRoundtripFixture> {
             ergo_tree: tree,
             tokens: None,
             additional_registers: NonMandatoryRegisters::empty(),
-            creation_height: u32::MAX,
+            creation_height: i32::MAX as u32,
         };
         let tx_id = {
             let bytes: [u8; 32] = [0xff; 32];
@@ -245,7 +255,7 @@ pub fn generate() -> anyhow::Result<SboxRoundtripFixture> {
             .expect("ErgoBox boundary");
         entries.push(SboxRoundtripEntry {
             name: "sbox_boundary".to_string(),
-            description: "Box at boundary values: value=MAX_RAW, height=u32::MAX, index=u16::MAX, txId=0xff*32".to_string(),
+            description: "Box at boundary values: value=MAX_RAW, height=i32::MAX, index=u16::MAX, txId=0xff*32".to_string(),
             bytes_hex: box_to_hex(&b)?,
         });
     }

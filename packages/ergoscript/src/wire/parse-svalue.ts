@@ -533,12 +533,22 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       consumeTreeFromReader(r)
       const ergoTreeBytes = r.slice(treeStart, r.position).slice()
 
-      // --- creation_height (VLQ u32; rejects > u32 to match sigma-rust
-      //     `r.get_u32()` at chain/ergo_box.rs:351) ---
+      // --- creation_height (VLQ; rejects > Int.MaxValue (2^31-1) to match the
+      //     JVM consensus reader `r.getUIntExact` (ErgoBoxCandidate.scala:195) =
+      //     `getUInt().toIntExact` (CoreByteReader.scala:73), which throws an
+      //     ArithmeticException for any value > 0x7fffffff. The ceiling is i32,
+      //     NOT u32 (the prior `> 0xffffffff` mirrored the non-canonical
+      //     sigma-rust `get_u32` at chain/ergo_box.rs:351 — looser than the JVM,
+      //     a latent fork on a hand-crafted height in (2^31, 2^32)). NO-FORK per
+      //     ErgoBoxCandidate.scala:195-199: v4.x used `.toInt` (wrap-to-negative,
+      //     then rejected by tx-validation rule #122); v5.x throws at parse —
+      //     same accept/reject outcome. ergots is a v5+/v6 validator → parse-
+      //     reject here. (The scorex header-height u32 sibling is deferred to its
+      //     own branch.) ---
       const creationHeight = r.readVlqU()
-      if (creationHeight > 0xffffffff) {
+      if (creationHeight > 0x7fffffff) {
         throw new SValueParseError(
-          `SBox creation_height ${creationHeight} out of u32 range`,
+          `SBox creation_height ${creationHeight} exceeds 2^31-1 (Int.MaxValue; JVM getUIntExact)`,
           'sbox-creation-height-out-of-range'
         )
       }

@@ -1,17 +1,31 @@
 /**
  * Audit follow-up (out-of-scope observation from audit20260601): SBox integer
- * fields must match sigma-rust's wire widths. `creation_height` is `get_u32`
- * (ergo_box.rs:351) and `index` is `get_u16` (ergo_box.rs:220), but our parser
- * read both via the generic `readVlqU()` with no ceiling — more permissive than
- * sigma-rust. The serializer already bounds `index` (`sbox-index-out-of-range`,
- * serialize-svalue.ts:373) but NOT `creation_height` (it just `writeVlqU`s it).
- * These tests pin both bounds on both sides.
+ * fields must match the JVM consensus reader's wire widths.
  *
- * RED before the fix: an over-u32 creation_height and an over-u16 index both
- * parse successfully; an over-u32 creation_height also serializes successfully.
+ * `creation_height` is read by the JVM via `r.getUIntExact`
+ * (ErgoBoxCandidate.scala:195) = `getUInt().toIntExact` (CoreByteReader.scala:73),
+ * which throws an `ArithmeticException` for any value > `Int.MaxValue`
+ * (2^31-1 = 0x7fffffff). So the consensus ceiling is i32 (2^31-1), NOT u32 —
+ * a 5-byte VLQ height in (2^31, 2^32) parses for a u32-permissive reader but
+ * the JVM (v5.x+) rejects it at parse. The NO-FORK comment at
+ * ErgoBoxCandidate.scala:195-199 confirms this tightening is consensus-safe:
+ * v4.x used `.toInt` (wrapping to a negative Int, then rejected later by
+ * tx-validation rule #122), v5.x throws at the parse layer — same accept/reject
+ * outcome. ergots is a v5+/v6 validator, so the faithful behavior is
+ * parse-reject at > 0x7fffffff.
+ *
+ * `index` is read via `r.getUShort` (ErgoBox.scala) — a u16 ceiling (0xffff).
+ * The serializer mirrors both bounds (round-trip-stable: a box can never arrive
+ * from a JVM-faithful parse with an out-of-bounds field, so mirroring keeps the
+ * parse/serialize bounds identical).
+ *
+ * (The earlier u32 framing cited sigma-rust `get_u32` (ergo_box.rs:351) — the
+ * non-canonical source and the source of the wrong, looser bound. Re-anchored
+ * to the JVM per the 2026-06-11 fork-closure pass.)
  *
  * Sibling of `svalue-u32-length-bounds.test.ts` (audit ERG-PARSE-01), which
- * covers the SAvlTree/SString *length* fields.
+ * covers the SAvlTree/SString *length* fields. The scorex header-height u32
+ * sibling is deferred to its own branch.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -38,17 +52,26 @@ function sboxBytes(creationHeightVlq: number[], indexVlq: number[]): Uint8Array 
   ])
 }
 
-// VLQ(2^32) — first value strictly above the u32 ceiling (0xffffffff).
-const VLQ_2_POW_32 = [0x80, 0x80, 0x80, 0x80, 0x10]
+// VLQ(2^31) = 0x80000000 — first value strictly above the i32 ceiling
+// (Int.MaxValue = 0x7fffffff). The JVM `getUIntExact.toIntExact` throws here.
+const VLQ_2_POW_31 = [0x80, 0x80, 0x80, 0x80, 0x08]
+// VLQ(2^31 - 1) = 0x7fffffff — the largest accepted creation_height.
+const VLQ_I32_MAX = [0xff, 0xff, 0xff, 0xff, 0x07]
 // VLQ(65536) — first value strictly above the u16 ceiling (0xffff).
 const VLQ_65536 = [0x80, 0x80, 0x04]
 
 describe('SBox integer field bounds (audit follow-up)', () => {
-  it('parser rejects creation_height above u32', () => {
-    const bytes = sboxBytes(VLQ_2_POW_32, [0x00])
+  it('parser rejects creation_height above i32 (2^31, > Int.MaxValue)', () => {
+    const bytes = sboxBytes(VLQ_2_POW_31, [0x00])
     expect(() => parseSValue({ tag: 'SBox' }, 0, new ByteReader(bytes))).toThrow(
-      /creation_height.*out of u32 range/,
+      /creation_height.*exceeds 2\^31-1/,
     )
+  })
+
+  it('parser accepts creation_height at the i32 ceiling (2^31 - 1)', () => {
+    const sbox = parseSValue({ tag: 'SBox' }, 0, new ByteReader(sboxBytes(VLQ_I32_MAX, [0x00])))
+    if (sbox.kind !== 'Box') throw new Error(`expected Box, got ${sbox.kind}`)
+    expect(sbox.value.creationHeight).toBe(0x7fffffff)
   })
 
   it('parser rejects index above u16', () => {
@@ -58,14 +81,26 @@ describe('SBox integer field bounds (audit follow-up)', () => {
     )
   })
 
-  it('serializer rejects creation_height above u32', () => {
-    // Parse a valid box, bump creation_height past u32, expect serialize to reject.
+  it('serializer rejects creation_height above i32 (2^31, > Int.MaxValue)', () => {
+    // Parse a valid box, bump creation_height past i32 max, expect serialize to reject.
     const sbox = parseSValue({ tag: 'SBox' }, 0, new ByteReader(sboxBytes([0x01], [0x00])))
     if (sbox.kind !== 'Box') throw new Error(`expected Box, got ${sbox.kind}`)
-    sbox.value.creationHeight = 0x1_0000_0000 // 2^32, > u32 max
+    sbox.value.creationHeight = 0x8000_0000 // 2^31, > Int.MaxValue
     const w = new ByteWriter()
     expect(() => serializeSValue({ tag: 'SBox' }, sbox, 0, w)).toThrow(
-      /creation_height.*out of u32 range/,
+      /creation_height.*exceeds 2\^31-1/,
     )
+  })
+
+  it('serializer accepts (round-trips) creation_height at the i32 ceiling', () => {
+    const sbox = parseSValue({ tag: 'SBox' }, 0, new ByteReader(sboxBytes(VLQ_I32_MAX, [0x00])))
+    if (sbox.kind !== 'Box') throw new Error(`expected Box, got ${sbox.kind}`)
+    expect(sbox.value.creationHeight).toBe(0x7fffffff)
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SBox' }, sbox, 0, w)
+    // round-trips: re-parse yields the same height
+    const reparsed = parseSValue({ tag: 'SBox' }, 0, new ByteReader(w.toBytes()))
+    if (reparsed.kind !== 'Box') throw new Error(`expected Box, got ${reparsed.kind}`)
+    expect(reparsed.value.creationHeight).toBe(0x7fffffff)
   })
 })
