@@ -634,16 +634,41 @@ T2 (the C1 fork + I1 mutation-kill gaps + I2 readFixed re-code), T3 (sized-tree-
 consume-path comment). **scorex public API grew (additive) — rides the queued v6-delivery republish.**
 
 **NEW findings (recorded, NOT in batch):**
-4. **SBox creationHeight u32-vs-toIntExact (T3 carve-out):** JVM `getUIntExact` THROWS on
-   creationHeight > 2³¹−1 (ErgoBoxCandidate.scala:195-199, the NO-FORK v4→v5 note); ergots accepts
-   up to u32 (sigma-rust `get_u32` shape) → over-accept on (2³¹−1, 2³²−1], adversarial-only,
-   reachable via Box constants / deserializeTo[Box]. Same `getUInt().toIntExact` idiom family as
-   the deferred scorex parseHeader height finding (b). Batch-6 candidate; SANTA pin first.
+4. **SBox creationHeight u32-vs-toIntExact (T3 carve-out): ✅ RESOLVED 2026-06-13 (`ca83b2e`,
+   v6-delivery pre-PR mini-batch).** JVM `getUIntExact` THROWS on creationHeight > 2³¹−1
+   (ErgoBoxCandidate.scala:195-199, the NO-FORK v4→v5 note); ergots accepted up to u32 (sigma-rust
+   `get_u32` shape) → was over-accept on (2³¹−1, 2³²−1], adversarial-only, reachable via Box
+   constants / deserializeTo[Box]. Fix: parse + serialize reject > 0x7fffffff, comment re-anchored
+   to JVM (sigma-rust was the wrong-bound source); 2 boundary fixtures were consensus-invalid
+   (u32::MAX) → lowered to i32::MAX (fixture-gen .rs synced). Source-sufficient (no SANTA). The
+   sibling scorex parseHeader height finding (b) stays deferred to its own branch (same
+   `getUInt().toIntExact` family).
 5. **deserializeErgoTree MaxPropositionSize windows (T3 spec-review observation):** the JVM arms a
    second 4096 window around EVERY `deserializeErgoTree` (ErgoTreeSerializer.scala:141-144) —
    derived verdict-equivalent INSIDE the box candidate (probe-pinned via the sized-tree-skip pin),
    but the top-level/other call sites are exactly the queued **parseTree cap-parity** verdict item
    (Ask-18 rider) — the observation folds there, strengthening that item's JVM cite set.
+
+#### v6-delivery pre-PR mini-batch (2026-06-13) — adversarial-residual closure ahead of the master PR
+
+PR-prep scoping (4 parallel source-verifications) sized the "cheap adversarial residual" cluster;
+2 of 4 were close-now + source-sufficient and landed as a mini-batch on `ergoscript-v6` (commits
+`ca83b2e..7d94f7b`, LOCAL): **creationHeight u32 fork** (finding #4, RESOLVED above) + **the 3
+`'not-implemented-yet'` wire sites reclassified to `'opcode-reserved'`** (`1c62410`+`d2d5ca2` —
+FlatMap `0xb8` / TrivialPropFalse `0xd2` / TrivialPropTrue `0xd3`; the JVM rejects all three via the
+same `CheckValidOpCode` reserved path, so this is classification-only, NOT a fork — verdicts already
+matched; reserved count 18→21 across all facts/README/API.md; SigmaBoolean-leaf path untouched). The
+other 2 are SANTA-gated → **batch 6** (asks 19-20 routed 2026-06-13, `prompts/f5-batch6-santa-asks.md`):
+**Box accessor method-form 99:2..6** (the invokeFixed reflection path; ~60 LOC impl, all helpers
+exist, needs blessed cost pins 12/14/16/16/16/20) + **self-GetVar ≥0x80 context-extension
+key-domain** (JVM crashes at `toSigmaContext` array-index for signed-negative keys; fix is a
+construction-time key guard, not a GetVar mask; scoped at 93% — needs the boundary vector). Also
+this batch: **v6 umbrella marked COMPLETE** (`7d94f7b`) — P7b CLOSED (items pre-landed, framing
+collapsed; real gap → F4), P8 DONE (= this conformance run). Gate: monorepo **7005** green, tsc ×4,
+build clean. Remaining adversarial residuals for the PR-body (all documented, deferred): the 2
+SANTA-gated above · parseTree cap-parity (#5) · SAny over-accept consolidation · rule-1019 extension
+leg · registry arity sweep · dead-branch method-version pass · scorex parseHeader ×3 (own branch) ·
+transaction tier (future package).
 
 **Push prediction: dasher 23 → 21** (the 2 token-window reds flip at our push; 21 = the roadmap
 rows). sigma-rust routing (BoundedVec-122 + no parse window, both directions) is SANTA's, already
