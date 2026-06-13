@@ -1,6 +1,6 @@
 {
   "name": "@ergots/scorex",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publishConfig": { "access": "public" },
   "description": "Pure-TypeScript Scorex wire codec (VLQ, ZigZag VLQ, ByteReader/Writer) plus Ergo block-Header / AutolykosSolution data types shared across @ergots/* packages.",
   "type": "module",
