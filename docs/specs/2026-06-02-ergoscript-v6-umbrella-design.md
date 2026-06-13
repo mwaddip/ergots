@@ -1,7 +1,7 @@
 # ErgoScript v6 (ErgoTree V3) — eval + cost umbrella design
 
 **Date:** 2026-06-02
-**Status:** approved shape (brainstorm); per-phase specs pending
+**Status:** ✅ **COMPLETE (2026-06-13)** — all phases done. P0–P6 + P7a shipped as dedicated phases; **P7b closed** (its nominal items were already landed in the 2h-era port — framing collapsed; the real gap it surfaced, AvlTree Tier-2 cost, became F4); **P8 delivered as the F1–F5 conformance run** (SANTA JVM-blessed vectors in `test/conformance/`, eval tier value+cost+reject 100% green, dasher = 21 roadmap-only). Pending v6-delivery PR to `master`. (Was: "approved shape (brainstorm); per-phase specs pending".)
 **Branch:** `ergoscript-v6`
 **Scope owner:** `@ergots/ergoscript`
 
@@ -350,18 +350,28 @@ Spec: `docs/specs/2026-06-05-ergoscript-v6-p7a-per-type-methods-design.md`.
 2. **Registry-wide extra-args arity sweep** — pre-existing class; P7a's three handlers use arity-exact guards, but the sweep over all ~125 registry entries is a separate pass.
 3. **Self-GetVar key-domain sibling gap** — JVM crashes at context construction for `extension` keys ≥ 0x80; ergots `GetVar` returns `Some`/`None` for those keys (opposite direction from the `& 0xff` fix to `getVarFromInput`). Pre-existing; needs its own pass.
 
-#### P7b — open (own spec)
+#### P7b — ✅ CLOSED (framing collapsed on contact; absorbed by the F-series)
 
-Version-gated behavior *changes*: `substConstants` v6 fix for tree version > 0 (reconcile against the deferred A2-b serializer-level item) + `AvlTree.insert`/`insertOrUpdate` v6 semantics delta. Own spec before implementation.
+Nominal items: version-gated behavior *changes* — `substConstants` v6 fix for tree version > 0 (reconcile against the deferred A2-b serializer-level item) + `AvlTree.insert`/`insertOrUpdate` v6 semantics delta.
+
+**Outcome (verified during the F-series conformance run, 2026-06-07):** both nominal items were **already landed** in the phase-2h-era port (`5e56367`) — `AvlTree.insert`/`insertOrUpdate` carry their treeVersion≥3 v6 gates (savltree.ts), and `substConstants` carries its treeVersion-aware no-op path (subst-constants.ts, JVM-parity §A2). When the spec was opened the framing collapsed: nothing to build. What the verification surfaced *instead* was the AvlTree Tier-2 **cost** surface charging zero vs the JVM model — that became **F4** (AvlTree Tier-2 cost faithfulness, ✅ DONE 2026-06-07, commits `0665f84..cbaad45`). substConstants v3+hasSize was confirmed SETTLED-covered on both readings (conformance manifest, 2026-06-06). So P7b closes with no dedicated phase; the conformance run is its closure record (ledger §F5).
 
 #### Sigma reducers (`allZK`/`anyZK`) — DROPPED
 
 `allZK`/`anyZK` are source-language `PredefinedFunc` sugar (`SigmaPredef.scala:79-92`) with **no opcode and no serializer**. Any on-chain form is `SigmaAnd`/`SigmaOr`, already shipped in 2g-combinators. Nothing to build.
 
-### P8 — validation (eventually)  ·  status: deferred
+### P8 — validation  ·  ✅ DONE (this IS the F1–F5 conformance run)
 - **Goal:** wire `LanguageSpecificationV6` `verifyCases` + SANTA's JVM-blessed v6
   vectors into the conformance harness (`test/conformance/`). **Depends-on:** the
   eval/cost surface (P1–P7) existing to validate.
+- **Outcome:** delivered as the **F1–F5 conformance run** (ledger
+  `docs/specs/2026-06-06-ergoscript-conformance-run-design.md`) — SANTA's JVM-blessed
+  v5+v6 vectors are vendored into `test/conformance/` (2,346 entries at the batch-5
+  tip; auto-registered via readdir), graded both ways (our local probe + SANTA's
+  5-way board). Eval tier is value+cost+reject **100% green** across all four slices
+  (v5/v6 × spec/authored); dasher = 21, all roadmap (transaction-tier), zero eval
+  divergences. P8's "wire the verifyCases vectors" became "vendor the SANTA corpus
+  + run the conformance harness" — same goal, JVM-canonical, achieved.
 
 ## Validation strategy (P8)
 
