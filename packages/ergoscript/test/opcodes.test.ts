@@ -11,9 +11,9 @@ import { ByteReader } from '@ergots/scorex'
  * values are pinned here so a regression that flips one byte fails loudly
  * rather than going undetected until a fixture test runs. The dispatch
  * tests check that:
- *   - inline-constant bytes (0..=LAST_CONSTANT_CODE) throw
- *     `not-implemented-yet`
- *   - known opcodes throw `not-implemented-yet`
+ *   - inline-constant bytes (0..=LAST_CONSTANT_CODE) route to the constant
+ *     parser (not the opcode switch)
+ *   - reserved-but-undispatched opcodes throw `opcode-reserved`
  *   - unknown opcodes throw `unknown-opcode`
  */
 
@@ -186,15 +186,16 @@ describe('parseExpr dispatch shell', () => {
     expect(e).toEqual({ tag: 'LastBlockUtxoRootHash' })
   })
 
-  it('FLAT_MAP (0xb8) is a known opcode → not-implemented-yet', () => {
+  it('FLAT_MAP (0xb8) is a reserved opcode → opcode-reserved', () => {
     // FLAT_MAP is in sigma-rust's opcode table but is NOT dispatched at the
-    // top level — it's reached via an SColl method-call. This byte is the
-    // canary for "named in the opcode table but no TS handler yet" —
-    // earlier task suites used XOR_OF (landed in Task 14), CONTEXT (Task 17)
-    // and LAST_BLOCK_UTXO_ROOT_HASH (landed in F5 batch 4) for the same
-    // purpose.
+    // Expr layer — the bare byte has no serializer in either reference (the
+    // JVM rejects it via `CheckValidOpCode`); the `flatMap` METHOD is reached
+    // via an SColl method-call elsewhere. This byte exercises the envelope →
+    // body-parser handoff; earlier task suites used XOR_OF (landed in Task 14),
+    // CONTEXT (Task 17) and LAST_BLOCK_UTXO_ROOT_HASH (landed in F5 batch 4)
+    // for the same purpose before they were wired.
     const e = parseOne(OP.OP_FLAT_MAP)
-    expect(e.code).toBe('not-implemented-yet')
+    expect(e.code).toBe('opcode-reserved')
     expect(e.message).toContain('FlatMap')
   })
 

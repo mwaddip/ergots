@@ -1,9 +1,10 @@
 /**
  * Expr wire-format serializer — central tag-dispatch shell.
  *
- * Mirror of {@link parseExpr}: Task 9 lays down the structure, Tasks 10-26
- * fill in per-variant logic. Each case throws `ExprSerializeError` with
- * code `not-implemented-yet` until its handler is ported.
+ * Mirror of {@link parseExpr}: Task 9 laid down the structure, Tasks 10-26
+ * filled in per-variant logic. Every concrete `Expr` variant now has a
+ * working serializer; the sole remaining throw is `ZkProofBlock`
+ * (`ExprSerializeError 'not-supported'` — a non-canonical variant).
  *
  * The exhaustive switch over `e.tag` is wired so adding a new Expr variant
  * to the union (`mir/types.ts`) becomes a TypeScript compile-time error

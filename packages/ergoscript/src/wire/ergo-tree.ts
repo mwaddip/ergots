@@ -27,10 +27,11 @@
  * declared size) are tolerated by sigma-rust silently (it just stops
  * reading); we do the same here.
  *
- * Task 8 wires the envelope around stub `parseExpr` / `serializeExpr`
- * (which throw `not-implemented-yet` for every opcode). Task 9+ fleshes
- * out the body parser one opcode at a time; once a corpus tree's body
- * can be parsed end-to-end, full round-trip testing kicks in.
+ * Task 8 wired the envelope around `parseExpr` / `serializeExpr`; Task 9+
+ * fleshed out the body parser one opcode at a time. The body parser is now
+ * fully built — reserved/undispatched opcodes parse-reject via
+ * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path), and corpus
+ * trees round-trip end-to-end.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree.rs

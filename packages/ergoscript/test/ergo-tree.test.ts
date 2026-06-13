@@ -18,16 +18,16 @@ const __dirname = path.dirname(__filename)
 
 /**
  * Task 8 covers the ErgoTree envelope only — header byte + optional size +
- * optional segregated constants. The body parser (`parseExpr`) is a stub
- * that throws `ExprParseError` with code `not-implemented-yet` for every
- * opcode; full body round-trip tests live in Task 9 (per-opcode) and the
- * corpus tests (Task 30).
+ * optional segregated constants. Full body round-trip tests live in Task 9
+ * (per-opcode) and the corpus tests (Task 30).
  *
- * The envelope-only tests here use the stubbed body throw as a marker:
- * if the parser reaches the body, the envelope succeeded. Tests verify
- * either the envelope-level error (empty, oversized, etc.) OR the
- * body-throw with the expected code (which confirms the cursor reached
- * the right position after envelope parsing).
+ * The envelope-only tests here use a body-parser throw as a marker: if the
+ * parser reaches the body, the envelope succeeded. The marker opcode is
+ * FLAT_MAP (`0xb8`), a reserved-but-undispatched byte that parse-rejects
+ * with `ExprParseError` code `opcode-reserved` (it has rotated as variants
+ * landed — see per-test notes). Tests verify either the envelope-level error
+ * (empty, oversized, etc.) OR the body-throw with the expected code (which
+ * confirms the cursor reached the right position after envelope parsing).
  */
 
 describe('ErgoTree envelope', () => {
@@ -167,12 +167,12 @@ describe('ErgoTree envelope', () => {
 
     it('reaches body parser for header with no size + no segregation', () => {
       // Header 0x00 + a body opcode byte 0xb8 (= FLAT_MAP, a real
-      // sigma-rust opcode that does NOT dispatch at the top level because
-      // it's reached via an SColl method-call). Envelope parses header
-      // successfully, then parseExpr dispatches the FLAT_MAP case and
-      // throws not-implemented-yet. This proves the envelope wiring
-      // delivered control to the body parser with the cursor at the right
-      // spot.
+      // sigma-rust opcode that does NOT dispatch at the Expr layer — the bare
+      // byte has no serializer, so it parse-rejects as a reserved opcode).
+      // Envelope parses header successfully, then parseExpr dispatches the
+      // FLAT_MAP case and throws opcode-reserved. This proves the envelope
+      // wiring delivered control to the body parser with the cursor at the
+      // right spot.
       //
       // (Marker has rotated as variants land: XOR_OF (0xff) was used until
       // Task 14, then CONTEXT (0xfe) until Task 17, then
@@ -184,7 +184,7 @@ describe('ErgoTree envelope', () => {
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
-        expect((e as ExprParseError).code).toBe('not-implemented-yet')
+        expect((e as ExprParseError).code).toBe('opcode-reserved')
         // Assert on the variant name rather than the raw byte — the dispatch
         // table identifies opcodes by name in its messages.
         expect((e as Error).message).toContain('FlatMap')
@@ -198,14 +198,14 @@ describe('ErgoTree envelope', () => {
       // (FLAT_MAP — see marker note above) and an arbitrary filler byte
       // 0xCD. The envelope-only path is: read header, read size=3, slice
       // inner buffer of 3 bytes, read constants_count=0, then dispatch to
-      // body which throws not-implemented-yet on opcode 0xb8.
+      // body which throws opcode-reserved on opcode 0xb8.
       const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xb8, 0xcd])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
-        expect((e as ExprParseError).code).toBe('not-implemented-yet')
+        expect((e as ExprParseError).code).toBe('opcode-reserved')
         // The thrown error's message names the variant; assert on the
         // variant name rather than the byte to make the test robust to
         // formatting changes in the error message.
@@ -231,9 +231,9 @@ describe('ErgoTree envelope', () => {
     it('parses a single SBoolean constant (true)', () => {
       // Header 0x10 (segregation, no size, v0), count=1 (VLQ 0x01),
       // SType SBoolean (0x01), SValue true (0x01), then body byte 0xb8
-      // (= FLAT_MAP, still not-implemented-yet — reached via an SColl
-      // method-call in sigma-rust). The envelope reaching that throw
-      // proves: header parsed, count parsed, SType parsed, SValue parsed.
+      // (= FLAT_MAP, parse-rejects as a reserved opcode — the bare byte has
+      // no Expr-layer serializer in sigma-rust). The envelope reaching that
+      // throw proves: header parsed, count parsed, SType parsed, SValue parsed.
       //
       // (Marker has rotated as variants land: XOR_OF (0xff) was used until
       // Task 14, then CONTEXT (0xfe) until Task 17, then
@@ -245,7 +245,7 @@ describe('ErgoTree envelope', () => {
         throw new Error('parseTree should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(ExprParseError)
-        expect((e as ExprParseError).code).toBe('not-implemented-yet')
+        expect((e as ExprParseError).code).toBe('opcode-reserved')
         expect((e as Error).message).toContain('FlatMap')
       }
     })

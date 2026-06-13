@@ -1,15 +1,18 @@
 /**
  * Expr wire-format parser — central opcode-dispatch shell.
  *
- * Task 9 lays down the structure: read one opcode byte, switch over every
+ * Task 9 laid down the structure: read one opcode byte, switch over every
  * opcode constant from sigma-rust's `op_code.rs`, and route to a handler.
- * Until the per-variant ports land (Tasks 10–26), each handler throws
- * `ExprParseError` with code `not-implemented-yet`.
+ * The per-variant ports have since landed (Tasks 10–26 and beyond); the
+ * surviving throws here are the reserved-opcode rejects (`'opcode-reserved'`)
+ * and the `'unknown-opcode'` default.
  *
  * Two distinct error codes are returned from this module:
- *  - `not-implemented-yet` — the opcode is a valid sigma-rust opcode whose
- *    handler hasn't been ported yet. The error message names the variant so
- *    grep-finding the next task is easy.
+ *  - `opcode-reserved` — the opcode is in sigma-rust's `op_code.rs` enum but
+ *    is never dispatched at the wire-Expr layer (no registered serializer);
+ *    the JVM rejects the identical byte via `CheckValidOpCode`. The error
+ *    message names the variant. (`not-implemented-yet` is no longer emitted
+ *    from this module — it survives only as an `EvalError` code.)
  *  - `unknown-opcode` — the opcode byte is not in the sigma-rust opcode
  *    table at all (a "future" opcode, garbage, or a malformed proof).
  *
@@ -24,10 +27,9 @@
  *       match OpCode::parse(tag) { … }
  *   }
  *
- * The inline-constant case is also `not-implemented-yet` for now (Task 10
- * will port it; the bytes are handled by a dedicated branch above the
- * opcode-switch so they can be told apart from "real" instructions in error
- * messages).
+ * The inline-constant case is handled by a dedicated branch above the
+ * opcode-switch (so the bytes are told apart from "real" instructions in
+ * error messages).
  */
 
 import type { Expr, SType, SValue } from '../mir/types'
@@ -444,22 +446,22 @@ function parseExprBody(
       return parseLastBlockUtxoRootHash()
     case OP.OP_XOR_OF:
       return parseXorOf(r, constantTypes, constantValues, valDefTypes, treeVersion)
-    // Wire opcodes with no top-level Expr dispatch in sigma-rust. Split
-    // into two taxonomies:
-    //   - 'opcode-reserved' (18 sites; was 19 until FunDef left in v6 P6)
-    //     — reserved in sigma-rust's
-    //     `op_code.rs` enum but NEVER dispatched at the wire-Expr layer
-    //     or implemented in `ergotree-interpreter/src/eval/`. We mirror
-    //     via unconditional parse-reject. The opcodes exist in the wire
-    //     enum for forward-compat / historical reasons but no
-    //     `Evaluable` impl will ever ship.
-    //   - 'not-implemented-yet' (3 sites: FlatMap, TrivialPropFalse,
-    //     TrivialPropTrue) — routed through other dispatch paths in
-    //     sigma-rust (SColl method-call for FlatMap, SSigmaProp nesting
-    //     for the TrivialProp pair). Top-level direct dispatch may also
-    //     be expected; status undetermined pending separate review.
-    //     (LastBlockUtxoRootHash 0xa6 left this group in F5 batch 4 —
-    //     the JVM dispatches it as its own case object; see the
+    // Wire opcodes with no top-level Expr dispatch — all parse-reject via
+    //   - 'opcode-reserved' (21 sites; was 18 until FlatMap/TrivialPropFalse/
+    //     TrivialPropTrue joined, and 19 until FunDef left in v6 P6) —
+    //     reserved in sigma-rust's `op_code.rs` enum but NEVER dispatched at
+    //     the wire-Expr layer or implemented in `ergotree-interpreter/src/
+    //     eval/`. The JVM rejects each identically: `ValueSerializer.
+    //     deserialize` reads the opcode, `getSerializer` returns null (no
+    //     registered serializer), `CheckValidOpCode` (rule 1002) throws
+    //     `InvalidOpCode`. We mirror via unconditional parse-reject. The
+    //     opcodes exist in the wire enum for forward-compat / historical
+    //     reasons but no `Evaluable` impl dispatches the bare byte.
+    //     FlatMap's `flatMap` METHOD and the TrivialProp pair's
+    //     SigmaBoolean-LEAF form (inside a SigmaProp constant) reach us via
+    //     their own legitimate paths; only the bare Expr opcode is rejected
+    //     here. (LastBlockUtxoRootHash 0xa6 is NOT in this group — the JVM
+    //     dispatches it as its own case object; see the
     //     OP_LAST_BLOCK_UTXO_ROOT_HASH arm above.)
     // Distinguished from truly unknown bytes via the `default` arm
     // below which throws 'unknown-opcode'.
@@ -504,9 +506,15 @@ function parseExprBody(
         'opcode-reserved'
       )
     case OP.OP_FLAT_MAP:
+      // The bare FlatMap opcode (0xb8) has no serializer at the Expr-dispatch
+      // layer in either reference — the JVM rejects it via `CheckValidOpCode`
+      // (rule 1002) since `getSerializer` returns null, exactly as for the
+      // other reserved opcodes; sigma-rust likewise never dispatches it. The
+      // `flatMap` METHOD reaches us as a MethodCall/PropertyCall (handled
+      // elsewhere), not this bare byte. Mirrored as parse-reject.
       throw new ExprParseError(
-        'FlatMap opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'FlatMap opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_FUN_DEF:
       // v6 P6: FunDef is a polymorphic `let f[T] = rhs` — a ValDef carrying a
@@ -524,15 +532,21 @@ function parseExprBody(
         'NoneValue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
         'opcode-reserved'
       )
+    // TrivialPropFalse/True (0xd2/0xd3) exist in TWO namespaces with the same
+    // byte values: here at the Expr-dispatch layer (no serializer → the JVM
+    // rejects via `CheckValidOpCode`, sigma-rust never dispatches → parse-
+    // reject), and at the SigmaBoolean-LEAF layer (`SigmaPropCodes`, read by
+    // `parseSigmaBoolean` ONLY inside a `SigmaPropConstant` payload — a wholly
+    // separate, legitimate code path in `wire/sigma-boolean.ts`, untouched).
     case OP.OP_TRIVIAL_PROP_FALSE:
       throw new ExprParseError(
-        'TrivialPropFalse opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'TrivialPropFalse opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_TRIVIAL_PROP_TRUE:
       throw new ExprParseError(
-        'TrivialPropTrue opcode not implemented (deferred — rarely used in production trees)',
-        'not-implemented-yet'
+        'TrivialPropTrue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
+        'opcode-reserved'
       )
     case OP.OP_MOD_Q:
       throw new ExprParseError(
