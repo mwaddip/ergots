@@ -366,7 +366,8 @@ Nominal items: version-gated behavior *changes* — `substConstants` v6 fix for 
   eval/cost surface (P1–P7) existing to validate.
 - **Outcome:** delivered as the **F1–F5 conformance run** (ledger
   `docs/specs/2026-06-06-ergoscript-conformance-run-design.md`) — SANTA's JVM-blessed
-  v5+v6 vectors are vendored into `test/conformance/` (2,346 entries at the batch-5
+  v5+v6 vectors are vendored under `test/fixtures/conformance/{v5,v6}/{spec,authored}/`
+  and driven by the harness in `test/conformance/` (2,346 entries at the batch-5
   tip; auto-registered via readdir), graded both ways (our local probe + SANTA's
   5-way board). Eval tier is value+cost+reject **100% green** across all four slices
   (v5/v6 × spec/authored); dasher = 21, all roadmap (transaction-tier), zero eval
