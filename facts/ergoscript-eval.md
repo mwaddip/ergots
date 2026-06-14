@@ -215,7 +215,7 @@ Separately, when `tree.header.constantSegregation` is true, `dispatchTreeBody` r
 ### Collection HOFs
 
 - **`'coll-input-not-coll'`** — any Coll HOF arm received an input whose `kind !== 'Coll'`. Defensive against `ConstantPlaceholder` injection.
-- **`'coll-elem-tpe-mismatch'`** — Filter / Exists / ForAll arm: an element's runtime `kind` did not match the declared element type derived from `condition.args[0].tpe`.
+- **`'coll-elem-tpe-mismatch'`** — thrown by six Coll HOF arms when a declared element type doesn't match: **Filter / Exists / ForAll** (element runtime `kind` vs the declared elem type from `condition.args[0].tpe`); **MapColl** (`input.elem` vs the mapper's declared arg type `mapper.args[0].tpe`, only when the mapper is a `FuncValue` node — skipped for non-`FuncValue` mappers); **Append** (the two Colls' elem types, `inputColl.elem` vs `col2.elem`); **flatMap** (`mc.args[0].args[0].tpe`).
 - **`'coll-by-index-out-of-range'`** — `ByIndex` arm: index outside `[0, coll.items.length)` and no default expression provided.
 - **`'coll-by-index-index-not-int'`** — `ByIndex` arm: the index expression evaluated to a non-`Int`.
 - **`'coll-slice-bound-not-int'`** — `Slice` arm: the `from` or `until` expression evaluated to a non-`Int`.
@@ -331,6 +331,7 @@ The per-`Expr`-arm cost model (the method-call surface is in the registry table 
 | `BlockValue` | `addPerItemCost(1, 1, 10, items.length)` + `ADD_TO_ENV_COST(5)` per `ValDef` bind | B | |
 | `ValDef` / `FunDef` | bind = `ADD_TO_ENV_COST(5)` (charged by `BlockValue`) | — | `FunDef` is a `ValDef` carrying `tpeArgs`; `tpeArgs` are eval-irrelevant (`values.scala:911`) |
 | `ValUse` | 5 (before env lookup) | A | |
+| `Apply` (FuncValue invocation) | 30 envelope + `ADD_TO_ENV_COST(5)` per bound lambda arg | A | per-arg bind mirrors `BlockValue`'s `ValDef` charge (`apply.ts`; sigma-rust `block.rs:30`) |
 | `Tuple` | 15 | A | arity ≠ 2 throws `'tuple-invalid-arity'` before items + envelope |
 | `Collection` | (children only) | — | `Exprs` and `BoolConstants` kinds |
 | `If` | (children only; short-circuit) | — | only the taken branch is evaluated + charged |
@@ -344,12 +345,12 @@ The per-`Expr`-arm cost model (the method-call surface is in the registry table 
 | `Upcast` / `Downcast` | 10 (BigInt/UBI target 30) | A | charged before the cast runs (a throwing cast still charges); see the UBI cast matrix below |
 | `And` / `Or` (Coll[Boolean]) | `addPerItemCost(10, 5, 32, n)` / `addPerItemCost(5, 5, 64, n)` | B | empty Coll → true / false |
 | `XorOf` | Coll[Boolean] XOR; V0/V1-vs-V2+ semantics drift | B | reuses `'coll-not-boolean'` |
-| `ExtractAmount` | 8 | A | |
+| `ExtractAmount` | 8 | A | `box.value` as the signed-i64 view (`BigInt.asIntN(64,·)`; a wire u64 ≥ 2^63 surfaces as a negative Long, JVM `as Long`) — same two's-complement view for R0 (`ExtractRegisterAs`/`SBox.getReg`) and token amounts (`SBox.tokens`); the raw u64 stays on `ErgoBox` for serialize byte-identity |
 | `ExtractScriptBytes` | 10 | A | box's serialized ErgoTree |
-| `ExtractRegisterAs` | 50 | A | R0..R9; type-assertion mismatch THROWS `'register-type-mismatch'` (not None) |
-| `ExtractCreationInfo` | 16 | A | `Tuple[Int, Coll[Byte](34): txId ++ BE u16 index]` |
-| `ExtractBytes` / `ExtractBytesWithNoRef` / `ExtractId` | 12 each | A | full canonical bytes / without txId+index / blake2b-256 of canonical bytes |
-| `GlobalVars` | 10 | A | Height/Inputs/Outputs/SelfBox/MinerPubKey/GroupGenerator |
+| `ExtractRegisterAs` | 50 | A | R0..R9; type-assertion mismatch THROWS `'register-type-mismatch'` (not None); R0 (`SLong(box.value)`) and R2 token amounts present the signed-i64 view (see `ExtractAmount`) |
+| `ExtractCreationInfo` | 16 | A | `Tuple[Int, Coll[Byte](34): txId ++ BE u16 index]`; the `Int` component is `creationHeight | 0` (i32 wrap — a creationHeight ≥ 2^31 wraps negative; sigma-rust `extract_creation_info.rs:18`) |
+| `ExtractBytes` / `ExtractBytesWithNoRef` / `ExtractId` | 12 each | A | `Box.bytes`/`Box.id` use the parse-RETAINED slice (`boxBytesOf`/`boxIdOf` = `retainedBytes ?? canonical re-serialize`; a garbage-but-decoding register encoding SURVIVES; `Box.id == blake2b256(Box.bytes)`); `Box.bytesWithoutRef` is ALWAYS canonical candidate re-serialization (no retained slice JVM-side), no txId/index — see Equality semantics |
+| `GlobalVars` | 10 | A | Height/Inputs/Outputs/SelfBox/MinerPubKey/GroupGenerator; `Height` is i32-wrapped (`ctx.height | 0`; heights ≥ 2^31 wrap negative — sigma-rust `global_vars.rs:8` `ctx.height as i32`) |
 | `GetVar` | 10 | A | reads `ctx.extension.values[varId]` |
 | `OptionGet` / `OptionGetOrElse` | 15 | A | `OptionGetOrElse` V3-gated lazy semantics; `OptionGet` None → `'option-empty'` |
 | `OptionIsDefined` | 10 | A | |
@@ -361,7 +362,7 @@ The per-`Expr`-arm cost model (the method-call surface is in the registry table 
 | `MapColl` / `Filter` / `Fold` / `Exists` / `ForAll` | outer `addPerItemCost(20, 2, 128, input.length)` + per-iter `Fixed(1)` | Mixed | Filter/Exists/ForAll derive the declared elem type from `condition.args[0].tpe` (the TS MIR structs carry no `elemTpe` field) |
 | `Context` | 1 | A | returns the `{ kind: 'Context' }` sentinel |
 | `Global` | 5 | A | returns the `{ kind: 'Global' }` sentinel |
-| `SigmaPropBytes` | `addPerItemCost(35, 6, 1, 1)` | A | |
+| `SigmaPropBytes` | `addPerItemCost(35, 6, 1, numNodes)` | A | `numNodes` = SigmaBoolean node count (ProveDlog/TrivialProp 1; ProveDhTuple 4; conjecture = 1 + Σchildren) via `sigma-prop-bytes.ts` `sigmaBooleanNodeCount`; ergots LEADS, sigma-rust hardcodes n=1 (`transformers.scala:337-343`) |
 | `MethodCall` / `PropertyCall` | 4 (dispatcher envelope) | A | routes via the `(typeId, methodId)` registry |
 | `CalcBlake2b256` | `addPerItemCost(20, 7, 128, n)` | B | `@noble/hashes/blake2.js` blake2b, `dkLen: 32` |
 | `CalcSha256` | `addPerItemCost(80, 8, 64, n)` | B | `@noble/hashes/sha2.js` sha256 |
@@ -457,7 +458,7 @@ The `MethodCall` / `PropertyCall` dispatcher in `eval/method-call.ts` routes thr
 | 41 | `SAvlTree.updateDigest` | 100:15 | 40 | A | `AvlTree` — projects new digest VERBATIM at any length (JVM `CAvlTree.scala:31-34` no-require) | `eval/savltree.rs:90-102` |
 | 42 | `SAvlTree.insertOrUpdate` | 100:16 | `isUpdateAllowed Fixed(15)` THEN `isInsertAllowed Fixed(15)` (both ALWAYS, update first); `createVerifier PerItem(110,20,64)`; `UpdateAvlTree PerItem(120,20,1) × charged-ops`; success: `updateDigest Fixed(40)` | A | `Option[AvlTree]` — V3-gated; upsert (insert-absent/update-present); construct-fail → None (never throws); per-op fail → None; flags-deny → None | `eval/savltree.rs:441-498`; descriptor `savltree.rs:377-403` (`min_version: V3`) |
 | 43 | `SGroupElement.getEncoded` | 7:2 | 250 | A | `Coll[Byte]` (33 SEC1-compressed; output canonical by the GE invariant) | `eval/sgroup_elem.rs:15-26` |
-| 44 | `SColl.flatMap` | 12:15 | `addPerItemCost(60,10,8,n)` | B | `Coll[OV]` (lambda HOF + concat); body-restriction `'lambda-not-callable'` if body is MethodCall with non-empty args; two R3 lambda-static-typing divergences from sigma-rust (see footnote) | `eval/scoll.rs:52-136` |
+| 44 | `SColl.flatMap` | 12:15 | `addPerItemCost(60,10,8,n)`, n = flattened OUTPUT length (after body evals); + `ADD_TO_ENV_COST(5)` per input element (lambda invocation) | B | `Coll[OV]` (lambda HOF + concat); body-restriction `'lambda-not-callable'` if body is MethodCall with non-empty args; two R3 lambda-static-typing divergences from sigma-rust (see footnote) | `eval/scoll.rs:52-136` |
 | 45 | `SContext.minerPubKey` | 101:10 | 20 | A | `Coll[Byte]` (33 SEC1-compressed `ctx.preHeader.minerPk`); throws `'context-field-missing'` if undefined | `eval/scontext.rs:101-115` |
 | 46 | `SPreHeader.minerPk` | 105:6 | 10 | A | `GroupElement` (raw 33-byte `obj.value.minerPk`; NOT sigma-serialized — contrast row 45) | `eval/spreheader.rs:38-42` |
 | 47 | `SContext.selfBoxIndex` | 101:8 | 20 | A | `Int` — 0-based index of `ctx.selfBox` in `ctx.inputs` via reference equality; gated by `activated_script_version = saturating_sub(preHeader.version, 1)` — pre-V2 blocks return -1 (JVM bug #603 compat, BLOCK-level not tree-level, memory `feedback-tree-version-gate`). Throws `'context-field-missing'` for missing preHeader/selfBox/inputs on V2+ or selfBox-not-in-inputs. First exercised at mainnet h=342,964 | `eval/scontext.rs:33-57` |
