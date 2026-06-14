@@ -674,8 +674,8 @@ interface EvalContext extends EvalOpts {
 
 ### `EvalContext.addPerItemCost(base, perChunk, chunkSize, nItems)`
 
-- **Semantics:** Composite charge — `addCost(base + ceil(nItems / chunkSize) * perChunk)`. Used by `BlockValue` envelope (`addPerItemCost(1, 1, 10, items.length)`) and by all 9 Coll HOF arms as their outer Pattern A charge.
-- **Formula:** `totalCharge = base + Math.ceil(nItems / chunkSize) * perChunk`. When `nItems === 0`, `Math.ceil(0 / chunkSize) === 0`, so only `base` is charged.
+- **Semantics:** Composite charge — `addCost(base + chunks(nItems) * perChunk)` where `chunks(n) = max(0, trunc((n - 1) / chunkSize) + 1)` (the Scala consensus `PerItemCost.chunks`, toward-zero division). Used by `BlockValue` envelope (`addPerItemCost(1, 1, 10, items.length)`) and by all 9 Coll HOF arms as their outer Pattern A charge.
+- **Formula:** `totalCharge = base + (Math.trunc((nItems - 1) / chunkSize) + 1) * perChunk` (clamped to ≥ 0 chunks). Equals `ceil(nItems / chunkSize)` for `nItems ≥ 1`; differs only at `nItems === 0`, where a `chunkSize ≥ 2` element still costs one chunk (`base + perChunk`) while `chunkSize === 1` costs `base` only — see `eval-context.ts:155-163` and memory `reference_per_item_cost_n0_jvm_divergence`. NOTE the `n` fed in is the count of items *actually processed*, not always the full length: Coll-equality charges it on the count compared before the first inequality (JVM charge-after-loop, `relation.ts` Coll arm).
 - **Limit enforcement:** Inherits from `addCost`; the *total* composite charge is checked against `jitCostLimit` after addition (not split into base + per-chunk sub-checks).
 - **Mirror of:** sigma-rust `Context::add_per_item_jit_cost` (`ergotree-ir/src/chain/context.rs:88-99`).
 

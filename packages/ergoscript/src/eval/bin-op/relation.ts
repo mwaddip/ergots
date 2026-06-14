@@ -434,31 +434,48 @@ function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
         //  without charging per-item or base cost").
         return false
       }
-      // Same length: charge per-item cost, then compare as bulk.
-      // Sigma-rust uses `Ok(lv == rv)` which compares the entire Coll at once
-      // (Rust PartialEq on CollKind). We mirror by checking element-wise.
+      // Same length: compare element-wise FIRST, then charge the per-item cost
+      // on the count of elements ACTUALLY COMPARED before the first inequality.
+      //
+      // JVM charge-AFTER-loop semantics (CErgoTreeEvaluator.scala:399-421,
+      // `addSeqCost(costKind, opDesc)(block: () => Int)`): `nItems = block()`
+      // runs the compare loop FIRST and returns the count compared, THEN
+      // `costKind.cost(nItems)` is charged. Both JVM compare loops
+      // (`equalCOA_Prim` :159-176, `equalColls` :183-196) are
+      // `while (i < len && okEqual) { ...; i += 1 }; i` — so the returned count
+      // is (first-unequal-index + 1) on short-circuit, or `len` if all equal.
+      // Charging the per-item on the FULL `n` eagerly (the prior code) over-
+      // charged whenever a short-circuit crossed a per-item chunk boundary
+      // (testnet h=28931 outer Coll[Coll[Byte]] n=4 unequal@0: JVM cost(1)=12 vs
+      // our cost(4)=18, Δ6 → 610 vs 604). JVM is canonical.
+      //
+      // JVM `equalColls_Dispatch`: COA leaf-element colls are bulk-compared
+      // (`equalCOA_Prim`, no recursion); COMPOSITE-element colls
+      // (Coll/Tuple/Option/SigmaProp) RECURSE via `equalDataValues` per element,
+      // charging the nested MatchType + per-item. Both paths short-circuit on
+      // the first unequal element and both feed the compared count into the
+      // SAME charge-after-loop above.
       const perItemCost = collEqPerItemCost(ca.elem)
-      ctx?.addCost(addPerItemJitCost(perItemCost, n))
-      // Element comparison. JVM `equalColls_Dispatch`: COA leaf-element colls are
-      // bulk-compared (equalCOA_Prim, no recursion — the per-item cost above is
-      // the whole charge); COMPOSITE-element colls (Coll/Tuple/Option/SigmaProp)
-      // RECURSE via equalDataValues per element, charging the nested MatchType +
-      // per-item. Our prior code bulk-compared ALL elements via the non-recursive
-      // primitiveValueEqual (mirroring sigma-rust's PartialEq) — under-charging
-      // nested colls/tuples by the inner recursion vs JVM. sigma-rust shares it.
-      // Routed to the sigma-rust session in santa §B4. JVM is canonical.
       const recurseElems = !isCoaCollElem(ca.elem)
+      let equal = true
+      let compared = 0
       for (let i = 0; i < n; i++) {
+        compared = i + 1 // mirror JVM `i += 1` BEFORE the loop-condition recheck
         if (recurseElems) {
           // compareSValues charges the nested MatchType + per-item (and short-
-          // circuits on inner length mismatch, matching JVM).
-          if (!compareSValues(ca.items[i]!, cb.items[i]!, ctx)) return false
+          // circuits on inner length mismatch, matching JVM equalDataValues).
+          if (!compareSValues(ca.items[i]!, cb.items[i]!, ctx)) { equal = false; break }
         } else {
-          if (ca.items[i]!.kind !== cb.items[i]!.kind) return false
-          if (!primitiveValueEqual(ca.items[i]!, cb.items[i]!)) return false
+          if (ca.items[i]!.kind !== cb.items[i]!.kind || !primitiveValueEqual(ca.items[i]!, cb.items[i]!)) {
+            equal = false
+            break
+          }
         }
       }
-      return true
+      // n === 0 → compared stays 0 (JVM `i` is 0 for an empty loop); cost(0)
+      // matches the shared n=0 chunk convention in addPerItemJitCost.
+      ctx?.addCost(addPerItemJitCost(perItemCost, compared))
+      return equal
     }
 
     // SigmaProp — JVM DataValueComparer.scala:353-361: MatchType for the
