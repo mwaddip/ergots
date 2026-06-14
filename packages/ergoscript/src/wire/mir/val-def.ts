@@ -33,7 +33,7 @@
 
 import type { STypeVar, SType, SValue, ValDef } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError } from '../errors'
+import { ExprParseError, ExprSerializeError } from '../errors'
 import { exprTpe } from '../../mir/expr-tpe'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
@@ -73,6 +73,16 @@ export function parseValDef(
   treeVersion: number
 ): ValDef {
   const id = r.readVlqU()
+  // JVM ValDefSerializer reads `id` with getUIntExact — it rejects values above
+  // Int.MaxValue (0x7fffffff) at deserialization. ergots' readVlqU is u32-wide,
+  // so bound it here to match. NARROW: ValUse/FuncValue argument ids use the
+  // JVM's wrapping getUInt.toInt and are deliberately NOT bound (REL-WIRE-ID-01).
+  if (id > 0x7fffffff) {
+    throw new ExprParseError(
+      `ValDef(id=${id}): id exceeds Int.MaxValue (0x7fffffff) — JVM getUIntExact rejects it`,
+      'val-def-id-out-of-range'
+    )
+  }
   let tpeArgs: STypeVar[] | undefined
   if (isFunDef) {
     // JVM ValDefSerializer reads the count as a raw byte (`r.getByte()`), NOT
@@ -123,6 +133,14 @@ export function parseValDef(
  * (no `tpeArgs`) emits `id` then `rhs` directly — byte-identical to pre-P6.
  */
 export function serializeValDef(d: ValDef, w: ByteWriter, treeVersion: number): void {
+  // Symmetric to the parse bound (REL-WIRE-ID-01): locally-constructed MIR with
+  // id > Int.MaxValue would serialize to bytes the JVM rejects at getUIntExact.
+  if (d.id > 0x7fffffff) {
+    throw new ExprSerializeError(
+      `ValDef(id=${d.id}): id exceeds Int.MaxValue (0x7fffffff) — JVM getUIntExact bound`,
+      'val-def-id-out-of-range'
+    )
+  }
   w.writeVlqU(d.id)
   if (d.tpeArgs && d.tpeArgs.length > 0) {
     w.writeU8(d.tpeArgs.length) // raw u8 (JVM ValDefSerializer: w.put(len)), NOT VLQ
