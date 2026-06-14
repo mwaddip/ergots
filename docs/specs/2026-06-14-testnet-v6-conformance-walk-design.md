@@ -32,6 +32,16 @@ Two facts drive both halves:
 This is the **mainnet T7 walker loop re-pointed at testnet v6 with the JVM oracle** — not a new
 validation paradigm. The autonomy model, checkpointing, and fix-and-continue rhythm are inherited.
 
+**This walker replaces the old one completely.** It is **chain-agnostic** (mainnet + testnet,
+selected by the existing `network` field) and **JVM-oracle-based for both chains** — so it
+supersedes the old `mainnet-validate` walker and its sigma-rust WASM oracle entirely, not just for
+v6. Mainnet validation moves onto the JVM oracle too (one walker, one oracle, both chains). The
+"v6 / tree version ≥ 3" filter is a **campaign parameter**, not a property of the walker: a testnet
+campaign filters to v6 (the new surface); a mainnet campaign validates whatever tree versions the
+chain carries (a JVM-oracle re-validation of the surface the old WASM walker covered, plus goldens).
+The first campaign is testnet v6 (this spec's worked example); a full mainnet re-walk is a later
+campaign on the same machinery (latency caveat in §12).
+
 ## 2. Non-goals / scope boundaries
 
 - **The ergoscript library is complete as scoped.** This walk does not aim to *grow* the implemented
@@ -86,10 +96,11 @@ testnet node (REST)
          → grades the whole board (dasher/eni/develop/vixen/…)
 ```
 
-The WASM oracle **drops out of the walk entirely** — the walker no longer loads
-`ergo-lib-wasm-nodejs`. The oracle is the JVM service; the WASM-oracle module (`wasm-oracle.ts`)
-is retired from this path. (This removes a WASM dependency from the harness; it was dev-tooling-only
-anyway.)
+The WASM oracle is **retired** — for both chains, not just the v6 path. The new walker never loads
+`ergo-lib-wasm-nodejs`; the JVM service is its sole oracle, mainnet and testnet alike. `wasm-oracle.ts`
+is removed only once the new walker has reached mainnet parity (§12 — don't delete the old validation
+capability before the new one has covered the same ground); until then it lingers, unused by the new
+path. End-state: one walker, one oracle, no WASM in the harness (it was dev-tooling-only anyway).
 
 ## 5. Components
 
@@ -110,8 +121,11 @@ target is config, not a rebuild. New/changed pieces:
 - **Classifier + walk loop.** Mirrors the mainnet `validate-tx.ts` loop: per input, compare ergots
   vs oracle, branch into the three classes of §3. Checkpointed/resumable via the existing
   `checkpoint.ts`.
-- **Naming:** `tools/mainnet-validate/` now serves both chains; rename to `tools/chain-validate/`
-  (or keep + document) — low-stakes, decided at implementation.
+- **Version filter is a campaign parameter** — `--min-tree-version` (or equivalent): testnet
+  campaign → ≥ 3 (v6 only); mainnet campaign → unfiltered (all versions). Not hardcoded.
+- **Naming:** the harness is no longer mainnet-specific — **rename `tools/mainnet-validate/` →
+  `tools/chain-validate/`** (it replaces the old walker for both chains). Mechanical rename; do it
+  when the harness-side plan (Plan 2) lands.
 
 ### 5.2 not-impl ledger
 
@@ -240,9 +254,13 @@ the live campaign in (4), not for building/testing the full-context machinery).
 
 ## 12. Open questions / risks
 
-- **Live-service latency at chain scale.** Out-of-process JVM calls are slower than in-process WASM.
-  Mitigations: testnet's v6 range is far smaller than mainnet's 1.8M blocks; only v6 trees are
-  oracled; persistent service + per-block batching. Re-evaluate if the walk is impractically slow.
+- **Live-service latency at chain scale.** Out-of-process JVM calls are slower than the old
+  in-process WASM. For the **first campaign (testnet v6)** this is a non-issue — the v6 range is far
+  smaller than mainnet's 1.8M blocks and only v6 trees are oracled. For a **full mainnet re-walk**
+  (the replacement campaign) it bites harder: persistent service + per-block batching are the
+  mitigations, and the re-walk can run incrementally / from a checkpoint rather than in one pass.
+  The old WASM walker stays available until a mainnet JVM-oracle re-walk has demonstrably reached
+  parity (don't delete the old validation capability before the new one has covered the same ground).
 - **Context reconstruction fidelity.** The reconstructed `ErgoLikeContext` must be byte-faithful to
   what the node validated; an off-by-one in headers/preHeader/height would manifest as a spurious
   divergence. Pin with hand-made full-context goldens in sub-project (2) before trusting the walk.
