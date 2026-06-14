@@ -1,6 +1,6 @@
 # `@ergots/nipopow` — Interface Contract
 
-The boundary contract for the verifier package. Other packages in this monorepo (`gossip`, `light-client`) read this file to know what they may rely on. The narrative rationale lives in `docs/specs/2026-05-12-nipopow-proof-verifier-design.md`; this file is *only* the interface.
+The boundary contract for the verifier package. Downstream consumers read this file to know what they may rely on. The narrative rationale lives in `docs/specs/2026-05-12-nipopow-proof-verifier-design.md`; this file is *only* the interface.
 
 Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md` (P2P envelope) and `~/projects/ergo-node-rust/chain/src/nipopow_proof.rs` (proof validation semantics). Where this file is silent, those are canonical.
 
@@ -10,7 +10,7 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 
 1. Parse + serialize for `NipopowProof`, `PoPowHeader`, interlinks merkle proof, and `n_bits` target unpacking. `Header`, `AutolykosSolution`, `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions, `verifyAutolykosV2`, and `decodeCompactBits` are re-exported from `@ergots/scorex` — see [`facts/scorex.md`](./scorex.md) for their canonical shapes and wire formats.
 2. Stateless verification: structural checks (heights, connections) + optional Autolykos v2 PoW.
-3. Pairwise comparison (KMZ17 §4.3 "is A better than B").
+3. Pairwise comparison (KMZ17 §4.3 "is A better than B"). The proof-of-work hit it computes uses `@ergots/scorex`'s `autolykosHitForMessage`.
 4. P2P envelope codec for message codes 90 (`GetNipopowProof`) and 91 (`NipopowProof`), exposed via the `/envelope` subpath.
 5. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
@@ -201,10 +201,6 @@ No other error classes are exported from this package. Internal panics (e.g. bla
 3. **Mutation fixtures**: every single-byte flip rejected by `verifyProof`.
 4. **Envelope fixtures**: P2P codes 90/91 round-trip; JVM-captured request bytes parse and re-serialize byte-identically.
 5. **Cross-runtime**: vitest runs each test under both `node` and `jsdom` environments.
-
-## Internal dependency note (v6 P5c)
-
-The public contract of this package is **unchanged** by v6 P5c. Internally, `compare.ts`'s `powHit(header)` helper — which computes the Autolykos-2 hit for a PoPoW header during `compareProofs` — now routes through `@ergots/scorex`'s `autolykosHitForMessage` (the Architecture C″ shared hit core). This replaces the previous internal inline use of the `buildAutolykosSeed`/`genIndexes`/`hashElement` trio, which are removed from `@ergots/scorex`'s public API in P5c. The change is identity-preserving: same inputs, same `bigint` output, same test fixtures.
 
 ## Cross-references
 
