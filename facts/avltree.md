@@ -1,6 +1,6 @@
 # `@ergots/avltree` — Interface Contract
 
-The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@ergots/ergoscript` (phase 2h-b), which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
+The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@ergots/ergoscript`, which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
 
 Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `879545c` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
 
@@ -22,7 +22,7 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 - `persistent_batch_avl_prover` and `versioned_avl_storage`. Storage abstractions with no consumer in the verifier path.
 - Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.2.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
-- Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers in phase 2h-b.
+- Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
 
 ## Public surface (v0.2.0)
 
@@ -143,14 +143,14 @@ export type AvlVerifyErrorCode =
 
 **Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.2.0)**
 
-Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.2.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (per the option-3 deferred decision in the design spec).
+Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.2.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (the design spec explains why it stays internal).
 
 ```ts
 type AvlVerifyFailReason =               // (internal; not exported)
   | 'proof-truncated'                    // OOB read during tree decode
   | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid
   | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
-  | 'directions-exhausted'               // direction/replay bit read ran past proof.length (audit AVL-01)
+  | 'directions-exhausted'               // direction/replay bit read ran past proof.length
   | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
   | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
   | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)
@@ -230,14 +230,14 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, includi
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
 | `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue / ADDigest` type aliases (`types.ts`) | Documentation-only aliases on `Uint8Array`; ADDigest is exactly 33 bytes |
 | (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (6 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
-| (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers (phase 2h-b), which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
+| (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (6 codes); Rust uses `anyhow::Result` throughout with no separate error class |
 | (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.2.0 |
 
 ## Cross-references
 
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, architecture, validation strategy, error model detail
-- `facts/ergoscript-eval.md` — upstream consumer; `SAvlTree.*` method handlers in phase 2h-b call into this package
+- `facts/ergoscript-eval.md` — upstream consumer; `SAvlTree.*` method handlers call into this package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
 - `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `879545c` (verifier + prover)
 - KMZ16 paper: <https://eprint.iacr.org/2016/994> — AVL+ authenticated dictionary; KMZ17 Appendix B documents the `keyMatchesLeaf` range semantics
