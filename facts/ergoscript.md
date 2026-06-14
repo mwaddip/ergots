@@ -4,19 +4,19 @@ This is the **meta hub** for the `@ergots/ergoscript` boundary contract. Cross-c
 
 ## Scope
 
-Pure-TypeScript port of sigma-rust's `ergotree-ir` and `ergotree-interpreter` crates, validated byte-for-byte and value-for-value against the `integration/ergots` branch. Ships in three layered surfaces — wire format (parse + serialize), evaluator (`evaluate` + `EvalContext`), and sigma-protocol verifier (`verifySignature`) — with future layers planned for AVL+ membership-proof verification (phase 2h) and cost validation (phase 2j). The package is browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`, no WASM. ESM only. The package has not been `npm publish`-ed; downstream consumers in the monorepo currently import it through the workspace alias. Anything not in this document or its slice files is implementation detail and may change without notice.
+Pure-TypeScript port of sigma-rust's `ergotree-ir` and `ergotree-interpreter` crates. Ships three layered surfaces over one package — wire format (parse + serialize), evaluator (`evaluate` + `EvalContext`), and sigma-protocol verifier (`verifySignature`) — plus authenticated AVL+ operation verification through `@ergots/avltree` and execution-cost equivalence exposed as `ctx.jitCost` after `evaluateWith`. The package is browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`, no WASM; ESM only. It is published to npm and consumed inside the monorepo through the workspace alias. Anything not in this document or its slice files is implementation detail and may change without notice.
 
-Authoritative source-of-truth for wire-format byte layout and evaluator semantics: sigma-rust at `~/projects/sigma-rust/sigma-rust/` (branch `integration/ergots`). Where this file or a slice file is silent, sigma-rust is canonical.
+The wire format and the v5 language semantics are validated byte-for-byte and value-for-value against sigma-rust (branch `integration/ergots`); the v6 (ErgoTree V3) evaluator, its execution costs, and adversarial-input gating are validated against a conformance corpus blessed by the JVM `sigma-state` reference. Where this file or a slice file is silent these references are canonical — sigma-rust at `~/projects/sigma-rust/sigma-rust/` for byte layout and v5 semantics, the JVM `sigma-state` reference for v6 semantics and cost.
 
 ## Where to find what
 
 | Concern | File |
 |---|---|
 | Wire format (`parseTree`, `serializeTree`, address helpers, `ErgoTree` / `TreeHeader` types, wire-layer error classes incl. `ErgoTreeParseError`/`SerializeError` and `SigmaBooleanParseError`) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 84 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 68/68 implementable + 21 reserved, 128-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms, `validateV6Types` pre-eval pass for v6 type gating) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
-| Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 8 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
-| AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
-| Cost-equivalence (read `ctx.jitCost` after `evaluateWith(tree, ctx)`) | infrastructure landed in phase 2j-a via the mainnet-validate harness; per-arm calibration ongoing in 2j-b/c/... per [`tools/mainnet-validate/findings/`](../tools/mainnet-validate/findings/) |
+| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 84 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], 68/68 implementable eval arms + 21 reserved opcodes, 128-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms, `validateV6Types` pre-eval pass for v6 type gating) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 9 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
+| Authenticated AVL+ operations (`SAvlTree.*` method handlers in the evaluator, backed by `@ergots/avltree`'s `verifyAvlBatch` verifier) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) + [`facts/avltree.md`](./avltree.md) |
+| Cost-equivalence (read `ctx.jitCost` after `evaluateWith(tree, ctx)`) | per-arm cost charges in [`facts/ergoscript-eval.md`](./ergoscript-eval.md); validation status in the Coverage summary below |
 
 ## Cross-cutting guarantees
 
@@ -31,7 +31,7 @@ Authoritative source-of-truth for wire-format byte layout and evaluator semantic
 Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 
 - All Uint8Arrays. Never `Buffer`. (`Buffer.from(...)` does not exist in browsers.)
-- `globalThis.crypto` is not used. Hashing comes from `@noble/hashes` only; secp256k1 curve operations come from `@noble/curves` (phase 2g-medium+). Both are browser-clean ESM packages.
+- `globalThis.crypto` is not used. Hashing comes from `@noble/hashes` only; secp256k1 curve operations come from `@noble/curves`. Both are browser-clean ESM packages.
 - `bigint` is used for `SLong`, `SBigInt`, cost values, and 64-bit-safe VLQ reads. Browsers support `bigint` natively since 2020; no polyfill ships.
 - No top-level `await`.
 - No WASM. No `.wasm` blobs anywhere in the package, no direct or transitive WASM dependencies. CI scans `dist/` for `.wasm` files, `WebAssembly.instantiate`, Buffer/process/node:* references, and Scala.js identifier patterns.
@@ -39,12 +39,12 @@ Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 
 ### Package shape
 
-One published npm package, `@ergots/ergoscript` (**published to npm as `@ergots/ergoscript@0.2.0`**, 2026-06-02). **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
+One published npm package, `@ergots/ergoscript`. **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
 
 ### Runtime dependencies
 
 - `@noble/hashes@2.2.0` (blake2b, sha-256, sha-512). Same pin as the proof package.
-- `@noble/curves@2.2.0` (secp256k1 point ops + Schnorr-style verification). Added in phase 2g-medium. Version-locked pair with `@noble/hashes`.
+- `@noble/curves@2.2.0` (secp256k1 point ops + Schnorr-style verification). Version-locked pair with `@noble/hashes`.
 
 No `Buffer`, no `node:*` outside test files, no WASM.
 
@@ -54,7 +54,7 @@ The package exports multiple typed error classes, one per surface, each carrying
 
 - **Wire layer** (see [`ergoscript-wire.md`](./ergoscript-wire.md) for full taxonomy): `ErgoTreeParseError`, `ErgoTreeSerializeError`, `ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`, `AddressDecodeError`.
 - **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 84 codes): `EvalError`.
-- **Sigma-protocol verifier** (see [`ergoscript-sigma.md`](./ergoscript-sigma.md) for full taxonomy of 8 codes): `VerifyError`.
+- **Sigma-protocol verifier** (see [`ergoscript-sigma.md`](./ergoscript-sigma.md) for full taxonomy of 9 codes): `VerifyError`.
 
 Common discipline: `.message` is human-readable; `.code` matches a fixed enum of structural reason strings for programmatic handling. No other error classes are exported. Internal panics (e.g., a bug in `@noble/hashes` or `@noble/curves`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
 
@@ -63,30 +63,30 @@ Common discipline: `.message` is human-readable; `.code` matches a fixed enum of
 The package validates implementation via three layers per the project's TDD discipline:
 
 - **Layer 1 — parse + round-trip** (`test/corpus.test.ts`): loads the full fixture corpus (sigma-rust unit tests, ergoscript-compiler tests, real mainnet boxes, synthetic VLQ/SType edge cases) and asserts both structural parse correctness AND byte-identical round-trip.
-- **Layer 2 — evaluation correctness** (`test/eval/*.test.ts` per-arm + `test/corpus-eval.test.ts`): each evaluator arm has fixture(s) asserting both value and cost against sigma-rust's `try_eval_out` oracle. Layer C2 cross-checks the TS evaluator against the sigma-rust eval oracle on every mainnet fixture whose body is fully covered.
+- **Layer 2 — evaluation correctness** (`test/eval/*.test.ts` per-arm + `test/corpus-eval.test.ts`): each evaluator arm has fixture(s) asserting both value and cost against sigma-rust's `try_eval_out` oracle. A cross-check layer runs the TS evaluator against the sigma-rust eval oracle on every mainnet fixture whose body is fully covered.
 - **Layer 3 — mutation tests** (`test/parse-mutation.test.ts`): single-byte flips at varied offsets across every fixture; each mutation either throws one of the typed error classes above OR is byte-identical (a flip in a tolerated padding region).
-- **Layer C3.a — operator-driven mutation testing** (Coll HOFs): scoped mutation tests at ≥ 90% kill rate per HOF arm. Method handlers deferred per 2g.5/2g.6 posture.
+- **Operator-driven mutation tests** (Coll HOFs): scoped mutation tests at ≥ 90% kill rate per HOF arm; method-handler arms are exercised by the per-arm value+cost fixtures rather than by operator mutation.
 - **Cross-runtime**: vitest runs every test under both `node` and `jsdom` environments.
 
-See `docs/specs/` for per-phase test-strategy detail.
+See `docs/specs/` for test-strategy detail.
 
 ## Coverage summary
 
 | Slice | Status |
 |---|---|
-| Wire format | 100% of MIR variants parse + serialize byte-identically (255 + 1 + 6 fixtures; 6,221 mutations; 100% taxonomy coverage) |
-| Evaluator | 68 of 68 implementable `Expr` arms wired (post-2i-d reframe; F5 batch 4 added the `LastBlockUtxoRootHash` `0xa6` op-form arm; 21 wire opcodes are reserved-but-never-dispatched in sigma-rust and parse-reject via `'opcode-reserved'` (was 18 — FlatMap/TrivialPropFalse/TrivialPropTrue reclassified from `'not-implemented-yet'` in F5 batch-6, the JVM rejects all three via the same `CheckValidOpCode` path; was 19 before that — `FunDef` parses as a `ValDef` since v6 P6); the wire layer no longer emits `'not-implemented-yet'` (it survives only as an `EvalError` code)); 128 method-handler registry entries (F5 batch 2 +3: `SPreHeader.version`/`nBits`/`votes`); 84 `EvalError` codes (v6 P2a added `'v6-type-in-pre-v3-tree'` + `'unsigned-bigint-op-unsupported'`; v6 P2b added `'unsigned-bigint-out-of-range'` + extended `'unsigned-bigint-op-unsupported'` to cast arm rejects; v6 P2c added 0 new codes — UBI BinOps + bridge methods reuse existing codes; post-P2c: P2d-2 +1, P4 +1, P5a +2, P5b-1 +1, P5b-2 +2, P5c +1, P6 +1 → 81; **F1 removed 2: `'atleast-bound-out-of-range'` + `'deserialize-context-key-not-found'` → 79**; F3 +1 `'sigma-boolean-compare-unsupported'` → 80; F4 epilogue +1 −2 (`'unsupported-eval-node'`; removed `'create-avl-tree-shape-mismatch'` + `'avl-tree-bad-digest-length'`) → 79; F5 batch 1 +1 `'tuple-invalid-arity'` → 80; F5 batch 2 +0; F5 batch 3 +2 `'select-field-non-pair'`/`'unsupported-value-type'` → 82; F5 batch 4 +1 `'atleast-too-many-children'` → 83; F5 batch-4 close-out tally fix +1 `'coll-map-elem-type-infer-failed'` (pre-existing defensive code, phase 2f, tsc-provably unreachable) → 84); substitute-pre-pass architecture (`_substitute-deserialize.ts`) for DeserializeContext / DeserializeRegister arms; `validateV6Types` pre-eval pass for `SUnsignedBigInt`/`SFunc`-112 type gating; mainnet C2 corpus `success` ≥ 18 (uplift TBD on next corpus run; 2i-a/b/c arms ride along under shape-uniform handlers) |
-| Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 8 `VerifyError` codes (3 reserved for ABI stability) |
-| AVL+ | Integrated via `@ergots/avltree` v0.2.0: full 16 of 16 `SAvlTree.*` method handlers wired (phase 2h-b: 7 Tier-1 accessors + 6 Tier-2 verification ops; phase 2h-d: `updateOperations`/`updateDigest` Tier-1 + V3-gated `insertOrUpdate` Tier-2) |
-| Cost-equivalence | Infrastructure landed in phase 2j-a (mainnet-validate harness wiring: shim emits sigma-rust per-input cost via `reduce_to_crypto` + `ctx.jit_cost_value()`; harness compares vs our `ctx.jitCost`; halt-on-first-divergence with structured `error-report.json`). Layer-5 smoke clean to h=1000; first cost-drift surfaced at h=3850 (delta 24, ours undercharged). Per-arm calibration ongoing in 2j-b/c/... |
+| Wire format | 100% of MIR variants parse + serialize byte-identically; full wire-error taxonomy coverage; single-byte mutation tests across the whole corpus |
+| Evaluator | 68 of 68 implementable `Expr` arms wired; the 21 opcodes the reference reserves but never executes parse-reject via `'opcode-reserved'`; 128-entry method-handler registry spanning the v5 language and the v6 (ErgoTree V3) additions; 84 `EvalError` codes; a substitute-pre-pass (`_substitute-deserialize.ts`) for the `DeserializeContext`/`DeserializeRegister` arms and a `validateV6Types` pre-eval pass for `SUnsignedBigInt`/`SFunc` type gating |
+| Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 9 `VerifyError` codes (4 reserved for ABI stability) |
+| AVL+ | Integrated via `@ergots/avltree`: all 16 `SAvlTree.*` method handlers wired (accessors, verification/update operations, and the V3-gated `insertOrUpdate`) |
+| Cost-equivalence | Execution cost (`ctx.jitCost` after `evaluateWith`) is reference-equivalent: the evaluator has been walked from genesis to the chain tip, comparing every transaction input's cost against `sigma-rust`, with zero unresolved divergences. Per-arm cost charges are documented in the eval slice. |
 
-Cross-runtime: 3580 ergoscript + 156 avltree + 247 nipopow + 177 scorex = 4160 tests, passing under both `node` and `jsdom` (v6 P2a complete).
+Cross-runtime: the full suite runs under both `node` and `jsdom`.
 
 **Convention:** when a slice file's coverage changes, this summary table is updated in the same commit.
 
 ## Cross-references
 
-- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella interpreter design (phase plan; risks; validation strategy)
+- `docs/specs/2026-05-13-ergoscript-interpreter-design.md` — umbrella interpreter design (design rationale, risks, validation strategy)
 - `docs/specs/2026-05-18-facts-ergoscript-split-design.md` — this file's split design
 - `facts/nipopow.md` — sister contract for `@ergots/nipopow`
 - `CLAUDE.md` — project conventions (read-first files include this meta + relevant slices)
