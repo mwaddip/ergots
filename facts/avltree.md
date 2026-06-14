@@ -13,7 +13,7 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 3. `verifyAvlLookup` — thin convenience wrapper over `verifyAvlBatch` for single-key reads.
 4. All 8 `Operation` variants: `Lookup`, `UnknownModification`, `Insert`, `Update`, `InsertOrUpdate`, `UpdateLongBy`, `Remove`, `RemoveIfExists`.
 5. `AvlTreeConfig` — verifier-input shape (key length, optional fixed value length, optional DoS bounds).
-6. `AvlVerifyError` — programmer-error rejection class with 6 typed codes.
+6. `AvlVerifyError` — programmer-error rejection class with 7 typed codes.
 7. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
 **Does NOT ship:**
@@ -123,7 +123,7 @@ export type OperationResult = Uint8Array | null  // null = key was absent before
 
 The package enforces a strict two-tier failure model:
 
-**Tier 1 — `AvlVerifyError` thrown (6 codes; programmer errors only)**
+**Tier 1 — `AvlVerifyError` thrown (7 codes; programmer errors only)**
 
 Checked at the public entry point before any `BatchAvlVerifier` state is constructed. These indicate bugs in calling code, not in the proof data.
 
@@ -139,6 +139,7 @@ export type AvlVerifyErrorCode =
   | 'invalid-starting-digest-length'     // startingDigest.length !== 33
   | 'operation-key-length-mismatch'      // op.key.length !== config.keyLength
   | 'operation-value-length-mismatch'    // op.value.length !== config.valueLengthOpt when fixed
+  | 'operation-delta-out-of-range'       // UpdateLongBy.delta outside signed i64 range (verify.ts:295-298)
 ```
 
 **Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.2.0)**
@@ -229,9 +230,9 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, includi
 | `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
 | `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue / ADDigest` type aliases (`types.ts`) | Documentation-only aliases on `Uint8Array`; ADDigest is exactly 33 bytes |
-| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (6 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
+| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (7 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
-| (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (6 codes); Rust uses `anyhow::Result` throughout with no separate error class |
+| (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (7 codes); Rust uses `anyhow::Result` throughout with no separate error class |
 | (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.2.0 |
 
 ## Cross-references
