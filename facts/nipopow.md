@@ -31,6 +31,7 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 parseProof(bytes: Uint8Array): NipopowProof
 serializeProof(proof: NipopowProof): Uint8Array
 verifyProof(bytes: Uint8Array, opts?: VerifyOptions): VerificationResult
+verifyParsedProof(proof: NipopowProof, opts?: VerifyOptions): VerificationResult
 compareProofs(a: Uint8Array, b: Uint8Array): boolean
 ```
 
@@ -61,6 +62,13 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 - **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `v1-header-after-v2-activation` (NIP-02), `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`), `invalid-interlinks-proof`.
 - **Invariant:** Stateless. No filesystem, network, or `globalThis` access. Same inputs → same result, every call.
 
+#### `verifyParsedProof(proof, opts)`
+
+- The parsed-proof entry point that `verifyProof` delegates to after parsing. Takes an already-parsed `NipopowProof` (no wire decode); exported chiefly to unit-test the logical invariants (heights, connections, interlinks Merkle proof) without round-trip serialization.
+- **Postcondition (success):** Same `VerificationResult` as `verifyProof`.
+- **Postcondition (failure):** Throws `ProofVerificationError` — `'invalid-m'` / `'invalid-k'` (the `m > 0` / `k > 0` shape gates, NIP-09) plus the same logical-verification codes `verifyProof` raises (connections, heights, PoW, v1-after-activation, interlinks). It does not parse, so it never raises `'parse-failed'`. The `'invalid-m'` / `'invalid-k'` codes are reachable here only with a hand-built `NipopowProof`; on the wire path an out-of-range `m`/`k` is rejected earlier by `parseProof` as `ProofParseError('invalid-m'/'invalid-k')`, which `verifyProof` wraps to `'parse-failed'`.
+- **Invariant:** Stateless, same as `verifyProof`.
+
 #### `compareProofs(a, b)`
 
 - **Precondition:** Both `a` and `b` are valid proof byte sequences. (Parse failures throw; do NOT silently return `false`.)
@@ -85,13 +93,17 @@ const NIPOPOW_PROOF_MAX_SIZE: 2_000_000
 
 - **Precondition:** `body.length <= GET_NIPOPOW_PROOF_MAX_SIZE` (1000).
 - **Postcondition (success):** Returns `{ m, k, headerId }` where `m > 0`, `k > 0`, `m + k <= 1000`, and `headerId` is either `null` (use tip) or a 32-byte `Uint8Array`.
-- **Postcondition (failure):** Throws `EnvelopeParseError` for any: oversized body, `m <= 0`, `k <= 0`, `m + k > 1000`, truncation, malformed VLQ, or invalid `headerId` length.
+- **Postcondition (failure):** Throws `EnvelopeParseError` for any: oversized body, `m <= 0`, `k <= 0`, `m + k > 1000`, truncation, malformed VLQ, invalid `headerId` length, or undeclared trailing bytes after the payload (`'trailing-bytes'`, NIP-10).
+
+#### `serializeGetNipopowProof(req)`
+
+- **Precondition:** `req.m > 0`, `req.k > 0`, `req.m + req.k <= 1000` — the same bounds `parseGetNipopowProof` enforces. Throws `EnvelopeParseError('invalid-mk')` otherwise (NIP-11), so a caller cannot emit a code-90 message its own parser would refuse.
 
 #### `parseNipopowProofEnvelope(body)`
 
 - **Precondition:** `body.length <= NIPOPOW_PROOF_MAX_SIZE` (2_000_000).
 - **Postcondition (success):** Returns the inner proof bytes (a `Uint8Array`), suitable for passing to `parseProof` or `verifyProof`. Length is `> 0` and `< 2_000_000`.
-- **Postcondition (failure):** Throws `EnvelopeParseError` on oversized body, zero-length proof, oversized proof length declaration, or truncation.
+- **Postcondition (failure):** Throws `EnvelopeParseError` on oversized body, zero-length proof, oversized proof length declaration, truncation, or undeclared trailing bytes after the declared payload + future-padding (`'trailing-bytes'`, NIP-10).
 
 #### Round-trip invariant
 
