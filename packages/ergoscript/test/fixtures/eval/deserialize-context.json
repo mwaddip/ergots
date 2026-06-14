@@ -275,8 +275,8 @@
       },
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error": "extension.values[1] not found",
-      "expected_error_code": "deserialize-context-key-not-found"
+      "expected_error": "substitute pass did not rewrite",
+      "expected_error_code": "deserialize-not-substituted"
     },
     {
       "name": "dc_throw_wrong_input_type",
@@ -298,8 +298,8 @@
       },
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error": "must be Coll[Byte]",
-      "expected_error_code": "deserialize-input-not-byte-array"
+      "expected_error": "substitute pass did not rewrite",
+      "expected_error_code": "deserialize-not-substituted"
     },
     {
       "name": "dc_throw_parse_failed",

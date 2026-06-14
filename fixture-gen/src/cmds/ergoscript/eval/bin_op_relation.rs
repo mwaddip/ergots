@@ -386,7 +386,13 @@ pub fn generate() -> anyhow::Result<BinOpRelationFixtureFile> {
     }
 
     // --- SigmaProp: TrivialProp(true) == TrivialProp(true) → true ---
-    // Falls to catch-all arm in eq_with_cost → EQ_PRIM_COST = 3; total = 13.
+    //
+    // ⚠️ HAND-BLESSED (F3, 2026-06-07): the committed JSON pins cost 12 for both
+    // eq_sigma_prop_same and eq_sigma_prop_diff — JVM DataValueComparer walk
+    // (SigmaProp dispatch MatchType 1 + TrivialProp node MatchType 1 = 2, total
+    // 5+5+2), NOT this generator's sigma-rust flat EQ_PRIM_COST=3 (total 13).
+    // A regen diff of 12→13 here is EXPECTED, not a regression — re-apply 12.
+    // See packages/ergoscript/src/eval/bin-op/_sigma-boolean-eq.ts.
     {
         let sp_true: SigmaProp = SigmaProp::new(SigmaBoolean::TrivialProp(true));
         let sp_false: SigmaProp = SigmaProp::new(SigmaBoolean::TrivialProp(false));

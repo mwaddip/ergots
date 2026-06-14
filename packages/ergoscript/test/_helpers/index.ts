@@ -11,6 +11,7 @@ import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { parseSValue } from '../../src/wire/parse-svalue'
 import { ByteReader } from '@ergots/scorex'
 import type { Header } from '@ergots/scorex'
 
@@ -28,6 +29,64 @@ export function hexToBytes(hex: string): Uint8Array {
     out[i] = byte
   }
   return out
+}
+
+/**
+ * Hydrate a SANTA canonical bytes_hex carrier (runner-contract §4: the
+ * STANDALONE chain-serializer form — ErgoBox.sigmaSerializer / ErgoHeader.
+ * sigmaSerializer / AvlTreeData.serializer — a version-FREE codec channel).
+ *
+ * treeVersion=3 neutralizes parseSValue's only version gate (the SHeader
+ * tree-constant reject at parse-svalue.ts:537, which belongs to the TREE
+ * channel); byte→value interpretation is version-invariant, and the entry's
+ * tree still evaluates under its own version.ergoTree via makeContext.
+ * Do NOT thread the entry version here — a v5 entry with a Header input is
+ * legal (Context.headers exists since 5.0) and threading would false-RED it.
+ *
+ * Exhaustion assert: parseSValue delegates trailing-byte checks to the
+ * caller (parse-svalue.ts:164-167) — a vendoring slip (truncated/appended
+ * hex) must fail LOUDLY at hydration, not as a confusing downstream
+ * value/cost mismatch.
+ */
+function hydrateCanonicalBytes(tag: 'SBox' | 'SHeader' | 'SAvlTree', hex: string): SValue {
+  const r = new ByteReader(hexToBytes(hex))
+  const v = parseSValue({ tag }, 3, r)
+  if (r.remaining !== 0) {
+    throw new Error(`hydrateCanonicalBytes(${tag}): ${r.remaining} trailing bytes after parse`)
+  }
+  return v
+}
+
+/**
+ * Derive an SValue's SType — only the kinds that appear as vector inputs.
+ * Coll/Option carry `elem` already (set by hydrateSValue); Tuple recurses.
+ *
+ * Lives here (not in test/conformance/_santa.ts, its original home) because
+ * hydrateSValue's Option arm needs it to derive the elem type that SANTA's
+ * canonical Option JSON omits (runner-contract §4 — Option carries no elem).
+ */
+export function sTypeOfSValue(v: SValue): SType {
+  switch (v.kind) {
+    case 'Boolean': return { tag: 'SBoolean' }
+    case 'Byte': return { tag: 'SByte' }
+    case 'Short': return { tag: 'SShort' }
+    case 'Int': return { tag: 'SInt' }
+    case 'Long': return { tag: 'SLong' }
+    case 'BigInt': return { tag: 'SBigInt' }
+    case 'UnsignedBigInt': return { tag: 'SUnsignedBigInt' }
+    case 'GroupElement': return { tag: 'SGroupElement' }
+    case 'SigmaProp': return { tag: 'SSigmaProp' }
+    case 'Box': return { tag: 'SBox' }
+    case 'AvlTree': return { tag: 'SAvlTree' }
+    case 'Header': return { tag: 'SHeader' }
+    case 'PreHeader': return { tag: 'SPreHeader' }
+    case 'Unit': return { tag: 'SUnit' }
+    case 'Coll': return { tag: 'SColl', elem: v.elem }
+    case 'Option': return { tag: 'SOption', elem: v.elem }
+    case 'Tuple': return { tag: 'STuple', items: v.items.map(sTypeOfSValue) }
+    default:
+      throw new Error(`sTypeOfSValue: unhandled SValue kind '${(v as SValue).kind}'`)
+  }
 }
 
 /**
@@ -57,6 +116,8 @@ export function hydrateSValue(json: any): SValue {
       return { kind: 'Long', value: BigInt(json.value as string) }
     case 'BigInt':
       return { kind: 'BigInt', value: BigInt(json.value as string) }
+    case 'UnsignedBigInt':
+      return { kind: 'UnsignedBigInt', value: BigInt(json.value as string) }
     case 'GroupElement':
       return { kind: 'GroupElement', value: hexToBytes(json.bytes_hex) }
     case 'SigmaProp': {
@@ -78,20 +139,42 @@ export function hydrateSValue(json: any): SValue {
         elem: json.elem as SType,
         items: (json.items as any[]).map(hydrateSValue),
       }
+    case 'Coll[Byte]': {
+      // SANTA compact byte-collection form (runner-contract §4): semantically
+      // identical to per-item Coll/SByte, added upstream for large payloads
+      // (the SBox token-window family carries >4KB box bytes as context
+      // input). INPUT-side only — results still encode as per-item Coll, so
+      // svalueToSantaJson needs no counterpart. Hydrates to the exact SValue
+      // the per-item form produces: signed i8 items, mirroring parseSValue's
+      // NativeColl arm (parse-svalue.ts:390-397).
+      const bytes = hexToBytes(json.value_hex as string)
+      const items: SValue[] = new Array(bytes.length)
+      for (let i = 0; i < bytes.length; i++) {
+        items[i] = { kind: 'Byte', value: (bytes[i]! << 24) >> 24 }
+      }
+      return { kind: 'Coll', elem: { tag: 'SByte' }, items }
+    }
     case 'Tuple':
       return {
         kind: 'Tuple',
         items: (json.items as any[]).map(hydrateSValue),
       }
-    case 'Option':
-      return {
-        kind: 'Option',
-        elem: json.elem as SType,
-        value: json.value === null ? null : hydrateSValue(json.value),
+    case 'Option': {
+      // SANTA canonical Option JSON omits `elem` (runner-contract §4) —
+      // derive it from the hydrated Some value. A None without elem is
+      // untypeable: fail loudly rather than propagate an undefined SType.
+      const value = json.value === null ? null : hydrateSValue(json.value)
+      const elem = (json.elem as SType | undefined) ?? (value !== null ? sTypeOfSValue(value) : undefined)
+      if (elem === undefined) {
+        throw new Error('hydrateSValue: Option None without elem is untypeable')
       }
+      return { kind: 'Option', elem, value }
+    }
     case 'Box':
+      if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SBox', json.bytes_hex)
       return { kind: 'Box', value: hydrateErgoBox(json.value) }
     case 'AvlTree': {
+      if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SAvlTree', json.bytes_hex)
       // AvlTreeData carrier. JSON shape (from fixture-gen's
       // avl_tree_data_to_json helper, phase 2h-b):
       //   { digest_hex, treeFlags (u8), keyLength (u32), valueLengthOpt (u32 | null) }
@@ -128,6 +211,7 @@ export function hydrateSValue(json: any): SValue {
       }
     }
     case 'Header': {
+      if (typeof json.bytes_hex === 'string') return hydrateCanonicalBytes('SHeader', json.bytes_hex)
       // Header value carrier. JSON shape is defined by fixture-gen's
       // header_to_json helper (added in phase 2h-c.1).
       return { kind: 'Header', value: hydrateHeader(json.value) }
@@ -190,7 +274,7 @@ export function hydrateErgoBox(json: any): ErgoBox {
  *   adProofsRoot: hex → Uint8Array (32 bytes)
  *   stateRoot: hex → Uint8Array (33 bytes)
  *   transactionRoot: hex → Uint8Array (32 bytes)
- *   timestamp: decimal string → number (via BigInt then Number)
+ *   timestamp: decimal string → bigint (lossless)
  *   nBits: number
  *   height: number
  *   extensionRoot: hex → Uint8Array (32 bytes)
@@ -207,8 +291,8 @@ export function hydrateHeader(json: any): Header {
     adProofsRoot: hexToBytes(json.adProofsRoot as string),
     stateRoot: hexToBytes(json.stateRoot as string),
     transactionRoot: hexToBytes(json.transactionRoot as string),
-    // timestamp is a decimal string (u64 from Rust) — convert via BigInt then Number
-    timestamp: Number(BigInt(json.timestamp as string)),
+    // timestamp is a decimal string (u64 from Rust) — carry as bigint (lossless)
+    timestamp: BigInt(json.timestamp as string),
     nBits: json.nBits as number,
     height: json.height as number,
     extensionRoot: hexToBytes(json.extensionRoot as string),

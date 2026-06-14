@@ -7,7 +7,24 @@
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
  *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
  *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 40 + 3 + 1 = 44 codes added through phase 2h-b Tier 1
+ *   - documents the 81 codes through v6 P6 (HOF lambdas) + F1 (which removed
+ *     'atleast-bound-out-of-range' AND 'deserialize-context-key-not-found':
+ *     81 → 79; see history) + F3 (79 → 80)
+ *     + F4 epilogue Task 2 (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
+ *     which the unconditional CreateAvlTree reject orphaned: net 80 → 80)
+ *     + F4 epilogue Task 3 (−'avl-tree-bad-digest-length': JVM accepts any digest
+ *     length, CAvlTree.scala:31-34 no-require; net 80 → 79)
+ *     + F5 batch 1 (+'tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
+ *     values.scala:795-798; net 79 → 80)
+ *     + F5 batch 3 (+'unsupported-value-type': checkType non-pair-STuple /
+ *     non-unary-SFunc declared type, SType.scala:200-205; net 80 → 81. T3 adds
+ *     'select-field-non-pair' → 82)
+ *     + F5 batch 4 (+'atleast-too-many-children': Atleast >255-children cap,
+ *     CSigmaDslBuilder.scala:102-108; net 82 → 83)
+ *     + F5 batch-4 close-out tally fix (+'coll-map-elem-type-infer-failed':
+ *     pre-existing defensive code originated phase 2f, tsc-provably unreachable
+ *     default arm of the exhaustive SValue-kind switch in svalue-type.ts; net
+ *     83 → 84) — current total: 84
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -24,6 +41,7 @@
  *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
  *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
  *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
+ *    + 1 code added in v6 P1 C1 final-review fix (numeric-method-bad-operand)
  *    + 7 codes added in phase 2i-a (pure-bytes predefs):
  *        - 'predef-input-not-byte-array' (T2; shared by T2/T3/T4/T6/T7/T8)
  *        - 'byte-array-to-long-too-short' (T4)
@@ -36,15 +54,61 @@
  *        - 'sigma-prop-is-proven-no-eval' (T2 — frontend-only structural throw)
  *        - 'group-op-input-not-group-element' (T3+T4 — MultiplyGroup + Exponentiate base)
  *        - 'predef-input-not-bigint' (T4 — Exponentiate's BigInt exponent)
- *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/valueLength)
- *    + 5 codes added in phase 2i-c (deserialize family):
- *        - 'deserialize-context-key-not-found' (DC: ctx.extension.values[id] missing)
+ *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/
+ *          valueLength; REMOVED in the F4 epilogue — the unconditional
+ *          CreateAvlTree eval-reject orphaned every throw path)
+ *    + 4 codes added in phase 2i-c (deserialize family; was 5 — F1 later
+ *      removed 'deserialize-context-key-not-found', see note below):
  *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
  *        - 'deserialize-parse-failed' (both: inner Expr bytes malformed)
  *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed) !== e.tpe)
  *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
- *          for DR with register absent + default null OR recursive-Deserialize)
- *   = 64 codes total after phase 2i-c.
+ *          for DR with register absent + default null OR recursive-Deserialize
+ *          OR — post-F1 — a LIVE DC over an absent/wrong-typed var)
+ *   = 63 codes total after phase 2i-c (F1-adjusted from 64).
+ *    + 2 codes from v5 Coll methods (coll-update-index-out-of-range,
+ *        coll-update-many-length-mismatch) → 65
+ *    + 2 codes from v6 P1 numeric methods (numeric-shift-out-of-range,
+ *        bigint-result-out-of-range) → 67
+ *    + 1 code from v6 P1 C1 final-review (numeric-method-bad-operand) → 68
+ *    + 4 codes from v6 P2 SUnsignedBigInt (v6-type-in-pre-v3-tree,
+ *        unsigned-bigint-op-unsupported, unsigned-bigint-out-of-range,
+ *        unsigned-bigint-not-invertible) → 72 (housekeeping 2026-06-03: used in
+ *        the P2 arms but omitted from this union until now)
+ *    + 8 codes across v6 P4–P6 ('method-call-empty-args' P4 → 73;
+ *        'global-serialize-failed' + 'global-deserialize-failed' P5a → 75;
+ *        'global-from-bigendian-bytes-failed' P5b-1 → 76;
+ *        'global-encode-nbits-failed' + 'global-decode-nbits-failed' P5b-2 → 78;
+ *        'pow-hit-invalid-params' P5c → 79; 'apply-unresolved-type-var' P6 → 80)
+ *    − 1 code removed in F1 ('atleast-bound-out-of-range'; F1's other removal,
+ *        'deserialize-context-key-not-found', is already netted in the
+ *        "F1-adjusted" 63 above) → 79
+ *    + 1 code added in F3 (conformance run — EQ-of-SigmaProp costed walk):
+ *        'sigma-boolean-compare-unsupported' (JVM DataValueComparer sys.error
+ *        mirror) → 80
+ *    + 1 − 2 in the F4 epilogue (+'unsupported-eval-node' T2;
+ *        −'create-avl-tree-shape-mismatch' T2, −'avl-tree-bad-digest-length' T3) → 79
+ *    + 1 code added in F5 batch 1 ('tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
+ *        values.scala:795-798; net 79 → 80)
+ *    + 2 codes added in F5 batch 3 ('unsupported-value-type' — checkType
+ *        non-pair-STuple / non-unary-SFunc declared type; 'select-field-non-pair'
+ *        T3 — SelectField on a runtime non-pair Tuple) → 82
+ *    + 1 code added in F5 batch 4 ('atleast-too-many-children' — Atleast
+ *        >255-children cap, CSigmaDslBuilder.scala:102-108) → 83
+ *    + 1 pre-existing code counted at F5 batch-4 close-out
+ *        ('coll-map-elem-type-infer-failed' — defensive default arm of the
+ *        exhaustive SValue-kind switch in svalue-type.ts, originated phase 2f,
+ *        tsc-provably unreachable) → 84
+ *
+ *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
+ *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
+ *   P4–P6 / F1 / F3-total / F4-epilogue intermediate steps and the F5 batch 3
+ *   (+2 → 82) and batch 4 (+1 → 83) tail were missing; the header chain above
+ *   lacked the batch 4 step; and the union below was missing batch 4's
+ *   'atleast-too-many-children' even though the throw site (eval/atleast.ts)
+ *   and facts/ergoscript-eval.md already carried it. A further gap —
+ *   'coll-map-elem-type-infer-failed' (pre-existing defensive code, phase 2f)
+ *   — was also never counted; found and added in the same close-out pass.)
  */
 
 /**
@@ -133,7 +197,25 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // Phase 2f medium — GlobalVars / GetVar / Option / SelectField (6 codes)
   // -------------------------------------------------------------------------
-  /** GlobalVars: required context field is missing (e.g. ctx.selfBox is undefined). */
+  /**
+   * A required `EvalOpts`/context field is `undefined`. Originally a
+   * GlobalVars-only code; the producer set has grown (census at the F5 batch 4
+   * close-out, 2026-06-10):
+   *   - the GlobalVars arms (`eval/global-vars.ts` — e.g. ctx.height,
+   *     ctx.selfBox);
+   *   - GetVar on absent `ctx.extension` (`eval/get-var.ts`);
+   *   - the Deserialize substitute pass (`eval/_substitute-deserialize.ts` —
+   *     DeserializeContext needs `ctx.extension`, DeserializeRegister needs
+   *     `ctx.selfBox`);
+   *   - the SContext handlers `preHeader` 101:3, `selfBoxIndex` 101:8,
+   *     `lastBlockUtxoRootHash` 101:9, `minerPubKey` 101:10
+   *     (`eval/method-call.ts`; NOT `headers` 101:2 — absent headers is the
+   *     empty Coll, no throw);
+   *   - the bare `0xa6` LastBlockUtxoRootHash op-form arm
+   *     (`eval/last-block-utxo-root-hash.ts`, F5 batch 4 — reads the same
+   *     `ctx.lastBlockUtxoRootHash` field as the 101:9 handler; only the cost
+   *     differs by wire shape, 15 op-form vs 20 PropertyCall).
+   */
   | 'context-field-missing'
   /** GetVar: variable's stored type doesn't match requested type. */
   | 'get-var-type-mismatch'
@@ -197,8 +279,8 @@ export type EvalErrorCode =
   | 'sigma-prop-input-not-group-element'
 
   // -------------------------------------------------------------------------
-  // Phase 2g-combinators — Atleast + sigma helpers (4 new codes)
-  // Total taxonomy: 36 → 40.
+  // Phase 2g-combinators — Atleast + sigma helpers (3 new codes)
+  // Total taxonomy: 36 → 39.
   // -------------------------------------------------------------------------
   /**
    * `Atleast`: bound expression evaluated to a non-Int SValue. Wire-format
@@ -228,15 +310,6 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/atleast.rs:31-37
    */
   | 'sigma-prop-input-not-coll'
-  /**
-   * `Atleast`: bound value is out of the valid range [0, 255] (i.e., does
-   * not fit in a u8) or bound > items.length (impossible to prove k of n
-   * when k > n). Both conditions map to `EvalError::Misc` in sigma-rust.
-   *
-   * Source: ergotree-interpreter/src/eval/atleast.rs:49-56
-   */
-  | 'atleast-bound-out-of-range'
-
   // -------------------------------------------------------------------------
   // Phase 2g.5 — method-call dispatch + SigmaPropBytes + SContext.dataInputs
   // (3 new codes; 40 → 43)
@@ -290,29 +363,52 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2h-b Tier 2 — SAvlTree verification ops (1 new code; 44 → 45)
+  // F4 rewrite: final throw surface after JVM-canonical construct-fail routing.
   // -------------------------------------------------------------------------
   /**
-   * Any of the 6 SAvlTree Tier-2 verification op handlers (`get` / `getMany` /
-   * `insert` / `update` / `remove`) when proof verification fails. Two failure
-   * modes both surface as this code:
-   *   - verifier construct failure (proof bytes malformed, digest mismatch,
-   *     length-validation failure) — thrown by all 5 of those handlers; also
-   *     thrown by `contains` despite its overall return-`false`-on-per-op
-   *     failure semantics (per sigma-rust line 372: `.map_err(map_eval_err)?`
-   *     unwraps construct failure before reaching the match on the per-op
-   *     result).
-   *   - per-op failure surfacing in `get` / `getMany` / `remove` /
-   *     (V<3-only) `insert` — per-key Lookup/Remove failure forces the
-   *     `EvalError::AvlTree("Tree proof is incorrect ...")` path in
-   *     sigma-rust. `contains` swallows per-op failure (returns `false`);
-   *     `update` always breaks (no throw); V3+ `insert` also breaks.
+   * SAvlTree Tier-2 verification op handlers throw this code when the proof
+   * verification fails AND the JVM-canonical semantics mandate a throw (not a
+   * return-false or return-None).
    *
-   * Source:
-   *   - savltree.rs:148-149  (GET_EVAL_FN per-op fail)
-   *   - savltree.rs:200-203  (GET_MANY_EVAL_FN per-op fail)
-   *   - savltree.rs:262-266  (INSERT_EVAL_FN V<3 per-op fail)
-   *   - savltree.rs:322-325  (REMOVE_EVAL_FN per-op fail)
-   *   - savltree.rs:372      (CONTAINS_EVAL_FN construct fail via `?`)
+   * **Thrown by:**
+   *   - `get` — any verification failure (construct fail OR per-op Lookup
+   *     fail) → throw (CErgoTreeEvaluator.scala:106 `syntax.error`).
+   *   - `getMany` — any verification failure with ≥1 key in the batch
+   *     (construct fail → first Lookup fails; per-op fail at key i) →
+   *     throw (CErgoTreeEvaluator.scala:126). Zero-key batch: empty Coll,
+   *     no throw even on construct failure.
+   *   - `insert` at `ctx.treeVersion < 3` with ≥1 op in the batch →
+   *     throw (CErgoTreeEvaluator.scala:150 V<3 path). V3+ and zero-op:
+   *     None (never throws).
+   *
+   * (The `TreeLookup` MIR arm bullet retired in the F4 epilogue: the arm
+   * now rejects unconditionally with `'unsupported-eval-node'` — the JVM
+   * has no eval override for the node; see that code's entry below.)
+   *
+   * **NOT thrown by (F4 JVM-canonical, final state):**
+   *   - `contains` — always returns false on any failure; never throws.
+   *   - `update` — per-op failure or construct fail → None; never throws.
+   *   - `remove` — per-op results discarded (cfor, no break); digest None
+   *     → None; never throws.
+   *   - `insertOrUpdate` — construct fail or per-op fail → None; never
+   *     throws (V<3 rejected at dispatcher before handler runs).
+   *   - `getMany` with zero keys — empty Coll returned; no throw.
+   *   - `insert` at V3+ or zero ops — None; never throws.
+   *
+   * The JVM has NO construct-throw path: scorex `BatchAVLVerifier` wraps
+   * reconstruction in `Try{…}.toOption` (logError overridden to swallow in
+   * `CAvlTreeVerifier`); a bad proof yields a verifier with `topNode = None`,
+   * and every subsequent op returns Failure. The observable behavior is
+   * determined entirely by each method's per-op/digest semantics. Pre-F4,
+   * ergots followed the sigma-rust `?`-on-construct fork (construct fail
+   * threw on all six handlers) — that wider throw surface is now closed.
+   *
+   * Source (JVM-canonical):
+   *   - CErgoTreeEvaluator.scala:106  (get throw)
+   *   - CErgoTreeEvaluator.scala:126  (getMany throw)
+   *   - CErgoTreeEvaluator.scala:150  (insert V<3 throw)
+   *   - docs/specs/2026-06-07-ergoscript-f4-avltree-tier2-cost-design.md
+   *     (failure model table)
    */
   | 'avl-tree-proof-failed'
 
@@ -346,20 +442,17 @@ export type EvalErrorCode =
   | 'autolykos-v1-not-supported'
 
   // -------------------------------------------------------------------------
-  // Phase 2h-d — SAvlTree.updateDigest (1 new code; 47 → 48)
+  // Phase 2h-d — SAvlTree.updateDigest (1 new code added; then REMOVED in
+  // F4 epilogue Task 3, 2026-06-07: JVM CAvlTree.scala:31-34 has no length
+  // require on updateDigest — the 33-byte gate was the sigma-rust
+  // ADDigest::try_from shape, a convergent over-reject; net count: 47 → 48 → 47)
   // -------------------------------------------------------------------------
-  /**
-   * `SAvlTree.updateDigest`: the Coll[Byte] argument is not exactly 33 bytes
-   * (the required ADDigest length: 32-byte root hash + 1 tree-height byte).
-   * Mirrors sigma-rust's `ADDigest::try_from` length-check failure surfaced
-   * as `EvalError::Misc`.
-   *
-   * Source: ergotree-interpreter/src/eval/savltree.rs:98
-   */
-  | 'avl-tree-bad-digest-length'
+  // 'avl-tree-bad-digest-length' REMOVED here (was 47 → 48; now retired).
+  // Blessed vectors: AvlTree.updateDigest_any_length.json (3-byte/empty/40-byte
+  // all succeed). The code is no longer thrown anywhere in src/.
 
   // -------------------------------------------------------------------------
-  // Phase 2i-a — Pure-bytes predefs (7 new codes; 48 → 52). Per-code purposes
+  // Phase 2i-a — Pure-bytes predefs (7 new codes; 47 → 54). Per-code purposes
   // span T2-T9: predef-input-not-byte-array (T2-T9 shared); byte-array-to-
   // long-too-short (T4); predef-input-not-long (T5); byte-array-to-bigint-
   // empty / -out-of-range (T6); decode-point-invalid (T8); subst-constants-
@@ -480,10 +573,13 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2i-b — Curve + AVL + sigma-trivial predefs. T2 added 1 code
-  // (sigma-prop-is-proven-no-eval; 52 → 53). T3 adds 1 code
-  // (group-op-input-not-group-element; 53 → 54). T4 adds 1 code
-  // (predef-input-not-bigint; 54 → 55). T5 adds 1 code
-  // (create-avl-tree-shape-mismatch; 55 → 56).
+  // (sigma-prop-is-proven-no-eval; 54 → 55). T3 adds 1 code
+  // (group-op-input-not-group-element; 55 → 56). T4 adds 1 code
+  // (predef-input-not-bigint; 56 → 57). T5 added 1 code
+  // (create-avl-tree-shape-mismatch; 57 → 58) — REMOVED in the F4 epilogue
+  // (2026-06-07): the CreateAvlTree arm became an unconditional
+  // 'unsupported-eval-node' reject (no JVM eval override), orphaning all 3
+  // shape-mismatch throw paths. Net 2i-b contribution: 3 codes (54 → 57).
   // -------------------------------------------------------------------------
   /**
    * `SigmaPropIsProven`: structural throw with no eval of `e.input` and no
@@ -524,53 +620,32 @@ export type EvalErrorCode =
    * Source: ergotree-interpreter/src/eval/exponentiate.rs:21
    */
   | 'predef-input-not-bigint'
-  /**
-   * `CreateAvlTree` arm: compact umbrella code covering 3 distinct shape-
-   * mismatch throw paths. The `.message` text carries the specific field
-   * name (flags / keyLength / valueLength):
-   *   - flags `kind !== 'Byte'`        — mirrors sigma-rust try_extract_into::<i8>() at create_avl_tree.rs:21
-   *   - keyLength `kind !== 'Int'`     — mirrors sigma-rust try_extract_into::<i32>() at create_avl_tree.rs:23
-   *   - valueLength `kind !== 'Int'`   — mirrors sigma-rust try_extract_into::<i32>() at create_avl_tree.rs:26
-   *
-   * Wire-format invariants (`CreateAvlTree::new` enforces SByte / SColl(SByte)
-   * / SInt / Option<SInt> at construction — `ergotree-ir/src/mir/create_avl_tree.rs:31-59`)
-   * make these unreachable for parser-produced trees; defensive against
-   * `ConstantPlaceholder` injection or hand-crafted MIR.
-   *
-   * Distinct from `'avl-tree-bad-digest-length'` (2h-d, reused here) which
-   * covers the eval-time digest length check, and from `'predef-input-not-byte-array'`
-   * (2i-a, reused here via `collByteToUint8Array`) which covers the
-   * digest non-Coll[Byte] path.
-   *
-   * Source: ergotree-interpreter/src/eval/create_avl_tree.rs:21, 23, 26
-   */
-  | 'create-avl-tree-shape-mismatch'
 
   // -------------------------------------------------------------------------
-  // Phase 2i-c — Deserialize family (5 new codes; 59 → 64). Substitute-pre-pass
-  // architecture mirroring sigma-rust eval.rs:203-250 + mir/expr.rs:442-496.
-  // Codes 1-4 are thrown by substituteDeserialize; code 5 is the defensive
+  // Phase 2i-c — Deserialize family (originally 5 new codes; 59 → 64; F1 removed
+  // 'deserialize-context-key-not-found' → 4 codes, 59 → 63). Substitute-pre-pass
+  // architecture mirroring sigma-rust eni eval.rs:203-250 + mir/expr.rs:442-496.
+  // Codes 1-3 are thrown by substituteDeserialize; code 4 is the defensive
   // eval-time throw on the Deserialize* arms (reached when substitute pass
-  // does NOT rewrite — either DR with register absent + default null, or
-  // recursive Deserialize inside a substituted inner Expr).
+  // does NOT rewrite — DR with register absent + default null, a recursive
+  // Deserialize inside a substituted inner Expr, OR — post-F1 — a LIVE DC over
+  // an absent/wrong-typed var).
   // -------------------------------------------------------------------------
+  // NOTE: 'deserialize-context-key-not-found' was REMOVED in F1 — an absent
+  // DeserializeContext var now LEAVES the node unchanged (JVM `substDeserialize`
+  // `else None`), so it no longer throws at substitution. A LIVE such node
+  // errors at eval via 'deserialize-not-substituted' (below); a DEAD branch is
+  // evaluable. See _substitute-deserialize.ts:substituteDeserializeContext.
   /**
-   * `DeserializeContext` substitute pass: `ctx.extension.values[e.id]` is
-   * undefined. Mirrors sigma-rust `SubstDeserializeError::ExtensionKeyNotFound(id)`
-   * at `ergotree-ir/src/mir/expr.rs:457`. Message includes the id for symmetry.
+   * Raised by: (1) `DeserializeRegister` substitute pass when the register
+   * entry is present but NOT a Coll[Byte] (eager throw — DR rejects at
+   * substitution, unlike DC which leaves the node post-F1); (2) the downstream
+   * `collByteToUint8Array` value-shape check on a present Coll[Byte]-typed entry
+   * whose items contain non-Byte elements (both DC and DR). Mirrors sigma-rust
+   * eni `try_extract_into::<Vec<u8>>()` failure.
    *
-   * Source: ergotree-ir/src/mir/expr.rs:453-457
-   */
-  | 'deserialize-context-key-not-found'
-  /**
-   * `DeserializeContext` / `DeserializeRegister` substitute pass: the
-   * context-extension entry or register entry does NOT carry a Coll[Byte]
-   * value (either `entry.tpe.tag !== 'SColl'` / `entry.tpe.elem.tag !== 'SByte'`
-   * or the Coll's items contain non-Byte elements). Mirrors sigma-rust
-   * `SubstDeserializeError::TryExtractFromError` via
-   * `try_extract_into::<Vec<u8>>()` failure.
-   *
-   * Source: ergotree-ir/src/mir/expr.rs:459 (DC), :472 (DR)
+   * Source (eni): DR `try_extract` at mir/expr.rs:482 (.transpose()? :492).
+   * (Post-F1 the DC tpe path at :459-462 LEAVES the node — no longer this code.)
    */
   | 'deserialize-input-not-byte-array'
   /**
@@ -644,3 +719,401 @@ export type EvalErrorCode =
    *         (eval/scoll.rs, branch ergo-node-integration).
    */
   | 'coll-update-many-length-mismatch'
+
+  // -------------------------------------------------------------------------
+  // v6 P1 numeric methods — shift-bound guard (1 new code; 66 → 67)
+  // -------------------------------------------------------------------------
+  /**
+   * `Byte.shiftLeft` / `Byte.shiftRight` (typeId 2, methodIds 12–13),
+   * `Short.shiftLeft` / `Short.shiftRight` (typeId 3, methodIds 12–13),
+   * `Int.shiftLeft` / `Int.shiftRight` (typeId 4, methodIds 12–13),
+   * `Long.shiftLeft` / `Long.shiftRight` (typeId 5, methodIds 12–13):
+   * the `bits` argument is outside `[0, width)` where width is 8 / 16 / 32 / 64.
+   * Both `bits < 0` and `bits >= width` are rejected. Mirrors the JVM
+   * `ExactIntegral.shiftLeft` / `shiftRight` range guard.
+   *
+   * Also thrown for `BigInt.shiftLeft` / `BigInt.shiftRight` (typeId 6, methodIds
+   * 12–13) when `bits` is outside `[0, 256)`. Mirrors the JVM `BigIntegerOps`
+   * range guard (`CBigInt.scala`).
+   */
+  | 'numeric-shift-out-of-range'
+
+  // -------------------------------------------------------------------------
+  // v6 P1 BigInt result overflow (1 new code; 67 → 68)
+  // -------------------------------------------------------------------------
+  /**
+   * Any v6 BigInt operation whose result falls outside signed-256 range
+   * `[-2^255, 2^255 - 1]`. Currently only reachable via `BigInt.shiftLeft`
+   * (methodId 12), which can produce a result with bitLength > 255. `shiftRight`
+   * on an in-range value always stays in range. Mirrors the JVM `CBigInt`
+   * constructor's call to `.toSignedBigIntValueExact` (Extensions.scala:219)
+   * which throws `ArithmeticException` when bitLength() > 255.
+   *
+   * Distinct from `'byte-array-to-bigint-out-of-range'` (phase 2i-a), which is
+   * for the `ByteArrayToBigInt` predef arm rejecting an over-width input byte
+   * array, not for an arithmetic result.
+   *
+   * Source: sigmastate-interpreter/src/main/scala/org/ergoplatform/sdk/Extensions.scala:219
+   *         sigmastate-interpreter/src/main/scala/special/collection/Extensions.scala (CBigInt)
+   */
+  | 'bigint-result-out-of-range'
+
+  // -------------------------------------------------------------------------
+  // v6 P1 C1 final-review — numeric method operand guards (1 new code; 68 → 69)
+  // -------------------------------------------------------------------------
+  /**
+   * Any of the 40 v6 numeric method handlers (`toBytes` / `toBits` /
+   * `bitwiseInverse` / `bitwiseOr` / `bitwiseAnd` / `bitwiseXor` /
+   * `shiftLeft` / `shiftRight` on Byte/Short/Int/Long/BigInt) when the
+   * receiver `obj` or an operand argument evaluates to an unexpected `kind`.
+   *
+   * Mirrors the JVM `asInstanceOf` / sigma-rust `try_extract_into` rejection
+   * at eval. The JVM throws `ClassCastException`; sigma-rust throws
+   * `EvalError::TryExtractFrom`. Wire-format invariants (MethodCall
+   * construction via `SNumericTypeMethods` / `SBigIntMethods` enforce typed
+   * args at build time) make this unreachable for parser-produced trees;
+   * defensive against hand-crafted MIR (adversarial wrong-kind constant
+   * injected as `obj` or `args[0]`). Without this guard, wrong-kind Byte/
+   * Short/Int operands silently return garbage (`.value` is `undefined` → JS
+   * produces 0 from numeric coercion); wrong-kind Long/BigInt operands throw
+   * a raw `TypeError` (JS BigInt coercion) — both are consensus over-accept
+   * vectors.
+   *
+   * The guard is unconditional at runtime (concrete `obj.kind` is always
+   * concrete, never SAny — this is NOT a static `exprTpe` check; the "skip
+   * SAny static checks" rule does not apply here).
+   *
+   * Source: sigma-rust `try_extract_into::<i8/i16/i32/i64/BigInt256>()`
+   *         ergotree-interpreter/src/eval/method_call.rs
+   */
+  | 'numeric-method-bad-operand'
+
+  // -------------------------------------------------------------------------
+  // v6 P2 — SUnsignedBigInt + V3 type gating (4 new codes; 69 → 73)
+  // Housekeeping (2026-06-03): these P2a/P2b/P2d-2 codes were used in the arms
+  // but omitted from this union — `EvalError` takes `code: string`, so they
+  // compiled regardless; added here for taxonomy completeness.
+  // -------------------------------------------------------------------------
+  /**
+   * `validateV6Types` pre-eval pass: an `SUnsignedBigInt` / `SFunc` type
+   * construct appears in a `treeVersion < 3` tree (checked over `constantTypes[]`
+   * + the post-substitution body's wire-serialized type annotations). Zero-cost
+   * reject. Source: `eval/validate-v6-types.ts` (v6 P2a).
+   */
+  | 'v6-type-in-pre-v3-tree'
+  /**
+   * A `UnsignedBigInt` SValue reached an operation with no JVM path. After P2c
+   * this survives only in the UBI cast matrix (`eval/_cast-ubi.ts`): UBI↔BigInt
+   * casts and UBI-source `Upcast` (the JVM uses `toUnsigned`/`toSigned` instead).
+   * Source: `eval/_cast-ubi.ts` (v6 P2a/P2b).
+   */
+  | 'unsigned-bigint-op-unsupported'
+  /**
+   * `UnsignedBigInt` arithmetic/shift result fell outside the unsigned range
+   * [0, 2^256) — e.g. `shiftLeft` overflow (`≥ 2^256`). Source:
+   * `eval/_numeric-v6.ts` (ubiDesc) / `eval/bin-op/_ubi-binop.ts` (v6 P2b/P2c).
+   */
+  | 'unsigned-bigint-out-of-range'
+  /**
+   * `UnsignedBigInt.modInverse(a, m)`: `gcd(a, m) ≠ 1`, so no modular inverse
+   * exists. (`m == 0` reuses `'arith-divide-by-zero'`.) Source:
+   * `eval/_ubi-modular.ts` `umodInverse` (v6 P2d-2).
+   */
+  | 'unsigned-bigint-not-invertible'
+
+  // -------------------------------------------------------------------------
+  // v6 P4 — V3+ empty-args MethodCall reject (1 new code; 73 → 74)
+  // -------------------------------------------------------------------------
+  /**
+   * `validateMethodCallArity` pre-eval pass: a `MethodCall`-opcode node with
+   * empty args (`args.length === 0`) appears in a `treeVersion >= 3` tree.
+   * Mirrors the JVM `MethodCallSerializer.parse`
+   * `if (isV3OrLaterErgoTreeVersion) assert(args.nonEmpty)`
+   * (data/shared/.../serialization/MethodCallSerializer.scala:53-55). Honest
+   * trees never emit this (zero-arg calls use the PropertyCall opcode); it is an
+   * adversarial over-accept (any zero-arg method reached via the MethodCall
+   * opcode — `none` 106:10, `groupGenerator` 106:1 — would otherwise evaluate).
+   * Pre-V3 is grandfathered (the JVM does not assert there). Zero-cost reject.
+   * Source: `eval/validate-method-call-arity.ts` (v6 P4).
+   */
+  | 'method-call-empty-args'
+
+  // -------------------------------------------------------------------------
+  // v6 P5a — Global.serialize / Global.deserializeTo (2 new codes; 74 → 76)
+  // -------------------------------------------------------------------------
+  /**
+   * `SGlobal.serialize` (106:3): the sigma-serialization of the argument value
+   * failed. Raised when the internal `serializeSValue` / `serializeSType`
+   * round-trip throws for a value that cannot be expressed in the wire format
+   * (e.g. a `'Lambda'` or `'Context'` SValue kind, which have no on-wire
+   * SValue encoding). Mirrors the JVM `sigmaSerialize` throwing
+   * `SigmaSerializationException` surfaced as `EvalError`.
+   *
+   * Source: JVM `sigma/ast/methods.scala:1957`
+   */
+  | 'global-serialize-failed'
+  /**
+   * `SGlobal.deserializeTo[T]` (106:4): the supplied `Coll[Byte]` argument
+   * bytes failed to parse as an SValue of type `T` via the data codec
+   * (`DataSerializer.deserialize`). Raised on malformed / truncated bytes,
+   * an oversized BigInt / UnsignedBigInt (> 32 bytes), or actual parse
+   * recursion deeper than `MaxTreeDepth` (110, data-driven). There is NO ErgoTree body parse and
+   * NO `exprTpe` match step — `T` drives the parse directly.
+   * Mirrors the JVM `sigmaDeserialize` path surfaced as `EvalError`.
+   *
+   * Source: JVM `sigma/ast/methods.scala:1906`
+   */
+  | 'global-deserialize-failed'
+
+  // -------------------------------------------------------------------------
+  // v6 P5b-1 — Global.fromBigEndianBytes (1 new code; 76 → 77)
+  // -------------------------------------------------------------------------
+  /**
+   * `SGlobal.fromBigEndianBytes[T]` (106:5): the supplied `Coll[Byte]` bytes
+   * could not be decoded as a value of type `T`. Raised on wrong exact length
+   * for a fixed-width type (Byte=1/Short=2/Int=4/Long=8), an oversized
+   * BigInt/UnsignedBigInt (> 32 bytes), empty bytes for BigInt (JVM
+   * `new BigInteger(byte[0])` throws; UnsignedBigInt empty → 0 is accepted), or
+   * an unsupported non-numeric `T` (rejected at eval — the JVM's unsupported-type
+   * throw is in the runtime body). `FixedCost(10)` is charged before the throw.
+   * V3-gated (`minVersion: 3`).
+   *
+   * Source: JVM `sigma/ast/methods.scala:1925`
+   */
+  | 'global-from-bigendian-bytes-failed'
+  | 'global-encode-nbits-failed'
+  | 'global-decode-nbits-failed'
+
+  // -------------------------------------------------------------------------
+  // v6 P5c — Global.powHit (106:8) (1 new code; 79 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * `SGlobal.powHit` (106:8): k<2 / k>32 / N<16 (maps the scorex
+   * `PowHitInvalidParamsError`), or a non-conforming operand (non-Int k or N).
+   * Cost is charged from the RAW k BEFORE the require guards (cost-then-throw).
+   * JVM `Autolykos2PowValidation` require guards.
+   *
+   * Source: JVM sigma/ast/methods.scala:1884-1902 — hitForVersion2ForMessageWithChecks
+   *         ergoscript v6 P5c; scorex autolykos-v2.ts:PowHitInvalidParamsError
+   */
+  | 'pow-hit-invalid-params'
+
+  // -------------------------------------------------------------------------
+  // v6 P6 — type-var lambda apply reject (1 new code; 80 → 81)
+  // -------------------------------------------------------------------------
+  /**
+   * Applying a lambda (closure) whose declared argument type is — or
+   * structurally contains — an unresolved `STypeVar`. Thrown at the apply-time
+   * arg binding, at EVERY lambda-invocation site (`apply.ts` + the 7 lambda
+   * HOF arms), BEFORE the arg is bound — independent of whether the body reads
+   * the arg.
+   *
+   * The JVM (sigma-state 6.0.3, canonical for v6) rejects such an application:
+   * resolving the type-var arg's runtime RType fails (`stypeToRType(STypeVar)`
+   * → `RuntimeException: Unknown type T`). A type-var lambda that is bound but
+   * never applied evaluates fine (the binding itself is OK) — so this fires
+   * ONLY at apply, NOT at FuncValue construction or at the FunDef/ValDef bind.
+   * Distinguishes a `{val id[T]={(x:T)=>x}; id(7)}` (rejects) from the
+   * concrete-arg `{val id[T]={(x:Int)=>x}; id(7)}` (accepts → 7).
+   *
+   * Honest compiler-produced trees never apply a type-var-arg lambda (the
+   * polymorphic FunDef is monomorphized at the call site); this is an
+   * adversarial over-accept the dynamically-typed evaluator would otherwise
+   * silently evaluate.
+   *
+   * Source: SANTA `vectors/eval/v6/authored/HOF_FunDef_type_var_body.json`
+   *         (blessed_by jvm:sigma-state-6.0.3).
+   */
+  | 'apply-unresolved-type-var'
+
+  // -------------------------------------------------------------------------
+  // F3 — conformance run, EQ-of-SigmaProp costed walk (1 code; 79 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * `compareSValues` SigmaProp arm: the LEFT SigmaBoolean is a conjecture
+   * (Cand / Cor / Cthreshold) and the RIGHT is a DIFFERENT variant (or a leaf
+   * when the left is a conjecture). Mirrors JVM `DataValueComparer.scala`
+   * `equalSigmaBoolean` `:278-281`:
+   *   `case _ => sys.error("Unknown SigmaBoolean type ...")`.
+   * The node MatchType(1) is charged BEFORE the throw (cost-then-throw).
+   * ASYMMETRY: leaf-left vs conjecture-right → plain `false`; conjecture-left
+   * vs different-right → throw. Applies only to the costed path (ctx present).
+   * The cost-free structural twin (`sValueStructuralEq` / `primitiveValueEqual`)
+   * uses plain `false` for all tag mismatches — no throw.
+   *
+   * Source: JVM DataValueComparer.scala:278-281; _sigma-boolean-eq.ts.
+   */
+  | 'sigma-boolean-compare-unsupported'
+
+  // -------------------------------------------------------------------------
+  // F4 epilogue — TreeLookup + CreateAvlTree unconditional eval reject
+  // (1 new code, and the same change REMOVED the orphaned
+  // 'create-avl-tree-shape-mismatch' above: net 80 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * The `TreeLookup` (opcode 0xb7) and `CreateAvlTree` (opcode 0xb6) MIR
+   * arms: the JVM has NO eval override for either node — `costKind =
+   * Value.notSupportedError` (trees.scala:1334-1337 TreeLookup,
+   * trees.scala:87-91 CreateAvlTree) and the default `Value.eval` fires
+   * `sys.error("Should be overriden in ...")` (values.scala:102). EVERY
+   * evaluation throws JVM-side, so both arms reject unconditionally —
+   * nothing charged, no operand evaluated.
+   *
+   * Both nodes still PARSE fine (the JVM parses them; parse/serialize
+   * arms unchanged). Mainnet history is JVM-validated, so no mainnet
+   * block ever evaluated either node — the reject cannot fork against
+   * chain history. ergots' previous evaluating arms were sigma-rust
+   * ports; sigma-rust (eni) convergently over-accepts both (routed to
+   * sigma-rust via SANTA).
+   *
+   * Source: JVM-blessed vectors AvlTree.unsupported_eval_nodes.json
+   * (tree_lookup @v2) + AvlTree.unsupported_eval_nodes_v6.json
+   * (tree_lookup + create_avl_tree @v3), blessed_by jvm:sigma-state-6.0.3;
+   * trees.scala:79-91 + 1322-1338.
+   *
+   * ⚠ Grading coupling (load-bearing — do NOT rename to a not-impl code):
+   * SANTA's dasher maps ONLY 'method-not-implemented' to its
+   * not-implemented category (santa ts-runner/src/runner.ts:152); every
+   * other EvalError grades as errored. These vectors EXPECT errored — a
+   * distinct code is what makes the reject visible as a reject. The 4
+   * unit/mutation suites pin the exact code as a local tripwire.
+   */
+  | 'unsupported-eval-node'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 1 — Tuple eval arity gate (1 new code; 79 → 80)
+  // -------------------------------------------------------------------------
+  /**
+   * Tuple EXPR node evaluated with arity ≠ 2. JVM values.scala:797-798: the
+   * v5.0+ evaluator supports only pairs — `syntax.error("Invalid tuple …")`
+   * thrown BEFORE any item eval and BEFORE the Fixed(15) envelope (zero cost
+   * contribution from the failing arm). Distinct code (NOT
+   * 'unsupported-eval-node'): the node IS supported at arity 2. Grades as
+   * errored on dasher (any non-'method-not-implemented' EvalError).
+   * Inline tuple-N CONSTANTS in non-checkType'd positions (e.g. tree root)
+   * still evaluate on both sides (Constant.eval bypasses Tuple.eval;
+   * CoreDataSerializer:134-139 no gate); in checkType'd positions the JVM
+   * rejects via Value.checkType (values.scala:801,804 + 408-414) — closed by
+   * the F5 batch-3 checkType class ('unsupported-value-type', below).
+   * SANTA pin: Tuple.non_pair_arity3.json.
+   */
+  | 'tuple-invalid-arity'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 3 — checkType class: declared-type representability (1 new code;
+  // 80 → 81; T3 adds 'select-field-non-pair' → 82)
+  // -------------------------------------------------------------------------
+  /**
+   * A value flowing through a checkType seam has a DECLARED type that is a
+   * non-pair `STuple` (`items.length !== 2`) or a non-unary `SFunc`
+   * (`args.length !== 1`). Mirrors JVM `SType.isValueOfType` (SType.scala:200-205)
+   * which `sys.error`s "Unsupported tuple type"/"Unsupported function type" —
+   * the JVM runtime has only `Tuple2` / `Function1`, so it cannot represent a
+   * value of such a type and rejects regardless of the runtime value. These
+   * declared types ARE wire-constructible (arity-N tuple constant types parse;
+   * multi-arg SFunc annotations are representable).
+   *
+   * Emitted by the shared `assertValueTypeSupported(tpe)` helper
+   * (eval/_check-type.ts), called from `Value.checkType`'s seams:
+   *   - Tuple items (eval/tuple.ts; values.scala:801,804). Covers W1
+   *     `008602480101010101010402`.
+   *   - ConstantPlaceholder (eval/const-placeholder.ts; values.scala:412).
+   *     Covers W2 `1002480101010101010402860273007301`.
+   *   - ConcreteCollection items (eval/collection.ts).
+   *   - BlockValue valdef-rhs + result (eval/block-value.ts).
+   *   - ValUse (eval/val-use.ts).
+   * TOP-LEVEL check (non-recursive — matches the JVM single isValueOfType call;
+   * nesting is covered because each seam runs its own checkType on the
+   * sub-value it surfaces). Hooked INSIDE the eval arms (not a whole-tree
+   * pre-eval pass) ⇒ JVM-faithful laziness: a non-pair-tuple-typed const in a
+   * DEAD branch is never evaluated, so it never rejects.
+   *
+   * Adversarial-only (honest compilers never emit these). Residual: the
+   * FuncValue/Apply param+body SFunc arms (P6 closure path) are NOT hooked — no
+   * SFunc witness; tracked F5 item. The helper still rejects a non-unary SFunc
+   * VALUE flowing through a data seam.
+   *
+   * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the Tuple EXPR
+   * node's own arity≠2 gate (values.scala:797); this is the DECLARED-type
+   * representability check on a value flowing through a seam (W1's outer Tuple
+   * is a valid pair — the violation is item0's TYPE, a different mechanism).
+   *
+   * Source: JVM SType.scala:200-205, values.scala:251-254;
+   *         eval/_check-type.ts.
+   */
+  | 'unsupported-value-type'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 3 — SelectField non-pair (1 new code; 81 → 82)
+  // -------------------------------------------------------------------------
+  /**
+   * `SelectField`: the input evaluated to a Tuple SValue whose arity is ≠ 2 (a
+   * non-pair, e.g. a 1-tuple `(5,)` or a 3-tuple). JVM `SelectField.eval`
+   * (transformers.scala:300-307) matches ONLY a runtime `Tuple2`; a non-pair
+   * tuple is a `Coll[Any]` at runtime and falls through to `Value.typeError`
+   * (line 306) → "Invalid type returned by evaluator". Cost
+   * (`SelectField.costKind = FixedCost(10)`, transformers.scala:314) is charged
+   * at line 299 — before the `Tuple2` match — so this is cost-then-throw.
+   *
+   * Distinct from `'select-field-input-not-tuple'` (non-Tuple input) and
+   * `'select-field-index-out-of-range'` (Tuple but field index OOB); this is
+   * the "Tuple but arity ≠ 2" case. Honest compiler-produced trees never select
+   * a field of a non-pair tuple; this is an adversarial over-accept (a 1-tuple
+   * CONSTANT reaches `evalSelectField` — the input parses as a Const, not a
+   * Tuple EXPR, so batch-1's `'tuple-invalid-arity'` does not fire, and the
+   * SelectField input is not a checkType seam so `'unsupported-value-type'`
+   * does not fire either).
+   *
+   * Source: JVM transformers.scala:297-308 (Value.typeError on non-Tuple2);
+   *         eval/select-field.ts.
+   */
+  | 'select-field-non-pair'
+
+  // -------------------------------------------------------------------------
+  // F5 batch 4 — Atleast children cap (1 new code; 82 → 83)
+  // -------------------------------------------------------------------------
+  /**
+   * `Atleast`: the evaluated input collection holds MORE than 255 SigmaProps
+   * (`MaxChildrenCountForAtLeastOp = 255` — CTHRESHOLD's GF(2^192) polynomial
+   * arithmetic takes single-byte child indices, so >255 children are
+   * unrepresentable). Thrown AFTER the Pattern-B per-item cost charge and
+   * BEFORE the degenerate-bound reductions — JVM order: `AtLeast.eval`
+   * (trees.scala:314-320) charges `addSeqCost`, then `CSigmaDslBuilder.atLeast`'s
+   * cap throw (CSigmaDslBuilder.scala:102-108) precedes `AtLeast.reduce`'s
+   * degenerates (trees.scala:340-359). So `atLeast(0, >255 children)` THROWS —
+   * it does not reduce to TrivialProp(true). eni (sigma-rust) caps only in the
+   * non-degenerate path — a JVM↔sigma-rust fork; ergots follows the JVM.
+   * Adversarial-only (compilers never emit a >255-prop atLeast).
+   *
+   * Source: eval/atleast.ts; SANTA vector atLeast.children_cap.json
+   *         (blessed_by jvm:sigma-state-6.0.3).
+   */
+  | 'atleast-too-many-children'
+
+  // -------------------------------------------------------------------------
+  // Phase 2f (pre-existing, discovered uncounted at F5 batch-4 close-out)
+  // Defensive unreachable guard — tsc-provably unreachable via the exhaustive
+  // switch on SValue.kind in svalue-type.ts. Counted per the defensive-code
+  // convention (precedent: 'unsigned-bigint-negative' counted as defensive
+  // unreachable guard). Originated phase 2f alongside Coll HOFs; first
+  // referenced in facts/ergoscript-eval.md line ~325 (v6 P2b changelog).
+  // -------------------------------------------------------------------------
+  /**
+   * `sValueType` (`eval/svalue-type.ts:66`): the default arm of the exhaustive
+   * `switch (v.kind)` over every `SValue` variant. `SValue` is a discriminated
+   * union fully covered by the switch's explicit arms, so tsc proves the default
+   * unreachable at compile time under strict mode. Thrown only if a NEW `SValue`
+   * kind is added to `mir/types.ts` without a corresponding arm being added here
+   * — the throw is the runtime tripwire that surfaces such a gap.
+   *
+   * Also emitted by `eval/coll-map.ts`'s local `inferSType` default arm (the
+   * predecessor of `sValueType`; same code, same tsc-unreachable posture).
+   *
+   * Counted per the defensive-code convention (same as
+   * `'unsigned-bigint-negative'` / `'sigma-prop-is-proven-no-eval'` which are
+   * documented as defensive unreachable guards and counted). Pre-existing code;
+   * tally gap discovered at the F5 batch-4 close-out (2026-06-10).
+   *
+   * Source: `eval/svalue-type.ts:66` (default arm).
+   */
+  | 'coll-map-elem-type-infer-failed'

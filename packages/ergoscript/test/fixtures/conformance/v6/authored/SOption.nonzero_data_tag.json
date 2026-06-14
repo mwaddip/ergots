@@ -1,0 +1,32 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "SOption.nonzero_data_tag",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-option-semantics",
+  "entries" : [
+    {
+      "name" : "option-tag-02-some#0",
+      "script" : "{ SOption[SInt] DATA constant with Option tag 0x02 }  // JVM getOption: any nonzero = Some → Some(5)",
+      "tree_bytes_hex" : "1b060128020a7300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Int",
+            "value" : 5
+          }
+        },
+        "cost" : 1,
+        "error" : null
+      }
+    }
+  ]
+}

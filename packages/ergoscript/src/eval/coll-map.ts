@@ -52,8 +52,10 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
+import { sValueType } from './svalue-type'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_map.rs:72
@@ -147,8 +149,15 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   for (const item of inputColl.items) {
     // Per-iter cost (sigma-rust coll_map.rs:31).
     ctx.addCost(COLL_MAP_PER_ITER)
-    // Extend env with arg binding (sigma-rust coll_map.rs:32: env.insert(func_arg.idx, arg)).
-    const bodyEnv = env.extend(argId, item)
+    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
+    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_map.rs:32:
+    // env.insert(func_arg.idx, arg)). For inline mapper lambdas (the only kind
+    // on mainnet) capturedEnv == the caller env, so this is a no-op; it differs
+    // only for lambdas returned/captured out of their definition scope.
+    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    const bodyEnv = closure.capturedEnv.extend(argId, item)
     // Eval body (sigma-rust coll_map.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     // Result-type check: if outElemTpe is known AND not SAny, verify itemRes matches.
@@ -167,7 +176,7 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     // SAny] vs runtime STuple[Coll[SByte], SLong] — iter-22, h=1,012,685).
     // A genuine mismatch (concrete vs concrete, no SAny) is still caught.
     if (outElemTpe !== null) {
-      const itemTpe = inferSType(itemRes)
+      const itemTpe = sValueType(itemRes)
       if (!sTypeEqualsModuloSAny(itemTpe, outElemTpe)) {
         throw new EvalError(
           `Map: lambda body returned type ${JSON.stringify(itemTpe)} but mapper declared return type ${JSON.stringify(outElemTpe)}`,
@@ -207,58 +216,9 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     outElemTpe !== null && !hasSAny(outElemTpe)
       ? outElemTpe
       : outItems.length > 0
-        ? inferSType(outItems[0]!)
+        ? sValueType(outItems[0]!)
         : (outElemTpe ?? inputColl.elem)
 
   return { kind: 'Coll', elem: outElem, items: outItems }
 }
 
-/**
- * Infer an SType tag from a runtime SValue. Used for the output elem type of
- * Map when the MIR node does not carry mapper_sfunc.t_range.
- *
- * Covers all primitive and composite variants used in fixtures. For exotic
- * variants (SigmaProp, GroupElement, Box, Lambda) we emit a reasonable tag.
- */
-function inferSType(v: SValue): SType {
-  switch (v.kind) {
-    case 'Boolean':
-      return { tag: 'SBoolean' }
-    case 'Byte':
-      return { tag: 'SByte' }
-    case 'Short':
-      return { tag: 'SShort' }
-    case 'Int':
-      return { tag: 'SInt' }
-    case 'Long':
-      return { tag: 'SLong' }
-    case 'BigInt':
-      return { tag: 'SBigInt' }
-    case 'Unit':
-      return { tag: 'SUnit' }
-    case 'Coll':
-      return { tag: 'SColl', elem: v.elem }
-    case 'Tuple': {
-      const items = v.items.map(inferSType)
-      return { tag: 'STuple', items }
-    }
-    case 'Option':
-      return { tag: 'SOption', elem: v.elem }
-    case 'GroupElement':
-      return { tag: 'SGroupElement' }
-    case 'SigmaProp':
-      return { tag: 'SSigmaProp' }
-    case 'Box':
-      return { tag: 'SBox' }
-    case 'Lambda':
-      // Lambda-typed colls are unusual; emit SAny as a safe default.
-      return { tag: 'SAny' }
-    case 'AvlTree':
-      return { tag: 'SAvlTree' }
-    default:
-      throw new EvalError(
-        `Map: cannot infer SType for SValue kind '${(v as never as { kind: string }).kind}'`,
-        'coll-map-elem-type-infer-failed'
-      )
-  }
-}

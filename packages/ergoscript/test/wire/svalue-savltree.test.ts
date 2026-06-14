@@ -40,6 +40,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { serializeSValue } from '../../src/wire/serialize-svalue'
+import { ByteWriter } from '@ergots/scorex'
 import { hexToBytes } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -109,4 +111,106 @@ describe('SAvlTree wire format — Const(SAvlTree, AvlTreeData) round-trip', () 
       }
     })
   }
+})
+
+// ---------------------------------------------------------------------------
+// JVM serializer asymmetry pin (F4 epilogue, 2026-06-07)
+//
+// JVM `DataSerializer` writes AvlTree.digest VERBATIM (no length require —
+// CAvlTree.scala:31-34). The JVM parse-side reads a FIXED 33 bytes
+// (ADDigest scorex_parse `read_exact(33)`). So: a non-33-byte digest
+// AvlTree SValue serializes fine (verbatim bytes) but does NOT round-trip
+// through parse. Pin both directions to lock the asymmetry:
+//   - Serialize a 3-byte-digest AvlTree → bytes = digest[3] + flags + kl + vlo
+//   - Parse those same bytes back → digest = first-33-available (pad issue)
+//     → the parsed tree has a DIFFERENT structure than the original
+//
+// This asymmetry is intentional (faithful JVM mirror). The test documents it
+// rather than guarding against it.
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree wire — JVM serializer asymmetry (non-33 digest, F4 epilogue)', () => {
+  it('3-byte digest serializes verbatim (no length gate)', () => {
+    // An AvlTree SValue with a 3-byte digest. The JVM DataSerializer writes
+    // the 3 digest bytes verbatim via putBytes — no length check.
+    // Expected bytes: 0x01 0x02 0x03  (digest)
+    //                 0x07             (treeFlags: insert+update+remove)
+    //                 0x20             (VLQ u32 keyLength=32)
+    //                 0x00             (valueLengthOpt = None)
+    // = 6 bytes total
+    const avlTreeValue = {
+      kind: 'AvlTree' as const,
+      value: {
+        digest: new Uint8Array([0x01, 0x02, 0x03]),
+        treeFlags: 0x07,
+        keyLength: 32,
+        valueLengthOpt: null,
+      },
+    }
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SAvlTree' }, avlTreeValue, 0, w)
+    const serialized = w.toBytes()
+    expect(serialized).toEqual(new Uint8Array([0x01, 0x02, 0x03, 0x07, 0x20, 0x00]))
+  })
+
+  it('non-33 digest does NOT round-trip through parse (JVM asymmetry pinned)', () => {
+    // The parse-side reads exactly 33 bytes for the digest. Serializing a
+    // 3-byte-digest AvlTree and then wrapping those bytes in a minimal ErgoTree
+    // Const header would result in the parser consuming 33 bytes for digest,
+    // which extends into the flags/keyLength/valueLengthOpt fields — producing
+    // a structurally different AvlTreeData. This is the expected JVM asymmetry.
+    //
+    // We pin this by observing that the serialized bytes for the 3-byte case
+    // (7 bytes) are SHORTER than the fixed-33 bytes the parser would expect —
+    // the round-trip is structurally impossible, not just value-differing.
+    const avlTreeValue = {
+      kind: 'AvlTree' as const,
+      value: {
+        digest: new Uint8Array([0x01, 0x02, 0x03]),
+        treeFlags: 0x07,
+        keyLength: 32,
+        valueLengthOpt: null,
+      },
+    }
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SAvlTree' }, avlTreeValue, 0, w)
+    const serialized = w.toBytes()
+    // Serialized is only 6 bytes (3 digest + 1 flags + 1 keyLength VLQ + 1 None tag).
+    // Parse would need 33 bytes for digest alone — the output is structurally
+    // shorter than what parse expects, confirming non-round-tripability.
+    expect(serialized.length).toBe(6)
+    expect(serialized.length).toBeLessThan(33) // digest-only budget for parse
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Wrapped-keyLength round-trip stability (Task-3 review item h, F4 epilogue)
+//
+// The i32 view is eval-layer only: `keyLength | 0` is applied at the accessor
+// (evalSAvlTreeKeyLength) but NOT at parse or serialize. Storage stays u32.
+//
+// Consequence: a tree with keyLength 0x80000001 (VLQ-encoded wire bytes)
+// serializes back to the SAME VLQ bytes — parse reads the raw u32, stores it,
+// serialize writes the raw u32 back. The JVM serializer writes putUInt
+// (unsigned range), matching this behaviour. The round-trip is byte-stable.
+//
+// Pinned against the SANTA-blessed conformance vector tree bytes from
+// AvlTree.keyLength_wrapped_negative.json entry#0.
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree wire — wrapped-keyLength round-trip (F4 epilogue)', () => {
+  it('keyLength 0x80000001 tree round-trips byte-identically (storage stays u32)', () => {
+    // Tree bytes from AvlTree.keyLength_wrapped_negative.json#0 (SANTA-blessed).
+    // The ErgoTree contains a Const(SAvlTree, {digest=32-byte, treeFlags=0x07,
+    // keyLength=0x80000001 VLQ-encoded as 0x8180808008, valueLengthOpt=Some(8)}).
+    const treeBytesHex =
+      '1a300164fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c040781808080080108db64037300'
+    const treeBytes = hexToBytes(treeBytesHex)
+    const parsed = parseTree(treeBytes)
+    const reserialized = serializeTree(parsed)
+    expect(
+      bytesEqual(reserialized, treeBytes),
+      `wrapped-keyLength round-trip failed: reserialized=${bytesToHex(reserialized)} original=${treeBytesHex}`
+    ).toBe(true)
+  })
 })

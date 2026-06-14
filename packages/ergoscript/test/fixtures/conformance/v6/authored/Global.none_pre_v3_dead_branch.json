@@ -1,0 +1,47 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.none_pre_v3_dead_branch",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-none-pre-v3-gate",
+  "entries" : [
+    {
+      "name" : "none-ubi-dead-branch-v3-accept#0",
+      "script" : "if (true) true else Global.none[UnsignedBigInt]  // ErgoTree v3 (v6 active): the dead none[UBI] branch is legal; If is lazy -> Boolean true. The accept control.",
+      "tree_bytes_hex" : "1b0f02010101019573007301db6a0add09",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 12,
+        "error" : null
+      }
+    },
+    {
+      "name" : "none-ubi-dead-branch-v2-errored#0",
+      "script" : "if (true) true else Global.none[UnsignedBigInt]  // SAME bytes, header flipped to ErgoTree v2: the v6 none[UBI] PropertyCall in the dead branch is not valid pre-v3. JVM rejects at DESERIALIZE (whole-tree, incl. the dead branch — rule 1011); ergots' pre-V3 gate misses PropertyCall.explicitTypeArgs and ACCEPTS (V6-PROPERTY-TYPEARG-GATE-01).",
+      "tree_bytes_hex" : "1a0f02010101019573007301db6a0add09",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

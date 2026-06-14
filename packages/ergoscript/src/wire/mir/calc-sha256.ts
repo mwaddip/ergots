@@ -37,9 +37,10 @@ export function parseCalcSha256(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): CalcSha256 {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'CalcSha256', input }
 }
 
@@ -47,6 +48,6 @@ export function parseCalcSha256(
  * Serialize a `CalcSha256` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_CALC_SHA256 opcode byte). Writes the input Expr.
  */
-export function serializeCalcSha256(c: CalcSha256, w: ByteWriter): void {
-  serializeExpr(c.input, w)
+export function serializeCalcSha256(c: CalcSha256, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(c.input, w, treeVersion)
 }

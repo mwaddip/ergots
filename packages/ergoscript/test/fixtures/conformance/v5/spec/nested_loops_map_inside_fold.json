@@ -1,0 +1,121 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "nested loops: map inside fold",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(Coll(Coll(1,2,3,4,5)),Coll(0,0,0,0,0))#0",
+      "script" : "{\n (x: (Coll[Coll[Byte]], Coll[Byte])) =>\n  x._1.fold(x._2, { (a: Coll[Byte], b: Coll[Byte]) =>\n    a.zip(b).map({ (c: (Byte, Byte)) => (c._1 + c._2).toByte })\n  })\n}",
+      "tree_bytes_hex" : "1a3800dad901013c1a0eb08c7201018c720102d901033c0e0eaddc0c1d8c720301018c720302d90105569a8c7205018c72050201e4e3013c1a0e",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SColl",
+              "elem" : {
+                "tag" : "SByte"
+              }
+            },
+            "items" : [
+              {
+                "kind" : "Coll",
+                "elem" : {
+                  "tag" : "SByte"
+                },
+                "items" : [
+                  {
+                    "kind" : "Byte",
+                    "value" : 1
+                  },
+                  {
+                    "kind" : "Byte",
+                    "value" : 2
+                  },
+                  {
+                    "kind" : "Byte",
+                    "value" : 3
+                  },
+                  {
+                    "kind" : "Byte",
+                    "value" : 4
+                  },
+                  {
+                    "kind" : "Byte",
+                    "value" : 5
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind" : "Coll",
+            "elem" : {
+              "tag" : "SByte"
+            },
+            "items" : [
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              },
+              {
+                "kind" : "Byte",
+                "value" : 0
+              }
+            ]
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 3
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 5
+            }
+          ]
+        },
+        "cost" : 430,
+        "error" : null
+      }
+    }
+  ]
+}

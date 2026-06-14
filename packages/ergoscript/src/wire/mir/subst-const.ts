@@ -44,11 +44,12 @@ export function parseSubstConstants(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): SubstConstants {
-  const scriptBytes = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const positions = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const newValues = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const scriptBytes = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const positions = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const newValues = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'SubstConstants', scriptBytes, positions, newValues }
 }
 
@@ -62,9 +63,10 @@ export function parseSubstConstants(
  */
 export function serializeSubstConstants(
   e: SubstConstants,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.scriptBytes, w)
-  serializeExpr(e.positions, w)
-  serializeExpr(e.newValues, w)
+  serializeExpr(e.scriptBytes, w, treeVersion)
+  serializeExpr(e.positions, w, treeVersion)
+  serializeExpr(e.newValues, w, treeVersion)
 }

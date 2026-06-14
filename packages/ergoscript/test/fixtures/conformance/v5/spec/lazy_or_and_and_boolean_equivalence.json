@@ -1,0 +1,407 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "lazy || and && boolean equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "true#0",
+      "script" : "{ (x: Boolean) => x || (1 / 0 == 1) }",
+      "tree_bytes_hex" : "1a1c03040204000402dad9010101ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#1",
+      "script" : "{ (x: Boolean) => x || (1 / 0 == 1) }",
+      "tree_bytes_hex" : "1a1c03040204000402dad9010101ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "true#2",
+      "script" : "{ (x: Boolean) => x && (1 / 0 == 1) }",
+      "tree_bytes_hex" : "1a1c03040204000402dad9010101ed7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "false#3",
+      "script" : "{ (x: Boolean) => x && (1 / 0 == 1) }",
+      "tree_bytes_hex" : "1a1c03040204000402dad9010101ed7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#4",
+      "script" : "{ (x: Boolean) => x && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a1f03040204000402dad9010101ed7201ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "true#5",
+      "script" : "{ (x: Boolean) => x && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a1f03040204000402dad9010101ed7201ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#6",
+      "script" : "{ (x: Boolean) => x && (x && (x || (1 / 0 == 1))) }",
+      "tree_bytes_hex" : "1a2203040204000402dad9010101ed7201ed7201ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "true#7",
+      "script" : "{ (x: Boolean) => x && (x && (x || (1 / 0 == 1))) }",
+      "tree_bytes_hex" : "1a2203040204000402dad9010101ed7201ed7201ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 140,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#8",
+      "script" : "{ (x: Boolean) => x && (x && (x && (x || (1 / 0 == 1)))) }",
+      "tree_bytes_hex" : "1a2503040204000402dad9010101ed7201ed7201ed7201ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "true#9",
+      "script" : "{ (x: Boolean) => x && (x && (x && (x || (1 / 0 == 1)))) }",
+      "tree_bytes_hex" : "1a2503040204000402dad9010101ed7201ed7201ed7201ec7201939d73007301730201e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 165,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#10",
+      "script" : "{ (x: Boolean) => !(!x && (1 / 0 == 1)) && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a3006040204000402040204000402dad9010101edefedef7201939d730073017302ec7201939d73037304730501e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "true#11",
+      "script" : "{ (x: Boolean) => !(!x && (1 / 0 == 1)) && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a3006040204000402040204000402dad9010101edefedef7201939d730073017302ec7201939d73037304730501e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 165,
+        "error" : null
+      }
+    },
+    {
+      "name" : "true#12",
+      "script" : "{ (x: Boolean) => (x || (1 / 0 == 1)) && x }",
+      "tree_bytes_hex" : "1a1f03040204000402dad9010101edec7201939d730073017302720101e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#13",
+      "script" : "{ (x: Boolean) => (x || (1 / 0 == 1)) && x }",
+      "tree_bytes_hex" : "1a1f03040204000402dad9010101edec7201939d730073017302720101e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "true#14",
+      "script" : "{ (x: Boolean) => (x || (1 / 0 == 1)) && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a2e06040204000402040204000402dad9010101edec7201939d730073017302ec7201939d73037304730501e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#15",
+      "script" : "{ (x: Boolean) => (x || (1 / 0 == 1)) && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a2e06040204000402040204000402dad9010101edec7201939d730073017302ec7201939d73037304730501e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "true#16",
+      "script" : "{ (x: Boolean) => (!(!x && (1 / 0 == 1)) || (1 / 0 == 0)) && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a3f09040204000402040204000400040204000402dad9010101edecefedef7201939d730073017302939d730373047305ec7201939d73067307730801e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 185,
+        "error" : null
+      }
+    },
+    {
+      "name" : "false#17",
+      "script" : "{ (x: Boolean) => (!(!x && (1 / 0 == 1)) || (1 / 0 == 0)) && (x || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a3f09040204000402040204000400040204000402dad9010101edecefedef7201939d730073017302939d730373047305ec7201939d73067307730801e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "false#18",
+      "script" : "{ (x: Boolean) => (!(!x && (1 / 0 == 1)) || (1 / 0 == 0)) && (!(!x && (1 / 0 == 1)) || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a550c040204000402040204000400040204000402040204000402dad9010101d801d603ef7201edecefed7203939d730073017302939d730373047305ecefed7203939d730673077308939d7309730a730b01e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "true#19",
+      "script" : "{ (x: Boolean) => (!(!x && (1 / 0 == 1)) || (1 / 0 == 0)) && (!(!x && (1 / 0 == 1)) || (1 / 0 == 1)) }",
+      "tree_bytes_hex" : "1a550c040204000402040204000400040204000402040204000402dad9010101d801d603ef7201edecefed7203939d730073017302939d730373047305ecefed7203939d730673077308939d7309730a730b01e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 232,
+        "error" : null
+      }
+    }
+  ]
+}

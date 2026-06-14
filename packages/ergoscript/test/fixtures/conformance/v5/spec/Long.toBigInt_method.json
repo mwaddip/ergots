@@ -1,0 +1,155 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Long.toBigInt method",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "-9223372036854775808#0",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1074651039980347209#1",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1074651039980347209"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-1074651039980347209"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#2",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-1"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#3",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "0"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#4",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "1"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1542942726564696512#5",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1542942726564696512"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "1542942726564696512"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "9223372036854775807#6",
+      "script" : "{ (x: Long) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0f00dad90101057e72010601e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "9223372036854775807"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "9223372036854775807"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    }
+  ]
+}

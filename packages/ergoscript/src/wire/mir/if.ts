@@ -45,11 +45,12 @@ export function parseIf(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): If {
-  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const trueBranch = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const falseBranch = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const trueBranch = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const falseBranch = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'If', condition, trueBranch, falseBranch }
 }
 
@@ -58,8 +59,8 @@ export function parseIf(
  * the OP_IF opcode byte). Writes condition, true-branch, false-branch in
  * order.
  */
-export function serializeIf(i: If, w: ByteWriter): void {
-  serializeExpr(i.condition, w)
-  serializeExpr(i.trueBranch, w)
-  serializeExpr(i.falseBranch, w)
+export function serializeIf(i: If, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(i.condition, w, treeVersion)
+  serializeExpr(i.trueBranch, w, treeVersion)
+  serializeExpr(i.falseBranch, w, treeVersion)
 }

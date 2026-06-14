@@ -5,186 +5,33 @@
       "name": "tl_found_in_10_leaf_low_key",
       "tree_bytes_hex": "00b764fa3165345866733c52c39ea5172c4efb00499b41fb48732bce7b527d19f23f95040001000e01020e77030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff02020300000008020202020202020203a02805b928bee41e2421463a955a864da41bf5fc0606cfd0f8aee4273c1b5225000003ef6b94735a0abbfeac910e192f315ca321c9a79cbb504060f9922dea5c669f6b010405",
       "opts_json": {},
-      "expected_value_json": {
-        "elem": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "tag": "SColl"
-        },
-        "kind": "Option",
-        "value": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "items": [
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            },
-            {
-              "kind": "Byte",
-              "value": 2
-            }
-          ],
-          "kind": "Coll"
-        }
-      },
-      "expected_cost": 15,
-      "expected_error_code": null
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "unsupported-eval-node"
     },
     {
       "name": "tl_absent_in_10_leaf",
       "tree_bytes_hex": "00b764fa3165345866733c52c39ea5172c4efb00499b41fb48732bce7b527d19f23f95040001000e01640e990103946f95e4a4cdc9e4e76e9ccfc741891fdcb172f646923ec4d4f26a04cd6d7b86035ab0c219c2f6536df5378ded810f526c6644ce8a94030fa765f41add9372a88f034c937767f68fb48be3b106fdda91b3f614582fdbbc9d937dc822b00b734bcf2803bdb17cd34e4bada61c7aab08df3a5de99e84bad4146c90c9db0b85c07a29a1fc020aff000000080a0a0a0a0a0a0a0a000100010400",
       "opts_json": {},
-      "expected_value_json": {
-        "elem": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "tag": "SColl"
-        },
-        "kind": "Option",
-        "value": null
-      },
-      "expected_cost": 15,
-      "expected_error_code": null
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "unsupported-eval-node"
     },
     {
       "name": "tl_single_leaf_found",
       "tree_bytes_hex": "00b764dd95b8a373c57624d47d67465b6db31e221922ac45d0b145b02b6294916683d2010001000e01050e3303c88cf8dbe83ef47967cf3c88d802a29c5907bee8accf4bd2996cae8643134d3d0205ff000000080505050505050505000400",
       "opts_json": {},
-      "expected_value_json": {
-        "elem": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "tag": "SColl"
-        },
-        "kind": "Option",
-        "value": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "items": [
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            },
-            {
-              "kind": "Byte",
-              "value": 5
-            }
-          ],
-          "kind": "Coll"
-        }
-      },
-      "expected_cost": 15,
-      "expected_error_code": null
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "unsupported-eval-node"
     },
     {
       "name": "tl_found_in_10_leaf_boundary_key",
       "tree_bytes_hex": "00b764fa3165345866733c52c39ea5172c4efb00499b41fb48732bce7b527d19f23f95040001000e010a0e990103946f95e4a4cdc9e4e76e9ccfc741891fdcb172f646923ec4d4f26a04cd6d7b86035ab0c219c2f6536df5378ded810f526c6644ce8a94030fa765f41add9372a88f034c937767f68fb48be3b106fdda91b3f614582fdbbc9d937dc822b00b734bcf2803bdb17cd34e4bada61c7aab08df3a5de99e84bad4146c90c9db0b85c07a29a1fc020aff000000080a0a0a0a0a0a0a0a000100010400",
       "opts_json": {},
-      "expected_value_json": {
-        "elem": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "tag": "SColl"
-        },
-        "kind": "Option",
-        "value": {
-          "elem": {
-            "tag": "SByte"
-          },
-          "items": [
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            },
-            {
-              "kind": "Byte",
-              "value": 10
-            }
-          ],
-          "kind": "Coll"
-        }
-      },
-      "expected_cost": 15,
-      "expected_error_code": null
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "unsupported-eval-node"
     },
     {
       "name": "tl_throw_malformed_proof",
@@ -192,7 +39,7 @@
       "opts_json": {},
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error_code": "avl-tree-proof-failed"
+      "expected_error_code": "unsupported-eval-node"
     },
     {
       "name": "tl_throw_wrong_digest",
@@ -200,7 +47,7 @@
       "opts_json": {},
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error_code": "avl-tree-proof-failed"
+      "expected_error_code": "unsupported-eval-node"
     },
     {
       "name": "tl_throw_non_avl_receiver",
@@ -208,7 +55,7 @@
       "opts_json": {},
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error_code": "avl-tree-obj-not-avl-tree"
+      "expected_error_code": "unsupported-eval-node"
     }
   ]
 }

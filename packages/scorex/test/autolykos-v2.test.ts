@@ -25,11 +25,14 @@ import {
   calcBigN,
   autolykosMessage,
   verifyAutolykosV2,
+  int32BE,
+  autolykosHitForMessageWithChecks,
 } from '../src/autolykos-v2';
 import { parseHeader } from '../src/header';
 import { ByteReader } from '../src/reader';
 import { blake2b256 } from '../src/crypto/blake2b256';
 import { hexToBytes, bytesToHex } from './helpers';
+import { PowHitInvalidParamsError } from '../src/errors';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -106,7 +109,7 @@ describe('Autolykos v2 — step 3: seed construction', () => {
       const msg = autolykosMessage(header);
       const nonce = header.autolykosSolution.nonce;
       const nValue = calcBigN(header.version, header.height);
-      const seed = buildAutolykosSeed(msg, nonce, header.height, nValue);
+      const seed = buildAutolykosSeed(msg, nonce, int32BE(header.height), nValue);
       expect(bytesToHex(seed)).toBe(c.seed_hex);
     });
   }
@@ -119,7 +122,7 @@ describe('Autolykos v2 — step 4: genIndexes', () => {
   for (const c of fixtures) {
     test(`${c.label}: indices match fixture`, () => {
       const seed = hexToBytes(c.seed_hex);
-      const indices = genIndexes(seed, c.n_value);
+      const indices = genIndexes(seed, c.n_value, 32);
       expect(indices).toHaveLength(32);
       expect(indices).toEqual(c.indices);
     });
@@ -127,7 +130,7 @@ describe('Autolykos v2 — step 4: genIndexes', () => {
 
   test('zero-modulo: all indices are 0', () => {
     // All-zero seed → all 4-byte windows = 0 → 0 mod N = 0
-    const indices = genIndexes(new Uint8Array(32), syntheticFixture.n_value);
+    const indices = genIndexes(new Uint8Array(32), syntheticFixture.n_value, 32);
     expect(indices.every(i => i === 0)).toBe(true);
   });
 });
@@ -139,7 +142,7 @@ describe('Autolykos v2 — step 5: element hashes', () => {
   for (const c of fixtures) {
     test(`${c.label}: each element hash matches fixture`, () => {
       for (let i = 0; i < c.indices.length; i++) {
-        const hash = hashElement(c.indices[i]!, c.height);
+        const hash = hashElement(c.indices[i]!, int32BE(c.height));
         expect(bytesToHex(hash)).toBe(c.element_hashes_hex[i]);
       }
     });
@@ -241,5 +244,30 @@ describe('Autolykos v2 — verifyAutolykosV2 full verification', () => {
     const header = parseHeader(new ByteReader(headerBytes));
     const v1 = { ...header, version: 1 };
     expect(() => verifyAutolykosV2(v1)).toThrow('Autolykos v1 is not supported');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
+// STEP 8: autolykosHitForMessageWithChecks — general k, h-bytes
+// ──────────────────────────────────────────────────────────────
+describe('Autolykos v2 — powHit core (general k, h-bytes)', () => {
+  const msg = hexToBytes('0a101b8c6a4f2e');
+  const nonce = hexToBytes('000000000000002c');
+  const h = hexToBytes('00000000');
+  const N = 1024 * 1024;
+  const EXPECTED =
+    326674862673836209462483453386286740270338859283019276168539876024851191344n;
+
+  test('k=32 blessed vector (mainnet h=614,440)', () => {
+    expect(autolykosHitForMessageWithChecks(32, msg, nonce, h, N)).toBe(EXPECTED);
+  });
+  test('require(k >= 2)', () => {
+    expect(() => autolykosHitForMessageWithChecks(1, msg, nonce, h, N)).toThrow(PowHitInvalidParamsError);
+  });
+  test('require(k <= 32)', () => {
+    expect(() => autolykosHitForMessageWithChecks(33, msg, nonce, h, N)).toThrow(PowHitInvalidParamsError);
+  });
+  test('require(N >= 16)', () => {
+    expect(() => autolykosHitForMessageWithChecks(32, msg, nonce, h, 15)).toThrow(PowHitInvalidParamsError);
   });
 });

@@ -1,0 +1,32 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Option.getOrElse with lazy default",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "Some(2)#0",
+      "script" : "{ (x: Option[Long]) => x.getOrElse(1 / 0L) }",
+      "tree_bytes_hex" : "1b170205020500dad9010129e572019d7300730101e4e30129",
+      "input" : {
+        "kind" : "Option",
+        "value" : {
+          "kind" : "Long",
+          "value" : "2"
+        }
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "2"
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    }
+  ]
+}

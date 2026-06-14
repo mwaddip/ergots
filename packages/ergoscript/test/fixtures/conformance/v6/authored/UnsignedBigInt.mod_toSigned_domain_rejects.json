@@ -1,0 +1,44 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "UnsignedBigInt.mod_toSigned domain rejects",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ubi-mod-tosigned",
+  "entries" : [
+    {
+      "name" : "mod#div-by-zero",
+      "script" : "{ (x: (UnsignedBigInt, UnsignedBigInt)) => x._1.mod(x._2) }",
+      "tree_bytes_hex" : "1b0e020901110900dc09127300017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "toSigned#ge-2^255",
+      "script" : "{ (x: UnsignedBigInt) => x.toSigned }",
+      "tree_bytes_hex" : "1b280109208000000000000000000000000000000000000000000000000000000000000000db09137300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

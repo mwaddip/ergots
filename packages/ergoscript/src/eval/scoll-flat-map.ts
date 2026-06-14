@@ -30,6 +30,7 @@ import type { EvalContext } from './eval-context'
 import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals } from '../mir/stype-helpers'
 
@@ -59,7 +60,10 @@ export function evalSCollFlatMap(
   ctx: EvalContext,
   _explicitTypeArgs: Record<string, SType>,
   mc: MethodCall,
-  env: Env
+  // Retained for call-site signature symmetry with the dispatcher (extra.env);
+  // unused since v6 P6 made lambda bodies eval in the closure's CAPTURED env
+  // (lexical scoping) rather than this apply-site env.
+  _env: Env
 ): SValue {
   // 1. Receiver shape check (sigma-rust scoll.rs:109-117).
   const inputColl = extractCollItems(obj)
@@ -140,7 +144,13 @@ export function evalSCollFlatMap(
     // to the sigma-rust session in `~/projects/santa/prompts/ergots-v5-divergences.md`.
     // JVM is canonical.
     ctx.addCost(5)
-    const bodyEnv = env.extend(argId, item)
+    // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
+    // JVM-faithful for v6. For inline flatMap lambdas capturedEnv == the caller
+    // env (no-op); differs only for out-of-scope-captured lambdas.
+    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     if (itemRes.kind !== 'Coll') {
       throw new EvalError(

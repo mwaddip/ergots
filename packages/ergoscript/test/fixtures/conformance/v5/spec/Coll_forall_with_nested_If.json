@@ -1,0 +1,157 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll forall with nested If",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "Coll()#0",
+      "script" : "{ (x: Coll[BigInt]) => x.forall({(b: BigInt) => if (b >= 0) b <= 10 else false }) }",
+      "tree_bytes_hex" : "1a270306010006010a0100dad9010112af7201d90103069592720373009072037301730201e4e30112",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBigInt"
+        },
+        "items" : [
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(CBigInt(-1))#1",
+      "script" : "{ (x: Coll[BigInt]) => x.forall({(b: BigInt) => if (b >= 0) b <= 10 else false }) }",
+      "tree_bytes_hex" : "1a270306010006010a0100dad9010112af7201d90103069592720373009072037301730201e4e30112",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBigInt"
+        },
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 121,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(CBigInt(1))#2",
+      "script" : "{ (x: Coll[BigInt]) => x.forall({(b: BigInt) => if (b >= 0) b <= 10 else false }) }",
+      "tree_bytes_hex" : "1a270306010006010a0100dad9010112af7201d90103069592720373009072037301730201e4e30112",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBigInt"
+        },
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 146,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(CBigInt(0),CBigInt(1))#3",
+      "script" : "{ (x: Coll[BigInt]) => x.forall({(b: BigInt) => if (b >= 0) b <= 10 else false }) }",
+      "tree_bytes_hex" : "1a270306010006010a0100dad9010112af7201d90103069592720373009072037301730201e4e30112",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBigInt"
+        },
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 213,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(CBigInt(0),CBigInt(11))#4",
+      "script" : "{ (x: Coll[BigInt]) => x.forall({(b: BigInt) => if (b >= 0) b <= 10 else false }) }",
+      "tree_bytes_hex" : "1a270306010006010a0100dad9010112af7201d90103069592720373009072037301730201e4e30112",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBigInt"
+        },
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "11"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 213,
+        "error" : null
+      }
+    }
+  ]
+}

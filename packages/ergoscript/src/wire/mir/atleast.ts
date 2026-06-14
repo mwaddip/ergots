@@ -38,10 +38,11 @@ export function parseAtleast(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Atleast {
-  const bound = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const bound = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Atleast', bound, input }
 }
 
@@ -49,7 +50,7 @@ export function parseAtleast(
  * Serialize an `Atleast` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_ATLEAST opcode byte). Writes the bound then the input.
  */
-export function serializeAtleast(a: Atleast, w: ByteWriter): void {
-  serializeExpr(a.bound, w)
-  serializeExpr(a.input, w)
+export function serializeAtleast(a: Atleast, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(a.bound, w, treeVersion)
+  serializeExpr(a.input, w, treeVersion)
 }

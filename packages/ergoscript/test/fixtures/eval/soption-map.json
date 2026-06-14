@@ -15,7 +15,7 @@
           "value": true
         }
       },
-      "expected_cost": 114
+      "expected_cost": 119
     },
     {
       "name": "map_none_gt",
@@ -44,7 +44,7 @@
           "value": "6"
         }
       },
-      "expected_cost": 109
+      "expected_cost": 114
     },
     {
       "name": "map_some_plus_int",
@@ -60,7 +60,7 @@
           "value": 4
         }
       },
-      "expected_cost": 109
+      "expected_cost": 114
     },
     {
       "name": "map_none_int",

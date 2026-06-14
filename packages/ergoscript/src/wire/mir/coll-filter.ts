@@ -38,10 +38,11 @@ export function parseCollFilter(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Filter {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Filter', input, condition }
 }
 
@@ -50,7 +51,7 @@ export function parseCollFilter(
  * emits the OP_FILTER opcode byte). Writes the input Expr, then the
  * condition Expr.
  */
-export function serializeCollFilter(e: Filter, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.condition, w)
+export function serializeCollFilter(e: Filter, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.condition, w, treeVersion)
 }

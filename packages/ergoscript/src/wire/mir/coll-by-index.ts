@@ -52,14 +52,15 @@ export function parseCollByIndex(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ByIndex {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const index = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const index = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const tag = r.readU8()
   const def =
     tag !== 0
-      ? parseExpr(r, constantTypes, constantValues, valDefTypes)
+      ? parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
       : null
   return { tag: 'ByIndex', input, index, default: def }
 }
@@ -70,8 +71,8 @@ export function parseCollByIndex(
  * Expr, then the optional default as a tagged Option: 0x01 + inner when
  * present, single 0x00 when absent.
  */
-export function serializeCollByIndex(e: ByIndex, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.index, w)
-  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w))
+export function serializeCollByIndex(e: ByIndex, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.index, w, treeVersion)
+  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w, treeVersion))
 }

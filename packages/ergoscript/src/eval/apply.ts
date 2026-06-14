@@ -32,6 +32,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { assertArgTypeResolved } from './_lambda'
 
 const APPLY_COST = 30
 
@@ -57,11 +58,19 @@ export function evalApply(e: Apply, env: Env, ctx: EvalContext): SValue {
   for (const argExpr of e.args) {
     argValues.push(evalExpr(argExpr, env, ctx))
   }
-  // Extend env with each (closure arg id, arg value) pair (immutable extend).
-  // Sigma-rust uses dynamic-style scoping: body is evaluated in the caller's
-  // env extended with arg bindings (not a definition-time captured env).
-  let bodyEnv = env
+  // Extend the CAPTURED (definition-site) env with each (closure arg id, arg
+  // value) pair (immutable extend). Lexical scoping: the body is evaluated in
+  // the env where the lambda was DEFINED extended with arg bindings — NOT the
+  // caller's apply-site env. The JVM is canonical for v6 and is lexical (e.g.
+  // `{ val add = (a:Int)=>(b:Int)=>a+b; add(3)(1) } == Int 4`, where the inner
+  // closure closes over `a` from its definition scope). The args above are
+  // still evaluated in the caller's `env`.
+  let bodyEnv = closure.capturedEnv
   for (let i = 0; i < closure.argIds.length; i++) {
+    // v6 P6: reject applying a lambda whose arg type is an unresolved type var
+    // (JVM `stypeToRType(STypeVar)` → "Unknown type T"). Fires at apply, before
+    // binding — independent of whether the body reads the arg.
+    assertArgTypeResolved(closure.argTpes[i]!)
     ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust apply.rs (mirrors block.rs:30 / block-value.ts:31)
     bodyEnv = bodyEnv.extend(closure.argIds[i]!, argValues[i]!)
   }

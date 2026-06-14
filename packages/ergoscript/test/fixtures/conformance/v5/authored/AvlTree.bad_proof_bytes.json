@@ -1,0 +1,107 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.bad_proof_bytes",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-degenerate",
+  "entries" : [
+    {
+      "name" : "contains-0x00-false#0",
+      "script" : "{ tree.contains(key2, 0x00) }  // construction fails → false (no throw)",
+      "tree_bytes_hex" : "1a560364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e204466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec550e0100dc640973000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 217,
+        "error" : null
+      }
+    },
+    {
+      "name" : "contains-truncated-false#1",
+      "script" : "{ tree.contains(key2, truncatedProof) }  // → false",
+      "tree_bytes_hex" : "1aad010364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e204466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec550e5803a4950597f640451a7f628ea42ce4525890593c75ab337afd6315122093bc6474024466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec55879e17a4a2c5fd46dbd5e0fc45c7ec87b5f8ce90731cdc640973000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 237,
+        "error" : null
+      }
+    },
+    {
+      "name" : "contains-empty-false#2",
+      "script" : "{ tree.contains(key2, emptyProof) }  // → false",
+      "tree_bytes_hex" : "1a550364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e204466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec550e00dc640973000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 217,
+        "error" : null
+      }
+    },
+    {
+      "name" : "get-0x00-errored#3",
+      "script" : "{ tree.get(key2, 0x00) }  // construction fails → raise",
+      "tree_bytes_hex" : "1a560364fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e204466b8f1af03542b3c35de30426ec12b04fc34fa0a8c48289ec868e1e00aec550e0100dc640a73000273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "insert-0x00-errored#4",
+      "script" : "{ tree.insert([(key50,val50)], 0x00) }  // pre-v3: construction fails → raise (#908)",
+      "tree_bytes_hex" : "1a690464fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e209a39c57d13039b50bfe4aa21b2c8238be31d133db1fbe4549b16d9b94338b4e20e08000000005a17a0320e0100dc640c73000283013c0e0e8602730173027303",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

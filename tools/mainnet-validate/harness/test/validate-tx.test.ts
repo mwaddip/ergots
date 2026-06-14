@@ -152,7 +152,7 @@ function fakeHeader(height: number, version = 2): Header {
         adProofsRoot: new Uint8Array(32),
         stateRoot: new Uint8Array(33),
         transactionRoot: new Uint8Array(32),
-        timestamp: 1_700_000_000_000 + height,
+        timestamp: BigInt(1_700_000_000_000 + height),
         nBits: 0,
         height,
         extensionRoot: new Uint8Array(32),

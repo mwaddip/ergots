@@ -18,30 +18,16 @@
         ],
         "kind": "Tuple"
       },
-      "expected_cost": 25
+      "expected_cost": 25,
+      "expected_error_code": null
     },
     {
       "name": "tuple_triple_bool_byte_short",
       "tree_bytes_hex": "0086030101020703a413",
       "opts_json": {},
-      "expected_value_json": {
-        "items": [
-          {
-            "kind": "Boolean",
-            "value": true
-          },
-          {
-            "kind": "Byte",
-            "value": 7
-          },
-          {
-            "kind": "Short",
-            "value": 1234
-          }
-        ],
-        "kind": "Tuple"
-      },
-      "expected_cost": 30
+      "expected_value_json": null,
+      "expected_cost": null,
+      "expected_error_code": "tuple-invalid-arity"
     }
   ]
 }

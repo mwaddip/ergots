@@ -127,6 +127,15 @@ fn make_v1_header() -> anyhow::Result<Header> {
 ///
 /// This mirrors the pattern from the sigma-rust test at
 /// `ergotree-interpreter/src/eval/sheader.rs:421-425`.
+///
+/// ⚠️ JVM-DIVERGENCE / HAND-BLESSED FIXTURE (v6 P4, 2026-06-04): sigma-rust serializes this
+/// zero-arg call under the MethodCall opcode (0xdc). The JVM serializes EVERY zero-arg method
+/// under the PropertyCall opcode (0xdb) — `MethodCall.companion = if (args.isEmpty) PropertyCall
+/// else MethodCall` (`values.scala:1322`) — and REJECTS a 0xdc empty-args call at ErgoTree V3
+/// (`MethodCallSerializer.scala:53-55`). The committed `sheader-checkpow.json` was therefore
+/// hand-corrected to the JVM-faithful 0xdb PropertyCall encoding (eval value+cost identical).
+/// Re-running `cargo run -p fixture-gen` regenerates the 0xdc form → a NON-EMPTY diff that is
+/// EXPECTED, not a determinism regression; do not "fix" the JSON back to 0xdc.
 fn checkpow_expr() -> anyhow::Result<Expr> {
     let headers_expr: Expr = ergotree_ir::mir::property_call::PropertyCall::new(
         Expr::Context,

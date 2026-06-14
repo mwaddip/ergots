@@ -670,7 +670,8 @@
         },
         "value": null
       },
-      "bytes_hex": "00"
+      "bytes_hex": "00",
+      "treeVersion": 3
     },
     {
       "name": "SOption[SInt] Some(42)",
@@ -690,7 +691,8 @@
           "value": 42
         }
       },
-      "bytes_hex": "0154"
+      "bytes_hex": "0154",
+      "treeVersion": 3
     },
     {
       "name": "STuple[SInt,SBoolean] (1,true)",

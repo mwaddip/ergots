@@ -54,7 +54,7 @@
           "kind": "Coll"
         }
       },
-      "expected_cost": 19
+      "expected_cost": 229
     },
     {
       "name": "get_key_absent",
@@ -70,7 +70,7 @@
         "kind": "Option",
         "value": null
       },
-      "expected_cost": 19
+      "expected_cost": 229
     },
     {
       "name": "get_bytes_key_32",
@@ -125,7 +125,7 @@
           "kind": "Coll"
         }
       },
-      "expected_cost": 19
+      "expected_cost": 249
     }
   ]
 }

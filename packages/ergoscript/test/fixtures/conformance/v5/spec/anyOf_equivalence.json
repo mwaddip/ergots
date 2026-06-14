@@ -1,0 +1,371 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "anyOf equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "Coll()#0",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true)#1",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(false)#2",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(false,false)#3",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : false
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(false,true)#4",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : false
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true,false)#5",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true,true)#6",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true,false,false)#7",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true,false,true)#8",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true,true,false)#9",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(true,true,true)#10",
+      "script" : "{ (x: Coll[Boolean]) => anyOf(x) }",
+      "tree_bytes_hex" : "1a0e00dad901010d97720101e4e3010d",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SBoolean"
+        },
+        "items" : [
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          },
+          {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    }
+  ]
+}

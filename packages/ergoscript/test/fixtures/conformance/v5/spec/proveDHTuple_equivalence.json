@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "proveDHTuple equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "GroupElement(ECPoint(9c1522,1f90ef,...))#0",
+      "script" : "{ (x: GroupElement) => proveDHTuple(x, x, x, x) }",
+      "tree_bytes_hex" : "1a1400dad9010107ce720172017201720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "039c15221a318d27c186eba84fa8d986c1f63bbd9f8060380c9bfc2ef455d8346a"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "ce039c15221a318d27c186eba84fa8d986c1f63bbd9f8060380c9bfc2ef455d8346a039c15221a318d27c186eba84fa8d986c1f63bbd9f8060380c9bfc2ef455d8346a039c15221a318d27c186eba84fa8d986c1f63bbd9f8060380c9bfc2ef455d8346a039c15221a318d27c186eba84fa8d986c1f63bbd9f8060380c9bfc2ef455d8346a"
+        },
+        "cost" : 105,
+        "error" : null
+      }
+    }
+  ]
+}

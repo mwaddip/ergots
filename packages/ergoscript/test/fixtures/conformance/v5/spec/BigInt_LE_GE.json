@@ -1,0 +1,2108 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "BigInt LE, GE",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#0",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819966))#1",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819966"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-1))#2",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(0))#3",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(1))#4",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#5",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-120),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#6",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-120),CBigInt(-121))#7",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-121"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-120),CBigInt(-120))#8",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-120),CBigInt(-82))#9",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-82"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-103),CBigInt(-1))#10",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-103),CBigInt(0))#11",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-103),CBigInt(1))#12",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-103),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#13",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(-2))#14",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-2"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(-1))#15",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(0))#16",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(1))#17",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#18",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(-1))#19",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(0))#20",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(1))#21",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(60))#22",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "60"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#23",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(-1))#24",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(0))#25",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(1))#26",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(26))#27",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "26"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(7),CBigInt(-32))#28",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "7"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-32"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(7),CBigInt(0))#29",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "7"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(33),CBigInt(1))#30",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "33"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(126),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#31",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "126"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#32",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-47))#33",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-47"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#34",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a908c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#35",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819966),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#36",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819966"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#37",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#38",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#39",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967))#40",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-120))#41",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-121),CBigInt(-120))#42",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-121"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-120),CBigInt(-120))#43",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-82),CBigInt(-120))#44",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-82"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-120"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(-103))#45",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(-103))#46",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(-103))#47",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(-103))#48",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-103"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-2),CBigInt(-1))#49",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-2"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(-1))#50",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(-1))#51",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(-1))#52",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(0))#53",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(0))#54",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(0))#55",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(0))#56",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(60),CBigInt(0))#57",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "60"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(0))#58",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-1),CBigInt(1))#59",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(1))#60",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(1))#61",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(26),CBigInt(1))#62",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "26"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-32),CBigInt(7))#63",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-32"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "7"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(7))#64",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "7"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(33))#65",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "33"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(126))#66",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "126"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#67",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-47),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#68",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-47"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967),CBigInt(57896044618658097711785492504343953926634992332820282019728792003956564819967))#69",
+      "script" : "{ (x: (BigInt, BigInt)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad901015a928c7201018c72010201e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    }
+  ]
+}

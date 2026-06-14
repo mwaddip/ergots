@@ -14,18 +14,22 @@ Where this file is silent on implementation detail, those are canonical.
 
 **Ships in this contract (v0.2.0):**
 
-1. `ByteReader` class — cursor-based reader with VLQ + ZigZag-VLQ decoding, bool/option/array helpers, and a `slice()` view.
+1. `ByteReader` class — cursor-based reader with VLQ + ZigZag-VLQ decoding, bool/option/array helpers, a `slice()` view, and a JVM-style `positionLimit` read window (F5 batch 5).
 2. `ByteWriter` class — chunk-accumulating writer with VLQ + ZigZag-VLQ encoding, bool/option/array helpers, and a `toBytes()` finalizer.
-3. `ReaderError` class — typed error thrown by `ByteReader` on malformed input; 4-variant `code` union.
+3. `ReaderError` class — typed error thrown by `ByteReader` on malformed input; 6-variant `code` union.
 4. VLQ free functions: `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag`, `readVlqU32` — stateless encode/decode operating on `ByteReader` and returning `Uint8Array` / `bigint`.
 5. `MAX_ARRAY_LENGTH` constant — 16,777,216 (`1 << 24`); the DoS cap applied by `readArray`.
 6. Digest constants and helpers: `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN`, `readFixed`, `writeFixed`.
 7. `Header` interface + `parseHeader`, `serializeHeader`, `serializeHeaderWithoutPow`, `deriveHeaderId`.
 8. `AutolykosSolution` interface + `parseAutolykosSolution`, `serializeAutolykosSolution`.
 9. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
-10. Autolykos v2 PoW verifier: `verifyAutolykosV2(header): boolean` + helpers (`calcBigN`, `autolykosMessage`, `buildAutolykosSeed`, `genIndexes`, `hashElement`).
+10. Autolykos v2 PoW verifier: `verifyAutolykosV2(header): boolean` + helpers (`calcBigN`, `autolykosMessage`). Internals `buildAutolykosSeed`, `genIndexes`, `hashElement` are module-internal in P5c and removed from `packages/scorex/src/index.ts`.
 11. `decodeCompactBits(nBits): bigint` — Bitcoin-compact-bits target unpacking, used by the Autolykos v2 verifier.
 12. `AutolykosV1NotSupportedError` typed error class — thrown by `verifyAutolykosV2` on v1 headers (matches sigma-rust `AutolykosPowSchemeError::Unsupported`).
+13. `autolykosHitForMessage(k, msg, nonce, h, N): bigint` — un-checked Autolykos-2 PoW hit core (Architecture C″). Faithful port of JVM `Autolykos2PowValidation.hitForVersion2ForMessage` (`Autolykos2PowValidation.scala:122-137`). `h` is raw bytes; the header path passes `int32BE(height)`.
+14. `autolykosHitForMessageWithChecks(k, msg, nonce, h, N): bigint` — same hit core, guarded by `require(k>=2)`, `require(k<=32)`, `require(N>=16)`; throws `PowHitInvalidParamsError` on violation. JVM `hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`).
+15. `int32BE(n: number): Uint8Array` — 4-byte big-endian encoding. JVM `scorex.utils.Ints.toByteArray`.
+16. `PowHitInvalidParamsError` typed error class — `readonly code = 'pow-hit-invalid-params'`; thrown by `autolykosHitForMessageWithChecks` on parameter-guard violations.
 
 **Does NOT ship:**
 
@@ -42,23 +46,84 @@ Where this file is silent on implementation detail, those are canonical.
 // ─── ByteReader ──────────────────────────────────────────────────────────────
 
 export class ByteReader {
-  constructor(bytes: Uint8Array)
+  // maxTreeDepth defaults to MAX_TREE_DEPTH (110); a forked sub-reader inherits it.
+  constructor(bytes: Uint8Array, maxTreeDepth?: number)
 
   get position(): number          // current cursor offset
   get remaining(): number         // bytes.length - position
   get isExhausted(): boolean      // position >= bytes.length
 
+  // ── Recursion-depth counter (shared across all parsers reading THIS reader) ──
+  // Faithful port of the JVM CoreByteReader.level (cap SigmaConstants.MaxTreeDepth=110).
+  // Used by @ergots/ergoscript's recursive parsers (parseExpr / parseSValue /
+  // parseSigmaBoolean) to bound deserialization depth uniformly; parsers that never
+  // recurse (e.g. @ergots/nipopow's block codec) simply never call enterDepth, so the
+  // counter stays 0 and the cap is a no-op for them.
+  readonly maxTreeDepth: number   // recursion-depth cap (default MAX_TREE_DEPTH)
+  get level(): number             // current recursion depth (starts 0 on a fresh reader)
+  enterDepth(): void              // ++level; throws ReaderError('max-tree-depth-exceeded') if level would exceed maxTreeDepth
+  exitDepth(): void               // --level (pair with enterDepth via try/finally)
+  // Fork a sub-reader over `bytes` INHERITING this reader's level + maxTreeDepth.
+  // For size-prefixed inner regions read into a bounded buffer (e.g. a hasSize=true
+  // ErgoTree body), so the depth counter persists across the size boundary as the
+  // JVM does via positionLimit on the one reader.
+  // Does NOT inherit positionLimit: the fork's buffer is rebased to offset 0, so the
+  // parent's limit (an absolute offset) would be meaningless over it — a fork gets the
+  // fresh default over its own buffer. Callers that need a window arm it on the SHARED
+  // reader (as the ergoscript SBox candidate window does); the JVM never forks — it
+  // scopes positionLimit natively on the one reader. Mechanism difference only; the
+  // accepted byte-language is unchanged as long as windowed spans stay on one reader.
+  forkSubReader(bytes: Uint8Array): ByteReader
+
+  // ── Position-limit read window (F5 batch 5) ──────────────────────────────────
+  // Faithful port of the JVM CoreByteReader.positionLimit (CoreByteReader.scala:25-27
+  // check, :36-108 per-get call sites, :133-137 accessor). Default on a fresh reader
+  // = the buffer's byte length (JVM default: r.position + r.remaining = buffer end).
+  // The setter is a PLAIN assignment with NO clamp (:135-137) — a nested window (e.g.
+  // a box constant inside a register of an outer box) may legitimately EXCEED the
+  // enclosing limit for the inner span; the caller's save/set/restore discipline
+  // reinstates the outer limit afterward:
+  //   const saved = r.positionLimit
+  //   r.positionLimit = r.position + N
+  //   …windowed parse…
+  //   r.positionLimit = saved        // mirrors ErgoBoxCandidate.scala:191,235
+  //
+  // LAZY entry-check semantics — ONE check per logical consuming primitive: readU8,
+  // readBytes, and readVlqBigInt check `position > positionLimit` at their START and
+  // throw ReaderError('position-limit-exceeded'); the JVM analogue is
+  // CheckPositionLimit, validation rule 1014 (ValidationRules.scala:169-189). The
+  // check is strict `>` — a read beginning exactly AT the limit passes. Past the one
+  // entry check the primitive's bytes are read UNCHECKED: readVlqBigInt's
+  // continuation-byte loop and readBytes' N-byte run may STRADDLE the limit (start
+  // ≤ limit, end past it), exactly like JVM getULong/getBytes — so an overrun by a
+  // windowed span's FINAL read escapes entirely. readVlqU / readVlqS /
+  // readVlqBigIntSigned / readBool / readOption / readArray inherit the check
+  // through those three primitives, and the vlq.ts free functions (decodeVlqU /
+  // decodeVlqZigZag / readVlqU32) DELEGATE to readVlqBigInt / readVlqBigIntSigned —
+  // one window check per logical read, never per-byte (T2 quality review C1: a
+  // per-byte loop over public readU8 would reject straddling VLQs the JVM accepts).
+  // readFixed (digests.ts) PARTICIPATES via readBytes' entry check and passes
+  // 'position-limit-exceeded' through UNMODIFIED; any other underlying failure
+  // keeps its named-field re-code to 'truncated' (T2 quality review I2). slice()
+  // is non-consuming and does NOT check.
+  get positionLimit(): number       // absolute offset; default = buffer byte length
+  set positionLimit(limit: number)  // plain assignment — no clamp, no validation
+
   // Return a view (no copy) from start (inclusive) to end (exclusive).
   // Throws ReaderError('slice-out-of-bounds') if args violate [0, buf.length].
   slice(start: number, end: number): Uint8Array
 
-  readU8(): number                // throws ReaderError('truncated') at EOF
-  readBytes(n: number): Uint8Array // throws ReaderError('truncated') if n > remaining
+  readU8(): number                // throws ReaderError('truncated') at EOF;
+                                  // 'position-limit-exceeded' entry check (window block above)
+  readBytes(n: number): Uint8Array // throws ReaderError('truncated') if n > remaining;
+                                  // 'position-limit-exceeded' entry check (then N bytes unchecked)
 
   // VLQ unsigned — narrows bigint result to number (caller ensures <= 2^53-1)
   readVlqU(): number
   // VLQ unsigned — full 64-bit safe, returns bigint
-  readVlqBigInt(): bigint         // throws ReaderError('vlq-overflow') after 10 continuation bytes
+  readVlqBigInt(): bigint         // throws ReaderError('vlq-overflow') after 10 continuation bytes;
+                                  // 'position-limit-exceeded' entry check ONCE, byte loop unchecked
+                                  // (straddling VLQs tolerated, like JVM getULong)
 
   // ZigZag-VLQ signed — narrows bigint result to number
   readVlqS(): number
@@ -100,16 +165,23 @@ export class ByteWriter {
 // ─── Error classes ───────────────────────────────────────────────────────────
 
 export class ReaderError extends Error {
-  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large'
+  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded'
 }
 
 export class AutolykosV1NotSupportedError extends Error {
   readonly code: 'autolykos-v1-not-supported'
 }
 
+export class PowHitInvalidParamsError extends Error {
+  readonly code: 'pow-hit-invalid-params'
+}
+
 // ─── VLQ free functions ───────────────────────────────────────────────────────
 
 // Encode/decode accept and return bigint (arbitrary precision; callers narrow to number as needed).
+// The decode-side functions are delegating wrappers over the ByteReader methods
+// (readVlqBigInt / readVlqBigIntSigned): ONE positionLimit check per logical read
+// (see the window block above); the encode side keeps its own emit loop.
 export function encodeVlqU(value: bigint): Uint8Array          // throws Error on negative
 export function decodeVlqU(reader: ByteReader): bigint         // throws ReaderError('vlq-overflow') on >10 bytes
 export function encodeVlqZigZag(value: bigint): Uint8Array     // i64 zigzag; throws Error on out-of-i64-range
@@ -121,6 +193,7 @@ export function readVlqU32(reader: ByteReader, fieldName: string): number  // th
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 export const MAX_ARRAY_LENGTH = 1 << 24  // 16,777,216
+export const MAX_TREE_DEPTH = 110        // default ByteReader.maxTreeDepth (JVM SigmaConstants.MaxTreeDepth)
 
 export const BLOCK_ID_LEN = 32   // bytes
 export const DIGEST32_LEN = 32   // bytes
@@ -130,7 +203,8 @@ export const EC_POINT_LEN = 33   // bytes (compressed secp256k1 point)
 // ─── Digest helpers ──────────────────────────────────────────────────────────
 
 export function readFixed(reader: ByteReader, len: number, name: string): Uint8Array
-  // throws ReaderError('truncated') if fewer than len bytes remain
+  // throws ReaderError('truncated') if fewer than len bytes remain;
+  // a 'position-limit-exceeded' from readBytes' window entry check passes through UNMODIFIED
 
 export function writeFixed(writer: ByteWriter, bytes: Uint8Array, expectedLen: number, name: string): void
   // throws Error if bytes.length !== expectedLen (programming error)
@@ -151,7 +225,7 @@ export interface Header {
   adProofsRoot: Uint8Array       // 32 bytes
   stateRoot: Uint8Array          // 33 bytes (ADDigest = 32-byte digest + 1-byte tree height)
   transactionRoot: Uint8Array    // 32 bytes
-  timestamp: number              // ms since epoch; stored as u64 on wire; capped at Number.MAX_SAFE_INTEGER
+  timestamp: bigint              // ms since epoch; u64 on wire, carried losslessly as bigint (F2)
   nBits: number                  // Bitcoin-compact difficulty (u32, 4 bytes big-endian on wire — NOT VLQ)
   height: number                 // u32 > 0; VLQ-encoded on wire
   extensionRoot: Uint8Array      // 32 bytes
@@ -172,6 +246,19 @@ export function serializeHeader(header: Header): Uint8Array
 export function serializeHeaderWithoutPow(header: Header): Uint8Array
 
 // Derive the Header ID: blake2b256 of the full serialized header bytes.
+// ⚠ Basis caveat (F5 batch 4, 2026-06-10 — FIX PENDING a user scope decision, ergoscript
+// ledger NEW-findings #1): this derives the id from a RE-SERIALIZATION
+// (`blake2b256(serializeHeader(header))`), and `parseHeader` assigns it that way
+// (header.ts:112). The canonical JVM derives the id from the CONSUMED INPUT SLICE retained
+// at parse — `ErgoHeader.sigmaSerializer.parse` snapshots reader position, re-reads the
+// exact consumed bytes as `_bytes` (ErgoHeader.scala:167-180), and
+// `id = Blake2b256(_bytes)` (ErgoHeader.scala:132-140). sigma-rust (branch
+// `ergo-node-integration`) has adopted the same consumed-slice basis
+// (ergo-chain-types/src/header.rs:196-204). The two bases coincide for canonically-encoded
+// (honest) headers; they DIVERGE on adversarial non-minimal encodings (non-minimal VLQ,
+// v1 d-bytes). `@ergots/ergoscript` overrides the id with the JVM basis locally at its
+// SHeader data arm (parse-svalue.ts SHeader case, F5 batch 4); `@ergots/nipopow` still
+// consumes scorex's re-serialization basis.
 export function deriveHeaderId(header: Header): Uint8Array  // 32 bytes
 
 // Parse / serialize AutolykosSolution (version determines v1 vs v2 wire layout).
@@ -182,11 +269,41 @@ export function serializeAutolykosSolution(s: AutolykosSolution, version: number
 
 export function calcBigN(version: number, height: number): number
 export function autolykosMessage(header: Header): Uint8Array  // 32 bytes
-export function buildAutolykosSeed(msg: Uint8Array, nonce: Uint8Array, height: number, bigN: number): Uint8Array  // 32 bytes
-export function genIndexes(seed: Uint8Array, bigN: number): number[]  // 32 indices
-export function hashElement(index: number, height: number): Uint8Array  // 31 bytes
+// buildAutolykosSeed, genIndexes, hashElement are module-internal (P5c); removed from public index.ts
 export function verifyAutolykosV2(header: Header): boolean
   // throws AutolykosV1NotSupportedError on header.version === 1
+
+// ─── Autolykos v2 PoW hit core (Architecture C″ — shared by verifyAutolykosV2, nipopow.compare, SGlobal.powHit) ───
+
+// 4-byte big-endian encoding of a signed 32-bit integer.
+// JVM: scorex.utils.Ints.toByteArray
+export function int32BE(n: number): Uint8Array  // 4 bytes
+
+// Un-checked Autolykos-2 PoW hit core.
+// Faithful port of JVM Autolykos2PowValidation.hitForVersion2ForMessage (Autolykos2PowValidation.scala:122-137).
+// h is raw bytes; the header path passes int32BE(height).
+// No parameter guards — callers that need validation must use autolykosHitForMessageWithChecks.
+export function autolykosHitForMessage(
+  k: number,
+  msg: Uint8Array,
+  nonce: Uint8Array,
+  h: Uint8Array,
+  N: number
+): bigint
+
+// Same as autolykosHitForMessage, guarded by:
+//   require(k >= 2)  — at least 2 elements needed for the k-sum
+//   require(k <= 32) — genIndexes does not support k > 32
+//   require(N >= 16) — minimum table size
+// Throws PowHitInvalidParamsError (code 'pow-hit-invalid-params') on any guard violation.
+// JVM: Autolykos2PowValidation.hitForVersion2ForMessageWithChecks (Autolykos2PowValidation.scala:115-120).
+export function autolykosHitForMessageWithChecks(
+  k: number,
+  msg: Uint8Array,
+  nonce: Uint8Array,
+  h: Uint8Array,
+  N: number
+): bigint
 
 // ─── nBits decode ────────────────────────────────────────────────────────────
 
@@ -204,7 +321,7 @@ Callers may rely on these without re-checking after any value returned from the 
 - `stateRoot` is exactly 33 bytes (ADDigest = 32-byte tree root + 1-byte tree height).
 - `votes` is exactly 3 bytes.
 - `nBits` is encoded as 4 bytes big-endian on the wire (NOT VLQ — this diverges from most fields). The parsed value is a `number` in `[0, 2^32-1]`.
-- `timestamp` is a `number` in `[0, Number.MAX_SAFE_INTEGER]`; `parseHeader` throws `ReaderError('vlq-overflow')` if the on-wire VLQ u64 exceeds `Number.MAX_SAFE_INTEGER`. Real chain timestamps are below `2^45` for the next few millennia; this bound is not a practical constraint.
+- `timestamp` is a `bigint` carrying the full wire u64 losslessly; `parseHeader` imposes no upper bound (JVM carries Long — round-trip identity holds for the entire u64 range). The pre-F2 number carrier + `MAX_SAFE_INTEGER` guard (audit NIP-08) was dropped in F2 — the guard protected the lossy carrier, not consensus.
 - `height` is a `number` in `[0, 2^32-1]` (u32 range enforced by `readVlqU32`).
 - `unparsedBytes` is a `Uint8Array` of length 0 for version 1 headers; for version > 1 headers, the length is read as a u8 prefix (0..=255 bytes).
 
@@ -217,7 +334,7 @@ Callers may rely on these without re-checking after any value returned from the 
 
 **VLQ:**
 
-- `encodeVlqU` / `decodeVlqU` handle unsigned integers up to 2^64 - 1 (but `number` callers must stay within `Number.MAX_SAFE_INTEGER`).
+- `encodeVlqU` / `decodeVlqU` handle unsigned integers up to 2^64 - 1 (callers pass a non-negative `bigint` ≤ 2^64 − 1). `decodeVlqU` (and `readVlqBigInt`) wrap mod 2^64 like sigma-rust `get_u64` / JVM protobuf loop when the 10-byte stream encodes a value ≥ 2^64; 10-continuation-byte streams (overflow of the VLQ length limit) still throw `ReaderError('vlq-overflow')`; `encodeVlqU` / `writeVlqBigInt` reject values > 2^64 - 1.
 - `encodeVlqZigZag` / `decodeVlqZigZag` handle signed integers in the i64 range `[-2^63, 2^63 - 1]`.
 - `MAX_ARRAY_LENGTH = 1 << 24 = 16,777,216` is a hard DoS cap applied by `readArray`. No protocol element legitimately exceeds this.
 
@@ -234,7 +351,7 @@ Callers may rely on these without re-checking after any value returned from the 
 
 ## Failure model
 
-**`ReaderError` — thrown by `ByteReader` on malformed bytes (4 codes)**
+**`ReaderError` — thrown by `ByteReader` on malformed bytes (6 codes)**
 
 These represent malformed or truncated wire input, not programming errors on the caller's side.
 
@@ -247,6 +364,18 @@ These represent malformed or truncated wire input, not programming errors on the
 //                         or decoded value exceeds the declared type bound (readVlqU32 > 0xffffffff)
 // 'slice-out-of-bounds' — slice(start, end) args violate [0, buf.length]
 // 'array-too-large'     — readArray decoded length > MAX_ARRAY_LENGTH (1 << 24)
+// 'max-tree-depth-exceeded' — enterDepth would push level past maxTreeDepth
+//                         (JVM SigmaConstants.MaxTreeDepth = 110 cap)
+// 'position-limit-exceeded' — a consuming read begins past positionLimit (strict >).
+//                         Direct check sites: readU8, readBytes, readVlqBigInt (entry
+//                         check only — see the window block in the public surface);
+//                         readVlqU/readVlqS/readVlqBigIntSigned/readBool/readOption/
+//                         readArray inherit through them, as do the vlq.ts free
+//                         functions (decodeVlqU/decodeVlqZigZag/readVlqU32, by
+//                         delegation) and readFixed (passes the code through
+//                         UNMODIFIED — only other failures re-code to 'truncated').
+//                         JVM analogue: CheckPositionLimit, validation rule 1014
+//                         (ValidationRules.scala:169-189; CoreByteReader.scala:25-27)
 ```
 
 **Plain `Error` — thrown by `ByteWriter` and `writeFixed` on programming errors**
@@ -261,6 +390,10 @@ A typed error class wrapping the case where `verifyAutolykosV2` is called with `
 
 Real Ergo nodes (incl. ergo-node-rust) skip v1 PoW verification structurally; this throw exists for callers that mistakenly hand a v1 header to `verifyAutolykosV2` directly. `@ergots/ergoscript`'s `SHeader.checkPow` eval arm catches this class and re-throws as `EvalError('autolykos-v1-not-supported')`.
 
+**`PowHitInvalidParamsError` — thrown by `autolykosHitForMessageWithChecks` on parameter guard violations**
+
+A typed error class for invalid Autolykos-2 PoW hit parameters. The `code` is the string literal `'pow-hit-invalid-params'`. Thrown when any of the three guards fires: `k < 2` (at least 2 elements required for the k-sum), `k > 32` (genIndexes does not support larger k), or `N < 16` (minimum table size). Mirrors the JVM `require(...)` calls in `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`). `@ergots/ergoscript`'s `SGlobal.powHit` eval arm catches this class and re-throws as `EvalError('pow-hit-invalid-params')`.
+
 ## Test corpus
 
 Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdom` via two vitest configs (`vitest.config.ts` and `vitest.browser.config.ts`). Moved from `@ergots/nipopow` and `@ergots/ergoscript` during the phase 2h-c.0 extraction:
@@ -271,7 +404,7 @@ Tests live in `packages/scorex/test/`. All tests run under both `node` and `jsdo
 - `nipopow-reader.test.ts` — `ByteReader` used in nipopow-style call patterns; exercises the VLQ path on real proof bytes.
 - `nipopow-writer.test.ts` — `ByteWriter` in nipopow-style serialization patterns.
 - `option-array.test.ts` — `readOption`/`writeOption`, `readArray`/`writeArray`, `readBool`/`writeBool`; null and present branches; multi-element arrays; `array-too-large` error path.
-- `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; `timestamp` overflow guard.
+- `header.test.ts` — `parseHeader`/`serializeHeader` byte-equality against sigma-rust fixtures for version 1 and version 2 mainnet headers; `id` derivation check; u64 timestamp lossless round-trip (beyond 2^53); `readFixed` 'position-limit-exceeded' pass-through (not re-coded to 'truncated').
 - `autolykos-solution.test.ts` — `parseAutolykosSolution`/`serializeAutolykosSolution` byte-equality; v1 and v2 layouts; `powDistance` minimal-encoding round-trip.
 - `autolykos-v2.test.ts` — `verifyAutolykosV2` against mainnet V2 headers; V1 throw path; helpers' unit tests.
 - `nbits.test.ts` — `decodeCompactBits` round-trip + boundary values.
@@ -284,21 +417,34 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 |---|---|---|
 | `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `ByteWriter.writeVlqBigInt` / `ByteReader.readVlqBigInt` (`writer.ts`, `reader.ts`) | VLQ loop; BigInt accumulator used to avoid 32-bit truncation |
 | `sigma-ser/src/zig_zag_encode.rs::encode` / `decode` | `ByteWriter.writeVlqBigIntSigned` / `ByteReader.readVlqBigIntSigned` (`writer.ts`, `reader.ts`) | ZigZag `(v<<1)^(v>>63)` — sign-aware shift emulated via BigInt masking |
-| `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag` (`vlq.ts`) | Free-function API; same algorithm as the reader/writer methods |
+| `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag` (`vlq.ts`) | Free-function API; the decode side is a delegating wrapper over `ByteReader.readVlqBigInt` / `readVlqBigIntSigned` (one positionLimit check per logical read — T2 quality review C1); the encode side keeps its own emit loop |
 | `sigma-ser/src/scorex_serialize.rs::SigmaSerializable` | `ByteReader` / `ByteWriter` classes | Scorex reader/writer pattern; Fleet SDK ergonomic helpers (readOption/writeOption/readArray/writeArray/readBool/writeBool) are TS-only additions not present in sigma-ser |
-| `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived in-process by `deriveHeaderId` |
+| `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived in-process by `deriveHeaderId` — ⚠ RE-SERIALIZATION basis, see the `deriveHeaderId` caveat in the public-surface section (JVM + sigma-rust e-n-i hash the consumed input slice instead; diverges on adversarial non-minimal encodings; fix pending user scope decision) |
 | `ergo-chain-types/src/header.rs::Header::scorex_serialize` | `serializeHeader` (`header.ts`) | Full header bytes = `serializeHeaderWithoutPow` + `serializeAutolykosSolution` |
 | `ergo-chain-types/src/header.rs::Header::serialize_without_pow` | `serializeHeaderWithoutPow` (`header.ts`) | Used as Autolykos message input |
 | `ergo-chain-types/src/header.rs::AutolykosSolution::serialize_bytes` | `parseAutolykosSolution`, `serializeAutolykosSolution` (`autolykos-solution.ts`) | version parameter selects v1 (minerPk + powOnetimePk + nonce + d_len + d_bytes) vs v2 (minerPk + nonce) layout |
-| (TS-only) | `deriveHeaderId` (`header.ts`) | `blake2b256(serializeHeader(header))`; sigma-rust computes this inside `scorex_parse` rather than exposing it as a standalone function |
+| (TS-only) | `deriveHeaderId` (`header.ts`) | `blake2b256(serializeHeader(header))` — a RE-SERIALIZATION basis. The canonical JVM hashes the CONSUMED INPUT SLICE retained at parse (`ErgoHeader.scala:167-180` capture, `:132-140` id), and sigma-rust `ergo-node-integration` has adopted the same consumed-slice basis (`ergo-chain-types/src/header.rs:196-204`, no longer a re-serialization inside `scorex_parse`). Identical for canonical (honest) encodings; diverges on adversarial non-minimal ones. `@ergots/ergoscript` pins the JVM basis locally (parse-svalue.ts SHeader arm, F5 batch 4); nipopow still consumes this basis — fix pending a user scope decision (ergoscript ledger NEW-findings #1) |
 | (TS-only) | `readFixed`, `writeFixed` (`digests.ts`) | Named-field wrappers over `readBytes`/`writeBytes` with length checks; simplify fixed-size digest reads in `header.ts` and `autolykos-solution.ts` |
 | (TS-only) | `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN` (`digests.ts`) | Named length constants for clarity |
 | (TS-only) | `MAX_ARRAY_LENGTH` (`reader.ts`) | DoS cap for `readArray`; 1 << 24 = 16,777,216 |
-| (TS-only) | `readVlqU32` (`vlq.ts`) | Convenience wrapper: `decodeVlqU` + assert <= 0xffffffff |
+| (TS-only) | `readVlqU32` (`vlq.ts`) | Convenience wrapper: `ByteReader.readVlqBigInt` + assert <= 0xffffffff |
 | `@noble/hashes/blake2.js` (third-party) | `blake2b256` (`src/crypto/blake2b256.ts`) | Internal-only; not exported from index.ts |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::pow_hit` (lines 176-197) | `verifyAutolykosV2` + helpers (`autolykos-v2.ts`) | V2 path only; V1 sigma-rust returns pow_distance but our port throws AutolykosV1NotSupportedError |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::decode_compact_bits` | `decodeCompactBits` (`nbits.ts`) | Bitcoin-compact-bits target unpacking; bit-exact mirror |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::AutolykosPowSchemeError::Unsupported` (line 322) | `AutolykosV1NotSupportedError` (`errors.ts`) | V1 verification not implemented; sigma-rust returns Err on the same condition |
+| JVM `Autolykos2PowValidation.hitForVersion2ForMessage` (`Autolykos2PowValidation.scala:122-137`) | `autolykosHitForMessage` (`autolykos-v2.ts`) | Un-checked hit core; Architecture C″ shared entry point |
+| JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` (`Autolykos2PowValidation.scala:115-120`) | `autolykosHitForMessageWithChecks` (`autolykos-v2.ts`) | Guarded hit core; throws `PowHitInvalidParamsError` on k/N violations |
+| JVM `scorex.utils.Ints.toByteArray` | `int32BE` (`autolykos-v2.ts`) | 4-byte big-endian int encoding; used to pass `height` as `h` bytes |
+| JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` param guards | `PowHitInvalidParamsError` (`errors.ts`) | Typed error for k<2 / k>32 / N<16 guard violations |
+| JVM `CoreByteReader.positionLimit` (`CoreByteReader.scala:25-27, 36-108, 133-137`) | `ByteReader.positionLimit` getter/setter + per-primitive entry checks (`reader.ts`) | Lazy read window: ONE check per logical read, strict `>`, no clamp on set; throws `ReaderError('position-limit-exceeded')` ≡ rule 1014 `CheckPositionLimit` (`ValidationRules.scala:169-189`). sigma-rust has NO equivalent (its `BoundedVec` token cap is a count-shaped approximation — see `facts/ergoscript-wire.md` F5 batch 5) |
+
+## Version note (v6 P5c)
+
+The P5c changes to this package (`autolykosHitForMessage`, `autolykosHitForMessageWithChecks`, `int32BE`, `PowHitInvalidParamsError` added; `buildAutolykosSeed`, `genIndexes`, `hashElement` removed from the public `index.ts` export) constitute a breaking public-API change. The package version is bumped to **0.2.0** (`packages/scorex/package.json` + the `@ergots/nipopow` / `@ergots/ergoscript` exact pins, on the `ergoscript-v6` branch); the npm republish of `@ergots/scorex@0.2.0` happens at v6 delivery (before or together with the `@ergots/nipopow` and `@ergots/ergoscript` v6 packages that depend on the new API).
+
+## Version note (F5 batch 5)
+
+The F5 batch-5 addition — the `ByteReader.positionLimit` getter/setter plus the `'position-limit-exceeded'` `ReaderError` code (6th union member), consumed by `@ergots/ergoscript`'s SBox 4096-byte candidate window — is an **additive** public-API change. The npm republish carrying it **rides the already-queued v0.2.0 republish at v6 delivery** (the P5c precedent above); no further version bump beyond the one P5c established. Readers that never set `positionLimit` see no behavior change: the default limit is the buffer end, and consuming reads bounds-check (`'truncated'`) before advancing, so the cursor can never pass the buffer end and the strict-`>` entry check can never fire at the default — `@ergots/nipopow`'s block-codec use is untouched (same no-op posture as the depth counter).
 
 ## Known limitations / follow-ups
 
@@ -306,9 +452,7 @@ These items are deferred from phase 2h-c.0 and documented here so successor sess
 
 - **`readBool` and `readOption` throw `'truncated'` for malformed-but-present tag bytes.** When `readBool` reads a byte that is present but neither 0 nor 1, it throws `ReaderError('truncated')`. This is technically wrong — the buffer is not truncated; the byte is malformed. A future minor revision may add a `'malformed-value'` code variant for these cases. Requires coordinating the `ReaderError` code union change with all catch sites in `@ergots/nipopow` and `@ergots/ergoscript` that dispatch on `.code`. Low priority: in practice these call sites see only well-formed data from sigma-rust-generated fixtures.
 
-- **`MAX_VLQ_BYTES` constant is declared twice.** Both `reader.ts` and `vlq.ts` declare `const MAX_VLQ_BYTES = 10` independently. This is a minor DRY gap. Moving it to a shared `_constants.ts` or having one file import from the other is a clean but non-urgent follow-up.
-
-- **VLQ encode/decode loops are duplicated between class methods and free functions.** `ByteReader.readVlqBigInt` and `decodeVlqU` implement the same 10-iteration loop; `ByteWriter.writeVlqBigInt` and `encodeVlqU` implement the same emit loop (~20 LOC each). The free functions were preserved as a stateless API for callers that don't have a cursor (e.g. constructing a VLQ prefix length to prepend). A unification via a `_vlq_core.ts` internal module is feasible but has no functional impact.
+- **VLQ ENCODE loop is duplicated between the writer method and the free function.** `ByteWriter.writeVlqBigInt` and `encodeVlqU` implement the same emit loop (~20 LOC). The decode-side duplication was eliminated by the T2 quality review (C1): `decodeVlqU` / `decodeVlqZigZag` / `readVlqU32` now DELEGATE to `ByteReader.readVlqBigInt` / `readVlqBigIntSigned` — the duplication was not cosmetic, it was a latent consensus fork (the free functions looped over public `readU8()`, firing a PER-BYTE positionLimit check under an armed window where the methods — and the JVM getULong — check once per logical read; a VLQ straddling the window limit was rejected instead of accepted). The remaining encode-side duplication has no equivalent hazard (writers carry no window); unifying it via a shared emit helper stays a clean but non-urgent follow-up. (`MAX_VLQ_BYTES` is now declared once, in `reader.ts` — the old double declaration went away with `decodeVlqU`'s loop.)
 
 - **`hexToBytes` / `bytesToHex` test helpers are duplicated.** `packages/scorex/test/helpers.ts` and `packages/nipopow/test/helpers.ts` both define these utilities. They are test-only and not in any published output. A shared `@ergots/test-utils` subpath export is a reasonable future step once the duplication burden grows.
 
@@ -316,7 +460,7 @@ These items are deferred from phase 2h-c.0 and documented here so successor sess
 
 - `docs/specs/2026-05-19-ergots-scorex-package-design.md` — design rationale, extraction scope, Fleet SDK evaluation, migration plan
 - `facts/nipopow.md` — primary consumer; `@ergots/nipopow` imports `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions, `Header`, `AutolykosSolution`, `parseHeader`, `serializeHeader` from `@ergots/scorex`
-- `facts/ergoscript-wire.md` — primary consumer; `@ergots/ergoscript` imports the same codec layer
+- `facts/ergoscript-wire.md` — primary consumer; `@ergots/ergoscript` imports the same codec layer; its SBox data-parse arm arms a 4096-byte `positionLimit` candidate window (4096 = JVM `ErgoBox.MaxBoxSize`, `SigmaConstants.scala:24`) — see that file's F5 batch 5 wire section
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list, package list
 - `~/projects/ergots/external/sigma-rust/sigma-ser/src/vlq_encode.rs` — VLQ reference (pinned `integration/ergots`)
 - `~/projects/ergots/external/sigma-rust/ergo-chain-types/src/header.rs` — Header + AutolykosSolution wire format reference (pinned `integration/ergots`)

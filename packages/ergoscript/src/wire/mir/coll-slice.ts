@@ -39,11 +39,12 @@ export function parseCollSlice(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Slice {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const from = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const until = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const from = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const until = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Slice', input, from, until }
 }
 
@@ -52,8 +53,8 @@ export function parseCollSlice(
  * emits the OP_SLICE opcode byte). Writes the input Expr, then `from`,
  * then `until`.
  */
-export function serializeCollSlice(e: Slice, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.from, w)
-  serializeExpr(e.until, w)
+export function serializeCollSlice(e: Slice, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.from, w, treeVersion)
+  serializeExpr(e.until, w, treeVersion)
 }

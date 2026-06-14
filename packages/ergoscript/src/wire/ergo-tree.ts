@@ -27,10 +27,11 @@
  * declared size) are tolerated by sigma-rust silently (it just stops
  * reading); we do the same here.
  *
- * Task 8 wires the envelope around stub `parseExpr` / `serializeExpr`
- * (which throw `not-implemented-yet` for every opcode). Task 9+ fleshes
- * out the body parser one opcode at a time; once a corpus tree's body
- * can be parsed end-to-end, full round-trip testing kicks in.
+ * Task 8 wired the envelope around `parseExpr` / `serializeExpr`; Task 9+
+ * fleshed out the body parser one opcode at a time. The body parser is now
+ * fully built — reserved/undispatched opcodes parse-reject via
+ * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path), and corpus
+ * trees round-trip end-to-end.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree.rs
@@ -90,6 +91,33 @@ export class ErgoTreeSerializeError extends Error {
 }
 
 /**
+ * rule-1012 `CheckHeaderSizeBit`: reject a tree header whose version > 0 has
+ * the size bit (0x08) clear. Mirrors JVM `ValidationRules.scala:138-151`
+ * enforced at `ErgoTreeSerializer.scala:219` inside `deserializeHeaderAndSize`:
+ *
+ *     val version = ErgoTree.getVersion(header)
+ *     if (version != 0 && !ErgoTree.hasSize(header)) throwValidationException(...)
+ *
+ * Called immediately after the header byte is decoded — BEFORE any size /
+ * constants / body parsing — by both the main tree parser
+ * (`parseTreeFromReader`) and the serializer-level constant-substitution path
+ * (`substituteConstantsBytes`), which the JVM unifies through the same
+ * `deserializeHeaderAndSize` helper (the latter via `deserializeHeaderWithTreeBytes`).
+ *
+ * Unconditional: the rule is `SoftForkWhenReplaced` and present in mainnet's
+ * rule list, so it is always active; there is no version/activation gate beyond
+ * `version != 0`. Adversarial-only — honest mainnet v>0 trees carry the size bit.
+ */
+function assertHeaderSizeBit(version: number, hasSize: boolean): void {
+  if (version > 0 && !hasSize) {
+    throw new ErgoTreeParseError(
+      `tree version > 0 requires the size bit (0x08) per rule-1012; version=${version}`,
+      'header-version-requires-size',
+    )
+  }
+}
+
+/**
  * Parse an ErgoTree's header + body from the current cursor position of the
  * provided reader. Leaves the cursor at the byte AFTER the body. Does NOT
  * enforce trailing-byte exhaustion on the outer reader — that's the caller's
@@ -118,6 +146,17 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
     rawHeader,
   }
 
+  // rule-1012 CheckHeaderSizeBit: a header with version > 0 AND the size bit
+  // (0x08) clear is rejected at parse, BEFORE the size/constants/body. The JVM
+  // enforces this in `deserializeHeaderAndSize` immediately after reading the
+  // header byte (`ErgoTreeSerializer.scala:219` → `ValidationRules.scala:138-151`):
+  //   val version = ErgoTree.getVersion(header)
+  //   if (version != 0 && !ErgoTree.hasSize(header)) throw
+  // Unconditional (the rule is `SoftForkWhenReplaced` and in mainnet's rule
+  // list, always active). Adversarial-only — every mainnet v>0 tree carries the
+  // size bit, so this never rejects an honest tree.
+  assertHeaderSizeBit(header.version, header.hasSize)
+
   // When `hasSize` is set, sigma-rust reads exactly `tree_size_bytes` into
   // an intermediate buffer and parses constants + body from that bounded
   // inner reader. We mirror that to (a) match the wire semantics
@@ -136,7 +175,12 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
         'body-size-overflow',
       )
     }
-    inner = new ByteReader(outer.readBytes(bodyByteLength))
+    // Fork a sub-reader that INHERITS the outer reader's recursion depth + cap.
+    // The JVM reads a size-prefixed body on the SAME reader via `positionLimit`
+    // (`ErgoTreeSerializer.scala:143-211`), so `r.level` persists across the
+    // size boundary; a plain `new ByteReader(slice)` would reset level to 0 and
+    // under-count the MaxTreeDepth budget. See ByteReader.forkSubReader.
+    inner = outer.forkSubReader(outer.readBytes(bodyByteLength))
   } else {
     inner = outer
   }
@@ -209,6 +253,15 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
 export function consumeTreeFromReader(outer: ByteReader): void {
   const rawHeader = outer.readU8()
   const hasSize = (rawHeader & HAS_SIZE_FLAG) !== 0
+  // rule-1012 CheckHeaderSizeBit applies to the box-carried ErgoTree ingress too.
+  // The JVM gates EVERY `deserializeErgoTree` call: `deserializeHeaderAndSize`
+  // (→ CheckHeaderSizeBit) runs at ErgoTreeSerializer.scala:144, BEFORE the body
+  // try/catch, so a version>0/no-size header throws uncaught — it never reaches the
+  // `Unparsed` fallback (which requires `sizeOpt = Some`, :200-206). Gating here keeps
+  // all three ergots ingresses (parseTree / substituteConstantsBytes / box-script)
+  // consistent with the JVM; without it a box's ergoTree would accept what `parseTree`
+  // rejects — an internal split matching neither reference (F5 batch 3 review finding).
+  assertHeaderSizeBit(rawHeader & VERSION_MASK, hasSize)
 
   if (hasSize) {
     const bodyByteLength = outer.readVlqU()
@@ -441,9 +494,21 @@ export function substituteConstantsBytes(
 
   const r = new ByteReader(scriptBytes)
   const rawHeader = r.readU8()
-  const version = (rawHeader & VERSION_MASK) as TreeHeader['version']
+  // The template header's version byte drives ONLY structure flags (hasSize,
+  // constantSegregation) plus the rule-1012 size-bit gate below; data-layer
+  // version gates use `treeVersion` (the eval-ambient outer version). See
+  // comment at parseSValue calls below.
+  const templateVersion = rawHeader & VERSION_MASK
   const hasSize = (rawHeader & HAS_SIZE_FLAG) !== 0
   const seg = (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0
+
+  // rule-1012 CheckHeaderSizeBit on the template header. The JVM reaches this
+  // via substituteConstants → deserializeHeaderWithTreeBytes →
+  // deserializeHeaderAndSize → CheckHeaderSizeBit (ErgoTreeSerializer.scala:326,
+  // :270, :219), the SAME enforcement point as the main tree parse. The gate
+  // uses the TEMPLATE header's own version, not the eval-ambient treeVersion
+  // (CheckHeaderSizeBit reads ErgoTree.getVersion(header) off the parsed header).
+  assertHeaderSizeBit(templateVersion, hasSize)
 
   // hasSize: read+discard the declared size. JVM does NOT bound the reader here
   // (deserializeHeaderWithTreeBytes → treeBytes = r.getBytes(r.remaining)), so
@@ -468,7 +533,12 @@ export function substituteConstantsBytes(
     for (let i = 0; i < count; i++) {
       const tpe = parseSType(r)
       constantTypes.push(tpe)
-      constants.push(parseSValue(tpe, version, r))
+      // Constants in the template parse/serialize under the EVAL-AMBIENT tree
+      // version (the JVM's substituteConstants chain installs no VersionContext
+      // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
+      // is ambient, trees.scala:673-676). The template's own header version byte
+      // governs only its structure flags, NOT the DATA-layer version gates.
+      constants.push(parseSValue(tpe, treeVersion, r))
     }
   }
   const numConstants = constants.length
@@ -500,7 +570,8 @@ export function substituteConstantsBytes(
     const iPos = backref[i]!
     if (iPos === -1) {
       serializeSType(constantTypes[i]!, constW)
-      serializeSValue(constantTypes[i]!, constants[i]!, version, constW)
+      // Same rationale: use eval-ambient treeVersion, not template's version byte.
+      serializeSValue(constantTypes[i]!, constants[i]!, treeVersion, constW)
     } else {
       // JVM `require(c.tpe == newConst.tpe)` — structural sType-equality.
       if (!sTypeEquals(newValuesElem, constantTypes[i]!)) {
@@ -510,7 +581,8 @@ export function substituteConstantsBytes(
         )
       }
       serializeSType(newValuesElem, constW)
-      serializeSValue(newValuesElem, newValues[iPos]!, version, constW)
+      // Same rationale: use eval-ambient treeVersion, not template's version byte.
+      serializeSValue(newValuesElem, newValues[iPos]!, treeVersion, constW)
     }
   }
   const constBytes = constW.toBytes()

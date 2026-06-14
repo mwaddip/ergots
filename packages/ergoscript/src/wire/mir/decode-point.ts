@@ -38,9 +38,10 @@ export function parseDecodePoint(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): DecodePoint {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'DecodePoint', input }
 }
 
@@ -49,6 +50,6 @@ export function parseDecodePoint(
  * {@link serializeExpr} emits the OP_DECODE_POINT opcode byte). Writes
  * the input Expr.
  */
-export function serializeDecodePoint(d: DecodePoint, w: ByteWriter): void {
-  serializeExpr(d.input, w)
+export function serializeDecodePoint(d: DecodePoint, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(d.input, w, treeVersion)
 }

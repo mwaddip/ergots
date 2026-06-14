@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Box.sub_min_value",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-box-sub-min",
+  "entries" : [
+    {
+      "name" : "b.value#sub-min",
+      "script" : "{ (b: Box) => b.value }",
+      "tree_bytes_hex" : "1a0600c1e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "010008cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1"
+        },
+        "cost" : 33,
+        "error" : null
+      }
+    }
+  ]
+}

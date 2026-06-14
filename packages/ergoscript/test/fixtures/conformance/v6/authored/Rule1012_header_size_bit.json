@@ -1,0 +1,26 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Rule1012:header_size_bit",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ingress-rules",
+  "entries" : [
+    {
+      "name" : "header-v3-no-size-bit-errored#0",
+      "script" : "header 0x03 — version-3 bits set, size bit (0x08) clear  // JVM: Rule-1012 at header parse — for version > 0 the size bit must be set (errors before eval)",
+      "tree_bytes_hex" : "03050101017300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

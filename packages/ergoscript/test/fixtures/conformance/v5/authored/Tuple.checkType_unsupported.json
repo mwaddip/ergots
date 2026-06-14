@@ -1,0 +1,44 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.checkType_unsupported",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-checktype",
+  "entries" : [
+    {
+      "name" : "checktype-inline-errored#0",
+      "script" : "{ Tuple( (Bool,Bool,Bool) inline constant, 1 ) }  // JVM: Unsupported tuple type — SType.checkType rejects a 3-tuple item (inline-constant seam)",
+      "tree_bytes_hex" : "008602480101010101010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "checktype-placeholder-errored#0",
+      "script" : "{ Tuple( ConstantPlaceholder(0,(Bool,Bool,Bool)), 1 ) }  // JVM: Unsupported tuple type — same error via ConstantPlaceholder.eval checkType (distinct seam)",
+      "tree_bytes_hex" : "1002480101010101010402860273007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

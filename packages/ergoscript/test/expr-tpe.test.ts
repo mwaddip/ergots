@@ -160,15 +160,15 @@ describe('exprTpe — method-call return-type resolution (A3)', () => {
   }
 
   it('PropertyCall getEncoded (7:2) returns Coll[SByte]', () => {
-    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 7, methodId: 2 }
+    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 7, methodId: 2, explicitTypeArgs: {} }
     expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
   it('PropertyCall indices (12:14) returns Coll[SInt], ignoring the receiver elem', () => {
-    const onLong: Expr = { tag: 'PropertyCall', obj: collLongConst, typeId: 12, methodId: 14 }
+    const onLong: Expr = { tag: 'PropertyCall', obj: collLongConst, typeId: 12, methodId: 14, explicitTypeArgs: {} }
     expect(exprTpe(onLong)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
     // indices' t_range is closed (Coll[Int] regardless of the receiver's T).
-    const onByte: Expr = { tag: 'PropertyCall', obj: collByteConst, typeId: 12, methodId: 14 }
+    const onByte: Expr = { tag: 'PropertyCall', obj: collByteConst, typeId: 12, methodId: 14, explicitTypeArgs: {} }
     expect(exprTpe(onByte)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
   })
 
@@ -185,7 +185,52 @@ describe('exprTpe — method-call return-type resolution (A3)', () => {
   })
 
   it('unregistered (typeId, methodId) falls back to SAny (cascade guard)', () => {
-    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 999, methodId: 999 }
+    const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 999, methodId: 999, explicitTypeArgs: {} }
     expect(exprTpe(e)).toEqual({ tag: 'SAny' })
+  })
+})
+
+/**
+ * Generic-output method resolution via the type-var substitution engine
+ * (v6 P0 — 2026-06-02). SColl.patch (12:19) has a type-var tRange (Coll[IV]);
+ * the engine binds IV from the receiver's element type, so exprTpe returns the
+ * concrete Coll[receiver-elem] instead of the A3 SAny fallback.
+ *
+ * Spec: docs/specs/2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md
+ */
+describe('exprTpe — generic method resolution (v6 P0)', () => {
+  const collLongConst: Expr = {
+    tag: 'Const',
+    tpe: { tag: 'SColl', elem: { tag: 'SLong' } },
+    value: { kind: 'Coll', elem: { tag: 'SLong' }, items: [] },
+  }
+  const intConst: Expr = {
+    tag: 'Const',
+    tpe: SINT,
+    value: { kind: 'Int', value: 0 },
+  }
+
+  it('MethodCall SColl.patch (12:19) resolves Coll[IV] from the receiver', () => {
+    const e: Expr = {
+      tag: 'MethodCall',
+      obj: collLongConst,
+      typeId: 12,
+      methodId: 19,
+      args: [intConst, collLongConst, intConst],
+      explicitTypeArgs: {},
+    }
+    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SLong' } })
+  })
+})
+
+/**
+ * LastBlockUtxoRootHash op-form (0xa6) — F5 batch 4, Ask-13. JVM
+ * values.scala:1490: `case object LastBlockUtxoRootHash extends
+ * NotReadyValueAvlTree` — its tpe is SAvlTree.
+ */
+describe('exprTpe — LastBlockUtxoRootHash (F5 batch 4)', () => {
+  it('LastBlockUtxoRootHash → SAvlTree', () => {
+    const e: Expr = { tag: 'LastBlockUtxoRootHash' }
+    expect(exprTpe(e)).toEqual({ tag: 'SAvlTree' })
   })
 })

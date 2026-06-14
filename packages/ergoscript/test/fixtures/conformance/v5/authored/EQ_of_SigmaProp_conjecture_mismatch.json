@@ -1,0 +1,86 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "EQ of SigmaProp conjecture mismatch",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-sigmaprop-eq",
+  "entries" : [
+    {
+      "name" : "cand-vs-dlog#0",
+      "script" : "{ (pkA && pkB) == pkA }",
+      "tree_bytes_hex" : "1a7002089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee508cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "dlog-vs-cand#1",
+      "script" : "{ pkA == (pkA && pkB) }",
+      "tree_bytes_hex" : "1a700208cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee59373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 4,
+        "error" : null
+      }
+    },
+    {
+      "name" : "trivial-vs-dlog#2",
+      "script" : "{ sigmaProp(true) == pkA }",
+      "tree_bytes_hex" : "1a2b0208d308cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 4,
+        "error" : null
+      }
+    },
+    {
+      "name" : "cthreshold-vs-cand#3",
+      "script" : "{ cthreshold(1, pkA, pkB) == (pkA && pkB) }",
+      "tree_bytes_hex" : "1a95010208980102cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5089602cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee59373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

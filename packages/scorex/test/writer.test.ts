@@ -77,6 +77,11 @@ describe('ByteWriter', () => {
     expect(() => w.writeVlqBigInt(-1n)).toThrow();
   });
 
+  it('throws on writeVlqBigInt > u64 max', () => {
+    const w = new ByteWriter();
+    expect(() => w.writeVlqBigInt(0x10000000000000000n)).toThrow(/exceeds u64/);
+  });
+
   it('matches known VLQ encodings byte-for-byte', () => {
     // Reader test covers: 0 -> [0x00]; 127 -> [0x7f]; 128 -> [0x80, 0x01]; 16383 -> [0xff, 0x7f]
     const cases: [number, number[]][] = [

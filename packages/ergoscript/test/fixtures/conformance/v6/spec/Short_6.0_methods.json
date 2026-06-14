@@ -1,0 +1,973 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Short - 6.0 methods",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "(1,2)#0",
+      "script" : "{ (x: (Short, Short)) => x._1.bitwiseOr(x._2) }",
+      "tree_bytes_hex" : "1b1700dad9010157dc03098c720101018c72010201e4e30157",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 1
+          },
+          {
+            "kind" : "Short",
+            "value" : 2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 3
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1001,2002)#1",
+      "script" : "{ (x: (Short, Short)) => x._1.bitwiseOr(x._2) }",
+      "tree_bytes_hex" : "1b1700dad9010157dc03098c720101018c72010201e4e30157",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 1001
+          },
+          {
+            "kind" : "Short",
+            "value" : 2002
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 2043
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#2",
+      "script" : "{ (x: Short) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010103db0308720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 1
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -2
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "10001#3",
+      "script" : "{ (x: Short) => x.bitwiseInverse }",
+      "tree_bytes_hex" : "1b1000dad9010103db0308720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 10001
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -10002
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(3,5)#4",
+      "script" : "{ (x: (Short, Short)) => x._1.bitwiseAnd(x._2) }",
+      "tree_bytes_hex" : "1b1700dad9010157dc030a8c720101018c72010201e4e30157",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Short",
+            "value" : 5
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 1
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(10001,2202)#5",
+      "script" : "{ (x: (Short, Short)) => x._1.bitwiseAnd(x._2) }",
+      "tree_bytes_hex" : "1b1700dad9010157dc030a8c720101018c72010201e4e30157",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 10001
+          },
+          {
+            "kind" : "Short",
+            "value" : 2202
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 16
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(3,5)#6",
+      "script" : "{ (x: (Short, Short)) => x._1.bitwiseXor(x._2) }",
+      "tree_bytes_hex" : "1b1700dad9010157dc030b8c720101018c72010201e4e30157",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Short",
+            "value" : 5
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 6
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(10001,2202)#7",
+      "script" : "{ (x: (Short, Short)) => x._1.bitwiseXor(x._2) }",
+      "tree_bytes_hex" : "1b1700dad9010157dc030b8c720101018c72010201e4e30157",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 10001
+          },
+          {
+            "kind" : "Short",
+            "value" : 2202
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 12171
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "127#8",
+      "script" : "{ (x: Short) => x.toBytes }",
+      "tree_bytes_hex" : "1b1000dad9010103db0306720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 127
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "32767#9",
+      "script" : "{ (x: Short) => x.toBytes }",
+      "tree_bytes_hex" : "1b1000dad9010103db0306720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 32767
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-32768#10",
+      "script" : "{ (x: Short) => x.toBytes }",
+      "tree_bytes_hex" : "1b1000dad9010103db0306720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -32768
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "83#11",
+      "script" : "{ (x: Short) => x.toBits }",
+      "tree_bytes_hex" : "1b1000dad9010103db0307720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : 83
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SBoolean"
+          },
+          "items" : [
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-55#12",
+      "script" : "{ (x: Short) => x.toBits }",
+      "tree_bytes_hex" : "1b1000dad9010103db0307720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -55
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SBoolean"
+          },
+          "items" : [
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#13",
+      "script" : "{ (x: Short) => x.toBits }",
+      "tree_bytes_hex" : "1b1000dad9010103db0307720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -1
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SBoolean"
+          },
+          "items" : [
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-10001#14",
+      "script" : "{ (x: Short) => x.toBits }",
+      "tree_bytes_hex" : "1b1000dad9010103db0307720101e4e30103",
+      "input" : {
+        "kind" : "Short",
+        "value" : -10001
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SBoolean"
+          },
+          "items" : [
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : false
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            },
+            {
+              "kind" : "Boolean",
+              "value" : true
+            }
+          ]
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(3,3)#15",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030c8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Int",
+            "value" : 3
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 24
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(3,8)#16",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030c8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Int",
+            "value" : 8
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 768
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2,10)#17",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030c8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : -2
+          },
+          {
+            "kind" : "Int",
+            "value" : 10
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -2048
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2,20)#18",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030c8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : -2
+          },
+          {
+            "kind" : "Int",
+            "value" : 20
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(3,-1)#19",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftLeft(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030c8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(24,3)#20",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030d8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 24
+          },
+          {
+            "kind" : "Int",
+            "value" : 3
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 3
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1600,8)#21",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030d8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 1600
+          },
+          {
+            "kind" : "Int",
+            "value" : 8
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 6
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-3200,8)#22",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030d8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : -3200
+          },
+          {
+            "kind" : "Int",
+            "value" : 8
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : -13
+        },
+        "cost" : 104,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(3,-1)#23",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030d8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(3,16)#24",
+      "script" : "{ (x: (Short, Int)) => x._1.shiftRight(x._2) }",
+      "tree_bytes_hex" : "1b1900dad901013f04dc030d8c720101018c72010201e4e3013f04",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Short",
+            "value" : 3
+          },
+          {
+            "kind" : "Int",
+            "value" : 16
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

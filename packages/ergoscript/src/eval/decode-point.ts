@@ -26,12 +26,8 @@
  * "bad point: ZERO" from `Point.ZERO.toBytes()` (see crypto/secp256k1.ts:17-18
  * and encodePoint at :85-92 for the established precedent).
  *
- * Divergence note: `decodePoint` here silently rejects `[0x00, non-zero]`
- * inputs that sigma-rust would accept as identity. Documented centrally at
- * `crypto/secp256k1.ts:decodePoint` (phase 2i-d closeout); deliberate strict-
- * reject as a safety margin against hand-crafted/hostile inputs. Production-
- * unreachable because sigma-rust's serializer always emits identity as
- * exactly 33 zero bytes.
+ * Identity handling: any 0x00-lead input decodes as identity (iter-24) —
+ * see the central decodePoint docstring in crypto/secp256k1.ts.
  *
  * Build-time type guard: `DecodePoint::try_build` (sigma-rust
  * `ergotree-ir/src/mir/decode_point.rs:43-48`) calls

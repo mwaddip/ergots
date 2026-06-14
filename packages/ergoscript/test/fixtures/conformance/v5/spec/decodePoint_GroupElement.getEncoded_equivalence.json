@@ -1,0 +1,113 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "decodePoint(GroupElement.getEncoded) equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "GroupElement(ECPoint(358d53,77a7ac,...))#0",
+      "script" : "{ (x: GroupElement) => decodePoint(x.getEncoded) == x }",
+      "tree_bytes_hex" : "1a1400dad901010793eedb07027201720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "03358d53f01276211f92d0aefbd278805121d4ff6eb534b777af1ee8abae5b2056"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 801,
+        "error" : null
+      }
+    },
+    {
+      "name" : "GroupElement(ECPoint(dba7b9,9b7393,...))#1",
+      "script" : "{ (x: GroupElement) => decodePoint(x.getEncoded) == x }",
+      "tree_bytes_hex" : "1a1400dad901010793eedb07027201720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "02dba7b94b111f3894e2f9120b577da595ec7d58d488485adf73bf4e153af63575"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 801,
+        "error" : null
+      }
+    },
+    {
+      "name" : "GroupElement(ECPoint(904498,4faeb3,...))#2",
+      "script" : "{ (x: GroupElement) => decodePoint(x.getEncoded) == x }",
+      "tree_bytes_hex" : "1a1400dad901010793eedb07027201720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "0290449814f5671172dd696a61b8aa49aaa4c87013f56165e27d49944e98bc414d"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 801,
+        "error" : null
+      }
+    },
+    {
+      "name" : "GroupElement(ECPoint(79be66,483ada,...))#3",
+      "script" : "{ (x: GroupElement) => decodePoint(x.getEncoded) == x }",
+      "tree_bytes_hex" : "1a1400dad901010793eedb07027201720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 801,
+        "error" : null
+      }
+    },
+    {
+      "name" : "GroupElement(IDENTITY)#4",
+      "script" : "{ (x: GroupElement) => decodePoint(x.getEncoded) == x }",
+      "tree_bytes_hex" : "1a1400dad901010793eedb07027201720101e4e30107",
+      "input" : {
+        "kind" : "GroupElement",
+        "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 801,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -40,9 +40,10 @@ export function parseLongToByteArray(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): LongToByteArray {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'LongToByteArray', input }
 }
 
@@ -53,7 +54,8 @@ export function parseLongToByteArray(
  */
 export function serializeLongToByteArray(
   l: LongToByteArray,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(l.input, w)
+  serializeExpr(l.input, w, treeVersion)
 }

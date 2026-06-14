@@ -11,14 +11,19 @@
  *   [default: Option<Box<Expr>>]
  *      tag byte:
  *        0x00 → None
- *        0x01 → Some (Expr follows)
+ *        nonzero → Some (Expr follows; canonical emit 0x01)
  *
  * `DeserializeRegister` reads `SELF.R{reg}` as a `Coll[Byte]`, deserializes
  * the bytes into an `Expr` and inlines it; if the register is empty, the
  * `default` Expr is executed. The Option<Box<Expr>> uses the same wire
  * shape as `impl<T: SigmaSerializable> SigmaSerializable for Option<Box<T>>`
- * in sigma-rust's `serialization/serializable.rs` — the same Option<Box<Expr>>
- * encoding used by `CreateAvlTree.valueLength` (Task 20).
+ * in sigma-rust's `serialization/serializable.rs`. JVM-confirmed for THIS
+ * node: `DeserializeRegisterSerializer.scala` parses
+ * `r.getOption(r.getValue())` — a presence tag IS the JVM shape here.
+ * (CreateAvlTree.valueLength, previously cited as the same encoding, turned
+ * out to be a sigma-rust wire FORK — the JVM serializes it as a 4th expr
+ * operand; fixed in the F4 epilogue. Do not generalize the presence-tag
+ * shape across nodes without a per-node JVM serializer read.)
  *
  * Sigma-rust's `sigma_parse` reads `reg` first then `tpe` then `default`,
  * and sets the reader's `set_deserialize(true)` flag (relevant only to its
@@ -56,7 +61,8 @@ export function parseDeserializeRegister(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): DeserializeRegister {
   const reg = r.readU8()
   if (reg > 9) {
@@ -68,13 +74,13 @@ export function parseDeserializeRegister(
   const tpe = parseSType(r)
   const tag = r.readU8()
   let defaultExpr = null
-  if (tag === 1) {
-    defaultExpr = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  } else if (tag !== 0) {
-    throw new ExprParseError(
-      `DeserializeRegister.default Option tag must be 0 or 1, got ${tag}`,
-      'invalid-option-tag'
-    )
+  if (tag !== 0) {
+    // JVM DeserializeRegisterSerializer.scala:30 `r.getOption(r.getValue())` —
+    // scorex-util getOption: ANY nonzero tag → Some(parse Expr). The previous
+    // tag∈{0,1}-else-throw ('invalid-option-tag', now retired) was an
+    // over-reject fork. Serialize emits canonical 0x01/0x00 (writeOption), so
+    // a noncanonical tag does not byte-round-trip — same on the JVM.
+    defaultExpr = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   }
   return { tag: 'DeserializeRegister', reg, tpe, default: defaultExpr }
 }
@@ -89,7 +95,8 @@ export function parseDeserializeRegister(
  */
 export function serializeDeserializeRegister(
   e: DeserializeRegister,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
   if (!Number.isInteger(e.reg) || e.reg < 0 || e.reg > 9) {
     throw new ExprSerializeError(
@@ -99,5 +106,5 @@ export function serializeDeserializeRegister(
   }
   w.writeU8(e.reg)
   serializeSType(e.tpe, w)
-  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w))
+  w.writeOption(e.default, (w, inner) => serializeExpr(inner, w, treeVersion))
 }

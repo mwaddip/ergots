@@ -10,7 +10,7 @@
  *  - ENOENT on read returns []
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, utimesSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -98,8 +98,8 @@ describe('loop-log writer', () => {
         appendLoopLogEntry(e2, path);
         const got = readLoopLog(path);
         expect(got).toHaveLength(2);
-        expect(got[0].iteration).toBe(1);
-        expect(got[1].iteration).toBe(2);
+        expect(got[0]!.iteration).toBe(1);
+        expect(got[1]!.iteration).toBe(2);
     });
 
     it('external mtime modification raises LoopLogExternalModificationError', () => {

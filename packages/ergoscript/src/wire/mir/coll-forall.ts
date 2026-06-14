@@ -37,10 +37,11 @@ export function parseCollForall(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ForAll {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ForAll', input, condition }
 }
 
@@ -49,7 +50,7 @@ export function parseCollForall(
  * emits the OP_FOR_ALL opcode byte). Writes the input Expr, then the
  * condition Expr.
  */
-export function serializeCollForall(e: ForAll, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.condition, w)
+export function serializeCollForall(e: ForAll, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.condition, w, treeVersion)
 }

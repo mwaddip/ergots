@@ -225,6 +225,24 @@ describe('CollByIndex variant', () => {
       0x00, 0xb2, 0xa5, 0x04, 0x0e, 0x00,
     ])
   })
+
+  it('ByIndex: nonzero-noncanonical tag 0x02 accepted as Some (already faithful — pin against regression)', () => {
+    // ByIndex.default uses generic Option<Box<Expr>> decoding: tag != 0 → Some.
+    // This pin verifies the already-correct `tag !== 0` behavior survives future
+    // "harmonization" to an exact-1 check. sigma-rust ByIndexSerializer.scala:34
+    // `r.getOption(r.parseExpr())` — same scorex-util getOption semantics.
+    //
+    // tag-02 twin of the tag-01 Some round-trip: replace byte 5 (0x01 → 0x02).
+    const bytes02 = new Uint8Array([0x00, 0xb2, 0xa4, 0x04, 0x04, 0x02, 0xa7])
+    // canonical twin (tag = 0x01):
+    const bytes01 = new Uint8Array([0x00, 0xb2, 0xa4, 0x04, 0x04, 0x01, 0xa7])
+    const tree02 = parseTree(bytes02)
+    const tree01 = parseTree(bytes01)
+    // Identical MIR:
+    expect(tree02.body).toEqual(tree01.body)
+    // Serializer emits canonical 0x01:
+    expect(Array.from(serializeTree(tree02))).toEqual(Array.from(bytes01))
+  })
 })
 
 /*

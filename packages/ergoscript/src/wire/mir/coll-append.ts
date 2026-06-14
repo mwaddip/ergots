@@ -40,10 +40,11 @@ export function parseCollAppend(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Append {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const col2 = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const col2 = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Append', input, col2 }
 }
 
@@ -51,7 +52,7 @@ export function parseCollAppend(
  * Serialize an `Append` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_APPEND opcode byte). Writes the input Expr, then col_2.
  */
-export function serializeCollAppend(e: Append, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.col2, w)
+export function serializeCollAppend(e: Append, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.col2, w, treeVersion)
 }

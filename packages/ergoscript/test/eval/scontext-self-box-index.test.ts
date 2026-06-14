@@ -59,6 +59,7 @@ function syntheticBox(value: bigint = 1n): ErgoBox {
 
 const selfBoxIndexExpr: PropertyCallExpr = {
   tag: 'PropertyCall',
+  explicitTypeArgs: {},
   obj: { tag: 'Context' },
   typeId: 101,
   methodId: 8,
@@ -118,6 +119,7 @@ describe('SContext.selfBoxIndex handler', () => {
   it('charges +20 BEFORE the obj-kind check (Pattern A) on non-Context receiver', () => {
     const nonContextExpr: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Global' },
       typeId: 101,
       methodId: 8,

@@ -92,9 +92,12 @@
       "name": "atleast_bound_exceeds_input_len",
       "tree_bytes_hex": "009804081403cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
       "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "atleast-bound-out-of-range"
+      "expected_value_json": {
+        "kind": "SigmaProp",
+        "raw_hex": "d2"
+      },
+      "expected_cost": 33,
+      "expected_error_code": null
     }
   ]
 }

@@ -166,12 +166,33 @@ describe('serializeBoxBytes error guards', () => {
     }
   }
 
-  it("rejects tokens.length > 122 with 'sbox-tokens-out-of-range'", () => {
-    const tooManyTokens = Array.from({ length: 123 }, (_, i) => ({
-      id: new Uint8Array(32).fill(i),
-      amount: BigInt(i + 1),
+  /** N tokens with 32-byte ids and small amounts. */
+  function makeTokens(n: number): { id: Uint8Array; amount: bigint }[] {
+    return Array.from({ length: n }, (_, i) => ({
+      id: new Uint8Array(32).fill(i & 0xff),
+      amount: BigInt((i % 100) + 1),
     }))
-    const box = makeBox({ tokens: tooManyTokens })
+  }
+
+  // F5 batch 5: the egress bound is the u8 wire ceiling (255) — JVM
+  // putUByte(size) asserts 0..255 (ErgoBoxCandidate.scala:144; scorex-util
+  // putUByte). The old >122 threshold mirrored sigma-rust's BoundedVec count
+  // cap; the JVM applies NO size window on egress either — the 4096-byte
+  // window is a parse-only rule (see sbox-token-window.test.ts).
+  it('serializes 123 tokens (old count cap removed)', () => {
+    const box = makeBox({ tokens: makeTokens(123) })
+    expect(() => serializeBoxBytes(box)).not.toThrow()
+    expect(() => serializeBoxBytesWithoutRef(box)).not.toThrow()
+  })
+
+  it('serializes 255 tokens (at the u8 wire ceiling; no egress size window)', () => {
+    const box = makeBox({ tokens: makeTokens(255) })
+    expect(() => serializeBoxBytes(box)).not.toThrow()
+    expect(() => serializeBoxBytesWithoutRef(box)).not.toThrow()
+  })
+
+  it("rejects tokens.length > 255 with 'sbox-tokens-out-of-range'", () => {
+    const box = makeBox({ tokens: makeTokens(256) })
     expectCode(() => serializeBoxBytes(box), 'sbox-tokens-out-of-range')
     expectCode(() => serializeBoxBytesWithoutRef(box), 'sbox-tokens-out-of-range')
   })

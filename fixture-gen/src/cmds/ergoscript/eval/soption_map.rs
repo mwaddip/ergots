@@ -160,6 +160,20 @@ fn body_plus(tpe: SType, literal: Expr) -> Expr {
 }
 
 pub fn generate() -> anyhow::Result<EvalFixtureFile> {
+    // ⚠️ HAND-BLESSED (F3.5, 2026-06-07): the committed JSON costs for Some-path
+    // entries (map_some_gt=119, map_some_plus_long=114, map_some_plus_int=114)
+    // include ADD_TO_ENV_COST(5) per FuncValue application — JVM
+    // AddToEnvironmentDesc, same class as apply.ts:74 and scoll-flat-map.ts:139.
+    // The PINNED integration/ergots branch's soption.rs:map_eval does NOT charge
+    // this 5 (bare env.insert; only the Fixed(20) envelope), so this generator
+    // produces Some-path costs 5 lower (map_some_gt=114, map_some_plus_long/int=109).
+    // NOTE: e-n-i's LambdaInvoker (eval.rs:396-406) ALREADY charges the 5 — after
+    // any pin bump this regen-diff prediction inverts (no diff, nothing to
+    // re-apply). JVM is canonical either way.
+    // A regen diff on Some-path entries here is EXPECTED, not a regression — re-apply
+    // the +5 to each Some-path expected_cost. None-path entries (map_none_gt=84,
+    // map_none_int=84) are unaffected (lambda never invoked).
+    // See packages/ergoscript/src/eval/soption-map.ts (F3.5).
     let entries = vec![
         // type-change Long→Bool (mirrors sigma-rust eval_map_some / eval_map_none).
         entry(

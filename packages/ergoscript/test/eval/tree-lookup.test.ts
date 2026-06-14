@@ -1,39 +1,26 @@
 /**
- * TreeLookup arm — fixture-driven evaluation tests.
+ * TreeLookup arm — unconditional eval-reject pins (F4 epilogue).
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/tree_lookup.rs:20-65
- *   No add_jit_cost call — children-only cost.
- *   Eval order: tree → key → proof → BatchAVLVerifier::new → perform_one_operation(Lookup).
+ * The JVM has NO eval override for TreeLookup (trees.scala:1322-1338):
+ * `costKind = Value.notSupportedError` + default `Value.eval` →
+ * `sys.error("Should be overriden in ...")` (values.scala:102). EVERY
+ * evaluation throws JVM-side, regardless of operand validity. JVM-blessed
+ * vectors pin the reject at BOTH ergoTree v2 and v3
+ * (`AvlTree.unsupported_eval_nodes{,_v6}.json`, blessed_by
+ * jvm:sigma-state-6.0.3) — see the conformance suites for those.
  *
- *   match opt {
- *     Some(v) => Ok(Value::Opt(Some(Box::new(v.to_vec().into())))),  // Option Some<Coll[Byte]>
- *     None    => Ok(Value::Opt(None)),                                // Option None
- *   }
- *   Err(_) => Err(EvalError::AvlTree(format!("Tree proof is incorrect {:?}", ...)))
+ * ergots' previous arm was a sigma-rust port (full AVL+ lookup via
+ * `@ergots/avltree`) — a consensus over-accept vs the JVM, convergent with
+ * sigma-rust/eni (routed to sigma-rust via SANTA). The arm now throws
+ * `'unsupported-eval-node'` before charging anything or evaluating any
+ * operand.
  *
- * Critical load-bearing behavior: the DOUBLE-NULL semantic from `@ergots/avltree`'s
- * `verifyAvlLookup` (facts/avltree.md:70-76).
- *
- *   - `result === null`           → proof construct fail / per-op fail / digest
- *                                   mismatch → TS throws 'avl-tree-proof-failed'
- *   - `result.value === null`     → proof verified, key ABSENT → Option None
- *   - `result.value: Uint8Array`  → proof verified, key FOUND → Option Some<Coll[Byte]>
- *
- * The fixture matrix EXPLICITLY distinguishes these:
- *   - `tl_absent_in_10_leaf`         → Option None (inner null, value-side)
- *   - `tl_throw_malformed_proof`     → throws 'avl-tree-proof-failed' (outer null)
- *   - `tl_throw_wrong_digest`        → throws 'avl-tree-proof-failed' (outer null)
- *
- * A handler that confuses inner-null vs outer-null would silently mis-route
- * malformed-proof scenarios to Option None (consensus divergence!) — these
- * fixtures are the canary.
- *
- * Throw paths (non-AvlTree receiver, malformed proof, wrong digest):
- *   - The non-AvlTree receiver case uses a synthesized MIR tree that bypasses
- *     `TreeLookup::new`'s build-time SAvlTree guard (multiply_group / exponentiate
- *     / create_avl_tree throw-entry precedent).
- *   - Malformed-proof and wrong-digest paths use real BatchAVLProver output
- *     plus an explicit byte mutation.
+ * The fixture entries deliberately span the OLD corpus's full shape
+ * variety — found / absent / single-leaf / malformed-proof / wrong-digest
+ * / non-AvlTree-receiver trees — every one of which must now produce the
+ * SAME reject. That pins the reject's unconditionality: no operand shape
+ * (valid or garbage) reaches operand evaluation. Parse/serialize for the
+ * opcode (0xb7) are pinned separately in test/wire/avl.test.ts.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'

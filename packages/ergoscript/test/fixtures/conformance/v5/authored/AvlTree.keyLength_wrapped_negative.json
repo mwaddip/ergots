@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.keyLength_wrapped_negative",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-accessors",
+  "entries" : [
+    {
+      "name" : "keyLength-wrapped-negative#0",
+      "script" : "{ avlConstant(keyLength=0x80000001).keyLength }  // parse wraps → negative Int",
+      "tree_bytes_hex" : "1a300164fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c040781808080080108db64037300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : -2147483647
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    }
+  ]
+}

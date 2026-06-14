@@ -117,7 +117,7 @@ function makeSyntheticV1Header(height: number): Header {
         adProofsRoot: new Uint8Array(32),
         stateRoot: new Uint8Array(33),
         transactionRoot: new Uint8Array(32),
-        timestamp: 1_000_000,
+        timestamp: 1_000_000n,
         nBits: 0x07_0339_b8, // arbitrary valid-shaped compact bits
         height,
         extensionRoot: new Uint8Array(32),

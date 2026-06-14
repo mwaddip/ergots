@@ -324,7 +324,13 @@ fn entry_tokens_and_registers() -> anyhow::Result<BoxBytesEntry> {
     })
 }
 
-/// Entry 5: boundary values — value=MAX_RAW, height=u32::MAX, index=u16::MAX, txId=0xff*32.
+/// Entry 5: boundary values — value=MAX_RAW, height=i32::MAX, index=u16::MAX, txId=0xff*32.
+///
+/// creation_height is i32::MAX (0x7fffffff), NOT u32::MAX: the JVM consensus
+/// reader `r.getUIntExact` (ErgoBoxCandidate.scala:195) throws for any value >
+/// Int.MaxValue, so a u32::MAX height is consensus-invalid. sigma-rust's reader
+/// is looser (`r.get_u32()`, ergo_box.rs:433) — the divergence ergots closes;
+/// even sigma-rust's proptest generator caps at `0..i32::MAX` (ergo_box.rs:505).
 fn entry_boundary() -> anyhow::Result<BoxBytesEntry> {
     let value = BoxValue::new(BoxValue::MAX_RAW).expect("BoxValue max");
     let tree = minimal_ergo_tree();
@@ -334,13 +340,13 @@ fn entry_boundary() -> anyhow::Result<BoxBytesEntry> {
         ergo_tree: tree,
         tokens: None,
         additional_registers: NonMandatoryRegisters::empty(),
-        creation_height: u32::MAX,
+        creation_height: i32::MAX as u32,
     };
     let b = ErgoBox::from_box_candidate(&candidate, tx_id_from_byte(0xff), u16::MAX)
         .expect("ErgoBox boundary");
     Ok(BoxBytesEntry {
         name: "boundary".to_string(),
-        description: "Box at boundary values: value=MAX_RAW, height=u32::MAX, index=u16::MAX, txId=0xff*32".to_string(),
+        description: "Box at boundary values: value=MAX_RAW, height=i32::MAX, index=u16::MAX, txId=0xff*32".to_string(),
         full_hex: full_hex(&b)?,
         no_ref_hex: no_ref_hex(&b)?,
         box_json: box_json_fields(&b),

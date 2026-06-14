@@ -1,0 +1,2108 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Int LE, GE",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "(-2147483648,-2147483648)#0",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,-2147483647)#1",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,-1)#2",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,0)#3",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,1)#4",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,2147483647)#5",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-2147483648)#6",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -120
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-121)#7",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -120
+          },
+          {
+            "kind" : "Int",
+            "value" : -121
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-120)#8",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -120
+          },
+          {
+            "kind" : "Int",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-82)#9",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -120
+          },
+          {
+            "kind" : "Int",
+            "value" : -82
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,-1)#10",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -103
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,0)#11",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -103
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,1)#12",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -103
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-103,2147483647)#13",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -103
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-2)#14",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : -2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-1)#15",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,0)#16",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,1)#17",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-2147483648)#18",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-1)#19",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,0)#20",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,1)#21",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,60)#22",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 60
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,2147483647)#23",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-1)#24",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,0)#25",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,1)#26",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,26)#27",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 26
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(7,-32)#28",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 7
+          },
+          {
+            "kind" : "Int",
+            "value" : -32
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(7,0)#29",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 7
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(33,1)#30",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 33
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(126,2147483647)#31",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 126
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,-2147483648)#32",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,-47)#33",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : -47
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,2147483647)#34",
+      "script" : "{ (x: (Int, Int)) => x._1 <= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158908c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,-2147483648)#35",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483647,-2147483648)#36",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-2147483648)#37",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-2147483648)#38",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-2147483648)#39",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,-2147483648)#40",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,-120)#41",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-121,-120)#42",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -121
+          },
+          {
+            "kind" : "Int",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-120,-120)#43",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -120
+          },
+          {
+            "kind" : "Int",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-82,-120)#44",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -82
+          },
+          {
+            "kind" : "Int",
+            "value" : -120
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-103)#45",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-103)#46",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-103)#47",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,-103)#48",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : -103
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2,-1)#49",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,-1)#50",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,-1)#51",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,-1)#52",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,0)#53",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,0)#54",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,0)#55",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,0)#56",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(60,0)#57",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 60
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,0)#58",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-1,1)#59",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,1)#60",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,1)#61",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(26,1)#62",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 26
+          },
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-32,7)#63",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -32
+          },
+          {
+            "kind" : "Int",
+            "value" : 7
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(0,7)#64",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 0
+          },
+          {
+            "kind" : "Int",
+            "value" : 7
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(1,33)#65",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 33
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,126)#66",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : 126
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-2147483648,2147483647)#67",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -2147483648
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(-47,2147483647)#68",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : -47
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(2147483647,2147483647)#69",
+      "script" : "{ (x: (Int, Int)) => x._1 >= x._2 }",
+      "tree_bytes_hex" : "1a1400dad9010158928c7201018c72010201e4e30158",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          },
+          {
+            "kind" : "Int",
+            "value" : 2147483647
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    }
+  ]
+}

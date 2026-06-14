@@ -1,0 +1,26 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Rule1019:check_v6_type",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ingress-rules",
+  "entries" : [
+    {
+      "name" : "box-r4-option-int-check-v6-errored#0",
+      "script" : "v3 tree carrying a Box constant whose R4 is Option[Int]  // JVM: Rule-1019 at box deserialize (register ingress) — CheckV6Type rejects the v6-only Option[SInt] register type",
+      "tree_bytes_hex" : "1b330163c0843d0b0208d300000128010a000000000000000000000000000000000000000000000000000000000000000000c17300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

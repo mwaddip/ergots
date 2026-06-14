@@ -22,11 +22,12 @@
  *                                  Tier-2 verification op handlers when obj is not AvlTree
  *                                  (defensive; unreachable for parser-produced trees).
  *                                  Code originated in `./savltree.ts` (phase 2h-b Tier 1).
- *   'avl-tree-proof-failed'     — thrown by `get` / `getMany` / `insert` (V<3 per-op + construct) /
- *                                  `update` (construct only) / `remove` (any) / `contains` (construct
- *                                  only). See per-handler doc-comments in savltree.ts for the
- *                                  per-handler failure model. Code originated in `./savltree.ts`
- *                                  (phase 2h-b Tier 2 / Phase F).
+ *   'avl-tree-proof-failed'     — thrown by `get` (any fail) / `getMany` (any fail, ≥1 key) /
+ *                                  `insert` at treeVersion<3 with ≥1 op (F4 JVM-canonical surface;
+ *                                  contains/update/remove/insertOrUpdate never throw it — see the
+ *                                  authoritative taxonomy entry in `./errors.ts` and the per-handler
+ *                                  doc-comments in savltree.ts). Code originated in `./savltree.ts`
+ *                                  (phase 2h-b Tier 2 / Phase F; surface narrowed in F4).
  *   'header-obj-not-header'     — thrown by the 15 SHeader property accessor handlers (typeId 104,
  *                                  methodIds 1-15) when obj is not a Header SValue.
  *                                  Code originated in `./sheader.ts` (phase 2h-c.1).
@@ -47,7 +48,7 @@ import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE } from './_box-synthesis'
 import { sValueEquals } from './bin-op/relation'
-import { decodePoint, pointNegate, encodePoint } from '../crypto/secp256k1'
+import { decodePoint, pointNegate, encodePoint, expPoint } from '../crypto/secp256k1'
 import {
   evalSAvlTreeContains,
   evalSAvlTreeDigest,
@@ -67,7 +68,18 @@ import {
   evalSAvlTreeValueLengthOpt,
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
+import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
+import { evalGlobalDeserializeTo } from './global-deserialize-to'
+import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
+import { evalGlobalEncodeNbits } from './global-encode-nbits'
+import { evalGlobalDecodeNbits } from './global-decode-nbits'
+import { evalGlobalPowHit } from './global-pow-hit'
+import { evalGlobalSerialize } from './global-serialize'
+import { numericV6Handlers } from './_numeric-v6'
+import { getRegisterEntry } from './extract-register-as'
+import { sTypeEquals } from '../mir/stype-helpers'
 import { evalSOptionMap } from './soption-map'
+import { umod, umodInverse } from './_ubi-modular'
 import {
   evalSHeaderId,
   evalSHeaderVersion,
@@ -98,7 +110,7 @@ const SBOX: SType = { tag: 'SBox' }
 const SINT: SType = { tag: 'SInt' }
 const SHEADER: SType = { tag: 'SHeader' }
 
-type HandlerFn = (
+export type HandlerFn = (
   obj: SValue,
   args: SValue[],
   ctx: EvalContext,
@@ -132,7 +144,10 @@ export function evalMethodCall(e: MethodCall, env: Env, ctx: EvalContext): SValu
 export function evalPropertyCall(e: PropertyCall, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(4) // Pattern A; source: property_call.rs:16
   const obj = evalExpr(e.obj, env, ctx)
-  return dispatch(e.typeId, e.methodId, obj, [], ctx, {}, undefined)
+  // v6 P4: forward e.explicitTypeArgs (now a REQUIRED field, always present —
+  // `{}` for all pre-v6-P4 PropertyCall nodes; populated for SGlobal.none[T]
+  // 106:10, the first PropertyCall-opcode method with a wire type-arg).
+  return dispatch(e.typeId, e.methodId, obj, [], ctx, e.explicitTypeArgs, undefined)
 }
 
 function dispatch(
@@ -312,6 +327,7 @@ function registerHandlers(): void {
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
   // Source: ergotree-interpreter/src/eval/spreheader.rs:20-24 — TIMESTAMP_EVAL_FN
   // Pattern A cost 10 (charged before obj check). Returns Long.
+  // sigma-rust spreheader.rs / JVM PreHeader.toLong — same signed i64 view as SHeader.timestamp.
   HANDLERS.set(handlerKey(105, 3), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
     ctx.addCost(10)
     if (obj.kind !== 'PreHeader') {
@@ -320,7 +336,7 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return { kind: 'Long', value: obj.value.timestamp }
+    return { kind: 'Long', value: BigInt.asIntN(64, obj.value.timestamp) }
   } })
 
   // SPreHeader.height (PropertyCall, typeId=105, methodId=5)
@@ -356,6 +372,55 @@ function registerHandlers(): void {
       )
     }
     return { kind: 'GroupElement', value: obj.value.minerPk }
+  } })
+
+  // SPreHeader.version (PropertyCall, typeId=105, methodId=1)
+  // Source (JVM canonical): methods.scala:1841 (SPreHeaderMethods) — all 7
+  // accessors FixedCost(JitCost(10)). Returns SByte. NO version gate (v1+).
+  // Pattern A cost 10 (charged before obj check). Sign-extends the u8 version
+  // to a signed i8 Byte, mirroring SHeader.version (sheader.ts:60).
+  HANDLERS.set(handlerKey(105, 1), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.version expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'Byte', value: (obj.value.version << 24) >> 24 }
+  } })
+
+  // SPreHeader.nBits (PropertyCall, typeId=105, methodId=4)
+  // Source (JVM canonical): methods.scala:1844 (SPreHeaderMethods) —
+  // FixedCost(JitCost(10)). Returns SLong. NO version gate (v1+).
+  // Pattern A cost 10 (charged before obj check). nBits is a u32 number; the
+  // accessor is typed SLong, so BigInt(nBits) — a POSITIVE Long up to 2^32-1
+  // (NOT a signed-i64 view like timestamp).
+  HANDLERS.set(handlerKey(105, 4), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.nBits expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return { kind: 'Long', value: BigInt(obj.value.nBits) }
+  } })
+
+  // SPreHeader.votes (PropertyCall, typeId=105, methodId=7)
+  // Source (JVM canonical): methods.scala:1847 (SPreHeaderMethods) —
+  // FixedCost(JitCost(10)). Returns Coll[Byte] (3 bytes). NO version gate (v1+).
+  // Pattern A cost 10 (charged before obj check). Wraps via bytesToCollByteSValue
+  // (per-byte sign-extend), same as SPreHeader.parentId (105:2).
+  HANDLERS.set(handlerKey(105, 7), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'PreHeader') {
+      throw new EvalError(
+        `SPreHeader.votes expects a PreHeader obj; got '${obj.kind}'`,
+        'method-not-implemented' // reuse per error taxonomy option 1
+      )
+    }
+    return bytesToCollByteSValue(obj.value.votes)
   } })
 
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
@@ -421,6 +486,96 @@ function registerHandlers(): void {
     return { kind: 'GroupElement', value: GROUP_GENERATOR_BYTES }
   } })
 
+  // SGlobal.some (MethodCall, typeId=106, methodId=9) — v6 P4.
+  // Source (JVM): sigma/ast/methods.scala:1986-1992 — FixedCost(JitCost(5)),
+  // V3-gated (isV3OrLaterErgoTreeVersion). `some(value: T): Option[T]`.
+  // Pattern A self-cost 5 (charged before obj check). Returns Some(arg) with
+  // elem = the wire explicit type arg T. minVersion 3 → the dispatcher rejects
+  // pre-V3 trees with 'tree-version-too-low' before this handler runs.
+  HANDLERS.set(handlerKey(106, 9), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(5)
+      if (obj.kind !== 'Global') {
+        throw new EvalError(
+          `SGlobal.some expects a Global obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      if (args.length !== 1) {
+        throw new EvalError(
+          `SGlobal.some expects 1 arg; got ${args.length}`,
+          'method-not-implemented'
+        )
+      }
+      // parse guarantees T for 106:9 (PropertyCall/MethodCall explicit type arg).
+      return { kind: 'Option', elem: explicitTypeArgs['T']!, value: args[0]! }
+    },
+    minVersion: 3,
+  })
+
+  // SGlobal.none (PropertyCall, typeId=106, methodId=10) — v6 P4.
+  // Source (JVM): sigma/ast/methods.scala:1994-1999 — FixedCost(JitCost(5)),
+  // V3-gated (isV3OrLaterErgoTreeVersion). `none[T](): Option[T]`.
+  // Pattern A self-cost 5 (charged before obj check). Returns None with
+  // elem = the wire explicit type arg T. minVersion 3 → the dispatcher rejects
+  // pre-V3 trees with 'tree-version-too-low' before this handler runs.
+  HANDLERS.set(handlerKey(106, 10), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(5)
+      if (obj.kind !== 'Global') {
+        throw new EvalError(
+          `SGlobal.none expects a Global obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      if (args.length !== 0) {
+        throw new EvalError(
+          `SGlobal.none expects 0 args; got ${args.length}`,
+          'method-not-implemented'
+        )
+      }
+      // parse guarantees T for 106:10 (PropertyCall explicit type arg).
+      return { kind: 'Option', elem: explicitTypeArgs['T']!, value: null }
+    },
+    minVersion: 3,
+  })
+
+  // SGlobal.serialize (MethodCall, typeId=106, methodId=3) — v6 P5a.
+  // Source: JVM sigma/ast/methods.scala:1957-1984. DynamicCost = StartWriter(10)
+  // + per-primitive write costs from DataSerializer walk. T derived from the
+  // runtime value via sValueType (NOT exprTpe — SAny-incomplete static type would
+  // fork). Output = raw data bytes (no type prefix). V3-gated.
+  HANDLERS.set(handlerKey(106, 3), { handler: evalGlobalSerialize, minVersion: 3 })
+
+  // SGlobal.deserializeTo (MethodCall, typeId=106, methodId=4) — v6 P5a.
+  // Source: JVM sigma/ast/methods.scala:1906-1955. PerItemCost(100,32,32) on
+  // input byte-count. Parses Coll[Byte] as a data value of type T
+  // (DataSerializer.deserialize path, NOT ErgoTree body). Trailing bytes ignored.
+  // MaxTreeDepth(110) enforced on T's nesting depth. V3-gated.
+  HANDLERS.set(handlerKey(106, 4), { handler: evalGlobalDeserializeTo, minVersion: 3 })
+
+  // SGlobal.fromBigEndianBytes (MethodCall, typeId=106, methodId=5) — v6 P5b-1.
+  // Source: JVM sigma/ast/methods.scala:1925-1932. FixedCost(JitCost(10)).
+  // Decodes a big-endian Coll[Byte] into a value of type T (inverse of P1 toBytes).
+  // BigInt/UBI arms added in P5b-1 T5. V3-gated.
+  HANDLERS.set(handlerKey(106, 5), { handler: evalGlobalFromBigEndianBytes, minVersion: 3 })
+
+  // SGlobal.encodeNbits (MethodCall, typeId=106, methodId=6) — v6 P5b-2.
+  // Source: JVM sigma/ast/methods.scala:1939. FixedCost(JitCost(25)). V3-gated.
+  // Encodes a BigInt into Bitcoin compact ("nBits") form → Long.
+  HANDLERS.set(handlerKey(106, 6), { handler: evalGlobalEncodeNbits, minVersion: 3 })
+
+  // SGlobal.decodeNbits (MethodCall, typeId=106, methodId=7) — v6 P5b-2.
+  // Source: JVM sigma/ast/methods.scala:1944. FixedCost(JitCost(50)). V3-gated.
+  // Decodes a Bitcoin compact ("nBits") Long → BigInt (signed-256 checked).
+  HANDLERS.set(handlerKey(106, 7), { handler: evalGlobalDecodeNbits, minVersion: 3 })
+
+  // SGlobal.powHit (MethodCall, typeId=106, methodId=8) — v6 P5c.
+  // Source: JVM sigma/ast/methods.scala:1884-1902. Bespoke FixedCost. V3-gated.
+  // Computes Autolykos V2 hit = blake2b256-based hash for (k, msg, nonce, h, N).
+  // Returns SUnsignedBigInt. Cost charged from raw k BEFORE require guards.
+  HANDLERS.set(handlerKey(106, 8), { handler: evalGlobalPowHit, minVersion: 3 })
+
   // SGroupElement.getEncoded (MethodCall, typeId=7, methodId=2) — phase 2h-f
   // Source: ergotree-interpreter/src/eval/sgroup_elem.rs:15-26 — GET_ENCODED_EVAL_FN
   // Pattern A Fixed(250). Returns 33-byte SEC1-compressed point as Coll[Byte].
@@ -455,6 +610,90 @@ function registerHandlers(): void {
     }
     return { kind: 'GroupElement', value: encodePoint(pointNegate(decodePoint(obj.value))) }
   } })
+
+  // SGroupElement.expUnsigned (MethodCall, typeId=7, methodId=6) — v6 P7a.
+  // Source (JVM): methods.scala:656-660 — ExponentiateUnsignedMethod,
+  // Exponentiate.costKind = FixedCost(JitCost(900)) (trees.scala:1042-1046),
+  // v6-gated via the inline isV3OrLaterErgoTreeVersion in SGroupElementMethods.
+  // CGroupElement.expUnsigned (CGroupElement.scala:25-26) is the IDENTICAL
+  // CryptoFacade.exponentiatePoint call as exp — only the scalar source
+  // differs (UBI ∈ [0, 2²⁵⁶)). Routes through the shared expPoint
+  // (identity-base guard + mod-n reduction + Ergo identity encoding).
+  HANDLERS.set(handlerKey(7, 6), {
+    handler: (obj, args, ctx, _explicitTypeArgs) => {
+      ctx.addCost(900) // Exponentiate.costKind — charged before operand guards
+      if (obj.kind !== 'GroupElement') {
+        throw new EvalError(
+          `SGroupElement.expUnsigned expects a GroupElement obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      // arity 1 exact — JVM eval-rejects extra args via reflection arity (JavaImpl.scala:136-138)
+      const k = args[0]
+      if (args.length !== 1 || k === undefined || k.kind !== 'UnsignedBigInt') {
+        throw new EvalError(
+          `SGroupElement.expUnsigned expects an UnsignedBigInt exponent; got '${k?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      return { kind: 'GroupElement', value: expPoint(obj.value, k.value) }
+    },
+    minVersion: 3,
+  })
+
+  // SBox.getReg (MethodCall, typeId=99, methodId=19) — v6 P7a.
+  // Source (JVM): methods.scala:1338-1347 getRegMethodV6 — (SBox, SInt) →
+  // Option[T], ExtractRegisterAs.costKind = FixedCost(JitCost(50))
+  // (transformers.scala:497-500), v6Methods-only. Eval = CBox.getReg
+  // (CBox.scala:32-44) over the fixed 10-slot register array:
+  //   i<0 or i>9 → None · absent → None · defined+exact type → Some ·
+  //   defined+mismatch → THROW (JVM InvalidType) = 'register-type-mismatch'.
+  // The id-7 sibling ("getRegV5") deserializes at every JVM version but ALWAYS
+  // eval-throws (no reflection binding) — ergots parity = unregistered here →
+  // 'method-not-implemented'. Spec §2 (docs/specs/...p7a-per-type-methods).
+  HANDLERS.set(handlerKey(99, 19), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(50) // ExtractRegisterAs.costKind — charged before guards
+      if (obj.kind !== 'Box') {
+        throw new EvalError(
+          `SBox.getReg expects a Box obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      // arity 1 exact — JVM eval-rejects extra args via reflection arity (JavaImpl.scala:136-138)
+      const idx = args[0]
+      if (args.length !== 1 || idx === undefined || idx.kind !== 'Int') {
+        throw new EvalError(
+          `SBox.getReg expects an Int register index; got '${idx?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const elem = explicitTypeArgs['T']
+      if (elem === undefined) {
+        // Unreachable from the wire (the parser enforces the registered type
+        // arg); defensive against hand-built MIR.
+        throw new EvalError(
+          'SBox.getReg: missing explicit type arg T',
+          'method-not-implemented'
+        )
+      }
+      const i = idx.value
+      // CBox.getReg runtime-index bound: i<0 || i>=10 → None. (The
+      // ExtractRegisterAs NODE's 'register-id-out-of-range' never applies
+      // here — its register id is a parse-time byte, this one is runtime.)
+      if (i < 0 || i > 9) return { kind: 'Option', elem, value: null }
+      const entry = getRegisterEntry(obj.value, i)
+      if (entry === undefined) return { kind: 'Option', elem, value: null }
+      if (!sTypeEquals(entry.tpe, elem)) {
+        throw new EvalError(
+          `SBox.getReg: register R${i} type mismatch (expected ${elem.tag}, got ${entry.tpe.tag})`,
+          'register-type-mismatch'
+        )
+      }
+      return { kind: 'Option', elem, value: entry.value }
+    },
+    minVersion: 3,
+  })
 
   // SColl.indices (MethodCall, typeId=12, methodId=14)
   // Source: ergotree-interpreter/src/eval/scoll.rs:171-193 — INDICES_EVAL_FN
@@ -742,7 +981,7 @@ function registerHandlers(): void {
 
   // ---------- SAvlTree.updateDigest (100:15) — phase 2h-d Task 7 ----------
   // Pattern A Fixed(40); V0+. Pure projection over AvlTreeData.digest.
-  // Defensive 33-byte length check throws 'avl-tree-bad-digest-length'.
+  // Accepts ANY digest length (JVM CAvlTree.scala:31-34 no-require; F4 epilogue).
   // Source: ergotree-interpreter/src/eval/savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
   // Handler body lives in ./savltree.ts; signature is (ctx, obj, args) so the
   // wrapper here flips argument order to match `MethodHandler` shape.
@@ -796,11 +1035,15 @@ function registerHandlers(): void {
   } })
 
   // SContext.lastBlockUtxoRootHash (PropertyCall, typeId=101, methodId=9)
-  // Source: ergotree-interpreter/src/eval/scontext.rs:83-99 — LAST_BLOCK_UTXO_ROOT_HASH_EVAL_FN
-  // Pattern A cost 15 (charged before obj check). Synthesizes AvlTreeData from
-  // ctx.headers[0].stateRoot. treeFlags=0b00000111 means insert/update/remove
-  // all allowed (sigma-rust AvlTreeFlags::new(true, true, true)). keyLength=32,
-  // valueLengthOpt=null.
+  // Source: JVM ErgoLikeContext.lastBlockUtxoRoot (canonical).
+  // Pattern A cost 15 (charged before obj check). F5 batch 2 (2026-06-08):
+  // reads the INDEPENDENT ctx.lastBlockUtxoRootHash field directly; it is NO
+  // LONGER derived from ctx.headers[0].stateRoot (that was the sigma-rust quirk
+  // at scontext.rs:83-99, which the JVM does not share — it models the
+  // last-block UTXO root as its own ErgoLikeContext field, decoupled from the
+  // headers array; the runner-contract dummy context pins it to AvlTreeData.dummy
+  // with headers EMPTY, a state header-derivation cannot represent). Absent ⇒
+  // 'context-field-missing'.
   HANDLERS.set(handlerKey(101, 9), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
     ctx.addCost(15)
     if (obj.kind !== 'Context') {
@@ -809,22 +1052,70 @@ function registerHandlers(): void {
         'context-obj-not-context'
       )
     }
-    if (ctx.headers === undefined || ctx.headers.length === 0) {
+    if (ctx.lastBlockUtxoRootHash === undefined) {
       throw new EvalError(
-        `SContext.lastBlockUtxoRootHash: ctx.headers is ${ctx.headers === undefined ? 'undefined' : 'empty'}`,
+        'SContext.lastBlockUtxoRootHash: ctx.lastBlockUtxoRootHash is undefined',
         'context-field-missing'
       )
     }
-    return {
-      kind: 'AvlTree',
-      value: {
-        digest: ctx.headers[0]!.stateRoot,
-        treeFlags: 0b00000111,
-        keyLength: 32, // blake2b-256 digest length; hard-coded in sigma-rust AvlTreeData
-        valueLengthOpt: null,
-      },
-    }
+    return { kind: 'AvlTree', value: ctx.lastBlockUtxoRootHash }
   } })
+
+  // SContext.getVarFromInput (MethodCall, typeId=101, methodId=12) — v6 P7a.
+  // Source (JVM): methods.scala:1755-1765 — (SContext, SShort, SByte) →
+  // Option[T], GetVar.costKind = FixedCost(JitCost(10))
+  // (transformers.scala:585-590), v6Methods-only (:1773-1775).
+  // Eval = CContext.getVarFromInput (CContext.scala:76-83): TOTAL — OOB input
+  // index, missing var, and TYPE-MISMATCH all → None; NEVER throws. Deliberate
+  // JVM asymmetry vs self-getVar ('get-var-type-mismatch' throw) and
+  // Box.getReg ('register-type-mismatch' throw) — spec §3.3.
+  // ctx.inputExtensions absent = empty (the dataInputs convention).
+  HANDLERS.set(handlerKey(101, 12), {
+    handler: (obj, args, ctx, explicitTypeArgs) => {
+      ctx.addCost(10) // GetVar.costKind — charged before operand guards
+      if (obj.kind !== 'Context') {
+        throw new EvalError(
+          `SContext.getVarFromInput expects a Context obj; got '${obj.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      // arity 2 exact — JVM eval-rejects wrong arity via reflection (JavaImpl.scala:136-138)
+      const inputIdx = args[0]
+      if (args.length !== 2 || inputIdx === undefined || inputIdx.kind !== 'Short') {
+        throw new EvalError(
+          `SContext.getVarFromInput expects a Short input index; got '${inputIdx?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const varId = args[1]
+      if (varId === undefined || varId.kind !== 'Byte') {
+        throw new EvalError(
+          `SContext.getVarFromInput expects a Byte var id; got '${varId?.kind}'`,
+          'method-not-implemented' // reuse per error taxonomy option 1
+        )
+      }
+      const elem = explicitTypeArgs['T']
+      if (elem === undefined) {
+        // Unreachable from the wire (parser enforces the registered type arg);
+        // defensive against hand-built MIR.
+        throw new EvalError(
+          'SContext.getVarFromInput: missing explicit type arg T',
+          'method-not-implemented'
+        )
+      }
+      // inputs.lift(idx): negative or beyond-length bracket access → undefined.
+      // JVM matches extension keys by BYTE IDENTITY (Map[Byte] built from
+      // getByte, ContextExtension.scala:19/58): wire key 0xFF ≡ script Byte
+      // -1. Our values Record is keyed by the unsigned wire byte (0-255), so
+      // normalize the signed Byte SValue into that domain.
+      const entry = ctx.inputExtensions?.[inputIdx.value]?.values[varId.value & 0xff]
+      if (entry === undefined || !sTypeEquals(entry.tpe, elem)) {
+        return { kind: 'Option', elem, value: null }
+      }
+      return { kind: 'Option', elem, value: entry.value }
+    },
+    minVersion: 3,
+  })
 
   // ---------- SHeader (15 property accessors) — phase 2h-c.1 ----------
   // All Pattern A Fixed(10). Source: ergotree-interpreter/src/eval/sheader.rs:16-113.
@@ -852,6 +1143,133 @@ function registerHandlers(): void {
     handler: (obj, args, ctx) => evalSHeaderCheckPow(obj, args, ctx),
     minVersion: 3,  // V3 gate — sigma-rust MethodDesc.min_version: ErgoTreeVersion::V3
   })
+
+  // SBigInt.toUnsigned (6:14) — v6 P2c bridge. FixedCost(5) (methods.scala:543), Pattern A
+  // (after the dispatcher's +4). Receiver BigInt; rejects negative (CBigInt.toUnsigned →
+  // CUnsignedBigInt ctor). minVersion 3 (BigInt.getMethods gates ToUnsigned on isV3OrLater,
+  // methods.scala:559-565).
+  HANDLERS.set(handlerKey(6, 14), { minVersion: 3, handler: (obj, _args, ctx) => {
+    ctx.addCost(5)
+    if (obj.kind !== 'BigInt') {
+      throw new EvalError(`BigInt.toUnsigned: expected BigInt operand, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    if (obj.value < 0n) {
+      throw new EvalError(`BigInt.toUnsigned: negative value ${obj.value}`, 'unsigned-bigint-out-of-range')
+    }
+    return { kind: 'UnsignedBigInt', value: obj.value }
+  } })
+
+  // SUnsignedBigInt.toSigned (9:19) — v6 P2c bridge. FixedCost(10) (methods.scala:607). Receiver
+  // UBI; rejects value >= 2^255 (toSignedBigIntValueExact, bitLength > 255 — the "leftmost bit
+  // set" case). minVersion 3 (UBI is v6-only).
+  HANDLERS.set(handlerKey(9, 19), { minVersion: 3, handler: (obj, _args, ctx) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.toSigned: expected UnsignedBigInt operand, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    if (obj.value >= (1n << 255n)) {
+      throw new EvalError(`UnsignedBigInt.toSigned: value ${obj.value} exceeds signed-256 range`, 'bigint-result-out-of-range')
+    }
+    return { kind: 'BigInt', value: obj.value }
+  } })
+
+  // SUnsignedBigInt.mod (9:18) — v6 P2d-1. FixedCost(20) (methods.scala:601), Pattern A.
+  // a mod m (Euclidean). m==0 ⇒ arith-divide-by-zero (umod). Source: CUnsignedBigInt.scala:47.
+  HANDLERS.set(handlerKey(9, 18), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(20)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.mod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const m = args[0]
+    if (m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.mod: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value, m.value) }
+  } })
+
+  // SUnsignedBigInt.plusMod (9:15) — v6 P2d-1. FixedCost(30) (methods.scala:583), Pattern A.
+  // (a + that) mod m. Source: CUnsignedBigInt.scala:61-65.
+  HANDLERS.set(handlerKey(9, 15), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(30)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.plusMod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const that = args[0], m = args[1]
+    if (that?.kind !== 'UnsignedBigInt' || m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.plusMod: expected UnsignedBigInt arguments`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value + that.value, m.value) }
+  } })
+
+  // SUnsignedBigInt.subtractMod (9:16) — v6 P2d-1. FixedCost(30) (methods.scala:589), Pattern A.
+  // (a − that) mod m; intermediate may be < 0 (umod is Euclidean). Source: CUnsignedBigInt.scala:67-71.
+  HANDLERS.set(handlerKey(9, 16), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(30)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.subtractMod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const that = args[0], m = args[1]
+    if (that?.kind !== 'UnsignedBigInt' || m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.subtractMod: expected UnsignedBigInt arguments`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value - that.value, m.value) }
+  } })
+
+  // SUnsignedBigInt.multiplyMod (9:17) — v6 P2d-1. FixedCost(40) (methods.scala:595), Pattern A.
+  // (a · that) mod m. Source: CUnsignedBigInt.scala:73-77.
+  HANDLERS.set(handlerKey(9, 17), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(40)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.multiplyMod: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const that = args[0], m = args[1]
+    if (that?.kind !== 'UnsignedBigInt' || m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.multiplyMod: expected UnsignedBigInt arguments`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value * that.value, m.value) }
+  } })
+
+  // SBigInt.toUnsignedMod (6:15) — v6 P2d-1. FixedCost(15) (methods.scala:551-553), Pattern A.
+  // Receiver is a SIGNED BigInt (may be < 0); aSigned mod m → UBI (umod is Euclidean).
+  // Source: CBigInt.scala:77-79. minVersion 3 (BigInt.getMethods gates on isV3OrLater).
+  HANDLERS.set(handlerKey(6, 15), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(15)
+    if (obj.kind !== 'BigInt') {
+      throw new EvalError(`BigInt.toUnsignedMod: expected BigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const m = args[0]
+    if (m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`BigInt.toUnsignedMod: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umod(obj.value, m.value) }
+  } })
+
+  // SUnsignedBigInt.modInverse (9:14) — v6 P2d-2. FixedCost(150) (methods.scala:574), Pattern A.
+  // Modular multiplicative inverse via hand-rolled extended Euclidean (umodInverse). m==0 ⇒
+  // arith-divide-by-zero (via umod); gcd(a,m)!=1 ⇒ unsigned-bigint-not-invertible. Source: CUnsignedBigInt.scala:57-59.
+  HANDLERS.set(handlerKey(9, 14), { minVersion: 3, handler: (obj, args, ctx) => {
+    ctx.addCost(150)
+    if (obj.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.modInverse: expected UnsignedBigInt receiver, got '${obj.kind}'`, 'numeric-method-bad-operand')
+    }
+    const m = args[0]
+    if (m?.kind !== 'UnsignedBigInt') {
+      throw new EvalError(`UnsignedBigInt.modInverse: expected UnsignedBigInt modulus, got '${m?.kind}'`, 'numeric-method-bad-operand')
+    }
+    return { kind: 'UnsignedBigInt', value: umodInverse(obj.value, m.value) }
+  } })
+
+  // SColl v6 methods (typeId 12, methodIds 30-33) — phase v6 P3. minVersion:3.
+  // Source: sigma/ast/methods.scala SCollectionMethods v6Methods (:1211-1216).
+  HANDLERS.set(handlerKey(12, 30), { handler: (obj, args, ctx) => evalCollReverse(obj, args, ctx), minVersion: 3 })
+  HANDLERS.set(handlerKey(12, 31), { handler: (obj, args, ctx) => evalCollStartsWith(obj, args, ctx), minVersion: 3 })
+  HANDLERS.set(handlerKey(12, 32), { handler: (obj, args, ctx) => evalCollEndsWith(obj, args, ctx), minVersion: 3 })
+  HANDLERS.set(handlerKey(12, 33), { handler: (obj, args, ctx) => evalCollGet(obj, args, ctx), minVersion: 3 })
+
+  // v6 numeric methods (toBytes/toBits/bitwise/shift) — all gate on treeVersion >= 3.
+  for (const { typeId, methodId, handler } of numericV6Handlers()) {
+    HANDLERS.set(handlerKey(typeId, methodId), { handler, minVersion: 3 })
+  }
 }
 
 registerHandlers()
@@ -863,9 +1281,10 @@ function tokensCollOf(box: ErgoBox): SValue {
   return {
     kind: 'Coll',
     elem: STUPLE_COLLBYTE_LONG,
+    // token amounts: signed-i64 view (JVM as Long; F3.5)
     items: box.tokens.map((t) => ({
       kind: 'Tuple',
-      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: t.amount }],
+      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: BigInt.asIntN(64, t.amount) }],
     })),
   }
 }

@@ -51,6 +51,7 @@ import { evalExtractId } from './extract-id'
 import { evalGetVar } from './get-var'
 import { evalGlobal } from './global'
 import { evalGlobalVars } from './global-vars'
+import { evalLastBlockUtxoRootHash } from './last-block-utxo-root-hash'
 import { evalOptionGet } from './option-get'
 import { evalOptionGetOrElse } from './option-get-or-else'
 import { evalOptionIsDefined } from './option-is-defined'
@@ -187,6 +188,8 @@ export function evalExpr(e: Expr, env: Env, ctx: EvalContext): SValue {
       return evalGlobalVars(e, env, ctx)
     case 'Global':
       return evalGlobal(e, env, ctx)
+    case 'LastBlockUtxoRootHash':
+      return evalLastBlockUtxoRootHash(e, env, ctx)
     case 'Map':
       return evalMap(e, env, ctx)
     case 'MethodCall':

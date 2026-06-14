@@ -1,0 +1,77 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Option.map",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-option-map",
+  "entries" : [
+    {
+      "name" : "map#some",
+      "script" : "{ (x: Option[Int]) => x.map({(y: Int) => y + 1}) }",
+      "tree_bytes_hex" : "1a13010402dc2407e3010401d90102049a72027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 5
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Int",
+            "value" : 6
+          }
+        },
+        "cost" : 65,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map#identity-shape",
+      "script" : "{ (x: Option[Int]) => x.map({(y: Int) => y + 1}) }",
+      "tree_bytes_hex" : "1a13010402dc2407e3010401d90102049a72027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 41
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Int",
+            "value" : 42
+          }
+        },
+        "cost" : 65,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map#none-via-absent-var",
+      "script" : "{ Option.map over an absent context var }",
+      "tree_bytes_hex" : "1a13010402dc2407e3630401d90102049a72027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 5
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    }
+  ]
+}

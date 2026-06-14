@@ -1,0 +1,47 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "ValDef.id_int_max_bound",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-valdef-id",
+  "entries" : [
+    {
+      "name" : "valdef-id-int-max-accept#0",
+      "script" : "{ val x = 7; x }  // ValDef.id = Int.MaxValue (0x7fffffff): getUIntExact accepts the inclusive max -> Int 7 (the accept boundary)",
+      "tree_bytes_hex" : "1001040ed801d6ffffffff07730072ffffffff07",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 7
+        },
+        "cost" : 13,
+        "error" : null
+      }
+    },
+    {
+      "name" : "valdef-id-overflow-errored#0",
+      "script" : "{ val x = 7; x }  // ValDef.id = 0x80000000 (Int.MaxValue+1): JVM ValDefSerializer reads id with getUIntExact -> ArithmeticException at DESERIALIZE. ergots reads it with readVlqU and ACCEPTS (binds+evals) — the over-acceptance divergence (REL-WIRE-ID-01). ValUse/FuncValue ids use getUInt.toInt (wrapping) and are deliberately NOT bound by this.",
+      "tree_bytes_hex" : "1001040ed801d680808080087300728080808008",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

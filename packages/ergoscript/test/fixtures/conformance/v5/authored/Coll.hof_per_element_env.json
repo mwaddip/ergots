@@ -1,0 +1,282 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.hof_per_element_env",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-coll-hof-env",
+  "entries" : [
+    {
+      "name" : "map-n2#0",
+      "script" : "{ Coll(1..n).map(x => x + 1)  // per-element: lambda body + ADD_TO_ENV(5); slope 27 } at n=2",
+      "tree_bytes_hex" : "1003040204040402ad83020473007301d90101049a72017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 3
+            }
+          ]
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map-n4#0",
+      "script" : "{ Coll(1..n).map(x => x + 1)  // per-element: lambda body + ADD_TO_ENV(5); slope 27 } at n=4",
+      "tree_bytes_hex" : "100504020404040604080402ad8304047300730173027303d90101049a72017304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 3
+            },
+            {
+              "kind" : "Int",
+              "value" : 4
+            },
+            {
+              "kind" : "Int",
+              "value" : 5
+            }
+          ]
+        },
+        "cost" : 154,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter-n2#0",
+      "script" : "{ Coll(1..n).filter(x => x > 0)  // keeps all; slope 32 } at n=2",
+      "tree_bytes_hex" : "1003040204040400b583020473007301d90101049172017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 110,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter-n4#0",
+      "script" : "{ Coll(1..n).filter(x => x > 0)  // keeps all; slope 32 } at n=4",
+      "tree_bytes_hex" : "100504020404040604080400b58304047300730173027303d90101049172017304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 3
+            },
+            {
+              "kind" : "Int",
+              "value" : 4
+            }
+          ]
+        },
+        "cost" : 174,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists-n2#0",
+      "script" : "{ Coll(1..n).exists(x => x > 5)  // everywhere-false: traverses all n; slope 32 } at n=2",
+      "tree_bytes_hex" : "100304020404040aae83020473007301d90101049172017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 93,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists-n4#0",
+      "script" : "{ Coll(1..n).exists(x => x > 5)  // everywhere-false: traverses all n; slope 32 } at n=4",
+      "tree_bytes_hex" : "10050402040404060408040aae8304047300730173027303d90101049172017304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 157,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall-n2#0",
+      "script" : "{ Coll(1..n).forall(x => x > 0)  // everywhere-true: traverses all n; slope 32 } at n=2",
+      "tree_bytes_hex" : "1003040204040400af83020473007301d90101049172017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 93,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall-n4#0",
+      "script" : "{ Coll(1..n).forall(x => x > 0)  // everywhere-true: traverses all n; slope 32 } at n=4",
+      "tree_bytes_hex" : "100504020404040604080400af8304047300730173027303d90101049172017304",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 157,
+        "error" : null
+      }
+    },
+    {
+      "name" : "fold-n2#0",
+      "script" : "{ Coll(1..n).fold(0, (acc, x) => acc + x)  // pair-typed unary lambda; slope 51 } at n=2",
+      "tree_bytes_hex" : "1003040204040400b0830204730073017302d90101589a8c7201018c720102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 132,
+        "error" : null
+      }
+    },
+    {
+      "name" : "fold-n4#0",
+      "script" : "{ Coll(1..n).fold(0, (acc, x) => acc + x)  // pair-typed unary lambda; slope 51 } at n=4",
+      "tree_bytes_hex" : "100504020404040604080400b083040473007301730273037304d90101589a8c7201018c720102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 234,
+        "error" : null
+      }
+    }
+  ]
+}

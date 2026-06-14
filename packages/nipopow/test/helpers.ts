@@ -39,7 +39,7 @@ export function makeSyntheticHeader(id: Uint8Array, parentId: Uint8Array, height
     adProofsRoot: new Uint8Array(32),
     transactionRoot: new Uint8Array(32),
     stateRoot: new Uint8Array(33),
-    timestamp: 0,
+    timestamp: 0n,
     nBits: 0,
     height,
     extensionRoot: new Uint8Array(32),

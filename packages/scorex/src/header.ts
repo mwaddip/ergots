@@ -24,7 +24,6 @@ import { ByteWriter } from './writer.ts';
 import { decodeVlqU, encodeVlqU, readVlqU32 } from './vlq.ts';
 import { blake2b256 } from './crypto/blake2b256.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from './digests.ts';
-import { ReaderError } from './errors.ts';
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
 import type { AutolykosSolution } from './autolykos-solution.ts';
 
@@ -38,7 +37,7 @@ export interface Header {
   adProofsRoot: Uint8Array;    // 32 bytes
   stateRoot: Uint8Array;       // 33 bytes (ADDigest)
   transactionRoot: Uint8Array; // 32 bytes
-  timestamp: number;           // ms since epoch (u64 in Rust, safe as JS number for dates < ~2^53ms)
+  timestamp: bigint;           // ms since epoch (u64 on wire; carried losslessly as bigint)
   nBits: number;               // Bitcoin-compact difficulty (u32, up to 2^32-1)
   height: number;              // u32, > 0
   extensionRoot: Uint8Array;   // 32 bytes
@@ -59,20 +58,12 @@ export function parseHeader(reader: ByteReader): Header {
   const transactionRoot = readFixed(reader, DIGEST32_LEN, 'transactionRoot');
   const stateRoot = readFixed(reader, AD_DIGEST_LEN, 'stateRoot');
 
-  // timestamp: VLQ u64 stored as JS Number (audit NIP-08: enforce
-  // <= Number.MAX_SAFE_INTEGER so the parsed value round-trips exactly through
-  // BigInt(header.timestamp) on serialize. Above 2^53-1, Number(BigInt) is
-  // lossy; the serializer would then encode a different value and break
-  // byte-identical round-trip. Real chain timestamps fit in < 2^45 for the
-  // next few millennia.).
-  const timestampBig = decodeVlqU(reader);
-  if (timestampBig > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new ReaderError(
-      `timestamp ${timestampBig} exceeds Number.MAX_SAFE_INTEGER`,
-      'vlq-overflow',
-    );
-  }
-  const timestamp = Number(timestampBig);
+  // timestamp: VLQ u64, carried losslessly as bigint. (The pre-F2 carrier was a
+  // JS number guarded at Number.MAX_SAFE_INTEGER per audit NIP-08 — the guard
+  // existed only to keep the lossy Number round-trip honest. bigint carry makes
+  // every u64 round-trip byte-identical, which is what consensus requires: the
+  // JVM carries Long and accepts the full range. F2 root cause #4.)
+  const timestamp = decodeVlqU(reader);
 
   const extensionRoot = readFixed(reader, DIGEST32_LEN, 'extensionRoot');
 
@@ -140,7 +131,7 @@ export function serializeHeaderWithoutPow(header: Header): Uint8Array {
   writeFixed(w, header.stateRoot, AD_DIGEST_LEN, 'stateRoot');
 
   // timestamp: VLQ u64
-  w.writeBytes(encodeVlqU(BigInt(header.timestamp)));
+  w.writeBytes(encodeVlqU(header.timestamp));
 
   writeFixed(w, header.extensionRoot, DIGEST32_LEN, 'extensionRoot');
 

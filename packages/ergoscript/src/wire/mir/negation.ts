@@ -38,9 +38,10 @@ export function parseNegation(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Negation {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Negation', input }
 }
 
@@ -48,6 +49,6 @@ export function parseNegation(
  * Serialize a `Negation` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_NEGATION opcode byte). Writes the input Expr.
  */
-export function serializeNegation(n: Negation, w: ByteWriter): void {
-  serializeExpr(n.input, w)
+export function serializeNegation(n: Negation, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(n.input, w, treeVersion)
 }

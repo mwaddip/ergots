@@ -7,7 +7,8 @@
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
  *   ergo_tree_bytes — raw bytes written verbatim (self-delimiting via header)
  *   creation_height — VLQ u32 (sigma-ser `put_u32`)
- *   tokens_count    — raw u8 (NOT VLQ), max 122
+ *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
+ *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
  *   per-token       — 32-byte id (raw) + VLQ u64 amount
  *   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
  *   [full only] transaction_id — 32 raw bytes
@@ -38,7 +39,13 @@ import { SValueSerializeError, writeBoxBodyWithoutRef } from './serialize-svalue
  */
 export function serializeBoxBytes(box: ErgoBox): Uint8Array {
   const w = new ByteWriter()
-  writeBoxBodyWithoutRef(box, w)
+  // Standalone box-bytes serialization pins version 0 deliberately: the JVM
+  // prevents version-gated DATA (Option/SHeader/SUnsignedBigInt) from ever
+  // ENTERING box registers via rule 1019 CheckV6Type (ErgoBoxCandidate.scala:232)
+  // — ergots' rule-1019 mirror is in effect (commit d9cb19e, 'register-v6-type'
+  // at register ingress), so v6-typed register values are rejected at parse time
+  // and this pinned-v0 path is unreachable from well-formed input.
+  writeBoxBodyWithoutRef(box, w, 0)
 
   // transaction_id (32 raw bytes)
   if (box.txId.length !== 32) {
@@ -70,6 +77,12 @@ export function serializeBoxBytes(box: ErgoBox): Uint8Array {
  */
 export function serializeBoxBytesWithoutRef(box: ErgoBox): Uint8Array {
   const w = new ByteWriter()
-  writeBoxBodyWithoutRef(box, w)
+  // Standalone box-bytes serialization pins version 0 deliberately: the JVM
+  // prevents version-gated DATA (Option/SHeader/SUnsignedBigInt) from ever
+  // ENTERING box registers via rule 1019 CheckV6Type (ErgoBoxCandidate.scala:232)
+  // — ergots' rule-1019 mirror is in effect (commit d9cb19e, 'register-v6-type'
+  // at register ingress), so v6-typed register values are rejected at parse time
+  // and this pinned-v0 path is unreachable from well-formed input.
+  writeBoxBodyWithoutRef(box, w, 0)
   return w.toBytes()
 }

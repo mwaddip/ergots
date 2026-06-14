@@ -1,11 +1,14 @@
 import { ByteReader } from './reader.ts';
 import { ReaderError } from './errors.ts';
 
-const MAX_VLQ_BYTES = 10; // ceil(64 / 7) = 10
-
 export function encodeVlqU(value: bigint): Uint8Array {
   if (value < 0n) {
     throw new Error('encodeVlqU: negative value');
+  }
+  if (value > 0xffffffffffffffffn) {
+    // The wire carries u64 only (references encode from u64/Long); a wider
+    // value would decode WRAPPED on their side — reject at the source.
+    throw new Error('encodeVlqU: value exceeds u64');
   }
   const out: number[] = [];
   let v = value;
@@ -17,16 +20,15 @@ export function encodeVlqU(value: bigint): Uint8Array {
   return new Uint8Array(out);
 }
 
+/**
+ * Decode a VLQ-encoded unsigned integer (up to 64 bits; wraps mod 2^64 like
+ * the references). Delegates to `ByteReader.readVlqBigInt` — ONE positionLimit
+ * check per logical read, so a VLQ straddling an armed window decodes like the
+ * JVM getULong instead of per-byte-rejecting. Throws ReaderError with
+ * 'vlq-overflow' after 10 continuation bytes.
+ */
 export function decodeVlqU(reader: ByteReader): bigint {
-  let result = 0n;
-  let shift = 0n;
-  for (let i = 0; i < MAX_VLQ_BYTES; i++) {
-    const byte = reader.readU8();
-    result |= BigInt(byte & 0x7f) << shift;
-    if ((byte & 0x80) === 0) return result;
-    shift += 7n;
-  }
-  throw new ReaderError('decodeVlqU: VLQ exceeds 10 bytes (overflow)', 'vlq-overflow');
+  return reader.readVlqBigInt();
 }
 
 export function encodeVlqZigZag(value: bigint): Uint8Array {
@@ -37,21 +39,22 @@ export function encodeVlqZigZag(value: bigint): Uint8Array {
   return encodeVlqU(zz);
 }
 
+/**
+ * Decode a ZigZag-VLQ-encoded signed integer. Delegates to
+ * `ByteReader.readVlqBigIntSigned` — one positionLimit check per logical read
+ * (see decodeVlqU).
+ */
 export function decodeVlqZigZag(reader: ByteReader): bigint {
-  const zz = decodeVlqU(reader);
-  // BigInt XOR with `-(zz & 1n)` performs sign extension natively when
-  // the LSB of zz is set: -(1n) = -1n in arbitrary precision, and XOR
-  // with -1n flips every bit yielding the negative value directly. No
-  // u64 -> i64 conversion is needed.
-  return (zz >> 1n) ^ -(zz & 1n);
+  return reader.readVlqBigIntSigned();
 }
 
 /**
- * Read a VLQ-encoded u32 (plain unsigned, not zigzag).
+ * Read a VLQ-encoded u32 (plain unsigned, not zigzag). Reads via
+ * `ByteReader.readVlqBigInt` — one positionLimit check per logical read.
  * Throws ReaderError with 'vlq-overflow' if the decoded value exceeds u32 range.
  */
 export function readVlqU32(reader: ByteReader, fieldName: string): number {
-  const v = decodeVlqU(reader);
+  const v = reader.readVlqBigInt();
   if (v > 0xffffffffn) {
     throw new ReaderError(`${fieldName}: VLQ value exceeds u32 range`, 'vlq-overflow');
   }

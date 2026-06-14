@@ -65,13 +65,14 @@ export function parseCollection(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Collection {
   const count = r.readVlqU()
   const elemTpe = parseSType(r)
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
   return { tag: 'Collection', kind: 'Exprs', elemTpe, items }
 }
@@ -104,7 +105,7 @@ export function parseCollectionOfBoolConst(r: ByteReader): Collection {
  *
  * Mirrors sigma-rust's `coll_sigma_serialize` (`mir/collection.rs:88-99`).
  */
-export function serializeCollection(c: Collection, w: ByteWriter): void {
+export function serializeCollection(c: Collection, w: ByteWriter, treeVersion: number): void {
   if (c.kind === 'Exprs') {
     if (c.items.length > MAX_COLL_ITEMS) {
       throw new ExprSerializeError(
@@ -115,7 +116,7 @@ export function serializeCollection(c: Collection, w: ByteWriter): void {
     w.writeVlqU(c.items.length)
     serializeSType(c.elemTpe, w)
     for (const item of c.items) {
-      serializeExpr(item, w)
+      serializeExpr(item, w, treeVersion)
     }
     return
   }

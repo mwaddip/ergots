@@ -35,9 +35,11 @@ describe('FuncValue arm — inline', () => {
     if (value.kind === 'Lambda') {
       expect(value.closure.argIds).toEqual([1])
       expect(value.closure.body).toEqual(expr.body)
-      // capturedEnv is empty for sigma-rust-style dynamic scoping
-      // (env-at-apply-site is used for body lookup, not env-at-definition).
-      expect(value.closure.capturedEnv).toEqual({})
+      // capturedEnv is the lexical env at definition (here Env.empty(), the env
+      // the FuncValue was evaluated in) — v6 lexical scoping (closures), JVM-
+      // faithful. The body is later evaluated in this captured env extended
+      // with arg bindings, not the apply-site env.
+      expect(value.closure.capturedEnv).toEqual(Env.empty())
     }
     expect(ctx.jitCost).toBe(5)
   })
@@ -56,7 +58,7 @@ describe('FuncValue arm — inline', () => {
     expect(value.kind).toBe('Lambda')
     if (value.kind === 'Lambda') {
       expect(value.closure.argIds).toEqual([1, 2])
-      expect(value.closure.capturedEnv).toEqual({})
+      expect(value.closure.capturedEnv).toEqual(Env.empty())
     }
     expect(ctx.jitCost).toBe(5)
   })

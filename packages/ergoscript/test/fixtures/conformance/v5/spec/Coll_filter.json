@@ -1,0 +1,221 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll filter",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "Coll()#0",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => v > 0 }) }",
+      "tree_bytes_hex" : "1a19010400dad9010110b57201d9010304917203730001e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 96,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1)#1",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => v > 0 }) }",
+      "tree_bytes_hex" : "1a19010400dad9010110b57201d9010304917203730001e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 127,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1,2)#2",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => v > 0 }) }",
+      "tree_bytes_hex" : "1a19010400dad9010110b57201d9010304917203730001e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 158,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1,2,-1)#3",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => v > 0 }) }",
+      "tree_bytes_hex" : "1a19010400dad9010110b57201d9010304917203730001e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 189,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1,-1,2,-2)#4",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => v > 0 }) }",
+      "tree_bytes_hex" : "1a19010400dad9010110b57201d9010304917203730001e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          },
+          {
+            "kind" : "Int",
+            "value" : -2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 220,
+        "error" : null
+      }
+    }
+  ]
+}

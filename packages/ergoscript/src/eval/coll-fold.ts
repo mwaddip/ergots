@@ -64,6 +64,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 
 // Outer cost: add_per_item_jit_cost(base=3, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_fold.rs:48
@@ -131,9 +132,14 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
     // and coll_fold.rs:61: Value::Tup([acc, item.clone()].into())
     const tupArg: SValue = { kind: 'Tuple', items: [acc, item] }
 
-    // Extend env with arg binding (sigma-rust coll_fold.rs:30: env.insert(func_arg.idx, arg)).
-    // TS uses immutable Env.extend — no save/restore needed.
-    const itemEnv = env.extend(argId, tupArg)
+    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
+    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_fold.rs:30:
+    // env.insert(func_arg.idx, arg)). For inline fold_op lambdas capturedEnv ==
+    // the caller env (no-op); differs only for out-of-scope-captured lambdas.
+    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    const itemEnv = closure.capturedEnv.extend(argId, tupArg)
 
     // Eval body (sigma-rust coll_fold.rs:31: func_value.body.eval(env, ctx)).
     const newAcc = evalExpr(closure.body, itemEnv, ctx)

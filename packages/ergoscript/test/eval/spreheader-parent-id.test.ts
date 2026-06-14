@@ -63,12 +63,14 @@ describe('SPreHeader.parentId handler', () => {
     // Build Context.preHeader.parentId = PropertyCall(PropertyCall(Context, 101:3), 105:2).
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 2,
@@ -97,6 +99,7 @@ describe('SPreHeader.parentId handler', () => {
     const ctx = makeContext({})
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 105,
       methodId: 2,
@@ -122,12 +125,14 @@ describe('SPreHeader.parentId handler', () => {
     const ctx = makeContext({ preHeader })
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 2,
@@ -151,12 +156,14 @@ describe('SPreHeader.parentId handler', () => {
     const ctx = makeContext({})
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 2,

@@ -39,6 +39,7 @@ describe('SContext.preHeader handler (Layer C1)', () => {
     const ctx = makeContext({ preHeader })
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
@@ -52,6 +53,7 @@ describe('SContext.preHeader handler (Layer C1)', () => {
     const ctx = makeContext({})
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
@@ -65,6 +67,7 @@ describe('SContext.preHeader handler (Layer C1)', () => {
     const ctx = makeContext({ preHeader: syntheticPreHeader() })
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Global' },
       typeId: 101,
       methodId: 3,

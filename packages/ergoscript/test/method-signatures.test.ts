@@ -3,10 +3,14 @@
  *
  * A3 (2026-06-01): declarative `MethodSignature` descriptors keyed by
  * (typeId, methodId), consulted by `exprTpe`. `resolveReturnTpe` returns a
- * CLOSED tRange verbatim; a type-var tRange falls back to SAny (substitution
- * deferred — no generic-output method is registered this phase).
+ * CLOSED tRange verbatim.
  *
- * Spec: docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md
+ * v6 P0 (2026-06-02): a type-var tRange is now resolved by the substitution
+ * engine (`mir/type-unify.ts`) — bind vars from receiver/args/explicitTypeArgs,
+ * substitute into tRange; an unbindable residual falls back to SAny.
+ *
+ * Specs: docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md,
+ *        docs/specs/2026-06-02-ergoscript-v6-p0-typevar-substitution-engine-design.md
  */
 import { describe, it, expect } from 'vitest'
 import { methodSignature, resolveReturnTpe } from '../src/mir/method-signatures'
@@ -49,15 +53,47 @@ describe('method-signatures — resolveReturnTpe', () => {
     expect(resolveReturnTpe(sig, collOf(SBYTE), [], {})).toEqual(collOf(SINT))
   })
 
-  it('falls back to SAny for a type-var tRange (substitution deferred)', () => {
-    // Synthetic generic-OUTPUT signature: Coll[T] => Coll[T]. The substitution
-    // engine is not built this phase, so a tRange referencing a type var must
-    // resolve to SAny (the cascade) — NOT a verbatim tRange with an unbound var.
+  it('resolves a type-var tRange by unifying the receiver (Coll[T] ⇒ Coll[T])', () => {
+    // The substitution engine binds T from the receiver's element type. This is
+    // the FLIP of A3's deferred-substitution test (was → SAny).
     const genericSig: MethodSignature = {
-      tDom: [collOf({ tag: 'STypeVar', name: 't' })],
-      tRange: collOf({ tag: 'STypeVar', name: 't' }),
-      tpeParams: [{ name: 't' }],
+      tDom: [collOf({ tag: 'STypeVar', name: 'T' })],
+      tRange: collOf({ tag: 'STypeVar', name: 'T' }),
+      tpeParams: [{ name: 'T' }],
     }
-    expect(resolveReturnTpe(genericSig, collOf(SLONG), [], {})).toEqual({ tag: 'SAny' })
+    expect(resolveReturnTpe(genericSig, collOf(SLONG), [], {})).toEqual(collOf(SLONG))
+  })
+
+  it('resolves a type-var tRange from an explicit type arg (getReg-shaped)', () => {
+    // T appears only in tRange (Option[T]) — not inferable from tDom; it comes
+    // from explicitTypeArgs, applied BEFORE unification (JVM withConcreteTypes).
+    const getRegShaped: MethodSignature = {
+      tDom: [{ tag: 'SBox' }, SINT],
+      tRange: { tag: 'SOption', elem: { tag: 'STypeVar', name: 'T' } },
+      tpeParams: [{ name: 'T' }],
+    }
+    expect(resolveReturnTpe(getRegShaped, { tag: 'SBox' }, [SINT], { T: SLONG })).toEqual({
+      tag: 'SOption',
+      elem: SLONG,
+    })
+  })
+
+  it('falls back to SAny when the receiver cannot bind the var (bare SAny)', () => {
+    const genericSig: MethodSignature = {
+      tDom: [collOf({ tag: 'STypeVar', name: 'T' })],
+      tRange: collOf({ tag: 'STypeVar', name: 'T' }),
+      tpeParams: [{ name: 'T' }],
+    }
+    expect(resolveReturnTpe(genericSig, { tag: 'SAny' }, [], {})).toEqual({ tag: 'SAny' })
+  })
+
+  it('falls back to SAny on a conflicting binding', () => {
+    // tDom binds T twice; receiver says Coll[Int], arg says Long → conflict → SAny.
+    const conflictSig: MethodSignature = {
+      tDom: [collOf({ tag: 'STypeVar', name: 'T' }), { tag: 'STypeVar', name: 'T' }],
+      tRange: collOf({ tag: 'STypeVar', name: 'T' }),
+      tpeParams: [{ name: 'T' }],
+    }
+    expect(resolveReturnTpe(conflictSig, collOf(SINT), [SLONG], {})).toEqual({ tag: 'SAny' })
   })
 })

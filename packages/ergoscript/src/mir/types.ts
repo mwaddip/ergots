@@ -14,6 +14,7 @@
  */
 
 import type { Header } from '@ergots/scorex'
+import type { Env } from '../eval/env'
 
 /** Type variable for generic signatures (e.g. `"T"`, `"IV"`, `"OV"`). */
 export interface STypeVar {
@@ -35,6 +36,7 @@ export type SType =
   | { tag: 'SInt' }
   | { tag: 'SLong' }
   | { tag: 'SBigInt' }
+  | { tag: 'SUnsignedBigInt' }
   | { tag: 'SGroupElement' }
   | { tag: 'SSigmaProp' }
   | { tag: 'SBox' }
@@ -64,6 +66,10 @@ export type SType =
  * Stub: on-chain box. Mirrors sigma-rust `ergotree-ir/src/chain/ergo_box.rs`
  * `ErgoBox` fields. ErgoTree is held as raw bytes here (deferred parse — the
  * interpreter `parseTree` lives in a later phase).
+ *
+ * Boxes are treated as frozen after construction: equality ids are memoized
+ * per object (`eval/_box-id.ts`), so embedders must not mutate ErgoBox fields
+ * post-construction.
  */
 export interface ErgoBox {
   /** nanoErg value (Rust `BoxValue`, a u64 wrapper). */
@@ -102,6 +108,14 @@ export interface ErgoBox {
   txId: Uint8Array
   /** Index of this box in the producing transaction's outputs (Rust `u16`). */
   index: number
+  /**
+   * Serialized box bytes retained by byte-ingress parsers (the SBox SValue
+   * data arm). JVM analog: ErgoBox._bytes — the parser hands the consumed
+   * slice to the constructor (ErgoBox.scala:214-226); in-memory-constructed
+   * boxes fall back to canonical re-serialization (:87-92). Box equality is
+   * id-basis over these bytes (eval/_box-id.ts).
+   */
+  retainedBytes?: Uint8Array
 }
 
 /**
@@ -151,30 +165,48 @@ export type SigmaBoolean =
   | { tag: 'Cthreshold'; k: number; items: SigmaBoolean[] }                  // k in [1, items.length]
 
 /**
- * Forward declaration — proper user-function representation lands in phase 2d
- * (FuncValue / Apply). For now this captures the data the evaluator will need:
- * argument ids (matching the body's `ValUse.id` references), the body
- * expression, and the lexical environment captured at function definition.
+ * User-function (lambda) runtime representation.
+ *
+ * Captures argument ids (matching the body's `ValUse.id` references), the body
+ * expression, and the **lexical environment captured at function-definition
+ * time** (`capturedEnv`). The body is evaluated in `capturedEnv` extended with
+ * the per-call argument bindings — i.e. lexical scoping (closures), matching
+ * the JVM (canonical for v6). A returned closure that references a free
+ * variable still resolves it from the env in scope where the lambda was
+ * *defined*, not where it is *applied* (e.g. `{ val add = (a:Int)=>(b:Int)=>a+b;
+ * add(3)(1) }` evaluates to `Int 4`).
  *
  * Mirrors sigma-rust `Lambda { args: Vec<FuncArg>, body: Box<Expr> }` from
- * `ergotree-ir/src/mir/value.rs`, plus an explicit `capturedEnv` (Rust uses
- * `EvalContext.env` for this implicitly).
+ * `ergotree-ir/src/mir/value.rs`, plus an explicit `capturedEnv` (which the
+ * JVM closes over at definition; our immutable `Env` makes the capture
+ * explicit and value-stable).
  */
 export interface Closure {
   /** Argument value ids; binds `ValUse.id` references inside `body`. */
   argIds: number[]
+  /**
+   * Declared argument types, parallel to {@link argIds} (`argTpes[i]` is the
+   * static type of the arg bound to `argIds[i]`). Carried so the apply-time
+   * type-var reject (v6 P6) can fire: the JVM (sigma-state 6.0.3, canonical
+   * for v6) rejects at eval when a lambda whose arg type is (or contains) an
+   * unresolved `STypeVar` is APPLIED — resolving that arg's runtime RType
+   * fails (`RuntimeException: Unknown type T`). See `assertArgTypeResolved`
+   * in `eval/_lambda.ts` and SANTA `HOF_FunDef_type_var_body.json`.
+   *
+   * (This field was previously omitted by design; v6 P6 needs it for the
+   * type-var-apply reject. It also now backs the lambda-HOF elem-type checks,
+   * which previously fell back to the MIR-node FuncValue's declared arg type
+   * — see `facts/ergoscript-eval.md` Phase 2h-f changelog R3(a).)
+   */
+  argTpes: SType[]
   /** Function body — an Expr. */
   body: Expr
-  /** Lexical environment captured at definition time, keyed by ValId. */
-  capturedEnv: Record<number, SValue>
-  // NOTE: deliberately no `argTpes: SType[]` field. Sigma-rust's runtime
-  // `Value::Lambda` carries per-arg static types and uses them for elem-type
-  // checks in lambda HOFs (`coll-map.ts:94-108`, `scoll-flat-map.ts` step 5).
-  // Without `argTpes` here, those checks fall back to the MIR-node FuncValue's
-  // declared arg type — fine for inline-FuncValue lambdas, skipped for
-  // ValUse-source lambdas. See `facts/ergoscript-eval.md` Phase 2h-f changelog
-  // R3(a) for the documented divergence. Adding `argTpes` here would close it
-  // for flatMap + MapColl/Filter/Fold/Exists/ForAll equally (cross-arm scope).
+  /**
+   * Lexical environment captured at definition time (immutable; v6
+   * JVM-faithful). The body is evaluated in this env extended with the
+   * per-call arg bindings — NOT in the caller's apply-site env.
+   */
+  capturedEnv: Env
 }
 
 /**
@@ -206,6 +238,9 @@ export interface PreHeader {
  * consumes only `values` (via `GetVar`). Each entry carries both the
  * declared SType and the runtime SValue — same shape as
  * `ErgoBox.registers` (from phase 2f narrow).
+ * Keys are the UNSIGNED wire byte (0-255); ingestion from signed JSON
+ * renderings (the JVM sdk codec emits "-1" for wire 0xFF) must normalize
+ * to unsigned.
  */
 export interface ContextExtension {
   values: Record<number, { tpe: SType; value: SValue } | undefined>
@@ -377,6 +412,23 @@ export interface GlobalVars {
   kind: 'Height' | 'Inputs' | 'Outputs' | 'SelfBox' | 'MinerPubKey' | 'GroupGenerator'
 }
 
+/**
+ * LastBlockUtxoRootHash: the bare dedicated-opcode form (0xa6) of the
+ * CONTEXT.LastBlockUtxoRootHash property — a payload-less leaf, like the
+ * GlobalVars kinds. JVM (canonical): `sigma.ast.LastBlockUtxoRootHash` case
+ * object (values.scala:1490-1501, opcode = newOpCode(54) = 0xa6,
+ * OpCodes.scala:95), serialized via CaseObjectSerialization (opcode byte
+ * only). sigma-rust has NO MIR variant for it (its GlobalVars enum omits it
+ * and `serialization/expr.rs` has no 0xa6 arm — it errors on these bytes);
+ * the JVM accepts them, so consensus requires the dispatch (F5 batch 4,
+ * Ask-13). Distinct wire shape from the PropertyCall form (101:9) of the
+ * same property — the two evaluate identically but cost differently
+ * (op-form FixedCost 15 vs the PropertyCall envelope's observable 20).
+ */
+export interface LastBlockUtxoRootHash {
+  tag: 'LastBlockUtxoRootHash'
+}
+
 // FuncArg: an argument descriptor for FuncValue. sigma-rust
 // mir/func_value.rs::FuncArg.
 export interface FuncArg {
@@ -429,6 +481,14 @@ export interface PropertyCall {
   obj: Expr
   typeId: number
   methodId: number
+  /**
+   * Explicit type arguments by STypeVar name. Mirrors {@link MethodCall}'s
+   * field. Empty (`{}`) for all pre-v6-P4 PropertyCall nodes; populated for
+   * methods whose return type needs an explicit `T` on the wire (e.g.
+   * `SGlobal.none[T]` 106:10, the first such PropertyCall-opcode method).
+   * The parser always sets it (to `{}` when the method declares none).
+   */
+  explicitTypeArgs: Record<string, SType>
 }
 
 // BlockValue: a sequence of statements followed by a result expression.
@@ -439,11 +499,16 @@ export interface BlockValue {
   result: Expr
 }
 
-// ValDef: let-bound expression `let x = rhs`. sigma-rust mir/val_def.rs.
+// ValDef: let-bound `let x = rhs`, or (with tpeArgs) the polymorphic
+// `let f[T] = rhs` — which the JVM serializes as FunDef (opcode 0xd7).
+// JVM values.scala:922: companion = if (tpeArgs.isEmpty) ValDef else FunDef.
+// The MIR `tag` stays 'ValDef' for both shapes; the opcode is chosen from
+// tpeArgs.length at serialize time. sigma-rust mir/val_def.rs.
 export interface ValDef {
   tag: 'ValDef'
   id: number
   rhs: Expr
+  tpeArgs?: STypeVar[] // v6 P6: present + non-empty ⇒ FunDef; absent/[] ⇒ plain ValDef
 }
 
 // ValUse: reference to a previously-defined ValDef. sigma-rust mir/val_use.rs.
@@ -744,19 +809,27 @@ export interface TreeLookup {
   proof: Expr
 }
 
-// CreateAvlTree: construct an AVL tree value. sigma-rust mir/create_avl_tree.rs.
+// CreateAvlTree: construct an AVL tree value. JVM trees.scala:79-91.
 export interface CreateAvlTree {
   tag: 'CreateAvlTree'
   flags: Expr
   digest: Expr
   keyLength: Expr
-  /** Optional value-length expr; sigma-rust uses `Option<Box<Expr>>`. */
-  valueLength: Expr | null
+  /**
+   * Value-length operand — ALWAYS present, an expr whose *type* is
+   * SOption[SInt] (JVM `valueLengthOpt: Value[SIntOption]`,
+   * trees.scala:82). "No value length" is an Option-typed expr evaluating
+   * to None (e.g. `Const(SOption[SInt], None)`), not an absent operand.
+   * sigma-rust's `Option<Box<Expr>>` (presence-tag wire shape) is a fork —
+   * see wire/mir/create-avl-tree.ts.
+   */
+  valueLength: Expr
 }
 
 /**
- * Full ErgoTree MIR expression union. 68 variants, one per sigma-rust
- * `Expr` enum arm. Discriminated on `tag`.
+ * Full ErgoTree MIR expression union. 69 variants — one per sigma-rust
+ * `Expr` enum arm, plus `LastBlockUtxoRootHash` (a JVM-only case object;
+ * sigma-rust has no MIR variant for opcode 0xa6). Discriminated on `tag`.
  *
  * Adding a new variant requires a corresponding handler in both
  * `wire/parse.ts` (opcode → constructor) and `wire/serialize.ts`
@@ -778,6 +851,7 @@ export type Expr =
   | Context
   | Global
   | GlobalVars
+  | LastBlockUtxoRootHash
   | FuncValue
   | Apply
   | MethodCall
@@ -851,6 +925,7 @@ export type SValue =
   | { kind: 'Int'; value: number }
   | { kind: 'Long'; value: bigint }
   | { kind: 'BigInt'; value: bigint }
+  | { kind: 'UnsignedBigInt'; value: bigint }
   | { kind: 'GroupElement'; value: Uint8Array }
   | { kind: 'SigmaProp'; value: SigmaBoolean }
   | { kind: 'Box'; value: ErgoBox }

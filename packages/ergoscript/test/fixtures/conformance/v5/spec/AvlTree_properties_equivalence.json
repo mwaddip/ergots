@@ -1,0 +1,863 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree properties equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#0",
+      "script" : "{ (t: AvlTree) => t.digest }",
+      "tree_bytes_hex" : "1a1000dad9010164db6401720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -125
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 102
+            },
+            {
+              "kind" : "Byte",
+              "value" : -77
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 83
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 32
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -58
+            },
+            {
+              "kind" : "Byte",
+              "value" : -67
+            },
+            {
+              "kind" : "Byte",
+              "value" : 102
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 125
+            },
+            {
+              "kind" : "Byte",
+              "value" : 43
+            },
+            {
+              "kind" : "Byte",
+              "value" : -19
+            },
+            {
+              "kind" : "Byte",
+              "value" : -69
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 24
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -24
+            },
+            {
+              "kind" : "Byte",
+              "value" : -112
+            },
+            {
+              "kind" : "Byte",
+              "value" : -108
+            }
+          ]
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#1",
+      "script" : "{ (t: AvlTree) => t.digest }",
+      "tree_bytes_hex" : "1a1000dad9010164db6401720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 13
+            },
+            {
+              "kind" : "Byte",
+              "value" : -109
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -41
+            },
+            {
+              "kind" : "Byte",
+              "value" : 49
+            },
+            {
+              "kind" : "Byte",
+              "value" : -19
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 45
+            },
+            {
+              "kind" : "Byte",
+              "value" : 36
+            },
+            {
+              "kind" : "Byte",
+              "value" : 53
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 113
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : -83
+            },
+            {
+              "kind" : "Byte",
+              "value" : 55
+            },
+            {
+              "kind" : "Byte",
+              "value" : -32
+            },
+            {
+              "kind" : "Byte",
+              "value" : -89
+            },
+            {
+              "kind" : "Byte",
+              "value" : -82
+            },
+            {
+              "kind" : "Byte",
+              "value" : 67
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -7
+            },
+            {
+              "kind" : "Byte",
+              "value" : 91
+            }
+          ]
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#2",
+      "script" : "{ (t: AvlTree) => t.digest }",
+      "tree_bytes_hex" : "1a1000dad9010164db6401720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 49
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : -46
+            },
+            {
+              "kind" : "Byte",
+              "value" : -31
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 124
+            },
+            {
+              "kind" : "Byte",
+              "value" : 127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 111
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 18
+            },
+            {
+              "kind" : "Byte",
+              "value" : -99
+            },
+            {
+              "kind" : "Byte",
+              "value" : -10
+            },
+            {
+              "kind" : "Byte",
+              "value" : -102
+            },
+            {
+              "kind" : "Byte",
+              "value" : 80
+            },
+            {
+              "kind" : "Byte",
+              "value" : -112
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 47
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -54
+            },
+            {
+              "kind" : "Byte",
+              "value" : -103
+            },
+            {
+              "kind" : "Byte",
+              "value" : -11
+            },
+            {
+              "kind" : "Byte",
+              "value" : -65
+            },
+            {
+              "kind" : "Byte",
+              "value" : -1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 12
+            },
+            {
+              "kind" : "Byte",
+              "value" : -128
+            },
+            {
+              "kind" : "Byte",
+              "value" : 54
+            }
+          ]
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#3",
+      "script" : "{ (t: AvlTree) => t.enabledOperations }",
+      "tree_bytes_hex" : "1a1000dad9010164db6402720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 6
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#4",
+      "script" : "{ (t: AvlTree) => t.enabledOperations }",
+      "tree_bytes_hex" : "1a1000dad9010164db6402720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 0
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#5",
+      "script" : "{ (t: AvlTree) => t.enabledOperations }",
+      "tree_bytes_hex" : "1a1000dad9010164db6402720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#6",
+      "script" : "{ (t: AvlTree) => t.keyLength }",
+      "tree_bytes_hex" : "1a1000dad9010164db6403720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#7",
+      "script" : "{ (t: AvlTree) => t.keyLength }",
+      "tree_bytes_hex" : "1a1000dad9010164db6403720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 32
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#8",
+      "script" : "{ (t: AvlTree) => t.keyLength }",
+      "tree_bytes_hex" : "1a1000dad9010164db6403720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 128
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#9",
+      "script" : "{ (t: AvlTree) => t.valueLengthOpt }",
+      "tree_bytes_hex" : "1a1000dad9010164db6404720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Int",
+            "value" : 1
+          }
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#10",
+      "script" : "{ (t: AvlTree) => t.valueLengthOpt }",
+      "tree_bytes_hex" : "1a1000dad9010164db6404720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Int",
+            "value" : 64
+          }
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#11",
+      "script" : "{ (t: AvlTree) => t.valueLengthOpt }",
+      "tree_bytes_hex" : "1a1000dad9010164db6404720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#12",
+      "script" : "{ (t: AvlTree) => t.isInsertAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6405720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#13",
+      "script" : "{ (t: AvlTree) => t.isInsertAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6405720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#14",
+      "script" : "{ (t: AvlTree) => t.isInsertAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6405720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#15",
+      "script" : "{ (t: AvlTree) => t.isUpdateAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6406720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#16",
+      "script" : "{ (t: AvlTree) => t.isUpdateAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6406720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#17",
+      "script" : "{ (t: AvlTree) => t.isUpdateAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6406720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(0,1,-125,-128,127,102,-77,1,83,1,32,-1,127,-58,-67,102,1,-1,1,-1,127,125,43,-19,-69,-1,-1,0,24,127,-24,-112,-108),AvlTreeFlags(false,true,true),1,Some(1)))#18",
+      "script" : "{ (t: AvlTree) => t.isRemoveAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6407720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "000183807f66b301530120ff7fc6bd6601ff01ff7f7d2bedbbffff00187fe8909406010101"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(-1,0,13,-109,127,-128,-1,-41,49,-19,-128,45,36,53,-128,1,-1,-128,-128,-1,113,0,127,0,-83,55,-32,-89,-82,67,-1,-7,91),AvlTreeFlags(false,false,false),32,Some(64)))#19",
+      "script" : "{ (t: AvlTree) => t.isRemoveAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6407720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "ff000d937f80ffd731ed802d24358001ff8080ff71007f00ad37e0a7ae43fff95b00200140"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CAvlTree(AvlTreeData(Coll(49,0,-46,-31,1,-1,1,-4,4,124,127,111,0,-1,-128,18,-99,-10,-102,80,-112,1,47,1,-1,-54,-103,-11,-65,-1,12,-128,54),AvlTreeFlags(true,false,false),128,None))#20",
+      "script" : "{ (t: AvlTree) => t.isRemoveAllowed }",
+      "tree_bytes_hex" : "1a1000dad9010164db6407720101e4e30164",
+      "input" : {
+        "kind" : "AvlTree",
+        "bytes_hex" : "3100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    }
+  ]
+}

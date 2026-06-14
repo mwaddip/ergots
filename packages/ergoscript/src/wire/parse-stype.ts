@@ -4,8 +4,8 @@
  * sigmastate-interpreter's `core/.../TypeSerializer.scala::deserialize`).
  *
  * Encoding model (`MaxPrimTypeCode = 11`, so `PrimRange = 12`):
- * - Primitives (codes 1..8 embeddable; SUnsignedBigInt=9 is v6-only and is
- *   NOT modelled here — we reject those bytes explicitly).
+ * - Primitives (codes 1..8 embeddable; SUnsignedBigInt=9 is v6-only and
+ *   modelled as embeddable — the version gate lives in validateV6Types).
  * - Container short-forms for c < 96 (TUPLE_TYPECODE): split into
  *   `containerId = (c / 12) * 12` and `primId = c % 12`. `containerId`
  *   selects Coll / Nested-Coll / Option / Option-Coll / Pair1 / Pair2 /
@@ -43,10 +43,10 @@ const TYPE_CODE_SGLOBAL = 106
 const TYPE_CODE_SFUNC = 112
 
 /**
- * Map an embeddable primitive type id (1..8) to its corresponding
+ * Map an embeddable primitive type id (1..9) to its corresponding
  * `SType`. Returns `null` for id 0 (i.e. "no embedded primitive"); throws
- * for id 9 (SUnsignedBigInt — v6-only, not modelled) and for any other
- * out-of-range value.
+ * for any other out-of-range value. SUnsignedBigInt (id 9) is accepted
+ * permissively — the version gate lives in validateV6Types (eval-time).
  */
 function embeddablePrimitive(primId: number): SType | null {
   switch (primId) {
@@ -69,10 +69,9 @@ function embeddablePrimitive(primId: number): SType | null {
     case 8:
       return { tag: 'SSigmaProp' }
     case 9:
-      throw new STypeParseError(
-        'SUnsignedBigInt (primId=9) is not supported (v6-only type)',
-        'unsupported-type'
-      )
+      // SUnsignedBigInt — permissive at parse; the v3 gate is validateV6Types
+      // (eval-time, authoritative ctx.treeVersion). See P2a spec §4.
+      return { tag: 'SUnsignedBigInt' }
     default:
       throw new STypeParseError(
         `invalid embeddable primId ${primId}`,
@@ -128,8 +127,8 @@ function parseContainerOrPrimitive(r: ByteReader, c: number): SType {
   const primId = c % PRIM_RANGE
   switch (containerId) {
     case 0: {
-      // c is itself a primitive code (1..11). embeddable() handles 1..8 and
-      // rejects 9 (SUnsignedBigInt); 10..11 are unused → fall through error.
+      // c is itself a primitive code (1..11). embeddable() handles 1..9
+      // (9 = SUnsignedBigInt, v6); 10..11 are unused → fall through error.
       const t = embeddablePrimitive(primId)
       if (t === null) {
         throw new STypeParseError(
@@ -218,21 +217,18 @@ function readArgType(r: ByteReader, primId: number): SType {
 function parseHighTypeCode(r: ByteReader, c: number): SType {
   switch (c) {
     case TUPLE_TYPECODE: {
-      // Tuple with explicit length (5+ items): u8 length, then each item.
+      // Tuple with explicit length (the 5+-item wire form; 2..4 normally use
+      // the pair/triple/quadruple codes). JVM TypeSerializer.scala:188-194:
+      // getUByte + bare STuple(items) — NO arity require, so arity-0/1
+      // generic-tuple TYPES parse (the TYPE serializer rejects < 2,
+      // TypeSerializer.scala:93-94 sys.error; our serialize-stype
+      // 'tuple-too-short' mirrors it — an asymmetry the JVM itself has).
+      // The old [2,255] reject was sigma-rust STuple::try_from semantics —
+      // a JVM over-reject fork on 0/1.
       const len = r.readU8()
       const items: SType[] = []
       for (let i = 0; i < len; i++) {
         items.push(parseSType(r))
-      }
-      // STuple invariant 2..=255: enforced on serialize, and a too-short
-      // tuple here would be a malformed input — but reproducing sigma-rust's
-      // permissive behavior (it goes through `STuple::try_from` and rejects
-      // there) we likewise reject here.
-      if (items.length < 2 || items.length > 255) {
-        throw new STypeParseError(
-          `STuple length ${items.length} out of [2, 255]`,
-          'invalid-tuple-length'
-        )
       }
       return { tag: 'STuple', items }
     }

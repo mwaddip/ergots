@@ -39,8 +39,9 @@ export class SValueSerializeError extends Error {
  * `chain/ergo_box.rs:302-344`):
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
  *   ergo_tree_bytes — raw bytes verbatim (self-delimiting via ErgoTree header)
- *   creation_height — VLQ u32 (sigma-ser `put_u32`)
- *   tokens_count    — raw u8 (NOT VLQ), max 122
+ *   creation_height — VLQ; JVM reads via `getUIntExact` (i32 ceiling, 2^31-1)
+ *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
+ *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
  *   per-token       — 32-byte id (raw) + VLQ u64 amount
  *   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
  *
@@ -49,30 +50,41 @@ export class SValueSerializeError extends Error {
  * the body. The SBox arm below also calls this helper — a single
  * implementation, two consumers.
  */
-export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion = 0): void {
+export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion: number): void {
   // value (unsigned VLQ u64 — NOT ZigZag)
   w.writeVlqBigInt(box.value)
 
   // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
   w.writeBytes(box.ergoTreeBytes)
 
-  // creation_height (VLQ u32)
+  // creation_height (VLQ). Reject > Int.MaxValue (2^31-1), mirroring the parse
+  // bound. The JVM SERIALIZER writes via `putUInt` (accepts full u32; only the
+  // READER `getUIntExact` throws on > 0x7fffffff), but a box can never arrive
+  // from a JVM-faithful parse with a height > 2^31-1, and we keep the
+  // parse/serialize bounds identical so round-trips stay stable — same
+  // serialize-symmetry rationale as the `index`/u16 cap below. (Prior bound was
+  // u32, mirroring non-canonical sigma-rust `get_u32`; re-anchored to the JVM
+  // `getUIntExact`, ErgoBoxCandidate.scala:195.)
   if (
     !Number.isInteger(box.creationHeight) ||
     box.creationHeight < 0 ||
-    box.creationHeight > 0xffffffff
+    box.creationHeight > 0x7fffffff
   ) {
     throw new SValueSerializeError(
-      `SBox creation_height ${box.creationHeight} out of u32 range`,
+      `SBox creation_height ${box.creationHeight} exceeds 2^31-1 (Int.MaxValue; JVM getUIntExact mirror)`,
       'sbox-creation-height-out-of-range'
     )
   }
   w.writeVlqU(box.creationHeight)
 
-  // tokens (raw u8 count + per-token id + amount)
-  if (box.tokens.length > 122) {
+  // tokens (raw u8 count + per-token id + amount). The only egress bound is
+  // the u8 wire ceiling: the JVM writes `putUByte(size)` which asserts
+  // 0..255 (ErgoBoxCandidate.scala:144; scorex-util putUByte). The JVM
+  // applies NO size window on egress — the 4096-byte candidate window is a
+  // parse-only rule (F5 batch 5; see the parse-svalue.ts SBox arm).
+  if (box.tokens.length > 255) {
     throw new SValueSerializeError(
-      `SBox tokens length ${box.tokens.length} exceeds MAX_TOKENS_COUNT (122)`,
+      `SBox tokens length ${box.tokens.length} exceeds the u8 wire ceiling (255)`,
       'sbox-tokens-out-of-range'
     )
   }
@@ -242,11 +254,15 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
 
     case 'SGroupElement': {
       assertKind(t, v, 'GroupElement')
-      // 33 raw bytes. We do NOT validate the SEC1 prefix here — phase 2a
-      // accepts the bytes as-is and defers curve-point validation to
-      // phase 2g (sigma-protocol evaluation). The 33-byte length check is
-      // load-bearing because anything else would silently desynchronize
-      // the wire cursor on read-back.
+      // 33 bytes, emitted verbatim. No per-site curve validation here: the
+      // GE canonical-bytes invariant (facts/ergoscript-eval.md, F5 batch 4)
+      // guarantees every SValue.GroupElement.value is already canonical SEC1
+      // — validated + normalized at every ingress (see the invariant bullet
+      // in facts/ergoscript-eval.md for the enforcement-site list: GE data
+      // arm, SigmaBoolean leaves, deserializeTo[Header] hydration, and the
+      // canonical-emitting eval arms). The 33-byte length check is
+      // load-bearing because anything else would silently desynchronize the
+      // wire cursor on read-back.
       if (v.value.length !== 33) {
         throw new SValueSerializeError(
           `SGroupElement requires exactly 33 bytes, got ${v.value.length}`,
@@ -321,6 +337,13 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
     }
 
     case 'SOption': {
+      // Serialize-side mirror of the V3 DATA gate (CoreDataSerializer.scala:78-82).
+      if (treeVersion < 3) {
+        throw new SValueSerializeError(
+          `SOption SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+          'soption-tree-version-too-low'
+        )
+      }
       assertKind(t, v, 'Option')
       w.writeOption(v.value, (w, inner) => serializeSValue(t.elem, inner, treeVersion, w))
       return
@@ -394,11 +417,18 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       // SAvlTree wire encoding (sigma-rust `mir/avl_tree_data.rs:72-78`).
       //
       // Write sequence:
-      //   digest          — 33 RAW bytes (ADDigest scorex_serialize is
-      //                     `write_all(self.0)` — no length prefix). The
-      //                     33-byte length check is load-bearing because
-      //                     anything else would silently desynchronize
-      //                     the wire cursor on read-back.
+      //   digest          — RAW bytes VERBATIM (no length prefix). The JVM
+      //                     `DataSerializer` writes `AvlTreeData.digest` raw
+      //                     via `putBytes` with no length requirement. Any
+      //                     digest length is written as-is.
+      //                     NOTE: the JVM parse side reads a FIXED 33 bytes
+      //                     (ADDigest scorex_parse `read_exact(33)`), so an
+      //                     AvlTree SValue with a non-33-byte digest serializes
+      //                     fine here but DOES NOT round-trip through parse —
+      //                     an intentional JVM asymmetry. Pin this asymmetry
+      //                     via tests rather than guarding against it here.
+      //                     (`'savltree-digest-length'` retired in F4 epilogue,
+      //                     2026-06-07 — JVM CAvlTree.scala:31-34 no-require.)
       //   treeFlags       — single u8 (`put_u8`). Caller-supplied byte
       //                     written verbatim, including any high reserved
       //                     bits that the parser tolerated.
@@ -414,13 +444,6 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //                     canonical form so round-trips are stable).
       assertKind(t, v, 'AvlTree')
       const a = v.value
-      if (a.digest.length !== 33) {
-        throw new SValueSerializeError(
-          `SAvlTree digest length ${a.digest.length} must be 33 ` +
-            '(32-byte root hash + 1-byte tree height)',
-          'savltree-digest-length'
-        )
-      }
       if (!Number.isInteger(a.treeFlags) || a.treeFlags < 0 || a.treeFlags > 0xff) {
         throw new SValueSerializeError(
           `SAvlTree treeFlags ${a.treeFlags} out of u8 range`,
@@ -503,6 +526,23 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
         'not-implemented-phase-2a'
       )
 
+    case 'SUnsignedBigInt': {
+      assertKind(t, v, 'UnsignedBigInt')
+      const bytes = encodeUnsignedBigIntBE(v.value)
+      if (bytes.length > 32) {
+        // Defensive: an out-of-range UBI is an internal invariant violation,
+        // unreachable from a valid parse or a v6 method (the JVM serialize has
+        // no cap, but a >32B UBI cannot arise legitimately). See spec §3.
+        throw new SValueSerializeError(
+          `SUnsignedBigInt requires ${bytes.length} bytes; exceeds 32-byte limit`,
+          'unsigned-bigint-too-large',
+        )
+      }
+      w.writeVlqU(bytes.length)
+      w.writeBytes(bytes)
+      return
+    }
+
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
       const _exhaust: never = t
@@ -538,6 +578,27 @@ function assertKind<K extends SValue['kind']>(
 }
 
 /**
+ * Encode a non-negative bigint as minimal unsigned big-endian magnitude bytes.
+ * Mirrors sigma.crypto.BigIntegers.asUnsignedByteArray (0 -> []; no sign pad).
+ * Distinct from encodeBigIntBE (signed two's-complement). See P2a spec §3.
+ */
+export function encodeUnsignedBigIntBE(v: bigint): Uint8Array {
+  if (v < 0n) {
+    throw new SValueSerializeError(
+      'SUnsignedBigInt value must be non-negative',
+      'unsigned-bigint-negative',
+    )
+  }
+  const bytes: number[] = []
+  let n = v
+  while (n > 0n) {
+    bytes.unshift(Number(n & 0xffn))
+    n >>= 8n
+  }
+  return new Uint8Array(bytes) // 0n -> [] (loop never runs)
+}
+
+/**
  * Encode a bigint as minimal big-endian two's-complement bytes. Matches
  * sigma-rust's `BigInt256::to_be_vec` output for the i32 / i64-representable
  * subset; phase 2a doesn't exercise larger values but the algorithm
@@ -553,7 +614,7 @@ function assertKind<K extends SValue['kind']>(
  *     `unsigned = v + 2^(8k)`, which is guaranteed to have its high bit
  *     set in k bytes. Emit unsigned in k bytes big-endian.
  */
-function encodeBigIntBE(v: bigint): Uint8Array {
+export function encodeBigIntBE(v: bigint): Uint8Array {
   if (v === 0n) return new Uint8Array([0x00])
 
   if (v > 0n) {

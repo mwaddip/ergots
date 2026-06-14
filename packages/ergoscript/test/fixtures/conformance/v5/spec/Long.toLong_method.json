@@ -1,0 +1,113 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Long.toLong method",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "-9223372036854775808#0",
+      "script" : "{ (x: Long) => x.toLong }",
+      "tree_bytes_hex" : "1a0d00dad9010105720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "-1#1",
+      "script" : "{ (x: Long) => x.toLong }",
+      "tree_bytes_hex" : "1a0d00dad9010105720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "-1"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "0#2",
+      "script" : "{ (x: Long) => x.toLong }",
+      "tree_bytes_hex" : "1a0d00dad9010105720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "0"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "1#3",
+      "script" : "{ (x: Long) => x.toLong }",
+      "tree_bytes_hex" : "1a0d00dad9010105720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "9223372036854775807#4",
+      "script" : "{ (x: Long) => x.toLong }",
+      "tree_bytes_hex" : "1a0d00dad9010105720101e4e30105",
+      "input" : {
+        "kind" : "Long",
+        "value" : "9223372036854775807"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "9223372036854775807"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,28 +1,32 @@
 /**
  * SAvlTree.insertOrUpdate (100:16) — V3-gated batch-InsertOrUpdate handler.
  *
- * Fixture-driven oracle suite (T11 of phase 2h-d). Handler implementation
- * lives at `src/eval/savltree.ts` (appended in T11 GREEN); six-scenario
- * fixture emitted by T10.
+ * Fixture-driven oracle suite (T11 of phase 2h-d, re-blessed in F4 Task 6).
+ * Handler implementation lives at `src/eval/savltree.ts`.
  *
- * Scenario coverage:
- *   1. insert_or_update_happy_v3                — happy path; full-success batch returns Some(AvlTree(new_digest)).
- *   2. insert_or_update_insert_allowed_false    — receiver's INSERT_ALLOWED bit clear → Option None pre-verify.
- *   3. insert_or_update_update_allowed_false    — receiver's UPDATE_ALLOWED bit clear → Option None pre-verify.
- *   4. insert_or_update_per_op_fail_graceful    — per-op fail under V3+ → graceful Option None (sigma-rust break).
- *   5. insert_or_update_malformed_proof         — verifier construct fail → throws 'avl-tree-proof-failed'.
- *   6. insert_or_update_v2_dispatcher_reject    — opts_json.treeVersion=2 → dispatcher rejects with 'tree-version-too-low'.
+ * Scenario coverage (re-blessed costs per F4 JVM model):
+ *   1. insert_or_update_happy_v3                — happy path; full-success batch returns Some(AvlTree(new_digest)), cost 719.
+ *   2. insert_or_update_insert_allowed_false    — INSERT_ALLOWED bit clear → None (both flag charges + envelope = 49).
+ *   3. insert_or_update_update_allowed_false    — UPDATE_ALLOWED bit clear → None (both flag charges + envelope = 49).
+ *   4. insert_or_update_per_op_fail_graceful    — per-op fail under V3+ → None (519 = envelope+flags+cv+chargedOps).
+ *   5. insert_or_update_malformed_proof         — construct fail → None (359; NOT a throw — JVM swallows construct errors).
+ *   6. insert_or_update_v2_dispatcher_reject    — opts_json.treeVersion=2 → dispatcher rejects 'tree-version-too-low'.
+ *
+ * F4 value-class fix: entry 5 flipped from throw('avl-tree-proof-failed') →
+ * None (JVM canonical: scorex BatchAVLVerifier swallows reconstruction errors;
+ * broken verifier → every op returns Failure → forall breaks → digest None →
+ * None). Pre-F4 ergots had the sigma-rust `?`-on-construct fork; ergots leads.
  *
  * Test uses the canonical multi-scenario template from
  * `test/eval/savltree-update-digest.test.ts:58-74`. Each entry branches on
  * `expected_error_code !== null`:
  *   - Throw branch: `captureEvalError` + `expect(err.code).toBe(...)`.
- *     Cost is NOT asserted on throw entries (fixture-gen sentinels
- *     `expected_cost: 0`).
+ *     Cost is NOT asserted on throw entries (fixture sentinel `expected_cost: 0`).
  *   - Success branch: assert value matches hydrated SValue + cost matches
  *     fixture-recorded `ctx.jitCost`.
  *
- * Source: ergotree-interpreter/src/eval/savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:196-228 (JVM-canonical cost model, F4).
+ *         ergotree-interpreter/src/eval/savltree.rs:441-498 (reference).
  */
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -32,6 +36,7 @@ import { dirname, join } from 'node:path'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
+import { evalSAvlTreeInsertOrUpdate } from '../../src/eval/savltree'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
 import { runMutationLoop, evalSafely, DEFAULT_KILL_THRESHOLD } from '../_helpers/mutation-harness'
 
@@ -74,16 +79,14 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
   // at sheader-checkpow.test.ts:66-103). The V<3 dispatcher reject must charge
   // EXACTLY receiver-eval + envelope cost, NOT the handler's per-handler cost.
   //
-  // For SAvlTree.insertOrUpdate the per-handler cost is 0 (the verifier owns
-  // the work and `@ergots/avltree` does not charge per-op verifier costs back
-  // to ctx.jitCost — see src/eval/savltree.ts:14-17). So the V3-vs-V2 delta is
-  // 0, and the load-bearing assertion is `v3 === v2`.
+  // After F4, insertOrUpdate has per-handler costs: isUpdateAllowed_Info(15) +
+  // isInsertAllowed_Info(15) + createVerifier + per-op + updateDigest. The V2
+  // reject fires at the dispatcher BEFORE those handler costs accumulate. The
+  // load-bearing assertion is: V2 reject cost < V3 success cost, and
+  // specifically (v3 - v2) > 0.
   //
-  // To distinguish this from "dispatcher throws before any cost is charged",
-  // the test also asserts the V<3 reject cost is positive — proving the
-  // dispatcher's cost-before-throw semantics (envelope (4) + receiver Const +
-  // args Const are accumulated before the minVersion gate at method-call.ts:144).
-  //
+  // The V2 reject cost is the envelope cost: methodCall(4) + receiver Const +
+  // args Consts, accumulated before the minVersion gate at method-call.ts:144.
   // The fixture's `expected_cost: 0` on the v2-reject entry is a sentinel (the
   // fixture-driven oracle test above skips cost assertion on throw entries);
   // the actual numeric cost-at-throw is asserted here instead.
@@ -104,22 +107,23 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
     const err = captureEvalError(() => evaluateWith(v2Tree, v2Ctx))
     expect(err.code).toBe('tree-version-too-low')
 
-    // V3 fixture-driven oracle: success cost matches sigma-rust try_eval_out.
+    // V3 fixture-driven oracle: success cost matches F4 JVM model.
     expect(v3Ctx.jitCost).toBe(v3Happy.expected_cost)
 
     // Load-bearing assertion: the cost delta between V3 success and V2 reject
-    // equals the handler's per-handler cost — which is 0 for insertOrUpdate
-    // (verifier owns the work). Therefore V3 cost and V2 reject cost are
-    // EXACTLY equal. If a future regression added a per-handler ctx.addCost
-    // call before the dispatcher gate (or if the handler started running on
-    // V<3 by mistake), this delta would become positive and the test would fail.
-    expect(v3Ctx.jitCost - v2Ctx.jitCost).toBe(0)
+    // equals the handler's accumulated cost exactly:
+    //   30 (isUpdateAllowed 15 + isInsertAllowed 15) + 150 (createVerifier,
+    //   66 B proof → 2 chunks) + 3×160 (UpdateAvlTree 120+20×2, h=2) + 40
+    //   (updateDigest) = 700.
+    // If a regression moved handler costs before the dispatcher gate or made
+    // the handler run on V<3, this exact delta shifts and reveals it.
+    expect(v3Ctx.jitCost - v2Ctx.jitCost).toBe(700)
 
-    // Sanity: the V2 reject cost is positive (envelope + receiver + args
-    // were charged before the dispatcher's minVersion check fired). If the
-    // V<3 gate were moved BEFORE these charges, this assertion would fail
-    // and reveal a regression in cost-before-throw semantics.
-    expect(v2Ctx.jitCost).toBeGreaterThan(0)
+    // The V2 reject cost is exactly the pre-gate envelope: 4 (MethodCall) +
+    // 5+5+5 (receiver + 2 arg Consts) = 19, charged before the dispatcher's
+    // minVersion check fired. If the V<3 gate were moved BEFORE these
+    // charges (or the handler ran), this exact pin fails and reveals it.
+    expect(v2Ctx.jitCost).toBe(19)
   })
 })
 
@@ -144,9 +148,9 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
 //   - per_op_fail_graceful: baseline returns Option None (verifier yields a
 //     partial batch). Mutations that still produce a verifier-recognized
 //     partial outcome continue to return Option None → survive.
-//   - malformed_proof: baseline throws 'avl-tree-proof-failed'. Mutations
-//     that still produce a malformed-but-non-crashing proof throw the same
-//     error code → survive under the "different error or value" kill rule.
+//   - malformed_proof: baseline returns None (JVM-canonical post-F4; construct
+//     fail → None, not a throw). Mutations that also yield a broken verifier
+//     return None → survive under the "different error or value" kill rule.
 //   - v2_dispatcher_reject: baseline throws 'tree-version-too-low' from the
 //     dispatcher BEFORE the handler runs. Mutations to tree bytes don't
 //     change opts_json.treeVersion, so the dispatcher still rejects → all
@@ -219,5 +223,133 @@ describe('SAvlTree.insertOrUpdate — mutation testing', () => {
         `total=${result.total} rate=${result.rate.toFixed(3)} bytes=${treeBytes.length}`,
     )
     expect(result.rate).toBeGreaterThanOrEqual(DEFAULT_KILL_THRESHOLD)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// F4 Task 7 — construct-fail + empty-ops unit pins (unvectored class)
+// ---------------------------------------------------------------------------
+
+describe('SAvlTree.insertOrUpdate — F4 construct-fail + empty-ops pins', () => {
+  // Direct handler calls — no envelope overhead.
+  // Precedent: getMany empty-keys pin in savltree-getmany.test.ts.
+  //
+  // Fixture source: insert_or_update_happy_v3
+  //   digest: ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02
+  //   height byte: digest[32] = 0x02 → h=2 → max(h,1)=2
+  //   treeFlags: 3 (insert+update allowed)  keyLength: 1
+  //   proof (66 bytes): 030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff
+  //                      02020300000008020202020202020202ff00000008030303030303030300000408
+
+  it('pin 9 — empty-ops + VALID proof → Some(starting digest), cost exact', () => {
+    // With zero InsertOrUpdate entries, the forall loop never executes.
+    // verifyAvlBatchPartial(ops=[]) → { opsCompleted:0, newDigest:<starting digest>, results:[] }.
+    // opsCompleted(0) == ops.length(0) → success branch → updateDigest(40).
+    // Result: Some(AvlTree) with digest BYTE-EQUAL to the input starting digest.
+    //
+    // Source fixture: insert_or_update_happy_v3 (proof 66 bytes, valid for this tree)
+    //   digest: ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02
+    //   h=2, treeFlags=3
+    //
+    // Cost decomposition (handler; no envelope, treeVersion=3 required):
+    //   isUpdateAllowed_Info Fixed(15) — FIRST (CErgoTreeEvaluator.scala:199)
+    //   isInsertAllowed_Info Fixed(15) — SECOND
+    //   createVerifier PerItem(110,20,64) on proofLen=66:
+    //     chunks = Math.trunc((66-1)/64)+1 = Math.trunc(65/64)+1 = 1+1 = 2
+    //     → 110+40=150
+    //   chargedOps(partial_success_0ops, 0) = 0 UpdateAvlTree charges
+    //   updateDigest Fixed(40) on success
+    //   TOTAL: 15 + 15 + 150 + 0 + 40 = 220
+    const digestHex = 'ddaa12c7e5fd5ea2d7e017e50f51b2693f29fc5db8e4fdd0809792583fce11de02'
+    // 66-byte proof from insert_or_update_happy_v3 (bytes after "0e42" tag in fixture hex):
+    const proofHex = '030d3ba8e4d07b47d873efc37349712ca91b0f50e380a5467aded1e60b84b3e6ff' +
+      '02020300000008020202020202020202ff00000008030303030303030300000408'
+    const digest = hexToBytes(digestHex)
+    const proofBytes = hexToBytes(proofHex)
+    expect(digest.length).toBe(33)
+    expect(proofBytes.length).toBe(66)
+
+    const treeObj = {
+      kind: 'AvlTree' as const,
+      value: { digest, treeFlags: 0x03, keyLength: 1, valueLengthOpt: null as number | null },
+    }
+    // Empty Coll[Tuple[Coll[Byte], Coll[Byte]]] — the shape buildInsertOrUpdateOps expects.
+    const emptyEntries = {
+      kind: 'Coll' as const,
+      elem: {
+        tag: 'STuple' as const,
+        items: [
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+        ],
+      },
+      items: [] as never[],
+    }
+    const proofColl = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SByte' as const },
+      items: Array.from(proofBytes, (b) => ({ kind: 'Byte' as const, value: (b << 24) >> 24 })),
+    }
+
+    const ctx = makeContext({ treeVersion: 3 })
+    const result = evalSAvlTreeInsertOrUpdate(ctx, treeObj, [emptyEntries, proofColl])
+
+    // Value: Some(AvlTree) with digest BYTE-EQUAL to the starting digest (0 ops → no change).
+    expect(result.kind).toBe('Option')
+    if (result.kind !== 'Option' || result.value === null || result.value.kind !== 'AvlTree') {
+      throw new Error('expected Some(AvlTree) but got a different shape')
+    }
+    expect(result.value.value.digest).toEqual(digest)
+
+    // Exact cost: 15 + 15 + 150 + 0 + 40 = 220
+    expect(ctx.jitCost).toBe(220) // isUpdate(15)+isInsert(15)+cv(66→150)+0 ops+updateDigest(40)
+  })
+
+  it('pin 10 — BOTH-flags-denied (treeFlags=0x00) → None @ exactly 30 (double charge)', () => {
+    // From Task-6 quality review: the flags-deny path must charge BOTH isUpdateAllowed(15)
+    // AND isInsertAllowed(15) before returning None — the blessed flags-deny cost of 73
+    // (= envelope 43 + 30) pins the double charge in the fixture suite.
+    // This direct-call pin verifies the same invariant without envelope overhead:
+    //   jitCost starts at 0, handler charges isUpdate(15)+isInsert(15)=30, then returns None.
+    //
+    // If either flag charge were skipped (e.g. moved after the combined check), cost would be 15.
+    // This pin catches that regression.
+    //
+    // Cost: isUpdateAllowed_Info Fixed(15) + isInsertAllowed_Info Fixed(15) = 30.
+    // No createVerifier, no per-op, no updateDigest (flag check fails → early return).
+    const treeObj = {
+      kind: 'AvlTree' as const,
+      value: {
+        // treeFlags=0x00: neither insert (0x01) nor update (0x02) allowed
+        digest: new Uint8Array(33), // arbitrary 33-byte array; height byte=0
+        treeFlags: 0x00,
+        keyLength: 1,
+        valueLengthOpt: null as number | null,
+      },
+    }
+    // Dummy args — never reached (handler returns None before consuming them)
+    const dummyEntries = {
+      kind: 'Coll' as const,
+      elem: {
+        tag: 'STuple' as const,
+        items: [
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+          { tag: 'SColl' as const, elem: { tag: 'SByte' as const } },
+        ],
+      },
+      items: [] as never[],
+    }
+    const dummyProof = {
+      kind: 'Coll' as const,
+      elem: { tag: 'SByte' as const },
+      items: [] as never[],
+    }
+
+    const ctx = makeContext({ treeVersion: 3 })
+    const result = evalSAvlTreeInsertOrUpdate(ctx, treeObj, [dummyEntries, dummyProof])
+
+    expect(result).toEqual({ kind: 'Option', elem: { tag: 'SAvlTree' }, value: null })
+    // Exact cost: 30 — both flag charges fired before the combined check.
+    expect(ctx.jitCost).toBe(30) // isUpdateAllowed(15) + isInsertAllowed(15) = 30
   })
 })

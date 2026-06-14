@@ -20,7 +20,7 @@
           }
         }
       },
-      "expected_cost": 19
+      "expected_cost": 384
     },
     {
       "name": "update_success_3_entries",
@@ -41,7 +41,7 @@
           }
         }
       },
-      "expected_cost": 19
+      "expected_cost": 704
     },
     {
       "name": "update_disallowed_flags",
@@ -54,7 +54,7 @@
         "kind": "Option",
         "value": null
       },
-      "expected_cost": 19
+      "expected_cost": 34
     }
   ]
 }

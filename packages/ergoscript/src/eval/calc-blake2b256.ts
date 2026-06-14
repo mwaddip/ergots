@@ -17,8 +17,8 @@
  * at parse time) make this unreachable for parser-produced trees; defensive
  * against `ConstantPlaceholder` injection or hand-crafted MIR.
  *
- * Uses `@noble/hashes/blake2.js` `blake2b` with `{ dkLen: 32 }` (same pattern
- * as `extract-id.ts` — first eval-time blake2b call lived there).
+ * Uses `@noble/hashes/blake2.js` `blake2b` with `{ dkLen: 32 }` — the shared
+ * primitive lives in `crypto/hashes.ts` as `blake2b256`.
  */
 
 import { blake2b } from '@noble/hashes/blake2.js'

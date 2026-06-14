@@ -1,0 +1,71 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Box.eq_id_basis",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ge-canonical",
+  "entries" : [
+    {
+      "name" : "box-eq-byte-basis-false#0",
+      "script" : "{ box1 == box2 } — twins identical except R4: canonical identity vs garbage identity (spliced) → FALSE: box identity is the BYTE basis (id = Blake2b256 over the parse-retained slice)",
+      "tree_bytes_hex" : "100263c0843d10010101d173000000010700000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111110063c0843d10010101d173000000010700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1111111111111111111111111111111111111111111111111111111111111111009373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 8,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-eq-value-basis-true#1",
+      "script" : "{ box1.R4[GroupElement].get == box2.R4[GroupElement].get } → TRUE: both registers DECODE to the identity point (the value basis)",
+      "tree_bytes_hex" : "100263c0843d10010101d173000000010700000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111110063c0843d10010101d173000000010700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111110093e4c673000407e4c673010407",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 304,
+        "error" : null
+      }
+    },
+    {
+      "name" : "box-eq-control-true#2",
+      "script" : "{ box1 == box1 } → true — pins the flat EQ_Box comparer (DataValueComparer Fixed(6); the Ask-17 Box shape)",
+      "tree_bytes_hex" : "100263c0843d10010101d173000000010700000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111110063c0843d10010101d17300000001070000000000000000000000000000000000000000000000000000000000000000001111111111111111111111111111111111111111111111111111111111111111009373007301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 8,
+        "error" : null
+      }
+    }
+  ]
+}

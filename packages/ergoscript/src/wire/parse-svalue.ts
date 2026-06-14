@@ -20,9 +20,11 @@
  *     big-endian signed two's-complement bytes (minimal encoding). The
  *     value's bit-width is determined by `bytes[0] & 0x80`: MSB set ⇒
  *     negative ⇒ sign-extend.
- *   - SGroupElement: 33 raw bytes (SEC1 compressed point, or 33 zero bytes
- *     for the identity / point at infinity). Phase 2a accepts the bytes
- *     as-is; curve-point validation is deferred to phase 2g.
+ *   - SGroupElement: 33 bytes, validated + normalized to canonical SEC1
+ *     (F5 batch 4): 0x00-lead → canonical 33-zero identity (tail discarded);
+ *     non-0x00-lead must curve-decode or throws
+ *     `'group-element-invalid-point'`. See the GE canonical-bytes invariant
+ *     in facts/ergoscript-eval.md.
  *   - SUnit: 0 bytes.
  *   - SColl[T]: VLQ-u16 length + each item parsed by T, EXCEPT:
  *       · SColl[SByte] → VLQ-u16 length + raw bytes (NativeColl optimization
@@ -31,14 +33,15 @@
  *         (`ceil(len/8)` bytes; trailing bits zero-padded). Mirrors
  *         sigma-rust's `WriteSigmaVlqExt::put_bits` / `get_bits` via
  *         `bitvec::BitVec<u8, Lsb0>`.
- *   - SOption[T]: 1-byte tag (1 = Some, anything else = None) + (if Some)
- *     inner value parsed by T. Mirrors sigma-rust's `get_option` in
- *     `sigma-ser/src/vlq_encode.rs`: only the exact byte `1` triggers the
- *     inner read; every other byte (including `0`, `2`, `0xff`) is treated
- *     as None and the cursor advances by exactly one byte. Available for
- *     serialization only on ErgoTreeVersion::V3+ in sigma-rust; older trees
- *     return `NotSupported`. We accept either at the parser level — the
- *     caller is responsible for tree-version enforcement.
+ *   - SOption[T]: 1-byte tag (0 = None, any nonzero = Some) + (if Some)
+ *     inner value parsed by T. scorex-util VLQReader.getOption: ANY nonzero
+ *     tag → Some (bytecode-verified F4-epilogue + SANTA-blessed F5 batch 1).
+ *     sigma-rust `get_option` diverges (only exact 1 = Some; tag ≥ 2 → None,
+ *     causing stream desync) — JVM canonical. Serializer emits canonical
+ *     0x01/0x00; nonzero-noncanonical tags do not byte-round-trip (same on JVM).
+ *     V3-gated: tree-version < 3 throws `SValueParseError('soption-tree-version-too-low')`.
+ *     Version-gated DATA kinds (SOption, SHeader) enforce their gates from the
+ *     threaded `treeVersion`; remaining kinds are version-free.
  *   - STuple[T1, T2, ...]: items in order, NO length prefix on the wire.
  *     The arity is recoverable from the SType.
  *
@@ -55,8 +58,8 @@
  *     (canonical wire encoding)
  *   - `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/bigint256.rs::sigma_serialize`
  *     (SBigInt length-prefixed BE two's-complement)
- *   - `~/projects/sigma-rust/sigma-rust/ergo-chain-types/src/ec_point.rs`
- *     (SGroupElement = 33 raw bytes, identity = 33 zeros)
+ *   - `~/projects/sigmastate-interpreter/core/.../GroupElementSerializer.scala`
+ *     (SGroupElement canonical parse: 0x00-lead ⇒ identity, else decodePoint)
  *   - `~/projects/sigma-rust/sigma-rust/sigma-ser/src/vlq_encode.rs::put_bits`
  *     (SColl[SBoolean] bit packing)
  */
@@ -66,6 +69,8 @@ import { ByteReader, parseHeader, readVlqU32 } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { consumeTreeFromReader } from './ergo-tree'
+import { canonicalGePayload } from './_ge-canonical'
+import { blake2b256 } from '../crypto/hashes'
 
 // OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
 // (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
@@ -75,6 +80,16 @@ const LAST_CONSTANT_CODE = 112
 // OP_TUPLE opcode value (sigma-rust `serialization/op_code.rs:184`):
 // `new_op_code(22)` = LAST_CONSTANT_CODE + 22 = 134 = 0x86.
 const OP_TUPLE = 134
+// JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024
+// (SigmaConstants.scala:24, surfaced at ErgoBox.scala:127). The SBox data
+// parse reads the candidate span (value → registers) under a lazy
+// `positionLimit` window of this many bytes, armed at candidate start
+// (ErgoBoxCandidate.scala:191-192) and restored after the registers loop
+// (:235); txId/index sit OUTSIDE the window (ErgoBox.scala:214-225).
+// Crossing the window is JVM validation rule 1014 `CheckPositionLimit`
+// (ValidationRules.scala:169-189), surfaced here as scorex
+// `ReaderError('position-limit-exceeded')`.
+const ERGO_BOX_MAX_SIZE = 4096
 
 /**
  * Parse a register-level Expr (sigma-rust calls `Expr::sigma_parse` here and
@@ -95,39 +110,73 @@ function parseRegisterExprWithTag(
   r: ByteReader,
   treeVersion: number
 ): { tpe: SType; value: SValue } {
-  if (tag <= LAST_CONSTANT_CODE) {
-    // Constant Expr: tag is the SType lead byte.
-    const tpe = parseSTypeWithFirstByte(tag, r)
-    const value = parseSValue(tpe, treeVersion, r)
-    return { tpe, value }
+  // A register value is an Expr read via the JVM's `r.getValue()`
+  // (`ValueSerializer.deserialize`, `SigmaByteReader.scala:46`), which bumps the
+  // shared reader level once per Expr node BEFORE the inner data parse/recursion.
+  // So a register Const costs THIS ValueSerializer level + the `parseSValue`
+  // (CoreDataSerializer) level, and a register Tuple costs this level + one per
+  // item — matching the JVM. Without this enterDepth, SBox register sub-values
+  // undercount depth by one level vs the JVM (a `deserializeTo[Box]` whose
+  // register is nested to `Coll^109` would be accepted here but rejected by the
+  // JVM at depth 111 — a consensus fork). The leaf `parseSValue` adds the data
+  // level; nested-Tuple recursion re-enters here, one level per item.
+  r.enterDepth()
+  try {
+    if (tag <= LAST_CONSTANT_CODE) {
+      // Constant Expr: tag is the SType lead byte.
+      const tpe = parseSTypeWithFirstByte(tag, r)
+      // Rule-1019 `CheckV6Type` (JVM ValidationRules.scala:165-205, enforced at
+      // ErgoBoxCandidate.scala:232): reject — at register deserialize, BEFORE
+      // the value parse — any register type containing SOption / SHeader /
+      // SUnsignedBigInt (recursing STuple items + SColl elemType). UNCONDITIONAL
+      // across all tree versions (the rule is in BOTH ruleSpecsV5 and
+      // ruleSpecsV6). Gating here (before `parseSValue`) takes precedence over
+      // the value-side `soption-tree-version-too-low` gate: an Option-typed
+      // register on a pre-v3 tree rejects as 'register-v6-type', not via the
+      // inner Option DATA version gate (matching the JVM's deserialize-time
+      // CheckV6Type fire, which runs on the parsed Constant's declared type).
+      // A Tuple-Expr register (the OP_TUPLE arm below) is covered by recursion:
+      // each item parses through this same Const arm, so a v6-typed item is
+      // gated at its own node — mirroring the JVM `step(Tuple)` over item tpes.
+      if (containsV6RegisterType(tpe)) {
+        throw new SValueParseError(
+          'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
+          'register-v6-type'
+        )
+      }
+      const value = parseSValue(tpe, treeVersion, r)
+      return { tpe, value }
+    }
+    if (tag === OP_TUPLE) {
+      // Tuple Expr: 1-byte items count, then N nested Exprs.
+      const itemsCount = r.readU8()
+      if (itemsCount < 2) {
+        throw new SValueParseError(
+          `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
+          'sbox-register-tuple-arity'
+        )
+      }
+      const itemTpes: SType[] = []
+      const itemValues: SValue[] = []
+      for (let i = 0; i < itemsCount; i++) {
+        const itemTag = r.readU8()
+        const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
+        itemTpes.push(item.tpe)
+        itemValues.push(item.value)
+      }
+      return {
+        tpe: { tag: 'STuple', items: itemTpes },
+        value: { kind: 'Tuple', items: itemValues },
+      }
+    }
+    throw new SValueParseError(
+      `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
+        `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
+      'sbox-register-unsupported-expr'
+    )
+  } finally {
+    r.exitDepth()
   }
-  if (tag === OP_TUPLE) {
-    // Tuple Expr: 1-byte items count, then N nested Exprs.
-    const itemsCount = r.readU8()
-    if (itemsCount < 2) {
-      throw new SValueParseError(
-        `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
-        'sbox-register-tuple-arity'
-      )
-    }
-    const itemTpes: SType[] = []
-    const itemValues: SValue[] = []
-    for (let i = 0; i < itemsCount; i++) {
-      const itemTag = r.readU8()
-      const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
-      itemTpes.push(item.tpe)
-      itemValues.push(item.value)
-    }
-    return {
-      tpe: { tag: 'STuple', items: itemTpes },
-      value: { kind: 'Tuple', items: itemValues },
-    }
-  }
-  throw new SValueParseError(
-    `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
-      `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
-    'sbox-register-unsupported-expr'
-  )
 }
 
 export class SValueParseError extends Error {
@@ -141,8 +190,54 @@ export class SValueParseError extends Error {
 }
 
 /**
+ * Rule-1019 `CheckV6Type` predicate: true iff `tpe`, recursing through `STuple`
+ * items and `SColl`/`SCollection` elemType, contains a leaf that is an
+ * `SOption` (any element type), `SHeader`, or `SUnsignedBigInt`.
+ *
+ * Mirrors JVM `ValidationRules.scala:165-205` (`CheckV6Type`):
+ *   - `v6TypeCheck(tpe)` rejects iff `tpe.isOption` OR `tpe.typeCode == SHeader`
+ *     (104) OR `tpe.typeCode == SUnsignedBigInt` (9).
+ *   - `step(STuple)` → `items.foreach(step)`; `step(SCollection)` →
+ *     `step(elemType)` — and STuple is matched BEFORE SCollection in the JVM
+ *     (STuple <: SCollection). Our `SType` union tags STuple / SColl / SOption
+ *     disjointly, so the explicit STuple-before-SColl ordering is moot here,
+ *     but the per-arm shape is kept identical to the JVM `step`.
+ *
+ * DISTINCT from `eval/validate-v6-types.ts::containsV6Type` — that predicate
+ * gates the tree BODY for the v6 version-gate type set `{ SUnsignedBigInt,
+ * SFunc }`. This one gates box REGISTERS (and, on the JVM, context-extension
+ * vars) for the set `{ SOption, SHeader, SUnsignedBigInt }`. Different type
+ * set, different surface; do NOT merge.
+ *
+ * Residual: the JVM enforces `CheckV6Type` at TWO ingress points — box
+ * registers (`ErgoBoxCandidate.scala:232`) and context-extension vars
+ * (`ContextExtension.scala:60`). ergots gates only the register leg: it has no
+ * context-extension WIRE parser (extensions are built in `makeContext`, not
+ * deserialized from bytes), so there is nothing to gate on that leg. The
+ * JVM-blessed witness W7 is a register case.
+ */
+function containsV6RegisterType(tpe: SType): boolean {
+  switch (tpe.tag) {
+    // STuple first, matching the JVM `step` (STuple <: SCollection).
+    case 'STuple':
+      return tpe.items.some(containsV6RegisterType)
+    case 'SColl':
+      return containsV6RegisterType(tpe.elem)
+    // Leaf v6TypeCheck: any Option, SHeader (104), SUnsignedBigInt (9).
+    case 'SOption':
+    case 'SHeader':
+    case 'SUnsignedBigInt':
+      return true
+    default:
+      return false
+  }
+}
+
+/**
  * Parse an SValue from the reader `r`, driven by the type `t`. Throws
- * {@link SValueParseError} on malformed bytes or on deferred kinds.
+ * {@link SValueParseError} on malformed bytes or on deferred kinds, and
+ * `ReaderError('max-tree-depth-exceeded')` (from the shared reader-level
+ * depth counter) when data nesting exceeds the reader's `maxTreeDepth`.
  *
  * The reader cursor advances exactly the number of bytes the encoding
  * consumes; the caller can chain further reads. Trailing-byte checks
@@ -155,6 +250,36 @@ export class SValueParseError extends Error {
  * same version check is `r.tree_version() >= ErgoTreeVersion::V3`.
  */
 export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValue {
+  // MaxTreeDepth bound (consensus) — mirrors the JVM `CoreByteReader.level`:
+  // `CoreDataSerializer.deserialize` does `r.level = depth + 1` at the top of
+  // EVERY data-value call and `r.level = r.level - 1` at the bottom
+  // (`CoreDataSerializer.scala:95-96,148`); `CoreByteReader.level_=` throws when
+  // the new level > maxTreeDepth (default 110). The counter lives on the reader
+  // and is SHARED with the expr-node parser (`parseExpr`) and the SigmaBoolean
+  // parser (`parseSigmaBoolean`), exactly as the JVM shares one `r.level` across
+  // ValueSerializer / CoreDataSerializer / SigmaBoolean.serializer. So this guard
+  // participates in the whole-tree depth budget automatically — there is no
+  // separate threaded `depth` to keep in sync.
+  //
+  // The limit fires DATA-DRIVEN: enterDepth runs once per parseSValue call, and
+  // empty/shallow data never recurses, so a deeply-nested TYPE with empty data is
+  // accepted (the JVM only descends into elements present). try/finally guarantees
+  // the level is decremented even when a nested parse throws.
+  r.enterDepth()
+  try {
+    return parseSValueBody(t, treeVersion, r)
+  } finally {
+    r.exitDepth()
+  }
+}
+
+/**
+ * Body of {@link parseSValue}, run inside the reader-level depth guard. Kept
+ * as a separate function so the single enter/exit pair in `parseSValue` wraps
+ * every `switch` arm (including the early-returning ones) without repeating
+ * try/finally per arm.
+ */
+function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
   switch (t.tag) {
     case 'SBoolean':
       // sigma-rust: `Literal::Boolean(r.get_u8()? != 0)`. Any nonzero byte
@@ -229,11 +354,24 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       return { kind: 'BigInt', value: decodeBigIntBE(bytes) }
     }
 
-    case 'SGroupElement':
-      // 33 raw bytes (compressed SEC1, or all zeros = identity). Defensive
-      // copy: `readBytes` returns a subarray view; the caller may mutate
-      // the underlying buffer later. We .slice() to detach.
-      return { kind: 'GroupElement', value: r.readBytes(33).slice() }
+    case 'SGroupElement': {
+      // F5 batch 4: validate + normalize per the GE canonical-bytes invariant
+      // (facts/ergoscript-eval.md). JVM GroupElementSerializer.parse:35-42 —
+      // 0x00-lead ⇒ identity (tail discarded); else decodePoint curve-validates.
+      // Defensive copy: `readBytes` returns a subarray view; .slice() detaches.
+      const raw = r.readBytes(33).slice()
+      return {
+        kind: 'GroupElement',
+        value: canonicalGePayload(
+          raw,
+          (cause) =>
+            new SValueParseError(
+              `SGroupElement payload is not a valid curve point: ${cause}`,
+              'group-element-invalid-point'
+            )
+        ),
+      }
+    }
 
     case 'SUnit':
       return { kind: 'Unit' }
@@ -278,14 +416,29 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
     }
 
     case 'SOption': {
-      // 1-byte tag: exactly `1` means Some (parse inner via `t.elem`); any
-      // other byte means None (cursor stops at the tag, no further read).
-      // Mirrors sigma-rust's `get_option` in `sigma-ser/src/vlq_encode.rs`:
-      // `match is_opt { 1 => Some(get_value(self)?), _ => None }`. Critical
-      // for adversarial inputs: a byte like `0x02` reads as None with the
-      // cursor at +1, NOT as Some-with-recurse into inner parsing.
+      // V3-gated DATA: the JVM deserializes Option DATA only at tree-version
+      // ≥ 3 (CoreDataSerializer.scala:140-143 — the SOption arm is guarded by
+      // isV3OrLaterErgoTreeVersion; pre-v3 falls through to
+      // CheckSerializableTypeCode/ValidationRule 1009 + SerializerException).
+      // Recursive by construction: Option nested anywhere inside a constant's
+      // type tree (Coll[Option[T]], pairs, …) reaches this arm via recursion —
+      // the same shape as the JVM's recursive deserialize. Same gate family as
+      // the SHeader gate below.
+      if (treeVersion < 3) {
+        throw new SValueParseError(
+          `SOption SValue requires tree-version >= 3; got treeVersion=${treeVersion}`,
+          'soption-tree-version-too-low'
+        )
+      }
+      // Option DATA tag (scorex-util VLQReader.getOption — bytecode-verified
+      // F4-epilogue + SANTA-blessed SOption.nonzero_data_tag): `0` → None;
+      // ANY nonzero → Some, payload follows. NB sigma-rust `get_option`
+      // (`1 => Some, _ => None`) is a FORK on tags ≥ 2 — a 0x02-tag Some
+      // mis-reads as None and desyncs the byte stream; no longer mirrored
+      // (F5 batch 1, 2026-06-08). Serialize emits canonical 0x01/0x00, so a
+      // nonzero-noncanonical tag does not byte-round-trip — same on the JVM.
       const tag = r.readU8()
-      if (tag === 1) {
+      if (tag !== 0) {
         const inner = parseSValue(t.elem, treeVersion, r)
         return { kind: 'Option', elem: t.elem, value: inner }
       }
@@ -321,31 +474,55 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       //   ergo_tree_bytes — self-delimiting via ErgoTree header. Sigma-rust
       //                     calls `ErgoTree::sigma_parse(r)` on the shared
       //                     reader (chain/ergo_box.rs:350). We mirror via
-      //                     `parseTreeFromReader` which handles both
+      //                     `consumeTreeFromReader` which handles both
       //                     hasSize=true (size-prefixed body) and
       //                     hasSize=false (body grammar self-delimits) as
       //                     of phase 2j-pre fix-1. The captured byte range
       //                     is stored verbatim on the SBox; downstream
       //                     callers may re-parse via parseTree(bytes).
       //   creation_height — VLQ u32 (`put_u32`)
-      //   tokens_count    — raw u8 (`put_u8`, NOT VLQ), capped at 122
+      //   tokens_count    — raw u8 (`put_u8`, NOT VLQ); no count gate — the
+      //                     u8 ceiling 255 is the natural bound (JVM getUByte,
+      //                     ErgoBoxCandidate.scala:200); the real bound is the
+      //                     4096-byte candidate window below
       //   per-token       — 32-byte TokenId (raw) + VLQ u64 amount (`put_u64`)
       //   additional_regs — raw u8 count (`put_u8`) + per-register:
       //                     SType byte + SValue bytes (same as inline Const wire)
       //   transaction_id  — 32 raw bytes
       //   index           — VLQ u16 (`put_u16` in sigma-ser = VLQ, NOT raw BE)
 
+      // Retained-bytes capture (F5 batch 4 E): the JVM parse snapshots the
+      // position before reading any field and hands the consumed slice to
+      // the ErgoBox constructor as `_bytes` (ErgoBox.scala:214-225). Box
+      // equality/id derive from these bytes, so non-canonical-but-accepted
+      // encodings (e.g. garbage-tail identity GE registers, normalized at
+      // the SValue layer) still yield JVM-faithful distinct ids.
+      const boxStart = r.position
+
+      // 4096-byte candidate window (F5 batch 5): arm at candidate start —
+      // mirrors ErgoBoxCandidate.scala:191-192. The window is LAZY (one
+      // entry check per logical read, strict `>`, straddles tolerated, an
+      // overrun by the candidate's FINAL read escapes — see the positionLimit
+      // block in facts/scorex.md). The save/restore is INLINE, NOT
+      // try/finally: a window-overrun throw abandons the parse exactly like
+      // the JVM (the reader is not reused after a parse error). A nested box
+      // (in a register) legitimately arms a window EXCEEDING this one for its
+      // inner span — the setter has no clamp (CoreByteReader.scala:133-137).
+      const previousPositionLimit = r.positionLimit
+      r.positionLimit = r.position + ERGO_BOX_MAX_SIZE
+
       // --- value (VLQ u64, unsigned) ---
       const value = r.readVlqBigInt()
 
       // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
       // Sigma-rust calls `ErgoTree::sigma_parse(r)` on the shared reader
-      // at `chain/ergo_box.rs:350`. We mirror via `parseTreeFromReader`
+      // at `chain/ergo_box.rs:350`. We mirror via `consumeTreeFromReader`
       // which handles both `hasSize=true` (size-prefixed bounded body)
       // and `hasSize=false` (body grammar self-delimits) on the shared
-      // reader. The returned ErgoTree value is discarded here — the SBox
-      // only needs the raw bytes; downstream callers re-parse via the
-      // public `parseTree` if they want structural access.
+      // reader. No parsed tree is returned (the consumer only advances
+      // the cursor) — the SBox only needs the raw bytes; downstream
+      // callers re-parse via the public `parseTree` if they want
+      // structural access.
       // Use the lenient consumer: for `hasSize=true` trees, the body is
       // skipped without attempting to parse — sigma-rust similarly wraps
       // such trees as `ErgoTree::Unparsed { tree_bytes, error }` and
@@ -356,24 +533,35 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       consumeTreeFromReader(r)
       const ergoTreeBytes = r.slice(treeStart, r.position).slice()
 
-      // --- creation_height (VLQ u32; rejects > u32 to match sigma-rust
-      //     `r.get_u32()` at chain/ergo_box.rs:351) ---
+      // --- creation_height (VLQ; rejects > Int.MaxValue (2^31-1) to match the
+      //     JVM consensus reader `r.getUIntExact` (ErgoBoxCandidate.scala:195) =
+      //     `getUInt().toIntExact` (CoreByteReader.scala:73), which throws an
+      //     ArithmeticException for any value > 0x7fffffff. The ceiling is i32,
+      //     NOT u32 (the prior `> 0xffffffff` mirrored the non-canonical
+      //     sigma-rust `get_u32` at chain/ergo_box.rs:351 — looser than the JVM,
+      //     a latent fork on a hand-crafted height in (2^31, 2^32)). NO-FORK per
+      //     ErgoBoxCandidate.scala:195-199: v4.x used `.toInt` (wrap-to-negative,
+      //     then rejected by tx-validation rule #122); v5.x throws at parse —
+      //     same accept/reject outcome. ergots is a v5+/v6 validator → parse-
+      //     reject here. (The scorex header-height u32 sibling is deferred to its
+      //     own branch.) ---
       const creationHeight = r.readVlqU()
-      if (creationHeight > 0xffffffff) {
+      if (creationHeight > 0x7fffffff) {
         throw new SValueParseError(
-          `SBox creation_height ${creationHeight} out of u32 range`,
+          `SBox creation_height ${creationHeight} exceeds 2^31-1 (Int.MaxValue; JVM getUIntExact)`,
           'sbox-creation-height-out-of-range'
         )
       }
 
       // --- tokens (raw u8 count + per-token 32-byte id + VLQ u64 amount) ---
+      // NO count gate: the JVM reads `nTokens = r.getUByte()` bare
+      // (ErgoBoxCandidate.scala:200) — the u8 read's natural ceiling 255 is
+      // the only count bound; the real gate is the 4096-byte candidate window
+      // armed above. (The pre-F5-batch-5 >122 gate mirrored sigma-rust's
+      // BoundedVec<Token, 1, 122> — their own comment, ergo_box.rs:100-104,
+      // marks it a count-shaped approximation of the size rule. SANTA-measured
+      // boundary: 123 tokens fits the window; the JVM accepts.)
       const tokenCount = r.readU8() // raw u8, NOT VLQ
-      if (tokenCount > 122) {
-        throw new SValueParseError(
-          `SBox tokens count ${tokenCount} exceeds MAX_TOKENS_COUNT (122)`,
-          'sbox-tokens-out-of-range'
-        )
-      }
       const tokens: { id: Uint8Array; amount: bigint }[] = []
       for (let i = 0; i < tokenCount; i++) {
         const id = r.readBytes(32).slice()
@@ -415,6 +603,12 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
         }
       }
 
+      // Restore the enclosing window: the candidate span ends with the
+      // registers; txId/index sit OUTSIDE it — mirrors the
+      // ErgoBoxCandidate.scala:235 restore running BEFORE ErgoBox's
+      // txId/index reads (ErgoBox.scala:214-225).
+      r.positionLimit = previousPositionLimit
+
       // --- transaction_id (32 raw bytes) ---
       const txId = r.readBytes(32).slice()
 
@@ -439,6 +633,9 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
           creationHeight,
           txId,
           index,
+          // Detached copy — scorex `slice` returns a view over the reader's
+          // backing buffer.
+          retainedBytes: r.slice(boxStart, r.position).slice(),
         },
       }
     }
@@ -462,12 +659,13 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       //                     rejects values above `2^32 - 1`). Stored as JS
       //                     number; mirrors the serializer's u32 cap.
       //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
-      //                     (`serialization/serializable.rs:223-230`).
+      //                     (`serialization/serializable.rs:223-230`; JVM
+      //                     `AvlTreeData.scala:85` reads via `r.getOption(...)`
+      //                     — scorex-util getOption: any nonzero tag → Some).
       //                     Read 1-byte tag: any non-zero tag means Some,
       //                     `0` means None. Parser is permissive (`tag != 0`)
       //                     where serializer writes only `0` or `1`; the
-      //                     serializer round-trip will canonicalize to
-      //                     `0x01` for Some.
+      //                     serializer round-trip will canonicalize to `0x01`.
       const digest = r.readBytes(33).slice()
       const treeFlags = r.readU8()
       const keyLength = readVlqU32(r, 'SAvlTree.keyLength')
@@ -493,7 +691,37 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
           'sheader-tree-version-too-low'
         )
       }
+      const start = r.position
       const header = parseHeader(r)
+      // id basis: the JVM retains the ORIGINAL consumed slice as `_bytes`
+      // (ErgoHeader.sigmaSerializer.parse capture, ErgoHeader.scala:167-180)
+      // and derives id = Blake2b256(_bytes) (:132-140) — id derivation
+      // precedes normalization. scorex parseHeader instead derives id from a
+      // RE-serialization (header.ts:112 → deriveHeaderId :183-185), which
+      // coincides only for canonical encodings (it diverges on adversarial
+      // non-minimal VLQ / v1 d-bytes encodings) — so pin the JVM basis here.
+      header.id = blake2b256(r.slice(start, r.position))
+      // F5 batch 4 — GE canonical-bytes invariant on the hydration leg. The
+      // JVM parses minerPk + (v1) powOnetimePk through GroupElementSerializer
+      // (AutolykosSolution.sigmaSerializerV1.parse ErgoHeader.scala:72-79,
+      // .sigmaSerializerV2.parse :89-93): 0x00-lead → identity POINT (tail
+      // discarded); invalid non-0x00-lead → throw (surfaced through the
+      // deserializeTo failure wrap on that ingress). scorex readFixed returns
+      // subarray VIEWS into the reader buffer — .slice() detaches the
+      // verbatim (valid-point) path; the normalize path is already fresh.
+      const sol = header.autolykosSolution
+      sol.minerPk = canonicalGePayload(sol.minerPk.slice(), (cause) =>
+        new SValueParseError(
+          `SHeader minerPk is not a valid curve point: ${cause}`,
+          'group-element-invalid-point',
+        ))
+      if (sol.powOnetimePk !== null) {
+        sol.powOnetimePk = canonicalGePayload(sol.powOnetimePk.slice(), (cause) =>
+          new SValueParseError(
+            `SHeader powOnetimePk is not a valid curve point: ${cause}`,
+            'group-element-invalid-point',
+          ))
+      }
       return { kind: 'Header', value: header }
     }
 
@@ -529,6 +757,21 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
         'not-implemented-phase-2a'
       )
 
+    case 'SUnsignedBigInt': {
+      // VLQ length + unsigned-magnitude BE bytes. Permissive on version (the v3
+      // gate is validateV6Types). Length-0 decodes to 0n (must accept; the JVM
+      // does — rejecting would be stricter = fork). See P2a spec §3.
+      const len = r.readVlqU()
+      if (len > 32) {
+        throw new SValueParseError(
+          `SUnsignedBigInt length ${len} exceeds 32 bytes`,
+          'unsigned-bigint-too-large',
+        )
+      }
+      const bytes = r.readBytes(len)
+      return { kind: 'UnsignedBigInt', value: decodeUnsignedBigIntBE(bytes) }
+    }
+
     default: {
       // Compile-time exhaustiveness: every variant must be matched above.
       const _exhaust: never = t
@@ -538,6 +781,13 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
       )
     }
   }
+}
+
+/** Decode unsigned big-endian magnitude bytes to bigint ([] -> 0n). See spec §3. */
+function decodeUnsignedBigIntBE(bytes: Uint8Array): bigint {
+  let n = 0n
+  for (const b of bytes) n = (n << 8n) | BigInt(b)
+  return n
 }
 
 /**

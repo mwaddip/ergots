@@ -1,0 +1,50 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "sigmaProp equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "false#0",
+      "script" : "{ (x: Boolean) => sigmaProp(x) }",
+      "tree_bytes_hex" : "1a0e00dad9010101d1720101e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : false
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    },
+    {
+      "name" : "true#1",
+      "script" : "{ (x: Boolean) => sigmaProp(x) }",
+      "tree_bytes_hex" : "1a0e00dad9010101d1720101e4e30101",
+      "input" : {
+        "kind" : "Boolean",
+        "value" : true
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    }
+  ]
+}

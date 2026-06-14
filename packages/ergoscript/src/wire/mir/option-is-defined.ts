@@ -37,9 +37,10 @@ export function parseOptionIsDefined(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): OptionIsDefined {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'OptionIsDefined', input }
 }
 
@@ -50,7 +51,8 @@ export function parseOptionIsDefined(
  */
 export function serializeOptionIsDefined(
   e: OptionIsDefined,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.input, w)
+  serializeExpr(e.input, w, treeVersion)
 }

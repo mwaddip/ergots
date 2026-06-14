@@ -1,46 +1,39 @@
 /**
- * CreateAvlTree arm — fixture-driven evaluation tests.
+ * CreateAvlTree arm — unconditional eval-reject pins (F4 epilogue).
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/create_avl_tree.rs:15-41
- *   No add_jit_cost call — children-only cost.
- *   let flags_v = self.flags.eval(env, ctx)?.try_extract_into::<i8>()? as u8;
- *   let digest_v = self.digest.eval(env, ctx)?.try_extract_into::<Vec<i8>>()?;
- *   let key_length = self.key_length.eval(env, ctx)?.try_extract_into::<i32>()? as u32;
- *   let value_length_opt = match self.value_length.clone() {
- *     Some(expr) => Some(Box::new(expr.eval(env, ctx)?.try_extract_into::<i32>()? as u32)),
- *     None => None,
- *   };
- *   let tree_flags = AvlTreeFlags::parse(flags_v);
- *   let digest = ADDigest::try_from(digest_v.as_vec_u8()).map_err(...)?;
- *   Ok(Value::AvlTree(...))
+ * The JVM has NO eval override for CreateAvlTree (trees.scala:79-91):
+ * `costKind = Value.notSupportedError` + default `Value.eval` →
+ * `sys.error("Should be overriden in ...")` (values.scala:102); the node
+ * carries a `// TODO v6.0: implement eval` comment (trees.scala:77, issue
+ * #907). EVERY evaluation throws JVM-side. JVM-blessed vector pins the
+ * reject at ergoTree v3 (`AvlTree.unsupported_eval_nodes_v6.json
+ * #create_avl_tree-errored#1`, blessed_by jvm:sigma-state-6.0.3); no v5
+ * vector exists because the tree is JVM-unserializable at v5 (the
+ * Option-typed constant needs v6 Option data serialization — SANTA reply).
  *
- * Critical load-bearing behaviors:
+ * ergots' previous arm was a sigma-rust port (constructed AvlTreeData with
+ * flag canonicalization + u32 bit-casts) — a consensus over-accept vs the
+ * JVM, convergent with sigma-rust/eni (routed to sigma-rust via SANTA).
+ * The arm now throws `'unsupported-eval-node'` before charging anything or
+ * evaluating any operand.
  *
- * 1. AvlTreeFlags canonicalization (sigma-rust mir/avl_tree_data.rs:32-38):
- *      `AvlTreeFlags::parse` masks input to bits 0..2 only — reserved bits
- *      3..7 are stripped. The `cat_flags_FF_canonicalize` fixture passes
- *      flags=0xFF (-1 i8) and the oracle expects treeFlags=0x07 in the
- *      AvlTreeData JSON. Without TS `flagsV.value & 0x07`, this fixture
- *      FAILS — it's the canary against regressions.
+ * The same epilogue round fixed the node's WIRE layout: the JVM serializes
+ * FOUR expr operands (valueLengthOpt is an SOption[SInt]-TYPED expr, no
+ * presence tag — CreateAvlTreeSerializer.scala:24-37); sigma-rust's
+ * presence-tag `Option<Box<Expr>>` shape is a wire fork. The old fixture
+ * corpus (sigma-rust-shaped bytes + evaluating expectations) is therefore
+ * retired wholesale; the new entries are JVM-layout trees:
  *
- *      DIVERGES from the wire-parse path (phase 2h-b's parseSValue(SAvlTree, …))
- *      which preserves all 8 bits. Both paths are correct mirrors of sigma-rust.
+ *   - cat_reject_blessed_vector_v3 — the blessed vector's exact tree bytes
+ *     (segregated v3, placeholders, Const(SOption[SInt], None) operand).
+ *   - cat_reject_before_operand_eval_garbage_flags_type — same tree with
+ *     the flags constant's type flipped SByte→SInt: operand types are
+ *     never inspected (the throw precedes operand evaluation).
+ *   - cat_reject_inline_operands_vlen_some — inline-constant encoding with
+ *     valueLengthOpt = Const(SOption[SInt], Some(32)).
  *
- * 2. KeyLength bit-cast (sigma-rust create_avl_tree.rs:23):
- *      `try_extract_into::<i32>()? as u32` — a BIT-CAST, not a range check.
- *      Negative i32 → huge u32 (e.g., -1 → 4294967295). TS mirror:
- *      `keyLengthV.value >>> 0`. Same for `valueLength.value >>> 0`.
- *      The `cat_negative_keylength` fixture passes i32::MIN and the oracle
- *      expects keyLength=2147483648 (u32 bit-cast of -2147483648).
- *
- * Throw paths (non-Byte flags / non-Coll digest / non-Int keyLength / digest
- * !== 33 bytes) — most reached only via synthesized MIR trees that bypass
- * `CreateAvlTree::new`'s build-time `(SByte, SColl(SByte), SInt, Option<SInt>)`
- * check. The fixture-gen module builds the `CreateAvlTree` struct directly for
- * the type-mismatch throws (multiply_group / exponentiate precedent).
- * `cat_throw_digest_32bytes` uses the normal `::new` path because the digest
- * type IS SColl(SByte); the length check happens at eval time in
- * `ADDigest::try_from`.
+ * Parse/serialize round-trips for the new layout are pinned separately in
+ * test/wire/avl.test.ts.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'

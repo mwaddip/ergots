@@ -135,19 +135,24 @@ describe('SHeader.checkPow edge cases', () => {
 
   it("non-Header receiver throws 'header-obj-not-header'", () => {
     // Direct AST construction bypasses the wire parser (which would catch
-    // this earlier). The receiver is a LongConst(42); the MethodCall targets
-    // SHeader.checkPow (104:16). The dispatcher's V3 gate passes (treeVersion=3);
-    // the cost-700 charge runs; then assertHeaderObj throws because
+    // this earlier). The receiver is a LongConst(42); the call targets
+    // SHeader.checkPow (104:16). checkPow is a ZERO-ARG method, so the
+    // JVM-faithful encoding is the PropertyCall opcode (0xdb) — exactly how the
+    // real fixture now serializes it. (A MethodCall-opcode (0xdc) empty-args node
+    // is rejected pre-eval by validateMethodCallArity at V3; see
+    // src/eval/validate-method-call-arity.ts.) PropertyCall and MethodCall share
+    // the same dispatch path for 104:16: the V3 gate passes (treeVersion=3); the
+    // cost-700 charge runs; then assertHeaderObj throws because
     // obj.kind === 'Long' !== 'Header'.
     //
-    // MethodCall shape from packages/ergoscript/src/mir/types.ts:391-401:
-    //   { tag, obj, typeId, methodId, args, explicitTypeArgs }
+    // PropertyCall shape from packages/ergoscript/src/mir/types.ts:428-441:
+    //   { tag, obj, typeId, methodId, explicitTypeArgs }  (no args)
     const tree = {
       header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
       constantTypes: [],
       constants: [],
       body: {
-        tag: 'MethodCall',
+        tag: 'PropertyCall',
         typeId: 104,
         methodId: 16,
         obj: {
@@ -155,7 +160,6 @@ describe('SHeader.checkPow edge cases', () => {
           tpe: { tag: 'SLong' },
           value: { kind: 'Long', value: 42n },
         },
-        args: [],
         explicitTypeArgs: {},
       },
     }

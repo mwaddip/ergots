@@ -13,7 +13,7 @@ Authoritative source-of-truth for wire-format byte layout and evaluator semantic
 | Concern | File |
 |---|---|
 | Wire format (`parseTree`, `serializeTree`, address helpers, `ErgoTree` / `TreeHeader` types, wire-layer error classes incl. `ErgoTreeParseError`/`SerializeError` and `SigmaBooleanParseError`) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 66 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 67/67 implementable + 19 reserved + 4 routed-elsewhere, 54-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 84 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], eval arm coverage 68/68 implementable + 21 reserved, 128-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms, `validateV6Types` pre-eval pass for v6 type gating) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
 | Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 8 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
 | AVL+ membership proofs (`verifyMembershipProof`, `lookupInTree`) | (future, phase 2h) |
 | Cost-equivalence (read `ctx.jitCost` after `evaluateWith(tree, ctx)`) | infrastructure landed in phase 2j-a via the mainnet-validate harness; per-arm calibration ongoing in 2j-b/c/... per [`tools/mainnet-validate/findings/`](../tools/mainnet-validate/findings/) |
@@ -39,7 +39,7 @@ Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 
 ### Package shape
 
-One published npm package, `@ergots/ergoscript`. **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
+One published npm package, `@ergots/ergoscript` (**published to npm as `@ergots/ergoscript@0.2.0`**, 2026-06-02). **Subpath exports — none initially.** If a downstream consumer eventually needs finer tree-shaking (e.g., just the wire layer for a wallet PoC, or just the sigma verifier for a light-client signature-validation utility), introduce a `/wire`, `/eval`, or `/sigma` subpath at that point — the slice contract files above are pre-marked seams. The package itself stays unified until real consumer demand justifies a split.
 
 ### Runtime dependencies
 
@@ -53,7 +53,7 @@ No `Buffer`, no `node:*` outside test files, no WASM.
 The package exports multiple typed error classes, one per surface, each carrying a structural `code: string` for programmatic dispatch:
 
 - **Wire layer** (see [`ergoscript-wire.md`](./ergoscript-wire.md) for full taxonomy): `ErgoTreeParseError`, `ErgoTreeSerializeError`, `ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`, `AddressDecodeError`.
-- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 66 codes): `EvalError`.
+- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 84 codes): `EvalError`.
 - **Sigma-protocol verifier** (see [`ergoscript-sigma.md`](./ergoscript-sigma.md) for full taxonomy of 8 codes): `VerifyError`.
 
 Common discipline: `.message` is human-readable; `.code` matches a fixed enum of structural reason strings for programmatic handling. No other error classes are exported. Internal panics (e.g., a bug in `@noble/hashes` or `@noble/curves`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
@@ -75,12 +75,12 @@ See `docs/specs/` for per-phase test-strategy detail.
 | Slice | Status |
 |---|---|
 | Wire format | 100% of MIR variants parse + serialize byte-identically (255 + 1 + 6 fixtures; 6,221 mutations; 100% taxonomy coverage) |
-| Evaluator | 67 of 67 implementable `Expr` arms wired (post-2i-d reframe; 19 wire opcodes are reserved-but-never-dispatched in sigma-rust and parse-reject via `'opcode-reserved'`; 4 more route through other dispatch paths and parse-reject via `'not-implemented-yet'` pending separate review); 54 method-handler registry entries; 66 `EvalError` codes; substitute-pre-pass architecture (`_substitute-deserialize.ts`) for DeserializeContext / DeserializeRegister arms; mainnet C2 corpus `success` ≥ 18 (uplift TBD on next corpus run; 2i-a/b/c arms ride along under shape-uniform handlers) |
+| Evaluator | 68 of 68 implementable `Expr` arms wired (post-2i-d reframe; F5 batch 4 added the `LastBlockUtxoRootHash` `0xa6` op-form arm; 21 wire opcodes are reserved-but-never-dispatched in sigma-rust and parse-reject via `'opcode-reserved'` (was 18 — FlatMap/TrivialPropFalse/TrivialPropTrue reclassified from `'not-implemented-yet'` in F5 batch-6, the JVM rejects all three via the same `CheckValidOpCode` path; was 19 before that — `FunDef` parses as a `ValDef` since v6 P6); the wire layer no longer emits `'not-implemented-yet'` (it survives only as an `EvalError` code)); 128 method-handler registry entries (F5 batch 2 +3: `SPreHeader.version`/`nBits`/`votes`); 84 `EvalError` codes (v6 P2a added `'v6-type-in-pre-v3-tree'` + `'unsigned-bigint-op-unsupported'`; v6 P2b added `'unsigned-bigint-out-of-range'` + extended `'unsigned-bigint-op-unsupported'` to cast arm rejects; v6 P2c added 0 new codes — UBI BinOps + bridge methods reuse existing codes; post-P2c: P2d-2 +1, P4 +1, P5a +2, P5b-1 +1, P5b-2 +2, P5c +1, P6 +1 → 81; **F1 removed 2: `'atleast-bound-out-of-range'` + `'deserialize-context-key-not-found'` → 79**; F3 +1 `'sigma-boolean-compare-unsupported'` → 80; F4 epilogue +1 −2 (`'unsupported-eval-node'`; removed `'create-avl-tree-shape-mismatch'` + `'avl-tree-bad-digest-length'`) → 79; F5 batch 1 +1 `'tuple-invalid-arity'` → 80; F5 batch 2 +0; F5 batch 3 +2 `'select-field-non-pair'`/`'unsupported-value-type'` → 82; F5 batch 4 +1 `'atleast-too-many-children'` → 83; F5 batch-4 close-out tally fix +1 `'coll-map-elem-type-infer-failed'` (pre-existing defensive code, phase 2f, tsc-provably unreachable) → 84); substitute-pre-pass architecture (`_substitute-deserialize.ts`) for DeserializeContext / DeserializeRegister arms; `validateV6Types` pre-eval pass for `SUnsignedBigInt`/`SFunc`-112 type gating; mainnet C2 corpus `success` ≥ 18 (uplift TBD on next corpus run; 2i-a/b/c arms ride along under shape-uniform handlers) |
 | Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 8 `VerifyError` codes (3 reserved for ABI stability) |
 | AVL+ | Integrated via `@ergots/avltree` v0.2.0: full 16 of 16 `SAvlTree.*` method handlers wired (phase 2h-b: 7 Tier-1 accessors + 6 Tier-2 verification ops; phase 2h-d: `updateOperations`/`updateDigest` Tier-1 + V3-gated `insertOrUpdate` Tier-2) |
 | Cost-equivalence | Infrastructure landed in phase 2j-a (mainnet-validate harness wiring: shim emits sigma-rust per-input cost via `reduce_to_crypto` + `ctx.jit_cost_value()`; harness compares vs our `ctx.jitCost`; halt-on-first-divergence with structured `error-report.json`). Layer-5 smoke clean to h=1000; first cost-drift surfaced at h=3850 (delta 24, ours undercharged). Per-arm calibration ongoing in 2j-b/c/... |
 
-Cross-runtime: 3174 ergoscript + 156 avltree + 245 nipopow + 177 scorex = 3752 tests, passing under both `node` and `jsdom`.
+Cross-runtime: 3580 ergoscript + 156 avltree + 247 nipopow + 177 scorex = 4160 tests, passing under both `node` and `jsdom` (v6 P2a complete).
 
 **Convention:** when a slice file's coverage changes, this summary table is updated in the same commit.
 

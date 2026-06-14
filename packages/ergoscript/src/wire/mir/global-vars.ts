@@ -17,12 +17,14 @@
  *   OpCode::GROUP_GENERATOR (0x82) => GlobalVars::GroupGenerator
  *
  * Note: `OpCode::LAST_BLOCK_UTXO_ROOT_HASH` (0xa6) is intentionally NOT a
- * GlobalVars.kind. In sigma-rust it is reached via a `PropertyCall` on a
- * `Context` value (method id 9 — see `types/scontext.rs:136` and
- * `ergotree-interpreter/src/eval/scontext.rs:83`). Treating it as a
- * GlobalVars variant would diverge from the reference dispatch path; the
- * top-level opcode dispatcher continues to reject this byte as
- * `not-implemented-yet` until property/method calls land.
+ * GlobalVars.kind. In sigma-rust the property is reached via a
+ * `PropertyCall` on a `Context` value (method id 9 — see
+ * `types/scontext.rs:136` and `ergotree-interpreter/src/eval/scontext.rs:83`)
+ * and the bare byte ERRORS; the JVM (canonical) dispatches it as its own
+ * case object (values.scala:1490). Since F5 batch 4 (Ask-13) the top-level
+ * dispatcher parses it as the dedicated payload-less
+ * `LastBlockUtxoRootHash` Expr variant — see
+ * `wire/mir/last-block-utxo-root-hash.ts`.
  *
  * Both directions are pure opcode-byte work — the dispatcher in
  * `wire/parse.ts` emits the opcode; the per-kind serializer simply maps

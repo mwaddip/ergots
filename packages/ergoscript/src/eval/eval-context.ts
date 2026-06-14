@@ -10,8 +10,23 @@
  */
 
 import type { Header } from '@ergots/scorex'
-import type { ErgoBox, PreHeader, ContextExtension, SValue } from '../mir/types'
+import type { ErgoBox, PreHeader, ContextExtension, SValue, AvlTreeData } from '../mir/types'
 
+/**
+ * Evaluator error. `code` is a stable string key for programmatic matching.
+ *
+ * Known codes (representative, not exhaustive):
+ *   'cost-limit-exceeded'          — JIT cost limit overrun
+ *   'arith-overflow'               — arithmetic overflow / division by zero
+ *   'downcast-overflow'            — Downcast narrowing failed
+ *   'bin-op-not-numeric'           — BinOp applied to a non-numeric operand
+ *   'bin-op-kind-mismatch'         — BinOp operand kinds mismatch (V3+)
+ *   'bigint-result-out-of-range'   — BigInt256 arithmetic result overflows ±2^255
+ *   'v6-type-in-pre-v3-tree'       — SUnsignedBigInt type found in a pre-V3 tree
+ *   'unsigned-bigint-op-unsupported' — UBI operation not yet supported (casts/modular; P2b/P2c)
+ *   'unsigned-bigint-out-of-range'   — UBI value outside [0, 2^256): shiftLeft overflow or negative cast to UBI
+ *   'unsigned-bigint-not-invertible' — UBI.modInverse with gcd(a, m) != 1 (no multiplicative inverse; P2d-2)
+ */
 export class EvalError extends Error {
   constructor(
     message: string,
@@ -61,6 +76,37 @@ export interface EvalOpts {
   dataInputs?: ErgoBox[]
   /** Block headers; sigma-rust uses fixed-size [Header; 10] — TS relaxes to variable length. */
   headers?: Header[]
+  /**
+   * Per-input context extensions, indexed by SPENDING-TRANSACTION input
+   * position — mirrors JVM `spendingTransaction.inputs(i).extension`
+   * (`CContext.scala:76-83`). May legitimately differ in length from
+   * `inputs` (the JVM's own blessed getVarFromInput vector has
+   * tx.inputs = 0 while ctx.inputs = 1) — never validate length equality.
+   * Invariant (documented, not enforced): when both are supplied,
+   * `inputExtensions[selfIndex]` ≡ `extension`; self-`getVar` keeps reading
+   * `extension`. Absent ⇒ every lookup → None (the `dataInputs`
+   * absent-=-empty convention, NOT the `extension`
+   * `'context-field-missing'` convention — per-input witness data a caller
+   * may legitimately not carry). SContext.getVarFromInput (101:12, v6 P7a)
+   * reads this.
+   * Keys in each entry's .values are unsigned 0-255 (see ContextExtension);
+   * the 101:12 handler normalizes its signed Byte var-id operand into that
+   * domain (& 0xff, byte identity with the JVM's signed-Byte Map keys).
+   */
+  inputExtensions?: ContextExtension[]
+  /**
+   * Last-block UTXO state-tree root, as an INDEPENDENT context field — mirrors
+   * JVM `ErgoLikeContext.lastBlockUtxoRoot`. Readers: the
+   * `SContext.lastBlockUtxoRootHash` handler (101:9, method-call.ts) and the
+   * bare 0xa6 op-form arm (eval/last-block-utxo-root-hash.ts). Both read THIS
+   * field directly rather than deriving an AvlTree from `headers[0].stateRoot`
+   * (the sigma-rust quirk at `scontext.rs:83-99`). Absent ⇒ either reader
+   * throws `'context-field-missing'`. The walker supplies
+   * `{ digest: headers[0].stateRoot, treeFlags: 0b111, keyLength: 32,
+   * valueLengthOpt: null }`; the conformance dummy context supplies
+   * `AvlTreeData.dummy`.
+   */
+  lastBlockUtxoRootHash?: AvlTreeData
 }
 
 export interface EvalContext extends EvalOpts {
@@ -95,6 +141,8 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     extension: opts.extension,
     dataInputs: opts.dataInputs,
     headers: opts.headers,
+    inputExtensions: opts.inputExtensions,
+    lastBlockUtxoRootHash: opts.lastBlockUtxoRootHash,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {

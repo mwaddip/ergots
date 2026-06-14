@@ -1,0 +1,257 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Context.properties",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-context-properties",
+  "entries" : [
+    {
+      "name" : "CONTEXT.dataInputs#dummy",
+      "script" : "{ CONTEXT.dataInputs }",
+      "tree_bytes_hex" : "1a0500db6501fe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SBox"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CONTEXT.headers#dummy",
+      "script" : "{ CONTEXT.headers }",
+      "tree_bytes_hex" : "1a0500db6502fe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SHeader"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CONTEXT.selfBoxIndex#dummy",
+      "script" : "{ CONTEXT.selfBoxIndex }",
+      "tree_bytes_hex" : "1a0500db6508fe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 0
+        },
+        "cost" : 25,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CONTEXT.LastBlockUtxoRootHash#dummy",
+      "script" : "{ CONTEXT.LastBlockUtxoRootHash }",
+      "tree_bytes_hex" : "1a0500db6509fe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "000000000000000000000000000000000000000000000000000000000000000000072000"
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CONTEXT.minerPubKey#dummy",
+      "script" : "{ CONTEXT.minerPubKey }",
+      "tree_bytes_hex" : "1a0500db650afe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 121
+            },
+            {
+              "kind" : "Byte",
+              "value" : -66
+            },
+            {
+              "kind" : "Byte",
+              "value" : 102
+            },
+            {
+              "kind" : "Byte",
+              "value" : 126
+            },
+            {
+              "kind" : "Byte",
+              "value" : -7
+            },
+            {
+              "kind" : "Byte",
+              "value" : -36
+            },
+            {
+              "kind" : "Byte",
+              "value" : -69
+            },
+            {
+              "kind" : "Byte",
+              "value" : -84
+            },
+            {
+              "kind" : "Byte",
+              "value" : 85
+            },
+            {
+              "kind" : "Byte",
+              "value" : -96
+            },
+            {
+              "kind" : "Byte",
+              "value" : 98
+            },
+            {
+              "kind" : "Byte",
+              "value" : -107
+            },
+            {
+              "kind" : "Byte",
+              "value" : -50
+            },
+            {
+              "kind" : "Byte",
+              "value" : -121
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 7
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : -101
+            },
+            {
+              "kind" : "Byte",
+              "value" : -4
+            },
+            {
+              "kind" : "Byte",
+              "value" : -37
+            },
+            {
+              "kind" : "Byte",
+              "value" : 45
+            },
+            {
+              "kind" : "Byte",
+              "value" : -50
+            },
+            {
+              "kind" : "Byte",
+              "value" : 40
+            },
+            {
+              "kind" : "Byte",
+              "value" : -39
+            },
+            {
+              "kind" : "Byte",
+              "value" : 89
+            },
+            {
+              "kind" : "Byte",
+              "value" : -14
+            },
+            {
+              "kind" : "Byte",
+              "value" : -127
+            },
+            {
+              "kind" : "Byte",
+              "value" : 91
+            },
+            {
+              "kind" : "Byte",
+              "value" : 22
+            },
+            {
+              "kind" : "Byte",
+              "value" : -8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 23
+            },
+            {
+              "kind" : "Byte",
+              "value" : -104
+            }
+          ]
+        },
+        "cost" : 25,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -63,6 +63,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
+import { assertArgTypeResolved } from './_lambda'
 import { sTypeEquals } from '../mir/stype-helpers'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
@@ -132,8 +133,14 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
   for (const item of inputColl.items) {
     // Per-iter cost (sigma-rust coll_filter.rs:31).
     ctx.addCost(COLL_FILTER_PER_ITER)
-    // Extend env with arg binding (sigma-rust coll_filter.rs:32: env.insert(func_arg.idx, arg)).
-    const bodyEnv = env.extend(argId, item)
+    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
+    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_filter.rs:32:
+    // env.insert(func_arg.idx, arg)). For inline predicate lambdas capturedEnv
+    // == the caller env (no-op); differs only for out-of-scope-captured lambdas.
+    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    const bodyEnv = closure.capturedEnv.extend(argId, item)
     // Eval body (sigma-rust coll_filter.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     // Result-type check: Filter's predicate MUST return Boolean.

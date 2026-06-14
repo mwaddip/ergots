@@ -50,6 +50,7 @@ import {
   widerKind,
   upcastCost,
 } from './_numeric'
+import { evalUBIArith } from './_ubi-binop'
 
 // ---------------------------------------------------------------------------
 // Cost table — mirrors sigma-rust bin_op.rs:194-203.
@@ -81,6 +82,20 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
 
   // Step 1: eval left operand (sigma-rust bin_op.rs:190).
   const lv = evalExpr(e.left, env, ctx)
+
+  // UBI is not in `isNumeric` (P2b Critical 1) — route it locally, before the
+  // guard. Both operands must be UBI; cost is the non-BigInt tier (spec §3).
+  if (lv.kind === 'UnsignedBigInt') {
+    ctx.addCost(arithCost(op, /*isBigInt*/ false)) // 15 / 15 / 5 by op
+    const rv = evalExpr(e.right, env, ctx)
+    if (rv.kind !== 'UnsignedBigInt') {
+      throw new EvalError(
+        `BinOp.Arith.${op}: UnsignedBigInt operand requires an UnsignedBigInt other operand, got '${rv.kind}'`,
+        'bin-op-kind-mismatch',
+      )
+    }
+    return { kind: 'UnsignedBigInt', value: evalUBIArith(op, lv.value, rv.value) }
+  }
 
   // Validate left is numeric before charging cost (mirrors sigma-rust which
   // dispatches on lv.kind below — a non-numeric left would hit the `_ => Err`

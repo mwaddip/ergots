@@ -96,6 +96,12 @@ Format:
 
 When uncertain, **read the Rust source in `~/projects/ergo-node-rust/` or the sigma-rust `ergo-nipopow` crate directly.** Notes drift; source is authoritative.
 
+## Consensus correctness — the adversarial path carries equal weight
+
+ergots is a consensus validator: it must accept exactly what the reference (JVM `sigma-state`; sigma-rust for v5) accepts and reject exactly what it rejects, for **every** input — not only well-formed, compiler-produced ("honest") trees. A single hand-crafted tree the reference accepts but ergots rejects (or vice-versa) is a latent fork the moment a miner puts it in a block.
+
+So when a gating/validation choice diverges from the reference **only on adversarial inputs, that divergence carries at least as much weight as the honest path** — "an honest compiler would never emit this" is not grounds to discount it. Prefer the fully-faithful option even when it costs more (more plumbing, a slower path). Accept a residual divergence only when closing it needs genuinely broad work (e.g. the `exprTpe` type-var widening behind the SAny-dead-branch residual), never merely because it is adversarial-only. And **verify the reference's *actual* adversarial behavior rather than assuming it — sometimes faithful means LESS code.** Worked example: the v6 P1 numeric-method gate (2026-06-02) — weighing the adversarial path drove an adversarial review that caught a backwards model of the JVM (it *rejects* numeric methods on pre-V3 trees via typeId shadowing), so the faithful gate is the simple `treeVersion ≥ 3`; the more-elaborate "accept under activation" model would have forked. Faithfulness = match the JVM's actual adversarial behavior (verify it), not "more plumbing."
+
 ## TDD is the working discipline
 
 All TypeScript implementation in `packages/*/src/` follows the `superpowers:test-driven-development` skill. Invoke it at the start of any implementation session. The Iron Law applies: **no production code without a failing test first.**

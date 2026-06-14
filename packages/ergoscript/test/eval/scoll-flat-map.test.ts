@@ -115,8 +115,9 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     const obj: SValue = { kind: 'Long', value: 0n }
     const closure: Closure = {
       argIds: [1],
+      argTpes: [SLONG],
       body: { tag: 'Const', tpe: SLONG, value: { kind: 'Long', value: 0n } },
-      capturedEnv: {},
+      capturedEnv: Env.empty(),
     }
     const lambda: SValue = { kind: 'Lambda', closure }
     const mc = buildFlatMapExpr(longConst(0n), buildFuncValueExpr(SLONG, longConst(0n)))
@@ -141,8 +142,9 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     // MethodCall::new would reject the SFunc tpe mismatch at construction).
     const closure: Closure = {
       argIds: [1, 2],
+      argTpes: [SLONG, SLONG],
       body: { tag: 'Const', tpe: SCOLL_LONG, value: { kind: 'Coll', elem: SLONG, items: [] } },
-      capturedEnv: {},
+      capturedEnv: Env.empty(),
     }
     const lambda: SValue = { kind: 'Lambda', closure }
     const mc = buildFlatMapExpr(emptyCollLongConst(), buildFuncValueExpr(SLONG, longConst(0n)))
@@ -162,8 +164,9 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     // FuncValue's MIR arg tpe is SLong but input.elem is SInt.
     const closure: Closure = {
       argIds: [1],
+      argTpes: [SLONG], // FuncValue MIR arg tpe SLong (mismatching SInt input.elem)
       body: { tag: 'Const', tpe: SCOLL_LONG, value: { kind: 'Coll', elem: SLONG, items: [] } },
-      capturedEnv: {},
+      capturedEnv: Env.empty(),
     }
     const lambda: SValue = { kind: 'Lambda', closure }
     const mc = buildFlatMapExpr(
@@ -192,17 +195,20 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     // closure.body is a PropertyCall to indices → exprTpe = Coll[SInt].
     const closure: Closure = {
       argIds: [1],
+      argTpes: [SCOLL_LONG],
       body: {
         tag: 'PropertyCall',
+        explicitTypeArgs: {},
         obj: { tag: 'ValUse', valId: 1, tpe: SCOLL_LONG },
         typeId: 12,
         methodId: 14, // indices
       },
-      capturedEnv: {},
+      capturedEnv: Env.empty(),
     }
     const lambda: SValue = { kind: 'Lambda', closure }
     const lambdaExpr: Expr = buildFuncValueExpr(SCOLL_LONG, {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'ValUse', valId: 1, tpe: SCOLL_LONG },
       typeId: 12,
       methodId: 14,
@@ -236,11 +242,12 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     const obj: SValue = { kind: 'Coll', elem: SGROUPELEMENT, items: [] }
     const body: Expr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'ValUse', valId: 1, tpe: SGROUPELEMENT },
       typeId: 7,
       methodId: 2, // getEncoded
     }
-    const closure: Closure = { argIds: [1], body, capturedEnv: {} }
+    const closure: Closure = { argIds: [1], argTpes: [SGROUPELEMENT], body, capturedEnv: Env.empty() }
     const lambda: SValue = { kind: 'Lambda', closure }
     const lambdaExpr: Expr = buildFuncValueExpr(SGROUPELEMENT, body)
     const mc = buildFlatMapExpr(
@@ -269,7 +276,7 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
       tpe: SCOLL_LONG,
       value: { kind: 'Long', value: 0n },
     }
-    const closure: Closure = { argIds: [1], body: malformed_body, capturedEnv: {} }
+    const closure: Closure = { argIds: [1], argTpes: [SLONG], body: malformed_body, capturedEnv: Env.empty() }
     const lambda: SValue = { kind: 'Lambda', closure }
     const lambdaExpr: Expr = buildFuncValueExpr(SLONG, malformed_body)
     const mc = buildFlatMapExpr(

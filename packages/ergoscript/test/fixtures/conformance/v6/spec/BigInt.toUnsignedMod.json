@@ -1,0 +1,65 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "BigInt.toUnsignedMod",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "(CBigInt(50),CUnsignedBigInt(10))#0",
+      "script" : "{ (xs: (BigInt, UnsignedBigInt)) => xs._1.toUnsignedMod(xs._2) }",
+      "tree_bytes_hex" : "1b1900dad901014209dc060f8c720101018c72010201e4e3014209",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "50"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "10"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 114,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(50),CUnsignedBigInt(0))#1",
+      "script" : "{ (xs: (BigInt, UnsignedBigInt)) => xs._1.toUnsignedMod(xs._2) }",
+      "tree_bytes_hex" : "1b1900dad901014209dc060f8c720101018c72010201e4e3014209",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "50"
+          },
+          {
+            "kind" : "UnsignedBigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

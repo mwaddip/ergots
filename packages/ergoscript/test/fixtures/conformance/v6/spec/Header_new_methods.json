@@ -1,0 +1,29 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Header new methods",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "CHeader(\n  id: Coll(86,3,-87,55,-20,25,-120,34,15,-60,79,-75,2,47,-72,45,85,101,-71,97,-16,5,-21,-75,93,-123,-67,90,-98,111,-128,31),\n  version: 2,\n  tx proofs hash: Coll(93,63,-128,-36,-1,127,94,127,89,0,114,-108,-63,-128,-128,-115,1,88,-47,-1,107,-95,0,0,-7,1,-57,-16,-17,-121,-36,-1),\n  state root: Coll(92,-116,0,-72,64,61,55,1,85,113,-127,-56,-33,-128,0,1,-74,-43,0,-98,34,1,-58,-1,-128,125,113,-128,-116,0,1,-105,-128),\n  transactions root: Coll(-15,127,-1,-84,-74,-1,127,127,17,-128,-46,-1,127,30,36,-1,-1,-31,-1,-109,127,-128,127,7,-105,-71,-1,110,-67,-82,0,126),\n  time: 4928911477310178288,\n  nbits: 37748736,\n  extension root: Coll(20,-128,-120,127,-128,0,127,75,1,-49,127,1,63,-15,-1,-1,86,74,0,0,-71,-91,79,0,119,14,-128,127,65,-1,-120,-64),\n  miner pubkey: GroupElement(ECPoint(bedaee,c86689,...)),\n  pow one time pubkey(from AL 1): GroupElement(ECPoint(79be66,483ada,...)),\n  pow nonce: Coll(0,0,0,0,0,0,49,5),\n  pow distance (from AL 1): CBigInt(0),\n  votes: Coll(0,0,0),\n  unparsed bytes: Coll()\n)#0",
+      "script" : "{ (x: Header) => x.checkPow }",
+      "tree_bytes_hex" : "1b1000dad9010168db6810720101e4e30168",
+      "input" : {
+        "kind" : "Header",
+        "bytes_hex" : "02ac2101807f0000ca01ff0119db227f202201007f62000177a080005d440896d05d3f80dcff7f5e7f59007294c180808d0158d1ff6ba10000f901c7f0ef87dcfff17fffacb6ff7f7f1180d2ff7f1e24ffffe1ff937f807f0797b9ff6ebdae007e5c8c00b8403d3701557181c8df800001b6d5009e2201c6ff807d71808c00019780f087adb3fcdbc0b3441480887f80007f4b01cf7f013ff1ffff564a0000b9a54f00770e807f41ff88c00240000080c0250000000003bedaee069ff4829500b3c07c4d5fe6b3ea3d3bf76c5c28c1d4dcdb1bed0ade0c0000000000003105"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 774,
+        "error" : null
+      }
+    }
+  ]
+}

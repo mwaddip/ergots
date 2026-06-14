@@ -1,0 +1,32 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "AvlTree.empty_ops_valid_proof_v6",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-avl-degenerate",
+  "entries" : [
+    {
+      "name" : "insertOrUpdate-empty-ops-some#0",
+      "script" : "{ tree.insertOrUpdate([], validEmptyProof) }  // → Some(starting tree)",
+      "tree_bytes_hex" : "1b580264fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04072001080e2203fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c04dc641073000283003c0e0e7301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "AvlTree",
+            "bytes_hex" : "fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c0407200108"
+          }
+        },
+        "cost" : 226,
+        "error" : null
+      }
+    }
+  ]
+}

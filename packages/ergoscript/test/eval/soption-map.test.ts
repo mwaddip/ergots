@@ -21,6 +21,9 @@ import { makeContext } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { evalSOptionMap } from '../../src/eval/soption-map'
+import { Env } from '../../src/eval/env'
+import type { SValue, Expr, SType } from '../../src/mir/types'
 
 interface MapEntry {
   name: string
@@ -49,4 +52,51 @@ describe('SOption.map — fixture-driven', () => {
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }
+})
+
+// ---------------------------------------------------------------------------
+// F3.5 cost-pin: ADD_TO_ENV_COST(5) on lambda invocation for Some-path.
+// Route A: direct evalSOptionMap call with hand-built closure.
+//
+// Decomposition for Some-path (obj = Some(Int 5), body = Const Int 7):
+//   20  MapMethod fixed cost (Pattern A)
+//    5  ADD_TO_ENV_COST on lambda arg-binding (F3.5 fix; same class as
+//       apply.ts:74 and scoll-flat-map.ts:139 per-element charge)
+//    5  Const body eval
+//  ---
+//   30  total
+//
+// None-path: fixed cost 20 only — lambda never invoked, ADD_TO_ENV not charged.
+// ---------------------------------------------------------------------------
+describe('SOption.map — F3.5 ADD_TO_ENV cost pin (direct handler)', () => {
+  const SINT: SType = { tag: 'SInt' }
+  const constBody: Expr = { tag: 'Const', tpe: SINT, value: { kind: 'Int', value: 7 } }
+
+  function makeClosure(): SValue {
+    return {
+      kind: 'Lambda',
+      closure: {
+        argIds: [1],
+        argTpes: [SINT],
+        body: constBody,
+        capturedEnv: Env.empty(),
+      },
+    }
+  }
+
+  it('Some-path: total cost 30 (20 map + 5 ADD_TO_ENV + 5 body Const)', () => {
+    const ctx = makeContext({})
+    const obj: SValue = { kind: 'Option', elem: SINT, value: { kind: 'Int', value: 5 } }
+    const result = evalSOptionMap(obj, [makeClosure()], ctx, Env.empty())
+    expect(result).toEqual({ kind: 'Option', elem: SINT, value: { kind: 'Int', value: 7 } })
+    expect(ctx.jitCost).toBe(30)
+  })
+
+  it('None-path: total cost 20 (fixed only — lambda not invoked)', () => {
+    const ctx = makeContext({})
+    const obj: SValue = { kind: 'Option', elem: SINT, value: null }
+    const result = evalSOptionMap(obj, [makeClosure()], ctx, Env.empty())
+    expect(result).toEqual({ kind: 'Option', elem: SINT, value: null })
+    expect(ctx.jitCost).toBe(20)
+  })
 })

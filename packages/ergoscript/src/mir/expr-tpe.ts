@@ -64,12 +64,20 @@ export function exprTpe(e: Expr): SType {
       return { tag: 'SFunc', args, result, tpeParams }
     }
     case 'Apply': {
+      // Apply's type is the t_range of the func's SFunc type. Relaxation
+      // (mirrors ByIndex/OptionGet): an SAny func type cascades to SAny — an
+      // unresolved method/property-call return is concrete at runtime and in
+      // the JVM, so propagate SAny statically rather than throwing (avoids
+      // over-rejecting a JVM-accepted tree). A non-SAny, non-SFunc func is a
+      // genuinely malformed AST → typed error.
+      //
       // sigma-rust `mir/apply.rs::Apply::new` (lines 32-54): Apply's type is
-      // the `t_range` of the func's `SFunc` type. We compute the func's tpe
-      // and project the `result` field. If the func's tpe is NOT an SFunc,
-      // this is a malformed AST — sigma-rust panics-on-unwrap there; we
-      // surface a typed error so the caller can localize the issue.
+      // the `t_range` of the func's `SFunc` type; sigma-rust panics-on-unwrap
+      // for a non-SFunc. We surface a typed error instead, but skip SAny.
       const ft = exprTpe(e.func)
+      if (ft.tag === 'SAny') {
+        return { tag: 'SAny' }
+      }
       if (ft.tag !== 'SFunc') {
         throw new ExprTpeError(
           `Apply.func has tpe ${ft.tag}, expected SFunc`,
@@ -151,7 +159,7 @@ export function exprTpe(e: Expr): SType {
       // docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md.
       const sig = methodSignature(e.typeId, e.methodId)
       if (sig === undefined) return { tag: 'SAny' }
-      return resolveReturnTpe(sig, exprTpe(e.obj), [], {})
+      return resolveReturnTpe(sig, exprTpe(e.obj), [], e.explicitTypeArgs)
     }
     case 'SelectField': {
       // sigma-rust `mir/select_field.rs::SelectField::tpe` (line 107-109): the
@@ -283,6 +291,11 @@ export function exprTpe(e: Expr): SType {
     case 'Context':
       // sigma-rust mir/expr.rs:267 — Expr::Context → SContext.
       return { tag: 'SContext' }
+    case 'LastBlockUtxoRootHash':
+      // JVM values.scala:1490 — `case object LastBlockUtxoRootHash extends
+      // NotReadyValueAvlTree`: tpe is SAvlTree (no sigma-rust counterpart;
+      // F5 batch 4, Ask-13).
+      return { tag: 'SAvlTree' }
     case 'ZkProofBlock':
       // mir/zk_proof.rs::ZkProofBlock::tpe → SBoolean (body is SSigmaProp, but
       // the ZK-scope block's value type is SBoolean).

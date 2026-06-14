@@ -1,0 +1,623 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "BigInt methods equivalence",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "CBigInt(-14693894636587820051838727403117415518053393133609330258625044075854022880)#0",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-14693894636587820051838727403117415518053393133609330258625044075854022880"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-14693894636587820051838727403117415518053393133609330258625044075854022880"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-9223372036854775808)#1",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-9223372036854775808"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-9223372036854775808"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-1)#2",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "-1"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(0)#3",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "0"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(1)#4",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "1"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "1"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(9223372036854775807)#5",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "9223372036854775807"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "9223372036854775807"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(20962942660413319102970743506182455605771100091768742618956597715423952320)#6",
+      "script" : "{ (x: BigInt) => x.toBigInt }",
+      "tree_bytes_hex" : "1a0d00dad9010106720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "20962942660413319102970743506182455605771100091768742618956597715423952320"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "20962942660413319102970743506182455605771100091768742618956597715423952320"
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-237667291732890705415759070688194141320707724852842310157797643660994403356),CBigInt(-15238891859707369240680772629862877))#7",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-237667291732890705415759070688194141320707724852842310157797643660994403356"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-15238891859707369240680772629862877"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(-160726909996299389545495767984929056711066572245090879634),CBigInt(-3831061859419661095))#8",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-160726909996299389545495767984929056711066572245090879634"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-3831061859419661095"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(-88860817679037092071738769298990821415159153878737645888),CBigInt(3593483920164633913))#9",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-88860817679037092071738769298990821415159153878737645888"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "3593483920164633913"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "BigInt",
+              "value" : "-88860817679037092071738769298990821411565669958573011975"
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "BigInt",
+                  "value" : "-88860817679037092071738769298990821418752637798902279801"
+                },
+                {
+                  "kind" : "Tuple",
+                  "items" : [
+                    {
+                      "kind" : "BigInt",
+                      "value" : "-319319919462301015570232208456424819286463189584711209418007827102949799744"
+                    },
+                    {
+                      "kind" : "Tuple",
+                      "items" : [
+                        {
+                          "kind" : "BigInt",
+                          "value" : "-24728319272670064461556233324879489276"
+                        },
+                        {
+                          "kind" : "BigInt",
+                          "value" : "1368682534376405013"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 332,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-9223372036854775808),CBigInt(9223372036854775808))#10",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-9223372036854775808"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "9223372036854775808"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "BigInt",
+              "value" : "0"
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "BigInt",
+                  "value" : "-18446744073709551616"
+                },
+                {
+                  "kind" : "Tuple",
+                  "items" : [
+                    {
+                      "kind" : "BigInt",
+                      "value" : "-85070591730234615865843651857942052864"
+                    },
+                    {
+                      "kind" : "Tuple",
+                      "items" : [
+                        {
+                          "kind" : "BigInt",
+                          "value" : "-1"
+                        },
+                        {
+                          "kind" : "BigInt",
+                          "value" : "0"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 332,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(-5178821319739311291),CBigInt(-4073550854584329859))#11",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-5178821319739311291"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-4073550854584329859"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(-359694857034178573),CBigInt(-2147483649))#12",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-359694857034178573"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-2147483649"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(-2147483649),CBigInt(-2147483649))#13",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "-2147483649"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-2147483649"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(-9223372036854775808))#14",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-9223372036854775808"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(0),CBigInt(0))#15",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "0"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(1),CBigInt(-12836987683191869291771059019705842156354552919385845742))#16",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "1"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-12836987683191869291771059019705842156354552919385845742"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(2147483648),CBigInt(7504280232499506012503316381523266719153794440440747940))#17",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "2147483648"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "7504280232499506012503316381523266719153794440440747940"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "BigInt",
+              "value" : "7504280232499506012503316381523266719153794442588231588"
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "BigInt",
+                  "value" : "-7504280232499506012503316381523266719153794438293264292"
+                },
+                {
+                  "kind" : "Tuple",
+                  "items" : [
+                    {
+                      "kind" : "BigInt",
+                      "value" : "16115319089302327329928555475091744610925381957999816114039685120"
+                    },
+                    {
+                      "kind" : "Tuple",
+                      "items" : [
+                        {
+                          "kind" : "BigInt",
+                          "value" : "0"
+                        },
+                        {
+                          "kind" : "BigInt",
+                          "value" : "2147483648"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 332,
+        "error" : null
+      }
+    },
+    {
+      "name" : "(CBigInt(4409368791221809923),CBigInt(-74039594711928073242927457586929863114))#18",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "4409368791221809923"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "-74039594711928073242927457586929863114"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "(CBigInt(7073370289635818281551545753712390867),CBigInt(18780447815845705445938721988598426737149577521168733351))#19",
+      "script" : "{ (x: (BigInt, BigInt)) =>\n  val a = x._1; val b = x._2\n  val plus = a + b\n  val minus = a - b\n  val mul = a * b\n  val div = a / b\n  val mod = a % b\n  (plus, (minus, (mul, (div, mod))))\n}",
+      "tree_bytes_hex" : "1a3a00dad901015ad802d6038c720101d6048c72010286029a720372048602997203720486029c7203720486029d720372049e7203720401e4e3015a",
+      "input" : {
+        "kind" : "Tuple",
+        "items" : [
+          {
+            "kind" : "BigInt",
+            "value" : "7073370289635818281551545753712390867"
+          },
+          {
+            "kind" : "BigInt",
+            "value" : "18780447815845705445938721988598426737149577521168733351"
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

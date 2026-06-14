@@ -1,0 +1,65 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Apply.non_unary_arity",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-sfunc-arity",
+  "entries" : [
+    {
+      "name" : "apply-2-args-on-unary-errored#0",
+      "script" : "{ val inc = (x:Int) => x+1; inc(3,4) }  // JVM: Function application must have 1 argument — Apply.eval's own arity gate (the unary closure creates fine first)",
+      "tree_bytes_hex" : "1003040204060408d801d601d90102049a72027300da72010273017302",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "apply-0-args-on-unary-errored#0",
+      "script" : "{ val inc = (x:Int) => x+1; inc() }  // JVM: Function application must have 1 argument — the zero-args application side",
+      "tree_bytes_hex" : "10010402d801d601d90102049a72027300da720100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "apply-unary-control-accept#0",
+      "script" : "{ val inc = (x:Int) => x+1; inc(41) }  // ACCEPTS Int 42 — the unary control: same shape, legal arity (the family pins arity, not the construct)",
+      "tree_bytes_hex" : "100204020452d801d601d90102049a72027300da7201017301",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 42
+        },
+        "cost" : 74,
+        "error" : null
+      }
+    }
+  ]
+}

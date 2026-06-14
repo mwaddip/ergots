@@ -32,9 +32,14 @@ import type { ErgoTree } from '../../src/mir/types'
  *   GetVar::OP_CODE         => Ok(GetVar::sigma_parse(r)?.into())
  *
  * Note: `LAST_BLOCK_UTXO_ROOT_HASH` (opcode 0xa6) is NOT a top-level Expr
- * variant in sigma-rust — it's reached via a `PropertyCall` on
- * `Context` (method id 9 per `types/scontext.rs:136`). It is therefore NOT
- * a GlobalVars.kind; this test file deliberately omits it.
+ * variant in sigma-rust — it's reached there via a `PropertyCall` on
+ * `Context` (method id 9 per `types/scontext.rs:136`), and sigma-rust
+ * ERRORS on the bare byte. The JVM dispatches it as its own case object
+ * (values.scala:1490), so since F5 batch 4 (Ask-13) ergots parses it as
+ * the dedicated payload-less `LastBlockUtxoRootHash` variant — see its
+ * describe block below. It is deliberately NOT a GlobalVars.kind (matches
+ * both references: JVM has no GlobalVars grouping; sigma-rust's GlobalVars
+ * omits it).
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/global_vars.rs
@@ -142,6 +147,58 @@ describe('Context variant', () => {
     }
     const out = serializeTree(tree)
     expect(Array.from(out)).toEqual([0x00, 0xfe])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// LastBlockUtxoRootHash (JVM `sigma.ast.LastBlockUtxoRootHash` case object —
+// values.scala:1490-1501; opcode LAST_BLOCK_UTXO_ROOT_HASH = 0xa6 =
+// newOpCode(54), OpCodes.scala:95). Payload-less leaf serialized via the
+// JVM CaseObjectSerialization (opcode byte only). F5 batch 4, Ask-13: the
+// bare op-form is a distinct wire shape from the PropertyCall form (101:9)
+// of the same context property — sigma-rust has NO dispatch for this byte
+// (its serializer never emits it either), but the JVM accepts it, so the
+// consensus-faithful behavior is to parse + evaluate it.
+// ---------------------------------------------------------------------------
+
+describe('LastBlockUtxoRootHash variant', () => {
+  it('round-trips LAST_BLOCK_UTXO_ROOT_HASH (0xa6)', () => {
+    const bytes = new Uint8Array([0x00, 0xa6])
+    const tree = parseTree(bytes)
+    expect(tree.body).toEqual({ tag: 'LastBlockUtxoRootHash' })
+    expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
+  })
+
+  it('builds and serializes LastBlockUtxoRootHash programmatically', () => {
+    const tree: ErgoTree = {
+      header: {
+        version: 0,
+        hasSize: false,
+        constantSegregation: false,
+        rawHeader: 0x00,
+      },
+      constantTypes: [],
+      constants: [],
+      body: { tag: 'LastBlockUtxoRootHash' },
+    }
+    const out = serializeTree(tree)
+    expect(Array.from(out)).toEqual([0x00, 0xa6])
+  })
+
+  it('round-trips nested inside a larger body (If branches)', () => {
+    // If(Const(true), LastBlockUtxoRootHash, LastBlockUtxoRootHash):
+    //   0x00       header (v0, no size, no segregation)
+    //   0x95       OP_IF
+    //   0x01 0x01  condition = Const(SBoolean true)
+    //   0xa6       true-branch  = LastBlockUtxoRootHash
+    //   0xa6       false-branch = LastBlockUtxoRootHash
+    const bytes = new Uint8Array([0x00, 0x95, 0x01, 0x01, 0xa6, 0xa6])
+    const tree = parseTree(bytes)
+    expect(tree.body.tag).toBe('If')
+    if (tree.body.tag !== 'If') throw new Error('unreachable')
+    expect(tree.body.trueBranch).toEqual({ tag: 'LastBlockUtxoRootHash' })
+    expect(tree.body.falseBranch).toEqual({ tag: 'LastBlockUtxoRootHash' })
+    expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
   })
 })
 

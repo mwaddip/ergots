@@ -1,0 +1,191 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Advanced Box test",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "Box(id=Coll(89,-101,59,-115,3,-33,79,-51,-22,91,-7,126,24,109,108,46,-97,-103,-7,-14,-113,75,-77,-24,-38,77,14,-85,-122,103,108,-66); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(1),TestValue(1024),TestValue(1048576),TestValue(1024),TestValue(CBigInt(222)),TestValue(CAvlTree(AvlTreeData(Coll(78,-58,31,72,91,-104,-21,-121,21,63,124,87,-37,79,94,-51,117,85,111,-35,-68,64,59,65,-84,-8,68,31,-34,-114,22,9,0),AvlTreeFlags(true,true,true),32,None)))))#0",
+      "script" : "{ (x: Box) => x.R4[Byte].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201040201e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000602010380100480808001058010060200de644ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Box(id=Coll(-117,88,-125,-63,-89,116,69,46,35,26,51,-15,15,-29,45,90,41,-8,-105,-13,-46,56,44,-74,-116,101,122,19,26,107,-117,30); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(Coll(1)),null,null,null,null,null))#1",
+      "script" : "{ (x: Box) => x.R4[Byte].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201040201e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d30000010e0101000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "Box(id=Coll(89,-101,59,-115,3,-33,79,-51,-22,91,-7,126,24,109,108,46,-97,-103,-7,-14,-113,75,-77,-24,-38,77,14,-85,-122,103,108,-66); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(1),TestValue(1024),TestValue(1048576),TestValue(1024),TestValue(CBigInt(222)),TestValue(CAvlTree(AvlTreeData(Coll(78,-58,31,72,91,-104,-21,-121,21,63,124,87,-37,79,94,-51,117,85,111,-35,-68,64,59,65,-84,-8,68,31,-34,-114,22,9,0),AvlTreeFlags(true,true,true),32,None)))))#2",
+      "script" : "{ (x: Box) => x.R5[Short].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201050301e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000602010380100480808001058010060200de644ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Short",
+          "value" : 1024
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Box(id=Coll(-117,88,-125,-63,-89,116,69,46,35,26,51,-15,15,-29,45,90,41,-8,-105,-13,-46,56,44,-74,-116,101,122,19,26,107,-117,30); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(Coll(1)),null,null,null,null,null))#3",
+      "script" : "{ (x: Box) => x.R5[Short].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201050301e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d30000010e0101000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "Box(id=Coll(89,-101,59,-115,3,-33,79,-51,-22,91,-7,126,24,109,108,46,-97,-103,-7,-14,-113,75,-77,-24,-38,77,14,-85,-122,103,108,-66); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(1),TestValue(1024),TestValue(1048576),TestValue(1024),TestValue(CBigInt(222)),TestValue(CAvlTree(AvlTreeData(Coll(78,-58,31,72,91,-104,-21,-121,21,63,124,87,-37,79,94,-51,117,85,111,-35,-68,64,59,65,-84,-8,68,31,-34,-114,22,9,0),AvlTreeFlags(true,true,true),32,None)))))#4",
+      "script" : "{ (x: Box) => x.R6[Int].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201060401e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000602010380100480808001058010060200de644ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1048576
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Box(id=Coll(89,-101,59,-115,3,-33,79,-51,-22,91,-7,126,24,109,108,46,-97,-103,-7,-14,-113,75,-77,-24,-38,77,14,-85,-122,103,108,-66); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(1),TestValue(1024),TestValue(1048576),TestValue(1024),TestValue(CBigInt(222)),TestValue(CAvlTree(AvlTreeData(Coll(78,-58,31,72,91,-104,-21,-121,21,63,124,87,-37,79,94,-51,117,85,111,-35,-68,64,59,65,-84,-8,68,31,-34,-114,22,9,0),AvlTreeFlags(true,true,true),32,None)))))#5",
+      "script" : "{ (x: Box) => x.R7[Long].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201070501e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000602010380100480808001058010060200de644ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1024"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Box(id=Coll(89,-101,59,-115,3,-33,79,-51,-22,91,-7,126,24,109,108,46,-97,-103,-7,-14,-113,75,-77,-24,-38,77,14,-85,-122,103,108,-66); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(1),TestValue(1024),TestValue(1048576),TestValue(1024),TestValue(CBigInt(222)),TestValue(CAvlTree(AvlTreeData(Coll(78,-58,31,72,91,-104,-21,-121,21,63,124,87,-37,79,94,-51,117,85,111,-35,-68,64,59,65,-84,-8,68,31,-34,-114,22,9,0),AvlTreeFlags(true,true,true),32,None)))))#6",
+      "script" : "{ (x: Box) => x.R8[BigInt].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201080601e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000602010380100480808001058010060200de644ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "222"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Box(id=Coll(89,-101,59,-115,3,-33,79,-51,-22,91,-7,126,24,109,108,46,-97,-103,-7,-14,-113,75,-77,-24,-38,77,14,-85,-122,103,108,-66); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue(1),TestValue(1024),TestValue(1048576),TestValue(1024),TestValue(CBigInt(222)),TestValue(CAvlTree(AvlTreeData(Coll(78,-58,31,72,91,-104,-21,-121,21,63,124,87,-37,79,94,-51,117,85,111,-35,-68,64,59,65,-84,-8,68,31,-34,-114,22,9,0),AvlTreeFlags(true,true,true),32,None)))))#7",
+      "script" : "{ (x: Box) => x.R9[AvlTree].get }",
+      "tree_bytes_hex" : "1a1100dad9010163e4c67201096401e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000602010380100480808001058010060200de644ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "AvlTree",
+          "bytes_hex" : "4ec61f485b98eb87153f7c57db4f5ecd75556fddbc403b41acf8441fde8e160900072000"
+        },
+        "cost" : 135,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Box(id=Coll(-40,49,-99,13,8,49,-49,-93,98,-79,46,32,85,-92,-105,-68,94,-127,-23,-60,-87,-84,-111,87,-46,-104,87,-17,29,12,61,-101); value=1000000; regs=Coll(TestValue(1000000),TestValue(Coll(10,2,8,-45)),TestValue(Coll()),TestValue((0,Coll(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),TestValue((10,20)),null,null,null,null,null))#8",
+      "script" : "{ (x: Box) => x.R4[(Int, Long)].get._1 }",
+      "tree_bytes_hex" : "1a1400dad90101638ce4c672010440050101e4e30163",
+      "input" : {
+        "kind" : "Box",
+        "bytes_hex" : "c0843d0a0208d300000140051428000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 10
+        },
+        "cost" : 145,
+        "error" : null
+      }
+    }
+  ]
+}

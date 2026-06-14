@@ -162,7 +162,8 @@ export function parseBinOpFromByte(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): BinOp {
   const kind = BIN_OP_OPCODE_TO_KIND[opcode]
   if (!kind) {
@@ -205,9 +206,10 @@ export function parseBinOpFromByte(
     r,
     constantTypes,
     constantValues,
-    valDefTypes
+    valDefTypes,
+    treeVersion
   )
-  const right = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const right = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'BinOp', op: kind, left, right }
 }
 
@@ -226,7 +228,7 @@ export function parseBinOpFromByte(
  * write path used by `SigmaByteWriter` with segregation enabled (see the
  * design spec's "no constant store on write" decision).
  */
-export function serializeBinOp(b: BinOp, w: ByteWriter): void {
+export function serializeBinOp(b: BinOp, w: ByteWriter, treeVersion: number): void {
   const opcode = binOpKindToOpcode(b.op)
   w.writeU8(opcode)
 
@@ -252,6 +254,6 @@ export function serializeBinOp(b: BinOp, w: ByteWriter): void {
   }
 
   // General case: serialize both operands as normal Exprs.
-  serializeExpr(b.left, w)
-  serializeExpr(b.right, w)
+  serializeExpr(b.left, w, treeVersion)
+  serializeExpr(b.right, w, treeVersion)
 }

@@ -45,12 +45,13 @@ export function parseSigmaAnd(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): SigmaAnd {
   const count = r.readVlqU()
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
   return { tag: 'SigmaAnd', items }
 }
@@ -64,9 +65,9 @@ export function parseSigmaAnd(
  * (`mir/sigma_and.rs:63-65`) and the `Vec<T>::sigma_serialize` impl
  * (`serialization/serializable.rs:173-176`).
  */
-export function serializeSigmaAnd(e: SigmaAnd, w: ByteWriter): void {
+export function serializeSigmaAnd(e: SigmaAnd, w: ByteWriter, treeVersion: number): void {
   w.writeVlqU(e.items.length)
   for (const item of e.items) {
-    serializeExpr(item, w)
+    serializeExpr(item, w, treeVersion)
   }
 }

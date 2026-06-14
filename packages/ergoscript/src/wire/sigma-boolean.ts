@@ -28,6 +28,7 @@
 
 import type { SigmaBoolean } from '../mir/types'
 import { ByteReader, ReaderError, ByteWriter } from '@ergots/scorex'
+import { canonicalGePayload } from './_ge-canonical'
 
 // Sigma-protocol opcodes (single byte). Same value space as the top-level
 // MIR opcode table — these are part of a unified opcode namespace.
@@ -77,25 +78,67 @@ export class SigmaBooleanSerializeError extends Error {
  *  - 'arity-out-of-range'            — items_count > u16 max
  *  - 'cthreshold-k-out-of-range'     — k outside [1, items.length]
  *  - 'sigma-conjecture-empty-items'  — items.length < 1 (BoundedVec lower bound)
+ *  - 'ec-point-invalid'              — ProveDlog.h or ProveDhTuple.{g,h,u,v} is not a
+ *                                      valid curve point (F5 batch 4: leaves get the
+ *                                      same validate+normalize as the SValue GE arm;
+ *                                      sibling of the serialize-side 'ec-point-length')
  *
  * Source: ergotree-ir/src/serialization/sigmaboolean.rs
  */
 export function parseSigmaBoolean(r: ByteReader): SigmaBoolean {
+  // MaxTreeDepth bound (consensus) — this is the SigmaBoolean increment point of
+  // the JVM's single shared `r.level` counter (`SigmaBoolean.serializer.parse`,
+  // `SigmaBoolean.scala:71-104`: `r.level = depth + 1` on entry, `- 1` on exit).
+  // It shares the same reader-level counter as the expr-node parser (`parseExpr`)
+  // and data parser (`parseSValue`), so a conjecture tree reached via
+  // `parseSValue(SSigmaProp)` continues the whole-tree depth budget. try/finally
+  // keeps the counter balanced if a nested child parse throws.
+  r.enterDepth()
+  try {
+    return parseSigmaBooleanBody(r)
+  } finally {
+    r.exitDepth()
+  }
+}
+
+/**
+ * Body of {@link parseSigmaBoolean}, run inside the reader-level depth guard.
+ * Separated so the single enter/exit pair wraps every dispatch arm.
+ */
+function parseSigmaBooleanBody(r: ByteReader): SigmaBoolean {
   const op = r.readU8()
   switch (op) {
     case OP_TRIVIAL_PROP_FALSE: return { tag: 'TrivialProp', value: false }
     case OP_TRIVIAL_PROP_TRUE:  return { tag: 'TrivialProp', value: true }
     case OP_PROVE_DLOG: {
-      // 33-byte EcPoint (compressed SEC1 or identity-zeros).
-      const h = r.readBytes(33).slice()
+      // 33-byte EcPoint, validated + normalized per the GE canonical-bytes
+      // invariant (F5 batch 4): the JVM parses these leaves through the same
+      // GroupElementSerializer as GE data values — SigmaBoolean.scala:36-44
+      // (serializer wiring) and :71-80 (parse dispatch),
+      // core/shared/src/main/scala/sigma/data/SigmaBoolean.scala. So 0x00-lead
+      // → canonical 33-zero identity (tail discarded); invalid non-0x00-lead
+      // → throw.
+      const h = canonicalGePayload(r.readBytes(33).slice(), (cause) =>
+        new SigmaBooleanParseError(
+          `ProveDlog.h is not a valid curve point: ${cause}`,
+          'ec-point-invalid',
+        ))
       return { tag: 'ProveDlog', h }
     }
     case OP_PROVE_DH_TUPLE: {
-      // 4 × 33-byte EcPoint = g, h, u, v.
-      const g = r.readBytes(33).slice()
-      const h = r.readBytes(33).slice()
-      const u = r.readBytes(33).slice()
-      const v = r.readBytes(33).slice()
+      // 4 × 33-byte EcPoint = g, h, u, v — each through the same
+      // GroupElementSerializer-equivalent validate+normalize as ProveDlog.h
+      // (JVM SigmaBoolean.scala:36-44,71-80 via ProveDHTupleSerializer).
+      const readLeg = (name: string): Uint8Array =>
+        canonicalGePayload(r.readBytes(33).slice(), (cause) =>
+          new SigmaBooleanParseError(
+            `ProveDhTuple.${name} is not a valid curve point: ${cause}`,
+            'ec-point-invalid',
+          ))
+      const g = readLeg('g')
+      const h = readLeg('h')
+      const u = readLeg('u')
+      const v = readLeg('v')
       return { tag: 'ProveDhTuple', g, h, u, v }
     }
     case OP_AND:

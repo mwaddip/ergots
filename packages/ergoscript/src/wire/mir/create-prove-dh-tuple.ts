@@ -40,12 +40,13 @@ export function parseCreateProveDhTuple(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): CreateProveDhTuple {
-  const g = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const h = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const u = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const v = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const g = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const h = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const u = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const v = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'CreateProveDhTuple', g, h, u, v }
 }
 
@@ -59,10 +60,11 @@ export function parseCreateProveDhTuple(
  */
 export function serializeCreateProveDhTuple(
   e: CreateProveDhTuple,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.g, w)
-  serializeExpr(e.h, w)
-  serializeExpr(e.u, w)
-  serializeExpr(e.v, w)
+  serializeExpr(e.g, w, treeVersion)
+  serializeExpr(e.h, w, treeVersion)
+  serializeExpr(e.u, w, treeVersion)
+  serializeExpr(e.v, w, treeVersion)
 }

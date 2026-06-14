@@ -44,6 +44,7 @@ export function evalExtractAmount(
       'extract-input-not-box'
     )
   }
-  // box.value is already bigint per the ErgoBox interface.
-  return { kind: 'Long', value: input.value.value }
+  // Signed-i64 VIEW of the u64 wire field (JVM `as Long`; u64-max → -1) —
+  // F3.5, same model as the F2 timestamp accessors. Raw bigint stays on ErgoBox.
+  return { kind: 'Long', value: BigInt.asIntN(64, input.value.value) }
 }

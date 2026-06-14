@@ -11,7 +11,11 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseSigmaBoolean, serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
+import {
+  parseSigmaBoolean,
+  serializeSigmaBoolean,
+  SigmaBooleanParseError,
+} from '../../src/wire/sigma-boolean'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { hexToBytes } from '../_helpers'
 import type { SigmaBoolean } from '../../src/mir/types'
@@ -125,4 +129,71 @@ describe('SigmaBoolean wire-format per-variant fixtures', () => {
       expect(bytesEqual(reserialized, bytes)).toBe(true)
     })
   }
+})
+
+// ---------------------------------------------------------------------------
+// F5 batch 4 (member D part 2) — GE canonical-bytes invariant at SigmaBoolean
+// leaf points (ProveDlog.h, ProveDhTuple g/h/u/v).
+//
+// JVM verdict: these leaves parse through the same GroupElementSerializer as
+// GE data values — SigmaBoolean.scala:36-44 (ProveDlogSerializer /
+// ProveDHTupleSerializer wiring) and :71-80 (parse dispatch), each serializer
+// delegating to GroupElementSerializer.parse (ProveDlogSerializer.scala:12-15,
+// ProveDHTupleSerializer.scala:17-23). So: 0x00-lead → identity POINT (tail
+// discarded, re-serializes as 33 zeros); invalid non-0x00-lead → throw.
+//
+// Contract: facts/ergoscript-sigma.md "GE canonical-bytes" invariant bullet;
+// facts/ergoscript-wire.md `'ec-point-invalid'` taxonomy entry.
+// ---------------------------------------------------------------------------
+
+// secp256k1 generator G, SEC1 compressed (valid point).
+const GENERATOR_HEX = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+// x = 2^256 - 1 > field prime p → not a curve point; JVM decodePoint throws.
+const INVALID_X = '02' + 'ff'.repeat(32)
+// 0x00-lead with garbage tail: JVM parses to the identity POINT, tail discarded.
+const GARBAGE_IDENTITY = '00' + 'aa'.repeat(32)
+// Canonical identity encoding (what the JVM serializer emits for infinity).
+const CANONICAL_IDENTITY = '00'.repeat(33)
+
+const OP_PROVE_DLOG_HEX = 'cd'
+const OP_PROVE_DH_TUPLE_HEX = 'ce'
+
+describe('SigmaBoolean leaf EC points — GE canonical-bytes invariant (F5 batch 4)', () => {
+  it('ProveDlog with x-not-on-curve h rejects with ec-point-invalid', () => {
+    const bytes = hexToBytes(OP_PROVE_DLOG_HEX + INVALID_X)
+    expect(() => parseSigmaBoolean(new ByteReader(bytes))).toThrow(
+      expect.objectContaining({
+        name: 'SigmaBooleanParseError',
+        code: 'ec-point-invalid',
+      })
+    )
+    expect(() => parseSigmaBoolean(new ByteReader(bytes))).toThrow(SigmaBooleanParseError)
+  })
+
+  it('ProveDlog with 0x00-lead garbage-tail h normalizes to the canonical identity', () => {
+    const bytes = hexToBytes(OP_PROVE_DLOG_HEX + GARBAGE_IDENTITY)
+    const parsed = parseSigmaBoolean(new ByteReader(bytes))
+    expect(parsed.tag).toBe('ProveDlog')
+    if (parsed.tag !== 'ProveDlog') throw new Error('unreachable')
+    expect(parsed.h).toEqual(hexToBytes(CANONICAL_IDENTITY))
+
+    // Carve-out 3: re-serialization emits the CANONICAL identity (≠ garbage
+    // input) — same as the JVM value layer, which re-serializes the POINT.
+    const w = new ByteWriter()
+    serializeSigmaBoolean(parsed, w)
+    expect(w.toBytes()).toEqual(hexToBytes(OP_PROVE_DLOG_HEX + CANONICAL_IDENTITY))
+  })
+
+  it('ProveDhTuple with one invalid leg (u) rejects with ec-point-invalid, naming the field', () => {
+    const bytes = hexToBytes(
+      OP_PROVE_DH_TUPLE_HEX + GENERATOR_HEX + GENERATOR_HEX + INVALID_X + GENERATOR_HEX
+    )
+    expect(() => parseSigmaBoolean(new ByteReader(bytes))).toThrow(
+      expect.objectContaining({
+        name: 'SigmaBooleanParseError',
+        code: 'ec-point-invalid',
+        message: expect.stringContaining('ProveDhTuple.u'),
+      })
+    )
+  })
 })

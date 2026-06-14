@@ -40,9 +40,10 @@ export function parseCreateProveDlog(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): CreateProveDlog {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'CreateProveDlog', input }
 }
 
@@ -53,7 +54,8 @@ export function parseCreateProveDlog(
  */
 export function serializeCreateProveDlog(
   c: CreateProveDlog,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(c.input, w)
+  serializeExpr(c.input, w, treeVersion)
 }

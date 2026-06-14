@@ -11,9 +11,9 @@ import { ByteReader } from '@ergots/scorex'
  * values are pinned here so a regression that flips one byte fails loudly
  * rather than going undetected until a fixture test runs. The dispatch
  * tests check that:
- *   - inline-constant bytes (0..=LAST_CONSTANT_CODE) throw
- *     `not-implemented-yet`
- *   - known opcodes throw `not-implemented-yet`
+ *   - inline-constant bytes (0..=LAST_CONSTANT_CODE) route to the constant
+ *     parser (not the opcode switch)
+ *   - reserved-but-undispatched opcodes throw `opcode-reserved`
  *   - unknown opcodes throw `unknown-opcode`
  */
 
@@ -88,7 +88,7 @@ describe('parseExpr dispatch shell', () => {
   function parseOne(byte: number): ExprParseError {
     const r = new ByteReader(new Uint8Array([byte]))
     try {
-      parseExpr(r, [], [])
+      parseExpr(r, [], [], new Map(), 0)
       throw new Error('parseExpr should have thrown')
     } catch (e) {
       if (!(e instanceof ExprParseError)) {
@@ -104,7 +104,7 @@ describe('parseExpr dispatch shell', () => {
     // SBoolean Const (type code + 1-byte boolean value) and assert the
     // produced Expr is a Const.
     const r = new ByteReader(new Uint8Array([0x01, 0x01]))
-    const e = parseExpr(r, [], [])
+    const e = parseExpr(r, [], [], new Map(), 0)
     expect(e.tag).toBe('Const')
     if (e.tag !== 'Const') throw new Error('unreachable')
     expect(e.tpe).toEqual({ tag: 'SBoolean' })
@@ -122,7 +122,7 @@ describe('parseExpr dispatch shell', () => {
     // arm (which would have thrown `ExprParseError` with that code).
     const r = new ByteReader(new Uint8Array([OP.LAST_CONSTANT_CODE]))
     try {
-      parseExpr(r, [], [])
+      parseExpr(r, [], [], new Map(), 0)
       throw new Error('parseExpr should have thrown')
     } catch (e) {
       // The error MUST NOT be an `unknown-opcode` ExprParseError — that
@@ -144,7 +144,7 @@ describe('parseExpr dispatch shell', () => {
     // reader doesn't run out before the lookup runs.
     const r = new ByteReader(new Uint8Array([OP.OP_VAL_USE, 0x00]))
     try {
-      parseExpr(r, [], [])
+      parseExpr(r, [], [], new Map(), 0)
       throw new Error('parseExpr should have thrown')
     } catch (e) {
       expect(e).toBeInstanceOf(ExprParseError)
@@ -161,7 +161,7 @@ describe('parseExpr dispatch shell', () => {
     // parser. The earlier `not-implemented-yet` assertion is stale.
     const r = new ByteReader(new Uint8Array([OP.OP_IF]))
     try {
-      parseExpr(r, [], [])
+      parseExpr(r, [], [], new Map(), 0)
       throw new Error('parseExpr should have thrown')
     } catch (e) {
       // Either an ExprParseError (e.g. nested 'unknown-opcode' if a stray
@@ -175,16 +175,28 @@ describe('parseExpr dispatch shell', () => {
     }
   })
 
-  it('LAST_BLOCK_UTXO_ROOT_HASH (0xa6) is a known opcode → not-implemented-yet', () => {
-    // LAST_BLOCK_UTXO_ROOT_HASH is in sigma-rust's opcode table but is NOT
-    // dispatched at the top level — it's reached via a PropertyCall on the
-    // SContext companion (method id 9). Until PropertyCall lands, this byte
-    // is the canary for "named in sigma-rust's opcode table but no TS
-    // handler yet" — earlier task suites used XOR_OF (landed in Task 14)
-    // and CONTEXT (landed in Task 17) for the same purpose.
-    const e = parseOne(OP.OP_LAST_BLOCK_UTXO_ROOT_HASH)
-    expect(e.code).toBe('not-implemented-yet')
-    expect(e.message).toContain('LastBlockUtxoRootHash')
+  it('LAST_BLOCK_UTXO_ROOT_HASH (0xa6) is wired to its payload-less node', () => {
+    // F5 batch 4 (Ask-13): the bare op-form dispatches to the
+    // LastBlockUtxoRootHash leaf (JVM values.scala:1490 case object;
+    // sigma-rust errors on this byte — JVM is canonical). Earlier task
+    // suites used this byte as the "known opcode, no handler yet" canary;
+    // that role rotated to FLAT_MAP below.
+    const r = new ByteReader(new Uint8Array([OP.OP_LAST_BLOCK_UTXO_ROOT_HASH]))
+    const e = parseExpr(r, [], [], new Map(), 0)
+    expect(e).toEqual({ tag: 'LastBlockUtxoRootHash' })
+  })
+
+  it('FLAT_MAP (0xb8) is a reserved opcode → opcode-reserved', () => {
+    // FLAT_MAP is in sigma-rust's opcode table but is NOT dispatched at the
+    // Expr layer — the bare byte has no serializer in either reference (the
+    // JVM rejects it via `CheckValidOpCode`); the `flatMap` METHOD is reached
+    // via an SColl method-call elsewhere. This byte exercises the envelope →
+    // body-parser handoff; earlier task suites used XOR_OF (landed in Task 14),
+    // CONTEXT (Task 17) and LAST_BLOCK_UTXO_ROOT_HASH (landed in F5 batch 4)
+    // for the same purpose before they were wired.
+    const e = parseOne(OP.OP_FLAT_MAP)
+    expect(e.code).toBe('opcode-reserved')
+    expect(e.message).toContain('FlatMap')
   })
 
   it('unknown opcode 0xab (shift 59, reserved) throws unknown-opcode', () => {

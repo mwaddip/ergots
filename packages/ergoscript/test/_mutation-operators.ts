@@ -107,6 +107,7 @@ function getChildren(expr: Expr): (Expr | null)[] {
     case 'Context':
     case 'Global':
     case 'GlobalVars':
+    case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
     case 'DeserializeContext':
@@ -184,7 +185,8 @@ function getChildren(expr: Expr): (Expr | null)[] {
       return [expr.tree, expr.key, expr.proof]
 
     case 'CreateAvlTree':
-      // children: [flags, digest, keyLength, valueLength|null]
+      // children: [flags, digest, keyLength, valueLength] — 4 exprs (JVM
+      // layout; valueLength is an Option-TYPED expr, always present)
       return [expr.flags, expr.digest, expr.keyLength, expr.valueLength]
 
     case 'CreateProveDhTuple':
@@ -268,6 +270,7 @@ function replaceChild(expr: Expr, index: number, newChild: Expr): Expr {
     case 'Context':
     case 'Global':
     case 'GlobalVars':
+    case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
     case 'DeserializeContext':

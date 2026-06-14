@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { hexToBytes } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**
@@ -19,9 +20,10 @@ import type { ErgoTree } from '../../src/mir/types'
  * Const encoding cheat-sheet for the byte vectors below
  * (see `wire/serialize-stype.ts:82-188`, `wire/serialize-svalue.ts:60-105`):
  *   - SBigInt (6):        VLQ length + raw big-endian two's-complement bytes
- *   - SGroupElement (7):  exactly 33 raw bytes (SEC1 compressed point or
- *                         33 zero bytes for identity — wire layer doesn't
- *                         validate curve membership)
+ *   - SGroupElement (7):  33 bytes, curve-validated + normalized at parse
+ *                         (F5 batch 4 GE canonical-bytes invariant:
+ *                         0x00-lead ⇒ canonical identity; else must
+ *                         SEC1-decode — see facts/ergoscript-eval.md)
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/exponentiate.rs
@@ -35,19 +37,18 @@ import type { ErgoTree } from '../../src/mir/types'
  */
 
 /**
- * 33-byte placeholder GroupElement. The wire layer does NOT validate this is
- * a well-formed secp256k1 point — `wire/parse-svalue.ts:132` reads exactly 33
- * bytes; `wire/serialize-svalue.ts:97-103` requires exactly 33. Phase 2g will
- * add curve validation.
- *
- * We use the all-zero identity (33 zeros) for `gA` and a distinct, valid-
- * length sentinel (`0x02` SEC1 prefix + 32 trailing bytes) for `gB` so the
- * round-trip distinguishes the two operands by content.
+ * 33-byte GroupElement test payloads. F5 batch 4 recalibration: the parse arm
+ * now curve-validates non-0x00-lead payloads (JVM GroupElementSerializer.parse
+ * :35-42 — GE canonical-bytes invariant, facts/ergoscript-eval.md), so the
+ * former `0x02 + ascending-bytes` placeholder (x not on the curve) would
+ * parse-reject with 'group-element-invalid-point'. These tests exercise the
+ * Exponentiate/MultiplyGroup wire shapes, not GE validation, so we use real
+ * curve points: `gA` = the canonical identity (33 zeros — normalizes to
+ * itself, so round-trips byte-identically) and `gB` = the secp256k1 generator
+ * G. Distinct content keeps the two operands distinguishable.
  */
-const gA = new Uint8Array(33) // all zeros
-const gB = new Uint8Array(33)
-gB[0] = 0x02 // SEC1 compressed prefix for an even-Y point (placeholder shape)
-for (let i = 1; i < 33; i++) gB[i] = i & 0xff
+const gA = new Uint8Array(33) // canonical identity
+const gB = hexToBytes('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798') // G
 
 describe('Exponentiate variant', () => {
   it('round-trips Exponentiate(Const SGroupElement, Const SBigInt)', () => {

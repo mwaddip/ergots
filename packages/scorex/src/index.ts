@@ -1,6 +1,6 @@
 // @ergots/scorex v0.1.0 -- Scorex wire-codec layer + block-Header types.
 // Phase 2h-c.0 extraction: Phases 1-2 complete; Header types added in Phase 3.
-export { ByteReader, MAX_ARRAY_LENGTH } from './reader.ts';
+export { ByteReader, MAX_ARRAY_LENGTH, MAX_TREE_DEPTH } from './reader.ts';
 export { ByteWriter } from './writer.ts';
 export { ReaderError } from './errors.ts';
 export {
@@ -33,10 +33,10 @@ export {
 export {
   calcBigN,
   autolykosMessage,
-  buildAutolykosSeed,
-  genIndexes,
-  hashElement,
+  autolykosHitForMessage,
+  autolykosHitForMessageWithChecks,
+  int32BE,
   verifyAutolykosV2,
 } from './autolykos-v2.ts';
 export { decodeCompactBits } from './nbits.ts';
-export { AutolykosV1NotSupportedError } from './errors.ts';
+export { AutolykosV1NotSupportedError, PowHitInvalidParamsError } from './errors.ts';

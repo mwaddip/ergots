@@ -1,0 +1,50 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.deserializeTo - header",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "CHeader(\n  id: Coll(86,3,-87,55,-20,25,-120,34,15,-60,79,-75,2,47,-72,45,85,101,-71,97,-16,5,-21,-75,93,-123,-67,90,-98,111,-128,31),\n  version: 2,\n  tx proofs hash: Coll(93,63,-128,-36,-1,127,94,127,89,0,114,-108,-63,-128,-128,-115,1,88,-47,-1,107,-95,0,0,-7,1,-57,-16,-17,-121,-36,-1),\n  state root: Coll(92,-116,0,-72,64,61,55,1,85,113,-127,-56,-33,-128,0,1,-74,-43,0,-98,34,1,-58,-1,-128,125,113,-128,-116,0,1,-105,-128),\n  transactions root: Coll(-15,127,-1,-84,-74,-1,127,127,17,-128,-46,-1,127,30,36,-1,-1,-31,-1,-109,127,-128,127,7,-105,-71,-1,110,-67,-82,0,126),\n  time: 4928911477310178288,\n  nbits: 37748736,\n  extension root: Coll(20,-128,-120,127,-128,0,127,75,1,-49,127,1,63,-15,-1,-1,86,74,0,0,-71,-91,79,0,119,14,-128,127,65,-1,-120,-64),\n  miner pubkey: GroupElement(ECPoint(bedaee,c86689,...)),\n  pow one time pubkey(from AL 1): GroupElement(ECPoint(79be66,483ada,...)),\n  pow nonce: Coll(0,0,0,0,0,0,49,5),\n  pow distance (from AL 1): CBigInt(0),\n  votes: Coll(0,0,0),\n  unparsed bytes: Coll()\n)#0",
+      "script" : "{ (x: Header) => Global.deserializeTo[Header](serialize(x)) == x }",
+      "tree_bytes_hex" : "1b1b00dad901016893dc6a04dd01dc6a03dd01720168720101e4e30168",
+      "input" : {
+        "kind" : "Header",
+        "bytes_hex" : "02ac2101807f0000ca01ff0119db227f202201007f62000177a080005d440896d05d3f80dcff7f5e7f59007294c180808d0158d1ff6ba10000f901c7f0ef87dcfff17fffacb6ff7f7f1180d2ff7f1e24ffffe1ff937f807f0797b9ff6ebdae007e5c8c00b8403d3701557181c8df800001b6d5009e2201c6ff807d71808c00019780f087adb3fcdbc0b3441480887f80007f4b01cf7f013ff1ffff564a0000b9a54f00770e807f41ff88c00240000080c0250000000003bedaee069ff4829500b3c07c4d5fe6b3ea3d3bf76c5c28c1d4dcdb1bed0ade0c0000000000003105"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 677,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CHeader(\n  id: Coll(-80,36,77,-4,38,123,-84,-87,116,-92,-54,-18,6,18,3,33,86,39,-124,48,58,-118,104,-119,118,-82,86,23,14,77,23,91),\n  version: 1,\n  tx proofs hash: Coll(118,106,-73,-93,19,-51,47,-74,109,19,91,11,-26,102,42,-96,45,-6,-114,91,23,52,44,5,-96,67,-106,38,-115,-16,-65,-69),\n  state root: Coll(24,-73,-96,-120,120,-14,-89,-18,67,-119,-59,-95,-50,-50,30,39,36,-85,-24,-72,-83,-56,-111,98,64,-35,27,-54,-64,105,23,115,3),\n  transactions root: Coll(-109,-5,6,-86,68,65,63,-11,122,-56,120,-3,-87,55,114,7,-43,-37,14,120,-125,53,86,-77,49,-76,-39,114,123,49,83,-70),\n  time: 1561978977137,\n  nbits: 100734821,\n  extension root: Coll(14,87,81,-64,38,-27,67,-78,-24,-85,46,-80,96,-103,-38,-95,-47,-27,-33,71,119,-113,119,-121,-6,-85,69,-51,-15,47,-29,-88),\n  miner pubkey: GroupElement(ECPoint(be7ad7,2cf4e6,...)),\n  pow one time pubkey(from AL 1): GroupElement(ECPoint(da9385,6c78ca,...)),\n  pow nonce: Coll(0,0,0,3,1,81,-36,99),\n  pow distance (from AL 1): CBigInt(46909460813884299753486408728361968139945651324239558400157099627),\n  votes: Coll(0,0,0),\n  unparsed bytes: Coll()\n)#1",
+      "script" : "{ (x: Header) => Global.deserializeTo[Header](serialize(x)) == x }",
+      "tree_bytes_hex" : "1b1b00dad901016893dc6a04dd01dc6a03dd01720168720101e4e30168",
+      "input" : {
+        "kind" : "Header",
+        "bytes_hex" : "010000000000000000000000000000000000000000000000000000000000000000766ab7a313cd2fb66d135b0be6662aa02dfa8e5b17342c05a04396268df0bfbb93fb06aa44413ff57ac878fda9377207d5db0e78833556b331b4d9727b3153ba18b7a08878f2a7ee4389c5a1cece1e2724abe8b8adc8916240dd1bcac069177303f1f6cee9ba2d0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8060117650100000003be7ad70c74f691345cbedba19f4844e7fc514e1188a7929f5ae261d5bb00bb6602da9385ac99014ddcffe88d2ac5f28ce817cd615f270a0a5eae58acfb9fd9f6a0000000030151dc631b7207d4420062aeb54e82b0cfb160ff6ace90ab7754f942c4c3266b"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 804,
+        "error" : null
+      }
+    }
+  ]
+}

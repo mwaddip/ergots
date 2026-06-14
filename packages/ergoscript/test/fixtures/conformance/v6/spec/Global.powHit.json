@@ -1,0 +1,109 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.powHit",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "Coll(10,16,27,-116,106,79,46,0,0,0,0,0,0,0,44,0,0,0,0)#0",
+      "script" : "{ (x: Coll[Byte]) => val msg = x.slice(0,7); val nonce = x.slice(7,15); val h = x.slice(15,19); Global.powHit(32, msg, nonce, h, 1024 * 1024) }",
+      "tree_bytes_hex" : "1b3c0804400400040e040e041e041e04260480808001dad901010edc6a08dd057300b4720173017302b4720173037304b4720173057306730701e4e3010e",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SByte"
+        },
+        "items" : [
+          {
+            "kind" : "Byte",
+            "value" : 10
+          },
+          {
+            "kind" : "Byte",
+            "value" : 16
+          },
+          {
+            "kind" : "Byte",
+            "value" : 27
+          },
+          {
+            "kind" : "Byte",
+            "value" : -116
+          },
+          {
+            "kind" : "Byte",
+            "value" : 106
+          },
+          {
+            "kind" : "Byte",
+            "value" : 79
+          },
+          {
+            "kind" : "Byte",
+            "value" : 46
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 44
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          },
+          {
+            "kind" : "Byte",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "326674862673836209462483453386286740270338859283019276168539876024851191344"
+        },
+        "cost" : 864,
+        "error" : null
+      }
+    }
+  ]
+}

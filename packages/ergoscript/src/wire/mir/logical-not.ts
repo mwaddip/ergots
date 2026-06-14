@@ -44,9 +44,10 @@ export function parseLogicalNot(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): LogicalNot {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'LogicalNot', input }
 }
 
@@ -54,6 +55,6 @@ export function parseLogicalNot(
  * Serialize a `LogicalNot` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_LOGICAL_NOT opcode byte). Writes the input Expr.
  */
-export function serializeLogicalNot(n: LogicalNot, w: ByteWriter): void {
-  serializeExpr(n.input, w)
+export function serializeLogicalNot(n: LogicalNot, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(n.input, w, treeVersion)
 }

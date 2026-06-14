@@ -1,9 +1,10 @@
 /**
  * Expr wire-format serializer — central tag-dispatch shell.
  *
- * Mirror of {@link parseExpr}: Task 9 lays down the structure, Tasks 10-26
- * fill in per-variant logic. Each case throws `ExprSerializeError` with
- * code `not-implemented-yet` until its handler is ported.
+ * Mirror of {@link parseExpr}: Task 9 laid down the structure, Tasks 10-26
+ * filled in per-variant logic. Every concrete `Expr` variant now has a
+ * working serializer; the sole remaining throw is `ZkProofBlock`
+ * (`ExprSerializeError 'not-supported'` — a non-canonical variant).
  *
  * The exhaustive switch over `e.tag` is wired so adding a new Expr variant
  * to the union (`mir/types.ts`) becomes a TypeScript compile-time error
@@ -87,11 +88,11 @@ import { serializeOptionIsDefined } from './mir/option-is-defined'
 
 export { ExprSerializeError } from './errors'
 
-export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
+export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void {
   switch (e.tag) {
     case 'Append':
       w.writeU8(OP.OP_APPEND)
-      serializeCollAppend(e, w)
+      serializeCollAppend(e, w, treeVersion)
       return
     case 'Const':
       // serializeConst emits the SType (whose first byte is the inline-
@@ -104,35 +105,35 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       return
     case 'SubstConstants':
       w.writeU8(OP.OP_SUBST_CONSTANTS)
-      serializeSubstConstants(e, w)
+      serializeSubstConstants(e, w, treeVersion)
       return
     case 'ByteArrayToLong':
       w.writeU8(OP.OP_BYTE_ARRAY_TO_LONG)
-      serializeByteArrayToLong(e, w)
+      serializeByteArrayToLong(e, w, treeVersion)
       return
     case 'ByteArrayToBigInt':
       w.writeU8(OP.OP_BYTE_ARRAY_TO_BIGINT)
-      serializeByteArrayToBigInt(e, w)
+      serializeByteArrayToBigInt(e, w, treeVersion)
       return
     case 'LongToByteArray':
       w.writeU8(OP.OP_LONG_TO_BYTE_ARRAY)
-      serializeLongToByteArray(e, w)
+      serializeLongToByteArray(e, w, treeVersion)
       return
     case 'Collection':
       w.writeU8(e.kind === 'Exprs' ? OP.OP_COLL : OP.OP_COLL_OF_BOOL_CONST)
-      serializeCollection(e, w)
+      serializeCollection(e, w, treeVersion)
       return
     case 'Tuple':
       w.writeU8(OP.OP_TUPLE)
-      serializeTuple(e, w)
+      serializeTuple(e, w, treeVersion)
       return
     case 'CalcBlake2b256':
       w.writeU8(OP.OP_CALC_BLAKE2B256)
-      serializeCalcBlake2b256(e, w)
+      serializeCalcBlake2b256(e, w, treeVersion)
       return
     case 'CalcSha256':
       w.writeU8(OP.OP_CALC_SHA256)
-      serializeCalcSha256(e, w)
+      serializeCalcSha256(e, w, treeVersion)
       return
     case 'Context':
       // Context is a unit-variant Expr arm (sigma-rust `Expr::Context`); the
@@ -144,6 +145,13 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       // entire encoding is the single OP_GLOBAL opcode byte.
       w.writeU8(OP.OP_GLOBAL)
       return
+    case 'LastBlockUtxoRootHash':
+      // Payload-less leaf — the entire encoding is the opcode byte. JVM
+      // CaseObjectSerialization (ValueSerializer.scala:87): serialize writes
+      // nothing beyond the opcode. (sigma-rust never emits this byte — JVM
+      // is canonical here; see wire/mir/last-block-utxo-root-hash.ts.)
+      w.writeU8(OP.OP_LAST_BLOCK_UTXO_ROOT_HASH)
+      return
     case 'GlobalVars':
       // GlobalVars emits its own opcode (derived from the `kind`
       // discriminator) — there is no single fixed `OP_*` constant for the
@@ -153,27 +161,29 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       return
     case 'FuncValue':
       w.writeU8(OP.OP_FUNC_VALUE)
-      serializeFuncValue(e, w)
+      serializeFuncValue(e, w, treeVersion)
       return
     case 'Apply':
       w.writeU8(OP.OP_APPLY)
-      serializeApply(e, w)
+      serializeApply(e, w, treeVersion)
       return
     case 'MethodCall':
       w.writeU8(OP.OP_METHOD_CALL)
-      serializeMethodCall(e, w)
+      serializeMethodCall(e, w, treeVersion)
       return
     case 'PropertyCall':
       w.writeU8(OP.OP_PROPERTY_CALL)
-      serializePropertyCall(e, w)
+      serializePropertyCall(e, w, treeVersion)
       return
     case 'BlockValue':
       w.writeU8(OP.OP_BLOCK_VALUE)
-      serializeBlockValue(e, w)
+      serializeBlockValue(e, w, treeVersion)
       return
     case 'ValDef':
-      w.writeU8(OP.OP_VAL_DEF)
-      serializeValDef(e, w)
+      // v6 P6: opcode chosen from tpeArgs — non-empty ⇒ FunDef (0xd7),
+      // absent/empty ⇒ plain ValDef (0xd6). Matches the JVM `companion` switch.
+      w.writeU8(e.tpeArgs && e.tpeArgs.length > 0 ? OP.OP_FUN_DEF : OP.OP_VAL_DEF)
+      serializeValDef(e, w, treeVersion)
       return
     case 'ValUse':
       w.writeU8(OP.OP_VAL_USE)
@@ -181,146 +191,146 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       return
     case 'If':
       w.writeU8(OP.OP_IF)
-      serializeIf(e, w)
+      serializeIf(e, w, treeVersion)
       return
     case 'BinOp':
       // Unlike most variants, BinOp emits its own opcode (derived from the
       // BinOpKind discriminator) — there is no single fixed `OP_*` constant
       // for the `'BinOp'` tag. The serializer also handles the bool-pair
       // packing optimization for `(Const SBoolean, Const SBoolean)` operands.
-      serializeBinOp(e, w)
+      serializeBinOp(e, w, treeVersion)
       return
     case 'And':
       w.writeU8(OP.OP_AND)
-      serializeAnd(e, w)
+      serializeAnd(e, w, treeVersion)
       return
     case 'Or':
       w.writeU8(OP.OP_OR)
-      serializeOr(e, w)
+      serializeOr(e, w, treeVersion)
       return
     case 'Xor':
       w.writeU8(OP.OP_XOR)
-      serializeXor(e, w)
+      serializeXor(e, w, treeVersion)
       return
     case 'Atleast':
       w.writeU8(OP.OP_ATLEAST)
-      serializeAtleast(e, w)
+      serializeAtleast(e, w, treeVersion)
       return
     case 'LogicalNot':
       w.writeU8(OP.OP_LOGICAL_NOT)
-      serializeLogicalNot(e, w)
+      serializeLogicalNot(e, w, treeVersion)
       return
     case 'Negation':
       w.writeU8(OP.OP_NEGATION)
-      serializeNegation(e, w)
+      serializeNegation(e, w, treeVersion)
       return
     case 'BitInversion':
       w.writeU8(OP.OP_BIT_INVERSION)
-      serializeBitInversion(e, w)
+      serializeBitInversion(e, w, treeVersion)
       return
     case 'OptionGet':
       w.writeU8(OP.OP_OPTION_GET)
-      serializeOptionGet(e, w)
+      serializeOptionGet(e, w, treeVersion)
       return
     case 'OptionIsDefined':
       w.writeU8(OP.OP_OPTION_IS_DEFINED)
-      serializeOptionIsDefined(e, w)
+      serializeOptionIsDefined(e, w, treeVersion)
       return
     case 'OptionGetOrElse':
       w.writeU8(OP.OP_OPTION_GET_OR_ELSE)
-      serializeOptionGetOrElse(e, w)
+      serializeOptionGetOrElse(e, w, treeVersion)
       return
     case 'ExtractAmount':
       w.writeU8(OP.OP_EXTRACT_AMOUNT)
-      serializeExtractAmount(e, w)
+      serializeExtractAmount(e, w, treeVersion)
       return
     case 'ExtractRegisterAs':
       w.writeU8(OP.OP_EXTRACT_REGISTER_AS)
-      serializeExtractRegisterAs(e, w)
+      serializeExtractRegisterAs(e, w, treeVersion)
       return
     case 'ExtractBytes':
       w.writeU8(OP.OP_EXTRACT_BYTES)
-      serializeExtractBytes(e, w)
+      serializeExtractBytes(e, w, treeVersion)
       return
     case 'ExtractBytesWithNoRef':
       w.writeU8(OP.OP_EXTRACT_BYTES_WITH_NO_REF)
-      serializeExtractBytesWithNoRef(e, w)
+      serializeExtractBytesWithNoRef(e, w, treeVersion)
       return
     case 'ExtractScriptBytes':
       w.writeU8(OP.OP_EXTRACT_SCRIPT_BYTES)
-      serializeExtractScriptBytes(e, w)
+      serializeExtractScriptBytes(e, w, treeVersion)
       return
     case 'ExtractCreationInfo':
       w.writeU8(OP.OP_EXTRACT_CREATION_INFO)
-      serializeExtractCreationInfo(e, w)
+      serializeExtractCreationInfo(e, w, treeVersion)
       return
     case 'ExtractId':
       w.writeU8(OP.OP_EXTRACT_ID)
-      serializeExtractId(e, w)
+      serializeExtractId(e, w, treeVersion)
       return
     case 'ByIndex':
       w.writeU8(OP.OP_BY_INDEX)
-      serializeCollByIndex(e, w)
+      serializeCollByIndex(e, w, treeVersion)
       return
     case 'SizeOf':
       w.writeU8(OP.OP_SIZE_OF)
-      serializeCollSize(e, w)
+      serializeCollSize(e, w, treeVersion)
       return
     case 'Slice':
       w.writeU8(OP.OP_SLICE)
-      serializeCollSlice(e, w)
+      serializeCollSlice(e, w, treeVersion)
       return
     case 'Fold':
       w.writeU8(OP.OP_FOLD)
-      serializeCollFold(e, w)
+      serializeCollFold(e, w, treeVersion)
       return
     case 'Map':
       w.writeU8(OP.OP_MAP)
-      serializeCollMap(e, w)
+      serializeCollMap(e, w, treeVersion)
       return
     case 'Filter':
       w.writeU8(OP.OP_FILTER)
-      serializeCollFilter(e, w)
+      serializeCollFilter(e, w, treeVersion)
       return
     case 'Exists':
       w.writeU8(OP.OP_EXISTS)
-      serializeCollExists(e, w)
+      serializeCollExists(e, w, treeVersion)
       return
     case 'ForAll':
       w.writeU8(OP.OP_FOR_ALL)
-      serializeCollForall(e, w)
+      serializeCollForall(e, w, treeVersion)
       return
     case 'SelectField':
       w.writeU8(OP.OP_SELECT_FIELD)
-      serializeSelectField(e, w)
+      serializeSelectField(e, w, treeVersion)
       return
     case 'BoolToSigmaProp':
       w.writeU8(OP.OP_BOOL_TO_SIGMA_PROP)
-      serializeBoolToSigmaProp(e, w)
+      serializeBoolToSigmaProp(e, w, treeVersion)
       return
     case 'Upcast':
       w.writeU8(OP.OP_UPCAST)
-      serializeUpcast(e, w)
+      serializeUpcast(e, w, treeVersion)
       return
     case 'Downcast':
       w.writeU8(OP.OP_DOWNCAST)
-      serializeDowncast(e, w)
+      serializeDowncast(e, w, treeVersion)
       return
     case 'CreateProveDlog':
       w.writeU8(OP.OP_PROVE_DLOG)
-      serializeCreateProveDlog(e, w)
+      serializeCreateProveDlog(e, w, treeVersion)
       return
     case 'CreateProveDhTuple':
       w.writeU8(OP.OP_PROVE_DIFFIE_HELLMAN_TUPLE)
-      serializeCreateProveDhTuple(e, w)
+      serializeCreateProveDhTuple(e, w, treeVersion)
       return
     case 'SigmaPropBytes':
       w.writeU8(OP.OP_SIGMA_PROP_BYTES)
-      serializeSigmaPropBytes(e, w)
+      serializeSigmaPropBytes(e, w, treeVersion)
       return
     case 'SigmaPropIsProven':
       w.writeU8(OP.OP_SIGMA_PROP_IS_PROVEN)
-      serializeSigmaPropIsProven(e, w)
+      serializeSigmaPropIsProven(e, w, treeVersion)
       return
     case 'ZkProofBlock':
       // ZkProofBlock has no canonical opcode (Scala's `OpCodes.Undefined`);
@@ -331,15 +341,15 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       )
     case 'DecodePoint':
       w.writeU8(OP.OP_DECODE_POINT)
-      serializeDecodePoint(e, w)
+      serializeDecodePoint(e, w, treeVersion)
       return
     case 'SigmaAnd':
       w.writeU8(OP.OP_SIGMA_AND)
-      serializeSigmaAnd(e, w)
+      serializeSigmaAnd(e, w, treeVersion)
       return
     case 'SigmaOr':
       w.writeU8(OP.OP_SIGMA_OR)
-      serializeSigmaOr(e, w)
+      serializeSigmaOr(e, w, treeVersion)
       return
     case 'GetVar':
       w.writeU8(OP.OP_GET_VAR)
@@ -347,7 +357,7 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       return
     case 'DeserializeRegister':
       w.writeU8(OP.OP_DESERIALIZE_REGISTER)
-      serializeDeserializeRegister(e, w)
+      serializeDeserializeRegister(e, w, treeVersion)
       return
     case 'DeserializeContext':
       w.writeU8(OP.OP_DESERIALIZE_CONTEXT)
@@ -355,23 +365,23 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion = 0): void {
       return
     case 'MultiplyGroup':
       w.writeU8(OP.OP_MULTIPLY_GROUP)
-      serializeMultiplyGroup(e, w)
+      serializeMultiplyGroup(e, w, treeVersion)
       return
     case 'Exponentiate':
       w.writeU8(OP.OP_EXPONENTIATE)
-      serializeExponentiate(e, w)
+      serializeExponentiate(e, w, treeVersion)
       return
     case 'XorOf':
       w.writeU8(OP.OP_XOR_OF)
-      serializeXorOf(e, w)
+      serializeXorOf(e, w, treeVersion)
       return
     case 'TreeLookup':
       w.writeU8(OP.OP_AVL_TREE_GET)
-      serializeTreeLookup(e, w)
+      serializeTreeLookup(e, w, treeVersion)
       return
     case 'CreateAvlTree':
       w.writeU8(OP.OP_AVL_TREE)
-      serializeCreateAvlTree(e, w)
+      serializeCreateAvlTree(e, w, treeVersion)
       return
     default: {
       // Every case throws above; TypeScript will narrow `e` to `never` here.

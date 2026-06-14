@@ -1,28 +1,32 @@
 /**
  * SAvlTree.updateDigest (100:15) — Tier-2 mutator op handler.
  *
- * Fixture-driven oracle suite (T7 of phase 2h-d). Handler implementation
- * lives at `src/eval/savltree.ts` (appended in T7 GREEN); two-scenario
- * fixture emitted by T6 (happy + bad-length-throw).
+ * Fixture-driven oracle suite (T7 of phase 2h-d, updated in F4 epilogue
+ * 2026-06-07). Handler implementation lives at `src/eval/savltree.ts`.
  *
  * Pattern A Fixed(40): `ctx.addCost(40)` runs BEFORE the AvlTree shape
- * check and BEFORE the 33-byte length check, mirroring sigma-rust's
- * `ctx.add_jit_cost(40)?` at savltree.rs:91.
+ * check, mirroring sigma-rust's `ctx.add_jit_cost(40)?` at savltree.rs:91.
+ *
+ * JVM CAvlTree.scala:31-34 has NO length require on updateDigest. Any
+ * Coll[Byte] length is accepted verbatim and projected into a new AvlTreeData.
+ * The previous 33-byte gate (mirroring sigma-rust's ADDigest::try_from shape)
+ * was a convergent over-reject not present in the JVM; retired in F4 epilogue
+ * (code 'avl-tree-bad-digest-length' removed from taxonomy: 80 → 79).
  *
  * Scenario coverage:
- *   1. update_digest_replace_33_byte         — happy path; new 33-byte digest projected into a fresh AvlTreeData.
- *   2. update_digest_bad_length_32_byte      — 32-byte arg → throws 'avl-tree-bad-digest-length'.
+ *   1. update_digest_replace_33_byte  — happy path; new 33-byte digest verbatim.
+ *   2. update_digest_replace_32_byte  — 32-byte digest accepted (any length OK).
  *
  * Test uses the canonical multi-scenario template from
  * `test/eval/coll-exists.test.ts:64-97`. Each entry branches on
  * `expected_error_code !== null`:
  *   - Throw branch: `captureEvalError` + `expect(err.code).toBe(...)`.
- *     Cost is NOT asserted on throw entries (fixture-gen sentinels
- *     `expected_cost: 0`).
+ *     Cost is NOT asserted on throw entries (fixture sentinels `expected_cost: 0`).
  *   - Success branch: assert value matches hydrated SValue + cost matches
  *     fixture-recorded `ctx.jitCost`.
  *
  * Source: ergotree-interpreter/src/eval/savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
+ *         JVM CAvlTree.scala:31-34 (no length require — any digest length accepted).
  */
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -75,22 +79,24 @@ describe('SAvlTree.updateDigest (100:15) — fixture-driven', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Edge cases (T8 — defensive throws via the dispatcher)
+// Edge cases (T8 — defensive throws via the dispatcher, updated F4 epilogue)
 //
 // Mirrors `test/eval/savltree-update-operations.test.ts` (T4) — same hand-
 // crafted `MethodCall` pattern via `evalMethodCall` to drive the dispatcher's
 // full cost path. Pattern A Fixed(40) means `addCost(40)` fires BEFORE the
-// AvlTree shape check, BEFORE `expectOneArg`, BEFORE `extractBytes`, and
-// BEFORE the !==33 length check, so every defensive throw observes
-// jitCost = 4 (dispatcher) + 5 (Const obj) + 5 (Const arg) + 40 (handler) = 54
-// at error time.
+// AvlTree shape check, BEFORE `expectOneArg`, and BEFORE `extractBytes`,
+// so defensive throws observe jitCost = 4 (dispatcher) + 5 (Const obj) +
+// 5 (Const arg) + 40 (handler) = 54 at error time.
 //
-// Five cases (T8 adds 0-byte and 34-byte arg vs T4's three):
-//   1. non-AvlTree receiver       → 'avl-tree-obj-not-avl-tree'
-//   2. non-Coll arg               → 'method-not-implemented' (via extractBytes)
-//   3. 0-byte Coll[Byte] arg      → 'avl-tree-bad-digest-length' (length 0 !== 33)
-//   4. 34-byte Coll[Byte] arg     → 'avl-tree-bad-digest-length' (length 34 !== 33; over-by-one boundary)
-//   5. cost-limit < 54            → 'cost-limit-exceeded' (handler addCost(40) trips first)
+// Since the 33-byte length gate is removed (F4 epilogue, JVM any-length),
+// the 0-byte and 34-byte cases now SUCCEED and are pinned as acceptance cases.
+//
+// Five cases:
+//   1. non-AvlTree receiver      → 'avl-tree-obj-not-avl-tree'
+//   2. non-Coll arg              → 'method-not-implemented' (via extractBytes)
+//   3. 0-byte Coll[Byte] arg     → Some(AvlTree with 0-byte digest) @ cost 54
+//   4. 34-byte Coll[Byte] arg    → Some(AvlTree with 34-byte digest) @ cost 54
+//   5. cost-limit < 54           → 'cost-limit-exceeded' (addCost(40) trips first)
 // ---------------------------------------------------------------------------
 
 /** Module-level SType singletons reused across edge-case + mutation tests. */
@@ -181,9 +187,11 @@ describe('SAvlTree.updateDigest — edge cases', () => {
     expect(ctx.jitCost).toBe(54)
   })
 
-  it("throws 'avl-tree-bad-digest-length' on 0-byte Coll[Byte] arg", () => {
-    // Empty Coll[Byte] → extractBytes returns 0-byte Uint8Array → 0 !== 33
-    // → 'avl-tree-bad-digest-length'.
+  it("accepts 0-byte Coll[Byte] arg — any digest length OK (JVM CAvlTree.scala:31-34)", () => {
+    // JVM has no length require on updateDigest. Empty Coll[Byte] → extractBytes
+    // returns 0-byte Uint8Array → projected verbatim into new AvlTreeData.
+    // Returns AvlTree with 0-byte digest @ cost 54. ('avl-tree-bad-digest-length'
+    // retired from taxonomy in F4 epilogue: codes 80 → 79.)
     const e: MethodCall = {
       tag: 'MethodCall',
       typeId: 100,
@@ -195,18 +203,24 @@ describe('SAvlTree.updateDigest — edge cases', () => {
       explicitTypeArgs: {},
     }
     const ctx = makeContext({})
-    const err = captureEvalError(() => evalMethodCall(e, Env.empty(), ctx))
-    expect(err).toBeInstanceOf(EvalError)
-    expect(err.code).toBe('avl-tree-bad-digest-length')
-    expect(err.message).toContain('got 0')
-    // 4 + 5 + 5 + 40 = 54 (Pattern A; length check runs after addCost(40)).
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect(result.kind).toBe('AvlTree')
+    if (result.kind === 'AvlTree') {
+      expect(result.value.digest).toEqual(new Uint8Array(0))
+      expect(result.value.treeFlags).toBe(7)
+      expect(result.value.keyLength).toBe(32)
+      expect(result.value.valueLengthOpt).toBeNull()
+    }
+    // Pattern A: addCost(40) fires before returning. 4 + 5 + 5 + 40 = 54.
     expect(ctx.jitCost).toBe(54)
   })
 
-  it("throws 'avl-tree-bad-digest-length' on 34-byte Coll[Byte] arg (over-by-one boundary)", () => {
-    // 34-byte arg → 34 !== 33 → 'avl-tree-bad-digest-length'. Asserts the
-    // upper boundary of the length gate (the lower boundary is exercised by
-    // the fixture's `update_digest_bad_length_32_byte` entry at 32 bytes).
+  it("accepts 34-byte Coll[Byte] arg — any digest length OK (over-by-one boundary)", () => {
+    // JVM accepts any digest length verbatim. 34-byte arg → AvlTree with
+    // 34-byte digest @ cost 54. (Was 'avl-tree-bad-digest-length' before F4
+    // epilogue; the 32-byte boundary is now covered by the fixture's
+    // update_digest_replace_32_byte entry.)
+    const digestBytes = new Uint8Array(34).fill(0xab)
     const e: MethodCall = {
       tag: 'MethodCall',
       typeId: 100,
@@ -216,17 +230,21 @@ describe('SAvlTree.updateDigest — edge cases', () => {
         {
           tag: 'Const',
           tpe: SCOLL_BYTE,
-          value: makeCollByteValue(new Uint8Array(34).fill(0xab)),
+          value: makeCollByteValue(digestBytes),
         },
       ],
       explicitTypeArgs: {},
     }
     const ctx = makeContext({})
-    const err = captureEvalError(() => evalMethodCall(e, Env.empty(), ctx))
-    expect(err).toBeInstanceOf(EvalError)
-    expect(err.code).toBe('avl-tree-bad-digest-length')
-    expect(err.message).toContain('got 34')
-    // 4 + 5 + 5 + 40 = 54 (Pattern A).
+    const result = evalMethodCall(e, Env.empty(), ctx)
+    expect(result.kind).toBe('AvlTree')
+    if (result.kind === 'AvlTree') {
+      expect(result.value.digest).toEqual(digestBytes)
+      expect(result.value.treeFlags).toBe(7)
+      expect(result.value.keyLength).toBe(32)
+      expect(result.value.valueLengthOpt).toBeNull()
+    }
+    // Pattern A. 4 + 5 + 5 + 40 = 54.
     expect(ctx.jitCost).toBe(54)
   })
 
@@ -266,23 +284,12 @@ describe('SAvlTree.updateDigest — edge cases', () => {
 // observably diverges from the baseline. Same helpers (`evalSafely`,
 // `svalueEqual`, `isKill`) and threshold (`THRESHOLD = 0.9`).
 //
-// Scope: ONLY the happy scenario (`update_digest_replace_33_byte`) is
-// mutated — per the user's "Before you begin" hint and the structural
-// reasoning below. The throw scenario (`update_digest_bad_length_32_byte`)
-// is left to the fixture oracle alone (it asserts the bad-length defense
-// directly); a mutation suite over it would have to choose between two bad
-// options:
-//   - T4's "both threw = survivor" model + 32-byte tolerated arg region
-//     + 33-byte tolerated receiver digest + parser-tolerant header bits →
-//     kill rate ~0.12 (observed).
-//   - A stricter "different error code = kill" model still leaves the
-//     32-byte arg region's INTERIOR mutations same-code (still
-//     bad-digest-length), so the rate is still well under 0.9.
-// Either way, the throw-fixture is structurally incompatible with
-// THRESHOLD = 0.9 without bespoke per-region exclusions that don't add
-// signal beyond the oracle test.
+// Scope: ONLY the first happy scenario (`update_digest_replace_33_byte`) is
+// mutated. Both fixture entries are now happy (F4 epilogue removed the throw);
+// the second entry (32-byte) has a narrower mutation surface and the 33-byte
+// entry provides sufficient signal.
 //
-// MUTATION SURFACE — happy scenario, 77-byte tree, restricted:
+// MUTATION SURFACE — happy scenario (33-byte), 77-byte tree, restricted:
 //   - offsets 0..4       (header + opcode 0xdc + typeId 100 + methodId 15 + AvlTree const opcode)
 //   - offsets 38..76     (treeFlags + keyLength + valueLengthOpt + args-count +
 //                         arg const tpe SColl[SByte] + 33-byte NEW digest)
@@ -319,8 +326,7 @@ const RECEIVER_DIGEST_START = 5
 const RECEIVER_DIGEST_END = 37
 
 describe('SAvlTree.updateDigest — mutation testing', () => {
-  // Happy entry only. The throw entry (`update_digest_bad_length_32_byte`)
-  // is structurally incompatible with DEFAULT_KILL_THRESHOLD = 0.9 — see comment block above.
+  // First happy entry (33-byte). Both fixture entries are happy after F4 epilogue.
   const happyEntry = fixture.entries.find((e) => e.expected_error_code === null)
   if (happyEntry === undefined) {
     throw new Error('expected at least one happy-path entry in savltree-update-digest fixture')

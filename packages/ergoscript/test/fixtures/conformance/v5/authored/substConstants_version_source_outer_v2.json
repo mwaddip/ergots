@@ -1,0 +1,26 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "substConstants:version_source_outer_v2",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ingress-rules",
+  "entries" : [
+    {
+      "name" : "subst-outer-v2-option-const-errored#0",
+      "script" : "{ substConstants(template@v3 with Option const, …) } in an OUTER v2 tree  // JVM: Rule-1009 — Option type-code 36 not serializable at the OUTER v2 (constants read at the outer version, not the template's inner v3)",
+      "tree_bytes_hex" : "1a15020e081b060128010a730010007473007301830028",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

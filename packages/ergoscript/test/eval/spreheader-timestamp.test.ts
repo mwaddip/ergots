@@ -2,7 +2,7 @@
  * Layer C1 — SPreHeader.timestamp handler (typeId 105, methodId 3).
  *
  * Pattern A cost 10 (charged before obj check). Returns
- * { kind: 'Long', value: preHeader.timestamp }.
+ * { kind: 'Long', value: BigInt.asIntN(64, preHeader.timestamp) } — the JVM i64 view.
  *
  * Source: ergotree-interpreter/src/eval/spreheader.rs:20-24
  */
@@ -38,12 +38,14 @@ describe('SPreHeader.timestamp handler (Layer C1)', () => {
     // Outer PropertyCall: SPreHeader.timestamp on the inner result
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 3,
@@ -60,12 +62,14 @@ describe('SPreHeader.timestamp handler (Layer C1)', () => {
     const ctx = makeContext({ preHeader })
     const innerPreHeader: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 101,
       methodId: 3,
     }
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: innerPreHeader,
       typeId: 105,
       methodId: 3,
@@ -74,11 +78,36 @@ describe('SPreHeader.timestamp handler (Layer C1)', () => {
     expect(result).toEqual({ kind: 'Long', value: max })
   })
 
+  it('≥2^63 (u64-max) surfaces as Long(-1) — JVM i64 signed view (F2 #4)', () => {
+    // JVM/sigma-rust: preHeader.timestamp as i64 — u64-max surfaces as Long(-1). Pins the BigInt.asIntN(64,·) view (F2 #4).
+    const u64Max = 0xffffffffffffffffn
+    const preHeader = syntheticPreHeader(u64Max)
+    const ctx = makeContext({ preHeader })
+    const innerPreHeader: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      explicitTypeArgs: {},
+      obj: { tag: 'Context' },
+      typeId: 101,
+      methodId: 3,
+    }
+    const e: PropertyCallExpr = {
+      tag: 'PropertyCall',
+      explicitTypeArgs: {},
+      obj: innerPreHeader,
+      typeId: 105,
+      methodId: 3,
+    }
+    const result = evalPropertyCall(e, Env.empty(), ctx)
+    expect(result).toEqual({ kind: 'Long', value: -1n })
+    expect(ctx.jitCost).toBe(34)
+  })
+
   it('rejects when obj is not PreHeader (uses .code assertion)', () => {
     const ctx = makeContext({})
     // Direct PropertyCall(Context, timestamp) — Context obj (not PreHeader)
     const e: PropertyCallExpr = {
       tag: 'PropertyCall',
+      explicitTypeArgs: {},
       obj: { tag: 'Context' },
       typeId: 105,
       methodId: 3,

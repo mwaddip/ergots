@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   decodePoint, encodePoint, pointAdd, pointNegate, pointMul,
   basePoint, groupOrder, scalarFromBytes, scalarFromChallenge,
+  expPoint,
 } from '../../src/crypto/secp256k1'
 
 const ZERO_33 = new Uint8Array(33)  // Ergo identity
@@ -108,6 +109,53 @@ describe('secp256k1 adapter', () => {
       const negP2 = pointNegate(p2)
       const sum = pointAdd(p2, negP2)
       expect(bytesEqual(encodePoint(sum), ZERO_33)).toBe(true)
+    })
+  })
+
+  // secp256k1 generator G, SEC1-compressed (same constant used by expUnsigned handler tests).
+  const G_HEX = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+  function hexToBytes(hex: string): Uint8Array {
+    return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
+  }
+  const ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
+
+  describe('expPoint', () => {
+    it('identity base, any k → 33 zero bytes', () => {
+      // identity^k = identity regardless of k; mirrors the sigma-rust short-circuit.
+      const result = expPoint(ZERO_33, 5n)
+      expect(bytesEqual(result, ZERO_33)).toBe(true)
+    })
+
+    it('G with k=0 → 33 zero bytes (identity)', () => {
+      // pointMul guards k=0 → ZERO; encodePoint(ZERO) → 33 zero bytes.
+      const result = expPoint(hexToBytes(G_HEX), 0n)
+      expect(bytesEqual(result, ZERO_33)).toBe(true)
+    })
+
+    it('G with k=1 → G (round-trip)', () => {
+      // g^1 = g; the JVM blessed vector from LanguageSpecificationV6.scala:2475.
+      const gBytes = hexToBytes(G_HEX)
+      const result = expPoint(gBytes, 1n)
+      expect(bytesEqual(result, gBytes)).toBe(true)
+    })
+
+    it('g^(n+1) = g — pins mod-n reduction for k > n (first wire-reachable above-order surface)', () => {
+      // A UBI scalar in [n, 2^256) is valid wire input; mod-n must reduce it correctly.
+      const gBytes = hexToBytes(G_HEX)
+      const result = expPoint(gBytes, ORDER + 1n)
+      expect(bytesEqual(result, gBytes)).toBe(true)
+    })
+
+    it('g^(2^256 - 1) = g^((2^256-1) mod n) — reduction-equivalence pin (full 256-bit scalar)', () => {
+      // The maximum UBI value; confirms expPoint applies mod-n before pointMul.
+      const gBytes = hexToBytes(G_HEX)
+      const kMax = (1n << 256n) - 1n
+      const out = expPoint(gBytes, kMax)
+      expect(out).toBeInstanceOf(Uint8Array)
+      expect(out.length).toBe(33)
+      // Reduction-equivalence: expPoint(G, k) must equal expPoint(G, k mod n).
+      const reduced = expPoint(gBytes, kMax % ORDER)
+      expect(bytesEqual(out, reduced)).toBe(true)
     })
   })
 

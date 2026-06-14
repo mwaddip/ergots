@@ -33,9 +33,10 @@ export function parseExtractId(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): ExtractId {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'ExtractId', input }
 }
 
@@ -43,6 +44,6 @@ export function parseExtractId(
  * Serialize an `ExtractId` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_EXTRACT_ID opcode byte). Writes only the input Expr.
  */
-export function serializeExtractId(e: ExtractId, w: ByteWriter): void {
-  serializeExpr(e.input, w)
+export function serializeExtractId(e: ExtractId, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
 }

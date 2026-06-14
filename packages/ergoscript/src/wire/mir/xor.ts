@@ -35,10 +35,11 @@ export function parseXor(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Xor {
-  const left = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const right = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const left = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const right = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Xor', left, right }
 }
 
@@ -46,7 +47,7 @@ export function parseXor(
  * Serialize an `Xor` payload (the dispatcher in {@link serializeExpr} emits
  * the OP_XOR opcode byte). Writes left then right operands.
  */
-export function serializeXor(x: Xor, w: ByteWriter): void {
-  serializeExpr(x.left, w)
-  serializeExpr(x.right, w)
+export function serializeXor(x: Xor, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(x.left, w, treeVersion)
+  serializeExpr(x.right, w, treeVersion)
 }

@@ -10,7 +10,13 @@ export const EC_POINT_LEN = 33; // compressed secp256k1
 export function readFixed(reader: ByteReader, len: number, name: string): Uint8Array {
   try {
     return reader.readBytes(len);
-  } catch {
+  } catch (e) {
+    if (e instanceof ReaderError && e.code === 'position-limit-exceeded') {
+      // The window entry check is a consensus gate (JVM CheckPositionLimit,
+      // rule 1014) — its code must surface unmodified to windowed callers.
+      throw e;
+    }
+    // Genuine truncation (and anything else) keeps the named-field re-code.
     throw new ReaderError(`${name}: truncated`, 'truncated');
   }
 }

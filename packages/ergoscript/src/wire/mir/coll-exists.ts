@@ -37,10 +37,11 @@ export function parseCollExists(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Exists {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const condition = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'Exists', input, condition }
 }
 
@@ -49,7 +50,7 @@ export function parseCollExists(
  * emits the OP_EXISTS opcode byte). Writes the input Expr, then the
  * condition Expr.
  */
-export function serializeCollExists(e: Exists, w: ByteWriter): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.condition, w)
+export function serializeCollExists(e: Exists, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.condition, w, treeVersion)
 }

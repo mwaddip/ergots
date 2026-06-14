@@ -10,9 +10,9 @@
  * [[reference-cost-charging-order-patterns]] memory).
  *
  * R0..R3 synthesis (sigma-rust `chain/ergo_box.rs:155-168`):
- *   R0: SLong(box.value)
+ *   R0: SLong(box.value) (signed-i64 view, F3.5)
  *   R1: SColl[SByte] of box.ergoTreeBytes
- *   R2: SColl[STuple[SColl[SByte], SLong]] of tokens (id × amount)
+ *   R2: SColl[STuple[SColl[SByte], SLong]] of tokens (id × amount; amounts signed-i64 view, F3.5)
  *   R3: STuple[SInt, SColl[SByte]] of (creationHeight, txId ++ BE_u16(index))
  *
  * R4..R9: read box.registers[id]; if undefined, return Option None.
@@ -61,6 +61,7 @@ const STUPLE_INT_COLLBYTE: SType = {
  * Mirrors sigma-rust `ergo_box.rs:171-176` `tokens_raw()` which returns
  * `Vec<(Vec<i8>, i64)>` — each element is (32-byte tokenId as signed bytes,
  * amount as i64). The token id is stored as a Uint8Array in TS.
+ * Amounts surface as the signed-i64 view (F3.5).
  */
 function tokensToCollTupleSValue(
   tokens: { id: Uint8Array; amount: bigint }[]
@@ -69,7 +70,7 @@ function tokensToCollTupleSValue(
     kind: 'Tuple' as const,
     items: [
       bytesToCollByteSValue(t.id),
-      { kind: 'Long' as const, value: t.amount },
+      { kind: 'Long' as const, value: BigInt.asIntN(64, t.amount) },
     ],
   }))
   return { kind: 'Coll', elem: STUPLE_COLLBYTE_LONG, items }
@@ -82,15 +83,17 @@ function tokensToCollTupleSValue(
  * R4..R9 are looked up in box.registers; returns undefined if absent.
  *
  * Mirrors sigma-rust `ErgoBox::get_register` (chain/ergo_box.rs:155-168).
+ *
+ * Exported since v6 P7a: shared with the SBox.getReg (99:19) MethodCall handler.
  */
-function getRegisterEntry(
+export function getRegisterEntry(
   box: ErgoBox,
   id: number
 ): { tpe: SType; value: SValue } | undefined {
   switch (id) {
     case 0:
-      // R0 → SLong(box.value)
-      return { tpe: SLONG, value: { kind: 'Long', value: box.value } }
+      // R0 → SLong(box.value) — signed-i64 view (JVM `as Long`; F3.5)
+      return { tpe: SLONG, value: { kind: 'Long', value: BigInt.asIntN(64, box.value) } }
     case 1:
       // R1 → SColl[SByte] of box.ergoTreeBytes (script_bytes in sigma-rust)
       return {

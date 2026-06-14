@@ -1,0 +1,95 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.some_none",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-global-some-none",
+  "entries" : [
+    {
+      "name" : "some#int",
+      "script" : "{ Global.some[Int](5) }",
+      "tree_bytes_hex" : "1b0b01040adc6a09dd01730004",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Int",
+            "value" : 5
+          }
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    },
+    {
+      "name" : "none#int",
+      "script" : "{ Global.none[Int] }",
+      "tree_bytes_hex" : "1b0600db6a0add04",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 14,
+        "error" : null
+      }
+    },
+    {
+      "name" : "some#isDefined",
+      "script" : "{ Global.some[Int](5).isDefined }",
+      "tree_bytes_hex" : "1b0c01040ae6dc6a09dd01730004",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 25,
+        "error" : null
+      }
+    },
+    {
+      "name" : "none#isDefined",
+      "script" : "{ Global.none[Int].isDefined }",
+      "tree_bytes_hex" : "1b0700e6db6a0add04",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 24,
+        "error" : null
+      }
+    }
+  ]
+}

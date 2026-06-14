@@ -1,45 +1,85 @@
 /**
  * `SAvlTree.*` method-call handlers — phase 2h-b Tier 1 (pure accessors) +
- * Tier 2 (verification ops).
+ * Tier 2 (verification ops, JVM-canonical cost model from F4).
  *
- * Tier 1 (digest / enabledOperations / keyLength / valueLengthOpt /
- * isInsertAllowed / isUpdateAllowed / isRemoveAllowed) projects a single
- * field of `AvlTreeData` and never reaches into `@ergots/avltree`. All
- * Tier-1 handlers follow Pattern A: `ctx.addCost(15)` BEFORE shape check,
- * mirroring sigma-rust's `add_jit_cost` call at the top of every Tier-1
- * `EvalFn`.
+ * ## Tier 1 — pure accessors (updateOperations 45; updateDigest 40; all others 15)
  *
- * Tier 2 (contains / get / getMany / insert / update / remove) delegates
- * proof verification to `@ergots/avltree` v0.2.0's `verifyAvlBatch` and
- * `verifyAvlBatchPartial`. These handlers DO NOT charge a per-handler cost
- * — the dispatcher's Pattern-A cost 4 + inline Const arm costs cover them
- * (mirrors sigma-rust: Tier-2 `EvalFn` statics have no `add_jit_cost` call;
- * see savltree.rs:104, 152, 214, 279, 339, 383).
+ * Handlers: digest / enabledOperations / keyLength / valueLengthOpt /
+ * isInsertAllowed / isUpdateAllowed / isRemoveAllowed / updateOperations /
+ * updateDigest. Each projects a field of `AvlTreeData` and never reaches into
+ * `@ergots/avltree`. All follow Pattern A: `ctx.addCost(N)` BEFORE shape check,
+ * mirroring sigma-rust's `add_jit_cost` at the top of every Tier-1 `EvalFn`.
  *
- * Six failure models — `contains` is unique in that PER-OP failure returns
- * `false` (does not throw), but CONSTRUCT failure still throws. The
- * remaining five throw on construct failure; `get` / `getMany` / `remove`
- * throw on per-op failure too. `insert` throws on V<3 per-op failure but
- * breaks (returns final-or-empty Option) on V3+. `update` always breaks
- * (no V<3/V3+ split — confirmed via source-read of savltree.rs:421-431).
+ * ## Tier 2 — lookup family (contains / get / getMany, F4)
+ *
+ * JVM cost model (CErgoTreeEvaluator.scala:67-130, methods.scala:1498-1516):
+ *   1. CreateAvlVerifier_Info — PerItem(110, 20, 64) on `proof.length`, charged
+ *      BEFORE construction. Outcome-independent (charged even on construct failure).
+ *   2. LookupAvlTree_Info — PerItem(40, 10, 1) × chargedOps on RAW `digest[32]`
+ *      tree height (no max-1 floor); `contains`/`get` always charge ×1;
+ *      `getMany` charges ×chargedOps (see the chargedOps helper below).
+ *
+ * Failure model (JVM-canonical, F4) — construct failure is NOT a distinct
+ * observable: scorex BatchAVLVerifier swallows reconstruction errors (topNode =
+ * None); every subsequent op returns Failure, which joins the per-op-failure
+ * routing:
+ *   - `contains` — construct-fail and per-op-fail BOTH → false (NEVER throws).
+ *   - `get` — construct-fail and per-op-fail BOTH → throw 'avl-tree-proof-failed'.
+ *   - `getMany` — construct-fail + ops.length > 0 → throw same code;
+ *                 construct-fail + ops.length == 0 → empty Coll (keys.map over
+ *                 empty coll runs zero lookups — no Failure surfaces).
+ *
+ * ## Tier 2 — modify family (insert / update / remove / insertOrUpdate)
+ *
+ * JVM cost model (CErgoTreeEvaluator.scala:132-254, F4):
+ *   insert/update/remove/insertOrUpdate: isXxxAllowed Fixed(15) [insertOrUpdate:
+ *   isUpdateAllowed(15) + isInsertAllowed(15)] + createVerifier PerItem(110,20,64)
+ *   + per-op PerItemCost × max(treeHeight,1) + updateDigest Fixed(40) on success.
+ *   insert: InsertIntoAvlTree(40,10,1) × chargedOps; update: UpdateAvlTree(120,20,1) × chargedOps;
+ *   remove: RemoveAvlTree(100,15,1) × ALL ops (cfor, no break) + digest Fixed(15) unconditional;
+ *   insertOrUpdate (V3-gated): shares update's UpdateAvlTree(120,20,1) descriptor × chargedOps.
+ *   Failure model — insert(V<3):throw/(V3+):None; update:None; remove:None (never throws);
+ *   insertOrUpdate:None (V<3 rejected at dispatcher). ALL DONE (F4 Tasks 3-6).
+ *
+ * ## Op-shape + construct-shape routing (F4 Task 7.5 — RESOLVED)
+ *
+ * Shape-mismatch inputs no longer surface as foreign `AvlVerifyError` throws.
+ * Verified against scrypto 3.0.0 bytecode + ergo_avltree_rust (see the
+ * routing helpers' block comment): scorex checks key shape (wrong length,
+ * ±infinity keys) per-op at the head of returnResultOfOneOperation, and value
+ * length (fixed-value trees, insert-family) at the modifyHelper write
+ * branches — each violation is a Failure AT THAT OP'S INDEX, joining the
+ * per-op-failure routing above (contains→false, get/getMany→throw, insert
+ * V<3→throw/V3+→None, update/insertOrUpdate→None, remove→None with ALL ops
+ * charged). Handlers pre-scan ops with the same predicates
+ * (`firstShapeBadOpIndex`) and replay only the prefix before the first
+ * violation (`verifyWithShapeRouting`); ops before it genuinely replay
+ * against the proof. Construct-shape violations (keyLength ≤ 0, fixed
+ * valueLength < 0, digest ≠ 33 bytes — scorex reconstruction requires) route
+ * as construct-fail with treeHeight 0 (`constructShapeBad`; the requires fire
+ * before rootNodeHeight is assigned).
  *
  * Source: ergotree-interpreter/src/eval/savltree.rs:29-75 (Tier 1),
  *         ergotree-interpreter/src/eval/savltree.rs:104-381,383-439
  *         (Tier 2; see per-handler comments for line ranges).
+ *         CErgoTreeEvaluator.scala:67-254, methods.scala:1498-1516,
+ *         docs/specs/2026-06-07-ergoscript-f4-avltree-tier2-cost-design.md.
  *
  * Defensive-throw `'avl-tree-obj-not-avl-tree'` on non-AvlTree receiver.
  * Wire-format invariants (PropertyCall construction; SAvlTree-typed Const)
  * make this unreachable for parser-produced trees — guard against
  * hand-crafted MIR or future `ConstantPlaceholder` injection.
  *
- * facts/ergoscript-eval.md: Method-handler registry rows 9-21.
+ * facts/ergoscript-eval.md: Method-handler registry rows 9-21 + 40-42
+ * (updateOperations / updateDigest / insertOrUpdate).
  */
 
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import type { AvlTreeData, SType, SValue } from '../mir/types'
 import { bytesToCollByteSValue } from './_byte-coll'
-import { verifyAvlBatch, verifyAvlBatchPartial } from '@ergots/avltree'
+import { verifyAvlBatchPartial } from '@ergots/avltree'
+import type { AvlTreeConfig, Operation } from '@ergots/avltree'
 import {
   avlTreeDataToConfig,
   buildInsertOps,
@@ -132,7 +172,14 @@ export function evalSAvlTreeKeyLength(
 ): SValue {
   ctx.addCost(ACCESSOR_COST)
   expectAvlTree('SAvlTree.keyLength', obj)
-  return { kind: 'Int', value: obj.value.keyLength }
+  // JVM AvlTreeData.scala:84-88: keyLength is parsed via `getUInt().toInt` —
+  // wire values in [2^31, 2^32) wrap NEGATIVE and the accessor surfaces the
+  // negative Int (deserialize-only asymmetry: the JVM serializer requires
+  // unsigned range so only parse wraps). `| 0` = the JS i32 reinterpretation,
+  // consistent with constructShapeBad's `(data.keyLength | 0) <= 0` predicate.
+  // Blessed vectors: keyLength_wrapped_negative#0 (0x80000001 → −2147483647),
+  //                  negative_keylength_tree#4 (0x80000000 → −2147483648).
+  return { kind: 'Int', value: obj.value.keyLength | 0 }
 }
 
 /**
@@ -141,6 +188,11 @@ export function evalSAvlTreeKeyLength(
  *
  * Rust: maps `Option<Box<u32>>` to `Option<Box<Value::Int>>`. In TS,
  * `valueLengthOpt === null` → None; otherwise wrap as `Some(Int)`.
+ *
+ * JVM AvlTreeData.scala:85: valueLengthOpt parsed via `getUInt().toInt` —
+ * same deserialize-only asymmetry as keyLength (see above). The Some payload
+ * receives the same `| 0` i32 reinterpretation. Source-backed by the same JVM
+ * parse line; vector-unblessed (queued for future SANTA bless).
  */
 export function evalSAvlTreeValueLengthOpt(
   obj: SValue,
@@ -153,7 +205,7 @@ export function evalSAvlTreeValueLengthOpt(
   return {
     kind: 'Option',
     elem: SINT_TYPE,
-    value: v === null ? null : { kind: 'Int', value: v },
+    value: v === null ? null : { kind: 'Int', value: v | 0 },
   }
 }
 
@@ -207,6 +259,196 @@ export function evalSAvlTreeIsRemoveAllowed(
 const INSERT_ALLOWED_BIT = 0x01
 const UPDATE_ALLOWED_BIT = 0x02
 const REMOVE_ALLOWED_BIT = 0x04
+
+// ---------------------------------------------------------------------------
+// Tier-2 JVM cost model (F4). Source: CErgoTreeEvaluator.scala:67-254,
+// methods.scala:1498-1516 (descriptors), CostKind.scala:26 (chunks formula).
+// Spec: docs/specs/2026-06-07-ergoscript-f4-avltree-tier2-cost-design.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * Tree height as the JVM sees it: scorex `BatchAVLVerifier.rootNodeHeight =
+ * startingDigest.last & 0xff` — the 33rd byte of the AvlTreeData digest.
+ * NOT proof-derived; loop-constant (the JVM computes nItems once per call,
+ * its own "cost is not properly approximated" comment notwithstanding —
+ * we mirror the imprecision exactly).
+ */
+function treeHeight(data: AvlTreeData): number {
+  return (data.digest[32] ?? 0) & 0xff
+}
+
+// ---------------------------------------------------------------------------
+// Op-shape + construct-shape routing (F4 Task 7.5).
+//
+// scorex per-op semantics (verified twice, 2026-06-07):
+//  1. scrypto 3.0.0 bytecode (decompiled from the coursier jar):
+//     `AuthenticatedTreeOps.returnResultOfOneOperation` = `Try { ... }` whose
+//     body OPENS with three requires —
+//       require(compare(key, NegativeInfinityKey) > 0)  // -inf = 0x00 × keyLength
+//       require(compare(key, PositiveInfinityKey) < 0)  // +inf = 0xFF × keyLength
+//       require(key.length == keyLength)
+//     — and modifyHelper's two write branches require
+//       require(value.length == fixedValueLength)        // insert-family only
+//     Any violation → IllegalArgumentException inside the Try → Failure AT
+//     THAT OP'S INDEX; `BatchAVLVerifier.performOneOperation` then poisons
+//     topNode = None (all later ops fail, digest None).
+//  2. ergo_avltree_rust authenticated_tree_ops.rs:226-229 (`ensure!` triple)
+//     + :291/:314 (value length, `assert!` — Rust panics where the JVM
+//     Failure-routes; JVM canonical), batch_avl_verifier.rs:157-172 (Err →
+//     root = None).
+//
+// `@ergots/avltree` lifted those per-op guards into upfront THROWS
+// (verify.ts validateOperationShape / validateConfig / validateStartingDigest,
+// by design — its public contract, unchanged here). The handlers therefore
+// pre-scan ops with the SAME predicates and emulate the JVM routing: ops
+// before the first shape-violating index still replay against the proof
+// (slice), and the violating op fails at its index, joining each method's
+// existing per-op-failure path. Whichever failure comes FIRST in op order
+// wins — a proof failure inside the prefix fails earlier, exactly as the
+// JVM's sequential replay would.
+// ---------------------------------------------------------------------------
+
+/**
+ * Construct-time shape violations — scorex `BatchAVLVerifier.reconstructedTree`
+ * (lazy val forced at construction) opens with `require(keyLength > 0)`,
+ * `valueLengthOpt.foreach(vl => require(vl >= 0))`, and
+ * `require(startingDigest.length == 33)`, all swallowed into topNode = None
+ * (construct-fail; CAvlTreeVerifier silences logError). These mirror
+ * `@ergots/avltree`'s validateConfig/validateStartingDigest throw conditions.
+ *
+ * Cost detail (scrypto bytecode): the requires fire BEFORE
+ * `rootNodeHeight = startingDigest.last & 0xff` is assigned, so the JVM's
+ * `bv.treeHeight` is 0 (field default) for this class — NOT digest[32].
+ * Callers must charge with height 0 when this returns true.
+ *
+ * Reachability: keyLength = 0 is wire-craftable (VLQ u32); updateDigest
+ * accepts any digest length post-F4-epilogue (CreateAvlTree rejects eval
+ * entirely), so the digest-length disjunct is now the load-bearing gate for
+ * Tier-2 verify ops on script-produced short/long-digest trees; negative
+ * valueLengthOpt remains wire-craftable but rare.
+ *
+ * Wrapped-negative range (AvlTreeData.scala:84-88): JVM parses keyLength and
+ * valueLengthOpt as `getUInt().toInt` — wire values in [2^31, 2^32) wrap
+ * NEGATIVE (acknowledged by the JVM's own comment at :84-88).  ergots parses
+ * them as positive u32, so a plain `<= 0` / `< 0` comparison misses that
+ * range.  `| 0` reinterprets the stored u32 as a signed i32 before comparing,
+ * matching the JVM's actual Int arithmetic.
+ */
+function constructShapeBad(data: AvlTreeData): boolean {
+  return (
+    (data.keyLength | 0) <= 0 ||
+    (data.valueLengthOpt !== null && (data.valueLengthOpt | 0) < 0) ||
+    data.digest.length !== 33
+  )
+}
+
+/**
+ * True iff `key` would fail one of scorex's three per-op key requires
+ * (see block comment above): wrong length, == NegativeInfinityKey
+ * (all-0x00 × keyLength), or == PositiveInfinityKey (all-0xFF × keyLength).
+ * For equal-length unsigned byte arrays the two strict lexicographic bounds
+ * reduce exactly to the all-0x00 / all-0xFF equality checks; wrong-length
+ * keys fail require #3 even when the compares pass — any violation routes
+ * to the same per-op Failure, so a single boolean suffices.
+ */
+function keyShapeBad(key: Uint8Array, keyLength: number): boolean {
+  if (key.length !== keyLength) return true
+  let allZero = true
+  let allFF = true
+  for (const b of key) {
+    if (b !== 0x00) allZero = false
+    if (b !== 0xff) allFF = false
+    if (!allZero && !allFF) return false
+  }
+  return allZero || allFF
+}
+
+/**
+ * Index of the first op that would fail scorex's per-op shape requires, or
+ * `ops.length` when none would. Key checks apply to EVERY op kind (the
+ * requires open returnResultOfOneOperation before any descent); the value
+ * check applies to value-carrying ops on fixed-value-length trees
+ * (modifyHelper write branches — and when update_fn fails first, e.g.
+ * insert-on-present, the op fails at the same index anyway, so flagging it
+ * here is observationally identical).
+ */
+function firstShapeBadOpIndex(ops: Operation[], config: AvlTreeConfig): number {
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i]!
+    if (keyShapeBad(op.key, config.keyLength)) return i
+    if (
+      'value' in op &&
+      config.valueLengthOpt !== null &&
+      op.value.length !== config.valueLengthOpt
+    ) {
+      return i
+    }
+  }
+  return ops.length
+}
+
+/**
+ * Run `verifyAvlBatchPartial` with JVM-faithful shape routing: construct-shape
+ * violations short-circuit to `null` (construct-fail — the verifier is never
+ * built; `@ergots/avltree` would throw `AvlVerifyError` on them), and ops are
+ * sliced to the prefix BEFORE the first shape-violating op (which the JVM
+ * fails at its index — never replayed). The caller's existing failure
+ * predicates (`partial === null || partial.opsCompleted < ops.length`,
+ * against the ORIGINAL ops.length) and `chargedOps` arithmetic then yield
+ * the JVM-exact routing for free:
+ *   - construct-fail → null (first op attempted+failed; chargedOps = min(1, n))
+ *   - proof/precondition failure inside the prefix → opsCompleted < badIdx
+ *     (the earlier failure wins, as in sequential replay)
+ *   - clean prefix + shape-bad op → opsCompleted = badIdx (< n) — the bad op
+ *     is the first failure; chargedOps = badIdx + 1
+ *   - no shape violations → unchanged full-batch call.
+ */
+function verifyWithShapeRouting(
+  data: AvlTreeData,
+  proof: Uint8Array,
+  config: AvlTreeConfig,
+  ops: Operation[]
+): ReturnType<typeof verifyAvlBatchPartial> {
+  if (constructShapeBad(data)) return null
+  const badIdx = firstShapeBadOpIndex(ops, config)
+  const opsToReplay = badIdx === ops.length ? ops : ops.slice(0, badIdx)
+  return verifyAvlBatchPartial(data.digest, proof, config, opsToReplay)
+}
+
+/** CreateAvlVerifier_Info — PerItemCost(110, 20, 64) on proof byte length. */
+function chargeCreateVerifier(ctx: EvalContext, proofLen: number): void {
+  ctx.addPerItemCost(110, 20, 64, proofLen)
+}
+
+/**
+ * Charge a per-op PerItemCost(base, perChunk, 1) on nItems, `times` times —
+ * one charge per attempted op, looped so a cost-limit trip fires at the same
+ * op boundary as the JVM's per-iteration addSeqCost.
+ */
+function chargePerOp(
+  ctx: EvalContext,
+  base: number,
+  perChunk: number,
+  nItems: number,
+  times: number
+): void {
+  for (let i = 0; i < times; i++) ctx.addPerItemCost(base, perChunk, 1, nItems)
+}
+
+/**
+ * Charged-op count for the forall-style modify loops (insert/update/
+ * insertOrUpdate) and getMany's map: full success charges every op;
+ * a per-op failure charges the successful prefix + the failing op;
+ * a construct failure charges exactly the first op attempt (JVM: every
+ * op on a broken verifier fails immediately; forall breaks at op 1).
+ */
+function chargedOps(
+  partial: { opsCompleted: number } | null,
+  opsLength: number
+): number {
+  if (partial === null) return Math.min(1, opsLength)
+  return partial.opsCompleted < opsLength ? partial.opsCompleted + 1 : opsLength
+}
 
 /** `Coll[Byte]` SType — element type of returned bytes Coll. */
 const SCOLL_BYTE: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
@@ -273,24 +515,28 @@ function expectOneArg(handlerName: string, args: SValue[]): void {
 
 /**
  * `SAvlTree.contains` (100:9) — single-key membership test.
- * Source: savltree.rs:339-381 — CONTAINS_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:67-90 (JVM-canonical, F4).
  *
- * Failure model (DIVERGES from get/getMany/get/remove):
- *   - verifier construct fail (`map_err(map_eval_err)?` on line 372) → throw
- *     `'avl-tree-proof-failed'`
- *   - per-op Lookup fail (Err arm on line 379) → return `Boolean(false)`
- *   - per-op Lookup ok None → `Boolean(false)`
- *   - per-op Lookup ok Some(_) → `Boolean(true)`
+ * JVM cost model (F4):
+ *   1. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   2. LookupAvlTree PerItem(40,10,1) × 1 on RAW digest[32] height (no max-1 floor).
  *
- * No `ctx.addCost(…)` — the Tier-2 EvalFns in sigma-rust do not call
- * `add_jit_cost`; the dispatcher's Pattern-A cost 4 + inline Const arm
- * cover the cost surface.
+ * Failure model (JVM-canonical, F4) — JVM has NO construct-throw path:
+ *   scorex swallows reconstruction errors (topNode = None); any Lookup on a
+ *   broken verifier surfaces as Failure. All failure paths → false:
+ *   - verifier construct fail → false (JVM returns false, not throw)
+ *   - per-op Lookup fail → false
+ *   - per-op Lookup ok None → false (key absent)
+ *   - per-op Lookup ok Some(_) → true (key present)
+ *
+ * Note: eni savltree.rs:361 still has the sigma-rust `?`-on-construct fork —
+ * ergots leads here per JVM. Route divergence to sigma-rust via SANTA post-F4.
  *
  * Defensive: `expectAvlTree` for non-AvlTree receiver (unreachable for
  * parser-produced trees; ConstantPlaceholder hardening).
  */
 export function evalSAvlTreeContains(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
@@ -298,49 +544,47 @@ export function evalSAvlTreeContains(
   expectTwoArgs('SAvlTree.contains', args)
   const key = extractBytes(args[0]!)
   const proof = extractBytes(args[1]!)
+  // CreateAvlVerifier — charged before construction (JVM addSeqCost wraps it).
+  chargeCreateVerifier(ctx, proof.length)
+  // LookupAvlTree ×1 on RAW treeHeight (contains/get take no max-1 floor —
+  // CErgoTreeEvaluator.scala:80 `val nItems = bv.treeHeight`). Construct-shape
+  // violations see height 0 — rootNodeHeight is never assigned (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  chargePerOp(ctx, 40, 10, h, 1)
   const config = avlTreeDataToConfig(obj.value)
-  const ops = buildSingleLookupOp(key)
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  // Per sigma-rust contains:
-  //   - r === null FROM CONSTRUCT FAIL only: throw (parity with line 372 `?`).
-  //   - r === null FROM PER-OP FAIL: returns false (line 379).
-  // verifyAvlBatch collapses both into null. To distinguish, call
-  // verifyAvlBatchPartial: it returns null ONLY on construct failure
-  // (per-op failure yields a partial-success with opsCompleted < ops.length).
-  if (r !== null) {
-    // Verifier succeeded end-to-end. Per-key Lookup result lives at [0]:
-    // non-null → key present (true); null → key absent (false).
-    return { kind: 'Boolean', value: r.results[0] !== null }
+  const partial = verifyWithShapeRouting(
+    obj.value, proof, config, buildSingleLookupOp(key)
+  )
+  // JVM contains NEVER throws (CErgoTreeEvaluator.scala:84-90): construct
+  // failure and lookup failure (incl. the per-op key-shape requires — wrong
+  // length / ±inf, T7.5) both surface as Failure → false; a successful
+  // lookup maps Some→true / None→false. Construct failure is not a distinct
+  // observable — scorex swallows reconstruction errors (topNode = None) and
+  // every subsequent op fails.
+  if (partial === null || partial.opsCompleted < 1) {
+    return { kind: 'Boolean', value: false }
   }
-  // r === null. Disambiguate construct vs per-op failure via partial:
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
-  if (partial === null) {
-    // Construct fail — matches sigma-rust's `?` on line 372.
-    throw new EvalError(
-      'SAvlTree.contains: verifier construct failed',
-      'avl-tree-proof-failed'
-    )
-  }
-  // Per-op fail (partial !== null with opsCompleted === 0): return false.
-  return { kind: 'Boolean', value: false }
+  return { kind: 'Boolean', value: partial.results[0] != null }
 }
 
 /**
  * `SAvlTree.get` (100:10) — single-key Option lookup returning the value
  * bytes on hit.
- * Source: savltree.rs:104-150 — GET_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:92-109 (JVM-canonical, F4).
  *
- * Failure model:
- *   - verifier construct fail (`map_err(map_eval_err)?` on line 136) → throw
- *     `'avl-tree-proof-failed'`
- *   - per-op Lookup Err arm (line 145-148) → throw same code
- *   - Ok None → `Option[Coll[Byte]] None`
- *   - Ok Some(bytes) → `Some(Coll[Byte])`
+ * JVM cost model (F4):
+ *   1. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   2. LookupAvlTree PerItem(40,10,1) × 1 on RAW digest[32] height (CErgoTreeEvaluator.scala:97).
  *
- * No per-handler cost charge (Tier-2 convention).
+ * Failure model (JVM-canonical, F4):
+ *   - verifier construct fail → Lookup returns Failure → throw 'avl-tree-proof-failed'
+ *     (both construct-fail and per-op-fail share the same throw path).
+ *   - per-op Lookup Err → throw same code.
+ *   - Ok None → `Option[Coll[Byte]] None`.
+ *   - Ok Some(bytes) → `Some(Coll[Byte])`.
  */
 export function evalSAvlTreeGet(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
@@ -348,16 +592,25 @@ export function evalSAvlTreeGet(
   expectTwoArgs('SAvlTree.get', args)
   const key = extractBytes(args[0]!)
   const proof = extractBytes(args[1]!)
+  chargeCreateVerifier(ctx, proof.length)
+  // LookupAvlTree ×1 on RAW treeHeight (CErgoTreeEvaluator.scala:97);
+  // construct-shape violations see height 0 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  chargePerOp(ctx, 40, 10, h, 1)
   const config = avlTreeDataToConfig(obj.value)
-  const ops = buildSingleLookupOp(key)
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
+  const partial = verifyWithShapeRouting(
+    obj.value, proof, config, buildSingleLookupOp(key)
+  )
+  // JVM get throws on Lookup Failure (syntax.error, CErgoTreeEvaluator.scala:106)
+  // — construct failure and the per-op key-shape requires (wrong length /
+  // ±inf, T7.5) manifest as that same Failure, so all throw.
+  if (partial === null || partial.opsCompleted < 1) {
     throw new EvalError(
       'SAvlTree.get: tree proof is incorrect',
       'avl-tree-proof-failed'
     )
   }
-  const found = r.results[0]
+  const found = partial.results[0]
   if (found === null || found === undefined) {
     return { kind: 'Option', elem: SCOLL_BYTE, value: null }
   }
@@ -366,22 +619,25 @@ export function evalSAvlTreeGet(
 
 /**
  * `SAvlTree.getMany` (100:11) — multi-key Option lookup.
- * Source: savltree.rs:152-212 — GET_MANY_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:112-130 (JVM-canonical, F4).
  *
- * Failure model: same throw discipline as `get`. Sigma-rust runs each
- * Lookup individually in a `try_fold`-style loop (line 186-206); if ANY
- * Lookup returns `Err`, the whole call throws (line 200-203). The successful
- * results map per-key to `Some(bytes)` (line 191-195) or `None`
- * (line 196-198).
+ * JVM cost model (F4):
+ *   1. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   2. LookupAvlTree PerItem(40,10,1) × chargedOps on RAW digest[32] height.
+ *      - Full success: k charges (one per key).
+ *      - Construct-fail: 1 charge (first op fails immediately on broken verifier).
+ *      - Per-op-fail at key i: opsCompleted+1 charges (JVM throws out of map at
+ *        first Failure — CErgoTreeEvaluator.scala:126).
+ *
+ * Charging after verifyAvlBatchPartial but before the throw keeps the cost-limit
+ * boundary: if a charge crosses the limit, addPerItemCost throws
+ * 'cost-limit-exceeded' before the proof-failed throw — same observable as the
+ * JVM's charge-then-attempt ordering at whole-call granularity.
  *
  * Returns a Coll of `Option[Coll[Byte]]` with one entry per input key.
- *
- * Implementation: `verifyAvlBatch` collapses both construct-fail and any
- * per-key-op-fail into null. Per sigma-rust both lead to the same throw, so
- * we don't need to disambiguate.
  */
 export function evalSAvlTreeGetMany(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
@@ -389,16 +645,27 @@ export function evalSAvlTreeGetMany(
   expectTwoArgs('SAvlTree.getMany', args)
   const keys = extractByteArrayList(args[0]!)
   const proof = extractBytes(args[1]!)
+  chargeCreateVerifier(ctx, proof.length)
   const config = avlTreeDataToConfig(obj.value)
   const ops = buildLookupOps(keys)
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
+  // One LookupAvlTree charge per key the JVM's keys.map reached: all keys on
+  // success; the successful prefix + the failing key on failure (the JVM
+  // throws out of the map at the first Failure — CErgoTreeEvaluator.scala:126;
+  // a shape-bad key fails at its own index, keys before it replay — T7.5).
+  // RAW treeHeight (no max-1 floor; 0 on construct-shape), loop-constant.
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  chargePerOp(ctx, 40, 10, h, chargedOps(partial, ops.length))
+  // ops.length === 0: the JVM's keys.map over an empty coll runs zero lookups —
+  // no Failure can surface even on a construct-broken verifier → empty Coll
+  // (charges: createVerifier only). CErgoTreeEvaluator.scala:111-130.
+  if (ops.length > 0 && (partial === null || partial.opsCompleted < ops.length)) {
     throw new EvalError(
       'SAvlTree.getMany: tree proof is incorrect',
       'avl-tree-proof-failed'
     )
   }
-  const items: SValue[] = r.results.map((found) =>
+  const items: SValue[] = (partial === null ? [] : partial.results).map((found) =>
     found === null ? noneCollByte() : someCollByte(found)
   )
   return { kind: 'Coll', elem: SOPTION_COLL_BYTE, items }
@@ -406,31 +673,25 @@ export function evalSAvlTreeGetMany(
 
 /**
  * `SAvlTree.insert` (100:12) — batch-Insert returning successor AvlTree.
- * Source: savltree.rs:214-277 — INSERT_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:132-164 (JVM-canonical, F4).
  *
- * Pre-check (BEFORE proof parse): if `!insert_allowed`, return `None`
- * straight away (line 218-220). No `@ergots/avltree` call.
+ * JVM cost model (F4):
+ *   1. isInsertAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:133).
+ *   2. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   3. InsertIntoAvlTree PerItem(40,10,1) × chargedOps on `max(treeHeight, 1)`.
+ *      ("when the tree is empty we still need to add the insert cost",
+ *      CErgoTreeEvaluator.scala:139). Full success: ops.length; construct-fail:
+ *      min(1, ops.length); per-op-fail: opsCompleted+1.
+ *   4. updateDigest Fixed(40) on the success path only (CErgoTreeEvaluator.scala:159).
  *
- * Failure model:
- *   - verifier construct fail (line 251 `?`) → throw `'avl-tree-proof-failed'`
- *   - V<3 per-op fail (line 263-267 `return Err`) → throw same code
- *   - V3+ per-op fail (line 260-261 `break`) → continue to result block
- *
- * Result block (line 270-276):
- *   - `bv.digest()` returns Some(new_digest) → `Some(AvlTree(new_digest))`
- *   - `bv.digest()` returns None → `Option None`
- *
- * `bv.digest()` returns None iff `root === null`, which happens AFTER any
- * per-op failure (root is poisoned). So in V3+ break case, this is the
- * `Option None` branch. On full-success path, `bv.digest()` is the
- * post-batch digest.
- *
- * V3+ implementation: we use `verifyAvlBatch` (all-or-nothing) — non-null
- * means full success, null means EITHER construct fail OR per-op fail.
- * Differentiate via `verifyAvlBatchPartial`: null → construct fail (throw);
- * partial.opsCompleted < ops.length → per-op fail (break path → None).
- *
- * V<3 implementation: same, but per-op fail throws instead of returning None.
+ * Failure model (JVM-canonical, F4) — construct failure is not a distinct
+ * observable (scorex swallows reconstruction errors; broken verifier → every
+ * op returns Failure). Construct-fail = first-op-fail:
+ *   - ops.length === 0: empty forall never runs; even a construct failure
+ *     cannot surface → digest → None at every version.
+ *   - ops.length > 0 AND (ctx.treeVersion ?? 0) < 3: V<3 throws
+ *     'avl-tree-proof-failed' (CErgoTreeEvaluator.scala:150).
+ *   - ops.length > 0 AND treeVersion >= 3: forall breaks → digest None → None.
  */
 export function evalSAvlTreeInsert(
   ctx: EvalContext,
@@ -439,120 +700,131 @@ export function evalSAvlTreeInsert(
 ): SValue {
   expectAvlTree('SAvlTree.insert', obj)
   expectTwoArgs('SAvlTree.insert', args)
-  // Pre-check: insert_allowed flag (line 218-220) — return None WITHOUT
-  // touching @ergots/avltree.
+  // isInsertAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:133).
+  ctx.addCost(15)
   if ((obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
   const ops = buildInsertOps(args[0]!)
   const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-  const treeVersion = ctx.treeVersion ?? 0
-
-  // Construct via verifyAvlBatchPartial to distinguish construct vs per-op
-  // failure (verifyAvlBatch collapses both to null).
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
-  if (partial === null) {
-    // Construct fail — line 251 in sigma-rust.
-    throw new EvalError(
-      'SAvlTree.insert: verifier construct failed',
-      'avl-tree-proof-failed'
-    )
-  }
-  if (partial.opsCompleted < ops.length) {
-    // Per-op fail.
-    if (treeVersion < 3) {
-      // V<3 throws (line 263-267).
+  chargeCreateVerifier(ctx, proof.length)
+  // InsertIntoAvlTree PerItem(40,10,1) × charged ops on max(height, 1)
+  // ("when the tree is empty we still need to add the insert cost",
+  // CErgoTreeEvaluator.scala:139). Construct-shape violations see height 0
+  // → max(0,1) = 1 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
+  chargePerOp(ctx, 40, 10, nItems, chargedOps(partial, ops.length))
+  if (partial === null || partial.opsCompleted < ops.length) {
+    // An op actually failed (construct failure manifests as the first op
+    // failing — scorex swallows reconstruction errors). V<3 throws
+    // (CErgoTreeEvaluator.scala:150 syntax.error, !isV3OrLater); V3+ breaks
+    // → digest None → None. With ZERO ops the forall never runs, so even a
+    // construct failure cannot reach the V<3 throw — it falls to digest →
+    // None at every version.
+    if (ops.length > 0 && (ctx.treeVersion ?? 0) < 3) {
       throw new EvalError(
         'SAvlTree.insert: incorrect insert',
         'avl-tree-proof-failed'
       )
     }
-    // V3+ break path: bv.digest() returns None → Option None
-    // (line 270-275 `if let Some(new_digest) = bv.digest() { … } else { None }`).
-    // Sigma-rust's `bv.digest()` is poisoned to None after a per-op
-    // failure (batch_avl_verifier.rs:168 `tree.root = None`), so the
-    // result is Option None — NOT a partial-state Some.
     return noneAvlTree()
   }
-  // Full success — apply the new digest immutably.
+  // updateDigest_Info Fixed(40) on the success path only (CErgoTreeEvaluator.scala:159).
+  ctx.addCost(40)
   return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }
 
 /**
  * `SAvlTree.update` (100:13) — batch-Update returning successor AvlTree.
- * Source: savltree.rs:383-439 — UPDATE_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:165-195 (JVM-canonical, F4).
  *
- * Pre-check: `!update_allowed` (line 387-389) → None.
+ * JVM cost model (F4):
+ *   1. isUpdateAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:169).
+ *   2. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   3. UpdateAvlTree PerItem(120,20,1) × chargedOps on `max(treeHeight, 1)`
+ *      (CErgoTreeEvaluator.scala:175-181).
+ *   4. updateDigest Fixed(40) on the success path only (CErgoTreeEvaluator.scala:189).
  *
- * Failure model:
- *   - verifier construct fail (line 420 `?`) → throw `'avl-tree-proof-failed'`
- *   - per-op fail (line 422-431 `break` — UNCONDITIONAL, no V<3/V3+ split)
- *     → continue to result block
- *
- * Confirmed via source-read: unlike `insert`, the `update` `break` is NOT
- * gated by `ctx.tree_version() >= ErgoTreeVersion::V3`. This is a survey
- * divergence — survey said V<3 throws like insert; sigma-rust shows update
- * always breaks.
- *
- * Result block (line 432-438): identical to insert.
- *   - bv.digest() Some → Some(AvlTree(new_digest))
- *   - bv.digest() None (post-poison) → Option None
+ * Failure model (JVM-canonical, F4) — JVM update NEVER throws (no version
+ * split): per-op Failure breaks the forall (CErgoTreeEvaluator.scala:178-186);
+ * construct failure joins the same path (scorex swallows reconstruction errors).
+ * Either failure → digest None → None. Pre-F4 ergots threw on construct fail
+ * (sigma-rust `?`-on-construct fork) — that divergence is now closed.
  */
 export function evalSAvlTreeUpdate(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
   expectAvlTree('SAvlTree.update', obj)
   expectTwoArgs('SAvlTree.update', args)
+  // isUpdateAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:169).
+  ctx.addCost(15)
   if ((obj.value.treeFlags & UPDATE_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
   const ops = buildUpdateOps(args[0]!)
   const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
-  if (partial === null) {
-    throw new EvalError(
-      'SAvlTree.update: verifier construct failed',
-      'avl-tree-proof-failed'
-    )
-  }
-  if (partial.opsCompleted < ops.length) {
-    // Per-op fail: ALWAYS breaks → None (no V<3/V3+ split).
+  chargeCreateVerifier(ctx, proof.length)
+  // UpdateAvlTree PerItem(120,20,1) × charged ops on max(height, 1)
+  // (CErgoTreeEvaluator.scala:175-181). Construct-shape violations see
+  // height 0 → max(0,1) = 1 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
+  chargePerOp(ctx, 120, 20, nItems, chargedOps(partial, ops.length))
+  if (partial === null || partial.opsCompleted < ops.length) {
+    // JVM update never throws: per-op Failure breaks the forall (no version
+    // split — CErgoTreeEvaluator.scala:178-186), digest None → None.
+    // Construct failure joins the same path. Pre-F4 ergots threw on
+    // construct failure (the sigma-rust `?`-on-construct fork).
     return noneAvlTree()
   }
+  ctx.addCost(40) // updateDigest_Info on success (CErgoTreeEvaluator.scala:189)
   return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }
 
 /**
  * `SAvlTree.remove` (100:14) — batch-Remove returning successor AvlTree.
- * Source: savltree.rs:279-337 — REMOVE_EVAL_FN.
+ * Source: CErgoTreeEvaluator.scala:230-254 (JVM-canonical, F4).
  *
- * Pre-check: `!remove_allowed` (line 283-285) → None.
+ * JVM cost model (F4):
+ *   1. isRemoveAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:233).
+ *   2. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   3. RemoveAvlTree PerItem(100,15,1) × ALL ops.length on max(treeHeight, 1).
+ *      The JVM uses `cfor` (CErgoTreeEvaluator.scala:240-245) — no break, no fast-exit
+ *      on failure; every op is charged even after the verifier is poisoned by a bad proof.
+ *   4. digest_Info Fixed(15) — UNCONDITIONAL (:246), charged before the digest inspect
+ *      regardless of whether any op succeeded.
+ *   5. updateDigest_Info Fixed(40) on the success path only (:249).
  *
- * Failure model (NO V3+ break):
- *   - verifier construct fail (line 316 `?`) → throw `'avl-tree-proof-failed'`
- *   - per-op Remove fail (line 318-326 — always-throw `return Err`) → throw
- *     same code
+ * Failure model (JVM-canonical, F4) — remove NEVER throws:
+ *   scorex `BatchAVLVerifier` swallows construction errors (topNode = None); every
+ *   subsequent op returns Failure; per-op results are DISCARDED by the cfor (no break).
+ *   After the loop, `bv.digest()` returns None (construct-fail or any op-fail), so
+ *   the digest match falls to the None arm → return None (:247-252).
  *
- * Confirmed: `remove` is the only modify-style handler with no V3+ partial-
- * success path. Per the design spec / source-read this is intentional.
+ *   - construct-fail → verifier poisoned → digest None → None
+ *   - any per-op Remove fail → result discarded (cfor continues) → digest None → None
+ *   - full success → digest Some(newDigest) → Some(AvlTree(newDigest)) + updateDigest(40)
  *
- * Result block (line 328-336): same as insert/update — Some(AvlTree) on
- * full success, Option None if `bv.digest()` returns None (only reachable
- * with an empty-keys batch yielding no digest update; sigma-rust returns
- * None then too).
+ * Pre-F4 ergots threw on both construct-fail and per-op-fail, matching sigma-rust's
+ * `?`-on-construct fork (savltree.rs:316,322). That divergence is now closed;
+ * ergots leads per JVM. Route divergence note to sigma-rust via SANTA post-F4.
  */
 export function evalSAvlTreeRemove(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
   expectAvlTree('SAvlTree.remove', obj)
   expectTwoArgs('SAvlTree.remove', args)
+  // isRemoveAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:233).
+  ctx.addCost(15)
   if ((obj.value.treeFlags & REMOVE_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
@@ -560,17 +832,25 @@ export function evalSAvlTreeRemove(
   const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
   const ops = buildRemoveOps(keys)
-
-  // Remove uses verifyAvlBatch (all-or-nothing) per source — any failure
-  // collapses to throw.
-  const r = verifyAvlBatch(obj.value.digest, proof, config, ops)
-  if (r === null) {
-    throw new EvalError(
-      'SAvlTree.remove: incorrect remove',
-      'avl-tree-proof-failed'
-    )
+  chargeCreateVerifier(ctx, proof.length)
+  // RemoveAvlTree PerItem(100,15,1) × ALL ops on max(height, 1).
+  // The JVM uses cfor with per-op results DISCARDED (CErgoTreeEvaluator.scala:240-245):
+  // no fast-break, every op is charged even after the verifier is poisoned —
+  // shape-bad keys included (T7.5). Construct-shape → height 0 → max(0,1)=1.
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
+  chargePerOp(ctx, 100, 15, nItems, ops.length)
+  // digest_Info Fixed(15) — UNCONDITIONAL (:246), before the digest inspect.
+  ctx.addCost(15)
+  if (partial === null || partial.opsCompleted < ops.length) {
+    // JVM remove NEVER throws: failures (construct or per-op) poison the verifier;
+    // digest → None → None (:247-252). Pre-F4 ergots threw on both (the only modify
+    // handler with a per-op throw — sigma-rust fork, now closed).
+    return noneAvlTree()
   }
-  return someAvlTree(withUpdatedDigest(obj.value, r.newDigest))
+  ctx.addCost(40) // updateDigest_Info on success (:249)
+  return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }
 
 /**
@@ -605,7 +885,7 @@ export function evalSAvlTreeUpdateOperations(
 }
 
 /**
- * `SAvlTree.updateDigest` (100:15) — replaces the 33-byte digest.
+ * `SAvlTree.updateDigest` (100:15) — replaces the digest with any-length bytes.
  * Source: savltree.rs:90-102 — UPDATE_DIGEST_EVAL_FN.
  *
  * Pattern A Fixed(40) — addCost(40) BEFORE shape check (matches sigma-rust's
@@ -614,14 +894,18 @@ export function evalSAvlTreeUpdateOperations(
  *
  * SType: (SAvlTree, SColl(SByte)) → SAvlTree.
  *
- * Defensive 33-byte length check — sigma-rust surfaces the same condition
- * via `ADDigest::try_from(bytes_vec)` failing inside `map_eval_err`. Reachable
- * from script-controlled data (any Coll[Byte] can be passed); thrown
- * specifically as 'avl-tree-bad-digest-length' (NEW code; not reused).
+ * JVM `CAvlTree.scala:31-34` has NO length require on `updateDigest` — the
+ * implementation simply does `AvlTreeData(newDigest, ...)`. Any Coll[Byte]
+ * length is accepted verbatim. The previous 33-byte gate mirrored sigma-rust's
+ * `ADDigest::try_from` shape (a convergent over-reject not present in the JVM);
+ * it is now removed per the F4 epilogue acceptance-corpus bless (2026-06-07).
  *
- * `withUpdatedDigest` (existing helper, _avltree-adapter.ts:68-75) does NOT
- * validate length — it's pure field-substitution. The handler's pre-check
- * is the sole length gate.
+ * Blessed vectors: AvlTree.updateDigest_any_length.json (3-byte/empty/40-byte
+ * → AvlTree cost 46; 3-byte readback via `.digest` → Coll[1,2,3] cost 65).
+ * `'avl-tree-bad-digest-length'` code retired from the taxonomy (codes 80→79).
+ *
+ * `withUpdatedDigest` (_avltree-adapter.ts:68-75) is pure field-substitution
+ * with no length gate — exactly the JVM semantics.
  */
 export function evalSAvlTreeUpdateDigest(
   ctx: EvalContext,
@@ -632,43 +916,56 @@ export function evalSAvlTreeUpdateDigest(
   expectAvlTree('SAvlTree.updateDigest', obj)
   expectOneArg('SAvlTree.updateDigest', args)
   const newDigest = extractBytes(args[0]!)
-  if (newDigest.length !== 33) {
-    throw new EvalError(
-      `SAvlTree.updateDigest: digest must be 33 bytes, got ${newDigest.length}`,
-      'avl-tree-bad-digest-length'
-    )
-  }
   return { kind: 'AvlTree', value: withUpdatedDigest(obj.value, newDigest) }
 }
 
 /**
  * `SAvlTree.insertOrUpdate` (100:16) — V3-gated InsertOrUpdate batch.
- * Source: savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN. Descriptor at
- * types/savltree.rs:377-403 with min_version: ErgoTreeVersion::V3.
+ * Source: CErgoTreeEvaluator.scala:196-228 (JVM-canonical, F4).
+ *         savltree.rs:441-498 — INSERT_OR_UPDATE_EVAL_FN (reference, pre-F4
+ *         sigma-rust still has the `?`-on-construct fork; ergots leads here).
  *
  * V-gating: dispatcher-level via `minVersion: 3` on the HANDLERS entry. The
  * dispatcher throws 'tree-version-too-low' BEFORE invoking this handler when
  * (ctx.treeVersion ?? 0) < 3. Mirrors sigma-rust's MethodDesc.min_version
  * gate. Receiver-eval + envelope cost (4) are still charged; the handler's
- * zero per-handler cost is not.
+ * per-handler costs are not.
  *
- * Pre-check: BOTH insert_allowed AND update_allowed must be set
- * (line 444). Asymmetric vs insert (insert_allowed only) and update
- * (update_allowed only). Either flag unset → Option None.
+ * JVM cost model (F4):
+ *   1. isUpdateAllowed_Info Fixed(15) — charged FIRST (CErgoTreeEvaluator.scala:199).
+ *   2. isInsertAllowed_Info Fixed(15) — charged SECOND (CErgoTreeEvaluator.scala:200).
+ *      BOTH charges occur before the combined flag check. Blessed flags-deny 73
+ *      = envelope 43 + 15 + 15 pins the double charge.
+ *   3. Combined flag check (insert AND update both required): either unset → None.
+ *   4. CreateAvlVerifier PerItem(110,20,64) on proof.length — BEFORE construction.
+ *   5. UpdateAvlTree PerItem(120,20,1) × chargedOps on `max(treeHeight, 1)`.
+ *      insertOrUpdate shares update's descriptor (CErgoTreeEvaluator.scala:215).
+ *   6. updateDigest Fixed(40) on success only (CErgoTreeEvaluator.scala:223).
  *
- * Verifier path: verifyAvlBatchPartial with InsertOrUpdate ops:
- *   - partial === null (construct fail) → throw 'avl-tree-proof-failed'
- *   - partial.opsCompleted < ops.length → graceful break (always; no V<3
- *     throw path because dispatcher already rejected V<3) → Option None
- *   - Full success → Some(AvlTree(new_digest))
+ * Failure model (JVM-canonical, F4):
+ *   JVM has NO construct-throw path (scorex swallows reconstruction errors;
+ *   broken verifier → topNode=None → every op returns Failure).
+ *   Construct-fail = first-op-fail → forall breaks → digest None → None.
+ *   The blessed bad-proof entry (None @ 443) pins this path: flags 30 +
+ *   createVerifier(143 B → 170) + ONE UpdateAvlTree(120+20·4) on the
+ *   construct-broken verifier, NO updateDigest. Pre-F4 ergots threw
+ *   'avl-tree-proof-failed' here — the sigma-rust `?`-on-construct fork;
+ *   ergots leads the fix (JVM canonical). V<3 unreachable (dispatcher gate).
+ *
+ * Route the divergence note to sigma-rust via SANTA post-F4.
  */
 export function evalSAvlTreeInsertOrUpdate(
-  _ctx: EvalContext,
+  ctx: EvalContext,
   obj: SValue,
   args: SValue[]
 ): SValue {
   expectAvlTree('SAvlTree.insertOrUpdate', obj)
   expectTwoArgs('SAvlTree.insertOrUpdate', args)
+  // BOTH flag costs, isUpdateAllowed FIRST (CErgoTreeEvaluator.scala:199-200),
+  // charged before the combined check — blessed flags-deny 73 = envelope 43
+  // + 15 + 15 pins the double charge.
+  ctx.addCost(15) // isUpdateAllowed_Info
+  ctx.addCost(15) // isInsertAllowed_Info
   if (
     (obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0 ||
     (obj.value.treeFlags & UPDATE_ALLOWED_BIT) === 0
@@ -678,18 +975,25 @@ export function evalSAvlTreeInsertOrUpdate(
   const ops = buildInsertOrUpdateOps(args[0]!)
   const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-
-  const partial = verifyAvlBatchPartial(obj.value.digest, proof, config, ops)
-  if (partial === null) {
-    throw new EvalError(
-      'SAvlTree.insertOrUpdate: verifier construct failed',
-      'avl-tree-proof-failed'
-    )
-  }
-  if (partial.opsCompleted < ops.length) {
-    // V<3 already rejected at dispatcher; V3+ break path: bv.digest()
-    // returns None post-poison → Option None (matches savltree.rs:495-497).
+  chargeCreateVerifier(ctx, proof.length)
+  // UpdateAvlTree_Info (120,20,1) — insertOrUpdate shares update's descriptor
+  // (CErgoTreeEvaluator.scala:215), × charged ops on max(height, 1).
+  // Construct-shape violations see height 0 → max(0,1) = 1 (T7.5).
+  const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  const nItems = Math.max(h, 1)
+  const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
+  chargePerOp(ctx, 120, 20, nItems, chargedOps(partial, ops.length))
+  if (partial === null || partial.opsCompleted < ops.length) {
+    // Failures discarded (forall fast-break), digest None → None
+    // (CErgoTreeEvaluator.scala:209-226). V<3 unreachable (dispatcher
+    // minVersion 3). The blessed bad-proof entry (None @ 443) pins this
+    // exact path: flags 30 + createVerifier(143 B → 170) + ONE
+    // UpdateAvlTree(120+20·4) on the construct-broken verifier. Pre-F4
+    // ergots threw 'avl-tree-proof-failed' here — the sigma-rust
+    // `?`-on-construct fork shared by all three conformers; ergots leads
+    // the fix (JVM canonical).
     return noneAvlTree()
   }
+  ctx.addCost(40) // updateDigest_Info on success (CErgoTreeEvaluator.scala:223)
   return someAvlTree(withUpdatedDigest(obj.value, partial.newDigest))
 }

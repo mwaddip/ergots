@@ -1,0 +1,258 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll filter with nested If",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV5",
+  "entries" : [
+    {
+      "name" : "Coll()#0",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => if (v > 0) v < 10 else false }) }",
+      "tree_bytes_hex" : "1a2503040004140100dad9010110b57201d90103049591720373008f72037301730201e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 96,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1)#1",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => if (v > 0) v < 10 else false }) }",
+      "tree_bytes_hex" : "1a2503040004140100dad9010110b57201d90103049591720373008f72037301730201e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 163,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(10)#2",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => if (v > 0) v < 10 else false }) }",
+      "tree_bytes_hex" : "1a2503040004140100dad9010110b57201d90103049591720373008f72037301730201e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 10
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 163,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1,2)#3",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => if (v > 0) v < 10 else false }) }",
+      "tree_bytes_hex" : "1a2503040004140100dad9010110b57201d90103049591720373008f72037301730201e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 230,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1,2,0)#4",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => if (v > 0) v < 10 else false }) }",
+      "tree_bytes_hex" : "1a2503040004140100dad9010110b57201d90103049591720373008f72037301730201e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          },
+          {
+            "kind" : "Int",
+            "value" : 0
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 272,
+        "error" : null
+      }
+    },
+    {
+      "name" : "Coll(1,-1,2,-2,11)#5",
+      "script" : "{ (x: Coll[Int]) => x.filter({ (v: Int) => if (v > 0) v < 10 else false }) }",
+      "tree_bytes_hex" : "1a2503040004140100dad9010110b57201d90103049591720373008f72037301730201e4e30110",
+      "input" : {
+        "kind" : "Coll",
+        "elem" : {
+          "tag" : "SInt"
+        },
+        "items" : [
+          {
+            "kind" : "Int",
+            "value" : 1
+          },
+          {
+            "kind" : "Int",
+            "value" : -1
+          },
+          {
+            "kind" : "Int",
+            "value" : 2
+          },
+          {
+            "kind" : "Int",
+            "value" : -2
+          },
+          {
+            "kind" : "Int",
+            "value" : 11
+          }
+        ]
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 381,
+        "error" : null
+      }
+    }
+  ]
+}

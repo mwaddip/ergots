@@ -37,9 +37,10 @@ export function parseBitInversion(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): BitInversion {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'BitInversion', input }
 }
 
@@ -47,6 +48,6 @@ export function parseBitInversion(
  * Serialize a `BitInversion` payload (the dispatcher in {@link serializeExpr}
  * emits the OP_BIT_INVERSION opcode byte). Writes the input Expr.
  */
-export function serializeBitInversion(b: BitInversion, w: ByteWriter): void {
-  serializeExpr(b.input, w)
+export function serializeBitInversion(b: BitInversion, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(b.input, w, treeVersion)
 }

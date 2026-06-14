@@ -94,8 +94,12 @@ pub mod xor_of;
 pub mod method_call;
 pub mod multiply_group;
 pub mod exponentiate;
-pub mod create_avl_tree;
-pub mod tree_lookup;
+// create_avl_tree + tree_lookup generators DELETED in the F4 epilogue
+// (2026-06-07): both nodes have no JVM eval override (the sigma-rust
+// generators captured an over-accept), and sigma-rust's CreateAvlTree wire
+// shape is forked (presence-tag valueLength vs the JVM 4th expr operand).
+// eval/create-avl-tree.json + eval/tree-lookup.json are HAND-AUTHORED
+// JVM-blessed reject pins now — see the marker in main.rs.
 pub mod deserialize_context;
 pub mod deserialize_register;
 pub mod sheader_handlers;

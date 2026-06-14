@@ -23,14 +23,20 @@
  */
 import type { BinOp, SValue, RelationOp, SType, ErgoBox, AvlTreeData, PreHeader } from '../../mir/types'
 import type { Header } from '@ergots/scorex'
-import { sTypeEquals as sTypeEqualsHelper } from '../../mir/stype-helpers'
+import { boxIdOf } from '../_box-id'
 import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
 import { isNumeric, valueToBigInt, bigIntToValue, widerKind, upcastCost } from './_numeric'
-import { serializeSigmaBoolean } from '../../wire/sigma-boolean'
-import { ByteWriter } from '@ergots/scorex'
+import { compareUBI } from './_ubi-binop'
+import {
+  equalSigmaBooleanCosted,
+  sigmaBooleanStructuralEq,
+  ecPointEqual,
+  MATCH_TYPE_COST,
+  EQ_GROUP_ELEMENT_COST,
+} from './_sigma-boolean-eq'
 
 /** Cost for ordering Relation ops. sigma-rust bin_op.rs:210. */
 const RELATION_ORDERING_COST = 20
@@ -48,10 +54,6 @@ const EQ_PRIM_COST = 3
 /** Per-comparison cost for BigInt.
  *  data_value_comparer.rs:16 `EQ_BIGINT_COST: u64 = 5` */
 const EQ_BIGINT_COST = 5
-
-/** Per-comparison cost for GroupElement (secp256k1 point comparison).
- *  data_value_comparer.rs:17 `EQ_GROUP_ELEMENT_COST: u64 = 172` */
-const EQ_GROUP_ELEMENT_COST = 172
 
 /** Tuple equality base cost (plus recursive element costs).
  *  data_value_comparer.rs:18 `EQ_TUPLE_COST: u64 = 4` */
@@ -88,57 +90,19 @@ function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * Positional Vec<Token>-style equality. Mainnet stores tokens in deterministic
- * order (sigma-rust `BoxTokens: BoundedVec<Token, 1, 255>`); we mirror the
- * positional PartialEq.
- */
-function tokensEqual(a: ErgoBox['tokens'], b: ErgoBox['tokens']): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (!bytesEq(a[i]!.id, b[i]!.id)) return false
-    if (a[i]!.amount !== b[i]!.amount) return false
-  }
-  return true
-}
-
-/**
- * NonMandatoryRegisters equality. Sigma-rust's `NonMandatoryRegisters` is
- * `Vec<RegisterValue>` (positional); mainnet always stores registers
- * contiguously from R4 in ascending key order, so iterating R4..R9 and
- * checking presence + value + tpe equality at each slot is logically
- * equivalent to the underlying Vec PartialEq.
+ * Box equality = id equality (JVM ErgoBox.equals — Arrays.equals(id, x.id),
+ * ErgoBox.scala:94-97; id = Blake2b256 over retained-or-canonical bytes).
+ * BYTE basis, NOT value basis: garbage-vs-canonical identity GE register
+ * encodings are UNEQUAL even though both decode to the identity point.
+ * facts/ergoscript-eval.md F5 batch 4 changelog ("Equality bases").
  *
- * tpe equality is checked because sigma-rust's RegisterValue is a Constant
- * (tpe + bytes); two registers with the same SValue shape but different
- * declared STypes are NOT structurally equal in sigma-rust.
- */
-function registersEqual(a: ErgoBox['registers'], b: ErgoBox['registers']): boolean {
-  for (let k = 4; k <= 9; k++) {
-    const ra = a[k]
-    const rb = b[k]
-    if (ra === undefined && rb === undefined) continue
-    if (ra === undefined || rb === undefined) return false
-    if (!sTypeEqualsHelper(ra.tpe, rb.tpe)) return false
-    if (!primitiveValueEqual(ra.value, rb.value)) return false
-  }
-  return true
-}
-
-/**
- * Structural ErgoBox equality. Sigma-rust derives PartialEq on the struct
- * (`chain/ergo_box.rs`); we compare each field. `box_id` is skipped: it's a
- * cached blake2b256 of the sigma-serialized bytes, so equal-other-fields
- * boxes have equal box_ids by construction.
+ * (Replaces the pre-F5-batch-4 field walk, which routed register GE/
+ * SigmaProp compares through identity-aware ecPointEqual — value-basis
+ * logic that over-equaled the garbage-identity twins once the GE
+ * canonical-bytes invariant normalized them at the SValue layer.)
  */
 function boxEqual(a: ErgoBox, b: ErgoBox): boolean {
-  if (a.value !== b.value) return false
-  if (!bytesEq(a.ergoTreeBytes, b.ergoTreeBytes)) return false
-  if (!tokensEqual(a.tokens, b.tokens)) return false
-  if (!registersEqual(a.registers, b.registers)) return false
-  if (a.creationHeight !== b.creationHeight) return false
-  if (!bytesEq(a.txId, b.txId)) return false
-  if (a.index !== b.index) return false
-  return true
+  return bytesEq(boxIdOf(a), boxIdOf(b))
 }
 
 /**
@@ -174,7 +138,13 @@ function autolykosSolutionEqual(
   return true
 }
 
-/** Structural PreHeader equality (sigma-rust `ergo-chain-types/src/preheader.rs`). */
+/**
+ * Structural PreHeader equality (sigma-rust `ergo-chain-types/src/preheader.rs`).
+ * Basis note (F5 batch 4): the JVM verdict basis is FIELD equality too
+ * (`CPreHeader` case class ==, point-equality minerPk), but a second PreHeader
+ * value is adversarially unreachable (no SPreHeader DataSerializer arm, one
+ * preHeader per context) — byte-field compare kept as-is, document-only.
+ */
 function preHeaderEqual(a: PreHeader, b: PreHeader): boolean {
   if (a.version !== b.version) return false
   if (!bytesEq(a.parentId, b.parentId)) return false
@@ -188,9 +158,15 @@ function preHeaderEqual(a: PreHeader, b: PreHeader): boolean {
 
 /**
  * Structural Header equality (sigma-rust `ergo-chain-types/src/header.rs`
- * derived PartialEq across all 13 fields). `id` IS included (sigma-rust
- * compares it; it's a stored cache of the hash, but comparing it costs
- * little and matches the derive(PartialEq) field-by-field shape).
+ * derived PartialEq across all 13 fields). `id` IS included.
+ *
+ * Basis note (F5 batch 4): the JVM verdict basis is ID compare —
+ * `CHeader.equals` compares ids = blake2b over the CACHED INPUT bytes
+ * (ErgoHeader.scala:133-140 id-over-`_bytes`; :167-180 parse caches the
+ * consumed slice). The 13-field walk here (which includes `id`) is
+ * verdict-equivalent — every Header value ingresses through the byte
+ * parser, which derives `id` from those same bytes, so field-equal ⟺
+ * id-equal — and is kept as-is.
  */
 function headerEqual(a: Header, b: Header): boolean {
   if (a.version !== b.version) return false
@@ -278,8 +254,8 @@ function addPerItemJitCost(
  *
  * Iter-20: the SAvlTree/SBox/SPreHeader/SHeader arms were originally missing
  * (fell through to DEFAULT), causing a cost-drift on `Coll[SAvlTree]` equality
- * at mainnet h=972,275. SUnsignedBigInt (v6) maps to BIGINT in sigma-rust but
- * is not modelled here (pre-v6 trees only).
+ * at mainnet h=972,275. SUnsignedBigInt (v6, P2c) maps to EQ_COA_BigInt (same
+ * constant as SBigInt), handled by the explicit arm below.
  */
 function collEqPerItemCost(elem: SType): PerItemCost {
   switch (elem.tag) {
@@ -289,6 +265,7 @@ function collEqPerItemCost(elem: SType): PerItemCost {
     case 'SLong':         return EQ_COLL_LONG_PER_ITEM
     case 'SBoolean':      return EQ_COLL_BOOLEAN_PER_ITEM
     case 'SBigInt':       return EQ_COLL_BIGINT_PER_ITEM
+    case 'SUnsignedBigInt': return EQ_COLL_BIGINT_PER_ITEM // mirror BigInt (EQ_COA_BigInt)
     case 'SGroupElement': return EQ_COLL_GROUP_ELEMENT_PER_ITEM
     case 'SAvlTree':      return EQ_COLL_AVL_TREE_PER_ITEM
     case 'SBox':          return EQ_COLL_BOX_PER_ITEM
@@ -309,7 +286,7 @@ function collEqPerItemCost(elem: SType): PerItemCost {
 function isCoaCollElem(elem: SType): boolean {
   switch (elem.tag) {
     case 'SByte': case 'SShort': case 'SInt': case 'SLong': case 'SBoolean':
-    case 'SBigInt': case 'SGroupElement': case 'SAvlTree': case 'SBox':
+    case 'SBigInt': case 'SUnsignedBigInt': case 'SGroupElement': case 'SAvlTree': case 'SBox':
     case 'SPreHeader': case 'SHeader':
       return true
     default:
@@ -365,57 +342,67 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  *   Option                       → EQ_OPTION_COST = 4 + recursive inner cost if both Some (line 19)
  *   Coll                         → COLL_MATCH_TYPE_COST = 1 always, then if lengths equal:
  *                                   addPerItemJitCost(perItemCost(elem), n) (lines 27, 108-117)
- *   Unit/SigmaProp/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
- *   Box/AvlTree/PreHeader/Header → throw 'not-implemented-yet' (runtime shapes land in 2e/2h)
+ *   Unit/Lambda/Context/cross-type → catch-all arm → EQ_PRIM_COST = 3 (lines 130-135)
+ *   SigmaProp → MatchType(1) + recursive SigmaBoolean walk (_sigma-boolean-eq.ts; JVM DataValueComparer.scala:253-282,353-361) — F3
+ *   Box        → `boxEqual` (id basis: Blake2b256 over retained/canonical bytes)
+ *   AvlTree    → `avlTreeEqual` (structural field comparison)
+ *   PreHeader  → `preHeaderEqual` (field comparison)
+ *   Header     → `headerEqual` (id basis: Blake2b256 over retained bytes)
  *
  * Different `kind` → `false` (no cross-type coercion, matching sigma-rust's
  * match-arm posture which returns Ok(false) for cross-type pairs).
  *
+ * Cost-charging is conditional on `ctx` being present. With `ctx` (the costed
+ * `sValueEquals` wrapper, used by the Eq/NEq BinOp arm) every per-type EQ cost is
+ * charged exactly as before. Without `ctx` (the cost-free `sValueStructuralEq`
+ * wrapper, used by SColl.startsWith/endsWith — uncosted Scala ops on the JVM) the
+ * boolean result is IDENTICAL but NO cost is charged. Cost is the ONLY use of
+ * `ctx` in this core; the boolean logic is byte-for-byte unchanged either way.
+ *
  * @param a   Left SValue operand (already evaluated)
  * @param b   Right SValue operand (already evaluated)
- * @param ctx EvalContext for JIT cost accumulation
+ * @param ctx Optional EvalContext for JIT cost accumulation; omitted = cost-free
  */
-export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
+function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
   // Different kinds → catch-all arm in sigma-rust (lines 131-135): charges
   // EQ_PRIM_COST and then `Ok(lv == rv)` where PartialEq returns false for
   // cross-variant pairs. So: charge EQ_PRIM_COST, return false.
   if (a.kind !== b.kind) {
-    ctx.addCost(EQ_PRIM_COST)
+    ctx?.addCost(EQ_PRIM_COST)
     return false
   }
 
   switch (a.kind) {
     // Primitive comparisons — data_value_comparer.rs:53-60.
-    case 'Boolean': ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Byte':    ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Short':   ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Int':     ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
-    case 'Long':    ctx.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Boolean': ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Byte':    ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Short':   ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Int':     ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
+    case 'Long':    ctx?.addCost(EQ_PRIM_COST); return a.value === (b as typeof a).value
 
     // BigInt — data_value_comparer.rs:62-65.
-    case 'BigInt':  ctx.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
+    case 'BigInt':  ctx?.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
 
-    // GroupElement — data_value_comparer.rs:67-70.
+    // GroupElement — DataValueComparer.scala:340-341 / :294-300.
+    // addFixedCost(EQ_GroupElement=172) charged unconditionally (flat, no MatchType
+    // wrapper at this arm), then equalGroupElement — object equality on parsed points.
+    // JVM GroupElementSerializer parses any 0x00-lead to THE identity object, so two
+    // identity encodings with different tail bytes compare equal (sigma-rust ec_point.rs
+    // :139-151 mirrors this). Route through ecPointEqual for the identity class.
     case 'GroupElement': {
-      ctx.addCost(EQ_GROUP_ELEMENT_COST)
-      const ba = a.value
-      const bb = (b as typeof a).value
-      if (ba.length !== bb.length) return false
-      for (let i = 0; i < ba.length; i++) {
-        if (ba[i] !== bb[i]) return false
-      }
-      return true
+      ctx?.addCost(EQ_GROUP_ELEMENT_COST)
+      return ecPointEqual(a.value, (b as typeof a).value)
     }
 
     // Tuple — data_value_comparer.rs:83-93.
     // EQ_TUPLE_COST + recursive cost per element.
     case 'Tuple': {
-      ctx.addCost(EQ_TUPLE_COST)
+      ctx?.addCost(EQ_TUPLE_COST)
       const ta = a
       const tb = b as typeof a
       if (ta.items.length !== tb.items.length) return false
       for (let i = 0; i < ta.items.length; i++) {
-        if (!sValueEquals(ta.items[i]!, tb.items[i]!, ctx)) return false
+        if (!compareSValues(ta.items[i]!, tb.items[i]!, ctx)) return false
       }
       return true
     }
@@ -423,7 +410,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // Option — data_value_comparer.rs:96-103.
     // EQ_OPTION_COST + recursive inner cost when both Some.
     case 'Option': {
-      ctx.addCost(EQ_OPTION_COST)
+      ctx?.addCost(EQ_OPTION_COST)
       const oa = a
       const ob = b as typeof a
       // Sigma-rust match: (None, None) → Ok(true), (Some(l), Some(r)) → recurse,
@@ -431,13 +418,13 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       // (the match only looks at value presence, not the SType); we mirror that.
       if (oa.value === null && ob.value === null) return true
       if (oa.value === null || ob.value === null) return false
-      return sValueEquals(oa.value, ob.value, ctx)
+      return compareSValues(oa.value, ob.value, ctx)
     }
 
     // Coll — data_value_comparer.rs:105-118.
     case 'Coll': {
       // COLL_MATCH_TYPE_COST always paid (data_value_comparer.rs:108).
-      ctx.addCost(COLL_MATCH_TYPE_COST)
+      ctx?.addCost(COLL_MATCH_TYPE_COST)
       const ca = a
       const cb = b as typeof a
       const n = ca.items.length
@@ -447,52 +434,72 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
         //  without charging per-item or base cost").
         return false
       }
-      // Same length: charge per-item cost, then compare as bulk.
-      // Sigma-rust uses `Ok(lv == rv)` which compares the entire Coll at once
-      // (Rust PartialEq on CollKind). We mirror by checking element-wise.
+      // Same length: compare element-wise FIRST, then charge the per-item cost
+      // on the count of elements ACTUALLY COMPARED before the first inequality.
+      //
+      // JVM charge-AFTER-loop semantics (CErgoTreeEvaluator.scala:399-421,
+      // `addSeqCost(costKind, opDesc)(block: () => Int)`): `nItems = block()`
+      // runs the compare loop FIRST and returns the count compared, THEN
+      // `costKind.cost(nItems)` is charged. Both JVM compare loops
+      // (`equalCOA_Prim` :159-176, `equalColls` :183-196) are
+      // `while (i < len && okEqual) { ...; i += 1 }; i` — so the returned count
+      // is (first-unequal-index + 1) on short-circuit, or `len` if all equal.
+      // Charging the per-item on the FULL `n` eagerly (the prior code) over-
+      // charged whenever a short-circuit crossed a per-item chunk boundary
+      // (testnet h=28931 outer Coll[Coll[Byte]] n=4 unequal@0: JVM cost(1)=12 vs
+      // our cost(4)=18, Δ6 → 610 vs 604). JVM is canonical.
+      //
+      // JVM `equalColls_Dispatch`: COA leaf-element colls are bulk-compared
+      // (`equalCOA_Prim`, no recursion); COMPOSITE-element colls
+      // (Coll/Tuple/Option/SigmaProp) RECURSE via `equalDataValues` per element,
+      // charging the nested MatchType + per-item. Both paths short-circuit on
+      // the first unequal element and both feed the compared count into the
+      // SAME charge-after-loop above.
       const perItemCost = collEqPerItemCost(ca.elem)
-      ctx.addCost(addPerItemJitCost(perItemCost, n))
-      // Element comparison. JVM `equalColls_Dispatch`: COA leaf-element colls are
-      // bulk-compared (equalCOA_Prim, no recursion — the per-item cost above is
-      // the whole charge); COMPOSITE-element colls (Coll/Tuple/Option/SigmaProp)
-      // RECURSE via equalDataValues per element, charging the nested MatchType +
-      // per-item. Our prior code bulk-compared ALL elements via the non-recursive
-      // primitiveValueEqual (mirroring sigma-rust's PartialEq) — under-charging
-      // nested colls/tuples by the inner recursion vs JVM. sigma-rust shares it.
-      // Routed to the sigma-rust session in santa §B4. JVM is canonical.
       const recurseElems = !isCoaCollElem(ca.elem)
+      let equal = true
+      let compared = 0
       for (let i = 0; i < n; i++) {
+        compared = i + 1 // mirror JVM `i += 1` BEFORE the loop-condition recheck
         if (recurseElems) {
-          // sValueEquals charges the nested MatchType + per-item (and short-
-          // circuits on inner length mismatch, matching JVM).
-          if (!sValueEquals(ca.items[i]!, cb.items[i]!, ctx)) return false
+          // compareSValues charges the nested MatchType + per-item (and short-
+          // circuits on inner length mismatch, matching JVM equalDataValues).
+          if (!compareSValues(ca.items[i]!, cb.items[i]!, ctx)) { equal = false; break }
         } else {
-          if (ca.items[i]!.kind !== cb.items[i]!.kind) return false
-          if (!primitiveValueEqual(ca.items[i]!, cb.items[i]!)) return false
+          if (ca.items[i]!.kind !== cb.items[i]!.kind || !primitiveValueEqual(ca.items[i]!, cb.items[i]!)) {
+            equal = false
+            break
+          }
         }
       }
-      return true
+      // n === 0 → compared stays 0 (JVM `i` is 0 for an empty loop); cost(0)
+      // matches the shared n=0 chunk convention in addPerItemJitCost.
+      ctx?.addCost(addPerItemJitCost(perItemCost, compared))
+      return equal
     }
 
-    // SigmaProp: byte-equal on canonical wire bytes (serialized via structural walker).
-    // Falls into sigma-rust's catch-all `_` arm (line 132): EQ_PRIM_COST + lv == rv.
-    // SigmaProp's PartialEq compares the inner SigmaBoolean structurally, which is
-    // equivalent to comparing the canonical wire bytes.
+    // SigmaProp — JVM DataValueComparer.scala:353-361: MatchType for the
+    // SigmaProp dispatch, then equalSigmaBoolean walks the tree (MatchType
+    // per node + EQ_GroupElement per ECPoint compared, && short-circuit;
+    // conjecture-left vs different-variant-right THROWS, mirroring the JVM
+    // sys.error :278-281). Replaces the flat EQ_PRIM_COST byte-compare
+    // (sigma-rust catch-all posture) — F3 root cause #1; blessed vectors
+    // EQ_of_SigmaProp{,_unequal} pin all three cost classes. The cost-free
+    // path (sValueStructuralEq — JVM's uncosted Scala ==) compares
+    // structurally with NO throw.
     case 'SigmaProp': {
-      ctx.addCost(EQ_PRIM_COST)
-      const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
-      const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
-      if (ra.length !== rb.length) return false
-      for (let i = 0; i < ra.length; i++) {
-        if (ra[i] !== rb[i]) return false
+      const rv = (b as typeof a).value
+      if (ctx) {
+        ctx.addCost(MATCH_TYPE_COST)
+        return equalSigmaBooleanCosted(a.value, rv, ctx)
       }
-      return true
+      return sigmaBooleanStructuralEq(a.value, rv)
     }
 
     // Unit: falls into catch-all arm → EQ_PRIM_COST, always equal.
     // sigma-rust: Unit == Unit is true via PartialEq (unit has only one value).
     case 'Unit': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return true
     }
 
@@ -501,7 +508,7 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // returns false (PartialEq compares by closure identity, not structural eq).
     // We return false conservatively.
     case 'Lambda': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return false
     }
 
@@ -509,14 +516,14 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // Sigma-rust data_value_comparer.rs:130-135: `_ => { ctx.add_jit_cost(EQ_PRIM_COST)?; Ok(lv == rv) }`
     // Value::Context is a unit variant; Context == Context is always true via PartialEq.
     case 'Context': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return true
     }
 
     // Global: unit variant (mirrors Context arm above). Value::Global == Value::Global
     // is always true via PartialEq (sigma-rust catch-all arm in data_value_comparer.rs).
     case 'Global': {
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return true
     }
 
@@ -525,19 +532,19 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
     // cost charged once before the recursive walk (data_value_comparer.rs:73-128).
     // First mainnet trigger: h=448,658 tx 1 input 0 (Coll[Box] equality).
     case 'Box': {
-      ctx.addCost(EQ_BOX_COST)
+      ctx?.addCost(EQ_BOX_COST)
       return boxEqual(a.value, (b as typeof a).value)
     }
     case 'AvlTree': {
-      ctx.addCost(EQ_AVL_TREE_COST)
+      ctx?.addCost(EQ_AVL_TREE_COST)
       return avlTreeEqual(a.value, (b as typeof a).value)
     }
     case 'PreHeader': {
-      ctx.addCost(EQ_PREHEADER_COST)
+      ctx?.addCost(EQ_PREHEADER_COST)
       return preHeaderEqual(a.value, (b as typeof a).value)
     }
     case 'Header': {
-      ctx.addCost(EQ_HEADER_COST)
+      ctx?.addCost(EQ_HEADER_COST)
       return headerEqual(a.value, (b as typeof a).value)
     }
 
@@ -545,15 +552,35 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
       // SString equality is primitive (JS string compare). Iter-17 added
       // SValue.String for output-roundtrip parity; mainnet rarely exercises
       // String-equality at eval time, but it must compile and behave correctly.
-      ctx.addCost(EQ_PRIM_COST)
+      ctx?.addCost(EQ_PRIM_COST)
       return a.value === (b as typeof a).value
     }
 
+    // UnsignedBigInt — mirrors BigInt (JVM descriptors map both to EQ_BigInt).
+    case 'UnsignedBigInt': ctx?.addCost(EQ_BIGINT_COST); return a.value === (b as typeof a).value
+
     default: {
       const _exhaust: never = a
-      throw new Error(`sValueEquals: unreachable kind ${JSON.stringify(_exhaust)}`)
+      throw new Error(`compareSValues: unreachable kind ${JSON.stringify(_exhaust)}`)
     }
   }
+}
+
+/**
+ * Costed structural equality (the Eq/NEq BinOp arm). `ctx` REQUIRED — charges
+ * the per-type EQ costs. Behavior unchanged from before the P3 refactor.
+ */
+export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
+  return compareSValues(a, b, ctx)
+}
+
+/**
+ * Cost-free structural equality (SColl.startsWith/endsWith, v6 P3). Same boolean
+ * result as sValueEquals but charges NO cost — the JVM's Coll.startsWith/endsWith
+ * are uncosted Scala ops (only the Zip envelope is charged by the caller).
+ */
+export function sValueStructuralEq(a: SValue, b: SValue): boolean {
+  return compareSValues(a, b)
 }
 
 /**
@@ -570,15 +597,18 @@ export function sValueEquals(a: SValue, b: SValue, ctx: EvalContext): boolean {
  * — meaning it doesn't recurse into eq_with_cost per element but uses Rust's
  * structural PartialEq. We mirror this by doing plain value comparison here.
  *
- * This function is also exported for use by SColl.indexOf (`method-call.ts`),
- * which uses `==` (PartialEq) directly in sigma-rust, not `eq_with_cost` — so
- * no cost is charged per comparison in the search loop. Any semantics change
- * here requires coordinating with that handler.
+ * Real caller: Coll bulk-element compare in the `compareSValues` Coll arm
+ * (the COA/non-recursive element path). SColl.indexOf uses the COSTED
+ * `sValueEquals` (`method-call.ts:414`, JVM `equalDataValues` at
+ * `methods.scala:1091`) — not this function. (The box-register caller
+ * `registersEqual` was deleted in F5 batch 4 — box equality is id-basis,
+ * see `boxEqual`.)
  *
- * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through:
- * Box/AvlTree/PreHeader/Header throw 'not-implemented-yet'; Lambda and Context
- * return `false`/`true` respectively via their explicit arms above. The `default` exhaustiveness arm
- * below covers any future additions.
+ * Unhandled kinds (Box, AvlTree, PreHeader, Header, Context, Lambda) fall through to the
+ * outer `compareSValues` caller which handles them via `boxEqual`/`avlTreeEqual`/
+ * `preHeaderEqual`/`headerEqual`; Lambda and Context return `false`/`true` respectively
+ * via their explicit arms above. The `default` exhaustiveness arm below covers any future
+ * additions.
  */
 export function primitiveValueEqual(a: SValue, b: SValue): boolean {
   if (a.kind !== b.kind) return false
@@ -590,19 +620,15 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Long':    return a.value === (b as typeof a).value
     case 'BigInt':  return a.value === (b as typeof a).value
     case 'Unit':    return true
-    case 'GroupElement': {
-      const ba = a.value, bb = (b as typeof a).value
-      if (ba.length !== bb.length) return false
-      for (let i = 0; i < ba.length; i++) if (ba[i] !== bb[i]) return false
-      return true
-    }
-    case 'SigmaProp': {
-      const wa = new ByteWriter(); serializeSigmaBoolean(a.value, wa); const ra = wa.toBytes()
-      const wb = new ByteWriter(); serializeSigmaBoolean((b as typeof a).value, wb); const rb = wb.toBytes()
-      if (ra.length !== rb.length) return false
-      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return false
-      return true
-    }
+    // GroupElement: identity class applies (0x00-lead → identity, tails dead).
+    // JVM GroupElementSerializer parse-to-identity + DataValueComparer.scala:294-300.
+    case 'GroupElement':
+      return ecPointEqual(a.value, (b as typeof a).value)
+    case 'SigmaProp':
+      // Scala case-class == (uncosted — box-register / Coll-bulk path):
+      // structural walk with identity-class ECPoint semantics, NO
+      // conjecture-mismatch throw.
+      return sigmaBooleanStructuralEq(a.value, (b as typeof a).value)
     case 'Coll': {
       const ca = a, cb = b as typeof a
       if (ca.items.length !== cb.items.length) return false
@@ -643,6 +669,8 @@ export function primitiveValueEqual(a: SValue, b: SValue): boolean {
     case 'Header':
       return headerEqual(a.value, (b as typeof a).value)
     case 'String':
+      return a.value === (b as typeof a).value
+    case 'UnsignedBigInt':
       return a.value === (b as typeof a).value
     default: {
       const _exhaust: never = a
@@ -686,6 +714,21 @@ export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
 
   // Step 1: eval left operand first (sigma-rust bin_op.rs:190).
   const left = evalExpr(e.left, env, ctx)
+
+  // UBI ordering — routed locally, before the isNumeric guard (P2b Critical 1).
+  // Both operands must be UBI; ordering cost is the flat 20 (spec §3).
+  if (left.kind === 'UnsignedBigInt') {
+    ctx.addCost(RELATION_ORDERING_COST)
+    const right = evalExpr(e.right, env, ctx)
+    if (right.kind !== 'UnsignedBigInt') {
+      throw new EvalError(
+        `BinOp.Relation.${op}: UnsignedBigInt operand requires an UnsignedBigInt other operand, got '${right.kind}'`,
+        'bin-op-kind-mismatch',
+      )
+    }
+    return { kind: 'Boolean', value: compareUBI(op, left.value, right.value) }
+  }
+
   if (!isNumeric(left.kind)) {
     throw new EvalError(
       `BinOp.Relation.${op}: non-numeric left operand kind ${left.kind}`,

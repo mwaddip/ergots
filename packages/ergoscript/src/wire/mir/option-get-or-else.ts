@@ -38,10 +38,11 @@ export function parseOptionGetOrElse(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): OptionGetOrElse {
-  const input = parseExpr(r, constantTypes, constantValues, valDefTypes)
-  const def = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  const def = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'OptionGetOrElse', input, default: def }
 }
 
@@ -55,8 +56,9 @@ export function parseOptionGetOrElse(
  */
 export function serializeOptionGetOrElse(
   e: OptionGetOrElse,
-  w: ByteWriter
+  w: ByteWriter,
+  treeVersion: number
 ): void {
-  serializeExpr(e.input, w)
-  serializeExpr(e.default, w)
+  serializeExpr(e.input, w, treeVersion)
+  serializeExpr(e.default, w, treeVersion)
 }

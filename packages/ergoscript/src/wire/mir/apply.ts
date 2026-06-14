@@ -63,9 +63,10 @@ export function parseApply(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): Apply {
-  const func = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const func = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const count = r.readVlqU()
   if (count > MAX_APPLY_ARGS) {
     throw new ExprParseError(
@@ -75,7 +76,7 @@ export function parseApply(
   }
   const args: Expr[] = []
   for (let i = 0; i < count; i++) {
-    args.push(parseExpr(r, constantTypes, constantValues, valDefTypes))
+    args.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
   }
   return { tag: 'Apply', func, args }
 }
@@ -85,10 +86,10 @@ export function parseApply(
  * emits the OP_APPLY opcode byte). Writes the function Expr, then the
  * args count as VLQ-u32, then each arg Expr.
  */
-export function serializeApply(a: Apply, w: ByteWriter): void {
-  serializeExpr(a.func, w)
+export function serializeApply(a: Apply, w: ByteWriter, treeVersion: number): void {
+  serializeExpr(a.func, w, treeVersion)
   w.writeVlqU(a.args.length)
   for (const arg of a.args) {
-    serializeExpr(arg, w)
+    serializeExpr(arg, w, treeVersion)
   }
 }

@@ -1,129 +1,52 @@
 /**
- * CreateAvlTree eval arm — no inline cost (children-only).
+ * CreateAvlTree eval arm — unconditional reject.
  *
- * Source: ergotree-interpreter/src/eval/create_avl_tree.rs:15-41
- *         ergotree-ir/src/mir/create_avl_tree.rs:31-59 (MIR struct + build-time guards)
- *         ergotree-ir/src/mir/avl_tree_data.rs:32-38 (AvlTreeFlags::parse + ::new)
+ * The JVM has NO eval override for CreateAvlTree (trees.scala:79-91):
+ * `costKind = Value.notSupportedError(this, "costKind")` and the default
+ * `Value.eval` fires `sys.error("Should be overriden in ...")`
+ * (values.scala:102). The node even carries a `// TODO v6.0: implement
+ * eval method` comment (trees.scala:77, issue #907) — it has NEVER been
+ * evaluable on-chain. EVERY evaluation throws JVM-side, regardless of
+ * operand validity.
  *
- * Eval order (sigma-rust line-for-line): flags → digest → keyLength →
- * (optional) valueLength → construct AvlTreeData. NO add_jit_cost call —
- * children eval their own costs.
+ * JVM-blessed vector pins the reject at ergoTree v3:
+ *   AvlTree.unsupported_eval_nodes_v6.json #create_avl_tree-errored#1
+ * (blessed_by jvm:sigma-state-6.0.3, vendored 2026-06-07, F4 epilogue).
+ * No v5 vector exists: the tree is JVM-UNSERIALIZABLE at v5 (the
+ * `Const(SOption[SInt], None)` valueLengthOpt operand needs Option data
+ * serialization, a v6 feature) — per the SANTA reply
+ * (~/projects/santa/prompts/f4-santa-asks.md §SANTA REPLY).
  *
- * Two CRITICAL load-bearing invariants from the spec:
+ * History: ergots originally ported sigma-rust's evaluating arm
+ * (ergotree-interpreter/src/eval/create_avl_tree.rs — constructed an
+ * AvlTreeData with flag canonicalization + u32 bit-casts). sigma-rust
+ * (eni) evaluates the node too — a CONVERGENT over-accept vs the JVM,
+ * routed to sigma-rust via SANTA. The same epilogue round also fixed the
+ * node's WIRE layout (sigma-rust presence-tag fork → JVM 4-expr operands;
+ * see wire/mir/create-avl-tree.ts).
  *
- * 1. **AvlTreeFlags canonicalization — `flagsV.value & 0x07`** (spec Risk
- *    Hotspot 5b). Sigma-rust's `AvlTreeFlags::parse(u8)` masks input to bits
- *    0..2 only (insert/update/remove), then `AvlTreeFlags::new(...)`
- *    reconstructs the u8 from those 3 bits — so input 0xFF round-trips
- *    through `parse → new` to 0x07. The stored `AvlTreeData.tree_flags`
- *    holds this canonicalized 3-bit form (oracle equality target).
+ * Cost: NOTHING is charged before the throw — the JVM errors before any
+ * cost site (there is no costKind to charge).
  *
- *    NOTE this DIVERGES from the wire-parse path (phase 2h-b's
- *    `parseSValue(SAvlTree, …)`) which preserves all 8 bits on round-trip.
- *    The two paths legitimately diverge for u8 inputs with bits 3..7 set:
- *    wire-parse keeps all bits, CreateAvlTree-eval masks to 3 bits. Both
- *    correctly mirror sigma-rust's separate code paths.
- *
- *    Fixture `cat_flags_FF_canonicalize` is the canary: input flags=0xFF
- *    (encoded as i8 = -1), oracle expects `AvlTreeData.treeFlags === 0x07`.
- *    Without the `& 0x07` mask, this fixture FAILS.
- *
- * 2. **KeyLength bit-cast — `keyLengthV.value >>> 0`** (spec Risk Hotspot 5).
- *    Sigma-rust does `try_extract_into::<i32>()? as u32` — a BIT-CAST, not a
- *    range check. Negative i32 (e.g., -1) silently becomes a huge u32
- *    (4294967295). The `cat_negative_keylength` fixture validates: input
- *    i32::MIN = -2147483648, oracle expects keyLength=2147483648 in
- *    AvlTreeData. Same rule applies to `valueLength.value >>> 0`.
- *
- * Build-time type guard: `CreateAvlTree::new` (sigma-rust
- * `ergotree-ir/src/mir/create_avl_tree.rs:31-59`) enforces:
- *   flags     : SByte
- *   digest    : SColl(SByte)
- *   keyLength : SInt
- *   valueLen  : Option[SInt]
- * Non-conforming inputs cannot be serialized via the standard path. The TS-
- * side `'create-avl-tree-shape-mismatch'` / `'predef-input-not-byte-array'`
- * assertions are defensive against `ConstantPlaceholder` injection or hand-
- * crafted MIR (multiply_group / exponentiate throw-entry precedent).
- *
- * Digest length: sigma-rust's `ADDigest::try_from` (ergo-chain-types/src/
- * digest32.rs:132-139) enforces exactly 33 bytes (32-byte root hash +
- * 1 tree-height byte). Length mismatch surfaces as
- * `EvalError::AvlTree("...")` in sigma-rust (mapped via `map_eval_err` at
- * create_avl_tree.rs:43-45). We mirror with `'avl-tree-bad-digest-length'`
- * (already used by the SAvlTree.updateDigest arm in phase 2h-d).
+ * Parse/serialize for the opcode (0xb6) stay — the JVM parses the node
+ * fine (CreateAvlTreeSerializer); only evaluation is unsupported.
  */
 
 import type { CreateAvlTree, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-import { collByteToUint8Array } from './_byte-coll'
 
 export function evalCreateAvlTree(
-  e: CreateAvlTree,
-  env: Env,
-  ctx: EvalContext,
+  _e: CreateAvlTree,
+  _env: Env,
+  _ctx: EvalContext,
 ): SValue {
-  // No inline cost — children-only (sigma-rust create_avl_tree.rs has no
-  // add_jit_cost call).
-
-  // 1. flags: Byte → u8 → canonicalized 3-bit form (& 0x07)
-  const flagsV = evalExpr(e.flags, env, ctx)
-  if (flagsV.kind !== 'Byte') {
-    throw new EvalError(
-      `CreateAvlTree: expected Byte flags, got '${flagsV.kind}'`,
-      'create-avl-tree-shape-mismatch',
-    )
-  }
-  // Canonicalize to bits 0..2 (matches sigma-rust AvlTreeFlags::parse → new
-  // which strips reserved bits 3..7). See spec Risk Hotspot 5b.
-  const treeFlags = flagsV.value & 0x07
-
-  // 2. digest: Coll[Byte] → 33 bytes
-  const digestV = evalExpr(e.digest, env, ctx)
-  const digest = collByteToUint8Array(digestV, 'CreateAvlTree')
-  if (digest.length !== 33) {
-    throw new EvalError(
-      `CreateAvlTree: digest must be 33 bytes (32-byte root + 1-byte tree height), got ${digest.length}`,
-      'avl-tree-bad-digest-length',
-    )
-  }
-
-  // 3. keyLength: Int → u32 (bit-cast via >>> 0). Matches sigma-rust
-  //    `try_extract_into::<i32>()? as u32` — negative i32 → huge u32. See
-  //    spec Risk Hotspot 5.
-  const keyLengthV = evalExpr(e.keyLength, env, ctx)
-  if (keyLengthV.kind !== 'Int') {
-    throw new EvalError(
-      `CreateAvlTree: expected Int keyLength, got '${keyLengthV.kind}'`,
-      'create-avl-tree-shape-mismatch',
-    )
-  }
-  const keyLength = keyLengthV.value >>> 0
-
-  // 4. valueLength: Option[Int] → number | null. Same i32 → u32 bit-cast
-  //    as keyLength.
-  let valueLengthOpt: number | null = null
-  if (e.valueLength !== null) {
-    const vlenV = evalExpr(e.valueLength, env, ctx)
-    if (vlenV.kind !== 'Int') {
-      throw new EvalError(
-        `CreateAvlTree: expected Int valueLength, got '${vlenV.kind}'`,
-        'create-avl-tree-shape-mismatch',
-      )
-    }
-    valueLengthOpt = vlenV.value >>> 0
-  }
-
-  return {
-    kind: 'AvlTree',
-    value: {
-      digest, // freshly-allocated Uint8Array from collByteToUint8Array
-      treeFlags,
-      keyLength,
-      valueLengthOpt,
-    },
-  }
+  // JVM: no eval override, costKind = notSupportedError (trees.scala:79-91)
+  // — every evaluation throws sys.error("Should be overriden")
+  // (values.scala:102). Blessed errored @v3:
+  // AvlTree.unsupported_eval_nodes_v6.json (v5: tree unserializable
+  // JVM-side, no vector). Charge nothing, eval no operands — the JVM
+  // throws before either.
+  throw new EvalError('CreateAvlTree has no JVM eval', 'unsupported-eval-node')
 }

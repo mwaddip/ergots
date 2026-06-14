@@ -69,7 +69,7 @@ function syntheticHeader(opts?: Partial<Header>): Header {
     adProofsRoot: new Uint8Array(32),
     stateRoot: new Uint8Array(33),
     transactionRoot: new Uint8Array(32),
-    timestamp: 1700000000000,
+    timestamp: 1700000000000n,
     nBits: 0x18000000,
     height: 1000,
     extensionRoot: new Uint8Array(32),

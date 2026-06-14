@@ -77,7 +77,8 @@ export function parseFuncValue(
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
-  valDefTypes: Map<number, SType>
+  valDefTypes: Map<number, SType>,
+  treeVersion: number
 ): FuncValue {
   const count = r.readVlqU()
   if (count > MAX_FUNC_VALUE_ARGS) {
@@ -99,7 +100,7 @@ export function parseFuncValue(
   for (const a of args) {
     valDefTypes.set(a.id, a.tpe)
   }
-  const body = parseExpr(r, constantTypes, constantValues, valDefTypes)
+  const body = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'FuncValue', args, body }
 }
 
@@ -108,11 +109,11 @@ export function parseFuncValue(
  * emits the OP_FUNC_VALUE opcode byte). Writes the args count as VLQ-u32,
  * then each arg as `(VLQ-u32 id, SType tpe)`, then the body Expr.
  */
-export function serializeFuncValue(f: FuncValue, w: ByteWriter): void {
+export function serializeFuncValue(f: FuncValue, w: ByteWriter, treeVersion: number): void {
   w.writeVlqU(f.args.length)
   for (const a of f.args) {
     w.writeVlqU(a.id)
     serializeSType(a.tpe, w)
   }
-  serializeExpr(f.body, w)
+  serializeExpr(f.body, w, treeVersion)
 }
