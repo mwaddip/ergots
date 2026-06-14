@@ -226,6 +226,33 @@ const METHOD_SIGNATURES: ReadonlyMap<string, MethodSignature> = new Map<string, 
       tRange: { tag: 'SGroupElement' },
     },
   ],
+  // SAvlTree.insertOrUpdate — v6, audit V6-SIGNATURE-01 — JVM methods.scala
+  // (SAvlTreeMethods.insertOrUpdate): SFunc([SAvlTree, Coll[(Coll[Byte],
+  // Coll[Byte])], Coll[Byte]] → Option[AvlTree]) — closed tRange. Handler
+  // eval/savltree.ts (100:16) returns Option[AvlTree] (some/noneAvlTree, elem
+  // SAvlTree) — the dual-table sync invariant (facts/ergoscript-eval.md).
+  [
+    key(100, 16),
+    {
+      tDom: [
+        { tag: 'SAvlTree' },
+        { tag: 'SColl', elem: { tag: 'STuple', items: [SCOLL_BYTE, SCOLL_BYTE] } },
+        SCOLL_BYTE,
+      ],
+      tRange: { tag: 'SOption', elem: { tag: 'SAvlTree' } },
+    },
+  ],
+  // SHeader.checkPow — v6, audit V6-SIGNATURE-01 — JVM methods.scala
+  // (SHeaderMethods.checkPow): SFunc([SHeader] → SBoolean) — closed tRange.
+  // Handler eval/sheader.ts (104:16) returns Boolean. checkPow serializes as a
+  // PropertyCall (0xdb) on the wire; both exprTpe arms consult this catalog.
+  [
+    key(104, 16),
+    {
+      tDom: [{ tag: 'SHeader' }],
+      tRange: { tag: 'SBoolean' },
+    },
+  ],
   ...numericV6Signatures(),
 ])
 
