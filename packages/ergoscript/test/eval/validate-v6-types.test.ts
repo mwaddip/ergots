@@ -200,6 +200,27 @@ describe('validateV6Types — v5 tree (version 2) rejects the UBI construct (bod
     expect(err.code).toBe('v6-type-in-pre-v3-tree')
   })
 
+  it('UBI in PropertyCall.explicitTypeArgs rejects (Global.none[UBI] — the audit/SANTA gap)', () => {
+    // PropertyCall carries an explicit SType tail on the wire exactly like
+    // MethodCall — Global.none[T] (106:10) is the first such node. annotationsOf
+    // must enumerate it; without a PropertyCall case the type tail is invisible
+    // to the pre-V3 gate (the V6-PROPERTY-TYPEARG-GATE-01 over-acceptance).
+    const tree: ErgoTree = {
+      header: header(2),
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'PropertyCall',
+        obj: { tag: 'Global' },
+        typeId: 106,
+        methodId: 10, // Global.none[T]
+        explicitTypeArgs: { T: { tag: 'SUnsignedBigInt' } },
+      },
+    }
+    const err = captureEvalError(() => validateV6TypesThrow(tree))
+    expect(err.code).toBe('v6-type-in-pre-v3-tree')
+  })
+
   it('UBI in a FuncValue arg type rejects (FuncValue.args[].tpe)', () => {
     const tree: ErgoTree = {
       header: header(2),
@@ -233,6 +254,49 @@ describe('validateV6Types — v5 tree (version 2) rejects the UBI construct (bod
     const err = captureEvalError(() => evaluateWith(tree, ctx))
     expect(err.code).toBe('v6-type-in-pre-v3-tree')
     expect(ctx.jitCost).toBe(0)
+  })
+})
+
+// ── PropertyCall type-arg gate, end-to-end (V6-PROPERTY-TYPEARG-GATE-01) ──────
+//
+// Global.none[T] (106:10) is a zero-arg PropertyCall that still writes one
+// explicit SType tail on the wire. A pre-V3 tree carrying none[UnsignedBigInt]
+// — even in a never-evaluated branch — is JVM-rejected at type deserialization
+// (SUnsignedBigInt not embeddable pre-v3; coupled with `none` being a v6 method,
+// per the SANTA disposition). The same tree under v3 evaluates. SANTA vector:
+// Global.none_pre_v3_dead_branch.json (vendored into test/fixtures/conformance).
+
+describe('validateV6Types — PropertyCall.explicitTypeArgs, end-to-end (Global.none[UBI])', () => {
+  const noneUbiDeadBranch = (version: TreeHeader['version']): ErgoTree => ({
+    header: header(version),
+    constantTypes: [],
+    constants: [],
+    body: {
+      tag: 'If',
+      condition: boolConst(true),
+      trueBranch: boolConst(true),
+      falseBranch: {
+        tag: 'PropertyCall',
+        obj: { tag: 'Global' },
+        typeId: 106,
+        methodId: 10, // Global.none[T]
+        explicitTypeArgs: { T: { tag: 'SUnsignedBigInt' } },
+      },
+    },
+  })
+
+  it('pre-V3 dead-branch none[UBI] rejects via evaluate() AND charges zero JIT cost', () => {
+    const ctx = makeContext({ treeVersion: 2 })
+    const err = captureEvalError(() => evaluateWith(noneUbiDeadBranch(2), ctx))
+    expect(err.code).toBe('v6-type-in-pre-v3-tree')
+    expect(ctx.jitCost).toBe(0)
+  })
+
+  it('v3 dead-branch none[UBI] is accepted (gate is a no-op at treeVersion >= 3)', () => {
+    // The taken branch is boolConst(true); the dead none[UBI] branch never
+    // evaluates. Under v3 the gate does not fire and the tree evaluates to true.
+    const value = evaluateWith(noneUbiDeadBranch(3), makeContext({ treeVersion: 3 }))
+    expect(value).toEqual({ kind: 'Boolean', value: true })
   })
 })
 

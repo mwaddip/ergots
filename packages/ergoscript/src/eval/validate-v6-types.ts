@@ -69,7 +69,7 @@ function containsV6Type(t: SType): boolean {
  * `wire/mir/` that call `parseSType`/`parseSTypeWithFirstByte`:
  *   const, get-var, collection (Exprs only), upcast, downcast,
  *   extract-register-as, deserialize-context, deserialize-register,
- *   func-value, method-call. Plus `ConstPlaceholder.tpe` (mirrors
+ *   func-value, method-call, property-call. Plus `ConstPlaceholder.tpe` (mirrors
  *   constantTypes[id]; defensive). `ValUse.tpe` is deliberately omitted (see
  *   module doc — computed, not serialized).
  */
@@ -97,6 +97,12 @@ function annotationsOf(e: Expr): SType[] {
     case 'FuncValue':
       return e.args.map((a) => a.tpe)
     case 'MethodCall':
+      return Object.values(e.explicitTypeArgs)
+    case 'PropertyCall':
+      // Global.none[T] (106:10) is the first PropertyCall with a wire type tail;
+      // it carries explicitTypeArgs exactly like MethodCall. childrenOf walks
+      // only the receiver `obj`, so without this case the explicit type tail is
+      // invisible to the pre-V3 gate (V6-PROPERTY-TYPEARG-GATE-01).
       return Object.values(e.explicitTypeArgs)
     default:
       return []
