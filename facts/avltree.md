@@ -112,8 +112,6 @@ export interface VerifyAvlBatchPartialResult {
 // Documentation-only type aliases (all are Uint8Array at runtime).
 export type ADKey    = Uint8Array
 export type ADValue  = Uint8Array
-/** 33 bytes: 32-byte root label + 1-byte tree height. */
-export type ADDigest = Uint8Array
 
 /** Per-operation result. Returned in VerifyAvlBatchResult.results. */
 export type OperationResult = Uint8Array | null  // null = key was absent before op
@@ -229,7 +227,7 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, includi
 | `batch_node.rs::Node::new_label` (166) | `newLabel` (`node.ts`) | 1:1 port; defensive copy; RangeError if label !== 32 bytes |
 | `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
-| `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue / ADDigest` type aliases (`types.ts`) | Documentation-only aliases on `Uint8Array`; ADDigest is exactly 33 bytes |
+| `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue` type aliases (`types.ts`); no `ADDigest` alias — the 33-byte digest flows as the plain `Uint8Array` returned as `newDigest` | Documentation-only aliases on `Uint8Array`; the digest is exactly 33 bytes |
 | (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (7 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (7 codes); Rust uses `anyhow::Result` throughout with no separate error class |
