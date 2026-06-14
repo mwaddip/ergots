@@ -20,7 +20,9 @@
  */
 import { describe, it, expect } from 'vitest'
 import { exprTpe } from '../../src/mir/expr-tpe'
-import type { Expr, SType } from '../../src/mir/types'
+import { evaluate } from '../../src/eval/evaluate'
+import { captureEvalError } from '../_helpers'
+import type { Expr, SType, ErgoTree } from '../../src/mir/types'
 
 const SAVL: SType = { tag: 'SAvlTree' }
 const SCOLL_BYTE: SType = { tag: 'SColl', elem: { tag: 'SByte' } }
@@ -103,5 +105,28 @@ describe('method-signatures: v6 handlers (audit V6-SIGNATURE-01)', () => {
       tag: 'SColl',
       elem: { tag: 'SOption', elem: { tag: 'SAvlTree' } },
     })
+  })
+
+  it('faithfulness side-effect: Eq(checkPow, Int) at V3 rejects (was masked by SAny)', () => {
+    // Before the 104:16 signature, exprTpe(checkPow) = SAny, so validateBinOpTypes
+    // SKIPPED the SameType check (reference_sany_type_checks_skip_not_fail) and the
+    // mismatched Eq over-accepted. With the signature, exprTpe = SBoolean, so
+    // Eq(SBoolean, SInt) is rejected pre-eval ('bin-op-kind-mismatch'), matching
+    // the JVM (CheckingSigmaBuilder.equalityOp -> check2(SameType),
+    // SigmaBuilder.scala). A faithfulness GAIN (closes an over-acceptance), not a
+    // neutral change — the adding-signatures fix is consensus-improving here.
+    const tree: ErgoTree = {
+      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 3 },
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'BinOp',
+        op: { kind: 'Relation', op: 'Eq' },
+        left: { tag: 'MethodCall', typeId: 104, methodId: 16, obj: headerConst, args: [], explicitTypeArgs: {} },
+        right: { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } },
+      },
+    }
+    const err = captureEvalError(() => evaluate(tree))
+    expect(err.code).toBe('bin-op-kind-mismatch')
   })
 })
