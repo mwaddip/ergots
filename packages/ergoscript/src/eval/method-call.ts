@@ -46,7 +46,9 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
-import { SCOLL_BYTE } from './_box-synthesis'
+import { SCOLL_BYTE, creationInfoTupleSValue } from './_box-synthesis'
+import { boxBytesOf, boxIdOf } from './_box-id'
+import { serializeBoxBytesWithoutRef } from '../wire/ergo-box-bytes'
 import { sValueEquals } from './bin-op/relation'
 import { decodePoint, pointNegate, encodePoint, expPoint } from '../crypto/secp256k1'
 import {
@@ -190,6 +192,87 @@ function registerHandlers(): void {
       )
     }
     return tokensCollOf(obj.value)
+  } })
+
+  // ---- SBox accessor METHOD-forms (PropertyCall, typeId=99, methodIds 1..6) — v6 batch-6 (Ask 19) ----
+  // The JVM catalogues the SBox accessors as `commonBoxMethods` (present from
+  // v5Methods, NO version gate); `MethodCall.eval` evaluates ANY catalogued
+  // FixedCost method via invokeFixed reflection (values.scala:1332-1351). So a
+  // hand-crafted `PropertyCall(99, N)` tree EVALUATES JVM-side, where ergots —
+  // registering only the op-forms (ExtractAmount … ExtractCreationInfo) plus
+  // 99:8 tokens / 99:19 getReg — threw 'method-not-implemented' on the
+  // method-forms (sigma-rust diverges identically; convergence routed to SANTA).
+  // Adversarial-only: honest compilers emit the op-forms (which we handle), but
+  // a hand-crafted method-form tree is a real us-vs-JVM fork (full adversarial
+  // weight). Each handler charges the SAME op-form cost and returns the SAME
+  // value as its op-form twin on the already-eval'd box; the PropertyCall
+  // envelope addCost(4) + receiver ConstantPlaceholder visit(1) (evalPropertyCall
+  // above) supply the +5, so the blessed method-form totals are 13/15/17/17/17/21
+  // (= op-form 8/10/12/12/12/16 + 5). Charge the op-form cost only; the vector's
+  // receiver produces the +5. NO version gate (all-version). Wire = PropertyCall
+  // (0xdb), per the zero-arg-method convention. Blessed:
+  // conformance/v5/authored/Box.accessor_method_form.json. Defensive obj-kind
+  // guard reuses 'method-not-implemented' (error-taxonomy option 1, as 99:8/99:19).
+
+  // SBox.value (99:1) — op-form ExtractAmount (extract-amount.ts), cost 8.
+  HANDLERS.set(handlerKey(99, 1), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(8)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(`SBox.value expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
+    }
+    // Signed-i64 view of the u64 wire field (mirrors ExtractAmount).
+    return { kind: 'Long', value: BigInt.asIntN(64, obj.value.value) }
+  } })
+
+  // SBox.propositionBytes (99:2) — op-form ExtractScriptBytes (extract-script-bytes.ts), cost 10.
+  HANDLERS.set(handlerKey(99, 2), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(10)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(`SBox.propositionBytes expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
+    }
+    return bytesToCollByteSValue(obj.value.ergoTreeBytes)
+  } })
+
+  // SBox.bytes (99:3) — op-form ExtractBytes (extract-bytes.ts), cost 12.
+  HANDLERS.set(handlerKey(99, 3), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(12)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(`SBox.bytes expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
+    }
+    // JVM `.bytes` basis: parse-retained slice, canonical re-serialization only
+    // for constructed boxes (shared with box-EQ + 99:5 id via boxBytesOf/boxIdOf).
+    return bytesToCollByteSValue(boxBytesOf(obj.value))
+  } })
+
+  // SBox.bytesWithoutRef (99:4) — op-form ExtractBytesWithNoRef (extract-bytes-with-no-ref.ts), cost 12.
+  HANDLERS.set(handlerKey(99, 4), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(12)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(`SBox.bytesWithoutRef expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
+    }
+    // ALWAYS canonical re-serialization (no retained candidate slice JVM-side).
+    return bytesToCollByteSValue(serializeBoxBytesWithoutRef(obj.value))
+  } })
+
+  // SBox.id (99:5) — op-form ExtractId (extract-id.ts), cost 12.
+  HANDLERS.set(handlerKey(99, 5), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(12)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(`SBox.id expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
+    }
+    // blake2b256 over the `.bytes` basis: Box.id == blake2b256(Box.bytes) by
+    // construction (boxIdOf shares boxBytesOf).
+    return bytesToCollByteSValue(boxIdOf(obj.value))
+  } })
+
+  // SBox.creationInfo (99:6) — op-form ExtractCreationInfo (extract-creation-info.ts), cost 16.
+  HANDLERS.set(handlerKey(99, 6), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
+    ctx.addCost(16)
+    if (obj.kind !== 'Box') {
+      throw new EvalError(`SBox.creationInfo expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
+    }
+    // Tuple[Int, Coll[Byte]] = (creationHeight as i32, txId ++ BE-u16 index).
+    return creationInfoTupleSValue(obj.value)
   } })
 
   // SContext.dataInputs (PropertyCall, typeId=101, methodId=1)
