@@ -12,7 +12,7 @@
 //   n_bits:           4 bytes big-endian (NOT VLQ)
 //   height:           VLQ u32
 //   votes:            3 bytes
-//   [if version > 1:  unparsed_bytes_len: u8, then unparsed_bytes]
+//   [if version > 1:  unparsed_bytes_len: u8; payload consumed only if len > 0 && version > 4]
 //   autolykos:        see autolykos-solution.ts (v1: minerPk + powOnetimePk + nonce + d; v2: minerPk + nonce)
 //
 // ID = blake2b256(all bytes above) -- computed in scorex_parse, not stored on wire.
@@ -26,9 +26,14 @@ import { blake2b256 } from './crypto/blake2b256.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from './digests.ts';
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
 import type { AutolykosSolution } from './autolykos-solution.ts';
+import { ReaderError } from './errors.ts';
 
 const VOTES_LEN = 3;
 const NBITS_LEN = 4; // raw big-endian u32
+
+// JVM HeaderVersion.Interpreter60Version (HeaderWithoutPow.scala:143): the 6.0
+// block version. unparsedBytes payload is reserved for versions AFTER it.
+const INTERPRETER_60_VERSION = 4;
 
 export interface Header {
   version: number;             // 0..=255
@@ -51,6 +56,7 @@ export interface Header {
  * The `id` field is derived by hashing all serialized bytes (not read from wire).
  */
 export function parseHeader(reader: ByteReader): Header {
+  const start = reader.position;
   const version = reader.readU8();
 
   const parentId = readFixed(reader, BLOCK_ID_LEN, 'parentId');
@@ -76,14 +82,25 @@ export function parseHeader(reader: ByteReader): Header {
   // so an unbounded parse would silently let a >u32 height round-trip via
   // a different identity).
   const height = readVlqU32(reader, 'height');
+  // JVM getUInt().toIntExact (HeaderWithoutPow.scala:76): a u32 height that
+  // exceeds Int.MaxValue throws. (Contrast AvlTree keyLength getUInt().toInt,
+  // which WRAPS — see facts/ergoscript-eval.md.)
+  if (height > 0x7fffffff) {
+    throw new ReaderError(`height ${height} exceeds Int.MaxValue (JVM toIntExact)`, 'value-out-of-range');
+  }
 
   const votes = readFixed(reader, VOTES_LEN, 'votes');
 
-  // Forward-compat bytes: only present if version > 1
+  // Forward-compat bytes. Per JVM HeaderWithoutPowSerializer.parse
+  // (HeaderWithoutPow.scala:81-91): for version > 1 always read the u8 length
+  // prefix, but CONSUME the payload only when len > 0 && version > 4
+  // (Interpreter60Version) — "new bytes could be added only for block version
+  // >= 5". For versions 2/3/4 the payload is left in the stream and flows into
+  // the AutolykosSolution parse.
   let unparsedBytes: Uint8Array = new Uint8Array(0);
   if (version > 1) {
     const unparsedLen = reader.readU8();
-    if (unparsedLen > 0) {
+    if (unparsedLen > 0 && version > INTERPRETER_60_VERSION) {
       unparsedBytes = readFixed(reader, unparsedLen, 'unparsedBytes');
     }
   }
@@ -91,6 +108,7 @@ export function parseHeader(reader: ByteReader): Header {
   // AutolykosSolution: pass version so the parser can handle both v1 and v2.
   // v1 has additional pow_onetime_pk and pow_distance fields on the wire.
   const autolykosSolution = parseAutolykosSolution(reader, version);
+  const end = reader.position;
 
   // Derive ID: blake2b256 of the full serialized bytes
   const header: Header = {
@@ -109,7 +127,12 @@ export function parseHeader(reader: ByteReader): Header {
     unparsedBytes,
   };
 
-  header.id = deriveHeaderId(header);
+  // (d) id basis: hash the CONSUMED INPUT SLICE [start, end), mirroring the JVM
+  // ErgoHeader (id = Blake2b256(_bytes), _bytes = retained consumed slice;
+  // ErgoHeader.scala:132-140 id, :167-180 capture). deriveHeaderId() stays a
+  // re-serialization helper for the construct-from-object path (it coincides
+  // with this for canonical encodings).
+  header.id = blake2b256(reader.slice(start, end));
   return header;
 }
 

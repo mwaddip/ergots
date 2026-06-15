@@ -16,7 +16,7 @@ Where this file is silent on implementation detail, those are canonical.
 
 1. `ByteReader` class — cursor-based reader with VLQ + ZigZag-VLQ decoding, bool/option/array helpers, a `slice()` view, and a JVM-style `positionLimit` read window.
 2. `ByteWriter` class — chunk-accumulating writer with VLQ + ZigZag-VLQ encoding, bool/option/array helpers, and a `toBytes()` finalizer.
-3. `ReaderError` class — typed error thrown by `ByteReader` on malformed input; 6-variant `code` union.
+3. `ReaderError` class — typed error thrown by `ByteReader` on malformed input; 7-variant `code` union.
 4. VLQ free functions: `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag`, `readVlqU32` — stateless encode/decode operating on `ByteReader` and returning `Uint8Array` / `bigint`.
 5. `MAX_ARRAY_LENGTH` constant — 16,777,216 (`1 << 24`); the DoS cap applied by `readArray`.
 6. Digest constants and helpers: `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN`, `readFixed`, `writeFixed`.
@@ -167,7 +167,7 @@ export class ByteWriter {
 // ─── Error classes ───────────────────────────────────────────────────────────
 
 export class ReaderError extends Error {
-  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded'
+  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded' | 'value-out-of-range'
 }
 
 export class AutolykosV1NotSupportedError extends Error {
@@ -229,11 +229,11 @@ export interface Header {
   transactionRoot: Uint8Array    // 32 bytes
   timestamp: bigint              // ms since epoch; u64 on wire, carried losslessly as bigint
   nBits: number                  // Bitcoin-compact difficulty (u32, 4 bytes big-endian on wire — NOT VLQ)
-  height: number                 // u32 > 0; VLQ-encoded on wire
+  height: number                 // u32 > 0; VLQ-encoded on wire; rejected with ReaderError('value-out-of-range') when > 2³¹−1
   extensionRoot: Uint8Array      // 32 bytes
   autolykosSolution: AutolykosSolution
   votes: Uint8Array              // 3 bytes
-  unparsedBytes: Uint8Array      // forward-compat; 0 bytes for version 1; length prefix u8 for version > 1
+  unparsedBytes: Uint8Array      // forward-compat; 0 bytes for version 1; length prefix u8 for version > 1; see type-invariants for version 2–4 parse behaviour
 }
 
 // Parse a Header from a ByteReader. Derives id in-process; does NOT read id from wire.
@@ -248,19 +248,13 @@ export function serializeHeader(header: Header): Uint8Array
 export function serializeHeaderWithoutPow(header: Header): Uint8Array
 
 // Derive the Header ID: blake2b256 of the full serialized header bytes.
-// ⚠ Basis caveat (known divergence; fix pending a user scope decision): this derives
-// the id from a RE-SERIALIZATION
-// (`blake2b256(serializeHeader(header))`), and `parseHeader` assigns it that way
-// (header.ts:112). The canonical JVM derives the id from the CONSUMED INPUT SLICE retained
-// at parse — `ErgoHeader.sigmaSerializer.parse` snapshots reader position, re-reads the
-// exact consumed bytes as `_bytes` (ErgoHeader.scala:167-180), and
-// `id = Blake2b256(_bytes)` (ErgoHeader.scala:132-140). sigma-rust (branch
-// `ergo-node-integration`) has adopted the same consumed-slice basis
-// (ergo-chain-types/src/header.rs:196-204). The two bases coincide for canonically-encoded
-// (honest) headers; they DIVERGE on adversarial non-minimal encodings (non-minimal VLQ,
-// v1 d-bytes). `@ergots/ergoscript` overrides the id with the JVM basis locally at its
-// SHeader data arm (parse-svalue.ts SHeader case); `@ergots/nipopow` still
-// consumes scorex's re-serialization basis.
+// `parseHeader` derives the header `id` by hashing the CONSUMED INPUT SLICE `[start, end)`
+// (`blake2b256` over the exact bytes read), matching the JVM `ErgoHeader`
+// (id = `Blake2b256(_bytes)`, `_bytes` = retained consumed slice;
+// `ErgoHeader.scala:132-140` id, `:167-180` capture) and sigma-rust `ergo-node-integration`.
+// The standalone `deriveHeaderId(header)` export remains a RE-serialization helper for the
+// construct-from-object path; it coincides with the parse-time id for canonical encodings and
+// diverges only on adversarial non-minimal encodings (where the parse-time slice id is canonical).
 export function deriveHeaderId(header: Header): Uint8Array  // 32 bytes
 
 // Parse / serialize AutolykosSolution (version determines v1 vs v2 wire layout).
@@ -318,21 +312,21 @@ Callers may rely on these without re-checking after any value returned from the 
 
 **`Header`:**
 
-- `id` is 32 bytes; derived by `blake2b256(serializeHeader(header))`; never appears on the wire (derived in-process on parse, recomputed on serialize).
+- `id` is 32 bytes; never appears on the wire. On parse it is derived from the CONSUMED INPUT SLICE `[start, end)` via `blake2b256` (matching the JVM `ErgoHeader`, `:132-140`/`:167-180`); the `deriveHeaderId(header)` export recomputes it by re-serialization (equal for canonical encodings, diverges on adversarial non-minimal ones — see the `deriveHeaderId` caveat above).
 - `parentId`, `adProofsRoot`, `transactionRoot`, `extensionRoot` are exactly 32 bytes.
 - `stateRoot` is exactly 33 bytes (ADDigest = 32-byte tree root + 1-byte tree height).
 - `votes` is exactly 3 bytes.
 - `nBits` is encoded as 4 bytes big-endian on the wire (NOT VLQ — this diverges from most fields). The parsed value is a `number` in `[0, 2^32-1]`.
 - `timestamp` is a `bigint` carrying the full wire u64 losslessly; `parseHeader` imposes no upper bound (JVM carries Long — round-trip identity holds for the entire u64 range).
-- `height` is a `number` in `[0, 2^32-1]` (u32 range enforced by `readVlqU32`).
-- `unparsedBytes` is a `Uint8Array` of length 0 for version 1 headers; for version > 1 headers, the length is read as a u8 prefix (0..=255 bytes).
+- `height` is a `number` in `[0, 2^32-1]` (u32 range enforced by `readVlqU32`). Rejected with `ReaderError('value-out-of-range')` when `> 2³¹−1`, mirroring the JVM `getUInt().toIntExact` (`HeaderWithoutPow.scala:76`). Contrast: AvlTree `keyLength` uses `getUInt().toInt` and WRAPS — do not conflate.
+- `unparsedBytes` is a `Uint8Array` of length 0 for version 1 headers; for version > 1 headers, the length is read as a u8 prefix (0..=255 bytes). For `version > 1` the u8 length prefix is always read, but the payload bytes are CONSUMED into `unparsedBytes` only when `length > 0 && version > 4` (`HeaderVersion.Interpreter60Version`); for versions 2/3/4 the length byte is read and the payload is left in the stream (it flows into the `AutolykosSolution` parse), so `unparsedBytes` is empty. `serializeHeader` mirrors the JVM: it writes the length prefix + payload for any `version > 1` (so a hand-constructed v2–v4 header with non-empty `unparsedBytes` re-emits them — non-round-tripping, exactly as the JVM does). JVM `HeaderWithoutPow.scala:61-64,81-91`.
 
 **`AutolykosSolution`:**
 
 - `minerPk` is exactly 33 bytes (compressed secp256k1 point).
 - `powOnetimePk` is `null` for version >= 2 headers; exactly 33 bytes for version 1 headers.
 - `nonce` is exactly 8 bytes.
-- `powDistance` is `null` for version >= 2 headers; a non-negative `bigint` for version 1 headers (minimal big-endian encoding from the `d_len` + `d_bytes` wire representation). `powDistance === 0n` corresponds to `d_len === 1, d_bytes === [0x00]` on the wire (matching sigma-rust's `BigUint::to_bytes_be()` which returns `[0]` for zero). For backwards compatibility the parser also accepts `d_len === 0` and produces `powDistance === 0n`, but the writer always emits the `d_len=1` form.
+- `powDistance` is `null` for version >= 2 headers; a non-negative `bigint` for version 1 headers (minimal big-endian encoding from the `d_len` + `d_bytes` wire representation). `powDistance === 0n` corresponds to `d_len === 1, d_bytes === [0x00]` on the wire (matching sigma-rust's `BigUint::to_bytes_be()` which returns `[0]` for zero). For backwards compatibility the parser also accepts `d_len === 0` and produces `powDistance === 0n`, but the writer always emits the `d_len=1` form. Rejected with `ReaderError('value-out-of-range')` when `≥ 2²⁵⁵` (`bitLength > 255`), mirroring the JVM `BigIntegers.fromUnsignedByteArray(...).toSignedBigIntValueExact` / `fitsIn256Bits` (`ErgoHeader.scala:77`, `Extensions.scala:199-223`). This keeps the value within the signed-256 invariant every other BigInt producer enforces.
 
 **VLQ:**
 
@@ -353,7 +347,7 @@ Callers may rely on these without re-checking after any value returned from the 
 
 ## Failure model
 
-**`ReaderError` — thrown by `ByteReader` on malformed bytes (6 codes)**
+**`ReaderError` — thrown by `ByteReader` on malformed bytes (7 codes)**
 
 These represent malformed or truncated wire input, not programming errors on the caller's side.
 
@@ -378,6 +372,12 @@ These represent malformed or truncated wire input, not programming errors on the
 //                         UNMODIFIED — only other failures re-code to 'truncated').
 //                         JVM analogue: CheckPositionLimit, validation rule 1014
 //                         (ValidationRules.scala:169-189; CoreByteReader.scala:25-27)
+// 'value-out-of-range'   — a well-formed integer/BigInt field whose decoded value exceeds
+//                         its consensus range: header `height` > 2³¹−1 (JVM
+//                         `getUInt().toIntExact`, HeaderWithoutPow.scala:76), or v1
+//                         `powDistance` ≥ 2²⁵⁵ (JVM `toSignedBigIntValueExact`,
+//                         `fitsIn256Bits`, ErgoHeader.scala:77, Extensions.scala:199-223).
+//                         Distinct from `vlq-overflow` (malformed/over-long VLQ encoding).
 ```
 
 **Plain `Error` — thrown by `ByteWriter` and `writeFixed` on programming errors**
@@ -421,11 +421,11 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | `sigma-ser/src/zig_zag_encode.rs::encode` / `decode` | `ByteWriter.writeVlqBigIntSigned` / `ByteReader.readVlqBigIntSigned` (`writer.ts`, `reader.ts`) | ZigZag `(v<<1)^(v>>63)` — sign-aware shift emulated via BigInt masking |
 | `sigma-ser/src/vlq_encode.rs::put_u64` / `get_u64` | `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag` (`vlq.ts`) | Free-function API; the decode side is a delegating wrapper over `ByteReader.readVlqBigInt` / `readVlqBigIntSigned` (one positionLimit check per logical read); the encode side keeps its own emit loop |
 | `sigma-ser/src/scorex_serialize.rs::SigmaSerializable` | `ByteReader` / `ByteWriter` classes | Scorex reader/writer pattern; Fleet SDK ergonomic helpers (readOption/writeOption/readArray/writeArray/readBool/writeBool) are TS-only additions not present in sigma-ser |
-| `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived in-process by `deriveHeaderId` — ⚠ RE-SERIALIZATION basis, see the `deriveHeaderId` caveat in the public-surface section (JVM + sigma-rust e-n-i hash the consumed input slice instead; diverges on adversarial non-minimal encodings; fix pending user scope decision) |
+| `ergo-chain-types/src/header.rs::Header::scorex_parse` (lines 114-212) | `parseHeader` (`header.ts`) | 1:1 field order; `id` derived from the CONSUMED INPUT SLICE `[start, end)` via `blake2b256`, matching the JVM (`ErgoHeader.scala:132-140`, `:167-180`) and sigma-rust `ergo-node-integration` |
 | `ergo-chain-types/src/header.rs::Header::scorex_serialize` | `serializeHeader` (`header.ts`) | Full header bytes = `serializeHeaderWithoutPow` + `serializeAutolykosSolution` |
 | `ergo-chain-types/src/header.rs::Header::serialize_without_pow` | `serializeHeaderWithoutPow` (`header.ts`) | Used as Autolykos message input |
 | `ergo-chain-types/src/header.rs::AutolykosSolution::serialize_bytes` | `parseAutolykosSolution`, `serializeAutolykosSolution` (`autolykos-solution.ts`) | version parameter selects v1 (minerPk + powOnetimePk + nonce + d_len + d_bytes) vs v2 (minerPk + nonce) layout |
-| (TS-only) | `deriveHeaderId` (`header.ts`) | `blake2b256(serializeHeader(header))` — a RE-SERIALIZATION basis. The canonical JVM hashes the CONSUMED INPUT SLICE retained at parse (`ErgoHeader.scala:167-180` capture, `:132-140` id), and sigma-rust `ergo-node-integration` has adopted the same consumed-slice basis (`ergo-chain-types/src/header.rs:196-204`, no longer a re-serialization inside `scorex_parse`). Identical for canonical (honest) encodings; diverges on adversarial non-minimal ones. `@ergots/ergoscript` pins the JVM basis locally (parse-svalue.ts SHeader arm); nipopow still consumes this basis — fix pending a user scope decision |
+| (TS-only) | `deriveHeaderId` (`header.ts`) | RE-serialization helper for the construct-from-object path: `blake2b256(serializeHeader(header))`. Coincides with the parse-time slice id for canonical encodings; diverges on adversarial non-minimal encodings (where the parse-time slice id is canonical). `parseHeader` uses the consumed-slice basis (see `parseHeader` row above); `deriveHeaderId` is the standalone export for object-construction callers |
 | (TS-only) | `readFixed`, `writeFixed` (`digests.ts`) | Named-field wrappers over `readBytes`/`writeBytes` with length checks; simplify fixed-size digest reads in `header.ts` and `autolykos-solution.ts` |
 | (TS-only) | `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN` (`digests.ts`) | Named length constants for clarity |
 | (TS-only) | `MAX_ARRAY_LENGTH` (`reader.ts`) | DoS cap for `readArray`; 1 << 24 = 16,777,216 |

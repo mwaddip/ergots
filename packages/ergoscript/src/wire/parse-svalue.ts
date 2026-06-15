@@ -70,7 +70,6 @@ import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { consumeTreeFromReader } from './ergo-tree'
 import { canonicalGePayload } from './_ge-canonical'
-import { blake2b256 } from '../crypto/hashes'
 
 // OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
 // (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
@@ -691,16 +690,11 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           'sheader-tree-version-too-low'
         )
       }
-      const start = r.position
       const header = parseHeader(r)
-      // id basis: the JVM retains the ORIGINAL consumed slice as `_bytes`
-      // (ErgoHeader.sigmaSerializer.parse capture, ErgoHeader.scala:167-180)
-      // and derives id = Blake2b256(_bytes) (:132-140) — id derivation
-      // precedes normalization. scorex parseHeader instead derives id from a
-      // RE-serialization (header.ts:112 → deriveHeaderId :183-185), which
-      // coincides only for canonical encodings (it diverges on adversarial
-      // non-minimal VLQ / v1 d-bytes encodings) — so pin the JVM basis here.
-      header.id = blake2b256(r.slice(start, r.position))
+      // id basis: scorex parseHeader derives id from the consumed input slice
+      // (JVM ErgoHeader.scala:167-180), so no local override is needed. The GE
+      // normalization below runs AFTER id derivation, exactly as the JVM (id
+      // precedes normalization).
       // F5 batch 4 — GE canonical-bytes invariant on the hydration leg. The
       // JVM parses minerPk + (v1) powOnetimePk through GroupElementSerializer
       // (AutolykosSolution.sigmaSerializerV1.parse ErgoHeader.scala:72-79,

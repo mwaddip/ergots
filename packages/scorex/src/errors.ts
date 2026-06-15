@@ -23,9 +23,14 @@
  *                           readBytes / readVlqBigInt; everything else inherits through
  *                           them). JVM analogue: CheckPositionLimit, validation rule 1014
  *                           (ValidationRules.scala:169-189; CoreByteReader.scala:25-27).
+ *   'value-out-of-range' -- a well-formed integer/BigInt field exceeds its consensus
+ *                           range: header height > 2^31-1 (JVM getUInt().toIntExact),
+ *                           or v1 powDistance >= 2^255 (toSignedBigIntValueExact,
+ *                           fitsIn256Bits). Distinct from 'vlq-overflow' (malformed/
+ *                           over-long VLQ encoding).
  */
 export class ReaderError extends Error {
-  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded') {
+  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded' | 'value-out-of-range') {
     super(message);
     this.name = 'ReaderError';
   }

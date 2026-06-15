@@ -13,6 +13,7 @@
 import { ByteReader } from './reader.ts';
 import { ByteWriter } from './writer.ts';
 import { readFixed, writeFixed, EC_POINT_LEN } from './digests.ts';
+import { ReaderError } from './errors.ts';
 
 export interface AutolykosSolution {
   minerPk: Uint8Array;            // 33 bytes
@@ -36,6 +37,12 @@ export function parseAutolykosSolution(reader: ByteReader, version: number): Aut
       for (const b of dBytes) {
         powDistance = (powDistance << 8n) | BigInt(b);
       }
+    }
+    // JVM BigIntegers.fromUnsignedByteArray(d).toSignedBigIntValueExact
+    // (ErgoHeader.scala:77): fitsIn256Bits = bitLength <= 255, i.e. d < 2^255
+    // for a non-negative value (Extensions.scala:199-223).
+    if (powDistance >= (1n << 255n)) {
+      throw new ReaderError(`powDistance exceeds 256-bit signed range (JVM fitsIn256Bits)`, 'value-out-of-range');
     }
     return { minerPk, powOnetimePk, nonce, powDistance };
   } else {

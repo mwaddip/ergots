@@ -50,6 +50,7 @@ describe('Header', () => {
     test(`${c.label}: ID derivation`, () => {
       const r = new ByteReader(hexToBytes(c.bytes_hex));
       const h = parseHeader(r);
+      expect(bytesToHex(h.id)).toBe(c.id_hex); // parseHeader sets the slice-based id
       const id = deriveHeaderId(h);
       expect(bytesToHex(id)).toBe(c.id_hex);
     });
