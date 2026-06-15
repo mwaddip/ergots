@@ -1,0 +1,22 @@
+{
+  "name": "@ergots/transaction",
+  "version": "0.1.0",
+  "description": "Pure-TypeScript Ergo transaction wire codec + validation (browser-clean).",
+  "type": "module",
+  "sideEffects": false,
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "src", "README.md"],
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ergots/ergoscript": "0.4.0",
+    "@ergots/scorex": "0.3.0"
+  },
+  "devDependencies": { "@types/node": "^22.0.0", "jsdom": "^29.1.1", "tsup": "^8.5.1", "typescript": "^5.5.0", "vitest": "^2.0.0" }
+}
