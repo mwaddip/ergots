@@ -1,0 +1,963 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Box.accessor_method_form",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-sbox-method-form",
+  "entries" : [
+    {
+      "name" : "value-99-1#0",
+      "script" : "{ <box>.value }  // PropertyCall(99,1) value method-form — the registered control. cost 13 = ConstantPlaceholder(1) + MethodCall envelope(4) + ExtractAmount(8) (ergots' node-total 4+8=12 omits the receiver's CP visit).",
+      "tree_bytes_hex" : "100163c0843d10010101d1730000000107000000000000000000000000000000000000000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111100db63017300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Long",
+          "value" : "1000000"
+        },
+        "cost" : 13,
+        "error" : null
+      }
+    },
+    {
+      "name" : "propositionBytes-99-2#1",
+      "script" : "{ <box>.propositionBytes }  // PropertyCall(99,2). cost 15 = CP(1)+envelope(4)+ExtractScriptBytes(10)",
+      "tree_bytes_hex" : "100163c0843d10010101d1730000000107000000000000000000000000000000000000000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111100db63027300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -47
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bytes-99-3-garbage-retained#2",
+      "script" : "{ <garbage-R4 box>.bytes }  // PropertyCall(99,3) — the parse-RETAINED slice (0x00‖aa×32 survives); VALUE byte-matches the op-form Box.bytes_byte_basis bytes-garbage-retained twin. cost 17 = CP(1)+envelope(4)+ExtractBytes(12)",
+      "tree_bytes_hex" : "100163c0843d10010101d173000000010700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa111111111111111111111111111111111111111111111111111111111111111100db63037300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -64
+            },
+            {
+              "kind" : "Byte",
+              "value" : -124
+            },
+            {
+              "kind" : "Byte",
+              "value" : 61
+            },
+            {
+              "kind" : "Byte",
+              "value" : 16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -47
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 7
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 17
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "bytesWithoutRef-99-4-garbage-canonical#3",
+      "script" : "{ <garbage-R4 box>.bytesWithoutRef }  // PropertyCall(99,4) — CANONICAL re-serialization (garbage normalized away); VALUE byte-matches the op-form bytesWithoutRef twin. cost 17",
+      "tree_bytes_hex" : "100163c0843d10010101d173000000010700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa111111111111111111111111111111111111111111111111111111111111111100db63047300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -64
+            },
+            {
+              "kind" : "Byte",
+              "value" : -124
+            },
+            {
+              "kind" : "Byte",
+              "value" : 61
+            },
+            {
+              "kind" : "Byte",
+              "value" : 16
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : -47
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 7
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            }
+          ]
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "id-99-5-garbage#4",
+      "script" : "{ <garbage-R4 box>.id }  // PropertyCall(99,5) — blake2b256 over the RETAINED slice; VALUE byte-matches the op-form id-garbage twin. cost 17",
+      "tree_bytes_hex" : "100163c0843d10010101d173000000010700aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa111111111111111111111111111111111111111111111111111111111111111100db63057300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : -119
+            },
+            {
+              "kind" : "Byte",
+              "value" : 61
+            },
+            {
+              "kind" : "Byte",
+              "value" : -98
+            },
+            {
+              "kind" : "Byte",
+              "value" : 90
+            },
+            {
+              "kind" : "Byte",
+              "value" : 67
+            },
+            {
+              "kind" : "Byte",
+              "value" : -3
+            },
+            {
+              "kind" : "Byte",
+              "value" : -45
+            },
+            {
+              "kind" : "Byte",
+              "value" : 97
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : -94
+            },
+            {
+              "kind" : "Byte",
+              "value" : -113
+            },
+            {
+              "kind" : "Byte",
+              "value" : -118
+            },
+            {
+              "kind" : "Byte",
+              "value" : -12
+            },
+            {
+              "kind" : "Byte",
+              "value" : 3
+            },
+            {
+              "kind" : "Byte",
+              "value" : 125
+            },
+            {
+              "kind" : "Byte",
+              "value" : -121
+            },
+            {
+              "kind" : "Byte",
+              "value" : -47
+            },
+            {
+              "kind" : "Byte",
+              "value" : 12
+            },
+            {
+              "kind" : "Byte",
+              "value" : 125
+            },
+            {
+              "kind" : "Byte",
+              "value" : 85
+            },
+            {
+              "kind" : "Byte",
+              "value" : -68
+            },
+            {
+              "kind" : "Byte",
+              "value" : 60
+            },
+            {
+              "kind" : "Byte",
+              "value" : -13
+            },
+            {
+              "kind" : "Byte",
+              "value" : -112
+            },
+            {
+              "kind" : "Byte",
+              "value" : -22
+            },
+            {
+              "kind" : "Byte",
+              "value" : 121
+            },
+            {
+              "kind" : "Byte",
+              "value" : 65
+            },
+            {
+              "kind" : "Byte",
+              "value" : 67
+            },
+            {
+              "kind" : "Byte",
+              "value" : -86
+            },
+            {
+              "kind" : "Byte",
+              "value" : -63
+            },
+            {
+              "kind" : "Byte",
+              "value" : -11
+            },
+            {
+              "kind" : "Byte",
+              "value" : -84
+            }
+          ]
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "creationInfo-99-6#5",
+      "script" : "{ <box>.creationInfo }  // PropertyCall(99,6) — (creationHeight, ref bytes). cost 21 = CP(1)+envelope(4)+ExtractCreationInfo(16)",
+      "tree_bytes_hex" : "100163c0843d10010101d1730000000107000000000000000000000000000000000000000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111100db63067300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 0
+            },
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SByte"
+              },
+              "items" : [
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 17
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 0
+                },
+                {
+                  "kind" : "Byte",
+                  "value" : 0
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 21,
+        "error" : null
+      }
+    }
+  ]
+}
