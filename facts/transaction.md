@@ -421,7 +421,7 @@ If `initJit > jitCostLimit`, throws `TxValidationError('cost-limit-exceeded')`.
 ## Provenance and validation
 
 - Validate path lifted from the mainnet-proven harness `tools/mainnet-validate/validate-tx.ts` (oracle machinery removed; block-validation accounting mirrors sigma-rust `TransactionContext::validate()`).
-- Gated by 2 real testnet fixtures (`simple-transfer`, `token-mint`) loaded from `test/fixtures/` and the adversarial mutation suite (Task 8): per-field byte flips and structural mutations that must all be rejected.
+- Gated by 2 real testnet fixtures (`multi-input-10`, `multi-input-3`) loaded from `test/fixtures/stateful/` — both are real multi-input transfers (testnet, heights 402900 and 402800) that exercise the full multi-input eval+verify loop. No storage-rent fixture: testnet is younger than the 1,051,200-block storage period. Also gated by the adversarial mutation suite (Task 8): per-field byte flips and structural mutations that must all be rejected.
 - Re-walk against full mainnet history is a future capstone (outside phase-2 scope).
 
 ## Known residuals

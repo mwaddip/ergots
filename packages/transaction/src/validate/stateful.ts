@@ -57,7 +57,7 @@ export function checkStructural(tx: ErgoLikeTransaction, deps: StatefulDeps, par
   if (blockVersion >= 3) for (const b of deps.inputBoxes) if (b.creationHeight > maxInputHeight) maxInputHeight = b.creationHeight;
   for (let i = 0; i < tx.outputCandidates.length; i++) {
     const o = tx.outputCandidates[i]!;
-    const boxSize = serializeBox({ ...o, txId: new Uint8Array(32), index: i }).length; // txId/index fixed 34B → size is dummy-independent
+    const boxSize = serializeBox({ ...o, txId: new Uint8Array(32), index: i }).length; // real index i is used; only txId is dummied — a real txId is also exactly 32 bytes, so boxSize is exact
     const scriptSize = o.ergoTreeBytes.length;
     // dust
     const minValue = BigInt(boxSize) * BigInt(params.minValuePerByte);
@@ -99,7 +99,8 @@ export function checkStructural(tx: ErgoLikeTransaction, deps: StatefulDeps, par
 
 /** (totalTokenEntries, distinctTokenCount) across boxes. tx_context.rs count_tokens (:112-123). */
 function countTokens(boxes: { tokens: { id: Uint8Array }[] }[]): { entries: number; distinct: number } {
-  let entries = 0; const ids = new Set<string>();
+  let entries = 0;
+  const ids = new Set<string>();
   for (const b of boxes) for (const t of b.tokens) { entries++; ids.add(hex(t.id)); }
   return { entries, distinct: ids.size };
 }
