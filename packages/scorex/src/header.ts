@@ -12,7 +12,7 @@
 //   n_bits:           4 bytes big-endian (NOT VLQ)
 //   height:           VLQ u32
 //   votes:            3 bytes
-//   [if version > 1:  unparsed_bytes_len: u8, then unparsed_bytes]
+//   [if version > 1:  unparsed_bytes_len: u8; payload consumed only if len > 0 && version > 4]
 //   autolykos:        see autolykos-solution.ts (v1: minerPk + powOnetimePk + nonce + d; v2: minerPk + nonce)
 //
 // ID = blake2b256(all bytes above) -- computed in scorex_parse, not stored on wire.
@@ -29,6 +29,10 @@ import type { AutolykosSolution } from './autolykos-solution.ts';
 
 const VOTES_LEN = 3;
 const NBITS_LEN = 4; // raw big-endian u32
+
+// JVM HeaderVersion.Interpreter60Version (HeaderWithoutPow.scala:143): the 6.0
+// block version. unparsedBytes payload is reserved for versions AFTER it.
+const INTERPRETER_60_VERSION = 4;
 
 export interface Header {
   version: number;             // 0..=255
@@ -79,11 +83,16 @@ export function parseHeader(reader: ByteReader): Header {
 
   const votes = readFixed(reader, VOTES_LEN, 'votes');
 
-  // Forward-compat bytes: only present if version > 1
+  // Forward-compat bytes. Per JVM HeaderWithoutPowSerializer.parse
+  // (HeaderWithoutPow.scala:81-91): for version > 1 always read the u8 length
+  // prefix, but CONSUME the payload only when len > 0 && version > 4
+  // (Interpreter60Version) — "new bytes could be added only for block version
+  // >= 5". For versions 2/3/4 the payload is left in the stream and flows into
+  // the AutolykosSolution parse.
   let unparsedBytes: Uint8Array = new Uint8Array(0);
   if (version > 1) {
     const unparsedLen = reader.readU8();
-    if (unparsedLen > 0) {
+    if (unparsedLen > 0 && version > INTERPRETER_60_VERSION) {
       unparsedBytes = readFixed(reader, unparsedLen, 'unparsedBytes');
     }
   }
