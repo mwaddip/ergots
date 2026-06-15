@@ -1,10 +1,13 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
 import { ByteWriter, blake2b256 } from '@ergots/scorex';
-import { serializeSValue } from '@ergots/ergoscript';
+import { serializeSValue, parseTree, evaluateWith, verifySignature } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
-import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE } from '../params';
+import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
+import { transactionId, signingMessage } from '../wire/signing-message';
+import { buildHeadersArray, promoteCandidate, buildInputContext, JIT_COST_PER_BLOCK_COST } from '../context';
+import { checkStorageRent } from './storage-rent';
 
 /** Canonical serialized bytes of a full box (incl. txId+index), at the box's own tree
  *  version — mirrors the proven harness `serializedBoxLen`. */
@@ -91,5 +94,97 @@ export function checkStructural(tx: ErgoLikeTransaction, deps: StatefulDeps, par
     } else if (outAmt > inAmt) {
       throw new TxValidationError(`token ${id} out ${outAmt} > in ${inAmt}`, 'token-not-conserved');
     }
+  }
+}
+
+/** (totalTokenEntries, distinctTokenCount) across boxes. tx_context.rs count_tokens (:112-123). */
+function countTokens(boxes: { tokens: { id: Uint8Array }[] }[]): { entries: number; distinct: number } {
+  let entries = 0; const ids = new Set<string>();
+  for (const b of boxes) for (const t of b.tokens) { entries++; ids.add(hex(t.id)); }
+  return { entries, distinct: ids.size };
+}
+
+/** Per-tx init/structural cost in BLOCK-cost units. compute_tx_init_cost (tx_context.rs:126-145). */
+function computeInitCost(tx: ErgoLikeTransaction, deps: StatefulDeps, params: ChainParameters): number {
+  const structural = INTERPRETER_INIT_COST
+    + tx.inputs.length * params.inputCost
+    + tx.dataInputs.length * params.dataInputCost
+    + tx.outputCandidates.length * params.outputCost;
+  const inTok = countTokens(deps.inputBoxes);
+  const outTok = countTokens(tx.outputCandidates);
+  const tokenCost = (inTok.entries + outTok.entries + inTok.distinct + outTok.distinct) * params.tokenAccessCost;
+  return structural + tokenCost;
+}
+
+/**
+ * Full stateful validation: structural/accounting checks, then the per-input
+ * verify loop (parse tree → build context → evaluate → verifySignature) with
+ * the real `validate()` cost model. Lift of the mainnet-proven harness
+ * `validate-tx.ts:658-911` (oracle machinery removed) + sigma-rust
+ * `TransactionContext::validate` (tx_context.rs:148-268).
+ *
+ * Cost model: a per-tx init/structural cost (block units → JIT ×10) is charged
+ * up front into a SINGLE cumulative accumulator (`runningJit`); each input's
+ * context receives the remaining headroom (`jitCostLimit − runningJit`) as its
+ * own `jitCostLimit`, so the budget fires mid-tx (matching the shared,
+ * never-reset `context.jit_cost_limit` of `validate()`). The sigma-verification
+ * cost (`estimate_crypto_cost`) is DEFERRED — ergots' verifier exposes no cost
+ * surface, so phase-2 cost under-counts by exactly that term (documented
+ * residual; the capstone re-walk is the gate).
+ *
+ * Errors surface UNWRAPPED: eval (`EvalError`, incl. `'cost-limit-exceeded'`)
+ * and verify (`VerifyError`) errors propagate as-is; only the validator's own
+ * structural verdicts are `TxValidationError`.
+ */
+export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): void {
+  const params = resolveParameters(deps.stateContext.parameters);
+  checkStructural(tx, deps, params);
+
+  const headers = buildHeadersArray(deps.stateContext.headers);
+  const preHeader = deps.stateContext.preHeader;
+  const jitCostLimit = params.maxBlockCost * JIT_COST_PER_BLOCK_COST;
+  const txId = transactionId(tx);
+  const msg = signingMessage(tx);
+  const outputs = tx.outputCandidates.map((c, i) => promoteCandidate(c, txId, i));
+
+  // Per-tx init/structural cost (block units) → JIT (×10), charged up front into the cumulative
+  // accumulator. If init alone exceeds the budget, reject (sigma-rust InitCostExceeded).
+  const initJit = computeInitCost(tx, deps, params) * JIT_COST_PER_BLOCK_COST;
+  if (initJit > jitCostLimit) {
+    throw new TxValidationError(`init cost ${initJit} > limit ${jitCostLimit}`, 'cost-limit-exceeded');
+  }
+  let runningJit = initJit;   // ONE cumulative accumulator across all inputs
+
+  for (let i = 0; i < tx.inputs.length; i++) {
+    const input = tx.inputs[i]!;
+    const selfBox = deps.inputBoxes[i]!;
+    const ergoTreeBytes = selfBox.ergoTreeBytes;
+    const treeVersion = ergoTreeBytes.length > 0 ? (ergoTreeBytes[0]! & 0x07) : 0;
+    const extension = input.spendingProof.contextExtension;
+    const location = { inputIndex: i, boxId: input.boxId };
+
+    // storage-rent first (empty proof only) — cost 0, no eval/verify (sigma-rust try_spend_storage_rent).
+    if (input.spendingProof.proofBytes.length === 0) {
+      if (checkStorageRent(selfBox, preHeader.height, extension, outputs, treeVersion, params.storageFeeFactor)) {
+        continue;
+      }
+    }
+
+    const tree = parseTree(ergoTreeBytes);   // parse errors surface unwrapped
+    // Cumulative limit: this input may consume only the remaining headroom; an overrun throws
+    // EvalError 'cost-limit-exceeded' (unwrapped), matching validate()'s mid-tx limit firing.
+    const ctx = buildInputContext({
+      height: preHeader.height, selfBox, inputs: deps.inputBoxes, outputs, dataInputs: deps.dataInputBoxes,
+      preHeader, headers, extension, jitCostLimit: jitCostLimit - runningJit, treeVersion, constants: tree.constants,
+    });
+    const result = evaluateWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded)
+    runningJit += ctx.jitCost;
+    // DEFERRED: sigma-verification cost (estimate_crypto_cost) — ergots' verifier exposes no cost surface;
+    // phase-2 cost under-counts by it (documented residual; capstone re-walk is the gate).
+    if (result.kind !== 'SigmaProp') {
+      throw new TxValidationError(`input ${i} reduced to ${result.kind}, not SigmaProp`, 'non-sigmaprop-result', location);
+    }
+    const ok = verifySignature(result.value, msg, input.spendingProof.proofBytes);  // VerifyError surfaces unwrapped
+    if (!ok) throw new TxValidationError(`input ${i} script reduced to false`, 'script-reduced-false', location);
   }
 }
