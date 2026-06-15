@@ -85,10 +85,19 @@ export function parseValDef(
   }
   let tpeArgs: STypeVar[] | undefined
   if (isFunDef) {
-    // JVM ValDefSerializer reads the count as a raw byte (`r.getByte()`), NOT
-    // a VLQ. Each type-arg is parsed via the shared SType parser (which already
-    // handles STypeVar at type code 103) and MUST be an STypeVar.
+    // JVM ValDefSerializer reads the count as a raw byte (`r.getByte()`, SIGNED),
+    // NOT a VLQ, then `safeNewArray[STypeVar](nTpeArgs)` — which throws on a negative
+    // size (a count >= 128 sign-extends negative). So the JVM accepts only 0..127
+    // type args; reject >= 128 here to match (ValDefSerializer.scala:38-39).
     const n = r.readU8()
+    if (n > 127) {
+      throw new ExprParseError(
+        `FunDef(id=${id}): type-arg count ${n} exceeds 127 (JVM signed-byte size read)`,
+        'fun-def-tpe-args-out-of-range'
+      )
+    }
+    // Each type-arg is parsed via the shared SType parser (which already handles
+    // STypeVar at type code 103) and MUST be an STypeVar.
     const args: STypeVar[] = []
     for (let i = 0; i < n; i++) {
       const t = parseSType(r)
@@ -143,6 +152,15 @@ export function serializeValDef(d: ValDef, w: ByteWriter, treeVersion: number): 
   }
   w.writeVlqU(d.id)
   if (d.tpeArgs && d.tpeArgs.length > 0) {
+    // JVM ValDefSerializer.serialize emits the count via `w.put(len.toByteExact)`
+    // (ValDefSerializer.scala:20) — Byte-exact, so it throws for length > 127. Mirror
+    // the cap (NOTE: 127, not 255 — Tuple's serialize uses putUByte and caps at 255).
+    if (d.tpeArgs.length > 127) {
+      throw new ExprSerializeError(
+        `FunDef(id=${d.id}): type-arg count ${d.tpeArgs.length} exceeds 127 (JVM put(len.toByteExact))`,
+        'fun-def-tpe-args-out-of-range'
+      )
+    }
     w.writeU8(d.tpeArgs.length) // raw u8 (JVM ValDefSerializer: w.put(len)), NOT VLQ
     for (const tv of d.tpeArgs) {
       serializeSType({ tag: 'STypeVar', name: tv.name }, w)

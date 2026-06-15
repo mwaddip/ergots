@@ -245,15 +245,13 @@ function parseHighTypeCode(r: ByteReader, c: number): SType {
     case TYPE_CODE_SSTRING:
       return { tag: 'SString' }
     case TYPE_CODE_STYPE_VAR: {
-      // STypeVar: u8 name length + UTF-8 bytes (BoundedVec 1..254 in
-      // sigma-rust). See `types/stype_param.rs::sigma_parse`.
+      // STypeVar: u8 name length + UTF-8 bytes. JVM TypeSerializer.deserialize:203
+      // reads `nameLength = r.getUByte()` (unsigned 0..255) with NO bound, then
+      // `STypeVar(new String(getBytes(nameLength)))` — so nameLen 0 yields STypeVar("")
+      // and 255 is accepted. The old [1,254] reject mirrored sigma-rust's BoundedVec
+      // and was a JVM fork in both directions (over-rejecting 0 and 255). Truncation
+      // (fewer than nameLen bytes remaining) is still caught by readBytes.
       const nameLen = r.readU8()
-      if (nameLen < 1 || nameLen > 254) {
-        throw new STypeParseError(
-          `STypeVar name length ${nameLen} out of [1, 254]`,
-          'invalid-stypevar-length'
-        )
-      }
       const bytes = r.readBytes(nameLen)
       // TextDecoder is available in Node 20+ and all browsers; we set
       // fatal:true so invalid UTF-8 surfaces as a parse error rather than

@@ -297,17 +297,20 @@ function serializePair(t1: SType, t2: SType, w: ByteWriter): void {
 }
 
 /**
- * STypeVar encoding (sigma-rust `types/stype_param.rs::sigma_serialize`):
+ * STypeVar encoding (JVM TypeSerializer.serialize:122-127):
  *   `STYPE_VAR` byte + u8 name length + UTF-8 name bytes.
  *
- * BoundedVec invariant 1..=254 from sigma-rust is enforced here on the
+ * The JVM emits the length via `putUByte(bytes.length)` — no lower bound; the u8 field
+ * caps at 255 — so we reject only > 255 UTF-8 bytes (what the u8 length cannot hold).
+ * The old [1,254] reject mirrored sigma-rust's BoundedVec and was a JVM fork in both
+ * directions (the matching parse over-rejected nameLen 0 and 255). The bound is on the
  * UTF-8 byte length (NOT the JS string length — multi-byte chars matter).
  */
 function serializeSTypeVar(name: string, w: ByteWriter): void {
   const bytes = new TextEncoder().encode(name)
-  if (bytes.length < 1 || bytes.length > 254) {
+  if (bytes.length > 255) {
     throw new STypeSerializeError(
-      `STypeVar name UTF-8 byte length ${bytes.length} out of [1, 254]`,
+      `STypeVar name UTF-8 byte length ${bytes.length} exceeds 255 (u8 length field)`,
       'stypevar-name-length'
     )
   }

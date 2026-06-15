@@ -363,10 +363,19 @@ describe('SType wire format', () => {
     expect(() => parseSType(r)).toThrow(STypeParseError)
   })
 
-  it('rejects truncated STypeVar (empty name bytes)', () => {
-    // STypeVar with name_bytes length 0 violates BoundedVec 1..254
+  it('parses STypeVar with empty name (nameLen 0) — JVM getUByte is unbounded', () => {
+    // JVM TypeSerializer.deserialize:203 reads nameLength via getUByte (0..255) with
+    // NO bound, then builds STypeVar(name); nameLen 0 -> STypeVar(""). The old [1,254]
+    // reject mirrored sigma-rust's BoundedVec and over-rejected 0 AND 255 (a JVM fork
+    // in both directions). Version-signedness audit, 2026-06-15.
     const r = new ByteReader(new Uint8Array([103, 0]))
-    expect(() => parseSType(r)).toThrow(STypeParseError)
+    expect(parseSType(r)).toEqual({ tag: 'STypeVar', name: '' })
+  })
+
+  it('parses STypeVar with a 255-byte name (the u8 ceiling the JVM accepts)', () => {
+    const name = 'A'.repeat(255)
+    const bytes = new Uint8Array([103, 255, ...new TextEncoder().encode(name)])
+    expect(parseSType(new ByteReader(bytes))).toEqual({ tag: 'STypeVar', name })
   })
 
   it('rejects SFunc tpe_params containing non-STypeVar', () => {
@@ -382,15 +391,17 @@ describe('SType wire format', () => {
     expect(() => parseSType(new ByteReader(bytes))).toThrow(STypeParseError)
   })
 
-  it('serializer rejects STypeVar with empty name', () => {
+  it('serializes STypeVar with empty name (round-trips as [103, 0])', () => {
     const w = new ByteWriter()
-    expect(() => serializeSType({ tag: 'STypeVar', name: '' }, w)).toThrow(STypeSerializeError)
+    serializeSType({ tag: 'STypeVar', name: '' }, w)
+    expect([...w.toBytes()]).toEqual([103, 0])
   })
 
-  it('serializer rejects STypeVar with name > 254 bytes', () => {
-    const w = new ByteWriter()
-    const longName = 'A'.repeat(255)
-    expect(() => serializeSType({ tag: 'STypeVar', name: longName }, w)).toThrow(STypeSerializeError)
+  it('serializes a 255-byte STypeVar name, rejects 256 (u8 length ceiling)', () => {
+    const ok = new ByteWriter()
+    expect(() => serializeSType({ tag: 'STypeVar', name: 'A'.repeat(255) }, ok)).not.toThrow()
+    const tooLong = new ByteWriter()
+    expect(() => serializeSType({ tag: 'STypeVar', name: 'A'.repeat(256) }, tooLong)).toThrow(STypeSerializeError)
   })
 
   it('serializer rejects STuple with fewer than 2 items', () => {
