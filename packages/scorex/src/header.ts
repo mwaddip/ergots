@@ -56,6 +56,7 @@ export interface Header {
  * The `id` field is derived by hashing all serialized bytes (not read from wire).
  */
 export function parseHeader(reader: ByteReader): Header {
+  const start = reader.position;
   const version = reader.readU8();
 
   const parentId = readFixed(reader, BLOCK_ID_LEN, 'parentId');
@@ -107,6 +108,7 @@ export function parseHeader(reader: ByteReader): Header {
   // AutolykosSolution: pass version so the parser can handle both v1 and v2.
   // v1 has additional pow_onetime_pk and pow_distance fields on the wire.
   const autolykosSolution = parseAutolykosSolution(reader, version);
+  const end = reader.position;
 
   // Derive ID: blake2b256 of the full serialized bytes
   const header: Header = {
@@ -125,7 +127,12 @@ export function parseHeader(reader: ByteReader): Header {
     unparsedBytes,
   };
 
-  header.id = deriveHeaderId(header);
+  // (d) id basis: hash the CONSUMED INPUT SLICE [start, end), mirroring the JVM
+  // ErgoHeader (id = Blake2b256(_bytes), _bytes = retained consumed slice;
+  // ErgoHeader.scala:132-140 id, :167-180 capture). deriveHeaderId() stays a
+  // re-serialization helper for the construct-from-object path (it coincides
+  // with this for canonical encodings).
+  header.id = blake2b256(reader.slice(start, end));
   return header;
 }
 

@@ -1,11 +1,12 @@
 // JVM-faithfulness pins for scorex header parsing (adversarial-only edges).
 // Reference: ~/projects/sigmastate-interpreter HeaderWithoutPow.scala / ErgoHeader.scala.
 import { describe, test, expect } from 'vitest'
-import { parseHeader, serializeHeader } from '../src/header.ts'
+import { parseHeader, serializeHeader, deriveHeaderId } from '../src/header.ts'
 import { ByteReader } from '../src/reader.ts'
 import { encodeVlqU } from '../src/vlq.ts'
 import { bytesToHex } from './helpers.ts'
 import { ReaderError } from '../src/errors.ts'
+import { blake2b256 } from '../src/crypto/blake2b256.ts'
 
 // ---- shared header byte assembler (used by every finding below) ----
 function zeros(n: number): Uint8Array {
@@ -141,5 +142,37 @@ describe('header (c) — v1 powDistance 256-bit bound (fitsIn256Bits)', () => {
     const dBytes = new Uint8Array(Array(33).fill(0xff))
     const bytes = buildHeader({ version: 1, dBytes })
     expect(() => parseHeader(new ByteReader(bytes))).toThrowError(ReaderError)
+  })
+})
+
+describe('header (d) — id basis is the consumed input slice', () => {
+  // RED: a v1 header with NON-MINIMAL d-bytes [0x00, 0x05] (value 5; minimal is
+  // [0x05]). The consumed-slice id hashes the input verbatim; a re-serialization
+  // id (current behavior) hashes the minimal form and differs.
+  test('non-minimal encoding: id hashes the input slice, not a re-serialization', () => {
+    const bytes = buildHeader({ version: 1, dBytes: new Uint8Array([0x00, 0x05]) })
+    const h = parseHeader(new ByteReader(bytes))
+    expect(h.autolykosSolution.powDistance).toBe(5n)
+    expect(bytesToHex(h.id)).toBe(bytesToHex(blake2b256(bytes))) // consumed slice
+    expect(bytesToHex(h.id)).not.toBe(bytesToHex(deriveHeaderId(h))) // != re-serialization
+  })
+
+  // GUARD: for a canonical (minimal) header the two bases coincide.
+  test('canonical header: slice id equals re-serialization id', () => {
+    const bytes = buildHeader({ version: 2 })
+    const h = parseHeader(new ByteReader(bytes))
+    expect(bytesToHex(h.id)).toBe(bytesToHex(deriveHeaderId(h)))
+    expect(bytesToHex(h.id)).toBe(bytesToHex(blake2b256(bytes)))
+  })
+
+  // GUARD: parsing mid-stream (header preceded by other bytes) hashes only the
+  // header's own consumed span, not the prefix.
+  test('mid-stream parse hashes only the header span', () => {
+    const bytes = buildHeader({ version: 2 })
+    const prefixed = concat(new Uint8Array([0xde, 0xad]), bytes)
+    const r = new ByteReader(prefixed)
+    r.readBytes(2) // advance past the prefix
+    const h = parseHeader(r)
+    expect(bytesToHex(h.id)).toBe(bytesToHex(blake2b256(bytes)))
   })
 })
