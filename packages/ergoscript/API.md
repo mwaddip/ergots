@@ -37,9 +37,11 @@ import {
   base58Encode, base58Decode,
   parseSValue, serializeSValue,
   parseSType, serializeSType,
+  parseErgoTreeBytes, parseAdditionalRegisters,
   parseSigmaBoolean, serializeSigmaBoolean,
   MAX_TREE_SIZE, VERSION,
   type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
+  type AdditionalRegisters,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
   ExprParseError, ExprSerializeError,
@@ -131,6 +133,16 @@ function serializeSType(tpe: SType, w: ByteWriter): void;
 ```
 
 Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Notably, `SValueParseError 'group-element-invalid-point'` (F5 batch 4): a `GroupElement` payload whose lead byte is non-`0x00` must curve-decode (SEC1 compressed secp256k1) or the parse throws — applies wherever GE data parses (body/segregated constants, box registers, `deserializeTo[GroupElement]`, and the `deserializeTo[Header]` hydration leg's minerPk/powOnetimePk); `0x00`-lead payloads normalize to the canonical 33-zero identity instead. Notably also (F5 batch 5): `SBox` payloads parse under a **4096-byte lazy candidate window** — the candidate span (value → registers; `txId`/`index` outside) arms `positionLimit = position + 4096` (JVM `ErgoBox.MaxBoxSize`; `ErgoBoxCandidate.scala:191-192`/`:235`; rule 1014 `CheckPositionLimit`), and a read beginning past the window surfaces scorex `ReaderError('position-limit-exceeded')` from `parseSValue` / `parseTree`. There is NO token-count parse rule — the raw-u8 count's natural ceiling (255) is the only count bound (the former >122 gate, mirroring sigma-rust's `BoundedVec` cap, is removed); serialize-side, `SValueSerializeError 'sbox-tokens-out-of-range'` is re-scoped to >255 (the u8 wire ceiling; JVM `putUByte`). Full taxonomy in `facts/ergoscript-wire.md`.
+
+### `parseErgoTreeBytes` / `parseAdditionalRegisters`
+
+```ts
+function parseErgoTreeBytes(r: ByteReader): Uint8Array;
+function parseAdditionalRegisters(r: ByteReader, treeVersion: number): AdditionalRegisters;
+type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined>;
+```
+
+Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. `parseErgoTreeBytes` consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim span (header + optional size VLQ + body; `hasSize=true` bodies skipped à la sigma-rust `ErgoTree::Unparsed`). `parseAdditionalRegisters` reads the additional-registers section (raw `u8` count, `>6` rejected, per-register `Const`/`Tuple` Expr keyed R4.., Tuple-Expr `opaqueBytes` capture + rule-1019 `CheckV6Type` gate). Both advance the shared `ByteReader` in place. Full shape + failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
 
 ### `parseSigmaBoolean` / `serializeSigmaBoolean`
 

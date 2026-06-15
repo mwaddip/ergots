@@ -43,6 +43,17 @@ export type {
 // behind a `/wire` subpath export (see facts/ergoscript-wire.md note).
 export { parseSValue, SValueParseError } from './wire/parse-svalue'
 export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
+// Reader-based ErgoBox sub-structure readers, factored out of the SBox data
+// parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the
+// box-body grammar (ergoTree span + additional-registers section, incl. the
+// Tuple-Expr opaqueBytes capture + rule-1019 CheckV6Type gate) lives in ONE
+// place rather than being re-derived across packages.
+//   - parseErgoTreeBytes(r): consume one self-delimiting ergoTree, return its
+//     verbatim span (handles hasSize-true "burn" trees + hasSize-false bodies).
+//   - parseAdditionalRegisters(r, treeVersion): u8 count + per-register Expr.
+export { parseErgoTreeBytes } from './wire/ergo-tree'
+export { parseAdditionalRegisters } from './wire/parse-svalue'
+export type { AdditionalRegisters } from './wire/parse-svalue'
 // SType wire codec — exposed for the harness's `ContextExtension`
 // Constant decoding (each blob is `SType || SValue` per sigma-rust
 // `Constant::sigma_serialize`).
