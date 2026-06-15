@@ -39,7 +39,7 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 
 - **Precondition:** `bytes.length >= 1` and `bytes.length <= 2_000_000`. (The 2 MB cap mirrors JVM `SizeLimit`; envelope-level cap already enforced this if the caller went through the envelope codec.)
 - **Postcondition (success):** Returns a `NipopowProof` whose serialization is byte-identical to the input. See `Round-trip invariant` below.
-- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`, `trailing-bytes`, `invalid-m`, `invalid-k`, `invalid-interlinks-empty`). The function does NOT silently produce a partial proof, rejects any trailing bytes after the encoded suffix_tail (including inside the bounded PoPowHeader header/proof subreaders), and enforces shape invariants `m > 0` (NIP-03), `k > 0` (NIP-04 — matches sigma-rust's `NipopowProof::new` constructor's `k >= 1` requirement), and `interlinks.length > 0` per PoPowHeader (NIP-05 — empty interlinks make `check_interlinks_proof` vacuously true; sigma-rust permissively accepts but we surface as a typed parse failure).
+- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`, `trailing-bytes`, `invalid-m`, `invalid-k`, `invalid-interlinks-empty`, `invalid-side` — a `BatchMerkleProof` node-side byte that is neither Left nor Right). The function does NOT silently produce a partial proof, rejects any trailing bytes after the encoded suffix_tail (including inside the bounded PoPowHeader header/proof subreaders), and enforces shape invariants `m > 0` (NIP-03), `k > 0` (NIP-04 — matches sigma-rust's `NipopowProof::new` constructor's `k >= 1` requirement), and `interlinks.length > 0` per PoPowHeader (NIP-05 — empty interlinks make `check_interlinks_proof` vacuously true; sigma-rust permissively accepts but we surface as a typed parse failure).
 
 #### `serializeProof(proof)`
 
@@ -93,7 +93,7 @@ const NIPOPOW_PROOF_MAX_SIZE: 2_000_000
 
 - **Precondition:** `body.length <= GET_NIPOPOW_PROOF_MAX_SIZE` (1000).
 - **Postcondition (success):** Returns `{ m, k, headerId }` where `m > 0`, `k > 0`, `m + k <= 1000`, and `headerId` is either `null` (use tip) or a 32-byte `Uint8Array`.
-- **Postcondition (failure):** Throws `EnvelopeParseError` for any: oversized body, `m <= 0`, `k <= 0`, `m + k > 1000`, truncation, malformed VLQ, invalid `headerId` length, or undeclared trailing bytes after the payload (`'trailing-bytes'`, NIP-10).
+- **Postcondition (failure):** Throws `EnvelopeParseError` for any: oversized body, `m <= 0`, `k <= 0`, `m + k > 1000`, truncation, malformed VLQ / structure (`'malformed'`), invalid `headerId` length, or undeclared trailing bytes after the payload (`'trailing-bytes'`, NIP-10).
 
 #### `serializeGetNipopowProof(req)`
 
@@ -103,7 +103,7 @@ const NIPOPOW_PROOF_MAX_SIZE: 2_000_000
 
 - **Precondition:** `body.length <= NIPOPOW_PROOF_MAX_SIZE` (2_000_000).
 - **Postcondition (success):** Returns the inner proof bytes (a `Uint8Array`), suitable for passing to `parseProof` or `verifyProof`. Length is `> 0` and `< 2_000_000`.
-- **Postcondition (failure):** Throws `EnvelopeParseError` on oversized body, zero-length proof, oversized proof length declaration, truncation, or undeclared trailing bytes after the declared payload + future-padding (`'trailing-bytes'`, NIP-10).
+- **Postcondition (failure):** Throws `EnvelopeParseError` on oversized body, an out-of-range declared proof length (zero or ≥ 2 MB — `'invalid-length'`), truncation, or undeclared trailing bytes after the declared payload + future-padding (`'trailing-bytes'`, NIP-10).
 
 #### Round-trip invariant
 
