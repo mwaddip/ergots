@@ -1,7 +1,11 @@
 # `@ergots/transaction` — validation logic (stateless + stateful) design
 
 **Date:** 2026-06-15
-**Status:** Design (pre-implementation)
+**Status:** Design (pre-implementation) — **rule set corrected 2026-06-15 against authoritative source**
+(`TransactionContext::validate()` at `ergo-lib/src/wallet/tx_context.rs:151-269` + the
+`ErgoTransaction::validate_stateless` trait method at `ergo_transaction.rs:99-116`, read via
+`git show ergo-node-integration:<path>` from `external/sigma-rust`). The validation-rules / error-model /
+parameters / cost sections below SUPERSEDE the umbrella spec's earlier *expected* lists.
 **Package:** `@ergots/transaction` — phase 2 (validation logic)
 **Builds on:** the phase-1 wire codec (`parseTransaction` / `serializeTransaction` / `signingMessage` /
 `transactionId` / `TxParseError`), shipped on branch `transaction-tier`.
@@ -74,12 +78,18 @@ interface StateContext {
   preHeader: PreHeader;         // the block being built (REQUIRED) — height/timestamp/minerPk/nBits/votes
   parameters?: Partial<ChainParameters>;   // sigma-rust Parameters::default() fills any gap
 }
-interface ChainParameters {
-  maxBlockCost: number;         // sigma-rust default 1_000_000
-  storageFeeFactor: number;     // sigma-rust default 1_250_000
-  minValuePerByte: number;      // sigma-rust Parameters::default() — source-read the exact value
-  maxTransactionSize: number;   // sigma-rust default — source-read the exact value
+interface ChainParameters {           // CONFIRMED — parameters.rs:157-168 (Parameters::default())
+  maxBlockCost: number;         // 1_000_000   (JIT limit = maxBlockCost * 10)
+  storageFeeFactor: number;     // 1_250_000
+  minValuePerByte: number;      // 360   (== 30 * 12; also BoxValue::MIN_VALUE_PER_BOX_BYTE)
+  inputCost: number;            // 2_000 (per-input structural cost)
+  dataInputCost: number;        // 100   (per-data-input)
+  outputCost: number;           // 100   (per-output)
+  tokenAccessCost: number;      // 100   (per token entry + per distinct token, inputs + outputs)
 }
+// There is NO maxTransactionSize parameter in sigma-rust (confirmed): parameters.rs has MaxBlockSize =
+// 524288 at BLOCK level only, and no per-tx size check exists anywhere. The per-OUTPUT box/script size
+// caps are CONSTANTS, not parameters: MAX_BOX_SIZE = MAX_SCRIPT_SIZE = 4096 (ergo_box.rs:108-110).
 ```
 `Header` / `PreHeader` come from `@ergots/scorex`; `ErgoBox` / `AvlTreeData` from `@ergots/ergoscript` —
 no redefinition.
@@ -110,38 +120,73 @@ validation/src/tx_validation.rs:35-60`.
 
 ## Validation rules
 
-Mirror sigma-rust `Transaction::validate_stateless` / `validate_stateful` (read via
-`git show ergo-node-integration:<path>` from `external/sigma-rust`) and JVM `ErgoTransaction`. The lists
-below are the EXPECTED set (from the umbrella spec); the implementer confirms the exact set + each
-rule's stateless-vs-stateful home against the source — the reference defines behaviour.
+The authoritative reference is sigma-rust's `TransactionContext::validate()`
+(`ergo-lib/src/wallet/tx_context.rs:151-269`, the port of Scala `ErgoTransaction.validateStateful`) plus
+the `ErgoTransaction::validate_stateless` trait method (`ergo_transaction.rs:99-116`). Source-read +
+CONFIRMED 2026-06-15; the rule sets below replace the umbrella spec's earlier guesses.
 
 ### `validateStateless(tx)` — transaction alone
-- inputs non-empty; output candidates non-empty.
-- no duplicate input box ids.
-- every output value `> 0`; `Σ` output values does not overflow i64.
-- every output `creationHeight ∈ [0, Int.MaxValue]`.
-- serialized tx size (`serializeTransaction(tx).length`) ≤ `maxTransactionSize`. (No deps are passed to
-  `validateStateless`; it uses the sigma-rust **default** `maxTransactionSize`. If the source places the
-  size check in the stateful path instead, move it there — confirm against `validate_stateless`.)
-- (The io-count bounds `[1, 32767]` are already enforced by the wire parser; `validateStateless`
-  re-checks non-emptiness so an in-memory-constructed tx is also covered.)
+Confirmed MINIMAL (`validate_stateless`, `ergo_transaction.rs:99-116`):
+- `Σ` output values does not overflow i64 (checked-add fold). → `output-sum-overflow`.
+- no duplicate input box ids (unique count == input count). → `duplicate-input`.
+- (Defensive: inputs / output candidates non-empty. The wire `BoundedVec[1, 32767]` already enforces this
+  at parse; re-checked so an in-memory-constructed tx is covered too. → `inputs-empty` / `outputs-empty`.)
+
+NOT stateless (the earlier list was wrong): output value `> 0` is structural (the `BoxValue` newtype
+rejects `< MIN_RAW` at construction and the stateful **dust** check subsumes it); creationHeight range is
+a STATEFUL rule (`creation-height-in-future` / `creation-height-negative` in `verify_output`); and there
+is **no tx-size check** in sigma-rust at all.
 
 ### `validateStateful(tx, deps)` — needs spent boxes + state
-1. **Input-box provisioning:** `deps.inputBoxes.length === tx.inputs.length` and each `inputBoxes[i]`
-   id == `tx.inputs[i].boxId`; same for `dataInputBoxes` vs `tx.dataInputs`.
-2. **Value conservation:** `Σ(input box values) === Σ(output values)`. (Ergo has no separate fee field —
-   the fee is an ordinary output to the fee address.)
-3. **Token conservation:** for each token present in the inputs, `Σ output amount ≤ Σ input amount`; at
-   most one *newly-minted* token (a token id in outputs but not in any input), and its id MUST equal the
-   first input box's id; burning (out < in) is allowed.
-4. **Output well-formedness:** each output value ≥ its minimal value (`minValuePerByte ×` serialized box
-   size); each output `creationHeight ≤ preHeader.height`.
-5. **Per-input verification** (the lifted pipeline, per input, first failure halts):
-   - if the spending proof is empty AND `checkStorageRent(...)` holds → input valid, **cost 0, no eval /
-     verify** (`continue`);
-   - else `parseTree(spentBox.ergoTreeBytes)` → build the `EvalContext` (above) → `evaluateWith` →
-     require a `SigmaProp` result → `verifySignature(prop, tx.signingMessage, proofBytes)`.
-6. **Cost aggregation:** `Σ` per-input `ctx.jitCost` ≤ `maxBlockCost × 10` (raw-JIT scale).
+Order mirrors `validate()` (first failure halts). The **box id** throughout = `blake2b256(box's
+sigma_serialize bytes, incl. txId + index)` (`ergo_box.rs:141, 182-185, 234-250`) — the library COMPUTES
+it (the `ErgoBox` runtime shape has no id field; re-serialize + hash, matching the proven harness).
+1. **Input-box provisioning:** every `tx.inputs[i].boxId` resolves to a provided spent box (ordered:
+   computed id of `deps.inputBoxes[i]` == `tx.inputs[i].boxId`); same for data-inputs vs
+   `deps.dataInputBoxes`. → `input-box-count-mismatch` / `input-box-id-mismatch` / `data-input-box-mismatch`.
+2. **Input-sum no overflow:** `Σ(input box values)` ≤ `i64::MAX`. → `input-sum-overflow`.
+3. **Value conservation:** `Σ(input box values) === Σ(output values)` (strict equality; Ergo has no fee
+   field — the fee is an ordinary output). → `value-not-conserved` (ErgPreservationError).
+4. **Output well-formedness** — per output, `verify_output` (`tx_context.rs:272-312`):
+   - **dust:** `value < serializedBoxSize × minValuePerByte` (default 360). → `output-below-min-value`.
+   - **future height:** `(creationHeight as i32) > (preHeader.height as i32)` — SIGNED compare.
+     → `creation-height-in-future`.
+   - **monotonic height (post-v3):** when `preHeader.version ≥ 3`, require `creationHeight ≥ max(input box
+     creationHeights)`. → `creation-height-below-max-input` (MonotonicHeightError, EIP-39). [NEW vs plan]
+   - **negative height (post-v1):** when `preHeader.version != 1`, reject `creationHeight & (1<<31)`.
+     → `creation-height-negative` (NegativeHeight). [NEW vs plan]
+   - **box size:** `serializedBoxSize ≤ MAX_BOX_SIZE` (4096). → `box-size-exceeded`. [NEW vs plan]
+   - **script size:** `ergoTreeBytes.length ≤ MAX_SCRIPT_SIZE` (4096). → `script-size-exceeded`. [NEW vs plan]
+5. **Token conservation** (`extract_assets` + `verify_assets`, `tx_context.rs:341-372`): build in/out
+   token→amount maps (per-map sum overflow → `token-amount-invalid`); `newTokenId` = first input box id;
+   for each output token: if present in inputs require `inAmount ≥ outAmount` else `token-not-conserved`;
+   if ABSENT from inputs require its id == `newTokenId` else `invalid-minted-token`. (Burning out<in is
+   allowed; ≥1 token amounts are enforced by the newtype.)
+6. **Per-input verification + cost** (lifted pipeline + the real cost model — see Cost below; per input,
+   first failure halts):
+   - spending proof empty AND `checkStorageRent(...)` holds → input valid, **cost 0, no eval / verify**
+     (`continue`);
+   - else `parseTree(spentBox.ergoTreeBytes)` → build the `EvalContext` (above) → `evaluateWith` → require
+     a `SigmaProp` result (`non-sigmaprop-result`) → `verifySignature(prop, signingMessage, proofBytes)`
+     (`false` → `script-reduced-false`).
+
+### Cost model (`validate()` lines 196-268) — faithful-reachable, one named deferral
+`validate()` charges everything into ONE accumulator (block→JIT scale ×10; limit `maxBlockCost × 10`,
+enforced **cumulatively** across inputs so work can't be split to dodge `MaxBlockCost`):
+- **init / structural cost** (up front): `INTERPRETER_INIT_COST(10_000) + nInputs×inputCost +
+  nDataInputs×dataInputCost + nOutputs×outputCost + (tokenEntries + distinctTokens, inputs + outputs)
+  ×tokenAccessCost`; if init alone exceeds the budget → `cost-limit-exceeded` (InitCostExceeded).
+  **Implemented (reachable now — pure arithmetic).**
+- **per-input eval cost** — accrues on the shared accumulator; thread the running cost into each input
+  context's headroom (`jitCostLimit = limit − runningCost`) so the limit fires mid-tx (an `evaluateWith`
+  `EvalError 'cost-limit-exceeded'` surfaces unwrapped). **Implemented (reachable now).**
+- **sigma-verification cost** (`estimate_crypto_cost`) — **DEFERRED.** ergots' verifier exposes no cost
+  surface (confirmed: nothing in `packages/ergoscript/src/sigma/` touches cost; `verifySignature` returns
+  a bare boolean). Implementing it is a new crypto-path deliverable (its own phase). Phase-2 cost therefore
+  UNDER-counts by the per-input crypto cost — a documented residual on the adversarial path, closed by that
+  future deliverable + the **capstone genesis→tip JVM-oracle re-walk** (already the designated
+  cost-faithfulness gate). CLAUDE.md-sanctioned residual (closing it needs genuinely broad work), not a
+  shortcut — do NOT approximate the crypto cost.
 
 ## Storage-rent (`storage-rent.ts`) — lifted
 
@@ -156,15 +201,17 @@ eval or signature verification. `storageFeeFactor` defaults to the sigma-rust `1
 ## Error model
 
 `TxValidationError extends Error` with `readonly code: TxValidationErrorCode` and a `readonly location?:
-{ inputIndex?: number; outputIndex?: number; boxId?: Uint8Array }`. Code union (refine against the source
-during implementation):
-- **stateless:** `'inputs-empty'`, `'outputs-empty'`, `'duplicate-input'`, `'output-value-not-positive'`,
-  `'output-sum-overflow'`, `'tx-size-exceeded'`, `'creation-height-out-of-range'`.
+{ inputIndex?: number; outputIndex?: number; boxId?: Uint8Array }`. Code union (CONFIRMED against the
+sigma-rust `TxValidationError` variants, `ergo_transaction.rs:20-86`):
+- **stateless:** `'inputs-empty'`, `'outputs-empty'`, `'duplicate-input'`, `'output-sum-overflow'`.
 - **stateful structural:** `'input-box-count-mismatch'`, `'input-box-id-mismatch'`,
-  `'data-input-box-mismatch'`, `'value-not-conserved'`, `'token-not-conserved'`, `'invalid-minted-token'`,
-  `'output-below-min-value'`, `'creation-height-in-future'`.
+  `'data-input-box-mismatch'`, `'input-sum-overflow'`, `'value-not-conserved'`,
+  `'output-below-min-value'` (dust), `'creation-height-in-future'`, `'creation-height-below-max-input'`
+  (monotonic, post-v3), `'creation-height-negative'` (post-v1), `'box-size-exceeded'`,
+  `'script-size-exceeded'`, `'token-not-conserved'`, `'invalid-minted-token'`, `'token-amount-invalid'`.
 - **per-input verify:** `'non-sigmaprop-result'`, `'script-reduced-false'` (verifier returned `false`),
-  `'cost-limit-exceeded'` (the AGGREGATE cost sum check).
+  `'cost-limit-exceeded'` (init cost OR the cumulative per-tx limit; an `evaluateWith` cost overrun
+  surfaces as the ergoscript `EvalError 'cost-limit-exceeded'`, unwrapped — see below).
 
 **Errors raised by the underlying layers surface UNWRAPPED** where a verify step calls into them — the
 ergoscript `EvalError` (incl. a single-input `'cost-limit-exceeded'`) and `VerifyError`, and scorex's
@@ -189,16 +236,20 @@ caller that wants to distinguish "the script said no" from "the accounting is wr
 
 ## Risks / open items
 
-- **Faithfulness of the conservation / token rules** to sigma-rust `validate_stateful` — mirror the
-  source exactly; pin with the fixtures + adversarial tests. The adversarial path carries equal weight
-  (a check that wrongly *accepts* an invalid tx is a latent consensus gap the on-chain fixtures can't
-  catch — only the mutation tests can).
-- **The output-candidate → `ErgoBox` promotion** (txId + index → box id) must match how the node /
-  sigma-rust derives output box ids — verify against a fixture whose script reads `OUTPUTS(i).id`.
-- **Chain `parameters` defaults** (`minValuePerByte`, `maxTransactionSize`) — source the exact sigma-rust
-  `Parameters::default()` values; do not invent them.
-- **The `validateStateless` size check** needs `maxTransactionSize` (a parameter) while `validateStateless`
-  takes no deps — resolved by using the default; confirm sigma-rust puts the size check in the stateless
-  (vs stateful) path.
+- **Cost-model residual (the one deferral):** phase-2 cost charges the init/structural cost + the
+  cumulative per-input eval cost faithfully but DEFERS the sigma-verification cost (ergots' verifier
+  exposes none). Phase-2 cost under-counts by the per-input crypto cost — documented, closed by a future
+  verifier-cost deliverable + the capstone JVM-oracle re-walk. Do NOT approximate the crypto cost; leave
+  it a named gap.
+- **Faithfulness of the conservation / token / height / size rules** — all source-confirmed above; mirror
+  `validate()`'s order. The adversarial path carries equal weight (a check that wrongly *accepts* an
+  invalid tx is a latent consensus gap the on-chain fixtures can't catch — only the mutation tests can).
+  Tests MUST cover the four rules the umbrella spec had missed: monotonic height, negative height, box
+  size, script size.
+- **The output-candidate → `ErgoBox` promotion** (txId + index → box id) must match how sigma-rust derives
+  output box ids — verify against a fixture whose script reads `OUTPUTS(i).id`.
+- **Chain `parameters` defaults** — CONFIRMED (`parameters.rs:157-168`): storageFeeFactor 1_250_000,
+  minValuePerByte 360, maxBlockCost 1_000_000, inputCost 2_000, dataInputCost 100, outputCost 100,
+  tokenAccessCost 100. There is NO maxTransactionSize.
 - The deferred capstone re-walk is the definitive faithfulness proof; until it runs, the fixtures +
   adversarial tests are the bar.
