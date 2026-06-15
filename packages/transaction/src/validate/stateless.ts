@@ -1,9 +1,6 @@
 import type { ErgoLikeTransaction } from '../types';
 import { TxValidationError } from '../errors';
-
-const I64_MAX = (1n << 63n) - 1n;
-
-function hex(b: Uint8Array): string { let s=''; for (const x of b) s+=x.toString(16).padStart(2,'0'); return s; }
+import { hex, I64_MAX } from './_bytes';
 
 /**
  * Stateless (transaction-alone) checks. CONFIRMED minimal vs sigma-rust

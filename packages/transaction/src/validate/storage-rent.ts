@@ -1,6 +1,7 @@
 import { ByteWriter } from '@ergots/scorex';
 import { serializeSType, serializeSValue } from '@ergots/ergoscript';
 import type { ErgoBox, SType, SValue, ContextExtension } from '@ergots/ergoscript';
+import { bytesEqual } from './_bytes';
 
 // --- Storage rent (expired-box / demurrage) ------------------------------
 // Ergo lets ANYONE spend a box older than STORAGE_PERIOD without satisfying
@@ -16,12 +17,6 @@ import type { ErgoBox, SType, SValue, ContextExtension } from '@ergots/ergoscrip
 // This is the general rule, not a per-box skip.
 const STORAGE_PERIOD = 1_051_200;
 const STORAGE_EXTENSION_INDEX = 127; // i8::MAX
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-    return true;
-}
 
 /** Canonical serialized bytes of one R4..R9 register entry (for the
  *  storage-rent register-preservation check). */

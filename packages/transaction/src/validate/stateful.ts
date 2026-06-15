@@ -4,13 +4,7 @@ import { ByteWriter, blake2b256 } from '@ergots/scorex';
 import { serializeSValue } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE } from '../params';
-
-const I64_MAX = (1n << 63n) - 1n;
-
-function hex(b: Uint8Array): string { let s=''; for (const x of b) s+=x.toString(16).padStart(2,'0'); return s; }
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false; for (let i=0;i<a.length;i++) if (a[i]!==b[i]) return false; return true;
-}
+import { hex, bytesEqual, I64_MAX } from './_bytes';
 
 /** Canonical serialized bytes of a full box (incl. txId+index), at the box's own tree
  *  version — mirrors the proven harness `serializedBoxLen`. */
