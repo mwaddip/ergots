@@ -47,11 +47,19 @@ import { parseBoxCandidate, serializeBoxCandidate } from './box-candidate';
 import { TxParseError } from '../errors';
 
 /**
- * `u16::MAX` — the cap `get_u16` (`vlq_encode.rs:255`) enforces by narrowing the
- * VLQ-decoded `u64` to `u16`. Inputs / data-inputs / outputs counts are bounded
- * by it (`Transaction::MAX_OUTPUTS_COUNT = u16::MAX`, transaction.rs:~108).
+ * `i16::MAX` = 32767 — the upper bound of `TxIoVec<T>`, defined as
+ * `BoundedVec<T, 1, { i16::MAX as usize }>` (ergotree-ir/src/chain/context.rs:23).
+ * Inputs and output-candidates require `[1, TX_IO_MAX]`; data-inputs allow
+ * `{0} ∪ [1, TX_IO_MAX]` (sigma-rust models empty as `None` via
+ * `BoundedVec::opt_empty_vec`). The parser's `get_u16` can still decode 0..=65535
+ * from the wire; the TxIoVec rejection happens in `new_from_vec` after the loop —
+ * we mirror it BEFORE the loop so we fail fast without allocating.
+ *
+ * Note: `Transaction::MAX_OUTPUTS_COUNT = u16::MAX = 65535` is a different constant
+ * — it is used only as the token-table bound (`MAX_OUTPUTS_COUNT * MAX_TOKENS_COUNT`),
+ * NOT as the io-count limit.
  */
-const U16_MAX = 0xffff;
+const TX_IO_MAX = 0x7fff; // i16::MAX = 32767
 
 /**
  * `u32::MAX` — the cap `get_u32` (`vlq_encode.rs:267`) enforces on the tokens
@@ -63,7 +71,10 @@ const U32_MAX = 0xffffffff;
  * `Transaction::MAX_OUTPUTS_COUNT * ErgoBox::MAX_TOKENS_COUNT` = 65535 * 255 =
  * 16,711,425 — the explicit "too many tokens in transaction" bound the parser
  * checks before allocating the token IndexSet (transaction.rs:~308-312).
+ * MAX_OUTPUTS_COUNT = u16::MAX = 65535 is the TOKEN-count constant, distinct
+ * from the io-count limit TX_IO_MAX = i16::MAX = 32767.
  */
+const U16_MAX = 0xffff; // used only for token-table bound below
 const MAX_DISTINCT_TOKENS = U16_MAX * 255;
 
 /** Lowercase hex of a byte array (token-id table-key form; matches box-candidate.ts). */
@@ -76,18 +87,25 @@ function hex(b: Uint8Array): string {
 export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   const r = new ByteReader(bytes);
 
-  // inputs — VLQ count (`get_u16`), then each Input.
+  // inputs — VLQ count, then each Input.
+  // TxIoVec requires [1, i16::MAX=32767] (ergotree-ir/src/chain/context.rs:23);
+  // `get_u16` gates at u16::MAX then `new_from_vec` rejects 0 and >32767.
+  // We mirror the rejection BEFORE the loop so we fail fast without allocating.
   const nIn = r.readVlqU();
-  if (nIn > U16_MAX) {
-    throw new TxParseError(`inputs count ${nIn} exceeds u16::MAX (get_u16)`, 'count-out-of-range');
+  if (nIn < 1 || nIn > TX_IO_MAX) {
+    throw new TxParseError(
+      `inputs count ${nIn} out of TxIoVec range [1, ${TX_IO_MAX}]`,
+      'count-out-of-range',
+    );
   }
   const inputs = Array.from({ length: nIn }, () => parseInput(r));
 
-  // data-inputs — VLQ count (`get_u16`), then each DataInput.
+  // data-inputs — VLQ count, then each DataInput.
+  // sigma-rust uses `BoundedVec::opt_empty_vec`: 0 → None (allowed), otherwise [1, 32767].
   const nData = r.readVlqU();
-  if (nData > U16_MAX) {
+  if (nData > TX_IO_MAX) {
     throw new TxParseError(
-      `data-inputs count ${nData} exceeds u16::MAX (get_u16)`,
+      `data-inputs count ${nData} out of range [0, ${TX_IO_MAX}]`,
       'count-out-of-range',
     );
   }
@@ -110,11 +128,14 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   }
   const tokenTable = Array.from({ length: nTokens }, () => r.readBytes(32));
 
-  // outputs — VLQ count (`get_u16`), then each candidate body resolving token
-  // indices against `tokenTable`.
+  // outputs — VLQ count, then each candidate body resolving token indices
+  // against `tokenTable`. TxIoVec requires [1, i16::MAX=32767].
   const nOut = r.readVlqU();
-  if (nOut > U16_MAX) {
-    throw new TxParseError(`outputs count ${nOut} exceeds u16::MAX (get_u16)`, 'count-out-of-range');
+  if (nOut < 1 || nOut > TX_IO_MAX) {
+    throw new TxParseError(
+      `outputs count ${nOut} out of TxIoVec range [1, ${TX_IO_MAX}]`,
+      'count-out-of-range',
+    );
   }
   const outputCandidates = Array.from({ length: nOut }, () => parseBoxCandidate(r, tokenTable));
 
@@ -130,22 +151,22 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
 export function serializeTransaction(tx: ErgoLikeTransaction): Uint8Array {
   const w = new ByteWriter();
 
-  // inputs — VLQ count (`put_usize_as_u16_unwrapped`; the cast panics on
-  // overflow upstream, so reject the same range here), then each Input.
-  if (tx.inputs.length > U16_MAX) {
+  // inputs — TxIoVec requires [1, i16::MAX=32767]. The serializer must not emit
+  // a count the reference parser would reject — symmetry with the parse bounds.
+  if (tx.inputs.length < 1 || tx.inputs.length > TX_IO_MAX) {
     throw new TxParseError(
-      `inputs count ${tx.inputs.length} exceeds u16::MAX (put_usize_as_u16)`,
+      `inputs count ${tx.inputs.length} out of TxIoVec range [1, ${TX_IO_MAX}]`,
       'count-out-of-range',
     );
   }
   w.writeVlqU(tx.inputs.length);
   for (const i of tx.inputs) serializeInput(i, w);
 
-  // data-inputs — VLQ count. sigma-rust models the empty case as `None` and
-  // still writes `put_u16(0)`, so length-0 here is byte-identical to that arm.
-  if (tx.dataInputs.length > U16_MAX) {
+  // data-inputs — sigma-rust models 0 as `None` and still writes `put_u16(0)`,
+  // so length-0 is byte-identical and allowed. Non-zero must be ≤ TX_IO_MAX.
+  if (tx.dataInputs.length > TX_IO_MAX) {
     throw new TxParseError(
-      `data-inputs count ${tx.dataInputs.length} exceeds u16::MAX (put_usize_as_u16)`,
+      `data-inputs count ${tx.dataInputs.length} out of range [0, ${TX_IO_MAX}]`,
       'count-out-of-range',
     );
   }
@@ -176,11 +197,10 @@ export function serializeTransaction(tx: ErgoLikeTransaction): Uint8Array {
   w.writeVlqU(table.length);
   for (const id of table) w.writeBytes(id);
 
-  // outputs — VLQ count (`put_usize_as_u16_unwrapped`), then each candidate body
-  // emitting a VLQ table index per token via `idToIndex`.
-  if (tx.outputCandidates.length > U16_MAX) {
+  // outputs — TxIoVec requires [1, i16::MAX=32767].
+  if (tx.outputCandidates.length < 1 || tx.outputCandidates.length > TX_IO_MAX) {
     throw new TxParseError(
-      `outputs count ${tx.outputCandidates.length} exceeds u16::MAX (put_usize_as_u16)`,
+      `outputs count ${tx.outputCandidates.length} out of TxIoVec range [1, ${TX_IO_MAX}]`,
       'count-out-of-range',
     );
   }
