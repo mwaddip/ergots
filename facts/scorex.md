@@ -36,7 +36,7 @@ Where this file is silent on implementation detail, those are canonical.
 - **`SValue` / `SType` / `Expr` types.** Package-specific to `@ergots/ergoscript`; live in `packages/ergoscript/src/mir/`.
 - **`ErgoBox` / `NipopowProof` / `AvlTreeData`.** Package-specific to their respective packages; not shared.
 - **base58 / base58check helpers.** Single-consumer in `@ergots/ergoscript` address codec; not promoted to shared layer.
-- **`blake2b256` wrapper.** Internal-only utility at `packages/scorex/src/crypto/blake2b256.ts`. Used by `deriveHeaderId`; not re-exported from `index.ts` because it is a thin wrapper with no added surface; any package that needs blake2b should import from `@noble/hashes/blake2.js` directly.
+- **`blake2b256` wrapper.** Exported from `index.ts` as of Task 7 (added for `@ergots/transaction`'s `transactionId`). Thin wrapper over `@noble/hashes/blake2.js`; signature: `blake2b256(data: Uint8Array): Uint8Array`. Any package that needs blake2b for its own purposes may also import directly from `@noble/hashes/blake2.js`.
 
 ## Public surface (v0.3.0)
 
@@ -304,6 +304,12 @@ export function autolykosHitForMessageWithChecks(
 // ─── nBits decode ────────────────────────────────────────────────────────────
 
 export function decodeCompactBits(nBits: number): bigint
+
+// ─── blake2b-256 ─────────────────────────────────────────────────────────────
+// Added Task 7 (transaction-tier) so @ergots/transaction can import it for
+// transactionId without depending on @noble/hashes directly.
+
+export function blake2b256(data: Uint8Array): Uint8Array  // 32 bytes
 ```
 
 ## Type invariants
@@ -339,7 +345,7 @@ Callers may rely on these without re-checking after any value returned from the 
 - **Determinism.** All functions are pure: no I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output. Byte-equality with sigma-rust is the load-bearing invariant for every `Header` and `AutolykosSolution` fixture.
 - **Synchronous.** No async surface. Codec operations are tight inner loops; an async boundary would only add overhead.
 - **No throws on return-path.** `ByteReader` and the VLQ free functions throw only on malformed input (`ReaderError`) or programming errors (plain `Error`). They do not silently produce partial results.
-- **Browser-compat.** Runtime support: Node >= 20, evergreen browsers with native ESM. Never `Buffer`. Never `globalThis.crypto`. No `process`, `fs`, `path`, `os`, or `node:*` imports in `packages/scorex/src/`. Hashing via `@noble/hashes@2.2.0` only (internally for `blake2b256`; not exposed in the public API).
+- **Browser-compat.** Runtime support: Node >= 20, evergreen browsers with native ESM. Never `Buffer`. Never `globalThis.crypto`. No `process`, `fs`, `path`, `os`, or `node:*` imports in `packages/scorex/src/`. Hashing via `@noble/hashes@2.2.0` only (`blake2b256` is now exported — see "blake2b-256" in the public surface).
 - **ESM-only.** Bundle deliberately omits CJS entry points.
 - **No top-level await** in published code.
 - **No WASM** direct or transitive.
@@ -430,7 +436,7 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | (TS-only) | `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN` (`digests.ts`) | Named length constants for clarity |
 | (TS-only) | `MAX_ARRAY_LENGTH` (`reader.ts`) | DoS cap for `readArray`; 1 << 24 = 16,777,216 |
 | (TS-only) | `readVlqU32` (`vlq.ts`) | Convenience wrapper: `ByteReader.readVlqBigInt` + assert <= 0xffffffff |
-| `@noble/hashes/blake2.js` (third-party) | `blake2b256` (`src/crypto/blake2b256.ts`) | Internal-only; not exported from index.ts |
+| `@noble/hashes/blake2.js` (third-party) | `blake2b256` (`src/crypto/blake2b256.ts`) | Exported from `index.ts` (Task 7; consumed by `@ergots/transaction`'s `transactionId`). `blake2b256(data: Uint8Array): Uint8Array`. |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::pow_hit` (lines 176-197) | `verifyAutolykosV2` + helpers (`autolykos-v2.ts`) | V2 path only; V1 sigma-rust returns pow_distance but our port throws AutolykosV1NotSupportedError |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::decode_compact_bits` | `decodeCompactBits` (`nbits.ts`) | Bitcoin-compact-bits target unpacking; bit-exact mirror |
 | `ergo-chain-types/src/autolykos_pow_scheme.rs::AutolykosPowSchemeError::Unsupported` (line 322) | `AutolykosV1NotSupportedError` (`errors.ts`) | V1 verification not implemented; sigma-rust returns Err on the same condition |
