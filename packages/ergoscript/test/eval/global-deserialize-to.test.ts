@@ -24,6 +24,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { hexToBytes } from '../_helpers'
 import type { MethodCall, SType, SValue } from '../../src/mir/types'
+import { encodeVlqU } from '@ergots/scorex'
 
 const SBYTE: SType = { tag: 'SByte' }
 const COLL_BYTE: SType = { tag: 'SColl', elem: SBYTE }
@@ -281,10 +282,9 @@ describe('deserializeTo[Header] — GE canonical-bytes invariant (F5 batch 4)', 
 
   it('id-basis pin: parsed Header id === blake2b-256 of the consumed header slice', () => {
     // JVM basis: id = Blake2b256(_bytes), _bytes = the consumed input slice
-    // (ErgoHeader.scala:132-140, capture :167-180). The SHeader arm pins this
-    // basis explicitly over r.slice(start, end) — scorex parseHeader's own
-    // derivation (header.ts:112 → deriveHeaderId :183-185) hashes a
-    // RE-serialization, which coincides only for canonical encodings.
+    // (ErgoHeader.scala:132-140, capture :167-180). scorex parseHeader now
+    // derives id from that consumed slice directly (no SHeader-arm override),
+    // so this test pins that the scorex slice basis flows through the ingress.
     for (const hex of [V2_HEADER_HEX, V1_HEADER_HEX]) {
       const headerBytes = hexToBytes(hex)
       const r = evalDeserializeHeader(headerBytes)
@@ -306,5 +306,62 @@ describe('deserializeTo[Header] — GE canonical-bytes invariant (F5 batch 4)', 
     if (r.kind !== 'Header') throw new Error('unreachable')
     expect(r.value.id).toEqual(blake2b(spliced, { dkLen: 32 }))
     expect(r.value.id).not.toEqual(blake2b(headerBytes, { dkLen: 32 }))
+  })
+})
+
+// scorex header range rejects (Tasks 3-4) surface through the deserializeTo[Header]
+// ingress as global-deserialize-failed (the handler wraps any parse exception).
+describe('deserializeTo[Header] — scorex range rejects propagate (v6)', () => {
+  function z(n: number): Uint8Array {
+    return new Uint8Array(n)
+  }
+  function cat(...ps: Uint8Array[]): Uint8Array {
+    const out = new Uint8Array(ps.reduce((n, p) => n + p.length, 0))
+    let o = 0
+    for (const p of ps) {
+      out.set(p, o)
+      o += p.length
+    }
+    return out
+  }
+  function v2HeaderWithHeight(height: bigint): Uint8Array {
+    return cat(
+      new Uint8Array([2]), z(32), z(32), z(32), z(33),
+      encodeVlqU(1n), z(32), z(4), encodeVlqU(height), z(3),
+      new Uint8Array([0]), // unparsed length (v2 -> 0)
+      cat(new Uint8Array([0x02]), z(32)), z(8), // minerPk + nonce
+    )
+  }
+  function v1HeaderWithD(dBytes: Uint8Array): Uint8Array {
+    return cat(
+      new Uint8Array([1]), z(32), z(32), z(32), z(33),
+      encodeVlqU(1n), z(32), z(4), encodeVlqU(1n), z(3),
+      cat(new Uint8Array([0x02]), z(32)), // minerPk
+      cat(new Uint8Array([0x02]), z(32)), // powOnetimePk
+      z(8), // nonce
+      new Uint8Array([dBytes.length]), dBytes, // d_len + d
+    )
+  }
+
+  it('(b) height > Int.MaxValue -> EvalError(global-deserialize-failed)', () => {
+    const bytes = v2HeaderWithHeight(0x80000000n)
+    try {
+      evalDeserializeHeader(bytes)
+      expect.fail('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('global-deserialize-failed')
+    }
+  })
+
+  it('(c) v1 powDistance >= 2^255 -> EvalError(global-deserialize-failed)', () => {
+    const bytes = v1HeaderWithD(new Uint8Array([0x80, ...Array(31).fill(0x00)]))
+    try {
+      evalDeserializeHeader(bytes)
+      expect.fail('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('global-deserialize-failed')
+    }
   })
 })

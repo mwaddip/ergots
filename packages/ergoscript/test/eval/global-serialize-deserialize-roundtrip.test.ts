@@ -369,9 +369,15 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
     expect(roundTrip(T, v)).toEqual(v)
   })
 
-  it('round-trip Header V2 with unparsed bytes (4 bytes)', () => {
+  it('round-trip Header V5 with unparsed bytes (4 bytes)', () => {
+    // V2-4 headers cannot round-trip with non-empty unparsedBytes: the JVM
+    // only CONSUMES the unparsed payload when version > 4 (Interpreter60Version).
+    // For v2-4 the parser reads only the length prefix and leaves the payload
+    // in the stream, where it bleeds into the AutolykosSolution parse.
+    // V5+ correctly consumes the payload, so we test with version=5.
     const T: SType = { tag: 'SHeader' }
     const header = makeV2Header(new Uint8Array([1, 2, 3, 4]))
+    header.version = 5
     header.id = deriveHeaderId(header)
     const v: SValue = { kind: 'Header', value: header }
     expect(roundTrip(T, v)).toEqual(v)
