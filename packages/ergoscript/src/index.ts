@@ -5,6 +5,13 @@ export {
   ErgoTreeSerializeError,
   MAX_TREE_SIZE
 } from './wire/ergo-tree'
+// Body parse/serialize error classes thrown by parseTree/serializeTree's inner
+// Expr parser/serializer (the leaf `wire/errors.ts`, kept import-free to avoid
+// mir/ cycles). Root-exported — alongside `ErgoTreeParseError` above — so
+// downstream consumers can classify ergots' typed parse failures by `instanceof`
+// (e.g. SANTA's conformance ts-runner recognizing a body-parse `ExprParseError`
+// as `errored` rather than a panic). See facts/ergoscript-wire.md error taxonomy.
+export { ExprParseError, ExprSerializeError } from './wire/errors'
 export {
   isP2PK,
   p2pkPublicKey,
@@ -39,8 +46,8 @@ export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
 // SType wire codec — exposed for the harness's `ContextExtension`
 // Constant decoding (each blob is `SType || SValue` per sigma-rust
 // `Constant::sigma_serialize`).
-export { parseSType } from './wire/parse-stype'
-export { serializeSType } from './wire/serialize-stype'
+export { parseSType, STypeParseError } from './wire/parse-stype'
+export { serializeSType, STypeSerializeError } from './wire/serialize-stype'
 
 // v0.2.0 (phase 2b) — evaluator surface
 export { evaluate, evaluateWith } from './eval/evaluate'

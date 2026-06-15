@@ -409,6 +409,8 @@ ergots implementation:
 
 Every wire-layer error class carries a `code: string` matching one of a fixed set of structural reasons for programmatic dispatch. `.message` is human-readable.
 
+**Root-exported for `instanceof` classification:** the wire parse/serialize error classes — `ErgoTreeParseError`/`ErgoTreeSerializeError`, `ExprParseError`/`ExprSerializeError`, `STypeParseError`/`STypeSerializeError`, `SValueParseError`/`SValueSerializeError`, `SigmaBooleanParseError`/`SigmaBooleanSerializeError` — are all re-exported from the `@ergots/ergoscript` package root. They escape the boundary UNWRAPPED (a caller sees the typed failure from the innermost rejecting layer, never a re-wrap), so a downstream consumer that classifies ergots failures by type can `import` and `instanceof` them. The mir-layer type-inference error `ExprTpeError` and scorex's `ReaderError` are owned by their own modules and are not part of this root-export guarantee.
+
 ```ts
 class ErgoTreeParseError      extends Error { code: string }
 class ErgoTreeSerializeError  extends Error { code: string }

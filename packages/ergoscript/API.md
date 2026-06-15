@@ -42,6 +42,8 @@ import {
   type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
+  ExprParseError, ExprSerializeError,
+  STypeParseError, STypeSerializeError,
   SValueParseError, SValueSerializeError,
   SigmaBooleanParseError, SigmaBooleanSerializeError,
 } from '@ergots/ergoscript';
@@ -255,15 +257,23 @@ P2SH addresses can be decoded for prefix inspection but are NOT representable as
 
 ## Error classes
 
-All three exported error classes extend `Error` and carry a `.code: string` for programmatic dispatch.
+Every exported error class extends `Error` and carries a `.code: string` for programmatic dispatch.
 
 ```ts
-class ErgoTreeParseError     extends Error { readonly code: string }
-class ErgoTreeSerializeError extends Error { readonly code: string }
-class AddressDecodeError     extends Error { readonly code: string }
+class ErgoTreeParseError        extends Error { readonly code: string }
+class ErgoTreeSerializeError    extends Error { readonly code: string }
+class ExprParseError            extends Error { readonly code: string }
+class ExprSerializeError        extends Error { readonly code: string }
+class STypeParseError           extends Error { readonly code: string }
+class STypeSerializeError       extends Error { readonly code: string }
+class SValueParseError          extends Error { readonly code: string }
+class SValueSerializeError      extends Error { readonly code: string }
+class SigmaBooleanParseError    extends Error { readonly code: string }
+class SigmaBooleanSerializeError extends Error { readonly code: string }
+class AddressDecodeError        extends Error { readonly code: string }
 ```
 
-Internal modules (`wire/`, `mir/`) emit additional typed error classes (`ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`); these surface from `parseTree` / `serializeTree` unwrapped — callers see the innermost typed failure. The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
+These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. Two typed errors that can escape are NOT root-exported: the mir-layer type-inference error `ExprTpeError` (it can still surface from `parseTree` via the inner `exprTpe` pass) and scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
 
 ### `ErgoTreeParseError` codes
 
