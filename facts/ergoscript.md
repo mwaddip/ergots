@@ -13,7 +13,7 @@ The wire format and the v5 language semantics are validated byte-for-byte and va
 | Concern | File |
 |---|---|
 | Wire format (`parseTree`, `serializeTree`, address helpers, `ErgoTree` / `TreeHeader` types, wire-layer error classes incl. `ErgoTreeParseError`/`SerializeError` and `SigmaBooleanParseError`) | [`facts/ergoscript-wire.md`](./ergoscript-wire.md) |
-| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 84 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], 68/68 implementable eval arms + 21 reserved opcodes, 128-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms, `validateV6Types` pre-eval pass for v6 type gating) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
+| Evaluator surface (`evaluate`, `evaluateWith`, `makeContext`, `EvalError` 85 codes, `SValue` / `SType` / `Expr` discriminated unions [canonical], 68/68 implementable eval arms + 21 reserved opcodes, 134-entry method-handler registry, `EvalOpts` chain-state fields, substitute-pre-pass for Deserialize* arms, `validateV6Types` pre-eval pass for v6 type gating) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) |
 | Sigma-protocol verifier (`verifySignature`, `SigmaBoolean` 6-variant union, `VerifyError` 9 codes, internal-helper modules — GF(2^192), secp256k1 adapter, Fiat-Shamir) | [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) |
 | Authenticated AVL+ operations (`SAvlTree.*` method handlers in the evaluator, backed by `@ergots/avltree`'s `verifyAvlBatch` verifier) | [`facts/ergoscript-eval.md`](./ergoscript-eval.md) + [`facts/avltree.md`](./avltree.md) |
 | Cost-equivalence (read `ctx.jitCost` after `evaluateWith(tree, ctx)`) | per-arm cost charges in [`facts/ergoscript-eval.md`](./ergoscript-eval.md); validation status in the Coverage summary below |
@@ -53,7 +53,7 @@ No `Buffer`, no `node:*` outside test files, no WASM.
 The package exports multiple typed error classes, one per surface, each carrying a structural `code: string` for programmatic dispatch:
 
 - **Wire layer** (see [`ergoscript-wire.md`](./ergoscript-wire.md) for full taxonomy): `ErgoTreeParseError`, `ErgoTreeSerializeError`, `ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `ExprTpeError`, `ReaderError`, `AddressDecodeError`.
-- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 84 codes): `EvalError`.
+- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 85 codes): `EvalError`.
 - **Sigma-protocol verifier** (see [`ergoscript-sigma.md`](./ergoscript-sigma.md) for full taxonomy of 9 codes): `VerifyError`.
 
 Common discipline: `.message` is human-readable; `.code` matches a fixed enum of structural reason strings for programmatic handling. No other error classes are exported. Internal panics (e.g., a bug in `@noble/hashes` or `@noble/curves`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
@@ -75,7 +75,7 @@ See `docs/specs/` for test-strategy detail.
 | Slice | Status |
 |---|---|
 | Wire format | 100% of MIR variants parse + serialize byte-identically; full wire-error taxonomy coverage; single-byte mutation tests across the whole corpus |
-| Evaluator | 68 of 68 implementable `Expr` arms wired; the 21 opcodes the reference reserves but never executes parse-reject via `'opcode-reserved'`; 128-entry method-handler registry spanning the v5 language and the v6 (ErgoTree V3) additions; 84 `EvalError` codes; a substitute-pre-pass (`_substitute-deserialize.ts`) for the `DeserializeContext`/`DeserializeRegister` arms and a `validateV6Types` pre-eval pass for `SUnsignedBigInt`/`SFunc` type gating |
+| Evaluator | 68 of 68 implementable `Expr` arms wired; the 21 opcodes the reference reserves but never executes parse-reject via `'opcode-reserved'`; 134-entry method-handler registry spanning the v5 language and the v6 (ErgoTree V3) additions; 85 `EvalError` codes; a substitute-pre-pass (`_substitute-deserialize.ts`) for the `DeserializeContext`/`DeserializeRegister` arms and a `validateV6Types` pre-eval pass for `SUnsignedBigInt`/`SFunc` type gating |
 | Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 9 `VerifyError` codes (4 reserved for ABI stability) |
 | AVL+ | Integrated via `@ergots/avltree`: all 16 `SAvlTree.*` method handlers wired (accessors, verification/update operations, and the V3-gated `insertOrUpdate`) |
 | Cost-equivalence | Execution cost (`ctx.jitCost` after `evaluateWith`) is reference-equivalent: the evaluator has been walked from genesis to the chain tip, comparing every transaction input's cost against `sigma-rust`, with zero unresolved divergences. Per-arm cost charges are documented in the eval slice. |
