@@ -1,4 +1,4 @@
-import type { ErgoBox, SType, SValue, ContextExtension } from '@ergots/ergoscript';
+import type { SType, SValue, ContextExtension } from '@ergots/ergoscript';
 
 export interface SpendingProof {
   /** Serialized sigma proof; empty (length 0) for storage-rent / TrivialProp spends. */
@@ -25,4 +25,4 @@ export interface ErgoLikeTransaction {
   dataInputs: DataInput[];
   outputCandidates: ErgoBoxCandidate[];
 }
-export type { ErgoBox, SType, SValue, ContextExtension };
+export type { SType, SValue, ContextExtension };

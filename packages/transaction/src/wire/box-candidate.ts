@@ -50,6 +50,7 @@ import {
 } from '@ergots/ergoscript';
 import type { ErgoBoxCandidate } from '../types';
 import { TxParseError } from '../errors';
+import { hex } from './_hex';
 
 /**
  * JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024
@@ -58,13 +59,6 @@ import { TxParseError } from '../errors';
  * restored after the registers loop.
  */
 const ERGO_BOX_MAX_SIZE = 4096;
-
-/** Lowercase hex of a byte array (token-id table-key form). */
-function hex(b: Uint8Array): string {
-  let s = '';
-  for (const x of b) s += x.toString(16).padStart(2, '0');
-  return s;
-}
 
 /**
  * Parse one `ErgoBoxCandidate` body from the reader, resolving each token's

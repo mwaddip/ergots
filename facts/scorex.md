@@ -36,7 +36,7 @@ Where this file is silent on implementation detail, those are canonical.
 - **`SValue` / `SType` / `Expr` types.** Package-specific to `@ergots/ergoscript`; live in `packages/ergoscript/src/mir/`.
 - **`ErgoBox` / `NipopowProof` / `AvlTreeData`.** Package-specific to their respective packages; not shared.
 - **base58 / base58check helpers.** Single-consumer in `@ergots/ergoscript` address codec; not promoted to shared layer.
-- **`blake2b256` wrapper.** Exported from `index.ts` as of Task 7 (added for `@ergots/transaction`'s `transactionId`). Thin wrapper over `@noble/hashes/blake2.js`; signature: `blake2b256(data: Uint8Array): Uint8Array`. Any package that needs blake2b for its own purposes may also import directly from `@noble/hashes/blake2.js`.
+- **`blake2b256` wrapper.** Exported from `index.ts` (used by `@ergots/transaction`'s `transactionId`). Thin wrapper over `@noble/hashes/blake2.js`; signature: `blake2b256(data: Uint8Array): Uint8Array`. Any package that needs blake2b for its own purposes may also import directly from `@noble/hashes/blake2.js`.
 
 ## Public surface (v0.3.0)
 

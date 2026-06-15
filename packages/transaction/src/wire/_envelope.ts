@@ -35,6 +35,7 @@ import { serializeInput, serializeContextExtension } from './input';
 import { serializeDataInput } from './data-input';
 import { serializeBoxCandidate } from './box-candidate';
 import { TxParseError } from '../errors';
+import { hex } from './_hex';
 
 /**
  * `i16::MAX` = 32767 — upper bound of `TxIoVec<T>` (`BoundedVec<T, 1, i16::MAX>`,
@@ -50,13 +51,6 @@ export const TX_IO_MAX = 0x7fff;
  */
 const U16_MAX = 0xffff;
 export const MAX_DISTINCT_TOKENS = U16_MAX * 255;
-
-/** Lowercase hex of a byte array (token-id table-key form; matches box-candidate.ts). */
-export function hex(b: Uint8Array): string {
-  let s = '';
-  for (const x of b) s += x.toString(16).padStart(2, '0');
-  return s;
-}
 
 /**
  * Write the full transaction envelope into `w`. When `includeProofs` is true the
