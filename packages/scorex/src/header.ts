@@ -35,6 +35,17 @@ const NBITS_LEN = 4; // raw big-endian u32
 // block version. unparsedBytes payload is reserved for versions AFTER it.
 const INTERPRETER_60_VERSION = 4;
 
+// JVM reads the header version as a SIGNED Byte (`r.getByte()`,
+// HeaderWithoutPow.scala:68), so the unparsedBytes gates `version > 1` (:81) and
+// `version > 4` (:83) — and the serialize gate (:61) — are signed comparisons. A
+// version byte >= 0x80 is negative, so the JVM SKIPS the whole unparsedBytes block;
+// the bytes after `votes` flow straight into the AutolykosSolution. We read version
+// as an unsigned u8 and store it 0..255 for round-trip, but apply the SIGNED value
+// at the gates. (Adversarial-only: honest header versions are 1..4.)
+function signedVersion(version: number): number {
+  return version >= 128 ? version - 256 : version;
+}
+
 export interface Header {
   version: number;             // 0..=255
   id: Uint8Array;              // 32 bytes, derived via blake2b256; not on wire
@@ -92,15 +103,17 @@ export function parseHeader(reader: ByteReader): Header {
   const votes = readFixed(reader, VOTES_LEN, 'votes');
 
   // Forward-compat bytes. Per JVM HeaderWithoutPowSerializer.parse
-  // (HeaderWithoutPow.scala:81-91): for version > 1 always read the u8 length
-  // prefix, but CONSUME the payload only when len > 0 && version > 4
+  // (HeaderWithoutPow.scala:81-91): for (signed) version > 1 always read the u8
+  // length prefix, but CONSUME the payload only when len > 0 && version > 4
   // (Interpreter60Version) — "new bytes could be added only for block version
   // >= 5". For versions 2/3/4 the payload is left in the stream and flows into
-  // the AutolykosSolution parse.
+  // the AutolykosSolution parse. The gate is on the SIGNED version, so a version
+  // byte >= 0x80 (negative) skips the block entirely (see signedVersion).
+  const sv = signedVersion(version);
   let unparsedBytes: Uint8Array = new Uint8Array(0);
-  if (version > 1) {
+  if (sv > 1) {
     const unparsedLen = reader.readU8();
-    if (unparsedLen > 0 && version > INTERPRETER_60_VERSION) {
+    if (unparsedLen > 0 && sv > INTERPRETER_60_VERSION) {
       unparsedBytes = readFixed(reader, unparsedLen, 'unparsedBytes');
     }
   }
@@ -171,8 +184,10 @@ export function serializeHeaderWithoutPow(header: Header): Uint8Array {
 
   writeFixed(w, header.votes, VOTES_LEN, 'votes');
 
-  // Forward-compat bytes: only if version > 1
-  if (header.version > 1) {
+  // Forward-compat bytes: only if the SIGNED version > 1 (JVM
+  // HeaderWithoutPowSerializer.serialize, HeaderWithoutPow.scala:61, gates on the
+  // signed Byte). A version >= 0x80 is negative -> the block is skipped.
+  if (signedVersion(header.version) > 1) {
     w.writeU8(header.unparsedBytes.length);
     if (header.unparsedBytes.length > 0) {
       w.writeBytes(header.unparsedBytes);

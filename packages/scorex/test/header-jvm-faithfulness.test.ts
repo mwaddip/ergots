@@ -33,6 +33,12 @@ interface HeaderParts {
   powOnetimePk?: Uint8Array // v1 only: 33 bytes
   dBytes?: Uint8Array // v1 only: d_bytes (d_len = dBytes.length)
 }
+// JVM reads the header version as a SIGNED Byte (HeaderWithoutPow.scala:68); the
+// unparsedBytes gates `version > 1` / `> 4` are therefore signed. Mirror it so the
+// assembler lays out faithful wire bytes for any version (incl. >= 0x80).
+function signedVersion(v: number): number {
+  return v >= 128 ? v - 256 : v
+}
 function buildHeader(p: HeaderParts): Uint8Array {
   const parts: Uint8Array[] = [
     new Uint8Array([p.version]),
@@ -46,7 +52,7 @@ function buildHeader(p: HeaderParts): Uint8Array {
     encodeVlqU(p.height ?? 1n),
     zeros(3), // votes
   ]
-  if (p.version > 1) {
+  if (signedVersion(p.version) > 1) {
     parts.push(new Uint8Array([p.unparsedLenByte ?? 0]))
     if (p.unparsedPayload) parts.push(p.unparsedPayload)
   }
@@ -174,5 +180,46 @@ describe('header (d) — id basis is the consumed input slice', () => {
     r.readBytes(2) // advance past the prefix
     const h = parseHeader(r)
     expect(bytesToHex(h.id)).toBe(bytesToHex(blake2b256(bytes)))
+  })
+})
+
+describe('header (e) — version byte signedness (JVM getByte)', () => {
+  // The JVM reads `version = r.getByte()` (signed Byte; HeaderWithoutPow.scala:68)
+  // and gates the unparsedBytes block on the SIGNED value: `version > 1` (:81) and
+  // `version > 4` (:83). A version byte >= 0x80 is negative, so the JVM SKIPS the
+  // whole block; the bytes after `votes` flow straight into the AutolykosSolution.
+  // ergots read `version` as unsigned u8 -> 128 > 1 -> wrongly consumed a prefix.
+
+  // RED: v=0x80 (signed -128) skips the prefix -> the solution starts right after
+  // votes. Trailing pad so the buggy unsigned path mis-offsets to a WRONG minerPk
+  // (clean assertion failure) instead of truncating.
+  test('v=0x80: signed version skips the unparsedBytes prefix', () => {
+    const minerPk = concat(new Uint8Array([0x03]), zeros(32))
+    const bytes = concat(buildHeader({ version: 0x80, minerPk }), zeros(8))
+    const h = parseHeader(new ByteReader(bytes))
+    expect(h.unparsedBytes.length).toBe(0)
+    expect(bytesToHex(h.autolykosSolution.minerPk)).toBe(bytesToHex(minerPk))
+  })
+
+  // RED: serialize mirrors the signed gate -> v=0x80 emits NO unparsedBytes block,
+  // so the field is ignored (setting it does not change the output).
+  test('v=0x80: serialize skips the block (unparsedBytes field ignored)', () => {
+    const h = parseHeader(new ByteReader(buildHeader({ version: 2 })))
+    h.version = 0x80
+    const withoutField = serializeHeader(h) // unparsedBytes empty from the v2 parse
+    h.unparsedBytes = new Uint8Array([0xaa, 0xbb])
+    const withField = serializeHeader(h)
+    expect(bytesToHex(withField)).toBe(bytesToHex(withoutField))
+  })
+
+  // GUARD: v=0x7f (signed 127 > 4) still READS and consumes the prefix, exactly
+  // like a high version — the boundary must not overshoot into 0..127.
+  test('v=0x7f: signed 127 still reads+consumes the unparsedBytes prefix', () => {
+    const minerPk = concat(new Uint8Array([0x03]), zeros(32))
+    const payload = new Uint8Array([0xaa, 0xbb])
+    const bytes = buildHeader({ version: 0x7f, unparsedLenByte: 2, unparsedPayload: payload, minerPk })
+    const h = parseHeader(new ByteReader(bytes))
+    expect(bytesToHex(h.unparsedBytes)).toBe('aabb')
+    expect(bytesToHex(h.autolykosSolution.minerPk)).toBe(bytesToHex(minerPk))
   })
 })
