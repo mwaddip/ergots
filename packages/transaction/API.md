@@ -1,6 +1,6 @@
 # API — `@ergots/transaction`
 
-Pure-TypeScript Ergo transaction wire codec. Phase 1 scope: parse, serialize, derive signing message, compute transaction id. Validation (stateless/stateful, per-input script execution, cost) is phases 2–4. See `facts/transaction.md` in the repo root for the load-bearing interface contract.
+Pure-TypeScript Ergo transaction wire codec and validator. Phase 1: parse, serialize, signing message, transaction id. Phase 2: stateless + stateful transaction validation. See `facts/transaction.md` in the repo root for the load-bearing interface contract.
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, WASM, or other Node built-ins.
 
@@ -10,6 +10,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 
 ```ts
 import {
+  // Phase 1 — wire codec
   parseTransaction,
   serializeTransaction,
   signingMessage,
@@ -21,6 +22,16 @@ import {
   type SpendingProof,
   type DataInput,
   type ErgoBoxCandidate,
+  // Phase 2 — validation
+  validateStateless,
+  validateStateful,
+  TxValidationError,
+  type TxValidationErrorCode,
+  type TxValidationLocation,
+  type StatefulDeps,
+  type StateContext,
+  type ChainParameters,
+  DEFAULT_PARAMETERS,
 } from '@ergots/transaction';
 ```
 
@@ -34,8 +45,17 @@ import {
 | `serializeTransaction` | function | `ErgoLikeTransaction` → wire bytes |
 | `signingMessage` | function | Full envelope with proofs zeroed; pre-image of transaction id |
 | `transactionId` | function | `blake2b256(signingMessage(tx))`; 32-byte id |
+| `validateStateless` | function | Stateless checks (non-empty, no dup inputs, output sum no overflow) |
+| `validateStateful` | function | Full structural + per-input verify; requires `StatefulDeps` |
 | `TxParseError` | class | Typed parse / serialize error; `.code: TxParseErrorCode` |
 | `TxParseErrorCode` | type | `'trailing-bytes' \| 'token-table-index-out-of-range' \| 'count-out-of-range'` |
+| `TxValidationError` | class | Typed validation error; `.code: TxValidationErrorCode`; `.location?: TxValidationLocation` |
+| `TxValidationErrorCode` | type | 21-variant union (see Error handling section) |
+| `TxValidationLocation` | type | `{ inputIndex?, outputIndex?, boxId? }` |
+| `StatefulDeps` | interface | Input boxes + data-input boxes + state context |
+| `StateContext` | interface | Headers (newest-first, ≥1) + preHeader + optional parameter overrides |
+| `ChainParameters` | interface | Cost/size constants (all fields have defaults in `DEFAULT_PARAMETERS`) |
+| `DEFAULT_PARAMETERS` | const | `ChainParameters` mirroring sigma-rust `Parameters::default()` |
 | `ErgoLikeTransaction` | interface | Root transaction type |
 | `Input` | interface | Spending input (boxId + proof) |
 | `SpendingProof` | interface | Sigma proof bytes + context extension |
@@ -109,6 +129,66 @@ Confirmed byte-correct: `transactionId(parseTransaction(b))` equals the node-rep
 
 ---
 
+### `validateStateless(tx)`
+
+```ts
+function validateStateless(tx: ErgoLikeTransaction): void
+```
+
+Stateless (transaction-alone) checks. Mirrors sigma-rust `ErgoTransaction::validate_stateless` (`ergo_transaction.rs:99-116`).
+
+**Rule set (in order):**
+1. `inputs-empty` — no inputs.
+2. `outputs-empty` — no outputs.
+3. `output-sum-overflow` — cumulative output value sum > `i64::MAX` (2⁶³ − 1).
+4. `duplicate-input` — two inputs share the same `boxId`.
+
+**Returns:** `undefined` on success.
+
+**Throws:** `TxValidationError` with one of the codes above. `location.outputIndex` / `location.inputIndex` present as noted.
+
+---
+
+### `validateStateful(tx, deps)`
+
+```ts
+function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): void
+```
+
+Full stateful validation: structural/accounting checks followed by the per-input verify loop. Mirrors sigma-rust `TransactionContext::validate()` (`tx_context.rs:148-268`).
+
+**`deps` shape:**
+
+```ts
+interface StatefulDeps {
+  inputBoxes: ErgoBox[];       // ordered to match tx.inputs (same length)
+  dataInputBoxes: ErgoBox[];   // ordered to match tx.dataInputs (same length)
+  stateContext: StateContext;
+}
+interface StateContext {
+  headers: Header[];           // newest-first; at least 1; library pads to 10
+  preHeader: PreHeader;        // the block being built
+  parameters?: Partial<ChainParameters>;  // missing fields filled from DEFAULT_PARAMETERS
+}
+```
+
+**Rule set (in order):**
+1. Input/data-input box provisioning (count + computed box id).
+2. Input value sum no-overflow.
+3. Value conservation (`Σ inputs === Σ outputs`).
+4. Per-output well-formedness: dust, future height, monotonic height (post-v3), negative height (post-v1), box/script size ≤ 4096.
+5. Token conservation: amount overflow, not-conserved, invalid minted token.
+6. Init/structural cost against block limit.
+7. Per-input: storage-rent fast path (empty proof + rent-eligible) OR parse → evaluate → `SigmaProp` check → `verifySignature`.
+
+**Errors surface unwrapped:** Only the validator's own structural verdicts are `TxValidationError`. `EvalError` (incl. `'cost-limit-exceeded'` fired during eval), `VerifyError`, and wire-parse errors propagate as-is. See the "Error handling" section.
+
+**Returns:** `undefined` on success.
+
+**Throws:** `TxValidationError` (structural); `EvalError` (script eval / cost overrun); `VerifyError` (crypto layer); `ReaderError` / ergoscript parse errors (malformed ergoTree bytes).
+
+---
+
 ## Worked example: parse, derive id, re-serialize
 
 ```ts
@@ -134,6 +214,65 @@ for (const out of tx.outputCandidates) {
 // Re-serialize — byte-identical to txBytes.
 const reBytes = serializeTransaction(tx);
 console.log('round-trip ok:', reBytes.every((b, i) => b === txBytes[i]));
+```
+
+---
+
+## Worked example: parse → validate → submit
+
+```ts
+import {
+  parseTransaction,
+  validateStateless,
+  validateStateful,
+  DEFAULT_PARAMETERS,
+  TxValidationError,
+  type StatefulDeps,
+  type StateContext,
+} from '@ergots/transaction';
+import { EvalError, VerifyError, type ErgoBox, type PreHeader } from '@ergots/ergoscript';
+import type { Header } from '@ergots/scorex';
+
+// 1. Parse the raw bytes.
+const txBytes: Uint8Array = /* … from node or wallet */;
+const tx = parseTransaction(txBytes);
+
+// 2. Stateless checks — requires nothing but the transaction itself.
+validateStateless(tx);   // throws TxValidationError on failure
+
+// 3. Build StatefulDeps — supply the UTXO set + chain context.
+const inputBoxes: ErgoBox[] = /* … fetch from node by tx.inputs[i].boxId … */;
+const dataInputBoxes: ErgoBox[] = /* … */;
+const headers: Header[] = /* … node /blocks/lastHeaders?count=10, newest-first … */;
+const preHeader: PreHeader = /* … from the block being validated … */;
+
+const stateContext: StateContext = {
+  headers,
+  preHeader,
+  parameters: DEFAULT_PARAMETERS,  // or omit to use defaults
+};
+
+const deps: StatefulDeps = { inputBoxes, dataInputBoxes, stateContext };
+
+// 4. Full stateful validation.
+try {
+  validateStateful(tx, deps);
+  console.log('transaction valid — safe to submit');
+} catch (e) {
+  if (e instanceof TxValidationError) {
+    // Structural verdict from the validator.
+    console.error('validation failed:', e.code, e.location);
+  } else if (e instanceof EvalError) {
+    // Script evaluation failure (incl. cost-limit-exceeded).
+    console.error('eval error:', e.code);
+  } else if (e instanceof VerifyError) {
+    // Sigma proof structure error (distinct from script-reduced-false).
+    console.error('sigma verify error:', e.code);
+  } else {
+    // ReaderError / parse error from malformed ergoTree bytes.
+    throw e;
+  }
+}
 ```
 
 ---
@@ -201,7 +340,7 @@ export interface ErgoBoxCandidate {
 
 ### `TxParseError`
 
-The only typed error class this package throws.
+Typed parse / serialize error (phase 1).
 
 ```ts
 class TxParseError extends Error {
@@ -241,6 +380,62 @@ try {
 
 ---
 
+### `TxValidationError`
+
+Typed validation error (phase 2). Only the validator's own structural verdicts are wrapped here; errors from the layers below propagate **unwrapped** (see "Unwrapped errors" below).
+
+```ts
+class TxValidationError extends Error {
+  readonly code: TxValidationErrorCode;
+  readonly location?: TxValidationLocation;
+}
+interface TxValidationLocation {
+  inputIndex?: number;   // present when the error is localized to an input
+  outputIndex?: number;  // present when the error is localized to an output
+  boxId?: Uint8Array;    // the input's tx.inputs[i].boxId when inputIndex is present
+}
+type TxValidationErrorCode =
+  // stateless
+  | 'inputs-empty'
+  | 'outputs-empty'
+  | 'duplicate-input'
+  | 'output-sum-overflow'
+  // stateful structural
+  | 'input-box-count-mismatch'
+  | 'input-box-id-mismatch'
+  | 'data-input-box-mismatch'
+  | 'input-sum-overflow'
+  | 'value-not-conserved'
+  | 'output-below-min-value'
+  | 'creation-height-in-future'
+  | 'creation-height-below-max-input'
+  | 'creation-height-negative'
+  | 'box-size-exceeded'
+  | 'script-size-exceeded'
+  | 'token-not-conserved'
+  | 'invalid-minted-token'
+  | 'token-amount-invalid'
+  // per-input / cost
+  | 'non-sigmaprop-result'
+  | 'script-reduced-false'
+  | 'cost-limit-exceeded';   // only for init-cost overrun; see Unwrapped errors
+```
+
+**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` only when the per-tx init/structural cost alone exceeds the block budget. When the per-input eval accumulator fires during script evaluation, `EvalError('cost-limit-exceeded')` propagates unwrapped (NOT a `TxValidationError`). Callers must catch both.
+
+### Unwrapped errors
+
+`validateStateful` lets these propagate as-is (not caught or re-typed):
+
+| Error class | Source | When |
+|---|---|---|
+| `EvalError` | `@ergots/ergoscript` | Script evaluation failure; includes `'cost-limit-exceeded'` for per-input cost overrun |
+| `VerifyError` | `@ergots/ergoscript` | Sigma proof structure error (distinct from `script-reduced-false`) |
+| `ReaderError` | `@ergots/scorex` | Truncated / malformed VLQ in ergoTree bytes |
+| `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` | `@ergots/ergoscript` | Malformed ergoTree or register bytes in an input box |
+
+---
+
 ## Conventions
 
 - **All byte sequences are `Uint8Array`.** Never `Buffer`.
@@ -253,7 +448,9 @@ try {
 
 ## See also
 
-- `facts/transaction.md` (repo root) — load-bearing interface contract; count bounds, wire-format layout, full error taxonomy
-- `docs/specs/2026-06-15-ergots-transaction-validation-design.md` — umbrella spec; phases 2–4 scope (validation)
+- `facts/transaction.md` (repo root) — load-bearing interface contract; count bounds, wire-format layout, full error taxonomy (phase 1 + phase 2 validation)
+- `docs/specs/2026-06-15-ergots-transaction-validation-design.md` — umbrella design spec (phases 1–4)
 - `facts/ergoscript-wire.md` — `parseErgoTreeBytes` / `parseAdditionalRegisters`; box-body grammar shared with `@ergots/ergoscript`'s SBox data parser
 - `facts/scorex.md` — `ByteReader` / `ByteWriter` / `blake2b256`; shared codec layer
+- `facts/ergoscript-eval.md` — `EvalError` codes; `SValue` / `SType` discriminated unions
+- `facts/ergoscript-sigma.md` — `VerifyError` codes; sigma-proof verifier surface
