@@ -25,6 +25,10 @@
  *     pre-existing defensive code originated phase 2f, tsc-provably unreachable
  *     default arm of the exhaustive SValue-kind switch in svalue-type.ts; net
  *     83 → 84) — current total: 84
+ *     + v6 batch-6 Ask 20 (+'context-extension-key-out-of-range': self context-extension
+ *       key outside [0,127] — the JVM keys the extension by signed Byte, so
+ *       toSigmaContext crashes on a negative key (wire >= 0x80); net 84 → 85)
+ *       — current total: 85
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -217,6 +221,11 @@ export type EvalErrorCode =
    *     differs by wire shape, 15 op-form vs 20 PropertyCall).
    */
   | 'context-field-missing'
+  /** Self context extension carries a key outside [0,127]: the JVM keys the extension
+   *  by signed Byte, so `toSigmaContext` crashes on a negative key (wire >= 0x80,
+   *  ErgoLikeContext.scala:140-147). v6 batch-6 Ask 20; inputExtensions are byte-identity
+   *  0..255 (getVarFromInput Map[Byte].get) and NOT guarded. */
+  | 'context-extension-key-out-of-range'
   /** GetVar: variable's stored type doesn't match requested type. */
   | 'get-var-type-mismatch'
   /** OptionGet / OptionIsDefined / OptionGetOrElse: input evaluated to non-Option SValue. */

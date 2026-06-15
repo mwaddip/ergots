@@ -11,7 +11,7 @@
 import type { ErgoTree, Expr, SValue } from '../mir/types'
 import { Env } from './env'
 import { evalExpr } from './eval'
-import { makeContext } from './eval-context'
+import { makeContext, EvalError } from './eval-context'
 import type { EvalContext, EvalOpts } from './eval-context'
 import {
   substituteConstants,
@@ -114,6 +114,28 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
 function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
+  // JVM-align (v6 batch-6, Ask 20): the SELF context extension is consumed by
+  // `ErgoLikeContext.toSigmaContext` → `contextVars` (ErgoLikeContext.scala:140-147),
+  // which builds `new Array(maxKey+1)` and assigns `res(key)` per `Map[Byte]` key. A
+  // key whose wire byte is >= 0x80 parses to a NEGATIVE Scala Byte, so `res(negative)`
+  // (or `new Array(negative)`) crashes (ArrayIndexOutOfBounds / NegativeArraySize) —
+  // the JVM rejects the context BEFORE reduction, independent of whether the script
+  // reads that var. ergots keys `ctx.extension` by unsigned number, so reject keys
+  // outside [0,127] here (the toSigmaContext-equivalent point: before any reduction or
+  // cost). `ctx.inputExtensions` are NOT guarded — getVarFromInput reads `Map[Byte].get`
+  // directly (no array), so they stay byte-identity 0..255 (see eval/method-call.ts
+  // 101:12 + context-get-var-from-input.test.ts). Adversarial-only.
+  if (ctx.extension !== undefined) {
+    for (const key of Object.keys(ctx.extension.values)) {
+      const k = Number(key)
+      if (!Number.isInteger(k) || k < 0 || k > 127) {
+        throw new EvalError(
+          `context extension key ${key} out of range [0, 127] — the JVM keys the self extension by signed Byte; a wire byte >= 0x80 is negative and crashes toSigmaContext`,
+          'context-extension-key-out-of-range'
+        )
+      }
+    }
+  }
   // JVM-align #2: mirror the deserializer's check2(SameType)/(OnlyNumeric) on
   // comparison/equality — a WHOLE-TREE pre-eval pass run before any cost is
   // charged, so a mismatched node (even in a never-evaluated branch) rejects the
