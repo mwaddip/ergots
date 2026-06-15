@@ -41,48 +41,19 @@
 
 import { ByteReader, ByteWriter } from '@ergots/scorex';
 import type { ErgoLikeTransaction } from '../types';
-import { parseInput, serializeInput } from './input';
-import { parseDataInput, serializeDataInput } from './data-input';
-import { parseBoxCandidate, serializeBoxCandidate } from './box-candidate';
+import { parseInput } from './input';
+import { parseDataInput } from './data-input';
+import { parseBoxCandidate } from './box-candidate';
+import { writeEnvelope, TX_IO_MAX, MAX_DISTINCT_TOKENS } from './_envelope';
 import { TxParseError } from '../errors';
 
 /**
- * `i16::MAX` = 32767 — the upper bound of `TxIoVec<T>`, defined as
- * `BoundedVec<T, 1, { i16::MAX as usize }>` (ergotree-ir/src/chain/context.rs:23).
- * Inputs and output-candidates require `[1, TX_IO_MAX]`; data-inputs allow
- * `{0} ∪ [1, TX_IO_MAX]` (sigma-rust models empty as `None` via
- * `BoundedVec::opt_empty_vec`). The parser's `get_u16` can still decode 0..=65535
- * from the wire; the TxIoVec rejection happens in `new_from_vec` after the loop —
- * we mirror it BEFORE the loop so we fail fast without allocating.
- *
- * Note: `Transaction::MAX_OUTPUTS_COUNT = u16::MAX = 65535` is a different constant
- * — it is used only as the token-table bound (`MAX_OUTPUTS_COUNT * MAX_TOKENS_COUNT`),
- * NOT as the io-count limit.
- */
-const TX_IO_MAX = 0x7fff; // i16::MAX = 32767
-
-/**
  * `u32::MAX` — the cap `get_u32` (`vlq_encode.rs:267`) enforces on the tokens
- * count by narrowing the VLQ-decoded `u64` to `u32`.
+ * count by narrowing the VLQ-decoded `u64` to `u32`. Parse-side only; the
+ * serialize-side bounds (TX_IO_MAX, MAX_DISTINCT_TOKENS) live in `_envelope.ts`
+ * alongside the shared writer.
  */
 const U32_MAX = 0xffffffff;
-
-/**
- * `Transaction::MAX_OUTPUTS_COUNT * ErgoBox::MAX_TOKENS_COUNT` = 65535 * 255 =
- * 16,711,425 — the explicit "too many tokens in transaction" bound the parser
- * checks before allocating the token IndexSet (transaction.rs:~308-312).
- * MAX_OUTPUTS_COUNT = u16::MAX = 65535 is the TOKEN-count constant, distinct
- * from the io-count limit TX_IO_MAX = i16::MAX = 32767.
- */
-const U16_MAX = 0xffff; // used only for token-table bound below
-const MAX_DISTINCT_TOKENS = U16_MAX * 255;
-
-/** Lowercase hex of a byte array (token-id table-key form; matches box-candidate.ts). */
-function hex(b: Uint8Array): string {
-  let s = '';
-  for (const x of b) s += x.toString(16).padStart(2, '0');
-  return s;
-}
 
 export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   const r = new ByteReader(bytes);
@@ -148,64 +119,15 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   return { inputs, dataInputs, outputCandidates };
 }
 
+/**
+ * Full transaction serialization (`Transaction::sigma_serialize`). Delegates to
+ * the shared `writeEnvelope` writer (the entire envelope is identical to the
+ * signing form except the per-input proof block); `includeProofs = true` emits
+ * the proof-length VLQ + proof bytes. The io-count and token-table bounds — and
+ * the distinct-token first-seen table build — all live in `writeEnvelope`.
+ */
 export function serializeTransaction(tx: ErgoLikeTransaction): Uint8Array {
   const w = new ByteWriter();
-
-  // inputs — TxIoVec requires [1, i16::MAX=32767]. The serializer must not emit
-  // a count the reference parser would reject — symmetry with the parse bounds.
-  if (tx.inputs.length < 1 || tx.inputs.length > TX_IO_MAX) {
-    throw new TxParseError(
-      `inputs count ${tx.inputs.length} out of TxIoVec range [1, ${TX_IO_MAX}]`,
-      'count-out-of-range',
-    );
-  }
-  w.writeVlqU(tx.inputs.length);
-  for (const i of tx.inputs) serializeInput(i, w);
-
-  // data-inputs — sigma-rust models 0 as `None` and still writes `put_u16(0)`,
-  // so length-0 is byte-identical and allowed. Non-zero must be ≤ TX_IO_MAX.
-  if (tx.dataInputs.length > TX_IO_MAX) {
-    throw new TxParseError(
-      `data-inputs count ${tx.dataInputs.length} out of range [0, ${TX_IO_MAX}]`,
-      'count-out-of-range',
-    );
-  }
-  w.writeVlqU(tx.dataInputs.length);
-  for (const d of tx.dataInputs) serializeDataInput(d, w);
-
-  // distinct token table — first-seen insertion order across all outputs,
-  // de-duplicated (sigma-rust `distinct_token_ids` → `IndexSet::from_iter`).
-  const table: Uint8Array[] = [];
-  const idToIndex = new Map<string, number>();
-  for (const o of tx.outputCandidates) {
-    for (const t of o.tokens) {
-      const k = hex(t.id);
-      if (!idToIndex.has(k)) {
-        idToIndex.set(k, table.length);
-        table.push(t.id);
-      }
-    }
-  }
-  // Count is `put_u32`; the build above can never exceed it in practice, but the
-  // reference reader would reject a wider value, so keep the symmetry.
-  if (table.length > MAX_DISTINCT_TOKENS) {
-    throw new TxParseError(
-      `too many distinct tokens: ${table.length} > ${MAX_DISTINCT_TOKENS}`,
-      'count-out-of-range',
-    );
-  }
-  w.writeVlqU(table.length);
-  for (const id of table) w.writeBytes(id);
-
-  // outputs — TxIoVec requires [1, i16::MAX=32767].
-  if (tx.outputCandidates.length < 1 || tx.outputCandidates.length > TX_IO_MAX) {
-    throw new TxParseError(
-      `outputs count ${tx.outputCandidates.length} out of TxIoVec range [1, ${TX_IO_MAX}]`,
-      'count-out-of-range',
-    );
-  }
-  w.writeVlqU(tx.outputCandidates.length);
-  for (const o of tx.outputCandidates) serializeBoxCandidate(o, idToIndex, w);
-
+  writeEnvelope(tx, w, true);
   return w.toBytes();
 }
