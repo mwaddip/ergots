@@ -5,6 +5,7 @@ import { parseHeader, serializeHeader } from '../src/header.ts'
 import { ByteReader } from '../src/reader.ts'
 import { encodeVlqU } from '../src/vlq.ts'
 import { bytesToHex } from './helpers.ts'
+import { ReaderError } from '../src/errors.ts'
 
 // ---- shared header byte assembler (used by every finding below) ----
 function zeros(n: number): Uint8Array {
@@ -93,5 +94,23 @@ describe('header (a) — unparsedBytes consume gate (version>4)', () => {
     expect(re[solutionStart - 3]).toBe(0x02) // length prefix
     expect(re[solutionStart - 2]).toBe(0xaa)
     expect(re[solutionStart - 1]).toBe(0xbb)
+  })
+})
+
+describe('header (b) — height upper bound (i32, JVM toIntExact)', () => {
+  test('height = 2^31 - 1 (Int.MaxValue) is accepted', () => {
+    const h = parseHeader(new ByteReader(buildHeader({ version: 2, height: 0x7fffffffn })))
+    expect(h.height).toBe(0x7fffffff)
+  })
+
+  test('height = 2^31 rejects with value-out-of-range', () => {
+    const bytes = buildHeader({ version: 2, height: 0x80000000n })
+    try {
+      parseHeader(new ByteReader(bytes))
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ReaderError)
+      expect((e as ReaderError).code).toBe('value-out-of-range')
+    }
   })
 })

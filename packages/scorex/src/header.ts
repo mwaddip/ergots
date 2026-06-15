@@ -26,6 +26,7 @@ import { blake2b256 } from './crypto/blake2b256.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from './digests.ts';
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
 import type { AutolykosSolution } from './autolykos-solution.ts';
+import { ReaderError } from './errors.ts';
 
 const VOTES_LEN = 3;
 const NBITS_LEN = 4; // raw big-endian u32
@@ -80,6 +81,12 @@ export function parseHeader(reader: ByteReader): Header {
   // so an unbounded parse would silently let a >u32 height round-trip via
   // a different identity).
   const height = readVlqU32(reader, 'height');
+  // JVM getUInt().toIntExact (HeaderWithoutPow.scala:76): a u32 height that
+  // exceeds Int.MaxValue throws. (Contrast AvlTree keyLength getUInt().toInt,
+  // which WRAPS — see facts/ergoscript-eval.md.)
+  if (height > 0x7fffffff) {
+    throw new ReaderError(`height ${height} exceeds Int.MaxValue (JVM toIntExact)`, 'value-out-of-range');
+  }
 
   const votes = readFixed(reader, VOTES_LEN, 'votes');
 
