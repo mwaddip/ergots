@@ -114,3 +114,32 @@ describe('header (b) — height upper bound (i32, JVM toIntExact)', () => {
     }
   })
 })
+
+describe('header (c) — v1 powDistance 256-bit bound (fitsIn256Bits)', () => {
+  // 2^255 - 1 = 0x7f followed by 31 * 0xff -> bitLength 255 -> fits.
+  test('powDistance = 2^255 - 1 is accepted', () => {
+    const dBytes = new Uint8Array([0x7f, ...Array(31).fill(0xff)])
+    const h = parseHeader(new ByteReader(buildHeader({ version: 1, dBytes })))
+    expect(h.autolykosSolution.powDistance).toBe((1n << 255n) - 1n)
+  })
+
+  // 2^255 = 0x80 followed by 31 * 0x00 -> bitLength 256 -> rejects.
+  test('powDistance = 2^255 rejects with value-out-of-range', () => {
+    const dBytes = new Uint8Array([0x80, ...Array(31).fill(0x00)])
+    const bytes = buildHeader({ version: 1, dBytes })
+    try {
+      parseHeader(new ByteReader(bytes))
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ReaderError)
+      expect((e as ReaderError).code).toBe('value-out-of-range')
+    }
+  })
+
+  // > 32 bytes is unambiguously over-range.
+  test('powDistance from 33 * 0xff bytes rejects with value-out-of-range', () => {
+    const dBytes = new Uint8Array(Array(33).fill(0xff))
+    const bytes = buildHeader({ version: 1, dBytes })
+    expect(() => parseHeader(new ByteReader(bytes))).toThrowError(ReaderError)
+  })
+})
