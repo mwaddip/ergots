@@ -384,11 +384,14 @@ describe('SType wire format', () => {
     expect(() => parseSType(r)).toThrow(STypeParseError)
   })
 
-  it('parser rejects STypeVar with invalid UTF-8', () => {
-    // [tag=103, len=1, byte=0xff] — 0xff is an invalid UTF-8 lead byte
-    // (it's never valid as either a single-byte ASCII or a multi-byte lead).
+  it('parser lossy-decodes a STypeVar name with invalid UTF-8 (JVM new String, never throws)', () => {
+    // [tag=103, len=1, byte=0xff] — 0xff is an ill-formed UTF-8 lead byte. The JVM
+    // `TypeSerializer.deserialize` reads `new String(bytes, UTF_8)`, which lossy-decodes
+    // to U+FFFD rather than rejecting (it never throws); ergots matches via decodeUtf8Lossy.
+    // The full per-byte JVM-faithful table (incl. the ed-a0-80 surrogate 1-vs-3 fork) lives
+    // in test/wire/utf8-lossy.test.ts + the SANTA STypeVar.name_utf8_roundtrip vector.
     const bytes = new Uint8Array([103, 1, 0xff])
-    expect(() => parseSType(new ByteReader(bytes))).toThrow(STypeParseError)
+    expect(parseSType(new ByteReader(bytes))).toEqual({ tag: 'STypeVar', name: '�' })
   })
 
   it('serializes STypeVar with empty name (round-trips as [103, 0])', () => {

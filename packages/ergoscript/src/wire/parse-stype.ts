@@ -17,6 +17,7 @@
 
 import type { SType, STypeVar } from '../mir/types'
 import { ByteReader } from '@ergots/scorex'
+import { decodeUtf8Lossy } from './_utf8'
 
 const PRIM_RANGE = 12 // MaxPrimTypeCode (11) + 1
 
@@ -253,18 +254,12 @@ function parseHighTypeCode(r: ByteReader, c: number): SType {
       // (fewer than nameLen bytes remaining) is still caught by readBytes.
       const nameLen = r.readU8()
       const bytes = r.readBytes(nameLen)
-      // TextDecoder is available in Node 20+ and all browsers; we set
-      // fatal:true so invalid UTF-8 surfaces as a parse error rather than
-      // a replacement-character payload.
-      let name: string
-      try {
-        name = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-      } catch {
-        throw new STypeParseError(
-          `STypeVar name is not valid UTF-8`,
-          'invalid-stypevar-utf8'
-        )
-      }
+      // JVM-faithful lossy decode: TypeSerializer.deserialize reads the name as
+      // `new String(bytes, UTF_8)` (TypeSerializer.scala:204), which NEVER throws —
+      // ill-formed bytes lossy-decode to U+FFFD with Java's malformed-length counts
+      // (NOT WHATWG/Rust `from_utf8_lossy`, which over-counts the surrogate case;
+      // see `decodeUtf8Lossy` + the SANTA STypeVar.name_utf8_roundtrip vector).
+      const name = decodeUtf8Lossy(bytes)
       return { tag: 'STypeVar', name }
     }
     case TYPE_CODE_SHEADER:
