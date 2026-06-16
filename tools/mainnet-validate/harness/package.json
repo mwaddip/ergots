@@ -17,6 +17,7 @@
     "@ergots/avltree": "file:../../../packages/avltree",
     "@ergots/ergoscript": "file:../../../packages/ergoscript",
     "@ergots/scorex": "file:../../../packages/scorex",
+    "@ergots/transaction": "file:../../../packages/transaction",
     "cbor-x": "^1.6.4",
     "ergo-lib-wasm-nodejs": "file:../../../external/sigma-rust/bindings/ergo-lib-wasm/pkg-nodejs",
     "json-bigint": "^1.0.0"
