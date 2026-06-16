@@ -40,3 +40,4 @@ export {
 } from './autolykos-v2.ts';
 export { decodeCompactBits } from './nbits.ts';
 export { AutolykosV1NotSupportedError, PowHitInvalidParamsError } from './errors.ts';
+export { blake2b256 } from './crypto/blake2b256.ts';

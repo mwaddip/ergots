@@ -285,6 +285,33 @@ export function consumeTreeFromReader(outer: ByteReader): void {
 }
 
 /**
+ * Consume exactly one ErgoTree from the reader's current position and return
+ * its verbatim wire bytes (header + optional size VLQ + constants + body),
+ * leaving the cursor at the byte AFTER the tree.
+ *
+ * The ergoTree span is self-delimiting via its header (see
+ * {@link consumeTreeFromReader}): a `hasSize=true` tree's body region is
+ * skipped without structural parse (sigma-rust `ErgoTree::Unparsed`
+ * equivalent — accepts mainnet "burn" boxes), while a `hasSize=false` tree's
+ * body grammar self-delimits and is parsed to locate its end. The returned
+ * slice is DETACHED (`.slice()`) so it survives the reader's backing buffer.
+ *
+ * This is the exact span-capture the SBox data parser (`parse-svalue.ts`,
+ * `case 'SBox'`) performs for a box's `ergoTreeBytes` field; both the SBox
+ * parser and `@ergots/transaction`'s ErgoBoxCandidate codec call this so the
+ * tree-length logic lives in ONE place (no re-derivation of the header /
+ * size-prefix grammar at the call sites).
+ *
+ * Does NOT enforce outer-trailing exhaustion — the caller continues reading
+ * the next field (e.g. `creation_height`) on the same reader.
+ */
+export function parseErgoTreeBytes(r: ByteReader): Uint8Array {
+  const treeStart = r.position
+  consumeTreeFromReader(r)
+  return r.slice(treeStart, r.position).slice()
+}
+
+/**
  * Parse the constants + body region of a `hasSize=false` tree given the
  * already-read header byte. Used only by `consumeTreeFromReader`'s
  * non-sized path — for the sized path, the body is skipped without

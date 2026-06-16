@@ -68,7 +68,7 @@ import type { SType, SValue } from '../mir/types'
 import { ByteReader, parseHeader, readVlqU32 } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
-import { consumeTreeFromReader } from './ergo-tree'
+import { parseErgoTreeBytes } from './ergo-tree'
 import { canonicalGePayload } from './_ge-canonical'
 
 // OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
@@ -176,6 +176,62 @@ function parseRegisterExprWithTag(
   } finally {
     r.exitDepth()
   }
+}
+
+/** Decoded box additional-registers map: R4.. keyed by register id (4..9). */
+export type AdditionalRegisters = Record<
+  number,
+  { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined
+>
+
+/**
+ * Parse a box's additional-registers section from the reader's current
+ * position: a raw `u8` count (NOT VLQ; mirrors JVM `r.getUByte()`,
+ * ErgoBoxCandidate.scala:236, and sigma-rust `register.rs`), then that many
+ * register Exprs in order, keyed R4.. (`4 + i`).
+ *
+ * Each register is a full Expr on the wire (sigma-rust `register.rs:140` calls
+ * `Expr::sigma_parse(r)`) restricted to `Const` or `Tuple`. Most mainnet
+ * registers are Constants (lead byte = SType byte ≤ 112). The rare Tuple-Expr
+ * form (lead byte 0x86, ~one box at h=855,650 R8) is recognized + preserved
+ * via `opaqueBytes` so the wire form round-trips byte-identically even though
+ * the type system stores the value as a regular STuple Constant. The
+ * rule-1019 `CheckV6Type` gate and per-Expr depth accounting live in
+ * `parseRegisterExprWithTag`, applied identically here.
+ *
+ * Rejects a count > 6 with `'sbox-registers-out-of-range'` (R4..R9 only).
+ *
+ * Shared by the SBox data parser (`case 'SBox'`) and `@ergots/transaction`'s
+ * ErgoBoxCandidate codec — the register grammar lives in one place. The caller
+ * owns any surrounding read-window (positionLimit) save/restore; this helper
+ * only consumes the count + register bytes.
+ */
+export function parseAdditionalRegisters(
+  r: ByteReader,
+  treeVersion: number
+): AdditionalRegisters {
+  const regCount = r.readU8() // raw u8, NOT VLQ
+  if (regCount > 6) {
+    throw new SValueParseError(
+      `SBox additional_registers count ${regCount} exceeds 6 (R4..R9 only)`,
+      'sbox-registers-out-of-range'
+    )
+  }
+  const registers: AdditionalRegisters = {}
+  for (let i = 0; i < regCount; i++) {
+    const startPos = r.position
+    const lead = r.readU8()
+    const parsed = parseRegisterExprWithTag(lead, r, treeVersion)
+    if (lead > LAST_CONSTANT_CODE) {
+      // Tuple-Expr (or future non-Const Expr) — capture original bytes for
+      // byte-identical serializer output.
+      const opaqueBytes = r.slice(startPos, r.position).slice()
+      registers[4 + i] = { tpe: parsed.tpe, value: parsed.value, opaqueBytes }
+    } else {
+      registers[4 + i] = { tpe: parsed.tpe, value: parsed.value }
+    }
+  }
+  return registers
 }
 
 export class SValueParseError extends Error {
@@ -515,22 +571,17 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
 
       // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
       // Sigma-rust calls `ErgoTree::sigma_parse(r)` on the shared reader
-      // at `chain/ergo_box.rs:350`. We mirror via `consumeTreeFromReader`
-      // which handles both `hasSize=true` (size-prefixed bounded body)
-      // and `hasSize=false` (body grammar self-delimits) on the shared
-      // reader. No parsed tree is returned (the consumer only advances
-      // the cursor) — the SBox only needs the raw bytes; downstream
-      // callers re-parse via the public `parseTree` if they want
-      // structural access.
-      // Use the lenient consumer: for `hasSize=true` trees, the body is
-      // skipped without attempting to parse — sigma-rust similarly wraps
-      // such trees as `ErgoTree::Unparsed { tree_bytes, error }` and
-      // accepts the box as byte-valid (mainnet "burn" boxes; first
-      // surfaced at h=545,684). For `hasSize=false` trees, strict parse
-      // is still required since the body grammar self-delimits.
-      const treeStart = r.position
-      consumeTreeFromReader(r)
-      const ergoTreeBytes = r.slice(treeStart, r.position).slice()
+      // at `chain/ergo_box.rs:350`. We mirror via `parseErgoTreeBytes`
+      // (ergo-tree.ts), which consumes exactly one tree from the shared
+      // reader and returns its verbatim span — handling both `hasSize=true`
+      // (size-prefixed body skipped without parse, sigma-rust
+      // `ErgoTree::Unparsed`, mainnet "burn" boxes, first at h=545,684) and
+      // `hasSize=false` (body grammar self-delimits, strict-parsed to find
+      // its end). The SBox only needs the raw bytes; downstream callers
+      // re-parse via the public `parseTree` for structural access. The same
+      // helper is consumed by `@ergots/transaction`'s ErgoBoxCandidate codec
+      // so the tree-length grammar lives in one place.
+      const ergoTreeBytes = parseErgoTreeBytes(r)
 
       // --- creation_height (VLQ; rejects > Int.MaxValue (2^31-1) to match the
       //     JVM consensus reader `r.getUIntExact` (ErgoBoxCandidate.scala:195) =
@@ -568,39 +619,12 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
         tokens.push({ id, amount })
       }
 
-      // --- additional_registers (raw u8 count + per-register Const wire) ---
-      const regCount = r.readU8() // raw u8, NOT VLQ
-      if (regCount > 6) {
-        throw new SValueParseError(
-          `SBox additional_registers count ${regCount} exceeds 6 (R4..R9 only)`,
-          'sbox-registers-out-of-range'
-        )
-      }
-      const registers: Record<
-        number,
-        { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined
-      > = {}
-      for (let i = 0; i < regCount; i++) {
-        // Each register is serialized as a full Expr on the wire (sigma-rust
-        // `register.rs:140` calls `Expr::sigma_parse(r)`), but the parsed
-        // result is restricted to Const or Tuple (line 142-162). Most
-        // mainnet registers ARE Constants (lead byte = SType byte ≤ 112).
-        // A handful (~one box at h=855,650 r/R8) use the Tuple-Expr form
-        // (lead byte 0x86) — recognized + preserved via opaqueBytes so the
-        // wire-form round-trips correctly even though our type system
-        // represents the value as a regular STuple Constant.
-        const startPos = r.position
-        const lead = r.readU8()
-        const parsed = parseRegisterExprWithTag(lead, r, treeVersion)
-        if (lead > LAST_CONSTANT_CODE) {
-          // Tuple-Expr (or future non-Const Expr) — capture original bytes
-          // for byte-identical serializer output.
-          const opaqueBytes = r.slice(startPos, r.position).slice()
-          registers[4 + i] = { tpe: parsed.tpe, value: parsed.value, opaqueBytes }
-        } else {
-          registers[4 + i] = { tpe: parsed.tpe, value: parsed.value }
-        }
-      }
+      // --- additional_registers (raw u8 count + per-register Const/Tuple wire) ---
+      // Factored into `parseAdditionalRegisters` (shared with @ergots/transaction's
+      // ErgoBoxCandidate codec): raw u8 count, > 6 reject, per-register Expr read
+      // restricted to Const/Tuple with opaqueBytes capture for the Tuple-Expr form
+      // and the rule-1019 CheckV6Type gate, all under the threaded treeVersion.
+      const registers = parseAdditionalRegisters(r, treeVersion)
 
       // Restore the enclosing window: the candidate span ends with the
       // registers; txId/index sit OUTSIDE it — mirrors the

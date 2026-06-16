@@ -50,6 +50,19 @@ type ErgoTree, TreeHeader
 - **Postcondition:** Returns `Uint8Array` of length ≤ `MAX_TREE_SIZE`. For any `tree` returned by `parseTree(b)`, `serializeTree(parseTree(b))` equals `b` byte-for-byte.
 - **Postcondition (failure):** Throws `ErgoTreeSerializeError` with `code` `'header-inconsistent'` (rawHeader mismatch), `'constants-arity-mismatch'`, `'oversized'` (serialized bytes would exceed `MAX_TREE_SIZE`), or `'too-many-constants'` (`tree.constants.length` > `MAX_CONSTANTS_COUNT` = 4096). Body-serialize failures surface as `ExprSerializeError` (notably `'not-supported'` for the un-encodable `ZkProofBlock` variant).
 
+### ErgoBox sub-structure readers (`parseErgoTreeBytes` / `parseAdditionalRegisters`)
+
+Reader-based readers factored out of the `SBox` data parser (`parse-svalue.ts`, `case 'SBox'`) and forwarded top-level from the package index so `@ergots/transaction`'s ErgoBoxCandidate codec consumes the box-body grammar from ONE place rather than re-deriving the ergoTree-length / register-section layout. Both operate on a shared `ByteReader` and advance the cursor in place.
+
+```ts
+parseErgoTreeBytes(r: ByteReader): Uint8Array
+parseAdditionalRegisters(r: ByteReader, treeVersion: number): AdditionalRegisters
+type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined>
+```
+
+- **`parseErgoTreeBytes(r)`** — consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim wire span (header + optional size VLQ + constants + body) as a DETACHED `Uint8Array`. Thin wrapper over `consumeTreeFromReader`: a `hasSize=true` body is skipped without structural parse (sigma-rust `ErgoTree::Unparsed` equivalent — "burn" boxes stay byte-valid), a `hasSize=false` body is strict-parsed to find its end. Does NOT enforce outer-trailing exhaustion (the caller continues with the next field, e.g. `creation_height`). Failure surface: `ErgoTreeParseError` (`'header-version-requires-size'`, `'body-size-overflow'`) and inner `ExprParseError` / `ReaderError` on the `hasSize=false` strict-parse path. **The `SBox` data parser calls this** for its `ergoTreeBytes` field, so the span semantics are identical across SBox and the transaction candidate codec.
+- **`parseAdditionalRegisters(r, treeVersion)`** — reads the box additional-registers section: a raw `u8` count (NOT VLQ), `> 6` → `SValueParseError('sbox-registers-out-of-range')`, then that many register Exprs keyed R4.. (`4 + i`). Each register is restricted to `Const`/`Tuple`; the rare Tuple-Expr form (lead byte `0x86`) is preserved via `opaqueBytes` for byte-identical re-emission, and the rule-1019 `CheckV6Type` gate (`'register-v6-type'`) + per-Expr depth accounting apply identically to the SBox path. The caller owns any surrounding read-window (`positionLimit`) save/restore. **The `SBox` data parser calls this** for its registers, so register semantics are identical across SBox and the candidate codec.
+
 ### `isP2PK(tree)` / `p2pkPublicKey(tree)`
 
 - **Precondition:** `tree` is a valid `ErgoTree`.
@@ -105,6 +118,16 @@ substituteConstantsBytes(
 // wire/ergo-tree.ts — shared-reader body parse (self-delimiting Expr grammar)
 parseTreeFromReader(r: ByteReader): ErgoTree
 
+// wire/ergo-tree.ts — consume one self-delimiting ergoTree, return its verbatim
+// span. Re-exported top-level (see "ErgoBox sub-structure readers" below);
+// consumed by @ergots/transaction's ErgoBoxCandidate codec.
+parseErgoTreeBytes(r: ByteReader): Uint8Array
+
+// wire/parse-svalue.ts — box additional-registers section (u8 count + per-register
+// Const/Tuple Expr, opaqueBytes for the Tuple-Expr form, rule-1019 CheckV6Type
+// gate). Re-exported top-level; consumed by @ergots/transaction's candidate codec.
+parseAdditionalRegisters(r: ByteReader, treeVersion: number): AdditionalRegisters
+
 // wire/ergo-box-bytes.ts — box serialization (reusable for the wallet phase)
 serializeBoxBytes(box: ErgoBox): Uint8Array
 serializeBoxBytesWithoutRef(box: ErgoBox): Uint8Array
@@ -132,7 +155,7 @@ resolveReturnTpe(sig: MethodSignature, receiver: SType, argTpes: readonly SType[
 
 **`treeVersion` threading.** `parseSValue` / `serializeSValue` carry a `treeVersion: number`, threaded through every recursive call site (Coll, Tuple, Option arms) — it drives the V3-gated value codecs (SHeader, SOption, SUnsignedBigInt). The internal `parseExpr` / `serializeExpr` entry points accept `treeVersion` as a **required** parameter; the optional-defaulted-to-0 form was a threading-class landmine — compound nodes silently parsed nested constants at v0. `parseTree` / `serializeTree` inject `treeVersion` from `tree.header.version`. `SHeader` value parse/serialize delegate to `@ergots/scorex`'s `parseHeader` / `serializeHeader`.
 
-**`parseTreeFromReader(r)`.** Mirrors sigma-rust's `ErgoTree::sigma_parse` (`ergo_tree.rs:410-453`): the body Expr grammar is self-delimiting, so when `hasSize=false` the cursor lands at the body's end after `parseExpr` returns. `parseTree(bytes)` is a thin wrapper adding the empty/size-cap check + outer-envelope exhaustion check. The `SBox` value arm uses `consumeTreeFromReader` (a lenient wrapper over `parseTreeFromReader`) to parse a box script directly off the shared reader (a v0 `hasSize=false` tree is the ~99% mainnet-box case — empirically confirmed against the bootstrap-data snapshot at heights 1, 1000, 3849), mirroring sigma-rust's `parse_box_with_indexed_digests` (`chain/ergo_box.rs:350`). For `hasSize=false` trees the body grammar self-delimits and parses strictly; for `hasSize=true` trees whose size-prefixed body fails strict parse, the bytes are captured verbatim as `ErgoTree::Unparsed { tree_bytes, error }` (a permanently-unevaluable "burn" box — mirrors sigma-rust `ergo_tree.rs:425-433`, first surfaced at h=545,684) rather than throwing, so the box stays byte-valid. Exported within the package for cross-module use by `parse-svalue.ts`.
+**`parseTreeFromReader(r)`.** Mirrors sigma-rust's `ErgoTree::sigma_parse` (`ergo_tree.rs:410-453`): the body Expr grammar is self-delimiting, so when `hasSize=false` the cursor lands at the body's end after `parseExpr` returns. `parseTree(bytes)` is a thin wrapper adding the empty/size-cap check + outer-envelope exhaustion check. The `SBox` value arm uses `parseErgoTreeBytes` (which wraps `consumeTreeFromReader`, itself a lenient wrapper over `parseTreeFromReader`) to consume + capture a box script directly off the shared reader (a v0 `hasSize=false` tree is the ~99% mainnet-box case — empirically confirmed against the bootstrap-data snapshot at heights 1, 1000, 3849), mirroring sigma-rust's `parse_box_with_indexed_digests` (`chain/ergo_box.rs:350`). For `hasSize=false` trees the body grammar self-delimits and parses strictly; for `hasSize=true` trees whose size-prefixed body fails strict parse, the bytes are captured verbatim as `ErgoTree::Unparsed { tree_bytes, error }` (a permanently-unevaluable "burn" box — mirrors sigma-rust `ergo_tree.rs:425-433`, first surfaced at h=545,684) rather than throwing, so the box stays byte-valid. Exported within the package for cross-module use by `parse-svalue.ts`.
 
 **`substituteConstantsBytes(...)`** is the byte-surgery behind the `SubstConstants` eval arm. It mirrors JVM `ErgoTreeSerializer.substituteConstants` (`ErgoTreeSerializer.scala:320-411`): the header + constants segment are re-parsed and re-serialized, but the tree BODY is copied **verbatim** — never parsed as an `Expr`. This is the consensus-faithful behavior: a crafted template whose body is not valid Expr bytes is returned unchanged (0 constants ⇒ no substitution) where a full `parseTree` throws. ergots **leads** this fix — sigma-rust still uses the parse-based `with_constant` and shares the divergence (routed to sigma-rust); JVM is canonical. JVM-parity details encoded in the fn (`ErgoTreeSerializer.scala:286-411`):
 
