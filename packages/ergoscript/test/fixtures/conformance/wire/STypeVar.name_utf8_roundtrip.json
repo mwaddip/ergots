@@ -1,0 +1,67 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "STypeVar.name_utf8_roundtrip",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "entries" : [
+    {
+      "name" : "name-utf8-ff-roundtrip#0",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-stypevar-name-utf8-roundtrip",
+      "description" : "ErgoTree carrying STypeVar name = invalid-UTF-8 [ff] (single invalid byte): JVM structurally re-serializes the lossy-decoded name to canonical UTF-8 (U+FFFD). Non-identity round-trip; sigma-rust from_utf8_lossy diverges on eda080 (3 vs 1) -> script-hash fork.",
+      "bytes_hex" : "1b1501040ad801d701016701ffd901026701ff72027300",
+      "expected_bytes_hex" : "1b1901040ad801d701016703efbfbdd901026703efbfbd72027300",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "name-utf8-e282-roundtrip#1",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-stypevar-name-utf8-roundtrip",
+      "description" : "ErgoTree carrying STypeVar name = invalid-UTF-8 [e282] (truncated 3-byte sequence): JVM structurally re-serializes the lossy-decoded name to canonical UTF-8 (U+FFFD). Non-identity round-trip; sigma-rust from_utf8_lossy diverges on eda080 (3 vs 1) -> script-hash fork.",
+      "bytes_hex" : "1b1701040ad801d701016702e282d901026702e28272027300",
+      "expected_bytes_hex" : "1b1901040ad801d701016703efbfbdd901026703efbfbd72027300",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "name-utf8-c080-roundtrip#2",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-stypevar-name-utf8-roundtrip",
+      "description" : "ErgoTree carrying STypeVar name = invalid-UTF-8 [c080] (overlong NUL encoding): JVM structurally re-serializes the lossy-decoded name to canonical UTF-8 (U+FFFD). Non-identity round-trip; sigma-rust from_utf8_lossy diverges on eda080 (3 vs 1) -> script-hash fork.",
+      "bytes_hex" : "1b1701040ad801d701016702c080d901026702c08072027300",
+      "expected_bytes_hex" : "1b1f01040ad801d701016706efbfbdefbfbdd901026706efbfbdefbfbd72027300",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "name-utf8-eda080-roundtrip#3",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-stypevar-name-utf8-roundtrip",
+      "description" : "ErgoTree carrying STypeVar name = invalid-UTF-8 [eda080] (UTF-16 surrogate (ill-formed in UTF-8) — the JVM-vs-Rust fork (JVM 1 / Rust 3)): JVM structurally re-serializes the lossy-decoded name to canonical UTF-8 (U+FFFD). Non-identity round-trip; sigma-rust from_utf8_lossy diverges on eda080 (3 vs 1) -> script-hash fork.",
+      "bytes_hex" : "1b1901040ad801d701016703eda080d901026703eda08072027300",
+      "expected_bytes_hex" : "1b1901040ad801d701016703efbfbdd901026703efbfbd72027300",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "name-utf8-61ff62-roundtrip#4",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-stypevar-name-utf8-roundtrip",
+      "description" : "ErgoTree carrying STypeVar name = invalid-UTF-8 [61ff62] (valid / invalid / valid): JVM structurally re-serializes the lossy-decoded name to canonical UTF-8 (U+FFFD). Non-identity round-trip; sigma-rust from_utf8_lossy diverges on eda080 (3 vs 1) -> script-hash fork.",
+      "bytes_hex" : "1b1901040ad801d70101670361ff62d90102670361ff6272027300",
+      "expected_bytes_hex" : "1b1d01040ad801d70101670561efbfbd62d90102670561efbfbd6272027300",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}
