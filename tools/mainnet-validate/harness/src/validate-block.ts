@@ -52,7 +52,7 @@ import {
     type SValue,
 } from '@ergots/ergoscript';
 
-import type { BlockBundle } from './bundle-types.js';
+import type { BlockBundle, TxBundle } from './bundle-types.js';
 import { HarnessError } from './errors.js';
 import { validateTx } from './validate-tx.js';
 
@@ -403,6 +403,18 @@ export function validateOutputRoundtrips(
 }
 
 /**
+ * Injectable per-tx validator. Matches the call signature of `validateTx`
+ * (oracle mode) and `validateTxLib` (lib mode) so either can be passed in
+ * without an adapter.
+ */
+export type TxValidator = (
+    tx: TxBundle,
+    block: BlockBundle,
+    state: WalkerState,
+    txIndex: number,
+) => void;
+
+/**
  * Per-block orchestrator (PLAN.md T10 Step 5): wires header + output
  * round-trip + per-tx evaluate/verifySignature passes in sequence.
  * Halt-on-first-failure: each phase throws `HarnessError` on detected
@@ -415,17 +427,20 @@ export function validateOutputRoundtrips(
  * `treeVersionFn` is plumbed through to `validateOutputRoundtrips` per
  * T9's design — T11's `main.ts` injects a real derivation; tests
  * can inject a stub.
+ *
+ * `txValidator` defaults to `validateTx` (oracle mode). Pass
+ * `validateTxLib` to route the per-tx step through `validateStateful`.
  */
 export function validateBlock(
     bundle: BlockBundle,
     state: WalkerState,
     treeVersionFn: (boxBytes: Uint8Array) => number,
+    txValidator: TxValidator = validateTx,
 ): void {
     validateHeader(bundle, state);
     validateOutputRoundtrips(bundle, treeVersionFn);
     for (let txIndex = 0; txIndex < bundle.transactions.length; txIndex++) {
-        const tx = bundle.transactions[txIndex]!;
-        validateTx(tx, bundle, state, txIndex);
+        txValidator(bundle.transactions[txIndex]!, bundle, state, txIndex);
     }
 }
 

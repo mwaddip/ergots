@@ -39,6 +39,8 @@ export interface CliArgs {
     maxHeight?: number;
     /** Sleep between blocks in ms. 0 = no rate limit. */
     sleepMs: number;
+    /** Per-tx validator mode: 'oracle' uses the WASM cost oracle path; 'lib' routes through validateStateful. */
+    mode: 'oracle' | 'lib';
 }
 
 /**
@@ -52,6 +54,7 @@ export const CLI_DEFAULTS = {
     errorReportPath: './tools/mainnet-validate/error-report.json',
     network: 'mainnet' as const,
     sleepMs: 0,
+    mode: 'oracle' as const,
 };
 
 /**
@@ -72,6 +75,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     let checkpointPath: string | undefined;
     let errorReportPath: string | undefined;
     let network: 'mainnet' | 'testnet' | undefined;
+    let mode: 'oracle' | 'lib' | undefined;
     let startHeight: number | undefined;
     let maxHeight: number | undefined;
     let sleepMs: number | undefined;
@@ -124,6 +128,17 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
                 i++;
                 break;
             }
+            case '--mode': {
+                const v = requireValue();
+                if (v !== 'oracle' && v !== 'lib') {
+                    throw new Error(
+                        `flag --mode requires "oracle" or "lib", got "${v}"`,
+                    );
+                }
+                mode = v;
+                i++;
+                break;
+            }
             case '--start-height':
                 startHeight = requireNonNegInt();
                 i++;
@@ -148,6 +163,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
         errorReportPath: errorReportPath ?? CLI_DEFAULTS.errorReportPath,
         network: network ?? CLI_DEFAULTS.network,
         sleepMs: sleepMs ?? CLI_DEFAULTS.sleepMs,
+        mode: mode ?? CLI_DEFAULTS.mode,
     };
     if (startHeight !== undefined) {
         out.startHeight = startHeight;
@@ -167,6 +183,7 @@ options:
   --checkpoint-path PATH        checkpoint JSON (default: ${CLI_DEFAULTS.checkpointPath})
   --error-report-path PATH      error report JSON (default: ${CLI_DEFAULTS.errorReportPath})
   --network mainnet|testnet     network identifier (default: ${CLI_DEFAULTS.network})
+  --mode oracle|lib             validator mode (default: ${CLI_DEFAULTS.mode})
   --start-height N              override checkpoint's resume height (min 2 for v1)
   --max-height M                cap on end height (default: tip)
   --sleep-ms N                  ms to sleep between blocks (default: ${CLI_DEFAULTS.sleepMs})

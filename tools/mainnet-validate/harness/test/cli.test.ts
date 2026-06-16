@@ -30,6 +30,7 @@ describe('parseCliArgs', () => {
         expect(args.errorReportPath).toBe(CLI_DEFAULTS.errorReportPath);
         expect(args.network).toBe(CLI_DEFAULTS.network);
         expect(args.sleepMs).toBe(CLI_DEFAULTS.sleepMs);
+        expect(args.mode).toBe('oracle');
         expect(args.startHeight).toBeUndefined();
         expect(args.maxHeight).toBeUndefined();
     });
@@ -117,6 +118,28 @@ describe('parseCliArgs', () => {
             startHeight: 1,
             maxHeight: 100,
             sleepMs: 50,
+            mode: 'oracle',
         });
+    });
+
+    it('defaults --mode to "oracle" when flag is absent', () => {
+        const args = parseCliArgs([]);
+        expect(args.mode).toBe('oracle');
+    });
+
+    it('parses --mode lib', () => {
+        const args = parseCliArgs(['--mode', 'lib']);
+        expect(args.mode).toBe('lib');
+    });
+
+    it('parses --mode oracle explicitly', () => {
+        const args = parseCliArgs(['--mode', 'oracle']);
+        expect(args.mode).toBe('oracle');
+    });
+
+    it('rejects an invalid --mode value', () => {
+        expect(() =>
+            parseCliArgs(['--mode', 'bogus']),
+        ).toThrow(/flag --mode requires "oracle" or "lib", got "bogus"/);
     });
 });
