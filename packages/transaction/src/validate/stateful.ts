@@ -147,6 +147,12 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
   const txId = transactionId(tx);
   const msg = signingMessage(tx);
   const outputs = tx.outputCandidates.map((c, i) => promoteCandidate(c, txId, i));
+  // Per-input context extensions (indexed by input position) for the v6
+  // getVarFromInput method (SContext 101:12) — each input's spending-proof
+  // extension. Without this the evaluator's ctx.inputExtensions is undefined and
+  // getVarFromInput returns None → OptionGet throw → false-reject of any
+  // cross-input getVarFromInput tx (caught on the testnet capstone walk, h=92847).
+  const inputExtensions = tx.inputs.map((inp) => inp.spendingProof.contextExtension);
 
   // Per-tx init/structural cost (block units) → JIT (×10), charged up front into the cumulative
   // accumulator. If init alone exceeds the budget, reject (sigma-rust InitCostExceeded).
@@ -177,6 +183,7 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
     const ctx = buildInputContext({
       height: preHeader.height, selfBox, inputs: deps.inputBoxes, outputs, dataInputs: deps.dataInputBoxes,
       preHeader, headers, extension, jitCostLimit: jitCostLimit - runningJit, treeVersion, constants: tree.constants,
+      inputExtensions,
     });
     const result = evaluateWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded)
     runningJit += ctx.jitCost;

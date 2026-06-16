@@ -82,6 +82,10 @@ export function buildInputContext(args: {
   jitCostLimit: number;
   treeVersion: number;
   constants: SValue[];
+  /** Per-input context extensions, indexed by input position. Consumed by the
+   *  v6 `getVarFromInput` (SContext 101:12), which reads
+   *  `ctx.inputExtensions[inputIdx]`. `inputExtensions[selfIndex]` ≡ `extension`. */
+  inputExtensions: ContextExtension[];
 }) {
   return makeContext({
     height: args.height,
@@ -98,6 +102,7 @@ export function buildInputContext(args: {
       valueLengthOpt: null,
     },
     extension: args.extension,
+    inputExtensions: args.inputExtensions,
     jitCostLimit: args.jitCostLimit,
     treeVersion: args.treeVersion,
     constants: args.constants,
