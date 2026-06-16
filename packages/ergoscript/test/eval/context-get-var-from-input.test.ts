@@ -212,3 +212,32 @@ describe('three-way type-mismatch asymmetry (spec §3.3) — side-by-side pin', 
     // (Box.getReg's THROW side of the asymmetry is pinned in box-get-reg.test.ts.)
   })
 })
+
+describe('makeContext — plain-object (Record) extension normalization (eval-API backward-compat)', () => {
+  // External consumers built against the pre-Map Record API (e.g. dasher's
+  // ts-runner) pass ctx-extension `.values` as a PLAIN OBJECT. makeContext must
+  // normalize it to a Map so the eval path's `.get`/`.keys` work — otherwise
+  // every extension read throws `.get is not a function` (the regression SANTA
+  // caught: 243/243 eval panics when pinned at the tx branch).
+  it('normalizes a Record self-extension to a Map; GetVar reads the value', () => {
+    const plainExt = { values: { 0: { tpe: SINT, value: { kind: 'Int', value: 42 } } } }
+    const ctx = makeContext({ treeVersion: 3, extension: plainExt as any })
+    expect(ctx.extension!.values instanceof Map).toBe(true)
+    expect(evalGetVar({ tag: 'GetVar', varId: 0, varTpe: SINT } as any, Env.empty(), ctx))
+      .toEqual({ kind: 'Option', elem: SINT, value: { kind: 'Int', value: 42 } })
+  })
+
+  it('normalizes Record inputExtensions to Maps; getVarFromInput reads them', () => {
+    const plainExt0 = { values: { 11: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } } }
+    const ctx = makeContext({ treeVersion: 3, inputExtensions: [plainExt0 as any] })
+    expect(ctx.inputExtensions![0]!.values instanceof Map).toBe(true)
+    expect(evalMethodCall(gvfiExpr(0, 11, SBOOLEAN), Env.empty(), ctx))
+      .toEqual({ kind: 'Option', elem: SBOOLEAN, value: { kind: 'Boolean', value: true } })
+  })
+
+  it('leaves a Map extension untouched (idempotent — the tx codec path passes Maps)', () => {
+    const ctx = makeContext({ treeVersion: 3, extension: ext0 })
+    expect(ctx.extension!.values instanceof Map).toBe(true)
+    expect(ctx.extension!.values.get(11)?.value).toEqual({ kind: 'Boolean', value: true })
+  })
+})
