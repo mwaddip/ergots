@@ -306,11 +306,17 @@ export interface SpendingProof {
                                 // storage-rent / TrivialProp spends
   contextExtension: ContextExtension;
   // ContextExtension from @ergots/ergoscript:
-  // { values: Record<number, { tpe: SType; value: SValue }> }
+  // { values: Map<number, { tpe: SType; value: SValue }> }
 }
 ```
 
-Serialization of `contextExtension.values` is sorted ascending by `varId` — canonical on-chain ordering.
+`contextExtension.values` is an **insertion-ordered `Map`**, and serialization
+emits entries in that order with **no re-sort**. The order is
+consensus-observable: the extension is re-serialized into `bytes_to_sign` (the
+signing message), and the reference (sigma-rust `ContextExtension.values:
+IndexMap`) preserves the received wire order. `parseTransaction` therefore
+preserves the on-chain entry order so a non-ascending extension round-trips
+byte-identically (see `docs/specs/2026-06-16-context-extension-order-preservation.md`).
 
 ### `DataInput`
 

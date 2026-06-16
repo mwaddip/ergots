@@ -75,13 +75,10 @@ function candidate(
 }
 
 /** A spending input pointing at `b` (empty proof — structural checks never reach eval). */
-function inputForBox(b: ReturnType<typeof box>): {
-  boxId: Uint8Array;
-  spendingProof: { proofBytes: Uint8Array; contextExtension: { values: Record<string, never> } };
-} {
+function inputForBox(b: ReturnType<typeof box>) {
   return {
     boxId: computeBoxId(b as any),
-    spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: {} } },
+    spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: new Map() as import('../../src/types').ContextExtension['values'] } },
   };
 }
 

@@ -15,6 +15,9 @@
 
 import type { Header } from '@ergots/scorex'
 import type { Env } from '../eval/env'
+// global Map aliased — the local MIR `interface Map` (the map-HOF node) shadows
+// the global within this module; see ./_global-map.
+import type { GlobalMap } from './_global-map'
 
 /** Type variable for generic signatures (e.g. `"T"`, `"IV"`, `"OV"`). */
 export interface STypeVar {
@@ -243,7 +246,18 @@ export interface PreHeader {
  * to unsigned.
  */
 export interface ContextExtension {
-  values: Record<number, { tpe: SType; value: SValue } | undefined>
+  /**
+   * Keyed by varId (unsigned 0-255). A `Map` (not a plain object) because the
+   * entry ORDER is consensus-observable: the extension is re-serialized into
+   * `bytes_to_sign` (the signing message), and the reference (sigma-rust
+   * `ContextExtension.values: IndexMap`, `context_extension.rs`) preserves the
+   * received wire order with NO re-sort. A plain object re-orders integer keys
+   * ascending, corrupting a non-ascending on-chain extension's signing message.
+   * Consumers MUST iterate via `.keys()`/`.entries()` (never `Object.keys`,
+   * which is empty on a Map) and MUST NOT re-sort on serialize. See
+   * `docs/specs/2026-06-16-context-extension-order-preservation.md`.
+   */
+  values: GlobalMap<number, { tpe: SType; value: SValue }>
 }
 
 // ---------------------------------------------------------------------------

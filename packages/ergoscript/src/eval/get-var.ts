@@ -38,7 +38,7 @@ export function evalGetVar(e: GetVar, _env: Env, ctx: EvalContext): SValue {
       'context-field-missing'
     )
   }
-  const entry = ctx.extension.values[e.varId]
+  const entry = ctx.extension.values.get(e.varId)
   if (entry === undefined) {
     // Absent → Option(None). Mirrors sigma-rust: None => Ok(Value::Opt(None)).
     return { kind: 'Option', elem: e.varTpe, value: null }

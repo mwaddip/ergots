@@ -56,7 +56,7 @@ export function checkStorageRent(
     storageFeeFactor: number,
 ): boolean {
     if (blockHeight - selfBox.creationHeight < STORAGE_PERIOD) return false;
-    const idxEntry = extension.values[STORAGE_EXTENSION_INDEX];
+    const idxEntry = extension.values.get(STORAGE_EXTENSION_INDEX);
     if (idxEntry === undefined) return false;
     const idxVal = idxEntry.value;
     // sigma-rust `try_extract_into::<i16>()` — only an SShort extracts to i16.

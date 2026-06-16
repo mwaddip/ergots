@@ -27,7 +27,7 @@ describe('Transaction synthetic data-input round-trip', () => {
       inputs: [
         {
           boxId: hexToBytes('11'.repeat(32)),
-          spendingProof: { proofBytes: new Uint8Array(0), contextExtension: { values: {} } },
+          spendingProof: { proofBytes: new Uint8Array(0), contextExtension: { values: new Map() } },
         },
       ],
       dataInputs: [
@@ -126,7 +126,7 @@ describe('Transaction parse — TxIoVec bound enforcement', () => {
       inputs: [
         {
           boxId: hexToBytes('aa'.repeat(32)),
-          spendingProof: { proofBytes: new Uint8Array(0), contextExtension: { values: {} } },
+          spendingProof: { proofBytes: new Uint8Array(0), contextExtension: { values: new Map() } },
         },
       ],
       dataInputs: [],
@@ -159,7 +159,7 @@ describe('Transaction serialize — TxIoVec bound enforcement', () => {
     boxId: hexToBytes('cc'.repeat(32)),
     spendingProof: {
       proofBytes: new Uint8Array(0),
-      contextExtension: { values: {} },
+      contextExtension: { values: new Map() },
     },
   });
 

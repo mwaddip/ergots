@@ -30,7 +30,7 @@ describe('buildInputContext — inputExtensions threading (v6 getVarFromInput)',
     // (SContext 101:12) reads ctx.inputExtensions[inputIdx]; without this the
     // evaluator returns None and `.get` throws OptionGet — a false-reject on any
     // cross-input getVarFromInput tx (caught at testnet h=92847).
-    const inputExtensions: ContextExtension[] = [{ values: {} }, { values: {} }];
+    const inputExtensions: ContextExtension[] = [{ values: new Map() }, { values: new Map() }];
     const ctx = buildInputContext({
       height: 100,
       selfBox,
@@ -39,7 +39,7 @@ describe('buildInputContext — inputExtensions threading (v6 getVarFromInput)',
       dataInputs: [],
       preHeader,
       headers: [header],
-      extension: { values: {} },
+      extension: { values: new Map() },
       jitCostLimit: 1_000_000,
       treeVersion: 3,
       constants: [],

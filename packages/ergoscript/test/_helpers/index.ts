@@ -364,16 +364,14 @@ export function rehydrateEvalOpts(optsObj: Record<string, unknown>): EvalOpts {
     | { values: Record<string, { tpe: SType; value: unknown } | undefined> }
     | undefined
   if (extRaw !== undefined) {
-    const values: Record<number, { tpe: SType; value: SValue } | undefined> = {}
+    const values = new Map<number, { tpe: SType; value: SValue }>()
     for (const [k, entry] of Object.entries(extRaw.values)) {
       const varId = Number(k)
-      if (entry === undefined) {
-        values[varId] = undefined
-      } else {
-        values[varId] = {
+      if (entry !== undefined) {
+        values.set(varId, {
           tpe: entry.tpe as SType,
           value: hydrateSValue(entry.value),
-        }
+        })
       }
     }
     result.extension = { values }

@@ -11,7 +11,7 @@ const box = (value: bigint, creationHeight = 1, tokens: {id:Uint8Array;amount:bi
 });
 const candidate = (value: bigint, creationHeight = 1, tokens: {id:Uint8Array;amount:bigint}[] = []) =>
   ({ value, ergoTreeBytes: TREE, creationHeight, tokens, registers: {} });
-const inputForBox = (b: any) => ({ boxId: computeBoxId(b), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: {} } } });
+const inputForBox = (b: any) => ({ boxId: computeBoxId(b), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: new Map() } } });
 function deps(inputBoxes: any[], version = 2, height = 10) {
   return { inputBoxes, dataInputBoxes: [], stateContext: { headers: [], preHeader: { height, version } as any, parameters: {} } };
 }
@@ -30,7 +30,7 @@ describe('validateStateful structural checks', () => {
   });
   it('rejects an input box id that does not match its provided box', () => {
     const ib = [box(1_000_000n)];
-    const badInput = { boxId: new Uint8Array(32).fill(9), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: {} } } };
+    const badInput = { boxId: new Uint8Array(32).fill(9), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: new Map() } } };
     const tx = { inputs: [badInput], dataInputs: [], outputCandidates: [candidate(1_000_000n)] };
     try { checkStructural(tx as any, deps(ib) as any, DEFAULT_PARAMETERS); throw new Error('no throw'); }
     catch (e) { expect((e as TxValidationError).code).toBe('input-box-id-mismatch'); }

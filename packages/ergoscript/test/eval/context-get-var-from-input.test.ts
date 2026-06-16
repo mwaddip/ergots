@@ -46,13 +46,13 @@ function gvfiExpr(inputIdx: number, varId: number, t: SType): MethodCallExpr {
 // Input 0 carries var 11: Boolean true; input 1 carries var 11: Boolean false
 // and var 12: Int 5 (the wrong-type probe target).
 const ext0: ContextExtension = {
-  values: { 11: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } },
+  values: new Map([[11, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } }]]),
 }
 const ext1: ContextExtension = {
-  values: {
-    11: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } },
-    12: { tpe: SINT, value: { kind: 'Int', value: 5 } },
-  },
+  values: new Map([
+    [11, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } }],
+    [12, { tpe: SINT, value: { kind: 'Int', value: 5 } }],
+  ]),
 }
 
 describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
@@ -173,7 +173,7 @@ describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
     // finds the entry parsed from wire key 0xFF. Our Record is unsigned-keyed,
     // so the handler normalizes (-1 & 0xff = 255).
     const extHigh: ContextExtension = {
-      values: { 255: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } },
+      values: new Map([[255, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } }]]),
     }
     const ctx = makeContext({ treeVersion: 3, inputExtensions: [extHigh] })
     const result = evalMethodCall(gvfiExpr(0, -1, SBOOLEAN), Env.empty(), ctx)
@@ -188,10 +188,10 @@ describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
 
   it('boundary pair: Byte 127 hits key 127; Byte -128 hits key 128', () => {
     const extBoundary: ContextExtension = {
-      values: {
-        127: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } },
-        128: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } },
-      },
+      values: new Map([
+        [127, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } }],
+        [128, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } }],
+      ]),
     }
     const ctx = makeContext({ treeVersion: 3, inputExtensions: [extBoundary] })
     expect(evalMethodCall(gvfiExpr(0, 127, SBOOLEAN), Env.empty(), ctx))

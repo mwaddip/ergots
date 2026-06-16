@@ -65,7 +65,7 @@ export interface EvalOpts {
   outputs?: ErgoBox[]
   /** Pre-header of current block. GlobalVars.MinerPubKey reads .minerPk. */
   preHeader?: PreHeader
-  /** Context-extension key-value map. GetVar reads .values[varId]. */
+  /** Context-extension key-value Map (insertion-ordered). GetVar reads .values.get(varId). */
   extension?: ContextExtension
   /**
    * Transaction data-inputs (read-only boxes). Mirrors sigma-rust

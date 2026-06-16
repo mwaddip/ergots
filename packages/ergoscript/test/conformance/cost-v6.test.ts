@@ -110,7 +110,7 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const ctx = makeContext({
       treeVersion: 3,
       constants: tree.constants,
-      extension: { values: { 1: { tpe: { tag: 'SInt' as const }, value: { kind: 'Int' as const, value: 4 } } } },
+      extension: { values: new Map([[1, { tpe: { tag: 'SInt' as const }, value: { kind: 'Int' as const, value: 4 } }]]) },
       selfBox,
     })
     const err = captureEvalError(() => evaluateWith(tree, ctx))
@@ -128,7 +128,7 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const ctx = makeContext({
       treeVersion: 2,
       constants: tree.constants,
-      extension: { values: { 1: { tpe: { tag: 'SInt' as const }, value: { kind: 'Int' as const, value: 4 } } } },
+      extension: { values: new Map([[1, { tpe: { tag: 'SInt' as const }, value: { kind: 'Int' as const, value: 4 } }]]) },
       selfBox,
     })
     const err = captureEvalError(() => evaluateWith(tree, ctx))

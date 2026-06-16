@@ -218,7 +218,7 @@ export function checkStorageRent(
     storageFeeFactor: number,
 ): boolean {
     if (blockHeight - selfBox.creationHeight < STORAGE_PERIOD) return false;
-    const idxEntry = extension.values[STORAGE_EXTENSION_INDEX];
+    const idxEntry = extension.values.get(STORAGE_EXTENSION_INDEX);
     if (idxEntry === undefined) return false;
     const idxVal = idxEntry.value;
     // sigma-rust `try_extract_into::<i16>()` — only an SShort extracts to i16.
@@ -349,13 +349,13 @@ function buildContextExtension(
     txIndex: number,
     inputIndex: number,
 ): ContextExtension {
-    const values: ContextExtension['values'] = {};
+    const values: ContextExtension['values'] = new Map();
     for (const entry of input.contextExtension) {
         try {
-            values[entry.varId] = parseContextExtensionEntry(
+            values.set(entry.varId, parseContextExtensionEntry(
                 entry.valueBytes,
                 treeVersion,
-            );
+            ));
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
