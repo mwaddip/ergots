@@ -39,7 +39,8 @@ export type ErrorPhase =
     | 'indexer-rest'   // replaces 'shim' for indexer REST errors
     | 'wasm-oracle'    // replaces 'shim' for WASM oracle errors
     | 'evaluate-cost'
-    | 'evaluate-oracle-mismatch';
+    | 'evaluate-oracle-mismatch'
+    | 'lib-validate';   // lib-mode false-reject walk (capstone)
 
 /**
  * Payload for phase `'evaluate-cost'` (both oracle and our TS evaluator

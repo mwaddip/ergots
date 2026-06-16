@@ -86,6 +86,8 @@ import {
     V2_ACTIVATION_HEIGHT_MAINNET,
     type WalkerState,
 } from './validate-block.js';
+import { validateTx } from './validate-tx.js';
+import { validateTxLib } from './validate-tx-lib.js';
 import {
     ByteReader,
     parseHeader,
@@ -492,7 +494,8 @@ export async function main(argv: readonly string[]): Promise<number> {
         await indexer.close();
         return 1;
     }
-    const assembler = new BundleAssembler(node, indexer, oracle);
+    const assembler = new BundleAssembler(node, indexer, oracle, args.mode === 'lib');
+    const txValidator = args.mode === 'lib' ? validateTxLib : validateTx;
 
     try {
         // Step 1: node tip query — also the implicit "did /info respond"
@@ -565,7 +568,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         let rollingHeaderBytes: Uint8Array[] = initialRollingHeaderBytes.slice();
 
         process.stdout.write(
-            `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network})\n`,
+            `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network}, mode=${args.mode})\n`,
         );
         // Heartbeat startup line — load-bearing for the 2j-b orchestrator's
         // tip-reach disambiguation: the `tip=` value here is what the loop
@@ -603,7 +606,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 
             // 7b: validate.
             try {
-                validateBlock(currentBundle, walkerState, deriveTreeVersionFromBoxBytes);
+                validateBlock(currentBundle, walkerState, deriveTreeVersionFromBoxBytes, txValidator);
             } catch (err) {
                 const report = classifyError(err, h, currentBundle);
                 writeErrorReport(args.errorReportPath, report);
