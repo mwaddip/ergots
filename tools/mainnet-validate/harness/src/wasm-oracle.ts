@@ -190,6 +190,24 @@ export class WasmCostOracle {
     }
 
     /**
+     * Serialize a node tx JSON to canonical sigma bytes. Used ONLY in lib-mode
+     * (capstone false-reject walk) to attach TxBundle.txBytes for the library's
+     * parseTransaction. Reuses parseTxBypassingIdCheck (the UnsignedTransaction +
+     * from_unsigned_tx path) rather than Transaction.from_json: from_json runs a
+     * tx-id round-trip check that REJECTS chain-valid txs whose ErgoTrees don't
+     * byte-stably round-trip (e.g. header byte 0x10 — segregated constants with
+     * hasSize; mainnet h=693,479). Same path gen-tx-fixtures.ts uses.
+     */
+    serializeTx(txJson: string): Uint8Array {
+        const tx = parseTxBypassingIdCheck(txJson);
+        try {
+            return tx.sigma_serialize_bytes();
+        } finally {
+            tx.free();
+        }
+    }
+
+    /**
      * Compute per-input oracle costs for one transaction.
      *
      * Inputs:

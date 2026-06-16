@@ -24,7 +24,7 @@
 
 import type { NodeClient } from './rest/node-client.js';
 import type { IndexerClient } from './rest/indexer-client.js';
-import type { WasmCostOracle } from './wasm-oracle.js';
+import type { WasmCostOracle, OracleInputResult } from './wasm-oracle.js';
 import { stringifyLossless } from './rest/json-bigint.js';
 import type {
     BlockBundle, TxBundle, InputBundle, BlockParameters, ContextExtensionEntry,
@@ -75,6 +75,7 @@ export class BundleAssembler {
         private readonly node: NodeClient,
         private readonly indexer: IndexerClient,
         private readonly oracle: WasmCostOracle,
+        private readonly attachTxBytes = false,
     ) {}
 
     /** epoch-boundary height → active maxBlockCost (resolved once per epoch). */
@@ -181,16 +182,22 @@ export class BundleAssembler {
             const spentBoxesBytes = tx.inputs.map((i) => boxBytesById.get(i.boxId)!);
             const dataInputBoxesBytes = tx.dataInputs.map((d) => boxBytesById.get(d.boxId)!);
             const outputBoxesBytes = tx.outputs.map((o) => boxBytesById.get(o.boxId)!);
-            const oracleResults = this.oracle.computeTxOracleCosts({
-                txJson: stringifyLossless(tx),
-                spentBoxesBytes,
-                dataInputBoxesBytes,
-                headerBytes,
-                rollingHeaderBytes,
-                // active value (not raw fragments.parameters, which is null off
-                // epoch boundaries) so the oracle's cost limit matches ours.
-                parameters: { maxBlockCost: activeMaxBlockCost },
-            });
+            const txJson = stringifyLossless(tx);
+            // lib-mode (capstone false-reject walk): the WASM cost oracle is NOT invoked
+            // (spec decision 3) — ergo-lib-wasm is used only to serialize the tx below.
+            // validate-tx-lib ignores the per-input oracle fields, so stub them.
+            const oracleResults: OracleInputResult[] = this.attachTxBytes
+                ? tx.inputs.map(() => ({ oracleCost: 0n, oracleSucceeded: true, oracleError: null }))
+                : this.oracle.computeTxOracleCosts({
+                      txJson,
+                      spentBoxesBytes,
+                      dataInputBoxesBytes,
+                      headerBytes,
+                      rollingHeaderBytes,
+                      // active value (not raw fragments.parameters, which is null off
+                      // epoch boundaries) so the oracle's cost limit matches ours.
+                      parameters: { maxBlockCost: activeMaxBlockCost },
+                  });
             const inputs: InputBundle[] = tx.inputs.map((i, ii) => {
                 const ctxExt: ContextExtensionEntry[] = Object.entries(i.spendingProof.extension).map(([varId, hex]) => ({
                     varId: parseInt(varId, 10),
@@ -206,12 +213,14 @@ export class BundleAssembler {
                     oracleError: oracleResults[ii]!.oracleError,
                 };
             });
+            const txBytes = this.attachTxBytes ? this.oracle.serializeTx(txJson) : undefined;
             transactions.push({
                 txId: hexDecode(tx.id),
                 signingMessage,
                 inputs,
                 outputs: outputBoxesBytes,
                 dataInputBoxes: dataInputBoxesBytes,
+                txBytes,
             });
         }
         const parameters: BlockParameters = { maxBlockCost: activeMaxBlockCost };
