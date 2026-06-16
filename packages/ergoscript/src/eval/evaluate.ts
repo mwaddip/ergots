@@ -126,11 +126,12 @@ function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
   // directly (no array), so they stay byte-identity 0..255 (see eval/method-call.ts
   // 101:12 + context-get-var-from-input.test.ts). Adversarial-only.
   if (ctx.extension !== undefined) {
-    for (const key of Object.keys(ctx.extension.values)) {
-      const k = Number(key)
+    // `ctx.extension.values` is a Map — iterate `.keys()` (numbers). NB:
+    // `Object.keys(aMap)` is [], which would silently disable this guard.
+    for (const k of ctx.extension.values.keys()) {
       if (!Number.isInteger(k) || k < 0 || k > 127) {
         throw new EvalError(
-          `context extension key ${key} out of range [0, 127] — the JVM keys the self extension by signed Byte; a wire byte >= 0x80 is negative and crashes toSigmaContext`,
+          `context extension key ${k} out of range [0, 127] — the JVM keys the self extension by signed Byte; a wire byte >= 0x80 is negative and crashes toSigmaContext`,
           'context-extension-key-out-of-range'
         )
       }

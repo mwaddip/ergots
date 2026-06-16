@@ -5,7 +5,7 @@ import { parseTransaction } from '../../src';
 import { listFixtures, loadFixture } from '../_helpers';
 
 const out = (value: bigint) => ({ value, ergoTreeBytes: new Uint8Array([0,8]), creationHeight: 1, tokens: [], registers: {} });
-const inp = (id: number) => ({ boxId: new Uint8Array(32).fill(id), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: {} } } });
+const inp = (id: number) => ({ boxId: new Uint8Array(32).fill(id), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: new Map() } } });
 
 describe('validateStateless', () => {
   it('accepts every phase-1 wire fixture (real txs are stateless-valid)', () => {

@@ -370,8 +370,8 @@ interface EvalOpts {
   inputs?: ErgoBox[]             // transaction inputs
   outputs?: ErgoBox[]            // transaction outputs
   preHeader?: PreHeader          // pre-header of current block
-  extension?: ContextExtension   // context-extension key-value map (SELF input)
-  inputExtensions?: ContextExtension[]  // per-input extensions, indexed by spending-transaction input position (v6 P7a)
+  extension?: ContextExtensionInput   // SELF context-extension; a ContextExtension (values: Map) OR a plain-object/Record (normalized to a Map by makeContext)
+  inputExtensions?: ContextExtensionInput[]  // per-input extensions (v6 P7a), indexed by spending-transaction input position; same Map-or-Record input
   dataInputs?: ErgoBox[]         // transaction data-inputs
   headers?: Header[]             // block headers (up to 10; sigma-rust [Header; 10]); Header type from @ergots/scorex
   lastBlockUtxoRootHash?: AvlTreeData  // SContext.lastBlockUtxoRootHash (101:9) source — JVM ErgoLikeContext.lastBlockUtxoRoot; absent ⇒ 101:9 throws 'context-field-missing'
@@ -386,6 +386,7 @@ interface EvalContext extends EvalOpts {
 
 - `addCost` — saturating add; throws `EvalError 'cost-limit-exceeded'` if `jitCostLimit` is set and exceeded.
 - `addPerItemCost` — composite charge: `addCost(base + ceil(nItems / chunkSize) * perChunk)`.
+- **`extension` / `inputExtensions` input shape** — both accept either a `ContextExtension` (`values` a `Map`) or the plain-object/`Record` form `{ values: { <varId>: { tpe, value } } }` that node-API JSON ingestion produces (the `ContextExtensionInput` type); `makeContext` normalizes a `Record` to a `Map`. Eval reads vars by key, so a `Record`'s lost key-order is irrelevant here; on-chain wire order matters only for the `@ergots/transaction` signing-message codec, which passes a `Map`.
 - **`inputExtensions`** — per-input context extensions for `Context.getVarFromInput` (101:12, v6 P7a). Indexed by spending-transaction input position (mirrors JVM `spendingTransaction.inputs(i).extension`). May legitimately differ in length from `inputs` — the JVM's own blessed `getVarFromInput` vector has `tx.inputs.length = 0` while `ctx.inputs.length = 1`; never validate length equality. Absent field ⟹ every `getVarFromInput` lookup → `None`. Key domain is unsigned 0–255 (ContextExtension byte keys); JVM JSON ingestion normalizes signed `-1` to `255` — supply `255`, not `-1`, when constructing extensions from JVM JSON output.
 
 ### `EvalError`

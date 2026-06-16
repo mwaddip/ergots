@@ -46,13 +46,13 @@ function gvfiExpr(inputIdx: number, varId: number, t: SType): MethodCallExpr {
 // Input 0 carries var 11: Boolean true; input 1 carries var 11: Boolean false
 // and var 12: Int 5 (the wrong-type probe target).
 const ext0: ContextExtension = {
-  values: { 11: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } },
+  values: new Map([[11, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } }]]),
 }
 const ext1: ContextExtension = {
-  values: {
-    11: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } },
-    12: { tpe: SINT, value: { kind: 'Int', value: 5 } },
-  },
+  values: new Map([
+    [11, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } }],
+    [12, { tpe: SINT, value: { kind: 'Int', value: 5 } }],
+  ]),
 }
 
 describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
@@ -173,7 +173,7 @@ describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
     // finds the entry parsed from wire key 0xFF. Our Record is unsigned-keyed,
     // so the handler normalizes (-1 & 0xff = 255).
     const extHigh: ContextExtension = {
-      values: { 255: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } },
+      values: new Map([[255, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } }]]),
     }
     const ctx = makeContext({ treeVersion: 3, inputExtensions: [extHigh] })
     const result = evalMethodCall(gvfiExpr(0, -1, SBOOLEAN), Env.empty(), ctx)
@@ -188,10 +188,10 @@ describe('SContext.getVarFromInput (101:12) handler — v6 P7a', () => {
 
   it('boundary pair: Byte 127 hits key 127; Byte -128 hits key 128', () => {
     const extBoundary: ContextExtension = {
-      values: {
-        127: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } },
-        128: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } },
-      },
+      values: new Map([
+        [127, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } }],
+        [128, { tpe: SBOOLEAN, value: { kind: 'Boolean', value: false } }],
+      ]),
     }
     const ctx = makeContext({ treeVersion: 3, inputExtensions: [extBoundary] })
     expect(evalMethodCall(gvfiExpr(0, 127, SBOOLEAN), Env.empty(), ctx))
@@ -210,5 +210,34 @@ describe('three-way type-mismatch asymmetry (spec §3.3) — side-by-side pin', 
     const viaInput = evalMethodCall(gvfiExpr(0, 12, SBOOLEAN), Env.empty(), ctx)
     expect(viaInput).toEqual({ kind: 'Option', elem: SBOOLEAN, value: null })
     // (Box.getReg's THROW side of the asymmetry is pinned in box-get-reg.test.ts.)
+  })
+})
+
+describe('makeContext — plain-object (Record) extension normalization (eval-API backward-compat)', () => {
+  // External consumers built against the pre-Map Record API (e.g. dasher's
+  // ts-runner) pass ctx-extension `.values` as a PLAIN OBJECT. makeContext must
+  // normalize it to a Map so the eval path's `.get`/`.keys` work — otherwise
+  // every extension read throws `.get is not a function` (the regression SANTA
+  // caught: 243/243 eval panics when pinned at the tx branch).
+  it('normalizes a Record self-extension to a Map; GetVar reads the value', () => {
+    const plainExt = { values: { 0: { tpe: SINT, value: { kind: 'Int', value: 42 } } } }
+    const ctx = makeContext({ treeVersion: 3, extension: plainExt as any })
+    expect(ctx.extension!.values instanceof Map).toBe(true)
+    expect(evalGetVar({ tag: 'GetVar', varId: 0, varTpe: SINT } as any, Env.empty(), ctx))
+      .toEqual({ kind: 'Option', elem: SINT, value: { kind: 'Int', value: 42 } })
+  })
+
+  it('normalizes Record inputExtensions to Maps; getVarFromInput reads them', () => {
+    const plainExt0 = { values: { 11: { tpe: SBOOLEAN, value: { kind: 'Boolean', value: true } } } }
+    const ctx = makeContext({ treeVersion: 3, inputExtensions: [plainExt0 as any] })
+    expect(ctx.inputExtensions![0]!.values instanceof Map).toBe(true)
+    expect(evalMethodCall(gvfiExpr(0, 11, SBOOLEAN), Env.empty(), ctx))
+      .toEqual({ kind: 'Option', elem: SBOOLEAN, value: { kind: 'Boolean', value: true } })
+  })
+
+  it('leaves a Map extension untouched (idempotent — the tx codec path passes Maps)', () => {
+    const ctx = makeContext({ treeVersion: 3, extension: ext0 })
+    expect(ctx.extension!.values instanceof Map).toBe(true)
+    expect(ctx.extension!.values.get(11)?.value).toEqual({ kind: 'Boolean', value: true })
   })
 })

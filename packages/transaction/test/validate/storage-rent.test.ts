@@ -9,10 +9,10 @@ const baseBox = (over: Partial<any> = {}) => ({
 describe('checkStorageRent', () => {
   it('false when the box is not old enough (height - creationHeight < STORAGE_PERIOD)', () => {
     const box = baseBox({ creationHeight: 100 });
-    expect(checkStorageRent(box, 100_000, { values: {} }, [], 0, 1_250_000)).toBe(false);
+    expect(checkStorageRent(box, 100_000, { values: new Map() }, [], 0, 1_250_000)).toBe(false);
   });
   it('false when no recreation index (extension var 127) is present even if old enough', () => {
     const box = baseBox({ creationHeight: 0 });
-    expect(checkStorageRent(box, 1_051_200, { values: {} }, [], 0, 1_250_000)).toBe(false);
+    expect(checkStorageRent(box, 1_051_200, { values: new Map() }, [], 0, 1_250_000)).toBe(false);
   });
 });

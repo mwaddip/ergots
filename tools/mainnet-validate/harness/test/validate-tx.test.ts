@@ -704,8 +704,8 @@ describe('checkStorageRent (rule branches)', () => {
     });
     const ext = (idx?: number): ContextExtension =>
         idx === undefined
-            ? { values: {} }
-            : { values: { 127: { tpe: { tag: 'SShort' }, value: { kind: 'Short', value: idx } } } };
+            ? { values: new Map() }
+            : { values: new Map([[127, { tpe: { tag: 'SShort' }, value: { kind: 'Short', value: idx } }]]) };
 
     it('dust: value ≤ fee → true (no output/register checks)', () => {
         // factor large → fee ≫ value → dust short-circuit.

@@ -252,11 +252,11 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
   if (e.inputs !== undefined) {
     // santa-eval/v3: multi-input context — populate inputExtensions.
     const inputExtensions: ContextExtension[] = e.inputs.map(inp => {
-      const values: Record<number, { tpe: SType; value: SValue } | undefined> = {}
+      const values = new Map<number, { tpe: SType; value: SValue }>()
       for (const [k, raw] of Object.entries(inp.extension)) {
         const varId = Number(k)
         const value = hydrateSValue(raw)
-        values[varId] = { tpe: sTypeOfSValue(value), value }
+        values.set(varId, { tpe: sTypeOfSValue(value), value })
       }
       return { values }
     })
@@ -276,7 +276,7 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
       ...dummy,
       treeVersion,
       constants: tree.constants,
-      extension: { values: { 1: { tpe: inputTpe, value: inputValue } } },
+      extension: { values: new Map([[1, { tpe: inputTpe, value: inputValue }]]) },
       selfBox,
       inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
     })
@@ -289,7 +289,7 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
       ...dummy,
       treeVersion,
       constants: tree.constants,
-      extension: { values: { 1: { tpe, value } } },
+      extension: { values: new Map([[1, { tpe, value }]]) },
       selfBox,
       inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
     })

@@ -15,6 +15,8 @@
  * Shapes covered:
  *   - multi-input-10: h=402900, 10 signed inputs — strong multi-input verify path
  *   - multi-input-3:  h=402800, 3 signed inputs — secondary multi-input case
+ *   - getVarFromInput: h=92847, input0 reads another input's context var (v6
+ *     SContext.getVarFromInput) — regression for validateStateful's ctx.inputExtensions
  *
  * Storage-rent (empty-proof spend by demurrage): NOT found on testnet. Testnet
  * only started ~403k blocks ago; STORAGE_PERIOD = 1,051,200 blocks, so no box
@@ -153,6 +155,11 @@ const CANDIDATE_SPECS: SpecEntry[] = [
         height: 402800,
         txId: '8551d5a22ab56b1921fddfcc56a3a473f159803fb76a37929eff85e8116a6917',
         note: 'multi-input-3',
+    },
+    {
+        height: 92847,
+        txId: '09c63420b02acda4c45719b65fd8aa23d61dea45e070745e76f507e132156b39',
+        note: 'getVarFromInput — input0 reads another input via SContext.getVarFromInput (v6); regression for validateStateful ctx.inputExtensions (fix b53b810). Surfaced by the testnet capstone walk.',
     },
 ];
 

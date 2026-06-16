@@ -184,7 +184,7 @@ function substituteDeserializeContext(
       'context-field-missing',
     )
   }
-  const entry = ctx.extension.values[e.id]
+  const entry = ctx.extension.values.get(e.id)
   if (entry === undefined) {
     // Absent var: LEAVE the node unchanged. The JVM `substDeserialize` returns
     // None via the `else None` (Interpreter.scala:124-125) — `everywherebu`

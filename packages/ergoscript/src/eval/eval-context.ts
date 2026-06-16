@@ -10,7 +10,31 @@
  */
 
 import type { Header } from '@ergots/scorex'
-import type { ErgoBox, PreHeader, ContextExtension, SValue, AvlTreeData } from '../mir/types'
+import type { ErgoBox, PreHeader, ContextExtension, SType, SValue, AvlTreeData } from '../mir/types'
+
+/**
+ * What `makeContext` accepts for the context-extension fields (`extension`,
+ * `inputExtensions`): either the canonical {@link ContextExtension} (`values` a
+ * `Map`) OR the plain-object/`Record` form keyed by varId — what consumers that
+ * ingest node-API JSON naturally have (and what callers built against the pre-Map
+ * API pass). `makeContext` normalizes the `Record` form to a `Map` via
+ * {@link toContextExtension}; eval reads vars by key, so the (lost) object key
+ * order is irrelevant here — on-chain wire order is preserved only on the
+ * transaction codec's `Map` path, which already passes a `Map`.
+ */
+export type ContextExtensionInput =
+  | ContextExtension
+  | { values: Record<number, { tpe: SType; value: SValue } | undefined> }
+
+/** Normalize a {@link ContextExtensionInput} to a canonical `Map`-backed {@link ContextExtension}. */
+function toContextExtension(input: ContextExtensionInput): ContextExtension {
+  if (input.values instanceof Map) return input as ContextExtension
+  const values = new Map<number, { tpe: SType; value: SValue }>()
+  for (const [k, v] of Object.entries(input.values)) {
+    if (v !== undefined) values.set(Number(k), v)
+  }
+  return { values }
+}
 
 /**
  * Evaluator error. `code` is a stable string key for programmatic matching.
@@ -65,8 +89,12 @@ export interface EvalOpts {
   outputs?: ErgoBox[]
   /** Pre-header of current block. GlobalVars.MinerPubKey reads .minerPk. */
   preHeader?: PreHeader
-  /** Context-extension key-value map. GetVar reads .values[varId]. */
-  extension?: ContextExtension
+  /**
+   * Context-extension key-value Map (insertion-ordered). GetVar reads
+   * `.values.get(varId)`. Accepts a plain-object/`Record` too (the JSON-ingestion
+   * shape) — `makeContext` normalizes it to a Map; see {@link ContextExtensionInput}.
+   */
+  extension?: ContextExtensionInput
   /**
    * Transaction data-inputs (read-only boxes). Mirrors sigma-rust
    * `Context::data_inputs` (`ergotree-ir/src/chain/context.rs`).
@@ -93,7 +121,7 @@ export interface EvalOpts {
    * the 101:12 handler normalizes its signed Byte var-id operand into that
    * domain (& 0xff, byte identity with the JVM's signed-Byte Map keys).
    */
-  inputExtensions?: ContextExtension[]
+  inputExtensions?: ContextExtensionInput[]
   /**
    * Last-block UTXO state-tree root, as an INDEPENDENT context field — mirrors
    * JVM `ErgoLikeContext.lastBlockUtxoRoot`. Readers: the
@@ -110,6 +138,9 @@ export interface EvalOpts {
 }
 
 export interface EvalContext extends EvalOpts {
+  /** Normalized to a `Map` by `makeContext` (EvalOpts accepts a plain-object/Record too). */
+  extension?: ContextExtension
+  inputExtensions?: ContextExtension[]
   /** Mutable accumulator. */
   jitCost: number
   /**
@@ -138,10 +169,11 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     inputs: opts.inputs,
     outputs: opts.outputs,
     preHeader: opts.preHeader,
-    extension: opts.extension,
+    // Normalize a plain-object/Record extension to a Map (no-op for a Map).
+    extension: opts.extension === undefined ? undefined : toContextExtension(opts.extension),
     dataInputs: opts.dataInputs,
     headers: opts.headers,
-    inputExtensions: opts.inputExtensions,
+    inputExtensions: opts.inputExtensions?.map(toContextExtension),
     lastBlockUtxoRootHash: opts.lastBlockUtxoRootHash,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)

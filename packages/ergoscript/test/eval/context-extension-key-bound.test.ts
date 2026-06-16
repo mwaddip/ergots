@@ -30,13 +30,13 @@ const ENTRY = { tpe: { tag: 'SInt' } as SType, value: { kind: 'Int', value: 7 } 
 
 describe('context extension key domain (self) — JVM toSigmaContext [0,127]', () => {
   it('accepts self-extension key 127 (the inclusive boundary)', () => {
-    expect(() => evaluate(TRIVIAL, { extension: { values: { 127: ENTRY } } })).not.toThrow()
+    expect(() => evaluate(TRIVIAL, { extension: { values: new Map([[127, ENTRY]]) } })).not.toThrow()
   })
 
   it('rejects self-extension key 128 with context-extension-key-out-of-range', () => {
     let err: unknown
     try {
-      evaluate(TRIVIAL, { extension: { values: { 128: ENTRY } } })
+      evaluate(TRIVIAL, { extension: { values: new Map([[128, ENTRY]]) } })
     } catch (e) {
       err = e
     }
@@ -47,7 +47,7 @@ describe('context extension key domain (self) — JVM toSigmaContext [0,127]', (
   it('rejects self-extension key 255 (JVM Byte -1 also crashes toSigmaContext)', () => {
     let err: unknown
     try {
-      evaluate(TRIVIAL, { extension: { values: { 255: ENTRY } } })
+      evaluate(TRIVIAL, { extension: { values: new Map([[255, ENTRY]]) } })
     } catch (e) {
       err = e
     }
@@ -56,7 +56,7 @@ describe('context extension key domain (self) — JVM toSigmaContext [0,127]', (
 
   it('does NOT guard inputExtensions (getVarFromInput byte-identity 0..255)', () => {
     expect(() =>
-      evaluateWith(TRIVIAL, makeContext({ inputExtensions: [{ values: { 255: ENTRY } }] }))
+      evaluateWith(TRIVIAL, makeContext({ inputExtensions: [{ values: new Map([[255, ENTRY]]) }] }))
     ).not.toThrow()
   })
 })

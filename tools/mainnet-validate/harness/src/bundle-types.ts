@@ -28,6 +28,9 @@ export interface TxBundle {
     inputs: InputBundle[];
     outputs: Uint8Array[];
     dataInputBoxes: Uint8Array[];
+    /** Canonical serialized tx bytes — attached by the assembler only in lib-mode
+     *  (`--mode lib`), consumed by validate-tx-lib's `parseTransaction`. */
+    txBytes?: Uint8Array;
 }
 
 export interface BlockParameters {

@@ -1189,9 +1189,9 @@ function registerHandlers(): void {
       // inputs.lift(idx): negative or beyond-length bracket access → undefined.
       // JVM matches extension keys by BYTE IDENTITY (Map[Byte] built from
       // getByte, ContextExtension.scala:19/58): wire key 0xFF ≡ script Byte
-      // -1. Our values Record is keyed by the unsigned wire byte (0-255), so
+      // -1. Our values Map is keyed by the unsigned wire byte (0-255), so
       // normalize the signed Byte SValue into that domain.
-      const entry = ctx.inputExtensions?.[inputIdx.value]?.values[varId.value & 0xff]
+      const entry = ctx.inputExtensions?.[inputIdx.value]?.values.get(varId.value & 0xff)
       if (entry === undefined || !sTypeEquals(entry.tpe, elem)) {
         return { kind: 'Option', elem, value: null }
       }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ByteReader, ByteWriter } from '@ergots/scorex';
+import { serializeSType, serializeSValue } from '@ergots/ergoscript';
 import { parseInput, serializeInput, parseContextExtension, serializeContextExtension } from '../../src/wire/input';
 import { hexToBytes, bytesToHex } from '../_helpers';
 
@@ -20,10 +21,10 @@ describe('Input codec', () => {
     //   SInt  -> { kind: 'Int',  value: number }
     //   SByte -> { kind: 'Byte', value: number }
     const ext = {
-      values: {
-        1: { tpe: { tag: 'SInt' as const },  value: { kind: 'Int'  as const, value: 5  } },
-        7: { tpe: { tag: 'SByte' as const }, value: { kind: 'Byte' as const, value: 99 } },
-      },
+      values: new Map<number, any>([
+        [1, { tpe: { tag: 'SInt' as const },  value: { kind: 'Int'  as const, value: 5  } }],
+        [7, { tpe: { tag: 'SByte' as const }, value: { kind: 'Byte' as const, value: 99 } }],
+      ]),
     };
     const w = new ByteWriter();
     serializeContextExtension(ext as any, w);
@@ -33,5 +34,30 @@ describe('Input codec', () => {
     const w2 = new ByteWriter();
     serializeContextExtension(parseContextExtension(new ByteReader(bytes)), w2);
     expect(bytesToHex(w2.toBytes())).toBe(bytesToHex(bytes));
+  });
+
+  it('preserves NON-ASCENDING context-extension order on round-trip (consensus: bytes_to_sign)', () => {
+    // An on-chain extension may serialize entries in any varId order; the
+    // reference (sigma-rust ContextExtension.values: IndexMap) preserves the
+    // received order with NO re-sort. Build bytes with varId 7 BEFORE varId 1
+    // (non-ascending) and require the codec to reproduce them byte-for-byte —
+    // a sorted re-serialization corrupts bytes_to_sign and the signature reduces
+    // to false. Caught at testnet h=224312 tx15
+    // (docs/specs/2026-06-16-context-extension-order-preservation.md).
+    const w0 = new ByteWriter();
+    w0.writeVlqU(2);
+    // entry: varId 7 -> SByte 99
+    w0.writeU8(7);
+    serializeSType({ tag: 'SByte' }, w0);
+    serializeSValue({ tag: 'SByte' }, { kind: 'Byte', value: 99 }, 0, w0);
+    // entry: varId 1 -> SInt 5  (lower varId, written SECOND => non-ascending)
+    w0.writeU8(1);
+    serializeSType({ tag: 'SInt' }, w0);
+    serializeSValue({ tag: 'SInt' }, { kind: 'Int', value: 5 }, 0, w0);
+    const bytes = w0.toBytes();
+
+    const w1 = new ByteWriter();
+    serializeContextExtension(parseContextExtension(new ByteReader(bytes)), w1);
+    expect(bytesToHex(w1.toBytes())).toBe(bytesToHex(bytes));
   });
 });
