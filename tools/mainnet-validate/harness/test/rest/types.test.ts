@@ -33,6 +33,33 @@ describe('REST response parsers', () => {
         }
     });
 
+    it('extracts per-tx bytes when the node serves them (lib-mode true on-chain tx bytes)', () => {
+        // The node's validation-fragments serves a per-tx `bytes` = the full
+        // canonical sigma_serialize_bytes() with ContextExtensions in true
+        // on-chain wire order. Lib-mode feeds these to parseTransaction so
+        // non-canonical (non-ascending) extension orders survive — see CAP-A.
+        const r = parseValidationFragmentsResponse({
+            headerBytes: 'abab',
+            parameters: null,
+            transactions: [
+                { signingMessage: 'cd', bytes: 'ef0102' },
+                { signingMessage: 'ce' }, // bytes absent → undefined (oracle-mode tolerant)
+            ],
+        });
+        expect(r.transactions[0]!.bytes).toBe('ef0102');
+        expect(r.transactions[1]!.bytes).toBeUndefined();
+    });
+
+    it('rejects a non-string tx bytes with a field-path message', () => {
+        expect(() =>
+            parseValidationFragmentsResponse({
+                headerBytes: 'ab',
+                parameters: null,
+                transactions: [{ signingMessage: 'cd', bytes: 123 }],
+            }),
+        ).toThrow(/bytes/);
+    });
+
     it('parses /api/v1/boxes/{id}/bytes', () => {
         const r = parseBoxBytesResponse(fx('box-emission-genesis-bytes.json'));
         expect(r.bytes).toMatch(/^[0-9a-f]+$/);
