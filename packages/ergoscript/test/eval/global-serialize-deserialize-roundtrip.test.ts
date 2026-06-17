@@ -104,7 +104,7 @@ function roundTrip(T: SType, value: SValue): SValue {
 function makeBox(overrides: Partial<ErgoBox> = {}): ErgoBox {
   return {
     value: 1000000n,
-    ergoTreeBytes: new Uint8Array([0x08, 0x00]),
+    ergoTreeBytes: new Uint8Array([0x00, 0xa3]),
     registers: {},
     tokens: [],
     creationHeight: 0,
