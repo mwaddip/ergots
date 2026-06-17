@@ -72,7 +72,16 @@ export interface BlockResponse {
 export interface ValidationFragmentsResponse {
     headerBytes: string;
     parameters: { maxBlockCost: number } | null;
-    transactions: Array<{ signingMessage: string }>;
+    /**
+     * `bytes` is the full canonical `sigma_serialize_bytes()` of the tx —
+     * every input's spending proof + ContextExtension in true on-chain wire
+     * order (the value whose parse round-trips byte-identically). Lib-mode
+     * (capstone walk) feeds it to `parseTransaction` so non-canonical
+     * (non-ascending) extension orders survive — the `from_json` path the
+     * oracle uses would re-sort them. Optional: the harness only depends on
+     * it in lib-mode; oracle-mode ignores it.
+     */
+    transactions: Array<{ signingMessage: string; bytes?: string }>;
 }
 
 export interface BoxBytesResponse {
@@ -260,12 +269,24 @@ export function parseValidationFragmentsResponse(raw: unknown): ValidationFragme
     return {
         headerBytes,
         parameters,
-        transactions: txs.map((t, i) => ({
-            signingMessage: asString(
-                asObject(t, `/blocks/{id}/validation-fragments.transactions[${i}]`)['signingMessage'],
+        transactions: txs.map((t, i) => {
+            const to = asObject(t, `/blocks/{id}/validation-fragments.transactions[${i}]`);
+            const signingMessage = asString(
+                to['signingMessage'],
                 `/blocks/{id}/validation-fragments.transactions[${i}].signingMessage`,
-            ),
-        })),
+            );
+            // `bytes` is optional (only lib-mode depends on it); validate it
+            // as a string when the node serves it so wire drift still surfaces.
+            const bytesRaw = to['bytes'];
+            if (bytesRaw === undefined) return { signingMessage };
+            return {
+                signingMessage,
+                bytes: asString(
+                    bytesRaw,
+                    `/blocks/{id}/validation-fragments.transactions[${i}].bytes`,
+                ),
+            };
+        }),
     };
 }
 

@@ -182,14 +182,14 @@ export class BundleAssembler {
             const spentBoxesBytes = tx.inputs.map((i) => boxBytesById.get(i.boxId)!);
             const dataInputBoxesBytes = tx.dataInputs.map((d) => boxBytesById.get(d.boxId)!);
             const outputBoxesBytes = tx.outputs.map((o) => boxBytesById.get(o.boxId)!);
-            const txJson = stringifyLossless(tx);
-            // lib-mode (capstone false-reject walk): the WASM cost oracle is NOT invoked
-            // (spec decision 3) — ergo-lib-wasm is used only to serialize the tx below.
-            // validate-tx-lib ignores the per-input oracle fields, so stub them.
+            // lib-mode (capstone false-reject walk): the WASM cost oracle is NOT
+            // invoked (spec decision 3) and the tx bytes come from the node's
+            // validation-fragments (CAP-A, below), so ergo-lib-wasm is not used at
+            // all. validate-tx-lib ignores the per-input oracle fields, so stub them.
             const oracleResults: OracleInputResult[] = this.attachTxBytes
                 ? tx.inputs.map(() => ({ oracleCost: 0n, oracleSucceeded: true, oracleError: null }))
                 : this.oracle.computeTxOracleCosts({
-                      txJson,
+                      txJson: stringifyLossless(tx),
                       spentBoxesBytes,
                       dataInputBoxesBytes,
                       headerBytes,
@@ -213,7 +213,24 @@ export class BundleAssembler {
                     oracleError: oracleResults[ii]!.oracleError,
                 };
             });
-            const txBytes = this.attachTxBytes ? this.oracle.serializeTx(txJson) : undefined;
+            // CAP-A: in lib-mode feed parseTransaction the node's TRUE on-chain
+            // bytes (validation-fragments `bytes` — full sigma_serialize with
+            // ContextExtensions in wire order). The previous serializeTx(from_json)
+            // path re-sorted non-ascending extension keys ascending, producing a
+            // wrong bytes_to_sign for non-canonical txs (the h=224312 tx15
+            // false-reject halt). Round-trips byte-identically through ergots'
+            // parseTransaction/serializeTransaction (verified h=224312, 18/18).
+            let txBytes: Uint8Array | undefined;
+            if (this.attachTxBytes) {
+                const fb = fragments.transactions[txi]!.bytes;
+                if (fb === undefined) {
+                    throw new Error(
+                        `validation-fragments transactions[${txi}] missing 'bytes' — ` +
+                        `lib-mode needs the true on-chain tx bytes (node must serve it)`,
+                    );
+                }
+                txBytes = hexDecode(fb);
+            }
             transactions.push({
                 txId: hexDecode(tx.id),
                 signingMessage,
