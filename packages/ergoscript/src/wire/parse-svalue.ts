@@ -529,10 +529,9 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       //   ergo_tree_bytes — self-delimiting via ErgoTree header. Sigma-rust
       //                     calls `ErgoTree::sigma_parse(r)` on the shared
       //                     reader (chain/ergo_box.rs:350). We mirror via
-      //                     `consumeTreeFromReader` which handles both
-      //                     hasSize=true (size-prefixed body) and
-      //                     hasSize=false (body grammar self-delimits) as
-      //                     of phase 2j-pre fix-1. The captured byte range
+      //                     `parseErgoTreeBytes` which parses the full tree
+      //                     (same deserialize as `parseTree`) and handles both
+      //                     hasSize=true and hasSize=false. The captured byte range
       //                     is stored verbatim on the SBox; downstream
       //                     callers may re-parse via parseTree(bytes).
       //   creation_height — VLQ u32 (`put_u32`)

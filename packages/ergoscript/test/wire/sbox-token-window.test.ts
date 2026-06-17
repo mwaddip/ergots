@@ -190,7 +190,7 @@ describe('SBox 4096-byte candidate window (parse)', () => {
   // the shared (windowed) reader. Walk: the skip BEGINS at 4 <= 4096 (entry
   // check passes) and ENDS at 4204 — a straddle, tolerated like any logical
   // read — then the creationHeight read begins at 4204 > 4096 -> rule-1014
-  // reject. Pins the skip-path readBytes inside `consumeTreeFromReader` to
+  // reject. Pins the sized-body readBytes inside `parseErgoTreeBytes` to
   // the candidate window (a refactor that consumed the sized body off-window
   // — e.g. via a forked sub-reader — would accept this box).
   it("rejects a sized-tree skip crossing the window with 'position-limit-exceeded' (reject at the creationHeight read)", () => {
