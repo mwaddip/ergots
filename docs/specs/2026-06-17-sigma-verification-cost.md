@@ -14,7 +14,9 @@ SANTA's JVM-blessed `cost-limit-boundary` vector is a pair over the captured tes
 | `cost-limit-accept` | 18415 | accept (cost 18415) | accept (cost 18415) | accept ✓ |
 | `cost-limit-reject` | 18414 | **reject** | **reject** | **accept ✗** |
 
-ergots over-accepts the reject case. The JVM and sigma-rust both produce the correct verdicts — only ergots is wrong, so ergots can faithfully follow the established model (no point-fix-vs-workstream tension).
+ergots over-accepts the reject case. The JVM and the SANTA sigma-rust runner (`blitzen-eni`) both produce the correct verdicts — only ergots is wrong, so ergots can faithfully follow the established model (no point-fix-vs-workstream tension).
+
+> **Note on the sigma-rust column** — it records `blitzen-eni`'s empirical SANTA output (accept@18415 / reject@18414 with `CostLimitExceeded(4090)`; `4090 = 409 remaining-block × 10`, i.e. per-input block truncation, matching the JVM). The *vendored* `external/sigma-rust @ ergo-node-integration` **source** reads instead as a *cumulative raw-JIT* accumulator (`tx_context.rs` adds eval+crypto to one `jit_cost` limited at `maxBlockCost·10`), which would **reject@18415** — a runner-vs-source truncation-model discrepancy. ergots follows the JVM (canonical), so this does not bear on ergots' correctness; it is flagged for the SANTA reply as a possible sigma-rust consensus item (alongside the `crypto_cost.rs` threshold `+15`).
 
 ### Verified diagnosis (the handoff's framing was incomplete)
 

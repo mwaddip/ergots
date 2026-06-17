@@ -178,8 +178,8 @@ interface StateContext {
 3. Value conservation (`Σ inputs === Σ outputs`).
 4. Per-output well-formedness: dust, future height, monotonic height (post-v3), negative height (post-v1), box/script size ≤ 4096.
 5. Token conservation: amount overflow, not-conserved, invalid minted token.
-6. Init/structural cost against block limit.
-7. Per-input: storage-rent fast path (empty proof + rent-eligible) OR parse → evaluate → `SigmaProp` check → `verifySignature`.
+6. Init/structural cost (block units) seeds the cumulative block-cost accumulator (`runningBlock`); reject if it alone exceeds `maxBlockCost`.
+7. Per-input (block-cost, JVM-faithful): storage-rent fast path (empty proof + rent-eligible, cost 0) OR parse → evaluate → `SigmaProp` check → accumulate `floor(evalJit/10) + floor(estimateCryptoCost(result.value)/10)` (reject if `runningBlock > maxBlockCost`) → `verifySignature`.
 
 **Errors surface unwrapped:** Only the validator's own structural verdicts are `TxValidationError`. `EvalError` (incl. `'cost-limit-exceeded'` fired during eval), `VerifyError`, and wire-parse errors propagate as-is. See the "Error handling" section.
 
@@ -424,10 +424,10 @@ type TxValidationErrorCode =
   // per-input / cost
   | 'non-sigmaprop-result'
   | 'script-reduced-false'
-  | 'cost-limit-exceeded';   // only for init-cost overrun; see Unwrapped errors
+  | 'cost-limit-exceeded';   // init-cost overrun OR per-input block-cost (eval+crypto) overrun; see note
 ```
 
-**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` only when the per-tx init/structural cost alone exceeds the block budget. When the per-input eval accumulator fires during script evaluation, `EvalError('cost-limit-exceeded')` propagates unwrapped (NOT a `TxValidationError`). Callers must catch both.
+**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` when the per-tx init/structural cost alone exceeds `maxBlockCost`, OR when the per-input block-cost accumulator (eval + sigma-verification cost, each `floor(jit/10)`) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead propagates `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). Callers must catch both.
 
 ### Unwrapped errors
 
