@@ -1,7 +1,7 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
 import { ByteWriter, blake2b256 } from '@ergots/scorex';
-import { serializeSValue, parseTree, evaluateWith, verifySignature, isUnparsedTree } from '@ergots/ergoscript';
+import { serializeSValue, parseTree, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
@@ -124,14 +124,15 @@ function computeInitCost(tx: ErgoLikeTransaction, deps: StatefulDeps, params: Ch
  * `validate-tx.ts:658-911` (oracle machinery removed) + sigma-rust
  * `TransactionContext::validate` (tx_context.rs:148-268).
  *
- * Cost model: a per-tx init/structural cost (block units → JIT ×10) is charged
- * up front into a SINGLE cumulative accumulator (`runningJit`); each input's
- * context receives the remaining headroom (`jitCostLimit − runningJit`) as its
- * own `jitCostLimit`, so the budget fires mid-tx (matching the shared,
- * never-reset `context.jit_cost_limit` of `validate()`). The sigma-verification
- * cost (`estimate_crypto_cost`) is DEFERRED — ergots' verifier exposes no cost
- * surface, so phase-2 cost under-counts by exactly that term (documented
- * residual; the capstone re-walk is the gate).
+ * Cost model: a per-tx init/structural cost (block units) seeds a SINGLE
+ * cumulative BLOCK-cost accumulator (`runningBlock`). Each non-storage-rent
+ * input adds `floor(evalJit/10) + floor(cryptoJit/10)` — the reduction cost and
+ * the sigma-verification (crypto) cost, each truncated to block cost
+ * independently (JVM `Interpreter.scala:280-286`, `JitCost.toBlockCost`). After
+ * each input `runningBlock > maxBlockCost` rejects. The mid-reduction JIT ceiling
+ * handed to `evaluateWith` is `(maxBlockCost − runningBlock) * 10`. The crypto
+ * cost is `estimateCryptoCost` (`@ergots/ergoscript`); the earlier deferral is
+ * CLOSED.
  *
  * Errors surface UNWRAPPED: eval (`EvalError`, incl. `'cost-limit-exceeded'`)
  * and verify (`VerifyError`) errors propagate as-is; only the validator's own
@@ -143,7 +144,7 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
 
   const headers = buildHeadersArray(deps.stateContext.headers);
   const preHeader = deps.stateContext.preHeader;
-  const jitCostLimit = params.maxBlockCost * JIT_COST_PER_BLOCK_COST;
+  const maxBlockCost = params.maxBlockCost;   // block-cost budget (JVM ErgoLikeContext costLimit / 10)
   const txId = transactionId(tx);
   const msg = signingMessage(tx);
   const outputs = tx.outputCandidates.map((c, i) => promoteCandidate(c, txId, i));
@@ -154,13 +155,13 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
   // cross-input getVarFromInput tx (caught on the testnet capstone walk, h=92847).
   const inputExtensions = tx.inputs.map((inp) => inp.spendingProof.contextExtension);
 
-  // Per-tx init/structural cost (block units) → JIT (×10), charged up front into the cumulative
+  // Per-tx init/structural cost in BLOCK-cost units, charged up front into the cumulative
   // accumulator. If init alone exceeds the budget, reject (sigma-rust InitCostExceeded).
-  const initJit = computeInitCost(tx, deps, params) * JIT_COST_PER_BLOCK_COST;
-  if (initJit > jitCostLimit) {
-    throw new TxValidationError(`init cost ${initJit} > limit ${jitCostLimit}`, 'cost-limit-exceeded');
+  const initBlock = computeInitCost(tx, deps, params);
+  if (initBlock > maxBlockCost) {
+    throw new TxValidationError(`init cost ${initBlock} > limit ${maxBlockCost}`, 'cost-limit-exceeded');
   }
-  let runningJit = initJit;   // ONE cumulative accumulator across all inputs
+  let runningBlock = initBlock;   // ONE cumulative BLOCK-cost accumulator across all inputs (JVM model)
 
   for (let i = 0; i < tx.inputs.length; i++) {
     const input = tx.inputs[i]!;
@@ -186,16 +187,22 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
     // EvalError 'cost-limit-exceeded' (unwrapped), matching validate()'s mid-tx limit firing.
     const ctx = buildInputContext({
       height: preHeader.height, selfBox, inputs: deps.inputBoxes, outputs, dataInputs: deps.dataInputBoxes,
-      preHeader, headers, extension, jitCostLimit: jitCostLimit - runningJit, treeVersion,
+      preHeader, headers, extension, jitCostLimit: (maxBlockCost - runningBlock) * JIT_COST_PER_BLOCK_COST, treeVersion,
       constants: isUnparsedTree(tree) ? [] : tree.constants,
       inputExtensions,
     });
     const result = evaluateWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded + unparsed-ergotree)
-    runningJit += ctx.jitCost;
-    // DEFERRED: sigma-verification cost (estimate_crypto_cost) — ergots' verifier exposes no cost surface;
-    // phase-2 cost under-counts by it (documented residual; capstone re-walk is the gate).
     if (result.kind !== 'SigmaProp') {
       throw new TxValidationError(`input ${i} reduced to ${result.kind}, not SigmaProp`, 'non-sigmaprop-result', location);
+    }
+    // JVM block-cost model (Interpreter.scala:280-286; JitCost.toBlockCost = jit/10): the eval (reduction)
+    // cost and the sigma-verification (crypto) cost are each truncated to block cost independently, then
+    // accumulated. The per-input check below is load-bearing — without it the last input's crypto cost
+    // would never trigger a reject (the cost-limit boundary case).
+    runningBlock += Math.floor(ctx.jitCost / JIT_COST_PER_BLOCK_COST)
+                  + Math.floor(estimateCryptoCost(result.value) / JIT_COST_PER_BLOCK_COST);
+    if (runningBlock > maxBlockCost) {
+      throw new TxValidationError(`tx cost ${runningBlock} > limit ${maxBlockCost} at input ${i}`, 'cost-limit-exceeded', location);
     }
     const ok = verifySignature(result.value, msg, input.spendingProof.proofBytes);  // VerifyError surfaces unwrapped
     if (!ok) throw new TxValidationError(`input ${i} script reduced to false`, 'script-reduced-false', location);
