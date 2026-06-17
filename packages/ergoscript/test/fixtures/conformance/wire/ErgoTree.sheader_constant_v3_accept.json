@@ -1,0 +1,18 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "ErgoTree.sheader_constant_v3_accept",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "entries" : [
+    {
+      "name" : "sheader-constant-v3-accept#0",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-sheader-constant-v3-accept",
+      "description" : "Size-flagged ErgoTree (header 0x1b = v3 + size + const-seg) with one segregated constant of type SHeader (typeCode 0x68 = 104). SHeader's DataSerializer is gated on isV3OrLaterErgoTreeVersion, so at treeVersion >= 3 (the v6.0 era) the JVM PARSES the SHeader constant (as a CHeader via ErgoHeader.sigmaSerializer) and round-trips byte-IDENTICAL — where the v2 form (header 0x1a) rejects with \"Not defined DataSerializer for type SHeader\". The ACCEPT side of the SHeader-constant version boundary (positive twin of the v2 reject vectors unparsed_soft_fork_header_constant / Box.softfork_header_constant_reject). An impl that REJECTS this OVER-REJECTS a valid v6.0 SHeader constant; one that mangles the round-trip diverges on propositionBytes -> boxId.",
+      "bytes_hex" : "1bdb01016802000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0843d0000000000000000000000000000000000000000000000000000000000000000070239b8010000000000000000000000000000000000000000000000000000000000000000000000000000000001000000017300",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}
