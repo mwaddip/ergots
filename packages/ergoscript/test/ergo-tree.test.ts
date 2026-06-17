@@ -11,6 +11,7 @@ import {
 } from '../src/wire/ergo-tree'
 import { ExprParseError } from '../src/wire/parse'
 import type { ErgoTree } from '../src/mir/types'
+import { isUnparsedTree } from '../src/mir/types'
 import { hexToBytes } from './_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -199,17 +200,21 @@ describe('ErgoTree envelope', () => {
       // 0xCD. The envelope-only path is: read header, read size=3, slice
       // inner buffer of 3 bytes, read constants_count=0, then dispatch to
       // body which throws opcode-reserved on opcode 0xb8.
+      // The reserved opcode 0xb8 (FlatMap) in a SIZE-FLAGGED tree is a soft-fork
+      // condition → preserved verbatim as UnparsedErgoTree (the coal mechanism),
+      // not thrown. The header bits are still decoded and exposed on the tree.
       const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xb8, 0xcd])
-      try {
-        parseTree(bytes)
-        throw new Error('parseTree should have thrown')
-      } catch (e) {
-        expect(e).toBeInstanceOf(ExprParseError)
-        expect((e as ExprParseError).code).toBe('opcode-reserved')
-        // The thrown error's message names the variant; assert on the
-        // variant name rather than the byte to make the test robust to
-        // formatting changes in the error message.
-        expect((e as Error).message).toContain('FlatMap')
+      const tree = parseTree(bytes)
+      expect(isUnparsedTree(tree)).toBe(true)
+      expect(tree.header.version).toBe(1)
+      expect(tree.header.hasSize).toBe(true)
+      expect(tree.header.constantSegregation).toBe(true)
+      if (isUnparsedTree(tree)) {
+        expect((tree.error as { code?: string }).code).toBe('opcode-reserved')
+        // The captured error's message names the variant; assert on the variant
+        // name rather than the byte to stay robust to message formatting changes.
+        expect(tree.error.message).toContain('FlatMap')
+        expect(serializeTree(tree)).toEqual(bytes)
       }
     })
 

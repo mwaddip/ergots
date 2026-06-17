@@ -41,6 +41,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { isUnparsedTree } from '../../src/mir/types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -186,8 +187,18 @@ describe('SHeader-constant wire mutation testing (structural bytes)', () => {
           mutated[i]! ^= 1 << bit
           try {
             const tree = parseTree(mutated)
-            const out = serializeTree(tree)
-            if (!byteEqual(out, mutated)) killed++
+            // A mutation that degrades the tree to a soft-fork UnparsedErgoTree HAS
+            // broken the SHeader constant (it no longer parses as a valid SHeader
+            // tree — e.g. a version→v2 flip trips the rule-1009 gate) → detected/killed.
+            // Such a tree round-trips verbatim, so it would otherwise read as a
+            // survivor; counting it as killed keeps the strict threshold and matches
+            // the JVM (which likewise degrades these to Unparsed).
+            if (isUnparsedTree(tree)) {
+              killed++
+            } else {
+              const out = serializeTree(tree)
+              if (!byteEqual(out, mutated)) killed++
+            }
           } catch (e) {
             if (isTypedWireError(e)) killed++
           }

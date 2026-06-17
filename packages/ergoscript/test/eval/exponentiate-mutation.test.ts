@@ -59,9 +59,8 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseTree } from '../../src/wire/ergo-tree'
 import type { Expr } from '../../src/mir/types'
-import { hexToBytes } from '../_helpers'
+import { hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 import {
   runMutationLoop,
   DEFAULT_KILL_THRESHOLD,

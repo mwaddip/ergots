@@ -23,10 +23,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { parseTree } from '../src/wire/ergo-tree'
 import { evaluateWith } from '../src/eval/evaluate'
 import { makeContext, EvalError } from '../src/eval/eval-context'
-import { hexToBytes, hydrateSValue, synthesizeStubBox } from './_helpers'
+import { hexToBytes, hydrateSValue, synthesizeStubBox, parseParsedTree as parseTree } from './_helpers'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url
 // is a node-only import, allowed in test files per the browser-first rule.

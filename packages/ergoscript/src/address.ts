@@ -41,7 +41,8 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/chain/address.rs
  */
 
-import type { ErgoTree, Expr, SValue } from './mir/types'
+import type { ErgoTree, ParsedErgoTree, Expr, SValue } from './mir/types'
+import { isUnparsedTree } from './mir/types'
 import { blake2b256 } from './crypto/hashes'
 import {
   parseTree,
@@ -128,6 +129,8 @@ export function isP2PK(tree: ErgoTree): boolean {
  * resolved (e.g. dangling placeholder).
  */
 export function p2pkPublicKey(tree: ErgoTree): Uint8Array | null {
+  // An unparsed (soft-fork) tree has no resolvable body — not a P2PK.
+  if (isUnparsedTree(tree)) return null
   const sigmaValue = resolveSigmaProp(tree.body, tree)
   if (sigmaValue === null) return null
   const pk = proveDlogPublicKey(sigmaValue.value)
@@ -260,7 +263,7 @@ export function ergoTreeFromAddress(address: string): ErgoTree {
  */
 function resolveSigmaProp(
   body: Expr,
-  tree: ErgoTree
+  tree: ParsedErgoTree
 ): Extract<SValue, { kind: 'SigmaProp' }> | null {
   if (body.tag === 'Const') {
     if (body.tpe.tag !== 'SSigmaProp') return null

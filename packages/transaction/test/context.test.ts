@@ -45,7 +45,9 @@ describe('buildInputContext — inputExtensions threading (v6 getVarFromInput)',
       constants: [],
       inputExtensions,
     });
-    expect(ctx.inputExtensions).toBe(inputExtensions);
+    // makeContext normalizes inputExtensions via `.map(toContextExtension)` (eval-API
+    // backward-compat, bc8a4e9) → a new-but-deep-equal array, so assert value equality.
+    expect(ctx.inputExtensions).toStrictEqual(inputExtensions);
     expect(ctx.inputExtensions?.length).toBe(2);
   });
 });

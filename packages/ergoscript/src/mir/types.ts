@@ -1016,7 +1016,7 @@ export interface TreeHeader {
  *     this because its `Constant { tpe, v }` couples them at the struct
  *     level.
  */
-export interface ErgoTree {
+export interface ParsedErgoTree {
   header: TreeHeader
   /** Parallel to `constants[]`; required for byte-exact re-serialization. */
   constantTypes: SType[]
@@ -1024,4 +1024,41 @@ export interface ErgoTree {
   constants: SValue[]
   /** Root expression. */
   body: Expr
+}
+
+/**
+ * A size-flagged (`hasSize`) ErgoTree whose constants/body region failed to
+ * parse (e.g. a reserved opcode such as `0xfd` `CollRotateRight`). Mirrors
+ * sigma-rust's `ErgoTree::Unparsed { tree_bytes, error }` and the JVM's
+ * `Left(UnparsedErgoTree(bytes, error))`: the size prefix lets a reader skip
+ * the unparseable body, preserving it verbatim (the soft-fork tolerance) so
+ * the box stays byte-valid and re-serializes byte-identically. The script is
+ * permanently unevaluable — evaluation rejects it (`'unparsed-ergotree'`).
+ *
+ * Only produced when `header.hasSize` is set; a non-sized tree whose body
+ * fails to parse still rejects at parse, exactly as both references do.
+ */
+export interface UnparsedErgoTree {
+  header: TreeHeader
+  /**
+   * Verbatim tree bytes from the header byte onward (header + size VLQ +
+   * the unparseable constants/body region), re-emitted as-is for a
+   * byte-identical round-trip.
+   */
+  unparsedBytes: Uint8Array
+  /** The parse error that triggered opaque preservation (diagnostic only). */
+  error: Error
+}
+
+/**
+ * Parsed ErgoTree envelope, or — for a size-flagged tree whose body could not
+ * be parsed — its verbatim-preserved {@link UnparsedErgoTree} form. Mirrors
+ * sigma-rust's `enum ErgoTree { Parsed(ParsedErgoTree), Unparsed { .. } }`.
+ * Narrow with {@link isUnparsedTree} before reading `body`/`constants`.
+ */
+export type ErgoTree = ParsedErgoTree | UnparsedErgoTree
+
+/** Type guard: a tree whose size-flagged body was preserved verbatim (unevaluable). */
+export function isUnparsedTree(tree: ErgoTree): tree is UnparsedErgoTree {
+  return 'unparsedBytes' in tree
 }

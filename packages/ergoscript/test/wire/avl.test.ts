@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { serializeTree } from '../../src/wire/ergo-tree'
+import { parseParsedTree as parseTree } from '../_helpers'
 
 /**
  * `CreateAvlTree` and `TreeLookup` round-trips. Drives the parsers

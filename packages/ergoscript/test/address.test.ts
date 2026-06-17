@@ -8,9 +8,17 @@ import {
   base58Encode,
   AddressDecodeError
 } from '../src/address'
-import { parseTree, serializeTree } from '../src/wire/ergo-tree'
-import type { ErgoTree } from '../src/mir/types'
-import { hexToBytes } from './_helpers'
+import { serializeTree } from '../src/wire/ergo-tree'
+import type { ErgoTree, ParsedErgoTree } from '../src/mir/types'
+import { isUnparsedTree } from '../src/mir/types'
+import { hexToBytes, parseParsedTree as parseTree } from './_helpers'
+
+/** P2PK addresses always decode to a normal parsed tree — narrow away the union arm. */
+function parsedFromAddress(addr: string): ParsedErgoTree {
+  const t = ergoTreeFromAddress(addr)
+  if (isUnparsedTree(t)) throw new Error('expected a parsed tree from address, got unparsed')
+  return t
+}
 
 /**
  * Fixture addresses are pulled from the sigma-rust corpus
@@ -78,7 +86,7 @@ describe('address — base58 encode/decode primitives', () => {
 
 describe('address — mainnet P2PK round-trip', () => {
   it('decodes the canonical 9f… fixture to a parsable ErgoTree', () => {
-    const tree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     // P2PK trees are header 0x00 (v0, no size, no segregation) + body
     // Const(SSigmaProp, ProveDlog(33-byte-PK)). Mirrors sigma-rust's
     // `Address::P2Pk(prove_dlog).script()` (chain/address.rs:208-218).
@@ -94,7 +102,7 @@ describe('address — mainnet P2PK round-trip', () => {
   })
 
   it('extracts a 33-byte public key', () => {
-    const tree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     const pk = p2pkPublicKey(tree)
     expect(pk).not.toBeNull()
     expect(pk!.length).toBe(33)
@@ -105,12 +113,12 @@ describe('address — mainnet P2PK round-trip', () => {
   })
 
   it('re-encodes back to the exact mainnet address', () => {
-    const tree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     expect(addressFromErgoTree(tree, 'mainnet')).toBe(MAINNET_P2PK)
   })
 
   it('returns a defensive copy from p2pkPublicKey (mutation does not affect tree)', () => {
-    const tree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     const pk1 = p2pkPublicKey(tree)!
     const original = pk1[0]!
     pk1[0] = (original ^ 0xff) & 0xff
@@ -121,7 +129,7 @@ describe('address — mainnet P2PK round-trip', () => {
 
 describe('address — testnet P2PK round-trip', () => {
   it('decodes the canonical 3W… fixture to a parsable ErgoTree', () => {
-    const tree = ergoTreeFromAddress(TESTNET_P2PK)
+    const tree = parsedFromAddress(TESTNET_P2PK)
     expect(tree.header.version).toBe(0)
     expect(tree.body.tag).toBe('Const')
     expect(isP2PK(tree)).toBe(true)
@@ -129,12 +137,12 @@ describe('address — testnet P2PK round-trip', () => {
   })
 
   it('re-encodes back to the exact testnet address', () => {
-    const tree = ergoTreeFromAddress(TESTNET_P2PK)
+    const tree = parsedFromAddress(TESTNET_P2PK)
     expect(addressFromErgoTree(tree, 'testnet')).toBe(TESTNET_P2PK)
   })
 
   it('emits a different address when re-encoded with the wrong network', () => {
-    const tree = ergoTreeFromAddress(TESTNET_P2PK)
+    const tree = parsedFromAddress(TESTNET_P2PK)
     // Same tree bytes, different network prefix → different checksum →
     // different base58 string. Sanity check that the network prefix
     // actually participates in checksum derivation.
@@ -145,7 +153,7 @@ describe('address — testnet P2PK round-trip', () => {
   // ERG-07: unknown network strings (typos, untyped input) must throw, not
   // silently fall through to testnet.
   it('ERG-07: throws on unknown network string (typo "mainnnet")', () => {
-    const tree = ergoTreeFromAddress(TESTNET_P2PK)
+    const tree = parsedFromAddress(TESTNET_P2PK)
     try {
       addressFromErgoTree(tree, 'mainnnet' as 'mainnet')
       throw new Error('expected throw')
@@ -287,14 +295,14 @@ describe('address — error cases', () => {
 
 describe('address — type assertions', () => {
   it('addressFromErgoTree returns a non-empty string', () => {
-    const tree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     const out = addressFromErgoTree(tree, 'mainnet')
     expect(typeof out).toBe('string')
     expect(out.length).toBeGreaterThan(0)
   })
 
   it('ergoTreeFromAddress returns an ErgoTree with constants array initialized', () => {
-    const tree: ErgoTree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     expect(Array.isArray(tree.constants)).toBe(true)
     expect(Array.isArray(tree.constantTypes)).toBe(true)
     expect(tree.constants.length).toBe(tree.constantTypes.length)
@@ -332,7 +340,7 @@ describe('address — round-trip via bytes-level fixtures', () => {
   })
 
   it('exposes the P2PK pubkey as the bytes that appear in the serialized tree', () => {
-    const tree = ergoTreeFromAddress(MAINNET_P2PK)
+    const tree = parsedFromAddress(MAINNET_P2PK)
     const pk = p2pkPublicKey(tree)!
     const serialized = serializeTree(tree)
     // Tree layout: header(1) + opcode CreateProveDlog(1=0xcd) +

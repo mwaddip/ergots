@@ -22,13 +22,12 @@
  *   W2 1002480101010101010402860273007301  — Tuple(CP(0,(Bool,Bool,Bool)), CP(1,SInt))
  */
 import { describe, it, expect } from 'vitest'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { Expr, SType } from '../../src/mir/types'
-import { captureEvalError, hexToBytes } from '../_helpers'
+import { captureEvalError, hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 
 // (Bool,Bool,Bool) — a non-pair (3-ary) tuple TYPE.
 const TRIPLE: SType = {

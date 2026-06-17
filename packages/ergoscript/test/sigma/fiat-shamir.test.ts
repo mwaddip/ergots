@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { propBytes, fiatShamirHash, FIAT_SHAMIR_HASH_BYTES } from '../../src/sigma/fiat-shamir'
-import { parseTree } from '../../src/wire/ergo-tree'
+import { parseParsedTree as parseTree } from '../_helpers'
 import type { SigmaBoolean } from '../../src/mir/types'
 
 function hexToBytes(s: string): Uint8Array {

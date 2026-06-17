@@ -28,7 +28,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { ByteReader, ByteWriter, ReaderError } from '@ergots/scorex'
-import { parseTree } from '../../src/wire/ergo-tree'
+import { parseParsedTree as parseTree } from '../_helpers'
 import { serializeExpr } from '../../src/wire/serialize'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { parseSValue } from '../../src/wire/parse-svalue'

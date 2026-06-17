@@ -18,10 +18,9 @@ import { describe, expect, it } from 'vitest'
 import { evalMethodCall, evalPropertyCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import type { MethodCall, PropertyCall } from '../../src/mir/types'
-import { hexToBytes, hydrateSValue, synthesizeStubBox, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, synthesizeStubBox, captureEvalError, parseParsedTree as parseTree } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

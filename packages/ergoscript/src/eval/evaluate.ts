@@ -8,7 +8,8 @@
  * need to inspect `ctx.jitCost` after evaluation completes.
  */
 
-import type { ErgoTree, Expr, SValue } from '../mir/types'
+import type { ErgoTree, ParsedErgoTree, Expr, SValue } from '../mir/types'
+import { isUnparsedTree } from '../mir/types'
 import { Env } from './env'
 import { evalExpr } from './eval'
 import { makeContext, EvalError } from './eval-context'
@@ -64,11 +65,27 @@ export function tryTrivialReduceExpr(body: Expr, ctx: EvalContext): SValue | nul
  * tree-body-is-trivial-reduce case. Preserves the original phase 2g-medium
  * call shape used by `evaluate` / `evaluateWith` on the non-substitute path.
  */
-function tryTrivialReduce(tree: ErgoTree, ctx: EvalContext): SValue | null {
+function tryTrivialReduce(tree: ParsedErgoTree, ctx: EvalContext): SValue | null {
   return tryTrivialReduceExpr(tree.body, ctx)
 }
 
+/**
+ * An UnparsedErgoTree (size-flagged body that failed to parse — e.g. a reserved
+ * opcode preserved verbatim) is permanently unevaluable: both references reject
+ * the spend at reduction. Throw before any context/cost work, mirroring that the
+ * proposition cannot be reduced.
+ */
+function rejectIfUnparsed(tree: ErgoTree): asserts tree is ParsedErgoTree {
+  if (isUnparsedTree(tree)) {
+    throw new EvalError(
+      `cannot evaluate an unparsed (soft-fork) ErgoTree: ${tree.error.message}`,
+      'unparsed-ergotree',
+    )
+  }
+}
+
 export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
+  rejectIfUnparsed(tree)
   const ctx = makeContext({
     ...opts,
     constants: opts.constants ?? tree.constants,
@@ -80,6 +97,7 @@ export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
 export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
   // Caller-supplied ctx is honored verbatim. If they want tree.constants
   // resolution they must set it themselves before calling.
+  rejectIfUnparsed(tree)
   return dispatchTreeBody(tree, ctx)
 }
 
@@ -113,7 +131,7 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  * branch (`eval.rs:259-261`), which intentionally charges 1 per CP. Only the
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
-function dispatchTreeBody(tree: ErgoTree, ctx: EvalContext): SValue {
+function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
   // JVM-align (v6 batch-6, Ask 20): the SELF context extension is consumed by
   // `ErgoLikeContext.toSigmaContext` → `contextVars` (ErgoLikeContext.scala:140-147),
   // which builds `new Array(maxKey+1)` and assigns `res(key)` per `Map[Byte]` key. A

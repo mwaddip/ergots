@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-import { parseTree } from '../../src/index'
+import { parseParsedTree as parseTree } from '../_helpers'
 import { hexToBytes } from '../../scripts/_hex'
 import { analyzeBox, emptyResult, type CorpusBox } from '../../scripts/_walker'
 import { KNOWN_METHODS } from '../../scripts/_known-methods'

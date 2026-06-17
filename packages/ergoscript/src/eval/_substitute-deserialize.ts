@@ -40,7 +40,7 @@ import type {
   CreateProveDhTuple,
   DeserializeContext,
   DeserializeRegister,
-  ErgoTree,
+  ParsedErgoTree,
   Exists,
   Expr,
   Exponentiate,
@@ -86,7 +86,7 @@ import { collByteToUint8Array } from './_byte-coll'
 // node.
 // ---------------------------------------------------------------------------
 
-export function treeHasDeserialize(tree: ErgoTree): boolean {
+export function treeHasDeserialize(tree: ParsedErgoTree): boolean {
   return hasDeserializeWalk(tree.body)
 }
 
@@ -120,7 +120,7 @@ function hasDeserializeWalk(e: Expr): boolean {
 
 export function substituteDeserialize(
   body: Expr,
-  tree: ErgoTree,
+  tree: ParsedErgoTree,
   ctx: EvalContext,
 ): Expr {
   return rewriteBottomUp(body, tree, ctx)
@@ -137,7 +137,7 @@ export function substituteDeserialize(
  * that helper is NOT recursively re-walked (substituted children survive
  * intact).
  */
-function rewriteBottomUp(e: Expr, tree: ErgoTree, ctx: EvalContext): Expr {
+function rewriteBottomUp(e: Expr, tree: ParsedErgoTree, ctx: EvalContext): Expr {
   // 1. Recurse into children first (bottom-up).
   const eWithRewrittenChildren = mapChildren(e, (child) =>
     rewriteBottomUp(child, tree, ctx),
@@ -175,7 +175,7 @@ function rewriteBottomUp(e: Expr, tree: ErgoTree, ctx: EvalContext): Expr {
  */
 function substituteDeserializeContext(
   e: DeserializeContext,
-  tree: ErgoTree,
+  tree: ParsedErgoTree,
   ctx: EvalContext,
 ): Expr {
   if (ctx.extension === undefined) {
@@ -247,7 +247,7 @@ function substituteDeserializeContext(
  */
 function substituteDeserializeRegister(
   e: DeserializeRegister,
-  tree: ErgoTree,
+  tree: ParsedErgoTree,
   ctx: EvalContext,
 ): Expr {
   if (ctx.selfBox === undefined) {

@@ -34,10 +34,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evalSantaEntry, svalueToSantaJson, type SantaVector, type SantaEntry } from './_santa'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes, captureEvalError, synthesizeStubBox } from '../_helpers'
+import { hexToBytes, captureEvalError, synthesizeStubBox, parseParsedTree as parseTree } from '../_helpers'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')

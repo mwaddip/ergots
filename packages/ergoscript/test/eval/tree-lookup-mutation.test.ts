@@ -25,11 +25,10 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
-import { captureEvalError, hexToBytes } from '../_helpers'
+import { captureEvalError, hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 import { locateInlineCollRegion } from '../_helpers/mutation-harness'
 
 interface FixtureEntry {

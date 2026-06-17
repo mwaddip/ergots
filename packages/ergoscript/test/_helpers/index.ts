@@ -12,8 +12,30 @@ import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { parseSValue } from '../../src/wire/parse-svalue'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { isUnparsedTree, type ParsedErgoTree } from '../../src/mir/types'
 import { ByteReader } from '@ergots/scorex'
 import type { Header } from '@ergots/scorex'
+
+/**
+ * Parse an ErgoTree that is expected to be a normal (parsed) tree, narrowing
+ * away the soft-fork `UnparsedErgoTree` arm. `parseTree` now returns the union
+ * `ParsedErgoTree | UnparsedErgoTree`; the overwhelming majority of tests assert
+ * on `tree.body`/`.constants` of honest, always-parsed vectors. They import this
+ * as `parseParsedTree as parseTree`, so call sites are unchanged and the narrowed
+ * `ParsedErgoTree` type-checks. Throws if a vector unexpectedly parses unparsed
+ * (a real surprise worth failing on). The few tests that intentionally exercise
+ * unparsed soft-fork trees use the real `parseTree` from `src/wire/ergo-tree`.
+ */
+export function parseParsedTree(bytes: Uint8Array): ParsedErgoTree {
+  const tree = parseTree(bytes)
+  if (isUnparsedTree(tree)) {
+    throw new Error(
+      `parseParsedTree: expected a parsed tree, got UnparsedErgoTree (${tree.error.message})`,
+    )
+  }
+  return tree
+}
 
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length === 0) return new Uint8Array(0)

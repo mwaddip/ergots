@@ -13,10 +13,9 @@
  * suite green at every commit.
  */
 import { describe, it, expect } from 'vitest'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes, captureEvalError } from '../_helpers'
+import { hexToBytes, captureEvalError, parseParsedTree as parseTree } from '../_helpers'
 
 describe('Tuple eval arity gate (values.scala:795-808)', () => {
   it('arity-3 Tuple EXPR throws tuple-invalid-arity before charging any cost', () => {
