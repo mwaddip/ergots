@@ -39,10 +39,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { serializeTree } from '../../src/wire/ergo-tree'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ByteWriter } from '@ergots/scorex'
-import { hexToBytes } from '../_helpers'
+import { hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

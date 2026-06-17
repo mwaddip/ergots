@@ -23,10 +23,9 @@
  * (checkType seam) do NOT fire; the over-accept reaches evalSelectField.
  */
 import { describe, it, expect } from 'vitest'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluate, evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { captureEvalError, hexToBytes } from '../_helpers'
+import { captureEvalError, hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 
 describe('SelectField non-pair (F5 batch 3, W3)', () => {
   it("W3: SelectField on a 1-tuple constant → 'select-field-non-pair'", () => {

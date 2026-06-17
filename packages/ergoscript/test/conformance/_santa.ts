@@ -28,6 +28,7 @@
  * core of the published canonical-JSON codec; until then they stay test-only.
  */
 import type { ContextExtension, ErgoBox, SType, SValue } from '../../src/mir/types'
+import { isUnparsedTree } from '../../src/mir/types'
 import { parseTree, ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
@@ -217,6 +218,8 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
     if (isWireParseError(err)) return { value: null, cost: null, error: 'errored' }
     throw err
   }
+  // An unparsed (soft-fork) tree is unevaluable — the JVM blesser grades it errored.
+  if (isUnparsedTree(tree)) return { value: null, cost: null, error: 'errored' }
   const treeVersion = e.version.ergoTree
 
   // All non-v3 envelopes mirror the blesser's EvalCore.scala:505-511 SELF box:

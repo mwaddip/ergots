@@ -1,7 +1,7 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
 import { ByteWriter, blake2b256 } from '@ergots/scorex';
-import { serializeSValue, parseTree, evaluateWith, verifySignature } from '@ergots/ergoscript';
+import { serializeSValue, parseTree, evaluateWith, verifySignature, isUnparsedTree } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
@@ -178,14 +178,19 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
     }
 
     const tree = parseTree(ergoTreeBytes);   // parse errors surface unwrapped
+    // An unparsed (soft-fork) proposition — a size-flagged tree whose body preserved a
+    // reserved/version-gated construct verbatim — is permanently unevaluable: it has no
+    // constants and evaluateWith rejects it with EvalError('unparsed-ergotree'), surfaced
+    // unwrapped below. Thread empty constants so the union narrows past buildInputContext.
     // Cumulative limit: this input may consume only the remaining headroom; an overrun throws
     // EvalError 'cost-limit-exceeded' (unwrapped), matching validate()'s mid-tx limit firing.
     const ctx = buildInputContext({
       height: preHeader.height, selfBox, inputs: deps.inputBoxes, outputs, dataInputs: deps.dataInputBoxes,
-      preHeader, headers, extension, jitCostLimit: jitCostLimit - runningJit, treeVersion, constants: tree.constants,
+      preHeader, headers, extension, jitCostLimit: jitCostLimit - runningJit, treeVersion,
+      constants: isUnparsedTree(tree) ? [] : tree.constants,
       inputExtensions,
     });
-    const result = evaluateWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded)
+    const result = evaluateWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded + unparsed-ergotree)
     runningJit += ctx.jitCost;
     // DEFERRED: sigma-verification cost (estimate_crypto_cost) — ergots' verifier exposes no cost surface;
     // phase-2 cost under-counts by it (documented residual; capstone re-walk is the gate).

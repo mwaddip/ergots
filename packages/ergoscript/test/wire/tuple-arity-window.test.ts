@@ -16,12 +16,11 @@
  * serialize rejects <2 ('tuple-too-short' / JVM sys.error).
  */
 import { describe, it, expect } from 'vitest'
-import { parseTree } from '../../src/wire/ergo-tree'
 import { serializeTree } from '../../src/wire/ergo-tree'
 import { serializeTuple } from '../../src/wire/mir/tuple'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import { hexToBytes, captureEvalError } from '../_helpers'
+import { hexToBytes, captureEvalError, parseParsedTree as parseTree } from '../_helpers'
 import { expectParseError } from './_helpers'
 import { ByteWriter } from '@ergots/scorex'
 import type { Expr, Tuple } from '../../src/mir/types'

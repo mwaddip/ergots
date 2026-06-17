@@ -21,10 +21,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue, parseParsedTree as parseTree } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

@@ -24,6 +24,8 @@ export {
 export type { Network, AddressType } from './address'
 export type {
   ErgoTree,
+  ParsedErgoTree,
+  UnparsedErgoTree,
   TreeHeader,
   SType,
   SValue,
@@ -32,6 +34,7 @@ export type {
   PreHeader,
   ContextExtension,
 } from './mir/types'
+export { isUnparsedTree } from './mir/types'
 
 // Wire-layer SValue parser/serializer surface — exposed for downstream
 // packages that need to parse canonical box / register bytes outside the

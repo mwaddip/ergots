@@ -38,14 +38,16 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree/tree_header.rs
  */
 
-import type { ErgoTree, TreeHeader, SType, SValue } from '../mir/types'
+import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
+import { isUnparsedTree } from '../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
 import { serializeSType } from './serialize-stype'
-import { parseSValue } from './parse-svalue'
+import { parseSValue, SValueParseError } from './parse-svalue'
 import { serializeSValue } from './serialize-svalue'
 import { parseExpr } from './parse'
 import { serializeExpr } from './serialize'
+import { ExprParseError } from './errors'
 import { sTypeEquals } from '../mir/stype-helpers'
 
 /**
@@ -88,6 +90,50 @@ export class ErgoTreeSerializeError extends Error {
     super(message)
     this.name = 'ErgoTreeSerializeError'
   }
+}
+
+/**
+ * Soft-fork degrade-set (B-core). A size-flagged (`hasSize`) tree whose body fails
+ * to parse is preserved verbatim as `UnparsedErgoTree` ONLY when the failure is a
+ * JVM-`ValidationException`-equivalent — an UNKNOWN or version-gated construct that a
+ * future soft-fork could add. The JVM's `UnparsedErgoTree` fallback catches exactly
+ * `ValidationException` (`ErgoTreeSerializer.scala:197`); a malformed-data
+ * `SerializerException` / reader-underflow escapes it and REJECTS even for a sized tree.
+ *
+ * This set is the VERIFIED pure-`ValidationRule` equivalents (each → ValidationException
+ * → caught, confirmed against JVM source):
+ *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002)
+ *   - `soption-tree-version-too-low`         ← `CheckSerializableTypeCode` (rule 1009 — the
+ *     `typeCode == OptionTypeCode` SPECIAL-CASE at `ValidationRules.scala:135`)
+ *
+ * `sheader-tree-version-too-low` is NOT here → it REJECTS. SHeader (typeCode 104) is neither
+ * `== OptionTypeCode` nor `> LastDataType` (111), so rule 1009 does NOT throw for it; the JVM
+ * falls through to a DIRECT `SerializerException` (`CoreDataSerializer.scala:146`) that ESCAPES
+ * the `UnparsedErgoTree` fallback → reject. SOption is special-cased in rule 1009; SHeader is not
+ * (verified vs JVM source — an early "by analogy to SOption" inclusion, caught in adversarial review).
+ * Everything else REJECTS too: malformed VLQ, truncation, value overflow, type-code 0 / invalid
+ * prefix, structural arity counts.
+ *
+ * TRACKED RESIDUAL (B-full, adversarial-only): the JVM ALSO degrades unknown *type* codes
+ * (`CheckTypeCode`/`CheckPrimitiveTypeCode`), method gates (`CheckTypeWithMethods`/
+ * `CheckAndGetMethod`), and the position limit (`CheckPositionLimit`). ergots conflates
+ * some of these with reject cases (e.g. `'invalid-type-code'` spans type-code-0 [reject,
+ * JVM `InvalidTypePrefix`] AND unknown-code [degrade, JVM `CheckTypeCode`]), so closing it
+ * needs a per-site audit + code split. See
+ * `docs/specs/2026-06-17-ergotree-unparsed-soft-fork-preservation.md` §"B-full residual".
+ */
+const SOFT_FORKABLE_PARSE_CODES: ReadonlySet<string> = new Set([
+  'opcode-reserved',
+  'unknown-opcode',
+  'soption-tree-version-too-low',
+])
+
+/** Whether a constants/body parse failure is in the verified soft-fork degrade-set. */
+function isSoftForkableParseError(err: unknown): boolean {
+  return (
+    (err instanceof ExprParseError || err instanceof SValueParseError) &&
+    SOFT_FORKABLE_PARSE_CODES.has(err.code)
+  )
 }
 
 /**
@@ -137,6 +183,9 @@ function assertHeaderSizeBit(version: number, hasSize: boolean): void {
  *     byte range as the box's `ergoTreeBytes` field.
  */
 export function parseTreeFromReader(outer: ByteReader): ErgoTree {
+  // Position of the header byte — captured so a size-flagged body that fails to
+  // parse can be preserved verbatim from here onward (UnparsedErgoTree).
+  const treeStart = outer.position
   const rawHeader = outer.readU8()
   const header: TreeHeader = {
     // `rawHeader & 0x07` always yields 0..7, so the narrow type is safe.
@@ -185,27 +234,57 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
     inner = outer
   }
 
+  // Soft-fork tolerance (sized trees ONLY): if the constants/body region fails
+  // to parse — e.g. a reserved opcode such as 0xfd (CollRotateRight) — the size
+  // prefix lets us skip it, so the whole tree is preserved verbatim as an
+  // UnparsedErgoTree rather than throwing. Mirrors sigma-rust `ErgoTree::parse_with`
+  // (`ergo_tree.rs:205-219`, `Err(error) => ErgoTree::Unparsed { tree_bytes, error }`)
+  // and JVM `ErgoTreeSerializer.deserializeErgoTree` (`:196-208`, `ValidationException`
+  // + `sizeOpt = Some` → `Left(UnparsedErgoTree(bytes, ve))`). Gated on `hasSize`
+  // exactly as both references are: a non-sized tree cannot be skipped, so its body
+  // failure propagates (reject). `outer` has already consumed header+size+body (the
+  // `readBytes(bodyByteLength)` above), so `[treeStart, outer.position)` is the
+  // verbatim tree span.
   const constantTypes: SType[] = []
   const constants: SValue[] = []
-  if (header.constantSegregation) {
-    const count = inner.readVlqU()
-    if (count > MAX_CONSTANTS_COUNT) {
-      throw new ErgoTreeParseError(
-        `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
-        'too-many-constants',
-      )
+  let body: Expr
+  try {
+    if (header.constantSegregation) {
+      const count = inner.readVlqU()
+      if (count > MAX_CONSTANTS_COUNT) {
+        throw new ErgoTreeParseError(
+          `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
+          'too-many-constants',
+        )
+      }
+      for (let i = 0; i < count; i++) {
+        const tpe = parseSType(inner)
+        constantTypes.push(tpe)
+        constants.push(parseSValue(tpe, header.version, inner))
+      }
     }
-    for (let i = 0; i < count; i++) {
-      const tpe = parseSType(inner)
-      constantTypes.push(tpe)
-      constants.push(parseSValue(tpe, header.version, inner))
+    body = parseExpr(inner, constantTypes, constants, new Map(), header.version)
+  } catch (err) {
+    // Degrade to UnparsedErgoTree ONLY when (a) the tree is size-flagged AND (b) the
+    // failure is a JVM-`ValidationException`-equivalent soft-fork condition
+    // (isSoftForkableParseError) — an unknown/version-gated construct a future soft-fork
+    // could add. A malformed-data failure rejects even for a sized tree, mirroring the
+    // JVM (a `SerializerException` escapes the `UnparsedErgoTree` fallback). B-core
+    // degrade-set; the broader `ValidationException` audit is a tracked residual.
+    if (header.hasSize && isSoftForkableParseError(err)) {
+      return {
+        header,
+        unparsedBytes: outer.slice(treeStart, outer.position).slice(),
+        error: err instanceof Error ? err : new Error(String(err)),
+      }
     }
+    throw err
   }
 
-  const body = parseExpr(inner, constantTypes, constants, new Map(), header.version)
-
   // hasSize-bounded: enforce that the inner buffer is fully consumed (no
-  // trailing bytes inside the declared body region). Audit ERG-02.
+  // trailing bytes inside the declared body region). Audit ERG-02. Kept OUTSIDE
+  // the soft-fork catch above: this is ergots-specific post-parse strictness on a
+  // body that DID parse, not a parse failure, so it stays a hard reject.
   //
   // Non-hasSize: NO exhaustion check here — the outer caller decides
   // whether more bytes are expected after the tree. `parseTree(bytes)`
@@ -396,6 +475,13 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
  * approach (`ergo_tree.rs:379-405`).
  */
 export function serializeTree(tree: ErgoTree): Uint8Array {
+  // An UnparsedErgoTree (a size-flagged tree whose body failed to parse) re-emits
+  // its verbatim bytes — mirrors sigma-rust `Unparsed { tree_bytes } => write_all`
+  // and JVM `Left(UnparsedErgoTree(bytes, _)) => bytes`. Byte-identical round-trip.
+  if (isUnparsedTree(tree)) {
+    return tree.unparsedBytes
+  }
+
   // Defensive: verify rawHeader matches the projected boolean/number fields.
   // Without this, a hand-constructed ErgoTree with inconsistent fields
   // (e.g. rawHeader=0x00 but hasSize=true) would emit non-round-trippable

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { serializeTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import { captureEvalError } from '../_helpers'
+import { captureEvalError, parseParsedTree as parseTree } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**

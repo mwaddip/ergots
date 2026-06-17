@@ -57,9 +57,14 @@ describe('SHeader SValue wire round-trip — V3 trees', () => {
   })
 })
 
-describe('SHeader SValue wire — V<3 rejection', () => {
+describe('SHeader SValue wire — V<3 rejection (NOT soft-fork-degradable)', () => {
   test('V2 tree with SHeader constant throws sheader-tree-version-too-low', () => {
     const bytes = loadFixture('sheader-constants-v2-header-literal')
+    // Unlike SOption, SHeader (typeCode 104) is NOT special-cased by JVM rule 1009
+    // (CheckSerializableTypeCode) and is NOT > LastDataType (111), so rule 1009 does NOT
+    // throw a ValidationException for it — the JVM falls through to a DIRECT SerializerException
+    // (CoreDataSerializer.scala:146) which ESCAPES the UnparsedErgoTree fallback → the tree
+    // REJECTS even though it is size-flagged. So ergots must NOT degrade this to Unparsed.
     expect(() => parseTree(bytes)).toThrow(
       expect.objectContaining({ code: 'sheader-tree-version-too-low' })
     )

@@ -30,7 +30,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { exprTpe } from '../../src/mir/expr-tpe'
-import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { serializeTree } from '../../src/wire/ergo-tree'
+import { parseParsedTree as parseTree } from '../_helpers'
 import { evaluate, evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
 import type { ErgoTree, Expr } from '../../src/mir/types'

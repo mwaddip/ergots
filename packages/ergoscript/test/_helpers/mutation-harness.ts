@@ -13,7 +13,7 @@
 import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
-import type { ErgoTree, Expr, SValue } from '../../src/mir/types'
+import type { ParsedErgoTree, Expr, SValue } from '../../src/mir/types'
 import { rehydrateEvalOpts } from './index'
 
 // ─── Inline-Coll[Byte] location ─────────────────────────────────────────────
@@ -89,7 +89,7 @@ export function locateBytes(haystack: Uint8Array, needle: Uint8Array): number {
  */
 export function locateInlineCollRegion(
   treeBytes: Uint8Array,
-  tree: ErgoTree,
+  tree: ParsedErgoTree,
   collIndex: number,
 ): { start: number; end: number; length: number } {
   const byteColls = findInlineByteColls(tree.body)

@@ -33,7 +33,8 @@ import { describe, it, expect } from 'vitest'
 import { evaluate, evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
 import { validateV6Types } from '../../src/eval/validate-v6-types'
-import type { ErgoTree, Expr, SType, TreeHeader } from '../../src/mir/types'
+import type { ErgoTree, ParsedErgoTree, Expr, SType, TreeHeader } from '../../src/mir/types'
+import { isUnparsedTree } from '../../src/mir/types'
 import { serializeSType } from '../../src/wire/serialize-stype'
 import { captureEvalError } from '../_helpers'
 import { ByteWriter } from '@ergots/scorex'
@@ -74,7 +75,7 @@ const boolConst = (value: boolean): Expr => ({
 })
 
 /** Non-segregated tree at `version` with a single UBI Const body. */
-function ubiBodyTree(version: TreeHeader['version']): ErgoTree {
+function ubiBodyTree(version: TreeHeader['version']): ParsedErgoTree {
   return { header: header(version), constantTypes: [], constants: [], body: ubiConst(5n) }
 }
 
@@ -614,5 +615,6 @@ describe('validateV6Types — SFunc-112 v5 over-accept closure', () => {
  * calls it (non-deserialize branch).
  */
 function validateV6TypesThrow(tree: ErgoTree): void {
+  if (isUnparsedTree(tree)) throw new Error('validateV6TypesThrow: unexpected unparsed tree')
   validateV6Types(tree, tree.body, 2)
 }

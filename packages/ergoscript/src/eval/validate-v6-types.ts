@@ -39,7 +39,7 @@
  *
  * Spec: docs/specs/2026-06-03-ergoscript-v6-p2a-sunsignedbigint-type-core-design.md §4.1/§4.2
  */
-import type { ErgoTree, Expr, SType } from '../mir/types'
+import type { ParsedErgoTree, Expr, SType } from '../mir/types'
 import { EvalError } from './eval-context'
 import { childrenOf } from './_substitute-deserialize'
 
@@ -120,7 +120,7 @@ function annotationsOf(e: Expr): SType[] {
  * Deserialize* sub-trees parsed into it are covered) and the raw `tree.body`
  * otherwise.
  */
-export function validateV6Types(tree: ErgoTree, body: Expr, treeVersion: number): void {
+export function validateV6Types(tree: ParsedErgoTree, body: Expr, treeVersion: number): void {
   if (treeVersion >= 3) return
 
   // 1. Segregated constants: the JVM deserializes all of them eagerly, before

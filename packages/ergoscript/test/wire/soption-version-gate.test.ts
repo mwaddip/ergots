@@ -1,17 +1,40 @@
 /**
- * SOption DATA V3 gate — JVM CoreDataSerializer.scala:140-143 (deserialize)
- * and :78-82 (serialize): Option DATA exists only at tree-version ≥ 3; pre-v3
- * falls through to CheckSerializableTypeCode (ValidationRule 1009) +
- * SerializerException. Recursive: Option anywhere in a constant's type tree
- * rejects via the recursive deserialize. Same gate family as the shipped
- * SHeader gate ('sheader-tree-version-too-low').
+ * SOption DATA V3 gate — JVM CoreDataSerializer.scala:140-145 (deserialize) and
+ * :78-82 (serialize): Option DATA exists only at tree-version ≥ 3; pre-v3 hits
+ * CheckSerializableTypeCode (ValidationRule 1009), which throws a ValidationException
+ * "in order to be able to interpret it as soft-fork condition" (ValidationRules.scala:135-144).
+ *
+ * Consequence for a SIZE-FLAGGED (hasSize) tree — which every version>0 tree MUST be
+ * (rule-1012): that ValidationException is caught by the JVM's UnparsedErgoTree fallback
+ * (ErgoTreeSerializer.scala:197 with sizeOpt=Some) → the tree is preserved VERBATIM as
+ * Unparsed, NOT rejected. Only a NO-SIZE tree (v0) rejects (sizeOpt=None → rethrow).
+ * ergots mirrors this: the hasSize soft-fork degrade-set in wire/ergo-tree.ts includes
+ * 'soption-tree-version-too-low' + 'sheader-tree-version-too-low' (the verified rule-1009
+ * equivalents). serializeSValue + substituteConstantsBytes still throw the gate error
+ * directly — those are not the size-flagged tree-parse path. See
+ * docs/specs/2026-06-17-ergotree-unparsed-soft-fork-preservation.md.
  */
 import { describe, it, expect } from 'vitest'
-import { parseTree, serializeTree, substituteConstantsBytes } from '../../src/wire/ergo-tree'
+import { serializeTree, substituteConstantsBytes, parseTree as parseTreeUnion } from '../../src/wire/ergo-tree'
 import { serializeSValue, SValueSerializeError } from '../../src/wire/serialize-svalue'
-import { hexToBytes } from '../_helpers'
+import { hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 import { ByteWriter } from '@ergots/scorex'
+import { isUnparsedTree } from '../../src/mir/types'
 import type { SType } from '../../src/mir/types'
+
+/**
+ * A size-flagged tree carrying a pre-v3 Option/Header DATA construct degrades to an
+ * UnparsedErgoTree (the JVM soft-fork fallback) rather than rejecting: assert it parses
+ * to the unparsed arm, captured the version-gate error, and re-serializes byte-identically.
+ */
+function expectSoftForkUnparsed(bytes: Uint8Array, code: string): void {
+  const tree = parseTreeUnion(bytes)
+  expect(isUnparsedTree(tree)).toBe(true)
+  if (isUnparsedTree(tree)) {
+    expect((tree.error as { code?: string }).code).toBe(code)
+    expect(serializeTree(tree)).toEqual(bytes)
+  }
+}
 
 const SOPTION_SINT: SType = { tag: 'SOption', elem: { tag: 'SInt' } }
 
@@ -28,12 +51,13 @@ const SOPTION_SINT: SType = { tag: 'SOption', elem: { tag: 'SInt' } }
 const collOptionV2Bytes = hexToBytes('1a08010c2801010a7300')
 
 describe('SOption DATA tree-version gate (CoreDataSerializer:140)', () => {
-  it('v2 tree with an Option[Int] Some constant parse-rejects', () => {
+  it('v2 tree with an Option[Int] Some constant degrades to UnparsedErgoTree (hasSize soft-fork)', () => {
     // 1a060128010a7300 = v2 tree (header 0x1a = hasSize+segregation+v2),
     // size=6, 1 constant, type 0x28 (SOption[SInt]), value Some(5), body 73 00.
-    expect(() => parseTree(hexToBytes('1a060128010a7300'))).toThrow(
-      expect.objectContaining({ code: 'soption-tree-version-too-low' })
-    )
+    // The pre-v3 Option gate (rule 1009) throws a ValidationException, which the
+    // JVM's UnparsedErgoTree fallback catches for a size-flagged tree → verbatim
+    // preservation, not a reject (verified vs sigmastate ErgoTreeSerializer.scala:197).
+    expectSoftForkUnparsed(hexToBytes('1a060128010a7300'), 'soption-tree-version-too-low')
   })
 
   it('v0 tree with an inline Option constant parse-rejects', () => {
@@ -53,13 +77,12 @@ describe('SOption DATA tree-version gate (CoreDataSerializer:140)', () => {
     expect(tree.constants.length).toBe(1)
   })
 
-  it('v2 tree with a Coll[Option[Int]] constant rejects via recursion', () => {
+  it('v2 tree with a Coll[Option[Int]] constant degrades to UnparsedErgoTree (recursive gate, hasSize)', () => {
     // The SOption arm is hit during the recursive deserialize of the Coll element
-    // type — the same path the JVM's recursive DataSerializer takes.
-    // See collOptionV2Bytes construction above.
-    expect(() => parseTree(collOptionV2Bytes)).toThrow(
-      expect.objectContaining({ code: 'soption-tree-version-too-low' })
-    )
+    // type — the same path the JVM's recursive DataSerializer takes. The tree is
+    // size-flagged (header 0x1a), so the rule-1009 ValidationException degrades it
+    // to Unparsed (verbatim) rather than rejecting. See collOptionV2Bytes above.
+    expectSoftForkUnparsed(collOptionV2Bytes, 'soption-tree-version-too-low')
   })
 
   it('serializeSValue mirrors the gate (CoreDataSerializer:78)', () => {
@@ -136,11 +159,13 @@ describe('treeVersion threading — nested inline SOption in compound node (clas
     }
   })
 
-  it('v2+size twin of the nested case still rejects (gate keyed on the REAL tree version)', () => {
-    // Same bytes with header version flipped to v2+size: must throw the gate error.
-    expect(() => parseTree(V2_IF_SOPTION_BYTES)).toThrow(
-      expect.objectContaining({ code: 'soption-tree-version-too-low' })
-    )
+  it('v2+size twin of the nested case degrades to UnparsedErgoTree (gate keyed on the REAL tree version)', () => {
+    // Same bytes with header version flipped to v2+size: the gate fires on the REAL
+    // (v2) tree version — but because the tree is size-flagged, the rule-1009
+    // ValidationException degrades it to Unparsed (verbatim) rather than rejecting.
+    // The captured error still pins that the gate keyed on the v2 version, not the
+    // nested-construct's ambient version.
+    expectSoftForkUnparsed(V2_IF_SOPTION_BYTES, 'soption-tree-version-too-low')
   })
 })
 
@@ -212,13 +237,13 @@ describe('substituteConstantsBytes — version source is OUTER tree version, not
 })
 
 describe('Version gate fires before tag read (composed order)', () => {
-  it('v2 tree + noncanonical tag 0x02: the VERSION gate fires first (composed order)', () => {
-    // Gate-before-tag composition (JVM order: the DATA-arm guard is checked
-    // before getOption runs). A future hoist of the tag read above the gate
-    // would desync the stream here instead of throwing the version code.
-    expect(() => parseTree(hexToBytes('1a060128020a7300'))).toThrow(
-      expect.objectContaining({ code: 'soption-tree-version-too-low' })
-    )
+  it('v2 tree + noncanonical tag 0x02: the VERSION gate fires first (captured in the soft-fork Unparsed)', () => {
+    // Gate-before-tag composition (JVM order: the DATA-arm guard is checked before
+    // getOption runs). The tree is size-flagged, so the gate's ValidationException
+    // degrades it to Unparsed; the CAPTURED error being the version code (not a
+    // tag-desync error) pins that the gate fired before the tag read. A future hoist
+    // of the tag above the gate would capture a different error here.
+    expectSoftForkUnparsed(hexToBytes('1a060128020a7300'), 'soption-tree-version-too-low')
   })
 })
 

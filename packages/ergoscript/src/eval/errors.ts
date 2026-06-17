@@ -226,6 +226,10 @@ export type EvalErrorCode =
    *  ErgoLikeContext.scala:140-147). v6 batch-6 Ask 20; inputExtensions are byte-identity
    *  0..255 (getVarFromInput Map[Byte].get) and NOT guarded. */
   | 'context-extension-key-out-of-range'
+  /** Evaluation of an UnparsedErgoTree (a size-flagged tree whose body failed to
+   *  parse — e.g. a reserved opcode preserved verbatim as a soft-fork). The script
+   *  is permanently unevaluable; both references reject the spend at reduction. */
+  | 'unparsed-ergotree'
   /** GetVar: variable's stored type doesn't match requested type. */
   | 'get-var-type-mismatch'
   /** OptionGet / OptionIsDefined / OptionGetOrElse: input evaluated to non-Option SValue. */

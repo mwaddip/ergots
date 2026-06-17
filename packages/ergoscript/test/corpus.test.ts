@@ -28,7 +28,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type { SType, ErgoTree } from '../src/mir/types'
-import { parseTree, serializeTree } from '../src/wire/ergo-tree'
+import { serializeTree } from '../src/wire/ergo-tree'
 import { parseExpr } from '../src/wire/parse'
 import { serializeExpr } from '../src/wire/serialize'
 import { parseSType } from '../src/wire/parse-stype'
@@ -36,7 +36,7 @@ import { serializeSType } from '../src/wire/serialize-stype'
 import { parseSValue } from '../src/wire/parse-svalue'
 import { serializeSValue } from '../src/wire/serialize-svalue'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { hexToBytes, hydrateSValue } from './_helpers'
+import { hexToBytes, hydrateSValue, parseParsedTree as parseTree } from './_helpers'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url
 // is a node-only import, allowed in test files per the browser-first rule.
