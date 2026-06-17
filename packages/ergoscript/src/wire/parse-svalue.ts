@@ -571,15 +571,15 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
       // Sigma-rust calls `ErgoTree::sigma_parse(r)` on the shared reader
       // at `chain/ergo_box.rs:350`. We mirror via `parseErgoTreeBytes`
-      // (ergo-tree.ts), which consumes exactly one tree from the shared
-      // reader and returns its verbatim span — handling both `hasSize=true`
-      // (size-prefixed body skipped without parse, sigma-rust
-      // `ErgoTree::Unparsed`, mainnet "burn" boxes, first at h=545,684) and
-      // `hasSize=false` (body grammar self-delimits, strict-parsed to find
-      // its end). The SBox only needs the raw bytes; downstream callers
-      // re-parse via the public `parseTree` for structural access. The same
-      // helper is consumed by `@ergots/transaction`'s ErgoBoxCandidate codec
-      // so the tree-length grammar lives in one place.
+      // (ergo-tree.ts), which structurally parses exactly one tree off the
+      // shared reader (the SAME deserialize as the bare `parseTree`: degrade
+      // soft-forkable failures to `UnparsedErgoTree`, REJECT the non-soft-forkable
+      // class such as an SHeader constant) and returns its verbatim span. So a
+      // box's propBytes reject exactly what a bare tree rejects — no box-vs-bare
+      // split. The SBox only needs the raw bytes; downstream callers re-parse via
+      // the public `parseTree` for structural access. The same helper is consumed
+      // by `@ergots/transaction`'s ErgoBoxCandidate codec so the tree-length
+      // grammar lives in one place.
       const ergoTreeBytes = parseErgoTreeBytes(r)
 
       // --- creation_height (VLQ; rejects > Int.MaxValue (2^31-1) to match the
