@@ -142,7 +142,7 @@ function parseAdditionalRegisters(r: ByteReader, treeVersion: number): Additiona
 type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined>;
 ```
 
-Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. `parseErgoTreeBytes` consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim span (header + optional size VLQ + body; `hasSize=true` bodies skipped à la sigma-rust `ErgoTree::Unparsed`). `parseAdditionalRegisters` reads the additional-registers section (raw `u8` count, `>6` rejected, per-register `Const`/`Tuple` Expr keyed R4.., Tuple-Expr `opaqueBytes` capture + rule-1019 `CheckV6Type` gate). Both advance the shared `ByteReader` in place. Full shape + failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
+Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. `parseErgoTreeBytes` consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim span (header + optional size VLQ + constants + body). As of 2026-06-17 it routes through the SAME deserialize as the bare `parseTree` (`parseTreeFromReader`): the tree is structurally parsed, a `hasSize` soft-forkable failure degrades to `UnparsedErgoTree`, and the non-soft-forkable class (e.g. an SHeader constant, a truncated/empty body) REJECTS — so a box's propBytes reject exactly what a bare tree rejects (the old box-only skip-the-body path is gone). `parseAdditionalRegisters` reads the additional-registers section (raw `u8` count, `>6` rejected, per-register `Const`/`Tuple` Expr keyed R4.., Tuple-Expr `opaqueBytes` capture + rule-1019 `CheckV6Type` gate). Both advance the shared `ByteReader` in place. Full shape + failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
 
 ### `parseSigmaBoolean` / `serializeSigmaBoolean`
 
@@ -171,6 +171,8 @@ serializeTree(parseTree(b)) === b   (byte-equal)
 ```
 
 This holds for every ErgoTree variant the package ships. The corpus test asserts this on 255 passing fixtures plus 1 mainnet-fixture stub plus 6 fixtures flagged `known_unstable` (sigma-rust itself does not round-trip them; tracked inline in the fixture JSON).
+
+**Carve-out (2026-06-17):** a `hasSize` tree whose body parses cleanly but leaves trailing bytes inside the declared size now *parses* (the inner-trailing reject was retired — it matched neither the JVM nor sigma-rust). Such a `ParsedErgoTree` re-serializes without the trailing, so `serializeTree(parseTree(b)) ≠ b` for it. This is adversarial-only (an honest tree's declared size equals its body) and not reference-guaranteed; on the consensus box path the verbatim span is retained on `ErgoBox.ergoTreeBytes`, so boxes still round-trip. `parseTree` still rejects trailing *after* the whole tree (`'trailing-bytes'`). See `facts/ergoscript-wire.md` Round-trip Carve-out 4.
 
 ---
 
