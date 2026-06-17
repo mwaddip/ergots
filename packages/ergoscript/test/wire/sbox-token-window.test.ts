@@ -37,10 +37,9 @@ import type { ErgoBox, SValue } from '../../src/mir/types'
 // Byte builders
 // ---------------------------------------------------------------------------
 
-// Minimal parse-valid ErgoTree: v0 + hasSize=true (0x08) + 0-byte body. Rule
-// 1012 only requires the size bit for version > 0, so v0+size passes; the
-// lenient box-tree consumer skips the (empty) sized body without parsing.
-const MINIMAL_TREE = [0x08, 0x00]
+// Minimal parse-valid ErgoTree: header=0x00 (hasSize=false, no segregation),
+// body = Height global (0xa3) — a minimal valid root Expr (2 bytes total).
+const MINIMAL_TREE = [0x00, 0xa3]
 
 /** Unsigned VLQ encoding (LSB-first 7-bit groups). */
 function vlq(n: number): number[] {
@@ -190,7 +189,7 @@ describe('SBox 4096-byte candidate window (parse)', () => {
   // the shared (windowed) reader. Walk: the skip BEGINS at 4 <= 4096 (entry
   // check passes) and ENDS at 4204 — a straddle, tolerated like any logical
   // read — then the creationHeight read begins at 4204 > 4096 -> rule-1014
-  // reject. Pins the skip-path readBytes inside `consumeTreeFromReader` to
+  // reject. Pins the sized-body readBytes inside `parseErgoTreeBytes` to
   // the candidate window (a refactor that consumed the sized body off-window
   // — e.g. via a forked sub-reader — would accept this box).
   it("rejects a sized-tree skip crossing the window with 'position-limit-exceeded' (reject at the creationHeight read)", () => {

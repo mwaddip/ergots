@@ -33,7 +33,7 @@ import { describe, it, expect } from 'vitest'
 import {
   parseTree,
   substituteConstantsBytes,
-  consumeTreeFromReader,
+  parseErgoTreeBytes,
   ErgoTreeParseError,
 } from '../../src/wire/ergo-tree'
 import { ByteReader } from '@ergots/scorex'
@@ -149,25 +149,26 @@ describe('rule-1012 — substConstants template header is gated too (separate in
   })
 })
 
-// ── Third ingress: box-carried ErgoTree (consumeTreeFromReader) ──────────────
+// ── Third ingress: box-carried ErgoTree (parseErgoTreeBytes) ─────────────────
 // The JVM gates EVERY deserializeErgoTree call (deserializeHeaderAndSize →
 // CheckHeaderSizeBit runs before the body try/catch; a v>0/no-size header throws
-// uncaught and never reaches the Unparsed fallback). Before the F5-batch-3 review
-// fix, ergots' box-script path (consumeTreeFromReader) accepted what parseTree
-// rejected — an internal split matching neither reference. Now all three ingresses
-// agree. (Adversarial-only: real mainnet box scripts are v0 or v>0+size.)
-describe('rule-1012 — box-carried ErgoTree ingress (consumeTreeFromReader)', () => {
-  it('rejects a version>0 / no-size box script (W6 bytes via the third ingress)', () => {
+// uncaught and never reaches the Unparsed fallback). After the deserialize-unification
+// fix, the box-script path uses parseErgoTreeBytes (→ parseTreeFromReader), which is
+// the same ingress as parseTree. All three ingresses agree.
+// (Adversarial-only: real mainnet box scripts are v0 or v>0+size.)
+describe('rule-1012 — box-carried ErgoTree ingress (parseErgoTreeBytes)', () => {
+  it('rejects a version>0 / no-size box script (W6 bytes via the box ingress)', () => {
     expectErgoTreeParseError(
-      () => consumeTreeFromReader(new ByteReader(hexToBytes('03050101017300'))),
+      () => parseErgoTreeBytes(new ByteReader(hexToBytes('03050101017300'))),
       'header-version-requires-size',
     )
   })
 
   it('accepts a version>0 box script WITH the size bit (no over-reject)', () => {
-    // header 0x0b = v3 | size bit (0x08); size VLQ = 0x02; 2 body bytes skipped via
-    // the hasSize path. Mainnet box scripts are exactly this shape (v>0 + size) — the
-    // gate must NOT reject them. (consumeTreeFromReader skips the body when hasSize.)
-    consumeTreeFromReader(new ByteReader(hexToBytes('0b02abcd')))
+    // header 0x0b = v3 | size bit (0x08); size VLQ = 0x02; 2 body bytes follow.
+    // Mainnet box scripts are exactly this shape (v>0 + size) — the gate must NOT
+    // reject them. Body is now parsed (not skipped), but `ab cd` is a valid Expr
+    // (opcode 0xab = ... check) — or it degrades to Unparsed if unrecognized.
+    parseErgoTreeBytes(new ByteReader(hexToBytes('0b02abcd')))
   })
 })

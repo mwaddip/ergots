@@ -1,0 +1,19 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Box.softfork_header_constant_reject",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "entries" : [
+    {
+      "name" : "box-softfork-header-constant-reject#0",
+      "kind" : "Box",
+      "source" : "santa:authored-softfork-box-header-constant-reject",
+      "description" : "ErgoBox whose propositionBytes are a size-flagged ErgoTree with one segregated SHeader constant (typeCode 0x68): the box parse reads the propBytes as an ErgoTree and the SHeader DataSerializer throws a SerializerException (SHeader is not rule-1009-special-cased, so it escapes the soft-fork UnparsedErgoTree fallback) -> the JVM REJECTS the box. The STRICT box->tree path every impl runs for boxId, so this grades the strict-sigma_parse over-accept the bare ErgoTree (lenient) arm misses (e.g. develop). An impl that degrades the tree to Unparsed accepts a box the JVM rejects -> a crafted-bytes boxId/consensus over-accept. Twin of ErgoTree.unparsed_soft_fork_header_constant on the box path.",
+      "bytes_hex" : "c0843d1adb01016802000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0843d0000000000000000000000000000000000000000000000000000000000000000070239b8010000000000000000000000000000000000000000000000000000000000000000000000000000000001000000017300000000000000000000000000000000000000000000000000000000000000000000000000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 2
+      }
+    }
+  ]
+}

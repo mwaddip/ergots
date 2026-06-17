@@ -130,12 +130,12 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
   //     putBytes(txId 32)      = 35
   //     putUShort(index)       = 3
   //
-  // Minimal box: ergoTreeBytes = [0x08,0x00] (len 2), no tokens, no regs.
+  // Minimal box: ergoTreeBytes = [0x00,0xa3] (len 2, header v0 no-size, Height body), no tokens, no regs.
   //   walk = 3 + (3+2) + 0 + 1 + 0 + 1 + 35 + 3 = 48 ; total = 14 + 10 + 48 = 72.
   function makeBox(overrides: Partial<ErgoBox> = {}): ErgoBox {
     return {
       value: 1000000n,
-      ergoTreeBytes: new Uint8Array([0x08, 0x00]),
+      ergoTreeBytes: new Uint8Array([0x00, 0xa3]),
       registers: {},
       tokens: [],
       creationHeight: 0,
