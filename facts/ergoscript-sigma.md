@@ -14,6 +14,7 @@ The verifier handles the full `SigmaBoolean` surface: the `TrivialProp(true|fals
 
 ```ts
 verifySignature(sigmaBoolean: SigmaBoolean, message: Uint8Array, signature: Uint8Array): boolean
+estimateCryptoCost(sigmaBoolean: SigmaBoolean): number   // JitCost units
 class VerifyError extends Error { code: string }
 type SigmaBoolean = ... // see Types section
 ```
@@ -39,6 +40,26 @@ type SigmaBoolean = ... // see Types section
 - **Trailing bytes accepted.** Extra bytes after the last parsed scalar are silently ignored (mirrors sigma-rust's `proof_append_some_byte` proptest at `verifier.rs:229-235`).
 
 - **Not a cost-charging operation.** `verifySignature` is a separate public function from `evaluate`; it does not interact with `EvalContext` or `jitCost`. Callers who want both evaluation cost and signature verification compose `evaluateWith` + `verifySignature` manually.
+
+### `estimateCryptoCost(sigmaBoolean)`
+
+```ts
+estimateCryptoCost(sigmaBoolean: SigmaBoolean): number   // JitCost units
+```
+
+Estimates the ahead-of-time sigma-protocol *verification* cost of a reduced `SigmaBoolean`, in **JitCost units** (the tx cost model scales to block cost via `floor(·/10)`). Pure structural walk; no crypto is performed. The cost-companion of `verifySignature` (it costs what `verifySignature` will verify).
+
+Constants are taken from the JVM `Interpreter.estimateCryptoVerifyCost` (`sigmastate-interpreter Interpreter.scala:554-591`, canonical for v6):
+
+| variant | cost (JIT) |
+|---|---|
+| `TrivialProp` | 0 |
+| `ProveDlog` | 3980 (`ParseChallenge` 10 + `ComputeCommitments_Schnorr` 3400 + `ToBytes_Schnorr` 570) |
+| `ProveDhTuple` | 7140 (10 + `ComputeCommitments_DHT` 6450 + `ToBytes_DHT` 680) |
+| `Cand` / `Cor` | `15 + Σ children` (`ToBytes_ProofTreeConjecture` 15) |
+| `Cthreshold(n, k)` | `(10 + 10·nCoefs) + (3 + 3·nCoefs)·n + 15 + Σ children`, `nCoefs = n − k` |
+
+**Divergence note:** the vendored sigma-rust `crypto_cost.rs` omits the `+15` (`ToBytes_ProofTreeConjecture`) for `Cthreshold` — its own test asserts 11978 for 2-of-3-dlog where the JVM (and ergots) give 11993. ergots follows the JVM. Consumed by `@ergots/transaction`'s `validateStateful` block-cost model.
 
 ## SigmaProp-constant trivial-reduce (eval cost)
 
