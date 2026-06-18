@@ -317,7 +317,7 @@ const DEFAULT_PARAMETERS: ChainParameters;  // all values above
 
 ### 2 — Init cost (charged before any per-input loop)
 
-`INTERPRETER_INIT_COST` (10,000 JIT units) + per-input/data-input/output cost + token access cost, converted to JIT units (×10). If the init cost alone exceeds the budget (`maxBlockCost × 10`), throws `TxValidationError('cost-limit-exceeded')`.
+`INTERPRETER_INIT_COST` (10,000 block units) + per-input/data-input/output cost + token-access cost (all block units) = the init cost (`computeInitCost`), which seeds the cumulative block-cost accumulator `runningBlock`. If the init cost alone exceeds `maxBlockCost`, throws `TxValidationError('cost-limit-exceeded')`.
 
 ### 3 — Per-input verify loop (in input-index order)
 
@@ -325,9 +325,9 @@ For each input `i`:
 
 a. **Storage-rent fast path** (empty proof only): if `proofBytes.length === 0` and the box is rent-eligible (`blockHeight − creationHeight ≥ 1,051,200`), apply the storage-rent conditions (extension var 127 holds the output index; recreation checks if box value > fee). If rent conditions pass, skip this input at cost 0 (no eval, no verify).
 
-b. **Script path**: `parseTree(ergoTreeBytes)` (parse errors surface unwrapped) → `buildInputContext(…, jitCostLimit: remaining headroom)` → `evaluateWith(tree, ctx)` → check result is `SigmaProp` (else `non-sigmaprop-result`) → `verifySignature(result.value, signingMessage(tx), proofBytes)` (else `script-reduced-false`). The input's `ctx.jitCost` is added to the running accumulator. `EvalError` (including `'cost-limit-exceeded'`) surfaces unwrapped.
+b. **Script path**: `parseTree(ergoTreeBytes)` (parse errors surface unwrapped) → `buildInputContext(…, jitCostLimit: remaining headroom)` → `evaluateWith(tree, ctx)` → check result is `SigmaProp` (else `non-sigmaprop-result`) → `verifySignature(result.value, signingMessage(tx), proofBytes)` (else `script-reduced-false`). After eval, `floor(ctx.jitCost / 10) + floor(estimateCryptoCost(result.value) / 10)` (the reduction cost and the sigma-verification cost, each truncated to block cost) is added to `runningBlock`; if it then exceeds `maxBlockCost`, throws `TxValidationError('cost-limit-exceeded')`. A mid-reduction overrun surfaces `EvalError('cost-limit-exceeded')` unwrapped.
 
-**`cost-limit-exceeded`** (as `TxValidationError`) — only when init cost alone exceeds the budget. When the per-input cost accumulator fires during eval, `EvalError('cost-limit-exceeded')` surfaces unwrapped (NOT wrapped in `TxValidationError`). Both forms mean the transaction is rejected.
+**`cost-limit-exceeded`** (as `TxValidationError`) — when the init cost alone exceeds `maxBlockCost`, OR when the per-input block accumulator (eval + crypto) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead surfaces `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). All forms mean the transaction is rejected.
 
 ## Box id computation
 
@@ -399,7 +399,7 @@ try {
 
 ## Cost model
 
-**Init/structural cost** (block-cost units, converted to JIT units at ×10):
+**Init/structural cost** (block-cost units):
 
 ```
 initCost = INTERPRETER_INIT_COST          // 10,000 block units
@@ -408,15 +408,20 @@ initCost = INTERPRETER_INIT_COST          // 10,000 block units
          + outputs.length × outputCost    // × 100
          + (totalTokenEntries_in + totalTokenEntries_out
             + distinctTokenCount_in + distinctTokenCount_out) × tokenAccessCost  // × 100
-initJit = initCost × 10
-jitCostLimit = maxBlockCost × 10          // 1,000,000 × 10 = 10,000,000
 ```
 
-If `initJit > jitCostLimit`, throws `TxValidationError('cost-limit-exceeded')`.
+`initCost` seeds the cumulative block-cost accumulator `runningBlock`. If `initCost > maxBlockCost`, throws `TxValidationError('cost-limit-exceeded')`.
 
-**Per-input accumulation:** A single cumulative accumulator `runningJit` is shared across all inputs (never reset between inputs, matching sigma-rust's `validate()` shared `context.jit_cost_limit`). Each input's context receives `jitCostLimit − runningJit` as its local limit; after eval, `ctx.jitCost` is added to `runningJit`. When a per-input eval fires the limit, `EvalError('cost-limit-exceeded')` surfaces unwrapped.
+**Per-input accumulation (block-cost, JVM-faithful).** A single cumulative `runningBlock` is shared across all inputs (never reset). For each non-storage-rent input, after `evaluateWith`:
 
-**Cost residual (deferred):** The sigma-verification cost (`estimate_crypto_cost` in sigma-rust) is NOT included in phase 2. `@ergots/ergoscript`'s `verifySignature` exposes no cost surface. Phase-2 cost therefore under-counts by exactly this term — it never causes a false reject (only under-counts). The capstone re-walk against mainnet is the gate for closing this residual; it is outside phase-2 scope.
+```
+runningBlock += floor(ctx.jitCost / 10) + floor(estimateCryptoCost(result.value) / 10)
+if (runningBlock > maxBlockCost) throw TxValidationError('cost-limit-exceeded')
+```
+
+The eval (reduction) cost and the sigma-verification (crypto) cost are each truncated to block cost **independently** (JVM `Interpreter.scala:280-286`; `JitCost.toBlockCost = value / 10`). The mid-reduction JIT ceiling handed to `evaluateWith` is `(maxBlockCost − runningBlock) × 10`; a reduction exceeding it surfaces `EvalError('cost-limit-exceeded')` unwrapped. Storage-rent inputs add 0.
+
+**Crypto cost (closed).** The sigma-verification cost is `estimateCryptoCost` (`@ergots/ergoscript`), ported from the JVM `Interpreter.estimateCryptoVerifyCost` (per-leaf ProveDlog 3980 / ProveDhTuple 7140; conjecture node 15; threshold polynomial). The earlier deferral (phase 2 under-counted by this term) is CLOSED. Verdict equivalence with the JVM is pinned by the SANTA `cost-limit-boundary` vector (`test/fixtures/conformance/`). Because the JVM truncates each input's cost to block independently, ergots only needs eval cost correct to within a block (10 JIT) — robust to sub-10-JIT eval differences.
 
 ## Provenance and validation
 
