@@ -185,12 +185,12 @@ function deleteInner(
 
   // Easy case 1 (Rust lines 469-494): direction >= 0 AND r.right is a Leaf.
   if (direction >= 0 && node.right.kind === 'leaf') {
-    return tryEasyDeleteRightLeaf(node, node.right, direction, deleteMax, op, saved)
+    return tryEasyDeleteRightLeaf(node, node.right, direction, deleteMax, op, callbacks, saved)
   }
 
   // Easy case 2 (Rust lines 495-511): direction == 0 AND r.left is a Leaf.
   if (direction === 0 && node.left.kind === 'leaf') {
-    return tryEasyDeleteLeftLeaf(node, node.left, op)
+    return tryEasyDeleteLeftLeaf(node, node.left, op, callbacks)
   }
 
   // Hard cases (Rust lines 512-633).
@@ -235,6 +235,7 @@ function tryEasyDeleteRightLeaf(
   direction: -1 | 0 | 1,
   deleteMax: boolean,
   op: Operation,
+  callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
   if (deleteMax) {
@@ -256,7 +257,7 @@ function tryEasyDeleteRightLeaf(
     // mode but flag is false — proof inconsistency.
     return { ok: false, reason: 'proof-malformed' }
   }
-  const newLeft = changeNextLeafKeyOfMaxNode(node.left, rightLeaf.nextLeafKey, op)
+  const newLeft = changeNextLeafKeyOfMaxNode(node.left, rightLeaf.nextLeafKey, callbacks, op)
   if (!newLeft.ok) return newLeft
   return { ok: true, newSubtreeRoot: newLeft.node, heightDecreased: true }
 }
@@ -287,10 +288,11 @@ function tryEasyDeleteLeftLeaf(
   node: InternalNode,
   leftLeaf: LeafNode,
   op: Operation,
+  callbacks: AvlTreeOpsCallbacks,
 ): DeleteInner {
   // Rust lines 501-509. Recurse into node.right's leftmost leaf, replacing
   // its key and value with the deleted left leaf's key and value.
-  const newRight = changeKeyAndValueOfMinNode(node.right, leftLeaf.key, leftLeaf.value, op)
+  const newRight = changeKeyAndValueOfMinNode(node.right, leftLeaf.key, leftLeaf.value, callbacks, op)
   if (!newRight.ok) return newRight
   return { ok: true, newSubtreeRoot: newRight.node, heightDecreased: true }
 }
@@ -373,6 +375,7 @@ function hardDeleteLeftDescent(
       node.right,
       savedLeaf.key,
       savedLeaf.value,
+      callbacks,
       op,
     )
     if (!newRightSubtree.ok) return newRightSubtree
@@ -620,17 +623,24 @@ type ChangeResult =
 function changeNextLeafKeyOfMaxNode(
   node: AvlNode,
   newNextLeafKey: Uint8Array,
-  _op: Operation,
+  callbacks: AvlTreeOpsCallbacks,
+  op: Operation,
 ): ChangeResult {
   // Rust lines 408-409: Leaf branch.
   if (node.kind === 'leaf') {
+    // Visit the OLD leaf before creating the replacement, so packTree (which
+    // traverses from oldTopNode) can find it in modifiedNodes. In Rust this is
+    // unnecessary (the leaf is mutated in place, Rc identity preserved), but
+    // in our immutable model the replacement is a fresh object — the old leaf
+    // must be marked so the proof encoder expands it instead of emitting a label.
+    callbacks.onNodeVisit(node, op, false)
     // LeafNode::update(r_node, &node.hdr.key.unwrap(), &node.value, &next_leaf_key)
     // — same key, same value, new nextLeafKey.
     return { ok: true, node: newLeaf(node.key, node.value, newNextLeafKey) }
   }
   // Rust lines 410-411: Internal branch — recurse into right.
   if (node.kind === 'internal') {
-    const recursed = changeNextLeafKeyOfMaxNode(node.right, newNextLeafKey, _op)
+    const recursed = changeNextLeafKeyOfMaxNode(node.right, newNextLeafKey, callbacks, op)
     if (!recursed.ok) return recursed
     // InternalNode::update(r_node, &node.left, &recursed, node.balance)
     return {
@@ -664,16 +674,20 @@ function changeKeyAndValueOfMinNode(
   node: AvlNode,
   newKey: Uint8Array,
   newValue: Uint8Array,
-  _op: Operation,
+  callbacks: AvlTreeOpsCallbacks,
+  op: Operation,
 ): ChangeResult {
   // Rust lines 426-427: Leaf branch.
   if (node.kind === 'leaf') {
+    // Visit the OLD leaf before creating the replacement (see changeNextLeafKeyOfMaxNode
+    // for rationale — same immutable-model divergence from Rust's in-place mutation).
+    callbacks.onNodeVisit(node, op, false)
     // LeafNode::update(r_node, new_key, new_value, &node.next_node_key)
     return { ok: true, node: newLeaf(newKey, newValue, node.nextLeafKey) }
   }
   // Rust lines 428-429: Internal branch — recurse into left.
   if (node.kind === 'internal') {
-    const recursed = changeKeyAndValueOfMinNode(node.left, newKey, newValue, _op)
+    const recursed = changeKeyAndValueOfMinNode(node.left, newKey, newValue, callbacks, op)
     if (!recursed.ok) return recursed
     // InternalNode::update(r_node, &recursed, &node.right, node.balance)
     return {
