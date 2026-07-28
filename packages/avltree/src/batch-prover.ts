@@ -105,19 +105,17 @@ export class BatchAVLProver {
     this.keyLength = keyLength
     this.valueLengthOpt = valueLengthOpt
 
-    // Rust lines 65-73: initialize empty tree with ±inf sentinel leaves
+    // Rust lines 65-73: initialize empty tree with a single neg-inf sentinel leaf.
+    // The leaf's nextLeafKey = posInfKey so it spans the entire key space.
+    // This matches Rust's AVLTree — the empty tree is a single LeafNode, NOT an
+    // internal node with two sentinel leaves.
     const negInfKey = new Uint8Array(keyLength) // all zeroes
     const posInfKey = new Uint8Array(keyLength)
     posInfKey.fill(0xff)
     const dummyValue = new Uint8Array(valueLengthOpt ?? 0)
 
-    const negInfLeaf = newLeaf(negInfKey, dummyValue, posInfKey)
-    // positive-inf leaf: key=posInfKey, value=dummy, nextLeafKey=posInfKey (self-loop)
-    const posInfLeaf = newLeaf(posInfKey, dummyValue, posInfKey)
-
-    // Internal node with two sentinel leaves, balance 0
-    this.root = newInternal(negInfLeaf, posInfLeaf, 0, posInfKey)
-    this.height = 1
+    this.root = newLeaf(negInfKey, dummyValue, posInfKey)
+    this.height = 0 // single leaf has height 0
     this.oldTopNode = this.root
   }
 

@@ -7,11 +7,9 @@ describe('BatchAVLProver', () => {
     const d = prover.digest()
     expect(d).not.toBeNull()
     expect(d!.length).toBe(33)
-    // Height byte is the last byte; tree with only sentinel leaves has height 1
-    // (the sentinel internal node counts as a level)
-    expect(d![32]).toBe(1)
-    // The root label is deterministic — blake2b of (0x01 || 0x00 || negInfLabel || posInfLabel)
-    // where each leaf label is blake2b(0x00 || key || value || nextLeafKey)
+    // Height byte is the last byte; empty tree is a single sentinel leaf → height 0
+    expect(d![32]).toBe(0)
+    // The root label is deterministic — blake2b of (0x00 || negInfKey || dummyValue || posInfKey)
     // Verify the root label is non-zero (not all zeroes)
     const rootLabel = d!.slice(0, 32)
     const allZero = rootLabel.every((b) => b === 0)
