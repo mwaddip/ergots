@@ -6,7 +6,7 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 
 ## Scope
 
-**Ships in this contract (v0.2.0):**
+**Ships in this contract (v0.3.0):**
 
 1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values. All-or-nothing: any per-op failure collapses to `null`. Thin wrapper over `verifyAvlBatchPartial`.
 2. `verifyAvlBatchPartial` — partial-success variant. On per-op failure, returns `{ newDigest, results, opsCompleted }` reflecting state AFTER the last successful op. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` semantics (break-on-failure with state-after-last-success).
@@ -14,13 +14,14 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 4. All 8 `Operation` variants: `Lookup`, `UnknownModification`, `Insert`, `Update`, `InsertOrUpdate`, `UpdateLongBy`, `Remove`, `RemoveIfExists`.
 5. `AvlTreeConfig` — verifier-input shape (key length, optional fixed value length, optional DoS bounds).
 6. `AvlVerifyError` — programmer-error rejection class with 7 typed codes.
-7. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+7. `BatchAVLProver` — in-memory AVL+ tree prover. Builds a tree from authenticated operations, records traversal directions, and generates serialized AD proofs suitable for verification by `verifyAvlBatch`.
+8. `PersistentBatchAVLProver` — wraps a `BatchAVLProver` with versioned storage, enabling rollback across proof-generation cycles.
+9. `VersionedAVLStorage` — interface for persistent AVL+ tree storage. No concrete implementation ships; consumers provide their own.
+10. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
 **Does NOT ship:**
 
-- `BatchAVLProver` (prover side of `ergo_avltree_rust`). Verifier-only port; the project identity is a verifier kernel.
-- `persistent_batch_avl_prover` and `versioned_avl_storage`. Storage abstractions with no consumer in the verifier path.
-- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.2.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
+- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.3.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
 
@@ -117,6 +118,62 @@ export type ADValue  = Uint8Array
 export type OperationResult = Uint8Array | null  // null = key was absent before op
 ```
 
+## Prover surface (v0.3.0)
+
+```ts
+class BatchAVLProver {
+  constructor(keyLength: number, valueLengthOpt: number | null)
+  performOneOperation(op: Operation): ProverOperationResult
+  generateProof(): Uint8Array
+  unauthenticatedLookup(key: Uint8Array): Uint8Array | null
+  digest(): Uint8Array | null
+  generateProofForOperations(operations: Operation[]): { proof: Uint8Array; digest: Uint8Array } | { success: false }
+}
+
+class PersistentBatchAVLProver {
+  constructor(
+    prover: BatchAVLProver,
+    storage: VersionedAVLStorage,
+    additionalData: [Uint8Array, Uint8Array][],
+  )
+  performOneOperation(operation: Operation): ProverOperationResult
+  unauthenticatedLookup(key: Uint8Array): Uint8Array | null
+  digest(): Uint8Array | null
+  height(): number
+  generateProofAndUpdateStorage(additionalData: [Uint8Array, Uint8Array][]): Uint8Array
+  rollback(version: Uint8Array): void
+}
+
+interface VersionedAVLStorage {
+  update(prover: BatchAVLProver, additionalData: [Uint8Array, Uint8Array][]): void
+  rollback(version: Uint8Array): [root: unknown, height: number]
+  version(): Uint8Array | null
+  rollbackVersions(): Uint8Array[]
+  flush(): void
+}
+
+type ProverOperationResult =
+  | { success: true; value: Uint8Array | null }
+  | { success: false }
+```
+
+#### `BatchAVLProver`
+
+- **`new BatchAVLProver(keyLength, valueLengthOpt)`** — constructs an empty AVL+ tree seeded with -inf/+inf sentinel leaves. `keyLength` must be > 0; `valueLengthOpt` is `null` for variable-length values or a positive integer for fixed-length.
+- **`performOneOperation(op)`** — applies a single operation (Insert, Update, Remove, etc.) to the in-memory tree, recording traversal directions for proof generation. Returns `{ success: true, value }` on success (`value` is the old value or `null` if the key was absent) or `{ success: false }` on precondition failure.
+- **`generateProof()`** — serializes the proof covering all operations since the last call to `generateProof()` (or since construction). Uses the same packed proof format as `ergo_avltree_rust`'s `BatchAVLProver`. Resets direction-tracking state after generation.
+- **`unauthenticatedLookup(key)`** — walks the tree without modifying it. Returns the value at `key`, or `null` if absent. Does not record directions or touch modified-nodes tracking.
+- **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned (`root === null`).
+- **`generateProofForOperations(operations)`** — clones the current tree, applies the given operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
+
+#### `PersistentBatchAVLProver`
+
+Wraps a `BatchAVLProver` with a `VersionedAVLStorage` implementation. On construction, it either rolls back to the stored version (if one exists) or generates an initial proof and writes the new version to storage. All tree-modifying operations are delegated to the inner `BatchAVLProver`; the storage layer is updated on each `generateProofAndUpdateStorage` call.
+
+#### `VersionedAVLStorage`
+
+Interface for persistent tree storage. Consumers implement this for their storage backend (in-memory, redb, SQLite, etc.). The `update` method is called after operations are applied but before proof generation; `rollback` restores the tree to a prior version. No concrete implementation ships with the package.
+
 ## Failure model overview
 
 The package enforces a strict two-tier failure model:
@@ -199,7 +256,7 @@ All 8 `Operation` variants are implemented and covered by fixtures:
 | `Remove` | signal `needsDelete`; delete pass | fail (`key-not-found`) |
 | `RemoveIfExists` | signal `needsDelete`; delete pass | no-op (absent key; no change) |
 
-Verifier-only: `BatchAVLProver` is not ported to TS. The prover is used during fixture generation (Rust side of `fixture-gen/`) but has no TS surface.
+Prover support: `BatchAVLProver` and `PersistentBatchAVLProver` are now ported to TS (v0.3.0). The verifier and prover share the same mutation engine (`modify.ts` / `delete.ts`) through the `AvlTreeOpsCallbacks` interface. The Rust `fixture-gen/` crate remains the authoritative fixture source for byte-equality validation.
 
 ## Source mapping to `ergo_avltree_rust`
 

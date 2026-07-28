@@ -27,7 +27,7 @@ describe('Prover proof mutation → verifier rejects', () => {
     let killed = 0
     for (let i = 0; i < proof.length; i++) {
       const mutated = new Uint8Array(proof)
-      mutated[i] ^= 0x01 // flip LSB
+      mutated[i] = (mutated[i] ?? 0) ^ 0x01 // flip LSB
       const result = verifyAvlBatch(startDigest, mutated, config, [
         { tag: 'Insert', key, value },
       ])

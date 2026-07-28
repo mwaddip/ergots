@@ -1,6 +1,6 @@
 {
   "name": "@ergots/avltree",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publishConfig": { "access": "public" },
   "description": "Pure-TypeScript Ergo batch AVL+ authenticated tree verifier — proof verification + per-operation result computation.",
   "type": "module",
