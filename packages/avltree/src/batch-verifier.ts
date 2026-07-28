@@ -30,7 +30,9 @@ import { parseProofPackedTree } from './proof-decode.js'
 import { modifyHelper } from './modify.js'
 import { deleteHelper } from './delete.js'
 import { label, type AvlNode } from './node.js'
-import type { TraversalState } from './tree-traversal.js'
+import type { InternalNode, LeafNode } from './node.js'
+import { nextDirectionIsLeft, keyMatchesLeaf, replayComparison, type TraversalState } from './tree-traversal.js'
+import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
@@ -152,6 +154,35 @@ export class BatchAvlVerifier {
   }
 
   /**
+   * Build verifier-specific callbacks that consume from the proof's
+   * directions bit-string. Each callback closes over this.proof and
+   * this.state for the current operation's traversal.
+   *
+   * The verifier reads direction from proof bytes (not by comparing keys),
+   * so nextDirectionIsLeft ignores its `key` and `r` parameters. The prover's
+   * implementation of the same callback WILL use them.
+   */
+  private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
+    const proof = this.proof
+    const state = this.state
+    return {
+      nextDirectionIsLeft: (_key: Uint8Array, _r: InternalNode) => {
+        return nextDirectionIsLeft(proof, state)
+      },
+      keyMatchesLeaf: (key: Uint8Array, leaf: LeafNode) => {
+        return keyMatchesLeaf(key, leaf)
+      },
+      replayComparison: () => {
+        return replayComparison(proof, state)
+      },
+      onNodeVisit: (_node: AvlNode, _operation: Operation, _isRotate: boolean) => {
+        // Verifier: no-op — doesn't track modified nodes
+      },
+      getFailedReason: () => state.failedReason,
+    }
+  }
+
+  /**
    * Ports BatchAVLVerifier::perform_one_operation (lines 157-172) plus the
    * orchestration body from authenticated_tree_ops.rs::
    * return_result_of_one_operation (lines 221-248).
@@ -228,7 +259,8 @@ export class BatchAvlVerifier {
     // Phase 1 — Rust line 232-233:
     //   let (new_root_node, _, height_increased, to_delete, old_value) =
     //       self.modify_helper(root_node, &key, operation)?;
-    const modifyResult = modifyHelper(this.root, op, this.proof, this.state)
+    const callbacks = this.buildCallbacks(op)
+    const modifyResult = modifyHelper(this.root, op, callbacks)
     if (!modifyResult.ok) {
       // Rust lines 167-170: on Err from return_result_of_one_operation,
       // root=None and height=0. Mirror that poisoning.
@@ -253,7 +285,7 @@ export class BatchAvlVerifier {
       // cursor) and `lastRightStep` (set by modifyHelper during its descent).
       // It does NOT advance `directionsIndex` further (replay_comparison only
       // advances replayIndex).
-      const deleteResult = deleteHelper(modifyResult.newSubtreeRoot, op, this.proof, this.state)
+      const deleteResult = deleteHelper(modifyResult.newSubtreeRoot, op, callbacks)
       if (!deleteResult.ok) {
         // Rust same poisoning rule: on Err, root=None and height=0.
         this.root = null

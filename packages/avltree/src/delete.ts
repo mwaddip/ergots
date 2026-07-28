@@ -445,9 +445,9 @@ function rebalanceShrinkLeft(
     callbacks.onNodeVisit(rotateNode, op, true)
     // Rust line 551: `self.double_left_rotate(&new_root, &new_left, &root_right)`.
     // doubleLeftRotate takes a parent node and reads .right + .right.left
-    // (we synthesize that parent here). The balance on the synthesized parent
-    // is irrelevant.
-    const tempParent = newInternal(newLeft, rootRight, 0, rootRight.key)
+    // (we synthesize that parent here). The key must match the Rust r_node
+    // (new_root / rotateNode), not the right child.
+    const tempParent = newInternal(newLeft, rootRight, 0, rotateNode.key)
     const rotated = doubleLeftRotate(tempParent)
     return { ok: true, newSubtreeRoot: rotated, heightDecreased: true }
   }
@@ -456,8 +456,9 @@ function rebalanceShrinkLeft(
   // Rust line 560: new_left_child balance = 1 - right_child.balance.
   //   right_child.balance == 0 → new_left_child.balance = 1.
   //   right_child.balance == 1 → new_left_child.balance = 0.
+  // Rust: new_left_child template = r_node (rotateNode), key = rotateNode.key
   const newLeftChildBalance: Balance = (1 - rootRight.balance) as Balance
-  const newLeftChild = newInternal(newLeft, rootRight.left, newLeftChildBalance, rootRight.key)
+  const newLeftChild = newInternal(newLeft, rootRight.left, newLeftChildBalance, rotateNode.key)
 
   // Rust line 562: new_rbalance = right_child.balance - 1.
   //   right_child.balance == 0 → -1.
@@ -563,8 +564,9 @@ function rebalanceShrinkRight(
     callbacks.onNodeVisit(node, op, true)
     // Rust line 600: `self.double_right_rotate(r_node, &r.left, &new_right)`.
     // doubleRightRotate takes a parent and reads .left + .left.right
-    // (we synthesize that parent here).
-    const tempParent = newInternal(rootLeft, newRight, 0, rootLeft.key)
+    // (we synthesize that parent here). The key must match the Rust r_node
+    // (node), not the left child.
+    const tempParent = newInternal(rootLeft, newRight, 0, node.key)
     const rotated = doubleRightRotate(tempParent)
     return { ok: true, newSubtreeRoot: rotated, heightDecreased: true }
   }
@@ -573,8 +575,9 @@ function rebalanceShrinkRight(
   // Rust line 607: new_right_child balance = -left_child.balance - 1.
   //   left_child.balance ==  0 → new_right_child.balance = -1.
   //   left_child.balance == -1 → new_right_child.balance =  0.
+  // Rust: new_right_child template = r_node (node), key = node.key
   const newRightChildBalance: Balance = (-rootLeft.balance - 1) as Balance
-  const newRightChild = newInternal(rootLeft.right, newRight, newRightChildBalance, rootLeft.key)
+  const newRightChild = newInternal(rootLeft.right, newRight, newRightChildBalance, node.key)
 
   // Rust line 609: new_rbalance = 1 + left_child.balance.
   //   left_child.balance ==  0 → 1.

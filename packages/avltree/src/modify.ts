@@ -491,7 +491,9 @@ function rotateLeftDescent(
     // Rust line 338-339:
     //   new_r = InternalNode::update(r_node, new_leftm.right, r.right, 0)
     //   root  = InternalNode::update(new_leftm, new_leftm.left, new_r, 0)
-    const newR = newInternal(newLeftm.right, node.right, 0, newLeftm.key)
+    // new_r: template=r_node → key from original parent (node.key)
+    // root:  template=new_leftm → key from promoted child (newLeftm.key)
+    const newR = newInternal(newLeftm.right, node.right, 0, node.key)
     const newRoot = newInternal(newLeftm.left, newR, 0, newLeftm.key)
     return {
       ok: true,
@@ -506,8 +508,9 @@ function rotateLeftDescent(
   // Rust line 341: `else { self.double_right_rotate(r_node, &new_leftm, &r.right) }`.
   // doubleRightRotate from rotation.ts takes (parent) and reads .left/.right
   // internally — so we synthesize a parent whose left = newLeftm, right = node.right.
-  // The temporary parent's balance is irrelevant — doubleRightRotate ignores it.
-  const tempParent = newInternal(newLeftm, node.right, 0, newLeftm.key)
+  // The temporary parent's key must be node.key (original parent, like Rust's r_node).
+  // The balance is irrelevant — doubleRightRotate ignores it.
+  const tempParent = newInternal(newLeftm, node.right, 0, node.key)
   const rotated = doubleRightRotate(tempParent)
   return {
     ok: true,
@@ -595,7 +598,9 @@ function rotateRightDescent(
     // Rust lines 364-365:
     //   new_r = InternalNode::update(r_node, r.left, new_rightm.left, 0)
     //   root  = InternalNode::update(new_rightm, new_r, new_rightm.right, 0)
-    const newR = newInternal(node.left, newRightm.left, 0, newRightm.key)
+    // new_r: template=r_node → key from original parent (node.key)
+    // root:  template=new_rightm → key from promoted child (newRightm.key)
+    const newR = newInternal(node.left, newRightm.left, 0, node.key)
     const newRoot = newInternal(newR, newRightm.right, 0, newRightm.key)
     return {
       ok: true,
@@ -610,7 +615,8 @@ function rotateRightDescent(
   // Rust line 367: `else { self.double_left_rotate(r_node, &r.left, &new_rightm) }`.
   // doubleLeftRotate takes (parent) and reads .left/.right internally.
   // Synthesize a parent whose left = node.left, right = newRightm.
-  const tempParent = newInternal(node.left, newRightm, 0, newRightm.key)
+  // The temporary parent's key must be node.key (original parent, like Rust's r_node).
+  const tempParent = newInternal(node.left, newRightm, 0, node.key)
   const rotated = doubleLeftRotate(tempParent)
   return {
     ok: true,

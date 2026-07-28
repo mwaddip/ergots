@@ -71,14 +71,15 @@ export function doubleLeftRotate(node: InternalNode): InternalNode {
   //                       new_root.left, new_left_balance)
   // i.e. the new left child inherits the original node's left as its left,
   // and new_root.left as its right.
-  const newLeftChild = newInternal(node.left, newRoot.left, newLeftBalance)
+  // Rust update() preserves the key from the template node (r_node / left_child).
+  const newLeftChild = newInternal(node.left, newRoot.left, newLeftBalance, node.key)
 
   // Rust lines 155-160: new_right_child = update(right_child, new_root.right,
   //                       right_child.right, new_right_balance)
-  const newRightChild = newInternal(newRoot.right, r.right, newRightBalance)
+  const newRightChild = newInternal(newRoot.right, r.right, newRightBalance, r.key)
 
   // Rust line 161: root = update(new_root, new_left_child, new_right_child, 0)
-  return newInternal(newLeftChild, newRightChild, 0)
+  return newInternal(newLeftChild, newRightChild, 0, newRoot.key)
 }
 
 /**
@@ -127,14 +128,15 @@ export function doubleRightRotate(node: InternalNode): InternalNode {
 
   // Rust lines 185-190: new_right_child = update(current_root, new_root.right,
   //                       right_child, new_right_balance)
-  const newRightChild = newInternal(newRoot.right, node.right, newRightBalance)
+  // Rust update() preserves the key from the template node (r_node / left_child).
+  const newRightChild = newInternal(newRoot.right, node.right, newRightBalance, node.key)
 
   // Rust lines 191-196: new_left_child = update(left_child, left_child.left,
   //                       new_root.left, new_left_balance)
-  const newLeftChild = newInternal(l.left, newRoot.left, newLeftBalance)
+  const newLeftChild = newInternal(l.left, newRoot.left, newLeftBalance, l.key)
 
   // Rust line 197: root = update(new_root, new_left_child, new_right_child, 0)
-  return newInternal(newLeftChild, newRightChild, 0)
+  return newInternal(newLeftChild, newRightChild, 0, newRoot.key)
 }
 
 /**
