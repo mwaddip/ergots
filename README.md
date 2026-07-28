@@ -8,14 +8,15 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 | Package | Version | What it does |
 |---|---|---|
-| `@ergots/scorex` | 0.3.0 | Shared Scorex wire codec — `ByteReader` / `ByteWriter`, VLQ and ZigZag-VLQ integers, block-header types (`Header`, `AutolykosSolution`, digest helpers), and the Autolykos v2 proof-of-work verifier (`verifyAutolykosV2`, `decodeCompactBits`). Consumed by `@ergots/nipopow` and `@ergots/ergoscript`. 200 tests. |
-| `@ergots/nipopow` | 0.2.0 | NiPoPoW (Non-Interactive Proofs of Proof-of-Work) — proof parse / serialize / verify / compare, plus the peer-to-peer envelope codec. 247 tests. |
-| `@ergots/avltree` | 0.2.0 | Batch AVL+ authenticated-tree verifier (`verifyAvlBatch`, `verifyAvlBatchPartial`, `verifyAvlLookup`), with a mutation-tested fixture corpus. 156 tests. |
-| `@ergots/ergoscript` | 0.3.0 | ErgoTree parser, serializer, evaluator, and sigma-protocol verifier. Parses and re-serializes the full ErgoTree wire format byte-for-byte; evaluates scripts — every implementable expression form, plus an extensive method surface covering both the v5 language and the v6 (ErgoTree V3) additions — with execution costs matched to the reference; verifies sigma-protocol propositions (Schnorr and Diffie-Hellman leaves, AND / OR / threshold conjectures) via `@noble/curves`; and checks authenticated AVL+ operations through `@ergots/avltree`. 6425 tests. |
+| `@ergots/scorex` | 0.3.0 | Shared Scorex wire codec — `ByteReader` / `ByteWriter`, VLQ and ZigZag-VLQ integers, block-header types (`Header`, `AutolykosSolution`, digest helpers), and the Autolykos v2 proof-of-work verifier (`verifyAutolykosV2`, `decodeCompactBits`). Consumed by `@ergots/nipopow` and `@ergots/ergoscript`. 216 tests. |
+| `@ergots/nipopow` | 0.2.1 | NiPoPoW (Non-Interactive Proofs of Proof-of-Work) — proof parse / serialize / verify / compare, plus the peer-to-peer envelope codec. 247 tests. |
+| `@ergots/avltree` | 0.3.0 | Batch AVL+ authenticated-tree verifier + prover. Verifier: `verifyAvlBatch` / `verifyAvlLookup`, mutation-tested fixture corpus against the Rust reference. Prover: `BatchAVLProver` (in-memory tree construction + proof generation), `PersistentBatchAVLProver` (versioned storage wrapper with rollback), `VersionedAVLStorage` interface. Prover proofs validated byte-for-byte against 10 Rust-generated fixtures. 192 tests. |
+| `@ergots/ergoscript` | 0.5.0 | ErgoTree parser, serializer, evaluator, and sigma-protocol verifier. Parses and re-serializes the full ErgoTree wire format byte-for-byte; evaluates scripts — every implementable expression form, plus an extensive method surface covering both the v5 language and the v6 (ErgoTree V3) additions — with execution costs matched to the reference; verifies sigma-protocol propositions (Schnorr and Diffie-Hellman leaves, AND / OR / threshold conjectures) via `@noble/curves`; and checks authenticated AVL+ operations through `@ergots/avltree`. 6479 tests. |
+| `@ergots/transaction` | 0.1.0 | Ergo transaction wire codec + validation logic. Parses and serializes Ergo transactions byte-for-byte against the reference; validates transaction structure, box state transitions, storage rent, and block-cost limits. Depends on `@ergots/ergoscript` for script evaluation. 64 tests. |
 
-All four packages are published to npm under the `@ergots/*` scope.
+All five packages are published to npm under the `@ergots/*` scope.
 
-Total tests across packages: **7028**, passing under both `node` and `jsdom` (cross-runtime).
+Total tests across packages: **7338**, passing under both `node` and `jsdom` (cross-runtime).
 
 A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md).
 
