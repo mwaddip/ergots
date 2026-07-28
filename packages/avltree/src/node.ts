@@ -45,6 +45,13 @@ export interface LeafNode {
  */
 export interface InternalNode {
   readonly kind: 'internal'
+  /**
+   * Key stored at this internal node for prover traversal.
+   * The verifier reads keys from proof directions and ignores this field.
+   * Set by the shared engine (modify.ts/delete.ts) on every newInternal call;
+   * undefined only for proof-decode.ts reconstructed nodes (verifier-only).
+   */
+  readonly key?: Uint8Array
   left: AvlNode
   right: AvlNode
   balance: Balance
@@ -109,8 +116,9 @@ export function newInternal(
   left: AvlNode,
   right: AvlNode,
   balance: Balance,
+  key?: Uint8Array,
 ): InternalNode {
-  return { kind: 'internal', left, right, balance, labelCache: null }
+  return { kind: 'internal', key, left, right, balance, labelCache: null }
 }
 
 /**

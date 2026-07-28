@@ -39,11 +39,7 @@ import {
   doubleLeftRotate,
   doubleRightRotate,
 } from './rotation.js'
-import {
-  keyMatchesLeaf,
-  nextDirectionIsLeft,
-  type TraversalState,
-} from './tree-traversal.js'
+import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import { updateFn, type Operation } from './operation.js'
 import type { AvlVerifyFailReason } from './errors.js'
 
@@ -99,28 +95,27 @@ export type ModifyResult = ModifyOk | ModifyFail
 
 /**
  * Ports authenticated_tree_ops.rs::modify_helper (lines 262-385).
- * Walks the tree per the proof's directions, applies the operation at the
- * matching leaf, and rebalances the subtree on the way back up.
+ * Walks the tree per the callbacks' direction decisions, applies the operation
+ * at the matching leaf, and rebalances the subtree on the way back up.
  *
  * Top-level dispatch on `node.kind`:
  *  - 'leaf'      → handleLeafNode (leaf-match check + per-op semantics)
- *  - 'internal'  → handleInternalNode (recurse + rebalance, consumes one direction bit)
+ *  - 'internal'  → handleInternalNode (recurse + rebalance, consumes one direction decision)
  *  - 'label'     → 'proof-malformed' (mirrors Rust line 381-382 bail)
  *
- * `proof` and `state` are threaded through to handleInternalNode where the
- * directions bit-string is consumed during descent (nextDirectionIsLeft).
+ * `callbacks` provides direction, key-matching, visit-tracking, and failure
+ * reporting — the verifier and prover each supply their own implementation.
  */
 export function modifyHelper(
   node: AvlNode,
   op: Operation,
-  proof: Uint8Array,
-  state: TraversalState,
+  callbacks: AvlTreeOpsCallbacks,
 ): ModifyResult {
   switch (node.kind) {
     case 'leaf':
-      return handleLeafNode(node, op)
+      return handleLeafNode(node, op, callbacks)
     case 'internal':
-      return handleInternalNode(node, op, proof, state)
+      return handleInternalNode(node, op, callbacks)
     case 'label':
       // Rust line 381-382: `_ => bail!("...this proof is wrong")`.
       // A LabelNode at this point means the proof's "directions" descended
@@ -149,18 +144,18 @@ export function modifyHelper(
  * the TS variant returns a result with an explicit failure mode for
  * "leaf-key-out-of-order" (proof-malformed → caller rejects).
  */
-function handleLeafNode(leaf: LeafNode, op: Operation): ModifyResult {
+function handleLeafNode(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallbacks): ModifyResult {
   // Rust line 278: `if self.key_matches_leaf(key, &r)? { ... }`
-  const m = keyMatchesLeaf(op.key, leaf)
+  const m = callbacks.keyMatchesLeaf(op.key, leaf)
   if (!m.ok) {
     // 'leaf-key-out-of-order' propagates as a verification failure.
     return { ok: false, reason: m.reason }
   }
 
   if (m.matches) {
-    return handleLeafMatch(leaf, op)
+    return handleLeafMatch(leaf, op, callbacks)
   }
-  return handleLeafGap(leaf, op)
+  return handleLeafGap(leaf, op, callbacks)
 }
 
 /**
@@ -185,13 +180,14 @@ function handleLeafNode(leaf: LeafNode, op: Operation): ModifyResult {
  *                             → 'operation-precondition-failed'.
  *   - (Remove, RemoveIfExists — live in delete.ts T16.)
  */
-function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
+function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallbacks): ModifyResult {
   // Lookup + UnknownModification short-circuit (Rust lines 280-283).
   // UnknownModification's updateFn returns oldValue unchanged — equivalent to
   // Lookup at the tree-structure level (no modification, return existing value).
   // We short-circuit before calling updateFn for UnknownModification too, matching
   // Rust's Lookup branch: (r_node.clone(), false, false, false, Some(r.value)).
   if (op.tag === 'Lookup' || op.tag === 'UnknownModification') {
+    callbacks.onNodeVisit(leaf, op, false)
     return {
       ok: true,
       newSubtreeRoot: leaf,
@@ -223,6 +219,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
   // Note: Remove/RemoveIfExists (also null) are dispatched through delete.ts
   // directly (T16) and never reach this function.
   if (u.newValue === null) {
+    callbacks.onNodeVisit(leaf, op, false)
     return {
       ok: true,
       newSubtreeRoot: leaf,      // Rust: r_node.clone() — unchanged
@@ -236,6 +233,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
   // Update / InsertOrUpdate / UpdateLongBy (non-zero result): replace the leaf
   // with a new one carrying the new value, same key and nextLeafKey (Rust line 293).
   // The Rust impl uses `LeafNode::update(r_node, &r.hdr.key.unwrap(), &v, &r.next_node_key)`.
+  callbacks.onNodeVisit(leaf, op, false)
   const newLeafNode = newLeaf(leaf.key, u.newValue, leaf.nextLeafKey)
   return {
     ok: true,
@@ -266,12 +264,13 @@ function handleLeafMatch(leaf: LeafNode, op: Operation): ModifyResult {
  *   - UpdateLongBy delta == 0 — updateFn returns null (no-op passthrough) → no change.
  *   - (Remove, RemoveIfExists — live in delete.ts T16.)
  */
-function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
+function handleLeafGap(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallbacks): ModifyResult {
   // Lookup + UnknownModification short-circuit (Rust lines 303-305).
   // For UnknownModification on an absent key: updateFn returns null (oldValue=null),
   // which we handle in the null branch below — but we short-circuit here for
   // clarity and to match the Rust structural pattern exactly.
   if (op.tag === 'Lookup' || op.tag === 'UnknownModification') {
+    callbacks.onNodeVisit(leaf, op, false)
     return {
       ok: true,
       newSubtreeRoot: leaf,
@@ -299,6 +298,7 @@ function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
   // Reachable for: RemoveIfExists (absent — no-op), UpdateLongBy delta=0 (no-op).
   // Both: no structural change, no delete needed.
   if (u.newValue === null) {
+    callbacks.onNodeVisit(leaf, op, false)
     return {
       ok: true,
       newSubtreeRoot: leaf,
@@ -313,6 +313,7 @@ function handleLeafGap(leaf: LeafNode, op: Operation): ModifyResult {
   // the existing leaf and the new leaf into a new internal node.
   // Rust line 316: `self.add_node(r_node, &key, &v)`.
   // The new subtree grew by 1 level. (Rust line 316: heightIncreased=true.)
+  callbacks.onNodeVisit(leaf, op, false)
   return {
     ok: true,
     newSubtreeRoot: addNode(leaf, op.key, u.newValue),
@@ -347,7 +348,7 @@ function addNode(leaf: LeafNode, newKey: Uint8Array, newValue: Uint8Array): Inte
   // New leaf points at the old successor.
   const newLeafNode = newLeaf(newKey, newValue, leaf.nextLeafKey)
   // Balance 0: two leaf children of equal height.
-  return newInternal(modifiedOriginal, newLeafNode, 0)
+  return newInternal(modifiedOriginal, newLeafNode, 0, newKey)
 }
 
 // ---------------------------------------------------------------------------
@@ -357,10 +358,11 @@ function addNode(leaf: LeafNode, newKey: Uint8Array, newValue: Uint8Array): Inte
 /**
  * Ports the internal branch of modify_helper (lines 323-380 — `Node::Internal(r) => { ... }`).
  *
- * 1. Read direction bit from the proof: goLeft = nextDirectionIsLeft(...).
- * 2. Recurse into the chosen child.
- * 3. On recursive failure, propagate.
- * 4. On recursive success: if changeHappened, possibly rotate; otherwise return
+ * 1. Get direction from callbacks: goLeft = callbacks.nextDirectionIsLeft(...).
+ * 2. Check getFailedReason() for OOB / error state.
+ * 3. Recurse into the chosen child.
+ * 4. On recursive failure, propagate.
+ * 5. On recursive success: if changeHappened, possibly rotate; otherwise return
  *    the original node unchanged.
  *
  * The post-recursion logic mirrors Rust lines 332-352 (left descent) and
@@ -370,25 +372,24 @@ function addNode(leaf: LeafNode, newKey: Uint8Array, newValue: Uint8Array): Inte
 function handleInternalNode(
   node: InternalNode,
   op: Operation,
-  proof: Uint8Array,
-  state: TraversalState,
+  callbacks: AvlTreeOpsCallbacks,
 ): ModifyResult {
   // Rust line 327: `if self.next_direction_is_left(key, &r) { ... }`
-  // Consumes one direction bit unconditionally (off-by-one in direction
-  // consumption is one of the primary failure modes byte-equality tests catch).
-  const goLeft = nextDirectionIsLeft(proof, state)
-  // Audit AVL-01: bit-read may have run past proof bounds. Surface as failure.
-  if (state.failedReason !== null) {
-    return { ok: false, reason: state.failedReason }
+  const goLeft = callbacks.nextDirectionIsLeft(op.key, node)
+  const failedReason = callbacks.getFailedReason()
+  if (failedReason !== null) {
+    return { ok: false, reason: failedReason }
   }
 
   if (goLeft) {
-    const childResult = modifyHelper(node.left, op, proof, state)
+    const childResult = modifyHelper(node.left, op, callbacks)
     if (!childResult.ok) return childResult
+    callbacks.onNodeVisit(node, op, false)
     return rebalanceLeftDescent(node, childResult)
   }
-  const childResult = modifyHelper(node.right, op, proof, state)
+  const childResult = modifyHelper(node.right, op, callbacks)
   if (!childResult.ok) return childResult
+  callbacks.onNodeVisit(node, op, false)
   return rebalanceRightDescent(node, childResult)
 }
 
@@ -441,7 +442,7 @@ function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult
     : node.balance
 
   // Rust line 347: new internal node with new left, same right, new balance.
-  const newNode = newInternal(child.newSubtreeRoot, node.right, newBalance)
+  const newNode = newInternal(child.newSubtreeRoot, node.right, newBalance, node.key)
   return {
     ok: true,
     newSubtreeRoot: newNode,
@@ -490,8 +491,8 @@ function rotateLeftDescent(
     // Rust line 338-339:
     //   new_r = InternalNode::update(r_node, new_leftm.right, r.right, 0)
     //   root  = InternalNode::update(new_leftm, new_leftm.left, new_r, 0)
-    const newR = newInternal(newLeftm.right, node.right, 0)
-    const newRoot = newInternal(newLeftm.left, newR, 0)
+    const newR = newInternal(newLeftm.right, node.right, 0, newLeftm.key)
+    const newRoot = newInternal(newLeftm.left, newR, 0, newLeftm.key)
     return {
       ok: true,
       newSubtreeRoot: newRoot,
@@ -506,7 +507,7 @@ function rotateLeftDescent(
   // doubleRightRotate from rotation.ts takes (parent) and reads .left/.right
   // internally — so we synthesize a parent whose left = newLeftm, right = node.right.
   // The temporary parent's balance is irrelevant — doubleRightRotate ignores it.
-  const tempParent = newInternal(newLeftm, node.right, 0)
+  const tempParent = newInternal(newLeftm, node.right, 0, newLeftm.key)
   const rotated = doubleRightRotate(tempParent)
   return {
     ok: true,
@@ -557,7 +558,7 @@ function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResul
     : node.balance
 
   // Rust line 373.
-  const newNode = newInternal(node.left, child.newSubtreeRoot, newBalance)
+  const newNode = newInternal(node.left, child.newSubtreeRoot, newBalance, node.key)
   return {
     ok: true,
     newSubtreeRoot: newNode,
@@ -594,8 +595,8 @@ function rotateRightDescent(
     // Rust lines 364-365:
     //   new_r = InternalNode::update(r_node, r.left, new_rightm.left, 0)
     //   root  = InternalNode::update(new_rightm, new_r, new_rightm.right, 0)
-    const newR = newInternal(node.left, newRightm.left, 0)
-    const newRoot = newInternal(newR, newRightm.right, 0)
+    const newR = newInternal(node.left, newRightm.left, 0, newRightm.key)
+    const newRoot = newInternal(newR, newRightm.right, 0, newRightm.key)
     return {
       ok: true,
       newSubtreeRoot: newRoot,
@@ -609,7 +610,7 @@ function rotateRightDescent(
   // Rust line 367: `else { self.double_left_rotate(r_node, &r.left, &new_rightm) }`.
   // doubleLeftRotate takes (parent) and reads .left/.right internally.
   // Synthesize a parent whose left = node.left, right = newRightm.
-  const tempParent = newInternal(node.left, newRightm, 0)
+  const tempParent = newInternal(node.left, newRightm, 0, newRightm.key)
   const rotated = doubleLeftRotate(tempParent)
   return {
     ok: true,
