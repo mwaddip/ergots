@@ -55,10 +55,7 @@ import {
   doubleLeftRotate,
   doubleRightRotate,
 } from './rotation.js'
-import {
-  replayComparison,
-  type TraversalState,
-} from './tree-traversal.js'
+import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import type { Operation } from './operation.js'
 import type { ModifyResult } from './modify.js'
 import type { AvlVerifyFailReason } from './errors.js'
@@ -100,10 +97,9 @@ type SavedNodeRef = { node: LeafNode | null }
  * variant. Begins the second-pass descent at `node` and returns a
  * ModifyResult for uniform consumption by T17's BatchAvlVerifier.
  *
- * Preconditions (caller-enforced — T17 sets these up):
- *   - state.replayIndex points to the start of the directions for this op.
- *   - state.lastRightStep reflects the deepest right step taken during the
- *     prior modifyHelper first pass.
+ * Preconditions (caller-enforced):
+ *   - The callbacks' replayComparison replays the same directions used during
+ *     the prior modifyHelper first pass.
  *   - `node` is the subtree root that modifyHelper returned (unchanged when
  *     needsDelete=true; see modify.ts handleLeafMatch's needsDelete branch).
  *
@@ -114,18 +110,18 @@ type SavedNodeRef = { node: LeafNode | null }
  *   - oldValue       = null (modifyHelper already returned the oldValue)
  *   - needsDelete    = false (the delete IS being performed)
  *
- * `proof` is read by `replayComparison` during descent. `op` is unused for
- * structural behavior (deleteHelper doesn't inspect op.tag — see file-level
- * JSDoc) but kept in the signature for symmetry with modifyHelper.
+ * `callbacks.replayComparison()` replays the comparison from the first pass
+ * during descent. `op` is unused for structural behavior (deleteHelper
+ * doesn't inspect op.tag — see file-level JSDoc) but kept in the signature
+ * for symmetry with modifyHelper and onNodeVisit tracking.
  */
 export function deleteHelper(
   node: AvlNode,
   op: Operation,
-  proof: Uint8Array,
-  state: TraversalState,
+  callbacks: AvlTreeOpsCallbacks,
 ): ModifyResult {
   const saved: SavedNodeRef = { node: null }
-  const result = deleteInner(node, /* deleteMax */ false, op, proof, state, saved)
+  const result = deleteInner(node, /* deleteMax */ false, op, callbacks, saved)
   if (!result.ok) return result
   return {
     ok: true,
@@ -151,17 +147,19 @@ function deleteInner(
   node: AvlNode,
   deleteMax: boolean,
   op: Operation,
-  proof: Uint8Array,
-  state: TraversalState,
+  callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
   // Rust line 458: `let direction = if delete_max { 1 } else { self.replay_comparison() };`
   // deleteMax=true forces direction=1 (we are not searching for a specific key
   // anymore; we are descending the rightmost path of a subtree to find its max).
-  const direction = deleteMax ? 1 : replayComparison(proof, state)
+  const direction = deleteMax ? 1 : callbacks.replayComparison()
   // Audit AVL-01: replay-bit read may have run past proof bounds; surface as failure.
-  if (!deleteMax && state.failedReason !== null) {
-    return { ok: false, reason: state.failedReason }
+  if (!deleteMax) {
+    const failedReason = callbacks.getFailedReason()
+    if (failedReason !== null) {
+      return { ok: false, reason: failedReason }
+    }
   }
 
   // Rust line 460: `if let Node::Internal(r) = self.tree().copy(r_node) { ... }`
@@ -173,6 +171,9 @@ function deleteInner(
     // to land on an internal node).
     return { ok: false, reason: 'proof-malformed' }
   }
+
+  // Rust line 453: `self.on_node_visit(r_node, operation, false)`
+  callbacks.onNodeVisit(node, op, false)
 
   // Rust line 461: `assert!(!(direction < 0 && r.left.borrow().is_leaf()));`
   // If we are descending left looking for the deletion target and the left
@@ -197,11 +198,11 @@ function deleteInner(
     // Rust lines 513-585: going left (or deleteMax-from-here case).
     // The structural assertion (line 461) plus the easy-case exits above
     // guarantee node.left is Internal at this point.
-    return hardDeleteLeftDescent(node, direction, op, proof, state, saved)
+    return hardDeleteLeftDescent(node, direction, op, callbacks, saved)
   }
   // Rust lines 586-633: going right. The easy-case exits guarantee node.right
   // is Internal here (line 469 fired on Leaf right-children).
-  return hardDeleteRightDescent(node, deleteMax, op, proof, state, saved)
+  return hardDeleteRightDescent(node, deleteMax, op, callbacks, saved)
 }
 
 // ---------------------------------------------------------------------------
@@ -330,14 +331,13 @@ function hardDeleteLeftDescent(
   node: InternalNode,
   direction: -1 | 0 | 1,
   op: Operation,
-  proof: Uint8Array,
-  state: TraversalState,
+  callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
   // Rust line 516: recursive call into the left subtree.
   // deleteMax becomes true iff direction == 0 (we're at the deletion site
   // with two non-leaf children — start the deleteMax descent on the left).
-  const childResult = deleteInner(node.left, direction === 0, op, proof, state, saved)
+  const childResult = deleteInner(node.left, direction === 0, op, callbacks, saved)
   if (!childResult.ok) return childResult
   const newLeft = childResult.newSubtreeRoot
   const childHeightDecreased = childResult.heightDecreased
@@ -376,11 +376,11 @@ function hardDeleteLeftDescent(
       op,
     )
     if (!newRightSubtree.ok) return newRightSubtree
-    newRoot = newInternal(newLeft, newRightSubtree.node, node.balance)
+    newRoot = newInternal(newLeft, newRightSubtree.node, node.balance, node.key)
   } else {
     // Rust line 536: `r_node.clone()` — preserve the original node's right
     // and balance, but with the new left from the recursion.
-    newRoot = newInternal(newLeft, node.right, node.balance)
+    newRoot = newInternal(newLeft, node.right, node.balance, node.key)
   }
 
   // Rust lines 538-585: rebalance.
@@ -391,14 +391,14 @@ function hardDeleteLeftDescent(
 
   // Rust line 540: rotation case — child shrank AND we are right-heavy.
   if (childHeightDecreased && rootBalance > 0) {
-    return rebalanceShrinkLeft(newLeft, rootRight)
+    return rebalanceShrinkLeft(newLeft, rootRight, op, callbacks, newRoot)
   }
 
   // Rust lines 574-584: no rotation, just balance update.
   const newBalance: Balance = childHeightDecreased
     ? ((rootBalance + 1) as Balance) // was 0 (childGrew can yield +1=balance 1, OK) or -1 → 0
     : rootBalance
-  const finalNode = newInternal(newLeft, rootRight, newBalance)
+  const finalNode = newInternal(newLeft, rootRight, newBalance, node.key)
   return {
     ok: true,
     newSubtreeRoot: finalNode,
@@ -429,6 +429,9 @@ function hardDeleteLeftDescent(
 function rebalanceShrinkLeft(
   newLeft: AvlNode,
   rootRight: AvlNode,
+  op: Operation,
+  callbacks: AvlTreeOpsCallbacks,
+  rotateNode: InternalNode,
 ): DeleteInner {
   if (rootRight.kind !== 'internal') {
     // Defensive: per Rust line 571's panic, the verifier sees this as a
@@ -438,11 +441,13 @@ function rebalanceShrinkLeft(
 
   // Rust line 546: `if right_child.balance < 0` — double left rotation.
   if (rootRight.balance < 0) {
+    // Rust line 551: `self.on_node_visit(r_node, operation, true)`
+    callbacks.onNodeVisit(rotateNode, op, true)
     // Rust line 551: `self.double_left_rotate(&new_root, &new_left, &root_right)`.
     // doubleLeftRotate takes a parent node and reads .right + .right.left
     // (we synthesize that parent here). The balance on the synthesized parent
     // is irrelevant.
-    const tempParent = newInternal(newLeft, rootRight, 0)
+    const tempParent = newInternal(newLeft, rootRight, 0, rootRight.key)
     const rotated = doubleLeftRotate(tempParent)
     return { ok: true, newSubtreeRoot: rotated, heightDecreased: true }
   }
@@ -452,7 +457,7 @@ function rebalanceShrinkLeft(
   //   right_child.balance == 0 → new_left_child.balance = 1.
   //   right_child.balance == 1 → new_left_child.balance = 0.
   const newLeftChildBalance: Balance = (1 - rootRight.balance) as Balance
-  const newLeftChild = newInternal(newLeft, rootRight.left, newLeftChildBalance)
+  const newLeftChild = newInternal(newLeft, rootRight.left, newLeftChildBalance, rootRight.key)
 
   // Rust line 562: new_rbalance = right_child.balance - 1.
   //   right_child.balance == 0 → -1.
@@ -461,7 +466,7 @@ function rebalanceShrinkLeft(
 
   // Rust lines 563-568: new_r = update(root_right, new_left_child,
   //                       right_child.right, new_rbalance).
-  const newR = newInternal(newLeftChild, rootRight.right, newRBalance)
+  const newR = newInternal(newLeftChild, rootRight.right, newRBalance, rootRight.key)
 
   // Rust line 569: returns (new_r, new_rbalance == 0).
   return { ok: true, newSubtreeRoot: newR, heightDecreased: newRBalance === 0 }
@@ -493,12 +498,11 @@ function hardDeleteRightDescent(
   node: InternalNode,
   deleteMax: boolean,
   op: Operation,
-  proof: Uint8Array,
-  state: TraversalState,
+  callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
   // Rust line 588: recurse right; deleteMax propagates unchanged.
-  const childResult = deleteInner(node.right, deleteMax, op, proof, state, saved)
+  const childResult = deleteInner(node.right, deleteMax, op, callbacks, saved)
   if (!childResult.ok) return childResult
   const newRight = childResult.newSubtreeRoot
   const childHeightDecreased = childResult.heightDecreased
@@ -506,14 +510,14 @@ function hardDeleteRightDescent(
   // Rust line 590: rotation needed iff right subtree shrank AND we were
   // already left-heavy.
   if (childHeightDecreased && node.balance < 0) {
-    return rebalanceShrinkRight(node, newRight)
+    return rebalanceShrinkRight(node, newRight, op, callbacks)
   }
 
   // Rust lines 622-631: no rotation, just balance update.
   const newBalance: Balance = childHeightDecreased
     ? ((node.balance - 1) as Balance) // was 0 → -1 (still valid); +1 → 0 (still valid)
     : node.balance
-  const finalNode = newInternal(node.left, newRight, newBalance)
+  const finalNode = newInternal(node.left, newRight, newBalance, node.key)
   return {
     ok: true,
     newSubtreeRoot: finalNode,
@@ -543,6 +547,8 @@ function hardDeleteRightDescent(
 function rebalanceShrinkRight(
   node: InternalNode,
   newRight: AvlNode,
+  op: Operation,
+  callbacks: AvlTreeOpsCallbacks,
 ): DeleteInner {
   const rootLeft = node.left
   if (rootLeft.kind !== 'internal') {
@@ -553,10 +559,12 @@ function rebalanceShrinkRight(
 
   // Rust line 596: `if left_child.balance > 0` — double right rotation.
   if (rootLeft.balance > 0) {
+    // Rust line 600: `self.on_node_visit(r_node, operation, true)`
+    callbacks.onNodeVisit(node, op, true)
     // Rust line 600: `self.double_right_rotate(r_node, &r.left, &new_right)`.
     // doubleRightRotate takes a parent and reads .left + .left.right
     // (we synthesize that parent here).
-    const tempParent = newInternal(rootLeft, newRight, 0)
+    const tempParent = newInternal(rootLeft, newRight, 0, rootLeft.key)
     const rotated = doubleRightRotate(tempParent)
     return { ok: true, newSubtreeRoot: rotated, heightDecreased: true }
   }
@@ -566,7 +574,7 @@ function rebalanceShrinkRight(
   //   left_child.balance ==  0 → new_right_child.balance = -1.
   //   left_child.balance == -1 → new_right_child.balance =  0.
   const newRightChildBalance: Balance = (-rootLeft.balance - 1) as Balance
-  const newRightChild = newInternal(rootLeft.right, newRight, newRightChildBalance)
+  const newRightChild = newInternal(rootLeft.right, newRight, newRightChildBalance, rootLeft.key)
 
   // Rust line 609: new_rbalance = 1 + left_child.balance.
   //   left_child.balance ==  0 → 1.
@@ -575,7 +583,7 @@ function rebalanceShrinkRight(
 
   // Rust lines 610-615: new_r = update(r.left, left_child.left,
   //                       new_right_child, new_rbalance).
-  const newR = newInternal(rootLeft.left, newRightChild, newRBalance)
+  const newR = newInternal(rootLeft.left, newRightChild, newRBalance, rootLeft.key)
 
   // Rust line 616: returns (new_r, new_rbalance == 0).
   return { ok: true, newSubtreeRoot: newR, heightDecreased: newRBalance === 0 }
@@ -624,7 +632,7 @@ function changeNextLeafKeyOfMaxNode(
     // InternalNode::update(r_node, &node.left, &recursed, node.balance)
     return {
       ok: true,
-      node: newInternal(node.left, recursed.node, node.balance),
+      node: newInternal(node.left, recursed.node, node.balance, node.key),
     }
   }
   // Rust lines 412-414: LabelOnly → panic. For the verifier this is a
@@ -667,7 +675,7 @@ function changeKeyAndValueOfMinNode(
     // InternalNode::update(r_node, &recursed, &node.right, node.balance)
     return {
       ok: true,
-      node: newInternal(recursed.node, node.right, node.balance),
+      node: newInternal(recursed.node, node.right, node.balance, node.key),
     }
   }
   // Rust lines 430-431: LabelOnly → panic. Verifier: malformed proof.
