@@ -11,6 +11,10 @@ export type { AvlTreeConfig, OperationResult } from './types.js'
 export type { Operation } from './operation.js'
 export { AvlVerifyError, type AvlVerifyErrorCode } from './errors.js'
 
-// Internal types (NOT exported): AvlVerifyFailReason, BatchAvlVerifier, node types,
+export { BatchAVLProver, type ProverOperationResult } from './batch-prover.js'
+export { PersistentBatchAVLProver } from './persistent-prover.js'
+export type { VersionedAVLStorage } from './versioned-storage.js'
+
+// Internal types (NOT exported): BatchAvlVerifier, node types,
 // modify/delete helpers, rotation primitives, tree-traversal state.
 // These are implementation detail and may change without notice.
