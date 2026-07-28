@@ -1,10 +1,10 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary verifier and prover. Browser-compatible. Validated byte-for-byte against `ergo_avltree_rust` (HEAD `879545c`).
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, HEAD `042c830`). 192 tests.
 
-Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The package is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript` (phase 2h-b).
+**Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
-The prover (`BatchAVLProver`) builds in-memory AVL+ trees, applies authenticated operations, and generates serialized AD proofs byte-identical to `ergo_avltree_rust`'s output. It ships alongside `PersistentBatchAVLProver` (versioned storage wrapper) and the `VersionedAVLStorage` interface.
+**Prover:** `BatchAVLProver` builds in-memory AVL+ trees from a sequence of authenticated operations, records traversal directions, and generates serialized AD proofs identically to `ergo_avltree_rust`'s output (verified byte-for-byte against 10 Rust-generated fixtures). Also ships `PersistentBatchAVLProver` (versioned-storage wrapper with rollback) and the `VersionedAVLStorage` interface.
 
 ## Install
 
@@ -14,45 +14,47 @@ npm install @ergots/avltree
 
 ## Usage
 
+### Verifier
+
 ```ts
 import { verifyAvlBatch, verifyAvlLookup, type AvlTreeConfig, type Operation } from '@ergots/avltree';
 
-// Config matches the on-chain tree parameters.
-const config: AvlTreeConfig = {
-  keyLength: 32,
-  valueLengthOpt: null,   // variable-length values
-};
+const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null };
+const startingDigest = new Uint8Array(33); // 32-byte root label + 1-byte height
+const proof = new Uint8Array([/* … */]);
 
-// Starting digest from the chain state (33 bytes: 32-byte root label + 1-byte height).
-const startingDigest = new Uint8Array(33);
-// (fill from actual chain state)
-
-// Serialized AD proof bytes from the block's extension section.
-const proof = new Uint8Array([/* aabb...cc */]);
-
-// A batch of operations to verify.
-const operations: Operation[] = [
-  { tag: 'Lookup',  key: new Uint8Array(32) /* actual key bytes */ },
+const result = verifyAvlBatch(startingDigest, proof, config, [
+  { tag: 'Lookup',  key: new Uint8Array(32) },
   { tag: 'Insert',  key: new Uint8Array(32), value: new Uint8Array([0x01, 0x02, 0x03]) },
-];
-
-const result = verifyAvlBatch(startingDigest, proof, config, operations);
+]);
 if (result === null) {
-  // Proof invalid — digest mismatch, malformed proof, or operation precondition failed.
+  // proof invalid
 } else {
-  console.log('new digest:', result.newDigest);  // Uint8Array, 33 bytes
-  console.log('old values:', result.results);    // (Uint8Array | null)[] — null = key was absent
+  console.log(result.newDigest); // Uint8Array, 33 bytes
+  console.log(result.results);   // (Uint8Array | null)[]
 }
+```
 
-// Single-key read convenience wrapper:
-const lookup = verifyAvlLookup(startingDigest, proof, config, new Uint8Array(32));
-if (lookup === null) {
-  // Proof invalid.
-} else if (lookup.value === null) {
-  console.log('key absent from tree');
-} else {
-  console.log('value:', lookup.value);
-}
+### Prover
+
+```ts
+import { BatchAVLProver } from '@ergots/avltree';
+
+const prover = new BatchAVLProver(32, null); // 32-byte keys, variable-length values
+
+// Apply operations
+prover.performOneOperation({
+  tag: 'Insert',
+  key: new Uint8Array(32).fill(0x42),
+  value: new Uint8Array([1, 2, 3, 4]),
+});
+
+// Generate a proof covering all operations since the last generateProof() call
+const proof = prover.generateProof();
+const digest = prover.digest(); // 33 bytes
+
+// Look up a key without proof generation or tree mutation
+const value = prover.unauthenticatedLookup(new Uint8Array(32).fill(0x42));
 ```
 
 See [API.md](./API.md) for the full reference (every export, signature, error codes, and type definitions).
