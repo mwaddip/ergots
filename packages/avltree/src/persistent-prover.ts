@@ -71,5 +71,10 @@ export class PersistentBatchAVLProver {
     const [root, height] = this.storage.rollback(version)
     this.prover.root = root as import('./node.js').AvlNode
     this.prover.height = height
+    // Sync oldTopNode to the restored root — ports ergo_avltree_rust commit 042c830.
+    // Without this, the first generateProof() after rollback walks a stale snapshot
+    // (the dummy-tree root from BatchAVLProver's constructor) instead of the restored
+    // tree, producing a wrong proof.
+    this.prover.oldTopNode = this.prover.root
   }
 }

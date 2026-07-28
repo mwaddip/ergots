@@ -89,7 +89,7 @@ export class BatchAVLProver {
 
   // Operation state (batch_avl_prover.rs:40-43)
   private found = false
-  private oldTopNode: AvlNode | null = null
+  oldTopNode: AvlNode | null = null
 
   // Modified nodes for proof generation (Rust: modified_nodes)
   private modifiedNodes: AvlNode[] = []
