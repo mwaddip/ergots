@@ -1,5 +1,8 @@
 import type { LeafNode } from './node.js'
 import type { AvlVerifyFailReason } from './errors.js'
+import { type KeyMatchesResult } from './avl-tree-ops.js'
+// Re-export so existing consumers don't break
+export type { KeyMatchesResult }
 
 /**
  * Mutable verifier traversal state. Mirrors the directions/replay indices
@@ -92,11 +95,6 @@ export function replayComparison(
   state.replayIndex = i + 1
   return ret
 }
-
-/** Result type for keyMatchesLeaf. */
-export type KeyMatchesResult =
-  | { ok: true; matches: boolean }
-  | { ok: false; reason: AvlVerifyFailReason }
 
 /**
  * Lexicographic comparison of two Uint8Arrays. Returns -1, 0, or 1.
