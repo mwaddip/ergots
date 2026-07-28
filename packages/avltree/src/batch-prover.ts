@@ -22,9 +22,9 @@ import { AvlVerifyError } from './errors.js'
 // Token constants for packed proof format (batch_node.rs:14-16)
 // ---------------------------------------------------------------------------
 
-const LABEL_IN_PACKAGED_PROOF = 0x02
-const LEAF_IN_PACKAGED_PROOF = 0x01
-const END_OF_TREE_IN_PACKAGED_PROOF = 0x00
+const LEAF_IN_PACKAGED_PROOF = 0x02
+const LABEL_IN_PACKAGED_PROOF = 0x03
+const END_OF_TREE_IN_PACKAGED_PROOF = 0x04
 const DIGEST_LENGTH = 32
 
 // ---------------------------------------------------------------------------
@@ -369,7 +369,9 @@ export class BatchAVLProver {
    * of the modified subtree, directions bit-string, and end-of-tree marker.
    */
   generateProof(): Uint8Array {
-    this.modifiedNodes = []
+    // NOTE: Do NOT clear modifiedNodes here — packTree relies on it for
+    // wasModified checks. Clear only after packTree (Rust line ~219:
+    // self.base.modified_nodes.clear() after pack_tree, not before).
     const parts: Uint8Array[] = []
     let previousLeafAvailable = false
 
