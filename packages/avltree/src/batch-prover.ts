@@ -361,6 +361,15 @@ export class BatchAVLProver {
       )
     }
     const rootLabel = label(this.root)
+    // Same defect class as the storage codec's child-label guard: out.set()
+    // zero-pads a short array, so an undersized root digest would produce a
+    // plausible but wrong 33-byte result. newLabel enforces the length, but a
+    // hand-built LabelNode installed via restoreRoot bypasses it.
+    if (rootLabel.length !== DIGEST_LENGTH) {
+      throw new RangeError(
+        `BatchAVLProver.digest: root label length ${rootLabel.length} does not match required digest length ${DIGEST_LENGTH}`,
+      )
+    }
     const out = new Uint8Array(DIGEST_LENGTH + 1)
     out.set(rootLabel, 0)
     out[DIGEST_LENGTH] = this.height

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
-import type { AvlNode } from '../src/index.js'
+import { PersistentBatchAVLProver } from '../src/persistent-prover.js'
+import { newLabel, type AvlNode, type VersionedAVLStorage } from '../src/index.js'
 
 describe('BatchAVLProver', () => {
   it('constructs an empty tree and produces a valid digest', () => {
@@ -449,5 +450,60 @@ describe('BatchAVLProver height handling', () => {
     const prover = new BatchAVLProver(32, null)
     ;(prover as unknown as { height: number }).height = badHeight
     expect(() => prover.digest()).toThrow(RangeError)
+  })
+})
+
+describe('BatchAVLProver.digest root label validation', () => {
+  it('throws when a restored LabelNode root carries a short digest', () => {
+    const prover = new BatchAVLProver(32, null)
+    // Construct as an object literal: newLabel would reject this first.
+    const shortRoot = { kind: 'label' as const, label: new Uint8Array(16) }
+    prover.restoreRoot(shortRoot, 3)
+    expect(() => prover.digest()).toThrow(RangeError)
+  })
+
+  it('accepts a restored LabelNode root with a full 32-byte digest', () => {
+    const prover = new BatchAVLProver(32, null)
+    const goodRoot = newLabel(new Uint8Array(32).fill(0xab))
+    prover.restoreRoot(goodRoot, 3)
+    const d = prover.digest()
+    expect(d).not.toBeNull()
+    expect(d!.length).toBe(33)
+    expect(Array.from(d!.slice(0, 32))).toEqual(Array(32).fill(0xab))
+  })
+})
+
+describe('PersistentBatchAVLProver.rollback', () => {
+  it('clears the aborted cycle so the next proof is not polluted', () => {
+    const seed = new BatchAVLProver(32, null)
+    const key = new Uint8Array(32)
+    key.fill(0x11)
+    seed.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([1]) })
+    const savedRoot = seed.root!
+    const savedHeight = seed.height
+    const savedDigest = seed.digest()!
+
+    const storage: VersionedAVLStorage = {
+      update: () => {},
+      rollback: () => [savedRoot, savedHeight],
+      version: () => savedDigest,
+      rollbackVersions: () => [savedDigest],
+      flush: () => {},
+    }
+
+    const prover = new BatchAVLProver(32, null)
+    const persistent = new PersistentBatchAVLProver(prover, storage, [])
+
+    // Start a cycle, then abandon it via rollback.
+    const midKey = new Uint8Array(32)
+    midKey.fill(0x22)
+    persistent.performOneOperation({ tag: 'Insert', key: midKey, value: new Uint8Array([2]) })
+    persistent.rollback(savedDigest)
+
+    // The abandoned operation's direction bits must not appear in the proof.
+    const proof = prover.generateProof()
+    const fresh = new BatchAVLProver(32, null)
+    fresh.restoreRoot(savedRoot, savedHeight)
+    expect(Array.from(proof)).toEqual(Array.from(fresh.generateProof()))
   })
 })

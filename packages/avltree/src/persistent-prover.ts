@@ -69,12 +69,13 @@ export class PersistentBatchAVLProver {
 
   rollback(version: Uint8Array): void {
     const [root, height] = this.storage.rollback(version)
-    this.prover.root = root as import('./node.js').AvlNode
-    this.prover.height = height
-    // Sync oldTopNode to the restored root — ports ergo_avltree_rust commit c3ef488.
-    // Without this, the first generateProof() after rollback walks a stale snapshot
-    // (the dummy-tree root from BatchAVLProver's constructor) instead of the restored
-    // tree, producing a wrong proof.
-    this.prover.oldTopNode = this.prover.root
+    // restoreRoot rebases the whole proof cycle atomically: it installs the
+    // root and height, clears modified-node bookkeeping and any accumulated
+    // direction bits from the aborted cycle, and points oldTopNode at the
+    // restored root. Setting those fields by hand — as this did — left stale
+    // directions behind, so the next generateProof() emitted bits for
+    // operations that were rolled back.
+    // Ports ergo_avltree_rust commit c3ef488.
+    this.prover.restoreRoot(root as import('./node.js').AvlNode, height)
   }
 }
