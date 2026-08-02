@@ -1,263 +1,211 @@
 /**
- * Storage-format serialization for AVL+ tree nodes.
+ * Per-node storage codec for AVL+ trees.
  *
- * Consensus-agnostic — these serialize the node *data* (keys, values, child
- * references as labels), not the proof-encoding used by the verifier.
- * Consumers (e.g. DAGsocial VersionedAVLStorage backends) use these to
- * persist and restore trees.
+ * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`
+ * (`batch_node.rs:503-562`, branch `main` @ 2941396). Storage-layer only — the
+ * consensus-critical proof encoding lives in `proof-decode.ts`.
  *
- * Binary format:
- *   Leaf:     0x01 || keyLen(2B BE) || key || valueLen(4B BE) || value
- *                 || nextLeafKeyLen(2B BE) || nextLeafKey
- *   Internal: 0x02 || keyLen(2B BE) || key || balance(1B, i8→u8)
- *                 || leftLabel(32B) || rightLabel(32B)
- *   Label:    0x03 || label(32B)
+ * Format (big-endian):
+ *   internal: 0x00 || balance(i8) || key(keyLength) || leftLabel(32) || rightLabel(32)
+ *   leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null]
+ *                  || value || nextLeafKey(keyLength)
  *
- * For Leaf, keyLen=0 means key is empty (chain-optimized — caller fills from
- * previous leaf's nextLeafKey, same as the proof format).
+ * Label-only nodes are NOT serializable — Rust panics on that case. Storage
+ * holds leaves and internals; label stubs exist only as transient child
+ * references produced by `deserializeNode`.
  *
- * For Internal, keyLen=0 means key is absent (verifier-only reconstructed nodes).
+ * The format is not self-describing: key and value lengths come from
+ * `AvlTreeConfig`, so a writer/reader config mismatch is not generally
+ * detectable. Rust has the same property.
  *
- * Balance byte: `node.balance & 0xff` (-1 → 0xff, 0 → 0x00, 1 → 0x01).
- *
- * Children of Internal nodes are stored by label (32-byte blake2b-256 digest).
- * On deserialization, children are reconstructed as LabelNodes.
+ * Encoding an internal node memoises child labels into `labelCache` as a side
+ * effect, matching Rust's `borrow_mut().label()`.
  */
 
 import {
   type AvlNode,
+  type LeafNode,
+  type InternalNode,
+  type Balance,
   newLeaf,
   newInternal,
   newLabel,
   label,
 } from './node.js'
+import type { AvlTreeConfig } from './types.js'
+
+/** batch_node.rs:54 */
+const INTERNAL_NODE_PREFIX = 0x00
+/** batch_node.rs:55 */
+const LEAF_NODE_PREFIX = 0x01
+const LABEL_LENGTH = 32
 
 // ---------------------------------------------------------------------------
-// Serialize
+// Encode
 // ---------------------------------------------------------------------------
 
-/**
- * Serialize an AVL+ node to binary storage format.
- *
- * Leaf:     0x01 || keyLen(2B BE) || key || valueLen(4B BE) || value
- *                || nextLeafKeyLen(2B BE) || nextLeafKey
- * Internal: 0x02 || keyLen(2B BE) || key || balance(1B, i8→u8)
- *                || leftLabel(32B) || rightLabel(32B)
- * Label:    0x03 || label(32B)
- *
- * For Internal nodes, children are stored as their blake2b-256 labels
- * (so the serialized form is independent of subtree depth).
- */
-export function serializeNode(node: AvlNode): Uint8Array {
+export function serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array {
   switch (node.kind) {
     case 'leaf':
-      return serializeLeaf(node)
+      return serializeLeaf(node, config)
     case 'internal':
-      return serializeInternal(node)
+      return serializeInternal(node, config)
     case 'label':
-      return serializeLabel(node)
-    default:
-      throw new Error(`Unknown node kind: ${(node as AvlNode).kind}`)
-  }
-}
-
-function serializeLeaf(node: import('./node.js').LeafNode): Uint8Array {
-  const keyLen = u16BE(node.key.length)
-  const valueLen = u32BE(node.value.length)
-  const nxtLen = u16BE(node.nextLeafKey.length)
-
-  return concat([
-    new Uint8Array([0x01]),
-    keyLen,
-    node.key,
-    valueLen,
-    node.value,
-    nxtLen,
-    node.nextLeafKey,
-  ])
-}
-
-function serializeInternal(node: import('./node.js').InternalNode): Uint8Array {
-  const key = node.key
-  const keyLen = u16BE(key ? key.length : 0)
-  const balanceByte = new Uint8Array([node.balance & 0xff])
-  const leftLabel = label(node.left)
-  const rightLabel = label(node.right)
-
-  const parts: Uint8Array[] = [
-    new Uint8Array([0x02]),
-    keyLen,
-  ]
-  if (key) {
-    parts.push(key)
-  }
-  parts.push(balanceByte, leftLabel, rightLabel)
-  return concat(parts)
-}
-
-function serializeLabel(node: import('./node.js').LabelNode): Uint8Array {
-  return concat([new Uint8Array([0x03]), node.label])
-}
-
-// ---------------------------------------------------------------------------
-// Deserialize
-// ---------------------------------------------------------------------------
-
-/**
- * Deserialize a node from binary storage format.
- *
- * Reverse of {@link serializeNode}. Reconstructs the appropriate node variant.
- * Internal node children are reconstructed as LabelNodes (labelCache: null)
- * — the caller is responsible for re-labeling after tree assembly.
- *
- * @throws RangeError if the input is truncated or contains an unknown kind byte.
- */
-export function deserializeNode(bytes: Uint8Array): AvlNode {
-  if (bytes.length < 1) {
-    throw new RangeError('deserializeNode: empty input')
-  }
-
-  // bytes.length >= 1 already checked above, but TS with
-  // noUncheckedIndexedAccess sees bytes[0] as number | undefined.
-  const kind: number = bytes[0]!
-  switch (kind) {
-    case 0x01:
-      return deserializeLeaf(bytes)
-    case 0x02:
-      return deserializeInternal(bytes)
-    case 0x03:
-      return deserializeLabel(bytes)
-    default:
       throw new RangeError(
-        `deserializeNode: unknown kind byte 0x${kind.toString(16).padStart(2, '0')}`,
+        'serializeNode: LabelNode is not serializable — storage holds only leaf and internal nodes',
       )
   }
 }
 
-function deserializeLeaf(bytes: Uint8Array): import('./node.js').LeafNode {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  let offset = 1
+function serializeLeaf(node: LeafNode, config: AvlTreeConfig): Uint8Array {
+  assertFieldLength(node.key, config.keyLength, 'key')
+  assertFieldLength(node.nextLeafKey, config.keyLength, 'nextLeafKey')
 
-  // keyLen (2 bytes BE)
-  if (offset + 2 > bytes.length) throw truncated('keyLen')
-  const keyLen = view.getUint16(offset, false)
-  offset += 2
+  const variable = config.valueLengthOpt === null
+  if (!variable && node.value.length !== config.valueLengthOpt) {
+    throw new RangeError(
+      `serializeNode: leaf value length ${node.value.length} does not match configured valueLengthOpt ${config.valueLengthOpt}`,
+    )
+  }
 
-  // key
-  if (offset + keyLen > bytes.length) throw truncated('key')
-  const key = bytes.slice(offset, offset + keyLen)
-  offset += keyLen
+  const out = new Uint8Array(
+    1 + config.keyLength + (variable ? 4 : 0) + node.value.length + config.keyLength,
+  )
+  let o = 0
+  out[o++] = LEAF_NODE_PREFIX
+  out.set(node.key, o)
+  o += config.keyLength
+  if (variable) {
+    writeU32BE(out, o, node.value.length)
+    o += 4
+  }
+  out.set(node.value, o)
+  o += node.value.length
+  out.set(node.nextLeafKey, o)
+  return out
+}
 
-  // valueLen (4 bytes BE)
-  if (offset + 4 > bytes.length) throw truncated('valueLen')
-  const valueLen = view.getUint32(offset, false)
-  offset += 4
+function serializeInternal(node: InternalNode, config: AvlTreeConfig): Uint8Array {
+  if (node.key === undefined) {
+    throw new RangeError(
+      'serializeNode: InternalNode has no key — verifier-reconstructed nodes are not storable',
+    )
+  }
+  assertFieldLength(node.key, config.keyLength, 'key')
 
-  // value
-  if (offset + valueLen > bytes.length) throw truncated('value')
-  const value = bytes.slice(offset, offset + valueLen)
-  offset += valueLen
+  const leftLabel = label(node.left)
+  const rightLabel = label(node.right)
 
-  // nextLeafKeyLen (2 bytes BE)
-  if (offset + 2 > bytes.length) throw truncated('nextLeafKeyLen')
-  const nxtLen = view.getUint16(offset, false)
-  offset += 2
+  const out = new Uint8Array(1 + 1 + config.keyLength + LABEL_LENGTH * 2)
+  let o = 0
+  out[o++] = INTERNAL_NODE_PREFIX
+  // i8 -> u8: -1 becomes 0xff
+  out[o++] = node.balance & 0xff
+  out.set(node.key, o)
+  o += config.keyLength
+  out.set(leftLabel, o)
+  o += LABEL_LENGTH
+  out.set(rightLabel, o)
+  return out
+}
 
-  // nextLeafKey
-  if (offset + nxtLen > bytes.length) throw truncated('nextLeafKey')
-  const nextLeafKey = bytes.slice(offset, offset + nxtLen)
+// ---------------------------------------------------------------------------
+// Decode
+// ---------------------------------------------------------------------------
 
+export function deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode {
+  if (bytes.length < 1) {
+    throw new RangeError('deserializeNode: empty input')
+  }
+  const tag = bytes[0]!
+  if (tag === LEAF_NODE_PREFIX) return deserializeLeaf(bytes, config)
+  if (tag === INTERNAL_NODE_PREFIX) return deserializeInternal(bytes, config)
+  throw new RangeError(
+    `deserializeNode: unknown node prefix 0x${tag.toString(16).padStart(2, '0')}`,
+  )
+}
+
+function deserializeLeaf(bytes: Uint8Array, config: AvlTreeConfig): LeafNode {
+  let o = 1
+  const key = takeBytes(bytes, o, config.keyLength, 'key')
+  o += config.keyLength
+
+  let valueLength: number
+  if (config.valueLengthOpt === null) {
+    if (o + 4 > bytes.length) throw truncated('valueLength')
+    valueLength = readU32BE(bytes, o)
+    o += 4
+  } else {
+    valueLength = config.valueLengthOpt
+  }
+
+  const value = takeBytes(bytes, o, valueLength, 'value')
+  o += valueLength
+  const nextLeafKey = takeBytes(bytes, o, config.keyLength, 'nextLeafKey')
   return newLeaf(key, value, nextLeafKey)
 }
 
-function deserializeInternal(bytes: Uint8Array): import('./node.js').InternalNode {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  let offset = 1
-
-  // keyLen (2 bytes BE)
-  if (offset + 2 > bytes.length) throw truncated('keyLen')
-  const keyLen = view.getUint16(offset, false)
-  offset += 2
-
-  // key (only present if keyLen > 0)
-  let key: Uint8Array | undefined
-  if (keyLen > 0) {
-    if (offset + keyLen > bytes.length) throw truncated('key')
-    key = bytes.slice(offset, offset + keyLen)
-    offset += keyLen
-  }
-
-  // balance (1 byte)
-  if (offset + 1 > bytes.length) throw truncated('balance')
-  const balanceRaw = view.getInt8(offset)
-  offset += 1
-
-  // Validate balance
-  if (balanceRaw < -1 || balanceRaw > 1) {
+function deserializeInternal(bytes: Uint8Array, config: AvlTreeConfig): InternalNode {
+  let o = 1
+  if (o >= bytes.length) throw truncated('balance')
+  // u8 -> i8 reinterpret: 0xff becomes -1
+  const balance = ((bytes[o]! << 24) >> 24) as Balance
+  o += 1
+  if (balance < -1 || balance > 1) {
     throw new RangeError(
-      `deserializeNode: invalid balance ${balanceRaw} (expected -1, 0, or 1)`,
+      `deserializeNode: invalid balance ${balance} (expected -1, 0, or 1)`,
     )
   }
-  const balance = balanceRaw as -1 | 0 | 1
 
-  // left label (32 bytes)
-  if (offset + 32 > bytes.length) throw truncated('leftLabel')
-  const leftLabelBytes = bytes.slice(offset, offset + 32)
-  offset += 32
+  const key = takeBytes(bytes, o, config.keyLength, 'key')
+  o += config.keyLength
+  const leftLabel = takeBytes(bytes, o, LABEL_LENGTH, 'leftLabel')
+  o += LABEL_LENGTH
+  const rightLabel = takeBytes(bytes, o, LABEL_LENGTH, 'rightLabel')
 
-  // right label (32 bytes)
-  if (offset + 32 > bytes.length) throw truncated('rightLabel')
-  const rightLabelBytes = bytes.slice(offset, offset + 32)
-
-  const left = newLabel(leftLabelBytes)
-  const right = newLabel(rightLabelBytes)
-
-  return newInternal(left, right, balance, key)
-}
-
-function deserializeLabel(bytes: Uint8Array): import('./node.js').LabelNode {
-  // kind byte + 32-byte label
-  if (bytes.length < 1 + 32) {
-    throw truncated('label (need 32 bytes)')
-  }
-  const labelBytes = bytes.slice(1, 33)
-  return newLabel(labelBytes)
+  return newInternal(newLabel(leftLabel), newLabel(rightLabel), balance, key)
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Encode a 16-bit unsigned integer as 2 bytes big-endian. */
-function u16BE(n: number): Uint8Array {
-  const out = new Uint8Array(2)
-  out[0] = (n >> 8) & 0xff
-  out[1] = n & 0xff
-  return out
-}
-
-/** Encode a 32-bit unsigned integer as 4 bytes big-endian. */
-function u32BE(n: number): Uint8Array {
-  const out = new Uint8Array(4)
-  out[0] = (n >>> 24) & 0xff
-  out[1] = (n >>> 16) & 0xff
-  out[2] = (n >>> 8) & 0xff
-  out[3] = n & 0xff
-  return out
-}
-
-/** Concatenate multiple Uint8Arrays into a single contiguous buffer. */
-function concat(parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((n, p) => n + p.length, 0)
-  const out = new Uint8Array(total)
-  let offset = 0
-  for (const p of parts) {
-    out.set(p, offset)
-    offset += p.length
-  }
-  return out
+function takeBytes(
+  b: Uint8Array,
+  offset: number,
+  n: number,
+  field: string,
+): Uint8Array {
+  // Bounds-check BEFORE slicing so a bogus declared length cannot allocate.
+  if (offset + n > b.length) throw truncated(field)
+  return b.slice(offset, offset + n)
 }
 
 function truncated(field: string): RangeError {
   return new RangeError(`deserializeNode: truncated input while reading ${field}`)
+}
+
+function readU32BE(b: Uint8Array, o: number): number {
+  return (
+    ((b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | b[o + 3]!) >>> 0
+  )
+}
+
+function writeU32BE(b: Uint8Array, o: number, v: number): void {
+  b[o] = (v >>> 24) & 0xff
+  b[o + 1] = (v >>> 16) & 0xff
+  b[o + 2] = (v >>> 8) & 0xff
+  b[o + 3] = v & 0xff
+}
+
+function assertFieldLength(
+  value: Uint8Array,
+  expected: number,
+  field: string,
+): void {
+  if (value.length !== expected) {
+    throw new RangeError(
+      `serializeNode: ${field} length ${value.length} does not match configured keyLength ${expected}`,
+    )
+  }
 }
