@@ -358,19 +358,38 @@ function hardDeleteLeftDescent(
     }
     saved.node = null
 
-    // Rust line 524: `InternalNode::update_key(r_node, &self.tree().key(&s))` —
-    // updates this internal node's stored key to the saved leaf's key. The
-    // verifier's TS InternalNode has no `key` field (see node.ts) — internal
-    // node keys are reconstructed on the fly via replay_comparison. So the
-    // key update is a no-op for the verifier.
+    // Rust line 546 at commit 191052c (the rest of this file's Rust line
+    // references predate that commit and read ~22 lines lower):
+    // `InternalNode::update_key(r_node, &self.tree().key(&s))` —
+    // this node's separator key becomes the saved (promoted) leaf's key, and
+    // every node built from it downstream inherits that key, because Rust's
+    // `InternalNode::update` takes its key from the template node it is
+    // handed (batch_node.rs line 276).
     //
-    // Rust lines 525-528: extract left/right/balance from the updated node.
-    // For us, these are just node.left (already deleted from above) and
-    // node.right.
+    // The update is REQUIRED, not cosmetic. `deleteHelper` is shared by the
+    // prover and the verifier, and the two read this field differently:
     //
-    // Rust lines 529-534: build new internal node with the modified right
-    // subtree (where the leftmost leaf has been replaced with saved_leaf's
-    // key+value).
+    //   - The prover navigates BY key. `BatchAVLProver.nextDirectionIsLeft`
+    //     and `unauthenticatedLookup` both do `compareBytes(key, node.key)`,
+    //     and `serialize.ts` writes the field into stored trees. A stale
+    //     separator here silently corrupts every later traversal through this
+    //     subtree — the removed key still routes to a leaf, and a surviving
+    //     key on the wrong side of the stale separator becomes unreachable.
+    //   - The verifier ignores it: it replays proof direction bits rather
+    //     than comparing keys, and `label()` does not hash the key, so proof
+    //     bytes and digests are identical either way.
+    //
+    // An earlier comment here concluded "no-op for the verifier" and dropped
+    // the update. That was true of the verifier and false of the prover.
+    //
+    // The invariant being restored: an internal node's key equals the minimum
+    // key of its right subtree. The deleteMax descent above pulled the left
+    // subtree's max leaf out; `changeKeyAndValueOfMinNode` below writes that
+    // leaf's key/value into the right subtree's leftmost leaf, which makes
+    // `savedLeaf.key` the new minimum of the right subtree.
+    //
+    // Rust lines 547-556: build the new internal node from the re-keyed one,
+    // with the modified right subtree.
     const newRightSubtree = changeKeyAndValueOfMinNode(
       node.right,
       savedLeaf.key,
@@ -379,7 +398,7 @@ function hardDeleteLeftDescent(
       op,
     )
     if (!newRightSubtree.ok) return newRightSubtree
-    newRoot = newInternal(newLeft, newRightSubtree.node, node.balance, node.key)
+    newRoot = newInternal(newLeft, newRightSubtree.node, node.balance, savedLeaf.key)
   } else {
     // Rust line 536: `r_node.clone()` — preserve the original node's right
     // and balance, but with the new left from the recursion.
@@ -397,11 +416,18 @@ function hardDeleteLeftDescent(
     return rebalanceShrinkLeft(newLeft, rootRight, op, callbacks, newRoot)
   }
 
-  // Rust lines 574-584: no rotation, just balance update.
+  // Rust lines 596-606 at commit 191052c: no rotation, just balance update.
   const newBalance: Balance = childHeightDecreased
     ? ((rootBalance + 1) as Balance) // was 0 (childGrew can yield +1=balance 1, OK) or -1 → 0
     : rootBalance
-  const finalNode = newInternal(newLeft, rootRight, newBalance, node.key)
+  // Rust line 604 (191052c) templates this node on `&new_root`, so it inherits
+  // new_root's key — which the direction === 0 branch above re-keyed to the
+  // promoted leaf. Reading `node.key` here instead would throw that update
+  // away on the whole no-rotation path, which is the common one: the repro
+  // above (Remove of a two-internal-children separator, child shrank, node
+  // balance 0) lands here, not in rebalanceShrinkLeft. The rotation path is
+  // already correct because it receives `newRoot` as its template.
+  const finalNode = newInternal(newLeft, rootRight, newBalance, newRoot.key)
   return {
     ok: true,
     newSubtreeRoot: finalNode,

@@ -77,6 +77,16 @@ describe('BatchAVLProver', () => {
     expect(lookedUp).toBeNull()
   })
 
+  it('performOneOperation Lookup on an absent key succeeds with a null value', () => {
+    const prover = new BatchAVLProver(32, null)
+    const present = new Uint8Array(32); present.fill(0x11)
+    prover.performOneOperation({ tag: 'Insert', key: present, value: new Uint8Array([1]) })
+    const absent = new Uint8Array(32); absent.fill(0x22)
+    const result = prover.performOneOperation({ tag: 'Lookup', key: absent })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.value).toBeNull()
+  })
+
   it('throws on key shorter than tree key length', () => {
     const prover = new BatchAVLProver(32, null)
     const shortKey = new Uint8Array(16)
@@ -192,6 +202,82 @@ describe('BatchAVLProver', () => {
     const absentKey = new Uint8Array(32)
     absentKey[0] = 99
     expect(prover.unauthenticatedLookup(absentKey)).toBeNull()
+  })
+})
+
+describe('BatchAVLProver hard-delete separator maintenance', () => {
+  /**
+   * Key whose first and last bytes are `b`. Mirrors the key shape of the
+   * randomised walk that first surfaced this defect, so the tree shapes below
+   * are the ones that walk actually produced.
+   */
+  const keyByte = (b: number): Uint8Array => {
+    const k = new Uint8Array(32)
+    k[0] = b
+    k[31] = b
+    return k
+  }
+
+  /**
+   * Regression for the stale separator key on hard delete.
+   *
+   * `deleteHelper`'s `direction === 0` branch is reached only when the key
+   * being removed sits at an internal node with TWO internal children. That
+   * case cannot splice a child out directly: it runs a deleteMax descent down
+   * the left subtree, promotes that subtree's max leaf (the in-order
+   * predecessor) into the leftmost leaf of the right subtree, and must move
+   * the node's separator key along with it.
+   *
+   * The insertion order below is load-bearing. It builds:
+   *
+   *     Int(0x12)
+   *       L Int(0x0c) -> leaves 0x0b, 0x0c
+   *       R Int(0x13) -> leaves 0x12, 0x13
+   *
+   * so Remove(0x12) lands on `Int(0x12)` with two internal children and
+   * promotes leaf 0x0c. If the separator stays 0x12 the tree violates the
+   * AVL+ invariant (an internal node's key must equal the minimum key of its
+   * right subtree) in two visible ways: the removed key still routes to a
+   * leaf (ghost key), and 0x0c — present, and never touched by the Remove —
+   * compares less than the stale 0x12 and is sent down the wrong subtree,
+   * becoming permanently unreachable.
+   *
+   * Traced from seed 3 of the randomised prover/verifier walk.
+   */
+  it('keeps every surviving key reachable after a hard delete promotes the predecessor', () => {
+    const prover = new BatchAVLProver(32, null)
+    const inserted: ReadonlyArray<readonly [number, number]> = [
+      [0x12, 17],
+      [0x0b, 10],
+      [0x13, 18],
+      [0x0c, 11],
+      [0x07, 6],
+      [0x05, 4],
+    ]
+    for (const [b, v] of inserted) {
+      const result = prover.performOneOperation({
+        tag: 'Insert',
+        key: keyByte(b),
+        value: new Uint8Array([v]),
+      })
+      expect(result.success, `Insert 0x${b.toString(16)} failed`).toBe(true)
+    }
+
+    const removed = prover.performOneOperation({ tag: 'Remove', key: keyByte(0x12) })
+    expect(removed.success).toBe(true)
+
+    // The removed key must be gone. A stale separator resurrects it: the
+    // lookup matches at the separator and descends to the promoted leaf.
+    expect(prover.unauthenticatedLookup(keyByte(0x12))).toBeNull()
+
+    // ...and every surviving key must still resolve to its own value. 0x0c is
+    // the promoted predecessor and the one a stale separator strands.
+    for (const [b, v] of inserted) {
+      if (b === 0x12) continue
+      const found = prover.unauthenticatedLookup(keyByte(b))
+      expect(found, `key 0x${b.toString(16)} unreachable after Remove(0x12)`).not.toBeNull()
+      expect(Array.from(found!), `key 0x${b.toString(16)} resolved to the wrong value`).toEqual([v])
+    }
   })
 })
 
