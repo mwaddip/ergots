@@ -1,7 +1,7 @@
 /**
  * PersistentBatchAVLProver — wraps a BatchAVLProver with versioned storage.
  *
- * Ports ergo_avltree_rust/src/persistent_batch_avl_prover.rs (68 lines).
+ * Ports ergo_avltree_rust/src/persistent_batch_avl_prover.rs (69 lines).
  */
 import { BatchAVLProver } from './batch-prover.js'
 import type { VersionedAVLStorage } from './versioned-storage.js'
@@ -36,7 +36,7 @@ export class PersistentBatchAVLProver {
     } else {
       this.generateProofAndUpdateStorage(additionalData)
     }
-    // Rust line 31: ensure!(storage.version() == digest())
+    // Rust line 30: ensure!(storage.version() == digest())
     const sv = storage.version()
     const d = this.digest()
     if (!sv || !d || compareBytes(sv, d) !== 0) {
@@ -71,7 +71,7 @@ export class PersistentBatchAVLProver {
     const [root, height] = this.storage.rollback(version)
     this.prover.root = root as import('./node.js').AvlNode
     this.prover.height = height
-    // Sync oldTopNode to the restored root — ports ergo_avltree_rust commit 191052c.
+    // Sync oldTopNode to the restored root — ports ergo_avltree_rust commit c3ef488.
     // Without this, the first generateProof() after rollback walks a stale snapshot
     // (the dummy-tree root from BatchAVLProver's constructor) instead of the restored
     // tree, producing a wrong proof.

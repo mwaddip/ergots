@@ -6,7 +6,7 @@
  * the AvlTreeOpsCallbacks interface (Task 1), with prover-specific callbacks
  * that record traversal directions for later proof serialization.
  *
- * Ports ergo_avltree_rust/src/batch_avl_prover.rs (506 lines).
+ * Ports ergo_avltree_rust/src/batch_avl_prover.rs (537 lines).
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_prover.rs
  */
@@ -33,7 +33,7 @@ const DIGEST_LENGTH = 32
 
 /**
  * Lexicographic byte comparison. Ports the per-op key-comparison logic
- * within batch_avl_prover.rs::next_direction_is_left (lines 409-446).
+ * within batch_avl_prover.rs::next_direction_is_left (lines 440-477).
  *
  * Defined locally because tree-traversal.ts's version is not exported.
  */
@@ -59,7 +59,7 @@ export type ProverOperationResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Ports batch_avl_prover.rs::BatchAVLProver (506 lines).
+ * Ports batch_avl_prover.rs::BatchAVLProver (537 lines).
  *
  * Builds an in-memory AVL+ tree from a sequence of authenticated operations,
  * records traversal directions, and generates serialized AD proofs suitable
@@ -152,7 +152,7 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // buildCallbacks — ports batch_avl_prover.rs:409-484
+  // buildCallbacks — ports batch_avl_prover.rs::next_direction_is_left (440-477), key_matches_leaf (486-493), replay_comparison (505-515)
   // -------------------------------------------------------------------------
 
   /**
@@ -162,7 +162,7 @@ export class BatchAVLProver {
   private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
     const self = this
     return {
-      // Ports batch_avl_prover.rs:409-446 — next_direction_is_left
+      // Ports batch_avl_prover.rs:440-477 — next_direction_is_left
       nextDirectionIsLeft: (key: Uint8Array, r: InternalNode): boolean => {
         // The shared engine must have set r.key on internal nodes during
         // addNode and all rebalance helpers. If it's undefined, the tree
@@ -185,7 +185,7 @@ export class BatchAVLProver {
             ret = cmp < 0 // go left if key < node key
           }
         }
-        // Encode direction bit (Rust lines 434-444)
+        // Encode direction bit (batch_avl_prover.rs:464-475)
         if ((self.directionsBitLength & 7) === 0) {
           self.directions.push(ret ? 1 : 0)
         } else if (ret) {
@@ -196,14 +196,14 @@ export class BatchAVLProver {
         return ret
       },
 
-      // Ports batch_avl_prover.rs:455-462 — key_matches_leaf
+      // Ports batch_avl_prover.rs:486-493 — key_matches_leaf
       keyMatchesLeaf: (_key: Uint8Array, _leaf: LeafNode) => {
         const matches = self.found
         self.found = false // reset for next operation
         return { ok: true, matches }
       },
 
-      // Ports batch_avl_prover.rs:474-484 — replay_comparison
+      // Ports batch_avl_prover.rs:505-515 — replay_comparison
       replayComparison: (): -1 | 0 | 1 => {
         const i = self.replayIndex
         let ret: -1 | 0 | 1
@@ -218,7 +218,7 @@ export class BatchAVLProver {
         return ret
       },
 
-      // Ports authenticated_tree_ops.rs:100-123 — on_node_visit
+      // Ports authenticated_tree_ops.rs:98-122 — on_node_visit
       onNodeVisit: (node: AvlNode, _operation: Operation, _isRotate: boolean) => {
         self.modifiedNodes.push(node)
       },
@@ -228,7 +228,7 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // performOneOperation — ports batch_avl_prover.rs:89-110 + 226-246
+  // performOneOperation — ports batch_avl_prover.rs::perform_one_operation (120-141) + authenticated_tree_ops.rs::return_result_of_one_operation (237-264)
   // -------------------------------------------------------------------------
 
   /**
@@ -245,7 +245,7 @@ export class BatchAVLProver {
     const posInfKey = new Uint8Array(this.keyLength)
     posInfKey.fill(0xff)
 
-    // Precondition checks (Rust lines 226-229)
+    // Precondition checks (authenticated_tree_ops.rs:243-245)
     if (compareBytes(key, negInfKey) <= 0) {
       throw new AvlVerifyError(
         'Key is less than or equal to negative infinity',
@@ -276,20 +276,20 @@ export class BatchAVLProver {
       )
     }
 
-    // Cycle reset (Rust line 90-93)
+    // Cycle reset (batch_avl_prover.rs:121-124)
     if (this.needsCycleReset) {
       this.clearVisitedFlags(this.root)
       this.needsCycleReset = false
     }
 
-    // Snapshot replay index (Rust line 94)
+    // Snapshot replay index (batch_avl_prover.rs:125)
     this.replayIndex = this.directionsBitLength
 
-    // Phase 1: modifyHelper (Rust lines 232-233)
+    // Phase 1: modifyHelper (authenticated_tree_ops.rs:248-249)
     const callbacks = this.buildCallbacks(op)
     const modifyResult = modifyHelper(this.root!, op, callbacks)
     if (!modifyResult.ok) {
-      // Rollback directions (Rust lines 96-108)
+      // Rollback directions (batch_avl_prover.rs:127-139)
       const oldByteLength = (this.replayIndex + 7) >> 3
       this.directions.length = oldByteLength
       this.directionsBitLength = this.replayIndex
@@ -301,7 +301,7 @@ export class BatchAVLProver {
       return { success: false }
     }
 
-    // Phase 2: delete if needed (Rust lines 234-246)
+    // Phase 2: delete if needed (authenticated_tree_ops.rs:250-262)
     if (modifyResult.needsDelete) {
       const deleteResult = deleteHelper(modifyResult.newSubtreeRoot, op, callbacks)
       if (!deleteResult.ok) {
@@ -321,13 +321,13 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // digest — ports batch_avl_prover.rs:299-300 (rootHash + height)
+  // digest — ports authenticated_tree_ops.rs::digest (128-144)
   // -------------------------------------------------------------------------
 
   /**
    * Current 33-byte digest (root label || height). Null if tree poisoned.
    *
-   * Ports batch_avl_prover.rs rootHash() returning a 33-byte value
+   * Ports authenticated_tree_ops.rs's digest() trait method, returning a 33-byte value
    * (32-byte blake2b label + 1-byte height).
    */
   digest(): Uint8Array | null {
@@ -340,7 +340,7 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // unauthenticatedLookup — ports batch_avl_prover.rs:302-337
+  // unauthenticatedLookup — ports batch_avl_prover.rs:333-368
   // -------------------------------------------------------------------------
 
   /**
@@ -390,7 +390,7 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // generateProof — ports batch_avl_prover.rs:155-227
+  // generateProof — ports batch_avl_prover.rs:186-258
   // -------------------------------------------------------------------------
 
   /**
@@ -400,20 +400,20 @@ export class BatchAVLProver {
    */
   generateProof(): Uint8Array {
     // NOTE: Do NOT clear modifiedNodes here — packTree relies on it for
-    // wasModified checks. Clear only after packTree (Rust line ~219:
+    // wasModified checks. Clear only after packTree (batch_avl_prover.rs:251:
     // self.base.modified_nodes.clear() after pack_tree, not before).
     const parts: Uint8Array[] = []
     let previousLeafAvailable = false
 
-    // Ports batch_avl_prover.rs:155-194 — pack_tree (post-order traversal)
+    // Ports batch_avl_prover.rs:186-225 — pack_tree (post-order traversal)
     const packTree = (node: AvlNode): void => {
       if (!this.wasModified(node)) {
-        // Unmodified node → emit label (Rust lines 165-169)
+        // Unmodified node → emit label (batch_avl_prover.rs:195-200)
         parts.push(new Uint8Array([LABEL_IN_PACKAGED_PROOF]))
         parts.push(label(node))
         previousLeafAvailable = false
       } else if (node.kind === 'leaf') {
-        // Modified leaf (Rust lines 172-183)
+        // Modified leaf (batch_avl_prover.rs:203-214)
         parts.push(new Uint8Array([LEAF_IN_PACKAGED_PROOF]))
         if (!previousLeafAvailable) {
           parts.push(node.key)
@@ -428,10 +428,10 @@ export class BatchAVLProver {
         parts.push(node.value)
         previousLeafAvailable = true
       } else if (node.kind === 'internal') {
-        // Modified internal node: recurse into children (Rust lines 184-188)
+        // Modified internal node: recurse into children (batch_avl_prover.rs:215-219)
         packTree(node.left)
         packTree(node.right)
-        // Balance byte (Rust line 189)
+        // Balance byte (batch_avl_prover.rs:218)
         parts.push(new Uint8Array([node.balance & 0xff]))
       }
     }
@@ -440,13 +440,13 @@ export class BatchAVLProver {
       packTree(this.oldTopNode)
     }
 
-    // End of tree marker (Rust line 212)
+    // End of tree marker (batch_avl_prover.rs:243)
     parts.push(new Uint8Array([END_OF_TREE_IN_PACKAGED_PROOF]))
 
-    // Directions bit-string (Rust line 213)
+    // Directions bit-string (batch_avl_prover.rs:244)
     parts.push(new Uint8Array(this.directions))
 
-    // Cycle reset (Rust lines 220-224)
+    // Cycle reset (batch_avl_prover.rs:251-255)
     this.modifiedNodes = []
     this.needsCycleReset = true
     this.directions = []
@@ -466,7 +466,7 @@ export class BatchAVLProver {
 
   // -------------------------------------------------------------------------
   // wasModified — ports AuthenticatedTreeOpsBase::was_modified
-  //   (authenticated_tree_ops.rs:39-44)
+  //   (authenticated_tree_ops.rs:39-42)
   // -------------------------------------------------------------------------
 
   /**
@@ -479,7 +479,7 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // generateProofForOperations — ports batch_avl_prover.rs:128-141
+  // generateProofForOperations — ports batch_avl_prover.rs:159-172
   // -------------------------------------------------------------------------
 
   /**
