@@ -482,7 +482,7 @@ A discriminated union on `kind`. `LeafNode` holds a real key/value/next-leaf-key
 
 ### `Balance`
 
-The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in the Storage codec section below for why the TS type is narrower and why both encode and decode range-check it.
+The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in the Storage codec section below for why the TS type is narrower and why both encode and decode check it (encode additionally requires an integer, since a hand-built value can be `NaN` or fractional in a way an `i8` cannot).
 
 ### `newLeaf(key, value, nextLeafKey)`
 
@@ -516,13 +516,13 @@ deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
 ```
 
 Encodes a single AVL+ node for persistence, byte-identical to
-`ergo_avltree_rust`'s `AVLTree::pack` / `unpack` for well-formed input — two of
-the throw conditions below (a key/value-length mismatch on encode, an
-out-of-range balance byte on decode) are deliberately stricter than the
-reference, which performs neither; see `facts/avltree.md`'s "Deliberate
-divergences from the reference" for why. Traversal is the caller's
-responsibility: a storage backend walks the tree and stores one record per
-node, keyed by `label(node)`.
+`ergo_avltree_rust`'s `AVLTree::pack` / `unpack` for well-formed input — four of
+the throw conditions below (on encode: a key-length mismatch, an undersized
+child label, and an invalid balance; on decode: an out-of-range balance byte)
+are deliberately stricter than the reference, which performs none of them; see
+`facts/avltree.md`'s "Deliberate divergences from the reference" for why.
+Traversal is the caller's responsibility: a storage backend walks the tree and
+stores one record per node, keyed by `label(node)`.
 
 ```
 internal: 0x00 || balance(i8) || key(keyLength) || leftLabel(32) || rightLabel(32)
@@ -537,8 +537,10 @@ carrying the encoded digests — the record stores child labels, not child
 subtrees. Backends relink real children by looking those labels up.
 
 Throws `RangeError` on: a `LabelNode` or a keyless `InternalNode` passed to
-`serializeNode`; a key or fixed-length value disagreeing with `config`; truncated
-input; an unknown leading tag; a balance byte outside `-1 | 0 | 1`.
+`serializeNode`; a key or fixed-length value whose length disagrees with
+`config`; a child label that isn't exactly 32 bytes; an encode-side balance
+that isn't an integer in `-1 | 0 | 1`; truncated input; an unknown leading
+tag; a decoded balance byte outside `-1 | 0 | 1`.
 
 The format is not self-describing — lengths come from `config`, so a
 writer/reader mismatch is not generally detectable.

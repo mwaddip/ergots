@@ -129,9 +129,17 @@ function serializeInternal(node: InternalNode, config: AvlTreeConfig): Uint8Arra
   // nothing enforces that at the value level for a hand-built InternalNode.
   // Checked here for symmetry with decode's balance-range check and to fail
   // at the point of corruption rather than deferring to a later read.
-  if (node.balance < -1 || node.balance > 1) {
+  //
+  // A bare range test is not enough: `NaN < -1` and `NaN > 1` are both false,
+  // and 0.5 / -0.5 / 0.999 all sit inside [-1, 1], so a non-integer silently
+  // passes a `<`/`>` check. It then reaches `node.balance & 0xff` below,
+  // where the bitwise operator coerces via ToInt32 (which truncates toward
+  // zero and maps NaN to 0) and writes byte 0x00 with no error anywhere.
+  // Number.isSafeInteger closes that hole — same pattern `takeBytes` already
+  // uses for declared lengths, which has the identical risk shape.
+  if (!Number.isSafeInteger(node.balance) || node.balance < -1 || node.balance > 1) {
     throw new RangeError(
-      `serializeNode: balance ${node.balance} is out of range (expected -1, 0, or 1)`,
+      `serializeNode: balance ${node.balance} is not a valid balance (expected an integer, one of -1, 0, or 1)`,
     )
   }
 

@@ -340,6 +340,35 @@ describe('serializeNode — rejection paths', () => {
     )
     expect(() => serializeNode(node, K32)).toThrow(/right child label length 16/)
   })
+
+  it('rejects a NaN balance instead of silently emitting byte 0x00', () => {
+    // Built as a plain object literal value, not a real rebalance output —
+    // `Balance` types as -1|0|1 but nothing enforces that at the value level
+    // for a hand-built InternalNode. A bare range check (`< -1 || > 1`) does
+    // not catch this: `NaN < -1` and `NaN > 1` are both false, so NaN would
+    // slide through and `node.balance & 0xff` below would silently coerce it
+    // to byte 0x00 (ToInt32(NaN) === 0).
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      newLabel(new Uint8Array(32).fill(0x02)),
+      NaN as Balance,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/balance/)
+  })
+
+  it('rejects a fractional balance instead of silently emitting byte 0x00', () => {
+    // Same gap as above: 0.5 passes a bare range check ([-1, 1]) but is not
+    // one of the three valid Balance values, and `0.5 & 0xff` truncates to
+    // byte 0x00 with no error (ToInt32 truncates toward zero).
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      newLabel(new Uint8Array(32).fill(0x02)),
+      0.5 as Balance,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/balance/)
+  })
 })
 
 describe('codec round-trip property', () => {

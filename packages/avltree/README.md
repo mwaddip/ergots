@@ -63,7 +63,7 @@ See [API.md](./API.md) for the full reference (every export, signature, error co
 
 `serializeNode` / `deserializeNode` encode one node for persistence, byte-identical
 to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack` for well-formed input —
-two checks are deliberately stricter than the reference on malformed input; see
+four checks are deliberately stricter than the reference on malformed input; see
 API.md for what they are. Traversal is yours: walk the
 tree and store one record per node, keyed by `label(node)`.
 

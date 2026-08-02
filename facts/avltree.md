@@ -24,7 +24,7 @@ regeneration was needed.
 8. `PersistentBatchAVLProver` — wraps a `BatchAVLProver` with versioned storage, enabling rollback across proof-generation cycles.
 9. `VersionedAVLStorage` — interface for persistent AVL+ tree storage. No concrete implementation ships; consumers provide their own.
 10. Node types and constructors — `AvlNode`, `LeafNode`, `InternalNode`, `LabelNode`, `Balance`, `newLeaf`, `newInternal`, `newLabel`, `label`. Exported so `VersionedAVLStorage` implementers can walk and rebuild trees without depending on package internals.
-11. `serializeNode` / `deserializeNode` — per-node storage codec, byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack` for well-formed input (two decode/encode checks are intentionally stricter than the reference on malformed input — see "Storage codec" below). Consumer-owned traversal: the codec handles one node, the storage backend walks the tree.
+11. `serializeNode` / `deserializeNode` — per-node storage codec, byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack` for well-formed input (four decode/encode checks are intentionally stricter than the reference on malformed input — see "Storage codec" below). Consumer-owned traversal: the codec handles one node, the storage backend walks the tree.
 12. `BatchAVLProver.restoreRoot(root, height)` — installs a storage-loaded root and height, then rebases the proof cycle (clears directions and modified-node bookkeeping, resets `oldTopNode`). Required after startup resume, snapshot bootstrap, or recovery rollback.
 13. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
@@ -293,7 +293,7 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `191052c`, branch `main`, includi
 | `batch_node.rs::LeafNode::new` (302-308) | `newLeaf` (`node.ts`) | 1:1 port; defensive copies on all byte args |
 | `batch_node.rs::InternalNode::new` (232-239) | `newInternal` (`node.ts`) | 1:1 port; no defensive copy on children (object references; GC handles lifecycle) |
 | `batch_node.rs::Node::new_label` (166) | `newLabel` (`node.ts`) | 1:1 port; defensive copy; RangeError if label !== 32 bytes |
-| `batch_node.rs::AVLTree::pack` (610-635) | `serializeNode` (`serialize.ts`) | 1:1 port dispatch on leaf/internal; throws `RangeError` instead of Rust's panic on a `LabelOnly` node; adds key-length and child-label-length checks the reference does not perform (deliberate divergence — see "Storage codec" below) |
+| `batch_node.rs::AVLTree::pack` (610-635) | `serializeNode` (`serialize.ts`) | 1:1 port dispatch on leaf/internal; throws `RangeError` instead of Rust's panic on a `LabelOnly` node; adds key-length, child-label-length, and balance checks the reference does not perform (deliberate divergence — see "Storage codec" below) |
 | `batch_node.rs::AVLTree::unpack` (637-670) | `deserializeNode` (`serialize.ts`) | 1:1 port dispatch on `INTERNAL_NODE_PREFIX`/`LEAF_NODE_PREFIX`; children decode as `LabelNode` stubs via `newLabel`, mirroring Rust's `new_label_persisted`; adds a balance-range check the reference does not perform (deliberate divergence) |
 | `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
@@ -383,7 +383,7 @@ deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
 ```
 
 Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:610-635`)
-and `AVLTree::unpack` (`batch_node.rs:637-670`) for well-formed input — two
+and `AVLTree::unpack` (`batch_node.rs:637-670`) for well-formed input — four
 checks are intentionally stricter than the reference; see "Deliberate
 divergences from the reference" below. Only `config.keyLength` and
 `config.valueLengthOpt` are read; `maxNumOperations` and `maxDeletes` are
@@ -399,20 +399,48 @@ leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] 
 - **Precondition (throws `RangeError`):** on encode — `node.kind !== 'label'`
   (label stubs are not storable, matching Rust, which panics); for an internal
   node, `node.key !== undefined`; every key-position field is exactly
-  `config.keyLength` bytes; when `valueLengthOpt` is non-null, the leaf value is
-  exactly that many bytes. On decode — input is long enough for every field, the
-  leading tag is `0x00` or `0x01`, and the balance byte decodes to `-1 | 0 | 1`.
-  The key-length checks on encode and the balance-range check on decode are
-  both stricter than the reference — see "Deliberate divergences from the
-  reference" immediately below.
-- **Deliberate divergences from the reference.** Two decode/encode checks are
-  stricter than `ergo_avltree_rust`, which performs neither. Rust's `Balance`
-  is a bare `i8`, so `unpack` accepts any byte; our `Balance` is the union
-  `-1 | 0 | 1`, and admitting an out-of-range value would be a type lie that
-  silently corrupts every ancestor label. Rust's `pack` likewise writes the key
-  without checking its length, producing a record whose every subsequent field
-  mis-parses on read; we reject at write time instead. Neither check alters the
-  bytes produced for valid input, so the format itself remains byte-identical.
+  `config.keyLength` bytes; each child label is exactly 32 bytes; the balance
+  is an integer, one of `-1 | 0 | 1`; when `valueLengthOpt` is non-null, the
+  leaf value is exactly that many bytes. On decode — input is long enough for
+  every field, the leading tag is `0x00` or `0x01`, and the balance byte
+  decodes to `-1 | 0 | 1`. Four of these checks are stricter than the
+  reference — see "Deliberate divergences from the reference" immediately
+  below.
+- **Deliberate divergences from the reference.** Four checks are stricter
+  than `ergo_avltree_rust`, which performs none of them — three on encode,
+  one on decode:
+  - **Key length (encode).** Rust's `pack` writes the key without checking
+    its length, producing a record whose every subsequent field mis-parses
+    on read; we reject at write time instead.
+  - **Child label length (encode).** Rust's child-label field is `Digest32`
+    (`operation.rs`'s `pub type Digest32 = [u8; DIGEST_LENGTH]`), a
+    fixed-size array — the type itself makes any other length
+    unrepresentable, so `pack` has nothing to check. Our equivalent is a
+    plain `Uint8Array`, which carries no length in its type: a hand-built
+    `LabelNode` object literal such as `{ kind: 'label', label: new
+    Uint8Array(16) }` type-checks with no cast. Left unguarded,
+    `serializeNode` would write an undersized digest into the fixed 32-byte
+    slot with no padding, silently producing a record that decodes back as a
+    different node.
+  - **Balance (encode).** Rust's `Balance` is a bare `i8` (`batch_node.rs`'s
+    `pub type Balance = i8`), and `pack` writes it with `put_i8`
+    unconditionally — every `i8` bit pattern is a valid `i8`, so there is
+    nothing to check. Our `Balance` is the narrower numeric union
+    `-1 | 0 | 1`, and — like the label case above — a hand-built
+    `InternalNode` can set `balance` to anything a plain `number` allows: out
+    of `{-1, 0, 1}`, fractional, or `NaN`, all with no cast. Range alone is
+    not a sufficient guard: `NaN < -1` and `NaN > 1` are both false, and
+    fractional values such as `0.5` sit inside `[-1, 1]` too, so the encode
+    check additionally requires the value to be an integer. Left unguarded, a
+    fractional or `NaN` balance silently truncates to byte `0x00` when
+    written (the pack step's `& 0xff` coercion maps both to 0).
+  - **Balance range (decode).** Rust's `unpack` reads the byte as a bare
+    `i8` and accepts it unconditionally; our `Balance` union is narrower, and
+    admitting an out-of-range decoded value would be a type lie that
+    silently corrupts every ancestor label.
+
+  None of the four checks alters the bytes produced for valid input, so the
+  format itself remains byte-identical to the reference.
 - **Postcondition:** `deserializeNode(serializeNode(n, c), c)` reproduces `n`,
   except that an internal node's children come back as `LabelNode` stubs
   carrying the encoded digests — the parent record stores child *labels*, not
