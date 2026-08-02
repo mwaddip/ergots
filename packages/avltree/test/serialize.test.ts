@@ -180,7 +180,57 @@ describe('deserializeNode — rejection paths', () => {
     bytes[o + 1] = 0x0f
     bytes[o + 2] = 0x42
     bytes[o + 3] = 0x40 // 1,000,000
-    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value/)
+    // Anchored on `$` so this can only match the value-body guard's message
+    // ("...reading value"), not the earlier valueLength-header guard's
+    // ("...reading valueLength") — the two would otherwise both satisfy a
+    // bare /value/ substring match.
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value$/)
+  })
+
+  it('rejects a leaf whose declared value length is 0xFFFFFFFF', () => {
+    // A well-formed header (tag + key + u32 length) declaring the maximum
+    // representable unsigned 32-bit length, followed by a few real bytes.
+    // Built directly so the test never allocates 4 GiB — deserializeNode
+    // must bounds-check the declared length before slicing, and readU32BE
+    // must report it as a positive 4,294,967,295, not a negative number.
+    const bytes = new Uint8Array(1 + 32 + 4 + 10)
+    bytes[0] = 0x01
+    const o = 1 + 32
+    bytes[o] = 0xff
+    bytes[o + 1] = 0xff
+    bytes[o + 2] = 0xff
+    bytes[o + 3] = 0xff // 0xFFFFFFFF
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value$/)
+  })
+
+  it('rejects a leaf whose declared value length has the u32 high bit set', () => {
+    // 0x80000000 is negative as a raw 32-bit signed read (bytes[o] << 24
+    // sign-extends). readU32BE's trailing `>>> 0` must coerce this back to
+    // +2,147,483,648 so the ordinary bounds check catches it; if `>>> 0`
+    // were ever dropped, this would decode as -2,147,483,648 and (absent the
+    // takeBytes length guard) slip past `offset + n > b.length` entirely.
+    const bytes = new Uint8Array(1 + 32 + 4 + 10)
+    bytes[0] = 0x01
+    const o = 1 + 32
+    bytes[o] = 0x80
+    bytes[o + 1] = 0x00
+    bytes[o + 2] = 0x00
+    bytes[o + 3] = 0x00 // 0x80000000
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value$/)
+  })
+
+  it('rejects a negative valueLengthOpt in config instead of silently truncating', () => {
+    // Rust's Option<usize> makes a negative length unrepresentable; our
+    // `number` does not, so a malformed config must be checked explicitly.
+    // Buffer is sized generously (well beyond key + rewound value + a full
+    // nextLeafKey) so that, absent the takeBytes length guard, EVERY
+    // downstream read still lands in-bounds and the call returns a
+    // structurally corrupt LeafNode with no throw at all, rather than
+    // incidentally tripping a later truncation check.
+    const bytes = new Uint8Array(1 + 32 + 32 + 10)
+    bytes[0] = 0x01
+    const badConfig: AvlTreeConfig = { keyLength: 32, valueLengthOpt: -1 }
+    expect(() => deserializeNode(bytes, badConfig)).toThrow(/invalid length/)
   })
 
   it('rejects a leaf truncated inside nextLeafKey', () => {
@@ -201,6 +251,20 @@ describe('deserializeNode — rejection paths', () => {
     bytes[0] = 0x00
     bytes[1] = 0x05 // decodes to +5
     expect(() => deserializeNode(bytes, K32)).toThrow(/invalid balance/)
+  })
+
+  it('rejects an internal node truncated inside the key', () => {
+    const bytes = new Uint8Array(1 + 1 + 10) // tag + balance + partial 32-byte key
+    bytes[0] = 0x00
+    bytes[1] = 0x00
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* key/)
+  })
+
+  it('rejects an internal node truncated inside the left label', () => {
+    const bytes = new Uint8Array(1 + 1 + 32 + 16) // tag + balance + key + partial leftLabel
+    bytes[0] = 0x00
+    bytes[1] = 0x00
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* leftLabel/)
   })
 
   it('rejects an internal node truncated inside the right label', () => {

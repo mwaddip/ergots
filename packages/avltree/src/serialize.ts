@@ -1,9 +1,10 @@
 /**
  * Per-node storage codec for AVL+ trees.
  *
- * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`
- * (`batch_node.rs:503-562`, branch `main` @ 2941396). Storage-layer only — the
- * consensus-critical proof encoding lives in `proof-decode.ts`.
+ * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:595-618`)
+ * and `AVLTree::unpack` (`batch_node.rs:622-654`), branch `main` @ 2941396.
+ * Storage-layer only — the consensus-critical proof encoding lives in
+ * `proof-decode.ts`.
  *
  * Format (big-endian):
  *   internal: 0x00 || balance(i8) || key(keyLength) || leftLabel(32) || rightLabel(32)
@@ -53,6 +54,15 @@ export function serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array 
     case 'label':
       throw new RangeError(
         'serializeNode: LabelNode is not serializable — storage holds only leaf and internal nodes',
+      )
+    default:
+      // Unreachable from typed callers (AvlNode is exhaustively handled
+      // above) but reachable from plain JS passing a malformed object. The
+      // signature promises Uint8Array; falling through to `undefined` would
+      // be the same silent-corruption shape as findings 1/2, and this
+      // codec's whole job is refusing to corrupt storage.
+      throw new RangeError(
+        `serializeNode: unexpected node kind ${String((node as AvlNode).kind)}`,
       )
   }
 }
@@ -176,6 +186,16 @@ function takeBytes(
   n: number,
   field: string,
 ): Uint8Array {
+  // A declared length is only ever config.valueLengthOpt (caller-supplied,
+  // not shape-checked upstream) or readU32BE's output (always a non-negative
+  // safe integer when the >>> 0 coercion is intact). Validate it explicitly
+  // before the bounds check below: a negative or non-finite n would make
+  // `offset + n` UNDERSHOOT b.length, so the bounds check alone would not
+  // catch it, and slicing with a negative end silently returns a truncated
+  // (not throwing) result instead of the declared field.
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new RangeError(`deserializeNode: invalid length ${n} for ${field}`)
+  }
   // Bounds-check BEFORE slicing so a bogus declared length cannot allocate.
   if (offset + n > b.length) throw truncated(field)
   return b.slice(offset, offset + n)
