@@ -24,6 +24,17 @@ import {
   type ProverOperationResult,
   PersistentBatchAVLProver,
   type VersionedAVLStorage,
+  type AvlNode,
+  type LeafNode,
+  type InternalNode,
+  type LabelNode,
+  type Balance,
+  newLeaf,
+  newInternal,
+  newLabel,
+  label,
+  serializeNode,
+  deserializeNode,
 } from '@ergots/avltree';
 ```
 
@@ -424,6 +435,79 @@ Return type of `BatchAVLProver.performOneOperation`. On success, `value` is the 
 
 ---
 
+## Node types and constructors
+
+```ts
+type AvlNode = LeafNode | InternalNode | LabelNode
+
+interface LeafNode {
+  readonly kind: 'leaf'
+  readonly key: Uint8Array
+  readonly value: Uint8Array
+  readonly nextLeafKey: Uint8Array
+  labelCache: Uint8Array | null
+}
+
+interface InternalNode {
+  readonly kind: 'internal'
+  readonly key?: Uint8Array
+  left: AvlNode
+  right: AvlNode
+  balance: Balance
+  labelCache: Uint8Array | null
+}
+
+interface LabelNode {
+  readonly kind: 'label'
+  readonly label: Uint8Array
+}
+
+type Balance = -1 | 0 | 1
+
+function newLeaf(key: Uint8Array, value: Uint8Array, nextLeafKey: Uint8Array): LeafNode
+function newInternal(left: AvlNode, right: AvlNode, balance: Balance, key?: Uint8Array): InternalNode
+function newLabel(label: Uint8Array): LabelNode
+function label(node: AvlNode): Uint8Array
+```
+
+Ported from `ergo_avltree_rust`'s `batch_node.rs::Node` enum plus the `LeafNode`/`InternalNode`/`LabelOnly` structs and `Node::label()`. Exported so `VersionedAVLStorage` implementers and other storage-backend consumers can walk and rebuild trees without depending on package internals.
+
+### `AvlNode`
+
+A discriminated union on `kind`. `LeafNode` holds a real key/value/next-leaf-key triple. `InternalNode` holds `left`/`right` children (each an `AvlNode`) and an AVL `balance`. `LabelNode` is a stub carrying only a 32-byte digest — it stands in for a subtree the holder doesn't have full data for (e.g. a proof-decoded sibling, or one of a `deserializeNode`d internal node's children; see "Storage codec" below).
+
+`InternalNode.key` is optional: the shared prover/verifier engine (`modify.ts`/`delete.ts`) sets it on every `newInternal` call it makes, but proof decoding reconstructs verifier-only internal nodes without one. `left`, `right`, `balance`, and `labelCache` are currently typed as mutable (not `readonly`); `key`, like `kind`, is `readonly`.
+
+`LeafNode`'s fields `key`, `value`, `nextLeafKey`, and `kind` are all `readonly`; only `labelCache` is mutable.
+
+### `Balance`
+
+The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in the Storage codec section below for why the TS type is narrower and why both encode and decode range-check it.
+
+### `newLeaf(key, value, nextLeafKey)`
+
+Constructs a `LeafNode`. Defensively copies all three byte arguments so caller-side mutation can't corrupt the node or invalidate an already-computed label.
+
+### `newInternal(left, right, balance, key?)`
+
+Constructs an `InternalNode`. `key` is optional (see `AvlNode` above); `left`/`right` are stored by reference, not defensively copied.
+
+### `newLabel(label)`
+
+Constructs a `LabelNode`. Defensively copies `label`. **Throws `RangeError`** if `label.length !== 32` — a `LabelNode`'s digest must always be exactly 32 bytes.
+
+### `label(node)`
+
+Returns the node's 32-byte blake2b-256 digest.
+
+- `LabelNode` returns its stored digest directly (via a defensive copy).
+- `LeafNode` computes `blake2b256(0x00 || key || value || nextLeafKey)`.
+- `InternalNode` computes `blake2b256(0x01 || balance || label(left) || label(right))` — balance precedes the child labels.
+
+Both computed cases **memoise the result into `labelCache`** and return a defensive copy — the cache itself is never handed out directly, so callers cannot corrupt it by mutating the returned array. A cache hit skips recomputation and still returns a fresh copy each call.
+
+---
+
 ## Storage codec
 
 ```ts
@@ -466,7 +550,7 @@ stubs relinked by label lookup.
 
 ```ts
 import {
-  serializeNode, deserializeNode, label,
+  serializeNode, deserializeNode, newInternal, label,
   type AvlNode, type AvlTreeConfig,
 } from '@ergots/avltree'
 
@@ -483,10 +567,11 @@ export function persist(node: AvlNode, write: (k: Uint8Array, v: Uint8Array) => 
 export function load(key: Uint8Array, read: (k: Uint8Array) => Uint8Array): AvlNode {
   const node = deserializeNode(read(key), config)
   if (node.kind !== 'internal') return node
-  const { left, right } = node
-  if (left.kind === 'label') node.left = load(left.label, read)
-  if (right.kind === 'label') node.right = load(right.label, read)
-  return node
+  // Build a fresh node via newInternal rather than mutating node.left /
+  // node.right in place — those fields are scheduled to become readonly.
+  const left = node.left.kind === 'label' ? load(node.left.label, read) : node.left
+  const right = node.right.kind === 'label' ? load(node.right.label, read) : node.right
+  return newInternal(left, right, node.balance, node.key)
 }
 ```
 

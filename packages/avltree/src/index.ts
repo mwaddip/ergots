@@ -31,7 +31,8 @@ export {
 } from './node.js'
 
 // Per-node storage codec, byte-identical to ergo_avltree_rust's
-// AVLTree::pack / unpack. Storage-layer only — not the proof encoding.
+// AVLTree::pack / unpack for well-formed input. Storage-layer only — not the
+// proof encoding.
 export { serializeNode, deserializeNode } from './serialize.js'
 
 // Internal types (NOT exported): BatchAvlVerifier, modify/delete helpers,
