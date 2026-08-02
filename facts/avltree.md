@@ -18,8 +18,8 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `29413
 8. `PersistentBatchAVLProver` — wraps a `BatchAVLProver` with versioned storage, enabling rollback across proof-generation cycles.
 9. `VersionedAVLStorage` — interface for persistent AVL+ tree storage. No concrete implementation ships; consumers provide their own.
 10. Node types and constructors — `AvlNode`, `LeafNode`, `InternalNode`, `LabelNode`, `Balance`, `newLeaf`, `newInternal`, `newLabel`, `label`. Exported so `VersionedAVLStorage` implementers can walk and rebuild trees without depending on package internals.
-11. `serializeNode` / `deserializeNode` — per-node storage codec, byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`. Consumer-owned traversal: the codec handles one node, the storage backend walks the tree.
-12. `BatchAVLProver.restoreRoot(root, height)` — installs a storage-loaded root and rebases the proof cycle (clears directions and modified-node bookkeeping, resets `oldTopNode`). Required after startup resume, snapshot bootstrap, or recovery rollback.
+11. `serializeNode` / `deserializeNode` — per-node storage codec, byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack` for well-formed input (two decode/encode checks are intentionally stricter than the reference on malformed input — see "Storage codec" below). Consumer-owned traversal: the codec handles one node, the storage backend walks the tree.
+12. `BatchAVLProver.restoreRoot(root, height)` — installs a storage-loaded root and height, then rebases the proof cycle (clears directions and modified-node bookkeeping, resets `oldTopNode`). Required after startup resume, snapshot bootstrap, or recovery rollback.
 13. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
 **Does NOT ship:**
@@ -169,7 +169,7 @@ type ProverOperationResult =
 - **`unauthenticatedLookup(key)`** — walks the tree without modifying it. Returns the value at `key`, or `null` if absent. Does not record directions or touch modified-nodes tracking.
 - **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned (`root === null`).
 - **`generateProofForOperations(operations)`** — clones the current tree, applies the given operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
-- **`restoreRoot(root, height)`** — installs a storage-loaded root and rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, sets `oldTopNode` to the restored root, and suppresses the next cycle reset. Required after startup resume, snapshot bootstrap, or recovery rollback. Ports `restore_root` from the reference.
+- **`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, sets `oldTopNode` to the restored root, and suppresses the next cycle reset. Required after startup resume, snapshot bootstrap, or recovery rollback. Ports `restore_root` from the reference.
 
 #### `PersistentBatchAVLProver`
 
@@ -408,12 +408,15 @@ leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] 
 - **Postcondition:** `deserializeNode(serializeNode(n, c), c)` reproduces `n`,
   except that an internal node's children come back as `LabelNode` stubs
   carrying the encoded digests — the parent record stores child *labels*, not
-  child subtrees. This mirrors Rust's `unpack`, which builds internals via
-  `Node::new_label_persisted(...)` — the `_persisted` family additionally marks
-  the node `is_new = false` so a later in-place `update()` takes Rust's
-  copy-on-write branch instead of mutating a node shared with `oldTopNode`; the
-  TS port has no `is_new` concept since its engine is fully immutable. Storage
-  backends relink real children by label lookup.
+  child subtrees. This mirrors Rust's `unpack`, which builds the internal node
+  via `InternalNode::new_persisted(key, &Node::new_label_persisted(&left),
+  &Node::new_label_persisted(&right), balance)` — `new_label_persisted` builds
+  each *child* as a label-only stub, while `new_persisted` builds the internal
+  node itself. The `_persisted` family additionally marks the node `is_new =
+  false` so a later in-place `update()` takes Rust's copy-on-write branch
+  instead of mutating a node shared with `oldTopNode`; the TS port has no
+  `is_new` concept since its engine is fully immutable. Storage backends relink
+  real children by label lookup.
 - **Invariant:** no I/O, no clock, no PRNG. Encoding an internal node memoises
   child labels into `labelCache` as a side effect, matching Rust's
   `borrow_mut().label()`.

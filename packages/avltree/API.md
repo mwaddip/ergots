@@ -1,6 +1,6 @@
 # API — `@ergots/avltree`
 
-Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (HEAD `879545c`); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
+Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (HEAD `2941396`); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, WASM, or other Node built-ins.
 
@@ -421,6 +421,58 @@ Return type of `BatchAVLProver.performOneOperation`. On success, `value` is the 
 
 ---
 
+## Storage codec
+
+```ts
+serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array
+deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
+```
+
+Encodes a single AVL+ node for persistence, byte-identical to
+`ergo_avltree_rust`'s `AVLTree::pack` / `unpack`. Traversal is the caller's
+responsibility: a storage backend walks the tree and stores one record per node,
+keyed by `label(node)`.
+
+```
+internal: 0x00 || balance(i8) || key(keyLength) || leftLabel(32) || rightLabel(32)
+leaf:     0x01 || key(keyLength) || [valueLen(u32 BE) iff valueLengthOpt is null]
+               || value || nextLeafKey(keyLength)
+```
+
+Only `keyLength` and `valueLengthOpt` are read from `config`.
+
+`deserializeNode` returns internal nodes whose children are `LabelNode` stubs
+carrying the encoded digests — the record stores child labels, not child
+subtrees. Backends relink real children by looking those labels up.
+
+Throws `RangeError` on: a `LabelNode` or a keyless `InternalNode` passed to
+`serializeNode`; a key or fixed-length value disagreeing with `config`; truncated
+input; an unknown leading tag; a balance byte outside `-1 | 0 | 1`.
+
+The format is not self-describing — lengths come from `config`, so a
+writer/reader mismatch is not generally detectable.
+
+### Example
+
+```ts
+import {
+  serializeNode, deserializeNode, label,
+  type AvlNode, type AvlTreeConfig,
+} from '@ergots/avltree'
+
+const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
+
+function persist(node: AvlNode, write: (k: Uint8Array, v: Uint8Array) => void) {
+  write(label(node), serializeNode(node, config))
+  if (node.kind === 'internal') {
+    persist(node.left, write)
+    persist(node.right, write)
+  }
+}
+```
+
+---
+
 ## Conventions
 
 - **All byte sequences are `Uint8Array`.** Never `Buffer`. Keys, values, digests, and proof bytes all use the same type.
@@ -439,4 +491,4 @@ Return type of `BatchAVLProver.performOneOperation`. On success, `value` is the 
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, validation strategy, error model detail
 - `facts/ergoscript-eval.md` — upstream consumer: `SAvlTree.*` method handlers in `@ergots/ergoscript` phase 2h-b
 - [KMZ16 paper](https://eprint.iacr.org/2016/994) — AVL+ authenticated dictionary
-- [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (HEAD `879545c`)
+- [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (HEAD `2941396`)

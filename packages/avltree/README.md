@@ -59,6 +59,23 @@ const value = prover.unauthenticatedLookup(new Uint8Array(32).fill(0x42));
 
 See [API.md](./API.md) for the full reference (every export, signature, error codes, and type definitions).
 
+### Storage codec
+
+`serializeNode` / `deserializeNode` encode one node for persistence, byte-identical
+to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`. Traversal is yours: walk the
+tree and store one record per node, keyed by `label(node)`.
+
+```ts
+import { serializeNode, label, type AvlTreeConfig } from '@ergots/avltree'
+
+const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
+const record = serializeNode(node, config)   // store under label(node)
+```
+
+Internal records hold child *labels*, not child subtrees, so `deserializeNode`
+returns internals whose children are `LabelNode` stubs — relink them by label
+lookup after loading. See `API.md` for the byte layout and error conditions.
+
 ## Browser compatibility
 
 Runs unchanged in evergreen browsers and Node >= 20. No `Buffer`, no `node:crypto`, no dynamic Node built-ins, no WASM. ESM-only.
