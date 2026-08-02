@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
 import { PersistentBatchAVLProver } from '../src/persistent-prover.js'
-import { newLabel, type AvlNode, type VersionedAVLStorage } from '../src/index.js'
+import {
+  newLabel,
+  verifyAvlBatch,
+  type AvlNode,
+  type AvlTreeConfig,
+  type Operation,
+  type VersionedAVLStorage,
+} from '../src/index.js'
 
 describe('BatchAVLProver', () => {
   it('constructs an empty tree and produces a valid digest', () => {
@@ -278,6 +285,80 @@ describe('BatchAVLProver hard-delete separator maintenance', () => {
       expect(found, `key 0x${b.toString(16)} unreachable after Remove(0x12)`).not.toBeNull()
       expect(Array.from(found!), `key 0x${b.toString(16)} resolved to the wrong value`).toEqual([v])
     }
+  })
+})
+
+describe('BatchAVLProver per-operation proofs on the recursive delete path', () => {
+  const KEY_LENGTH = 32
+
+  const keyByte = (b: number): Uint8Array => {
+    const k = new Uint8Array(KEY_LENGTH)
+    k[0] = b
+    k[31] = b
+    return k
+  }
+
+  /**
+   * Regression for the delete path's missing `onNodeVisit` calls.
+   *
+   * `onNodeVisit` is what puts a node into `modifiedNodes`, and `generateProof`
+   * emits a node in that set as full data and a node outside it as a bare
+   * 33-byte label. Every node the verifier must descend into to replay the
+   * operation therefore has to be visited by the prover. `deleteHelper` skipped
+   * several of the Rust reference's visits, so the prover emitted labels where
+   * the verifier needed contents and rejected its own proof.
+   *
+   * Shape: keys 0x01..0x07 inserted in ascending order build a balanced tree
+   * whose root separator is 0x04 with two INTERNAL children. `Remove(0x04)`
+   * therefore cannot splice a child out directly — it enters
+   * `hardDeleteLeftDescent` with direction 0 and runs a deleteMax descent down
+   * the left subtree, whose bottom frame saves the max leaf (0x03) for
+   * promotion. That leaf is not the leaf `modifyHelper` visited on the first
+   * pass, so nothing else marks it: unvisited, it is packed as a label and the
+   * verifier cannot read the key/value it must promote.
+   *
+   * The batched property walks cannot see this — over ~40 operations some
+   * other operation visits the node anyway. The build phase is flushed with
+   * `generateProof()` first precisely so this proof covers the Remove alone,
+   * which is the ordinary prover→verifier usage.
+   */
+  it('verifies a single-Remove proof taken at a node with two internal children', () => {
+    const prover = new BatchAVLProver(KEY_LENGTH, null)
+    for (let b = 1; b <= 7; b++) {
+      const inserted = prover.performOneOperation({
+        tag: 'Insert',
+        key: keyByte(b),
+        value: new Uint8Array([b]),
+      })
+      expect(inserted.success, `Insert 0x${b.toString(16)} failed`).toBe(true)
+    }
+
+    // Flush the build phase — the proof taken below then covers only the Remove.
+    prover.generateProof()
+
+    const digestBefore = prover.digest()
+    expect(digestBefore).not.toBeNull()
+
+    const op: Operation = { tag: 'Remove', key: keyByte(0x04) }
+    const removed = prover.performOneOperation(op)
+    expect(removed.success).toBe(true)
+
+    const proof = prover.generateProof()
+    const digestAfter = prover.digest()
+    expect(digestAfter).not.toBeNull()
+
+    const config: AvlTreeConfig = {
+      keyLength: KEY_LENGTH,
+      valueLengthOpt: null,
+      maxNumOperations: 1,
+      maxDeletes: 1,
+    }
+    const verified = verifyAvlBatch(digestBefore!, proof, config, [op])
+    expect(verified, 'verifier rejected a single-Remove proof the prover produced').not.toBeNull()
+    expect(
+      Array.from(verified!.newDigest),
+      'verifier digest disagrees with the prover after the Remove',
+    ).toEqual(Array.from(digestAfter!))
   })
 })
 

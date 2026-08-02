@@ -33,8 +33,13 @@
  * `deleteHelper` does NOT inspect `op.tag` — once we reach this code, the
  * structural operation is the same regardless of which operation triggered
  * the delete (Remove, RemoveIfExists, or UpdateLongBy result==0). The `op`
- * parameter is kept in the signature for API symmetry with `modifyHelper`
- * (and would be needed for `on_node_visit` tracking if/when added).
+ * parameter is threaded through solely to reach `callbacks.onNodeVisit`, which
+ * the Rust reference calls nine times across this span — see each call site for
+ * its `authenticated_tree_ops.rs` counterpart. Every one is load-bearing for
+ * proof generation: `onNodeVisit` is what puts a node into `modifiedNodes`, and
+ * `generateProof` packs a node outside that set as a bare label. A structurally
+ * involved node that goes unvisited is emitted as a label the verifier cannot
+ * descend into, and the prover's own proof is rejected.
  *
  * Per [[feedback-rust-port-style]]: decomposed into TS-idiomatic helpers
  * rather than one ~95-line function, each with per-section source-line
@@ -238,6 +243,15 @@ function tryEasyDeleteRightLeaf(
   callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
+  // Rust line 495 @191052c: `self.on_node_visit(&r.right, operation, false)`,
+  // ahead of the deleteMax branch and so covering both sub-cases.
+  //
+  // Load-bearing in the deleteMax sub-case: this leaf is the max of an
+  // ancestor's left subtree, not the leaf `modifyHelper` matched on the first
+  // pass, so no other visit reaches it. Left unvisited it is packed as a bare
+  // label, and the verifier cannot read the key and value it has to promote.
+  callbacks.onNodeVisit(rightLeaf, op, false)
+
   if (deleteMax) {
     // Rust lines 474-479. Save the right leaf for the ancestor that started
     // this deleteMax (the one at hardDeleteLeftDescent direction==0 case).
@@ -290,6 +304,12 @@ function tryEasyDeleteLeftLeaf(
   op: Operation,
   callbacks: AvlTreeOpsCallbacks,
 ): DeleteInner {
+  // Rust line 522 @191052c: `self.on_node_visit(&r.left, operation, false)`.
+  // This leaf is spliced out of the tree; the leaf `modifyHelper` matched is
+  // the minimum of `node.right`, so nothing else visits this one. Its key and
+  // value are exactly what the verifier writes into that minimum leaf below.
+  callbacks.onNodeVisit(leftLeaf, op, false)
+
   // Rust lines 501-509. Recurse into node.right's leftmost leaf, replacing
   // its key and value with the deleted left leaf's key and value.
   const newRight = changeKeyAndValueOfMinNode(node.right, leftLeaf.key, leftLeaf.value, callbacks, op)
@@ -462,17 +482,30 @@ function rebalanceShrinkLeft(
   callbacks: AvlTreeOpsCallbacks,
   rotateNode: InternalNode,
 ): DeleteInner {
+  // Rust line 564 @191052c: `self.on_node_visit(&root_right, operation, true)`,
+  // UNCONDITIONAL and ahead of the `if let Node::Internal(right_child)` copy on
+  // line 567 — so it precedes the guard below, and it covers the single-rotate
+  // sub-case too. When the caller descended with direction < 0 this is the
+  // original right child, which the rotation re-parents but never rebuilds
+  // wholesale; the verifier must descend into it to replay the rotation.
+  callbacks.onNodeVisit(rootRight, op, true)
+
   if (rootRight.kind !== 'internal') {
-    // Defensive: per Rust line 571's panic, the verifier sees this as a
+    // Defensive: per Rust line 594's panic, the verifier sees this as a
     // malformed proof.
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 546: `if right_child.balance < 0` — double left rotation.
+  // Rust line 568: `if right_child.balance < 0` — double left rotation.
   if (rootRight.balance < 0) {
-    // Rust line 551: `self.on_node_visit(r_node, operation, true)`
-    callbacks.onNodeVisit(rotateNode, op, true)
-    // Rust line 551: `self.double_left_rotate(&new_root, &new_left, &root_right)`.
+    // Rust line 571: `self.on_node_visit(&right_child.left, operation, true)`.
+    // `right_child.left` is `rootRight.left` — the node `doubleLeftRotate`
+    // promotes to sub-root. An earlier port visited `rotateNode` here instead;
+    // that node is built by `newInternal` in this same frame, so it is
+    // unreachable from `oldTopNode` and `generateProof` never queries it. The
+    // node the proof actually needs went unvisited.
+    callbacks.onNodeVisit(rootRight.left, op, true)
+    // Rust line 573: `self.double_left_rotate(&new_root, &new_left, &root_right)`.
     // doubleLeftRotate takes a parent node and reads .right + .right.left
     // (we synthesize that parent here). The key must match the Rust r_node
     // (new_root / rotateNode), not the right child.
@@ -581,17 +614,29 @@ function rebalanceShrinkRight(
   callbacks: AvlTreeOpsCallbacks,
 ): DeleteInner {
   const rootLeft = node.left
+
+  // Rust line 614 @191052c: `self.on_node_visit(&r.left, operation, true)`,
+  // UNCONDITIONAL and ahead of the `if let Node::Internal(left_child)` copy on
+  // line 617 — the mirror of rebalanceShrinkLeft's line-564 visit, and it
+  // covers the single-rotate sub-case too. `r.left` is the original left child;
+  // the rotation re-parents it and the verifier must descend into it.
+  callbacks.onNodeVisit(rootLeft, op, true)
+
   if (rootLeft.kind !== 'internal') {
-    // Defensive: per Rust line 619's panic, the verifier sees this as
+    // Defensive: per Rust line 641's panic, the verifier sees this as
     // malformed proof.
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 596: `if left_child.balance > 0` — double right rotation.
+  // Rust line 618: `if left_child.balance > 0` — double right rotation.
   if (rootLeft.balance > 0) {
-    // Rust line 600: `self.on_node_visit(r_node, operation, true)`
-    callbacks.onNodeVisit(node, op, true)
-    // Rust line 600: `self.double_right_rotate(r_node, &r.left, &new_right)`.
+    // Rust line 621: `self.on_node_visit(&left_child.right, operation, true)`.
+    // `left_child.right` is `rootLeft.right` — the node `doubleRightRotate`
+    // promotes to sub-root. An earlier port visited `node` here instead, which
+    // `deleteInner` had already visited on the way down, so the call added
+    // nothing and the promoted node was left unvisited.
+    callbacks.onNodeVisit(rootLeft.right, op, true)
+    // Rust line 622: `self.double_right_rotate(r_node, &r.left, &new_right)`.
     // doubleRightRotate takes a parent and reads .left + .left.right
     // (we synthesize that parent here). The key must match the Rust r_node
     // (node), not the left child.
@@ -652,14 +697,19 @@ function changeNextLeafKeyOfMaxNode(
   callbacks: AvlTreeOpsCallbacks,
   op: Operation,
 ): ChangeResult {
-  // Rust lines 408-409: Leaf branch.
+  // Rust line 428 @191052c: `self.on_node_visit(r_node, operation, false)` sits
+  // at the top of the function, AHEAD of the node-kind match — so every node on
+  // this descent is visited, internal nodes included, not only the leaf it
+  // bottoms out on.
+  //
+  // An earlier port visited the leaf alone. That left the right spine of
+  // `node.left` packed as labels: `modifyHelper` went down the other side on
+  // the first pass, so nothing else visits these nodes, and the verifier's own
+  // walk down the spine hits a label and rejects the proof.
+  callbacks.onNodeVisit(node, op, false)
+
+  // Rust lines 430-431: Leaf branch.
   if (node.kind === 'leaf') {
-    // Visit the OLD leaf before creating the replacement, so packTree (which
-    // traverses from oldTopNode) can find it in modifiedNodes. In Rust this is
-    // unnecessary (the leaf is mutated in place, Rc identity preserved), but
-    // in our immutable model the replacement is a fresh object — the old leaf
-    // must be marked so the proof encoder expands it instead of emitting a label.
-    callbacks.onNodeVisit(node, op, false)
     // LeafNode::update(r_node, &node.hdr.key.unwrap(), &node.value, &next_leaf_key)
     // — same key, same value, new nextLeafKey.
     return { ok: true, node: newLeaf(node.key, node.value, newNextLeafKey) }
@@ -703,11 +753,15 @@ function changeKeyAndValueOfMinNode(
   callbacks: AvlTreeOpsCallbacks,
   op: Operation,
 ): ChangeResult {
-  // Rust lines 426-427: Leaf branch.
+  // Rust line 446 @191052c: `self.on_node_visit(r_node, operation, false)` at
+  // the top of the function, ahead of the node-kind match — the mirror of
+  // `changeNextLeafKeyOfMaxNode`'s line-428 visit. Every node on the left-spine
+  // descent is visited, not only the leaf; see that function for what visiting
+  // the leaf alone costs.
+  callbacks.onNodeVisit(node, op, false)
+
+  // Rust lines 448-449: Leaf branch.
   if (node.kind === 'leaf') {
-    // Visit the OLD leaf before creating the replacement (see changeNextLeafKeyOfMaxNode
-    // for rationale — same immutable-model divergence from Rust's in-place mutation).
-    callbacks.onNodeVisit(node, op, false)
     // LeafNode::update(r_node, new_key, new_value, &node.next_node_key)
     return { ok: true, node: newLeaf(newKey, newValue, node.nextLeafKey) }
   }
