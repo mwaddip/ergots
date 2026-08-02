@@ -64,7 +64,12 @@ cross-project boundary rule.
 ## Phase decomposition
 
 Phases are grouped by coupling and shippability rather than by defect category.
-Order is A → B → C → D; all land together as `0.4.0`.
+Order is A → B → C → D. Phase E was added mid-arc (2026-08-02) from a defect
+Phase A surfaced; it is independent of B–D and can run at any point after A.
+
+Phase A shipped as `0.4.0`. Whether B–D land in that same version or bump again
+is decided when they are ready — A is already a breaking release, so folding
+later phases into it costs nothing, but neither is it required.
 
 ### Phase A — storage codec realignment
 
@@ -129,6 +134,38 @@ that left the tree. Additive rather than corrective; in scope per user decision
 2026-08-02. DAGsocial's SQLite backend is the motivating consumer.
 
 Finding closed: 18.
+
+### Phase E — Rust source-citation audit
+
+Discovered during Phase A's final fix wave, not part of the original 20 findings.
+
+Every file in `packages/avltree/src/` carries `@see`-style comments citing Rust
+source line ranges — the primary navigation aid for maintaining this port against
+the reference. An audit of 141 citations found **104 wrong**. Nine files were
+left untouched behind Phase A's scope fence (`modify.ts`, `delete.ts`,
+`rotation.ts`, `batch-verifier.ts`, `tree-traversal.ts`, `node.ts`,
+`operation.ts`, `proof-decode.ts`, `avl-tree-ops.ts`); the estimate for the
+package as a whole is 150–200+ wrong citations.
+
+The defect predates this remediation arc and is not merely rebase drift. Phase A
+established that many citations were never correct at any pin — several named
+constructs that live in a different Rust file entirely, and one cited a function
+(`rootHash()`) that does not exist in the file named. Consistent with the port's
+provenance (see memory `project-avltree-deepseek-provenance`): the citations were
+substantially fabricated rather than derived.
+
+Scope: audit every Rust citation in `packages/avltree/src/` individually against
+the pinned reference — verifying that each range contains the construct it names
+and that its bounds land on that construct's true start and end — and correct or
+remove those that do not. Ranges must be verified per citation, never derived by
+applying an offset, since Phase A found original ranges that were short of the
+real closing brace even before any drift.
+
+**Run separately, not folded into Phase B** (user decision 2026-08-02). Phase B
+reopens three of the nine files, which would make folding cheaper, but mixing a
+large mechanical sweep into correctness work obscures both in review.
+
+No finding number — postdates the audit.
 
 ## Out of scope
 
