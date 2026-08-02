@@ -328,6 +328,55 @@ describe('BatchAVLProver label cache lifecycle', () => {
 })
 
 describe('BatchAVLProver modified-node tracking', () => {
+  /**
+   * Twelve inserts on monotonically increasing keys, then two Lookups on an
+   * already-inserted key. Both tests below run this identical sequence
+   * against their own prover instance — per the round-2 review, they must
+   * differ only in whether a counting Set is installed afterward.
+   *
+   * Insert alone never revisits a node: modify.ts's ModifyOk doc explains
+   * that a structural change forces every ancestor on the path to be
+   * rebuilt fresh ("changeHappened" propagates true to the root), so an
+   * insert-only sequence retires every node it touches — confirmed
+   * empirically (addCalls === size with only the 12 inserts; see
+   * task-3-report.md "Fix round 1").
+   *
+   * A Lookup is the case that keeps nodes alive: it never mutates the tree,
+   * so "changeHappened=false propagates up ... the parent returns its
+   * original node without creating a new internal node" (modify.ts
+   * ModifyOk doc). handleInternalNode still calls onNodeVisit on every
+   * internal node along the path regardless of op type, so repeating a
+   * Lookup for the same already-inserted key visits the same surviving
+   * node objects a second time.
+   */
+  function runSampleOperations(prover: BatchAVLProver): void {
+    for (let i = 1; i <= 12; i++) {
+      const key = new Uint8Array(32)
+      key.fill(i)
+      prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([i]) })
+    }
+    const lookupKey = new Uint8Array(32)
+    lookupKey.fill(1)
+    prover.performOneOperation({ tag: 'Lookup', key: lookupKey })
+    prover.performOneOperation({ tag: 'Lookup', key: lookupKey })
+  }
+
+  it('tracks modified nodes in a Set, not an array', () => {
+    // Prover A is never instrumented — its modifiedNodes field is read
+    // exactly as the class produces it, independently re-deriving the
+    // production runtime type. This (not the dedup test below) is the
+    // actual regression net against a future revert to an array.
+    const proverA = new BatchAVLProver(32, null)
+    runSampleOperations(proverA)
+
+    // modifiedNodes is private; reach it deliberately for this structural
+    // assertion. A timing assertion would be flaky and is not written.
+    const tracked = (proverA as unknown as { modifiedNodes: Set<AvlNode> | AvlNode[] })
+      .modifiedNodes
+    expect(tracked instanceof Set).toBe(true)
+    expect((tracked as Set<AvlNode>).size).toBeGreaterThan(0)
+  })
+
   it('collapses repeat visits to the same node into one Set entry', () => {
     /**
      * A Set cannot contain SameValueZero duplicates by specification, so
@@ -344,51 +393,21 @@ describe('BatchAVLProver modified-node tracking', () => {
       }
     }
 
-    const prover = new BatchAVLProver(32, null)
-
-    // modifiedNodes is private; reach it deliberately to install the counting
-    // Set before any operations run. onNodeVisit looks up `self.modifiedNodes`
-    // fresh on every call (not a captured reference), so installing the
-    // replacement here redirects every subsequent .add() through it.
+    // Prover B is a separate, freshly constructed instance — instrumenting
+    // it never touches Prover A's field above. modifiedNodes is private;
+    // reach it deliberately to install the counting Set before any
+    // operations run. onNodeVisit looks up `self.modifiedNodes` fresh on
+    // every call (not a captured reference), so installing the replacement
+    // here redirects every subsequent .add() through it.
+    const proverB = new BatchAVLProver(32, null)
     const counting = new CountingSet<AvlNode>()
-    ;(prover as unknown as { modifiedNodes: Set<AvlNode> }).modifiedNodes = counting
+    ;(proverB as unknown as { modifiedNodes: Set<AvlNode> }).modifiedNodes = counting
+    runSampleOperations(proverB)
 
-    for (let i = 1; i <= 12; i++) {
-      const key = new Uint8Array(32)
-      key.fill(i)
-      prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([i]) })
-    }
-
-    // Insert alone never revisits a node: modify.ts's ModifyOk doc explains
-    // that a structural change forces every ancestor on the path to be
-    // rebuilt fresh ("changeHappened" propagates true to the root), so an
-    // insert-only sequence retires every node it touches — confirmed
-    // empirically (addCalls === size with only the 12 inserts above; see
-    // task-3-report.md "Fix round 1" for the failed first attempt).
-    //
-    // A Lookup is the case that keeps nodes alive: it never mutates the tree,
-    // so "changeHappened=false propagates up ... the parent returns its
-    // original node without creating a new internal node" (modify.ts
-    // ModifyOk doc). handleInternalNode still calls onNodeVisit on every
-    // internal node along the path regardless of op type, so repeating a
-    // Lookup for the same already-inserted key visits the same surviving
-    // node objects a second time.
-    const lookupKey = new Uint8Array(32)
-    lookupKey.fill(1)
-    prover.performOneOperation({ tag: 'Lookup', key: lookupKey })
-    prover.performOneOperation({ tag: 'Lookup', key: lookupKey })
-
-    // modifiedNodes is private; reach it deliberately for this structural
-    // assertion. A timing assertion would be flaky and is not written.
-    const tracked = (prover as unknown as { modifiedNodes: Set<AvlNode> | AvlNode[] })
-      .modifiedNodes
-    expect(tracked instanceof Set).toBe(true)
-    const asSet = tracked as Set<AvlNode>
-    expect(asSet.size).toBeGreaterThan(0)
     // Prove dedup actually happened: strictly more add() calls than distinct
     // entries means at least one node was visited more than once and
     // collapsed into a single Set entry. `>=` would also pass with zero
     // duplicates and prove nothing.
-    expect(counting.addCalls).toBeGreaterThan(asSet.size)
+    expect(counting.addCalls).toBeGreaterThan(counting.size)
   })
 })
