@@ -2,11 +2,11 @@
 
 The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@ergots/ergoscript`, which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
 
-Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `879545c` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
+Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `2941396` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
 
 ## Scope
 
-**Ships in this contract (v0.3.0):**
+**Ships in this contract (v0.4.0):**
 
 1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values. All-or-nothing: any per-op failure collapses to `null`. Thin wrapper over `verifyAvlBatchPartial`.
 2. `verifyAvlBatchPartial` — partial-success variant. On per-op failure, returns `{ newDigest, results, opsCompleted }` reflecting state AFTER the last successful op. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` semantics (break-on-failure with state-after-last-success).
@@ -17,7 +17,10 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 7. `BatchAVLProver` — in-memory AVL+ tree prover. Builds a tree from authenticated operations, records traversal directions, and generates serialized AD proofs suitable for verification by `verifyAvlBatch`.
 8. `PersistentBatchAVLProver` — wraps a `BatchAVLProver` with versioned storage, enabling rollback across proof-generation cycles.
 9. `VersionedAVLStorage` — interface for persistent AVL+ tree storage. No concrete implementation ships; consumers provide their own.
-10. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+10. Node types and constructors — `AvlNode`, `LeafNode`, `InternalNode`, `LabelNode`, `Balance`, `newLeaf`, `newInternal`, `newLabel`, `label`. Exported so `VersionedAVLStorage` implementers can walk and rebuild trees without depending on package internals.
+11. `serializeNode` / `deserializeNode` — per-node storage codec, byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`. Consumer-owned traversal: the codec handles one node, the storage backend walks the tree.
+12. `BatchAVLProver.restoreRoot(root, height)` — installs a storage-loaded root and rebases the proof cycle (clears directions and modified-node bookkeeping, resets `oldTopNode`). Required after startup resume, snapshot bootstrap, or recovery rollback.
+13. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
 **Does NOT ship:**
 
@@ -25,7 +28,7 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `87954
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
 
-## Public surface (v0.2.0)
+## Public surface (v0.4.0)
 
 ### Primary export: `@ergots/avltree`
 
@@ -204,7 +207,7 @@ Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v
 ```ts
 type AvlVerifyFailReason =               // (internal; not exported)
   | 'proof-truncated'                    // OOB read during tree decode
-  | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid
+  | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid, leaf value length > 4 MiB or > remaining proof (scrypto PR #117)
   | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
   | 'directions-exhausted'               // direction/replay bit read ran past proof.length
   | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
@@ -289,6 +292,44 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, includi
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (7 codes); Rust uses `anyhow::Result` throughout with no separate error class |
 | (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.2.0 |
+
+## Storage codec (v0.4.0)
+
+```ts
+serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array
+deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
+```
+
+Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`
+(`batch_node.rs:503-562`). Only `config.keyLength` and `config.valueLengthOpt`
+are read; `maxNumOperations` and `maxDeletes` are ignored.
+
+**Format.** Big-endian.
+
+```
+internal: 0x00 || balance(i8, 1B) || key(keyLength) || leftLabel(32) || rightLabel(32)
+leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] || value || nextLeafKey(keyLength)
+```
+
+- **Precondition (throws `RangeError`):** on encode — `node.kind !== 'label'`
+  (label stubs are not storable, matching Rust, which panics); for an internal
+  node, `node.key !== undefined`; every key-position field is exactly
+  `config.keyLength` bytes; when `valueLengthOpt` is non-null, the leaf value is
+  exactly that many bytes. On decode — input is long enough for every field, the
+  leading tag is `0x00` or `0x01`, and the balance byte decodes to `-1 | 0 | 1`.
+- **Postcondition:** `deserializeNode(serializeNode(n, c), c)` reproduces `n`,
+  except that an internal node's children come back as `LabelNode` stubs
+  carrying the encoded digests — the parent record stores child *labels*, not
+  child subtrees. This mirrors Rust's `unpack`, which builds internals via
+  `Node::new_label(...)`. Storage backends relink real children by label lookup.
+- **Invariant:** no I/O, no clock, no PRNG. Encoding an internal node memoises
+  child labels into `labelCache` as a side effect, matching Rust's
+  `borrow_mut().label()`.
+- **Not self-describing.** Key and value lengths come from `config`, so a
+  writer/reader config mismatch is not generally detectable. Rust has the same
+  property. The fixed-value-length check catches the common case. Records
+  written by the retired 0.3.x format are NOT reliably rejected: its leaf tag was
+  also `0x01`, so its u16 key-length prefix is silently consumed as key bytes.
 
 ## Cross-references
 
