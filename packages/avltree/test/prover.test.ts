@@ -459,7 +459,12 @@ describe('BatchAVLProver.digest root label validation', () => {
     // Construct as an object literal: newLabel would reject this first.
     const shortRoot = { kind: 'label' as const, label: new Uint8Array(16) }
     prover.restoreRoot(shortRoot, 3)
-    expect(() => prover.digest()).toThrow(RangeError)
+    // digest() has two RangeError-throwing guards (height, root-label). A bare
+    // toThrow(RangeError) would also pass if the height guard fired instead —
+    // anchor to the root-label guard's specific message, matching the
+    // precedent set for the storage codec's child-label guards in
+    // serialize.test.ts (e.g. /left child label length 16/).
+    expect(() => prover.digest()).toThrow(/root label length 16/)
   })
 
   it('accepts a restored LabelNode root with a full 32-byte digest', () => {
