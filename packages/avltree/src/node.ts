@@ -25,7 +25,7 @@ export type AvlNode = LeafNode | InternalNode | LabelNode
  * A real leaf with key, value, and pointer-to-next-leaf-key.
  *
  * Ports batch_node.rs::LeafNode (lines ~41-45).
- * `labelCache` is mutable because it is populated lazily by the `label()` helper in Task 7.
+ * `labelCache` is mutable because it is populated lazily by the `label()` helper.
  */
 export interface LeafNode {
   readonly kind: 'leaf'
@@ -40,8 +40,11 @@ export interface LeafNode {
  * Internal node with left/right subtrees and AVL balance ∈ {-1, 0, 1}.
  *
  * Ports batch_node.rs::InternalNode (lines ~33-38).
- * Children and balance are mutable to support in-place rebalancing.
- * `labelCache` is invalidated (set to null) whenever the subtree is mutated.
+ * Children and balance are not declared `readonly` yet, but the engine never
+ * mutates them, and a future phase will tighten the types.
+ * A fresh node starts with `labelCache: null` and is populated on the first
+ * call to `label()`; because nodes are immutable, a populated cache stays
+ * valid for the node's lifetime.
  */
 export interface InternalNode {
   readonly kind: 'internal'
@@ -160,8 +163,9 @@ export function newLabel(label: Uint8Array): LabelNode {
  *
  * Balance encoding: i8 → u8 via `& 0xff` (-1 → 0xff, 0 → 0x00, 1 → 0x01).
  *
- * Result is memoised in `node.labelCache` (null on a freshly constructed node;
- * callers that mutate a subtree must reset labelCache to null on all ancestors).
+ * Result is memoised in `node.labelCache` (null on a freshly constructed node).
+ * Nodes must not be mutated — operations build new nodes instead of editing
+ * existing ones, so a populated cache never needs to be invalidated.
  *
  * Returns a defensively-sliced copy of the label so callers cannot mutate
  * the internal cache (or the LabelNode's stored digest). The cache itself

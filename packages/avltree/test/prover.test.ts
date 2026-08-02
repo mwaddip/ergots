@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
+import type { AvlNode } from '../src/index.js'
 
 describe('BatchAVLProver', () => {
   it('constructs an empty tree and produces a valid digest', () => {
@@ -254,5 +255,52 @@ describe('BatchAVLProver.restoreRoot', () => {
 
     // Lookup must find the inserted key.
     expect(restored.unauthenticatedLookup(key)).toEqual(value)
+  })
+})
+
+describe('BatchAVLProver label cache lifecycle', () => {
+  it('preserves cached labels on unmodified nodes across generateProof', () => {
+    const prover = new BatchAVLProver(32, null)
+    for (let i = 1; i <= 8; i++) {
+      const key = new Uint8Array(32)
+      key.fill(i)
+      prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([i]) })
+    }
+    prover.generateProof()
+
+    // Populate every label, then grab a node that the next batch will not touch.
+    const rootDigest = prover.digest()
+    expect(rootDigest).not.toBeNull()
+    const root = prover.root
+    expect(root).not.toBeNull()
+    expect(root!.kind).toBe('internal')
+    const untouched = (root as Extract<AvlNode, { kind: 'internal' }>).left
+    expect(untouched.kind).not.toBe('label')
+    expect((untouched as { labelCache: Uint8Array | null }).labelCache).not.toBeNull()
+
+    // A proof cycle must not invalidate it.
+    prover.generateProof()
+    expect((untouched as { labelCache: Uint8Array | null }).labelCache).not.toBeNull()
+  })
+
+  it('produces correct digests across several proof cycles', () => {
+    // Guards against confusing "cache preserved" with "cache stale": if a
+    // preserved label were ever wrong, the digest would drift from a
+    // freshly-computed tree's.
+    const a = new BatchAVLProver(32, null)
+    const b = new BatchAVLProver(32, null)
+
+    for (let cycle = 0; cycle < 3; cycle++) {
+      for (let i = 1; i <= 4; i++) {
+        const key = new Uint8Array(32)
+        key[0] = cycle * 4 + i
+        key[31] = cycle * 4 + i
+        const value = new Uint8Array([cycle, i])
+        a.performOneOperation({ tag: 'Insert', key, value })
+        b.performOneOperation({ tag: 'Insert', key, value })
+      }
+      a.generateProof() // a takes proof cycles; b never does
+      expect(a.digest()).toEqual(b.digest())
+    }
   })
 })

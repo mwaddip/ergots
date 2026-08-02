@@ -94,9 +94,6 @@ export class BatchAVLProver {
   // Modified nodes for proof generation (Rust: modified_nodes)
   private modifiedNodes: AvlNode[] = []
 
-  // Cycle reset flag (batch_avl_prover.rs:49-50)
-  private needsCycleReset = false
-
   // -------------------------------------------------------------------------
   // Constructor — ports batch_avl_prover.rs:54-76
   // -------------------------------------------------------------------------
@@ -145,10 +142,6 @@ export class BatchAVLProver {
     // Clear accumulated directions from any prior (possibly failed) cycle.
     this.directions = []
     this.directionsBitLength = 0
-
-    // Tree was just reset — don't double-reset on the next
-    // performOneOperation.
-    this.needsCycleReset = false
   }
 
   // -------------------------------------------------------------------------
@@ -274,12 +267,6 @@ export class BatchAVLProver {
         'Value length does not match fixed value length',
         'invalid-config-value-length',
       )
-    }
-
-    // Cycle reset (batch_avl_prover.rs:121-124)
-    if (this.needsCycleReset) {
-      this.clearVisitedFlags(this.root)
-      this.needsCycleReset = false
     }
 
     // Snapshot replay index (batch_avl_prover.rs:125)
@@ -446,9 +433,17 @@ export class BatchAVLProver {
     // Directions bit-string (batch_avl_prover.rs:244)
     parts.push(new Uint8Array(this.directions))
 
-    // Cycle reset (batch_avl_prover.rs:251-255)
+    // Cycle reset (batch_avl_prover.rs:251-255). Rust also calls tree.reset()
+    // here, which clears its per-node is_new/visited flags while PRESERVING
+    // each node's cached label. We have no equivalent flags — `visited` is
+    // membership in modifiedNodes, cleared below, and `is_new` has no meaning
+    // in an immutable model — so there is nothing left to reset.
+    //
+    // Labels are deliberately NOT cleared. Nodes are immutable, so an
+    // unmodified node's cached label stays valid for its lifetime; modified
+    // subtrees are rebuilt as fresh nodes with labelCache: null. Clearing here
+    // would force a full O(n) re-hash on the next digest().
     this.modifiedNodes = []
-    this.needsCycleReset = true
     this.directions = []
     this.directionsBitLength = 0
     this.oldTopNode = this.root
@@ -533,26 +528,5 @@ export class BatchAVLProver {
     }
     // LabelNode
     return { kind: 'label', label: new Uint8Array(node.label) }
-  }
-
-  // -------------------------------------------------------------------------
-  // clearVisitedFlags
-  // -------------------------------------------------------------------------
-
-  /**
-   * Recursively clear labelCache on all nodes. Called during the cycle reset
-   * that follows every generateProof() call (Rust's `tree.reset()`).
-   * Forces re-labeling on the next digest() call after the tree has been
-   * mutated in the new cycle.
-   */
-  private clearVisitedFlags(node: AvlNode | null): void {
-    if (node === null) return
-    if (node.kind !== 'label') {
-      node.labelCache = null
-    }
-    if (node.kind === 'internal') {
-      this.clearVisitedFlags(node.left)
-      this.clearVisitedFlags(node.right)
-    }
   }
 }
