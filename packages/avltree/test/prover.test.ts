@@ -259,20 +259,20 @@ describe('BatchAVLProver.restoreRoot', () => {
 })
 
 describe('BatchAVLProver label cache lifecycle', () => {
-  /** Collect every node reachable from `node`, in traversal order. */
-  const collectNodes = (node: AvlNode, out: AvlNode[] = []): AvlNode[] => {
-    out.push(node)
-    if (node.kind === 'internal') {
-      collectNodes(node.left, out)
-      collectNodes(node.right, out)
-    }
-    return out
-  }
-
-  const cacheOf = (n: AvlNode): Uint8Array | null =>
-    n.kind === 'label' ? null : (n as { labelCache: Uint8Array | null }).labelCache
-
   it('preserves cached labels on nodes that survive a proof cycle', () => {
+    /** Collect every node reachable from `node`, in traversal order. */
+    const collectNodes = (node: AvlNode, out: AvlNode[] = []): AvlNode[] => {
+      out.push(node)
+      if (node.kind === 'internal') {
+        collectNodes(node.left, out)
+        collectNodes(node.right, out)
+      }
+      return out
+    }
+
+    const cacheOf = (n: AvlNode): Uint8Array | null =>
+      n.kind === 'label' ? null : (n as { labelCache: Uint8Array | null }).labelCache
+
     const prover = new BatchAVLProver(32, null)
     for (let i = 1; i <= 8; i++) {
       const key = new Uint8Array(32)

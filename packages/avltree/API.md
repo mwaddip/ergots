@@ -346,7 +346,7 @@ Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds
 
 **`generateProofForOperations(operations)`** — clones the tree, applies all operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is untouched. This is the primary entry point for producing proofs verifiable by `verifyAvlBatch`.
 
-**`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, sets `oldTopNode` to the restored root, and suppresses the next cycle reset. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs.
+**`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs.
 
 **Example:**
 

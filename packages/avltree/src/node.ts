@@ -40,8 +40,8 @@ export interface LeafNode {
  * Internal node with left/right subtrees and AVL balance ∈ {-1, 0, 1}.
  *
  * Ports batch_node.rs::InternalNode (lines ~33-38).
- * Children and balance are not declared `readonly` yet, but the engine never
- * mutates them, and a future phase will tighten the types.
+ * Children and balance are not declared `readonly`, but the engine never
+ * mutates them.
  * A fresh node starts with `labelCache: null` and is populated on the first
  * call to `label()`; because nodes are immutable, a populated cache stays
  * valid for the node's lifetime.
