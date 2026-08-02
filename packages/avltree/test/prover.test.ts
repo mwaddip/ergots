@@ -192,3 +192,67 @@ describe('BatchAVLProver', () => {
     expect(prover.unauthenticatedLookup(absentKey)).toBeNull()
   })
 })
+
+describe('BatchAVLProver.restoreRoot', () => {
+  it('rebases the proof cycle on a restored tree', () => {
+    // Build a tree with some entries, snapshot its root + digest.
+    const src = new BatchAVLProver(32, null)
+    for (let i = 0; i < 5; i++) {
+      const key = new Uint8Array(32)
+      key[0] = 0x10 + i
+      key[31] = 0x10 + i
+      const value = new Uint8Array([i, i, i])
+      const r = src.performOneOperation({ tag: 'Insert', key, value })
+      expect(r.success).toBe(true)
+    }
+    const srcDigest = src.digest()
+    expect(srcDigest).not.toBeNull()
+
+    // Snapshot root and height.
+    const savedRoot = src.root
+    const savedHeight = src.height
+    expect(savedRoot).not.toBeNull()
+    expect(savedHeight).toBeGreaterThan(0)
+
+    // Restore into a fresh prover.
+    const restored = new BatchAVLProver(32, null)
+    restored.restoreRoot(savedRoot!, savedHeight)
+
+    // Digest must match.
+    const restoredDigest = restored.digest()
+    expect(restoredDigest).not.toBeNull()
+    expect(restoredDigest).toEqual(srcDigest)
+
+    // Perform an operation on the restored tree — must succeed.
+    // Must not be all-zeroes (negative-infinity key) or all-0xff (positive-infinity key).
+    const newKey = new Uint8Array(32)
+    newKey.fill(0x99)
+    const r = restored.performOneOperation({
+      tag: 'Insert',
+      key: newKey,
+      value: new Uint8Array([9, 9, 9]),
+    })
+    expect(r.success).toBe(true)
+
+    // Generate a proof from the restored prover.
+    const proof = restored.generateProof()
+    expect(proof).not.toBeNull()
+    // Proof should be non-empty (at least one operation)
+    expect(proof!.length).toBeGreaterThan(0)
+  })
+
+  it('allows lookup on restored tree', () => {
+    const src = new BatchAVLProver(32, null)
+    const key = new Uint8Array(32)
+    key[0] = 0x42
+    key[31] = 0x42
+    const value = new Uint8Array([0xab, 0xcd])
+    src.performOneOperation({ tag: 'Insert', key, value })
+
+    const restored = new BatchAVLProver(32, null)
+    restored.restoreRoot(src.root!, src.height)
+
+    // Lookup must find the inserted key.
+    expect(restored.unauthenticatedLookup(key)).toEqual(value)
+  })
+})

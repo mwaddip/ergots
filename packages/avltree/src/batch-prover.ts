@@ -120,6 +120,38 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
+  // restoreRoot — ports batch_avl_prover.rs:78-108
+  // -------------------------------------------------------------------------
+
+  /**
+   * Install a persisted root and rebase the proof cycle atomically.
+   *
+   * Must be called after loading a tree from storage (startup resume, snapshot
+   * bootstrap, recovery rollback). Without this, `oldTopNode` is a stale
+   * sentinel and `generateProof` produces wrong proofs.
+   *
+   * Ports batch_avl_prover.rs `restore_root` (commit 2941396).
+   */
+  restoreRoot(root: AvlNode, height: number): void {
+    this.root = root
+    this.height = height
+
+    // Drop stale dirty-node bookkeeping from any previous proof cycle.
+    this.modifiedNodes = []
+
+    // Rebase the proof baseline to the freshly-restored root.
+    this.oldTopNode = root
+
+    // Clear accumulated directions from any prior (possibly failed) cycle.
+    this.directions = []
+    this.directionsBitLength = 0
+
+    // Tree was just reset — don't double-reset on the next
+    // performOneOperation.
+    this.needsCycleReset = false
+  }
+
+  // -------------------------------------------------------------------------
   // buildCallbacks — ports batch_avl_prover.rs:409-484
   // -------------------------------------------------------------------------
 
