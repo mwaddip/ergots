@@ -275,29 +275,29 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `191052c`, branch `main`, includi
 
 | Rust function (file:lines) | TS function(s) (file) | Note |
 |---|---|---|
-| `batch_avl_verifier.rs::BatchAVLVerifier::new` (37-55) | `BatchAvlVerifier` constructor (`batch-verifier.ts`) | 1:1 port; proof-decode delegated to `parseProofPackedTree` |
-| `batch_avl_verifier.rs::reconstruct_tree` (58-143) | `parseProofPackedTree` (`proof-decode.ts`) | 1:1 port; bounds-checks added (TS OOB returns undefined, not panic); token constants from `batch_node.rs:14-16`; max-nodes DoS formula from lines 63-87 |
-| `batch_avl_verifier.rs::perform_one_operation` (157-172) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (221-248); needsDelete two-phase dispatch; height bookkeeping |
-| `batch_avl_verifier.rs::next_direction_is_left` (192-203) | `nextDirectionIsLeft` (`tree-traversal.ts`) | 1:1 port; LSB-first bit indexing (`1 << (i & 7)`) confirmed |
-| `batch_avl_verifier.rs::key_matches_leaf` (213-227) | `keyMatchesLeaf` (`tree-traversal.ts`) | 1:1 port; returns discriminated-union result instead of throwing on out-of-order |
-| `batch_avl_verifier.rs::replay_comparison` (239-251) | `replayComparison` (`tree-traversal.ts`) | 1:1 port; three-way return (-1/0/1); advances `state.replayIndex` |
-| `authenticated_tree_ops.rs::double_left_rotate` (135-164) | `doubleLeftRotate` (`rotation.ts`) | 1:1 port; fresh `newInternal` allocations instead of Rc<RefCell> in-place update (labelCache invariant) |
-| `authenticated_tree_ops.rs::double_right_rotate` (171-200) | `doubleRightRotate` (`rotation.ts`) | 1:1 port (mirror); same allocation policy |
-| `authenticated_tree_ops.rs::modify_helper` (262-385) | `modifyHelper` + `handleLeafNode` + `handleLeafMatch` + `handleLeafGap` + `handleInternalNode` + `addNode` + `rebalanceLeftDescent` + `rebalanceRightDescent` + `rotateLeftDescent` + `rotateRightDescent` (`modify.ts`) | Decomposed into 10 helpers; `needsDelete` signal added per two-phase dispatch design; handles Lookup/UnknownModification/Insert/Update/InsertOrUpdate/UpdateLongBy (Remove/RemoveIfExists live in delete.ts) |
-| `authenticated_tree_ops.rs::add_node` (205-219) | `addNode` (`modify.ts`) | 1:1 port; splits the leaf-gap into (modifiedOriginal, newLeaf) under a new InternalNode with balance=0 |
-| `authenticated_tree_ops.rs::delete_helper` (446-637) | `deleteHelper` + `deleteInner` + `tryEasyDeleteRightLeaf` + `tryEasyDeleteLeftLeaf` + `hardDeleteLeftDescent` + `hardDeleteRightDescent` + `rebalanceShrinkLeft` + `rebalanceShrinkRight` (`delete.ts`) | Decomposed into 8 helpers; `saved_node` out-param emulated via `SavedNodeRef` wrapper (`{ node: LeafNode \| null }`); second-pass deletion using `replayComparison` |
-| `authenticated_tree_ops.rs::change_next_leaf_key_of_max_node` (400-416) | `changeNextLeafKeyOfMaxNode` (`delete.ts`) | 1:1 port; traverses rightmost path to update `nextLeafKey` of the max node |
-| `authenticated_tree_ops.rs::change_key_and_value_of_min_node` (417-432) | `changeKeyAndValueOfMinNode` (`delete.ts`) | 1:1 port; traverses leftmost path to promote in-order successor |
-| `authenticated_tree_ops.rs::digest` (112-128) | `BatchAvlVerifier.digest()` (`batch-verifier.ts`) | 1:1 port; returns 32-byte root label `||` 1-byte height; height clamped to u8 via `& 0xff` |
+| `batch_avl_verifier.rs::BatchAVLVerifier::new` (59-77) | `BatchAvlVerifier` constructor (`batch-verifier.ts`) | 1:1 port; proof-decode delegated to `parseProofPackedTree` |
+| `batch_avl_verifier.rs::reconstruct_tree` (80-181) | `parseProofPackedTree` (`proof-decode.ts`) | 1:1 port; bounds-checks added (TS OOB returns undefined, not panic); token constants from `batch_node.rs:14-16`; max-nodes DoS formula from `batch_avl_verifier.rs:86-109` |
+| `batch_avl_verifier.rs::perform_one_operation` (195-210) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (237-264); needsDelete two-phase dispatch; height bookkeeping |
+| `batch_avl_verifier.rs::next_direction_is_left` (230-241) | `nextDirectionIsLeft` (`tree-traversal.ts`) | 1:1 port; LSB-first bit indexing (`1 << (i & 7)`) confirmed |
+| `batch_avl_verifier.rs::key_matches_leaf` (251-265) | `keyMatchesLeaf` (`tree-traversal.ts`) | 1:1 port; returns discriminated-union result instead of throwing on out-of-order |
+| `batch_avl_verifier.rs::replay_comparison` (277-289) | `replayComparison` (`tree-traversal.ts`) | 1:1 port; three-way return (-1/0/1); advances `state.replayIndex` |
+| `authenticated_tree_ops.rs::double_left_rotate` (151-180) | `doubleLeftRotate` (`rotation.ts`) | 1:1 port; fresh `newInternal` allocations instead of Rc<RefCell> in-place update (labelCache invariant) |
+| `authenticated_tree_ops.rs::double_right_rotate` (187-216) | `doubleRightRotate` (`rotation.ts`) | 1:1 port (mirror); same allocation policy |
+| `authenticated_tree_ops.rs::modify_helper` (278-407) | `modifyHelper` + `handleLeafNode` + `handleLeafMatch` + `handleLeafGap` + `handleInternalNode` + `addNode` + `rebalanceLeftDescent` + `rebalanceRightDescent` + `rotateLeftDescent` + `rotateRightDescent` (`modify.ts`) | Decomposed into 10 helpers; `needsDelete` signal added per two-phase dispatch design; handles Lookup/UnknownModification/Insert/Update/InsertOrUpdate/UpdateLongBy (Remove/RemoveIfExists live in delete.ts) |
+| `authenticated_tree_ops.rs::add_node` (221-235) | `addNode` (`modify.ts`) | 1:1 port; splits the leaf-gap into (modifiedOriginal, newLeaf) under a new InternalNode with balance=0 |
+| `authenticated_tree_ops.rs::delete_helper` (468-659) | `deleteHelper` + `deleteInner` + `tryEasyDeleteRightLeaf` + `tryEasyDeleteLeftLeaf` + `hardDeleteLeftDescent` + `hardDeleteRightDescent` + `rebalanceShrinkLeft` + `rebalanceShrinkRight` (`delete.ts`) | Decomposed into 8 helpers; `saved_node` out-param emulated via `SavedNodeRef` wrapper (`{ node: LeafNode \| null }`); second-pass deletion using `replayComparison` |
+| `authenticated_tree_ops.rs::change_next_leaf_key_of_max_node` (422-437) | `changeNextLeafKeyOfMaxNode` (`delete.ts`) | 1:1 port; traverses rightmost path to update `nextLeafKey` of the max node |
+| `authenticated_tree_ops.rs::change_key_and_value_of_min_node` (439-455) | `changeKeyAndValueOfMinNode` (`delete.ts`) | 1:1 port; traverses leftmost path to promote in-order successor |
+| `authenticated_tree_ops.rs::digest` (128-144) | `BatchAvlVerifier.digest()` (`batch-verifier.ts`) | 1:1 port; returns 32-byte root label `||` 1-byte height; height clamped to u8 via `& 0xff` |
 | `batch_node.rs::Node::label` (83-112, across LeafNode/InternalNode/LabelOnly branches) | `label` (`node.ts`) | Dispatch on `node.kind`; CRITICAL byte layout: LeafNode = `0x00 \|\| key \|\| value \|\| nextLeafKey`; InternalNode = `0x01 \|\| balance \|\| leftLabel \|\| rightLabel` (balance precedes child labels per batch_node.rs:100-109); LabelNode returns stored label directly |
-| `batch_node.rs::LeafNode::new` (268-275) | `newLeaf` (`node.ts`) | 1:1 port; defensive copies on all byte args |
-| `batch_node.rs::InternalNode::new` (212-219) | `newInternal` (`node.ts`) | 1:1 port; no defensive copy on children (object references; GC handles lifecycle) |
+| `batch_node.rs::LeafNode::new` (302-308) | `newLeaf` (`node.ts`) | 1:1 port; defensive copies on all byte args |
+| `batch_node.rs::InternalNode::new` (232-239) | `newInternal` (`node.ts`) | 1:1 port; no defensive copy on children (object references; GC handles lifecycle) |
 | `batch_node.rs::Node::new_label` (166) | `newLabel` (`node.ts`) | 1:1 port; defensive copy; RangeError if label !== 32 bytes |
 | `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup |
 | `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue` type aliases (`types.ts`); no `ADDigest` alias — the 33-byte digest flows as the plain `Uint8Array` returned as `newDigest` | Documentation-only aliases on `Uint8Array`; the digest is exactly 33 bytes |
 | (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (7 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
-| (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
+| (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 206 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (7 codes); Rust uses `anyhow::Result` throughout with no separate error class |
 | (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.4.0 |
 
@@ -380,8 +380,8 @@ serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array
 deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
 ```
 
-Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:595-618`)
-and `AVLTree::unpack` (`batch_node.rs:622-654`) for well-formed input — two
+Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:610-635`)
+and `AVLTree::unpack` (`batch_node.rs:637-670`) for well-formed input — two
 checks are intentionally stricter than the reference; see "Deliberate
 divergences from the reference" below. Only `config.keyLength` and
 `config.valueLengthOpt` are read; `maxNumOperations` and `maxDeletes` are

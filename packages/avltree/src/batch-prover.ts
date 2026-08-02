@@ -130,7 +130,7 @@ export class BatchAVLProver {
    * bootstrap, recovery rollback). Without this, `oldTopNode` is a stale
    * sentinel and `generateProof` produces wrong proofs.
    *
-   * Ports batch_avl_prover.rs `restore_root` (commit 2941396).
+   * Ports batch_avl_prover.rs `restore_root` (commit 191052c).
    */
   restoreRoot(root: AvlNode, height: number): void {
     this.root = root

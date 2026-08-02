@@ -1,8 +1,8 @@
 /**
  * Per-node storage codec for AVL+ trees.
  *
- * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:595-618`)
- * and `AVLTree::unpack` (`batch_node.rs:622-654`), branch `main` @ 2941396.
+ * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:610-635`)
+ * and `AVLTree::unpack` (`batch_node.rs:637-670`), branch `main` @ 191052c.
  * Storage-layer only — the consensus-critical proof encoding lives in
  * `proof-decode.ts`.
  *
