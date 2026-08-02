@@ -328,13 +328,55 @@ describe('BatchAVLProver label cache lifecycle', () => {
 })
 
 describe('BatchAVLProver modified-node tracking', () => {
-  it('records each visited node once, without duplicates', () => {
+  it('collapses repeat visits to the same node into one Set entry', () => {
+    /**
+     * A Set cannot contain SameValueZero duplicates by specification, so
+     * comparing a Set to a copy of itself (`new Set(x).size === x.size`) is
+     * unconditionally true and proves nothing about deduplication. This
+     * subclass counts every `add()` call so the test can compare that count
+     * against the final distinct-membership size instead.
+     */
+    class CountingSet<T> extends Set<T> {
+      addCalls = 0
+      override add(value: T): this {
+        this.addCalls++
+        return super.add(value)
+      }
+    }
+
     const prover = new BatchAVLProver(32, null)
+
+    // modifiedNodes is private; reach it deliberately to install the counting
+    // Set before any operations run. onNodeVisit looks up `self.modifiedNodes`
+    // fresh on every call (not a captured reference), so installing the
+    // replacement here redirects every subsequent .add() through it.
+    const counting = new CountingSet<AvlNode>()
+    ;(prover as unknown as { modifiedNodes: Set<AvlNode> }).modifiedNodes = counting
+
     for (let i = 1; i <= 12; i++) {
       const key = new Uint8Array(32)
       key.fill(i)
       prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([i]) })
     }
+
+    // Insert alone never revisits a node: modify.ts's ModifyOk doc explains
+    // that a structural change forces every ancestor on the path to be
+    // rebuilt fresh ("changeHappened" propagates true to the root), so an
+    // insert-only sequence retires every node it touches — confirmed
+    // empirically (addCalls === size with only the 12 inserts above; see
+    // task-3-report.md "Fix round 1" for the failed first attempt).
+    //
+    // A Lookup is the case that keeps nodes alive: it never mutates the tree,
+    // so "changeHappened=false propagates up ... the parent returns its
+    // original node without creating a new internal node" (modify.ts
+    // ModifyOk doc). handleInternalNode still calls onNodeVisit on every
+    // internal node along the path regardless of op type, so repeating a
+    // Lookup for the same already-inserted key visits the same surviving
+    // node objects a second time.
+    const lookupKey = new Uint8Array(32)
+    lookupKey.fill(1)
+    prover.performOneOperation({ tag: 'Lookup', key: lookupKey })
+    prover.performOneOperation({ tag: 'Lookup', key: lookupKey })
 
     // modifiedNodes is private; reach it deliberately for this structural
     // assertion. A timing assertion would be flaky and is not written.
@@ -343,8 +385,10 @@ describe('BatchAVLProver modified-node tracking', () => {
     expect(tracked instanceof Set).toBe(true)
     const asSet = tracked as Set<AvlNode>
     expect(asSet.size).toBeGreaterThan(0)
-    // A Set cannot hold duplicates; assert the count matches distinct membership
-    // so a future revert to an array is caught here.
-    expect(new Set(asSet).size).toBe(asSet.size)
+    // Prove dedup actually happened: strictly more add() calls than distinct
+    // entries means at least one node was visited more than once and
+    // collapsed into a single Set entry. `>=` would also pass with zero
+    // duplicates and prove nothing.
+    expect(counting.addCalls).toBeGreaterThan(asSet.size)
   })
 })
