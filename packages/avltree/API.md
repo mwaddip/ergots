@@ -1,6 +1,6 @@
 # API — `@ergots/avltree`
 
-Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (HEAD `2941396`); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
+Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (HEAD `191052c`); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, WASM, or other Node built-ins.
 
@@ -272,7 +272,7 @@ export type AvlVerifyErrorCode =
 
 Any failure inside the verifier — malformed proof bytes, digest mismatch, operation precondition violation, DoS-bound exceeded — causes `verifyAvlBatch` / `verifyAvlLookup` to return `null`. No exception is thrown. The distinction allows callers to handle "bad proof from peer" (return `null`) separately from "bad arguments from my own code" (throw).
 
-Internal failure reasons (malformed token, digest mismatch, leaf out-of-order, etc.) are tracked by the internal `BatchAvlVerifier` class but are not exposed in the public v0.3.0 surface. This avoids locking the internal taxonomy prematurely; diagnostic reasons may be exposed via a `getLastFailReason()` accessor in a later release.
+Internal failure reasons (malformed token, digest mismatch, leaf out-of-order, etc.) are tracked by the internal `BatchAvlVerifier` class but are not exposed in the public v0.4.0 surface. This avoids locking the internal taxonomy prematurely; diagnostic reasons may be exposed via a `getLastFailReason()` accessor in a later release.
 
 ```ts
 // Pattern: handle both tiers explicitly.
@@ -313,6 +313,7 @@ class BatchAVLProver {
   digest(): Uint8Array | null
   generateProofForOperations(operations: Operation[]):
     { proof: Uint8Array; digest: Uint8Array } | { success: false }
+  restoreRoot(root: AvlNode, height: number): void
 }
 ```
 
@@ -333,6 +334,8 @@ Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds
 **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned.
 
 **`generateProofForOperations(operations)`** — clones the tree, applies all operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is untouched. This is the primary entry point for producing proofs verifiable by `verifyAvlBatch`.
+
+**`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, sets `oldTopNode` to the restored root, and suppresses the next cycle reset. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs.
 
 **Example:**
 
@@ -429,9 +432,13 @@ deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
 ```
 
 Encodes a single AVL+ node for persistence, byte-identical to
-`ergo_avltree_rust`'s `AVLTree::pack` / `unpack`. Traversal is the caller's
-responsibility: a storage backend walks the tree and stores one record per node,
-keyed by `label(node)`.
+`ergo_avltree_rust`'s `AVLTree::pack` / `unpack` for well-formed input — two of
+the throw conditions below (a key/value-length mismatch on encode, an
+out-of-range balance byte on decode) are deliberately stricter than the
+reference, which performs neither; see `facts/avltree.md`'s "Deliberate
+divergences from the reference" for why. Traversal is the caller's
+responsibility: a storage backend walks the tree and stores one record per
+node, keyed by `label(node)`.
 
 ```
 internal: 0x00 || balance(i8) || key(keyLength) || leftLabel(32) || rightLabel(32)
@@ -454,6 +461,9 @@ writer/reader mismatch is not generally detectable.
 
 ### Example
 
+Both directions: writing a tree to storage, and loading it back with child
+stubs relinked by label lookup.
+
 ```ts
 import {
   serializeNode, deserializeNode, label,
@@ -462,14 +472,27 @@ import {
 
 const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
 
-function persist(node: AvlNode, write: (k: Uint8Array, v: Uint8Array) => void) {
+export function persist(node: AvlNode, write: (k: Uint8Array, v: Uint8Array) => void) {
   write(label(node), serializeNode(node, config))
   if (node.kind === 'internal') {
     persist(node.left, write)
     persist(node.right, write)
   }
 }
+
+export function load(key: Uint8Array, read: (k: Uint8Array) => Uint8Array): AvlNode {
+  const node = deserializeNode(read(key), config)
+  if (node.kind !== 'internal') return node
+  const { left, right } = node
+  if (left.kind === 'label') node.left = load(left.label, read)
+  if (right.kind === 'label') node.right = load(right.label, read)
+  return node
+}
 ```
+
+Once a root is loaded this way, call `BatchAVLProver.restoreRoot(root, height)`
+(above) before performing further operations or generating a proof — it
+rebases the prover's proof cycle onto the loaded root.
 
 ---
 
@@ -491,4 +514,4 @@ function persist(node: AvlNode, write: (k: Uint8Array, v: Uint8Array) => void) {
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, validation strategy, error model detail
 - `facts/ergoscript-eval.md` — upstream consumer: `SAvlTree.*` method handlers in `@ergots/ergoscript` phase 2h-b
 - [KMZ16 paper](https://eprint.iacr.org/2016/994) — AVL+ authenticated dictionary
-- [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (HEAD `2941396`)
+- [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (HEAD `191052c`)

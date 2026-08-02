@@ -2,7 +2,13 @@
 
 The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@ergots/ergoscript`, which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
 
-Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `2941396` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
+Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `191052c` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
+
+The node-pack fixtures under `test/fixtures/node-pack/` were generated against
+the prior pin `2941396`; `pack` and `unpack` are byte-identical across the
+rebase to `191052c` (per the fork-side session's verification — no diff hunk
+touches either function; their extracted bodies checksum identically), so no
+regeneration was needed.
 
 ## Scope
 
@@ -265,7 +271,7 @@ Prover support: `BatchAVLProver` and `PersistentBatchAVLProver` are now ported t
 
 ## Source mapping to `ergo_avltree_rust`
 
-Pinned at `~/projects/ergo_avltree_rust/` HEAD `2941396`, branch `main`, including upstream PRs #10/#11/#13.
+Pinned at `~/projects/ergo_avltree_rust/` HEAD `191052c`, branch `main`, including upstream PRs #10/#11/#13.
 
 | Rust function (file:lines) | TS function(s) (file) | Note |
 |---|---|---|
@@ -431,5 +437,5 @@ leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] 
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, architecture, validation strategy, error model detail
 - `facts/ergoscript-eval.md` — upstream consumer; `SAvlTree.*` method handlers call into this package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
-- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `2941396` (verifier + prover)
+- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `191052c` (verifier + prover)
 - KMZ16 paper: <https://eprint.iacr.org/2016/994> — AVL+ authenticated dictionary; KMZ17 Appendix B documents the `keyMatchesLeaf` range semantics
