@@ -1,0 +1,12 @@
+{
+  "name": "internal-balance-plus-one",
+  "config": { "keyLength": 32, "valueLengthOpt": null },
+  "node": {
+    "kind": "internal",
+    "keyHex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "balance": 1,
+    "leftLabelHex": "0303030303030303030303030303030303030303030303030303030303030303",
+    "rightLabelHex": "0404040404040404040404040404040404040404040404040404040404040404"
+  },
+  "packedHex": "0001cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd03030303030303030303030303030303030303030303030303030303030303030404040404040404040404040404040404040404040404040404040404040404"
+}

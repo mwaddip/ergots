@@ -1,0 +1,12 @@
+{
+  "name": "internal-balance-zero",
+  "config": { "keyLength": 32, "valueLengthOpt": null },
+  "node": {
+    "kind": "internal",
+    "keyHex": "abababababababababababababababababababababababababababababababab",
+    "balance": 0,
+    "leftLabelHex": "0101010101010101010101010101010101010101010101010101010101010101",
+    "rightLabelHex": "0202020202020202020202020202020202020202020202020202020202020202"
+  },
+  "packedHex": "0000abababababababababababababababababababababababababababababababab01010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"
+}

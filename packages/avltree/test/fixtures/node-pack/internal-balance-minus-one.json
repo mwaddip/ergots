@@ -1,0 +1,12 @@
+{
+  "name": "internal-balance-minus-one",
+  "config": { "keyLength": 32, "valueLengthOpt": null },
+  "node": {
+    "kind": "internal",
+    "keyHex": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+    "balance": -1,
+    "leftLabelHex": "0505050505050505050505050505050505050505050505050505050505050505",
+    "rightLabelHex": "0606060606060606060606060606060606060606060606060606060606060606"
+  },
+  "packedHex": "00ffefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef05050505050505050505050505050505050505050505050505050505050505050606060606060606060606060606060606060606060606060606060606060606"
+}

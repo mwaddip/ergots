@@ -1,0 +1,11 @@
+{
+  "name": "leaf-sentinel-bounds",
+  "config": { "keyLength": 32, "valueLengthOpt": null },
+  "node": {
+    "kind": "leaf",
+    "keyHex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "valueHex": "99",
+    "nextLeafKeyHex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "packedHex": "0100000000000000000000000000000000000000000000000000000000000000000000000199ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+}

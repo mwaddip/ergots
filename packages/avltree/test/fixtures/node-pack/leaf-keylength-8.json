@@ -1,0 +1,11 @@
+{
+  "name": "leaf-keylength-8",
+  "config": { "keyLength": 8, "valueLengthOpt": 4 },
+  "node": {
+    "kind": "leaf",
+    "keyHex": "1212121212121212",
+    "valueHex": "deadbeef",
+    "nextLeafKeyHex": "3434343434343434"
+  },
+  "packedHex": "011212121212121212deadbeef3434343434343434"
+}
