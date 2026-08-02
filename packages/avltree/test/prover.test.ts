@@ -6,6 +6,7 @@ import {
   verifyAvlBatch,
   type AvlNode,
   type AvlTreeConfig,
+  type InternalNode,
   type Operation,
   type VersionedAVLStorage,
 } from '../src/index.js'
@@ -339,9 +340,21 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     const digestBefore = prover.digest()
     expect(digestBefore).not.toBeNull()
 
+    // Shape anchor. The last digest byte is the tree height, and height 3 is
+    // what pins the shape this test needs: a root separator with two INTERNAL
+    // children, so `Remove(0x04)` cannot take an easy case and must enter
+    // `hardDeleteLeftDescent` with direction 0. A change to the insert path or
+    // the rotation balance table could quietly flatten the tree and route the
+    // Remove elsewhere; the test would still pass and silently stop covering
+    // the recursive delete path.
+    expect(
+      digestBefore![32],
+      'tree shape drifted — this test needs the two-internal-children root (height 3)',
+    ).toBe(3)
+
     const op: Operation = { tag: 'Remove', key: keyByte(0x04) }
     const removed = prover.performOneOperation(op)
-    expect(removed.success).toBe(true)
+    expect(removed.success, 'Remove(0x04) unexpectedly failed').toBe(true)
 
     const proof = prover.generateProof()
     const digestAfter = prover.digest()
@@ -358,6 +371,160 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     expect(
       Array.from(verified!.newDigest),
       'verifier digest disagrees with the prover after the Remove',
+    ).toEqual(Array.from(digestAfter!))
+  })
+
+  /** Narrow a node to InternalNode, failing with a useful message if it isn't. */
+  const asInternal = (n: AvlNode | null | undefined, what: string): InternalNode => {
+    expect(n, `${what} is missing`).toBeTruthy()
+    expect(n!.kind, `${what} is not an internal node`).toBe('internal')
+    return n as InternalNode
+  }
+
+  /** Build a tree from an explicit insertion order and flush the build phase. */
+  const buildFlushed = (order: number[]): BatchAVLProver => {
+    const prover = new BatchAVLProver(KEY_LENGTH, null)
+    for (const b of order) {
+      const inserted = prover.performOneOperation({
+        tag: 'Insert',
+        key: keyByte(b),
+        value: new Uint8Array([b]),
+      })
+      expect(inserted.success, `Insert 0x${b.toString(16).padStart(2, '0')} failed`).toBe(true)
+    }
+    // Flush the build phase so the proof taken afterwards covers the Remove alone.
+    prover.generateProof()
+    return prover
+  }
+
+  const singleOpConfig: AvlTreeConfig = {
+    keyLength: KEY_LENGTH,
+    valueLengthOpt: null,
+    maxNumOperations: 1,
+    maxDeletes: 1,
+  }
+
+  /**
+   * Deterministic cover for the retargeted DOUBLE-LEFT rotation visit
+   * (`delete.ts` `rebalanceShrinkLeft`, Rust line 571 @191052c —
+   * `on_node_visit(&right_child.left, …)`).
+   *
+   * Insertion order 2,4,1,3 builds:
+   *
+   *   I[0x02](bal +1)
+   *   ├── I[0x01](0) ── L(-inf), L(0x01)
+   *   └── I[0x04](-1)
+   *       ├── I[0x03](0) ── L(0x02), L(0x03)
+   *       └── L(0x04)
+   *
+   * `Remove(0x01)` shrinks the left subtree of a right-heavy root, so
+   * `hardDeleteLeftDescent` takes the rotation branch (`childHeightDecreased &&
+   * rootBalance > 0`). The right child is LEFT-heavy (balance -1), which selects
+   * the DOUBLE-left rotation, and the node `doubleLeftRotate` promotes to
+   * sub-root is `rootRight.left` = `I[0x03]`. Nothing else on this operation's
+   * path visits `I[0x03]`, so if the visit targets the wrong node it is packed
+   * as a label and the verifier cannot descend into it.
+   *
+   * Verified discriminating: with the visit pointed back at `rotateNode` (the
+   * pre-fix target) this test fails; the randomised per-operation walk catches
+   * the same regression on only 1 of its 15 seeds.
+   */
+  it('verifies a single-Remove proof through a delete-triggered double-LEFT rotation', () => {
+    const prover = buildFlushed([2, 4, 1, 3])
+
+    const digestBefore = prover.digest()
+    expect(digestBefore).not.toBeNull()
+    expect(
+      digestBefore![32],
+      'tree shape drifted — the double-left case needs a height-3 tree',
+    ).toBe(3)
+
+    // Anchor the two balances that select this exact rotation. Without them a
+    // change to the insert path could reshape the tree and route the Remove
+    // down a single rotation (or no rotation) while the test still passed.
+    const root = asInternal(prover.root, 'root')
+    expect(root.balance, 'root must be right-heavy for the shrink-left rotation').toBe(1)
+    expect(
+      asInternal(root.right, 'root.right').balance,
+      'root.right must be left-heavy to select the DOUBLE-left rotation',
+    ).toBe(-1)
+
+    const op: Operation = { tag: 'Remove', key: keyByte(0x01) }
+    const removed = prover.performOneOperation(op)
+    expect(removed.success, 'Remove(0x01) unexpectedly failed').toBe(true)
+
+    const proof = prover.generateProof()
+    const digestAfter = prover.digest()
+    expect(digestAfter, 'prover has no digest after the Remove').not.toBeNull()
+
+    const verified = verifyAvlBatch(digestBefore!, proof, singleOpConfig, [op])
+    expect(
+      verified,
+      'verifier rejected the double-left-rotation Remove proof the prover produced',
+    ).not.toBeNull()
+    expect(
+      Array.from(verified!.newDigest),
+      'verifier digest disagrees with the prover after the double-left rotation',
+    ).toEqual(Array.from(digestAfter!))
+  })
+
+  /**
+   * Mirror of the test above, for the retargeted DOUBLE-RIGHT rotation visit
+   * (`delete.ts` `rebalanceShrinkRight`, Rust line 621 @191052c —
+   * `on_node_visit(&left_child.right, …)`).
+   *
+   * Insertion order 3,1,4,2 is the exact key-mirror (k → 5-k) of the shape
+   * above and builds:
+   *
+   *   I[0x03](bal -1)
+   *   ├── I[0x01](+1)
+   *   │   ├── L(-inf)
+   *   │   └── I[0x02](0) ── L(0x01), L(0x02)
+   *   └── I[0x04](0) ── L(0x03), L(0x04)
+   *
+   * `Remove(0x04)` shrinks the right subtree of a left-heavy root, so
+   * `hardDeleteRightDescent` takes the rotation branch (`childHeightDecreased &&
+   * node.balance < 0`). The left child is RIGHT-heavy (balance +1), selecting
+   * the DOUBLE-right rotation, whose promoted sub-root is `rootLeft.right` =
+   * `I[0x02]`.
+   *
+   * Verified discriminating: with the visit pointed back at `node` (the pre-fix
+   * target, already visited on the way down and therefore inert) this test
+   * fails.
+   */
+  it('verifies a single-Remove proof through a delete-triggered double-RIGHT rotation', () => {
+    const prover = buildFlushed([3, 1, 4, 2])
+
+    const digestBefore = prover.digest()
+    expect(digestBefore).not.toBeNull()
+    expect(
+      digestBefore![32],
+      'tree shape drifted — the double-right case needs a height-3 tree',
+    ).toBe(3)
+
+    const root = asInternal(prover.root, 'root')
+    expect(root.balance, 'root must be left-heavy for the shrink-right rotation').toBe(-1)
+    expect(
+      asInternal(root.left, 'root.left').balance,
+      'root.left must be right-heavy to select the DOUBLE-right rotation',
+    ).toBe(1)
+
+    const op: Operation = { tag: 'Remove', key: keyByte(0x04) }
+    const removed = prover.performOneOperation(op)
+    expect(removed.success, 'Remove(0x04) unexpectedly failed').toBe(true)
+
+    const proof = prover.generateProof()
+    const digestAfter = prover.digest()
+    expect(digestAfter, 'prover has no digest after the Remove').not.toBeNull()
+
+    const verified = verifyAvlBatch(digestBefore!, proof, singleOpConfig, [op])
+    expect(
+      verified,
+      'verifier rejected the double-right-rotation Remove proof the prover produced',
+    ).not.toBeNull()
+    expect(
+      Array.from(verified!.newDigest),
+      'verifier digest disagrees with the prover after the double-right rotation',
     ).toEqual(Array.from(digestAfter!))
   })
 })

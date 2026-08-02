@@ -174,7 +174,10 @@ function runPerOperationWalk(seed: number, opCount: number): void {
 
     const proof = prover.generateProof()
     const digestAfter = prover.digest()
-    expect(digestAfter).not.toBeNull()
+    expect(
+      digestAfter,
+      `seed=${seed} op#${i} tag=${op.tag}: prover has no digest after the operation`,
+    ).not.toBeNull()
 
     const verified = verifyAvlBatch(digestBefore!, proof, config, [op])
     expect(
@@ -185,6 +188,15 @@ function runPerOperationWalk(seed: number, opCount: number): void {
       bytesEqual(verified!.newDigest, digestAfter),
       `seed=${seed} op#${i} tag=${op.tag}: verifier digest does not match prover digest`,
     ).toBe(true)
+    // Guard the old-value comparison against an empty results array, the way
+    // runWalk's `results.length` check does. Without it, `results[0] ?? null`
+    // collapses "the verifier returned no result" to `null` — which equals the
+    // model's `before` for every Insert, so the assertion below would pass
+    // vacuously on the first occurrence of every key.
+    expect(
+      verified!.results.length,
+      `seed=${seed} op#${i} tag=${op.tag}: verifier returned ${verified!.results.length} results for one operation`,
+    ).toBe(1)
     expect(
       bytesEqual(verified!.results[0] ?? null, before),
       `seed=${seed} op#${i} tag=${op.tag}: old value disagrees with the model`,
