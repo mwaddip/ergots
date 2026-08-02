@@ -29,8 +29,9 @@ constrain the API and storage-format work. Confirmed with the user 2026-08-02.
 
 **The storage codec realigns to the Rust reference.** `serialize.ts` currently
 implements an ergots-native, self-describing node format incompatible with Rust's
-`AVLTree::pack` / `unpack` (`batch_node.rs:503-562`). Phase A replaces it with a
-byte-for-byte port. Rationale: the package's identity and test strategy is
+`AVLTree::pack` (`batch_node.rs:595-618`) / `unpack` (`batch_node.rs:622-654`).
+Phase A replaces it with a byte-for-byte port. Rationale: the package's
+identity and test strategy is
 byte-equality against Rust, and this is the only module exempt from that; the
 realignment brings it under the fixture gate that CLAUDE.md requires for every
 parse/serialize primitive, and yields interoperability with any Rust-side

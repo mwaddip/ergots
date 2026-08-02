@@ -35,9 +35,9 @@ mutates `labelCache`.
 
 ## Target format
 
-Ported from `~/projects/ergo_avltree_rust/src/batch_node.rs:503-562` (branch
-`main`). All multi-byte integers big-endian, matching the `bytes` crate's
-`put_u32`.
+Ported from `~/projects/ergo_avltree_rust/src/batch_node.rs` — `pack`
+(`595-618`) and `unpack` (`622-654`) (branch `main`). All multi-byte integers
+big-endian, matching the `bytes` crate's `put_u32`.
 
 **Internal node** — `INTERNAL_NODE_PREFIX = 0x00`
 
@@ -81,7 +81,7 @@ prover. A narrower `NodeCodecConfig` was considered and rejected as surface for
 its own sake.
 
 `deserializeNode` reconstructs internals with `newLabel(...)` children carrying
-the encoded digests, mirroring Rust's `InternalNode::new(key, &Node::new_label(&left), ...)`.
+the encoded digests, mirroring Rust's `InternalNode::new_persisted(key, &Node::new_label_persisted(&left), ...)`.
 Because `unpack` always reads a key, a deserialized internal always has one —
 unlike the current implementation, where a zero key length yielded
 `key: undefined`.

@@ -24,7 +24,7 @@ Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `29413
 
 **Does NOT ship:**
 
-- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.3.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
+- Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.4.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
 
@@ -121,7 +121,7 @@ export type ADValue  = Uint8Array
 export type OperationResult = Uint8Array | null  // null = key was absent before op
 ```
 
-## Prover surface (v0.3.0)
+## Prover surface (v0.4.0)
 
 ```ts
 class BatchAVLProver {
@@ -131,6 +131,7 @@ class BatchAVLProver {
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
   digest(): Uint8Array | null
   generateProofForOperations(operations: Operation[]): { proof: Uint8Array; digest: Uint8Array } | { success: false }
+  restoreRoot(root: AvlNode, height: number): void
 }
 
 class PersistentBatchAVLProver {
@@ -168,6 +169,7 @@ type ProverOperationResult =
 - **`unauthenticatedLookup(key)`** — walks the tree without modifying it. Returns the value at `key`, or `null` if absent. Does not record directions or touch modified-nodes tracking.
 - **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned (`root === null`).
 - **`generateProofForOperations(operations)`** — clones the current tree, applies the given operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
+- **`restoreRoot(root, height)`** — installs a storage-loaded root and rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, sets `oldTopNode` to the restored root, and suppresses the next cycle reset. Required after startup resume, snapshot bootstrap, or recovery rollback. Ports `restore_root` from the reference.
 
 #### `PersistentBatchAVLProver`
 
@@ -200,9 +202,9 @@ export type AvlVerifyErrorCode =
   | 'operation-delta-out-of-range'       // UpdateLongBy.delta outside signed i64 range (verify.ts:295-298)
 ```
 
-**Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.2.0)**
+**Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.4.0)**
 
-Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.2.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (the design spec explains why it stays internal).
+Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.4.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (the design spec explains why it stays internal).
 
 ```ts
 type AvlVerifyFailReason =               // (internal; not exported)
@@ -263,7 +265,7 @@ Prover support: `BatchAVLProver` and `PersistentBatchAVLProver` are now ported t
 
 ## Source mapping to `ergo_avltree_rust`
 
-Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, including upstream PRs #10/#11/#13.
+Pinned at `~/projects/ergo_avltree_rust/` HEAD `2941396`, branch `main`, including upstream PRs #10/#11/#13.
 
 | Rust function (file:lines) | TS function(s) (file) | Note |
 |---|---|---|
@@ -291,7 +293,79 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `879545c`, branch `main`, includi
 | (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (7 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 168 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (7 codes); Rust uses `anyhow::Result` throughout with no separate error class |
-| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.2.0 |
+| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.4.0 |
+
+## Node types and constructors (v0.4.0)
+
+```ts
+export type AvlNode = LeafNode | InternalNode | LabelNode
+
+export interface LeafNode {
+  readonly kind: 'leaf'
+  readonly key: ADKey
+  readonly value: ADValue
+  readonly nextLeafKey: ADKey
+  labelCache: Uint8Array | null
+}
+
+export interface InternalNode {
+  readonly kind: 'internal'
+  readonly key?: Uint8Array
+  left: AvlNode
+  right: AvlNode
+  balance: Balance
+  labelCache: Uint8Array | null
+}
+
+export interface LabelNode {
+  readonly kind: 'label'
+  readonly label: Uint8Array
+}
+
+export type Balance = -1 | 0 | 1
+
+function newLeaf(key: ADKey, value: ADValue, nextLeafKey: ADKey): LeafNode
+function newInternal(left: AvlNode, right: AvlNode, balance: Balance, key?: Uint8Array): InternalNode
+function newLabel(label: Uint8Array): LabelNode
+function label(node: AvlNode): Uint8Array
+```
+
+Ported from `ergo_avltree_rust`'s `batch_node.rs::Node` enum plus the
+`LeafNode`/`InternalNode`/`LabelOnly` structs and `Node::label()`.
+
+- **`AvlNode`** is a discriminated union on `kind`. `LeafNode` holds a real
+  key/value/next-leaf-key triple. `InternalNode` holds `left`/`right` children
+  (each an `AvlNode`) and an AVL `balance`. `LabelNode` is a stub carrying only
+  a 32-byte digest — it stands in for a subtree the holder doesn't have full
+  data for (e.g. a proof-decoded sibling, or one of a `deserializeNode`d
+  internal node's children; see "Storage codec" below).
+- **`InternalNode.key`** is optional: the shared prover/verifier engine
+  (`modify.ts`/`delete.ts`) sets it on every `newInternal` call it makes, but
+  `proof-decode.ts` reconstructs verifier-only internal nodes without one.
+  `left`, `right`, `balance`, and `labelCache` are currently typed as mutable
+  (not `readonly`); `key`, like `kind`, is `readonly`.
+- **`LeafNode`** fields `key`, `value`, `nextLeafKey`, and `kind` are all
+  `readonly`; only `labelCache` is mutable.
+- **`Balance`** is the literal union `-1 | 0 | 1`. Rust's equivalent
+  (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8`; see
+  "Deliberate divergences from the reference" in the Storage codec section for
+  why the TS type is narrower.
+- **`newLeaf(key, value, nextLeafKey)`** — constructs a `LeafNode`. Defensively
+  copies all three byte arguments so caller-side mutation can't corrupt the
+  node or invalidate an already-computed label.
+- **`newInternal(left, right, balance, key?)`** — constructs an `InternalNode`.
+  `key` is optional (see above); `left`/`right` are stored by reference, not
+  defensively copied.
+- **`newLabel(label)`** — constructs a `LabelNode`. Defensively copies `label`.
+  **Throws `RangeError`** if `label.length !== 32`.
+- **`label(node)`** — returns the node's 32-byte blake2b-256 digest.
+  `LabelNode` returns its stored digest directly. `LeafNode`/`InternalNode`
+  compute `blake2b256(0x00 || key || value || nextLeafKey)` or
+  `blake2b256(0x01 || balance || label(left) || label(right))` respectively
+  (balance precedes the child labels), **memoise the result into
+  `labelCache`**, and return a defensive copy — the cache itself is never
+  handed out directly, so callers cannot corrupt it. A cache hit skips
+  recomputation and still returns a fresh copy.
 
 ## Storage codec (v0.4.0)
 
@@ -300,9 +374,12 @@ serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array
 deserializeNode(bytes: Uint8Array, config: AvlTreeConfig): AvlNode
 ```
 
-Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack`
-(`batch_node.rs:503-562`). Only `config.keyLength` and `config.valueLengthOpt`
-are read; `maxNumOperations` and `maxDeletes` are ignored.
+Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:595-618`)
+and `AVLTree::unpack` (`batch_node.rs:622-654`) for well-formed input — two
+checks are intentionally stricter than the reference; see "Deliberate
+divergences from the reference" below. Only `config.keyLength` and
+`config.valueLengthOpt` are read; `maxNumOperations` and `maxDeletes` are
+ignored.
 
 **Format.** Big-endian.
 
@@ -317,11 +394,26 @@ leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] 
   `config.keyLength` bytes; when `valueLengthOpt` is non-null, the leaf value is
   exactly that many bytes. On decode — input is long enough for every field, the
   leading tag is `0x00` or `0x01`, and the balance byte decodes to `-1 | 0 | 1`.
+  The key-length checks on encode and the balance-range check on decode are
+  both stricter than the reference — see "Deliberate divergences from the
+  reference" immediately below.
+- **Deliberate divergences from the reference.** Two decode/encode checks are
+  stricter than `ergo_avltree_rust`, which performs neither. Rust's `Balance`
+  is a bare `i8`, so `unpack` accepts any byte; our `Balance` is the union
+  `-1 | 0 | 1`, and admitting an out-of-range value would be a type lie that
+  silently corrupts every ancestor label. Rust's `pack` likewise writes the key
+  without checking its length, producing a record whose every subsequent field
+  mis-parses on read; we reject at write time instead. Neither check alters the
+  bytes produced for valid input, so the format itself remains byte-identical.
 - **Postcondition:** `deserializeNode(serializeNode(n, c), c)` reproduces `n`,
   except that an internal node's children come back as `LabelNode` stubs
   carrying the encoded digests — the parent record stores child *labels*, not
   child subtrees. This mirrors Rust's `unpack`, which builds internals via
-  `Node::new_label(...)`. Storage backends relink real children by label lookup.
+  `Node::new_label_persisted(...)` — the `_persisted` family additionally marks
+  the node `is_new = false` so a later in-place `update()` takes Rust's
+  copy-on-write branch instead of mutating a node shared with `oldTopNode`; the
+  TS port has no `is_new` concept since its engine is fully immutable. Storage
+  backends relink real children by label lookup.
 - **Invariant:** no I/O, no clock, no PRNG. Encoding an internal node memoises
   child labels into `labelCache` as a side effect, matching Rust's
   `borrow_mut().label()`.
@@ -336,5 +428,5 @@ leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] 
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, architecture, validation strategy, error model detail
 - `facts/ergoscript-eval.md` — upstream consumer; `SAvlTree.*` method handlers call into this package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
-- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `879545c` (verifier + prover)
+- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `2941396` (verifier + prover)
 - KMZ16 paper: <https://eprint.iacr.org/2016/994> — AVL+ authenticated dictionary; KMZ17 Appendix B documents the `keyMatchesLeaf` range semantics
