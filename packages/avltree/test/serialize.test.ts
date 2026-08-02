@@ -313,6 +313,33 @@ describe('serializeNode — rejection paths', () => {
     )
     expect(() => serializeNode(node, K32_FIXED)).toThrow(/valueLengthOpt/)
   })
+
+  it('rejects an InternalNode whose left child label is undersized', () => {
+    // Built as a plain object literal, NOT via newLabel (which would throw
+    // first) — a LabelNode's 32-byte invariant is enforced by the newLabel
+    // constructor but not by the LabelNode type itself, so this literal
+    // type-checks under tsc --strict with no cast. Without the encode-side
+    // length guard, serializeNode would write these 16 bytes into a fixed
+    // 32-byte slot with zero padding, silently producing a record that
+    // decodes back as a different node.
+    const node = newInternal(
+      { kind: 'label', label: new Uint8Array(16) },
+      newLabel(new Uint8Array(32).fill(0x02)),
+      0,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/left child label length 16/)
+  })
+
+  it('rejects an InternalNode whose right child label is undersized', () => {
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      { kind: 'label', label: new Uint8Array(16) },
+      0,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/right child label length 16/)
+  })
 })
 
 describe('codec round-trip property', () => {

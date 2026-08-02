@@ -2,9 +2,9 @@
  * Per-node storage codec for AVL+ trees.
  *
  * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:610-635`)
- * and `AVLTree::unpack` (`batch_node.rs:637-670`), branch `main` @ 191052c.
- * Storage-layer only — the consensus-critical proof encoding lives in
- * `proof-decode.ts`.
+ * and `AVLTree::unpack` (`batch_node.rs:637-670`) for well-formed input,
+ * branch `main` @ 191052c. Storage-layer only — the consensus-critical proof
+ * encoding lives in `proof-decode.ts`.
  *
  * Format (big-endian):
  *   internal: 0x00 || balance(i8) || key(keyLength) || leftLabel(32) || rightLabel(32)
@@ -55,15 +55,19 @@ export function serializeNode(node: AvlNode, config: AvlTreeConfig): Uint8Array 
       throw new RangeError(
         'serializeNode: LabelNode is not serializable — storage holds only leaf and internal nodes',
       )
-    default:
+    default: {
+      // Compile-time exhaustiveness guard: if AvlNode gains a new variant,
+      // this assignment fails to type-check instead of only throwing below.
+      const _exhaustive: never = node
       // Unreachable from typed callers (AvlNode is exhaustively handled
       // above) but reachable from plain JS passing a malformed object. The
       // signature promises Uint8Array; falling through to `undefined` would
-      // be the same silent-corruption shape as findings 1/2, and this
-      // codec's whole job is refusing to corrupt storage.
+      // silently corrupt storage instead of failing loudly, which is exactly
+      // what this codec exists to prevent.
       throw new RangeError(
-        `serializeNode: unexpected node kind ${String((node as AvlNode).kind)}`,
+        `serializeNode: unexpected node kind ${String((_exhaustive as AvlNode).kind)}`,
       )
+    }
   }
 }
 
@@ -105,6 +109,31 @@ function serializeInternal(node: InternalNode, config: AvlTreeConfig): Uint8Arra
 
   const leftLabel = label(node.left)
   const rightLabel = label(node.right)
+  // `label()` returns a LabelNode's stored bytes verbatim, and `newLabel()`
+  // enforces exactly 32 bytes — but the LabelNode *type* does not. An object
+  // literal such as `{ kind: 'label', label: new Uint8Array(16) }` type-checks
+  // with no cast, and without this check `out.set(...)` below would write an
+  // undersized digest into a fixed 32-byte slot, leaving zero padding: the
+  // record decodes back as a different node with no error anywhere.
+  if (leftLabel.length !== LABEL_LENGTH) {
+    throw new RangeError(
+      `serializeNode: left child label length ${leftLabel.length} does not match required label length ${LABEL_LENGTH}`,
+    )
+  }
+  if (rightLabel.length !== LABEL_LENGTH) {
+    throw new RangeError(
+      `serializeNode: right child label length ${rightLabel.length} does not match required label length ${LABEL_LENGTH}`,
+    )
+  }
+  // balance is typed Balance (-1|0|1), but — same gap as the labels above —
+  // nothing enforces that at the value level for a hand-built InternalNode.
+  // Checked here for symmetry with decode's balance-range check and to fail
+  // at the point of corruption rather than deferring to a later read.
+  if (node.balance < -1 || node.balance > 1) {
+    throw new RangeError(
+      `serializeNode: balance ${node.balance} is out of range (expected -1, 0, or 1)`,
+    )
+  }
 
   const out = new Uint8Array(1 + 1 + config.keyLength + LABEL_LENGTH * 2)
   let o = 0
@@ -186,13 +215,13 @@ function takeBytes(
   n: number,
   field: string,
 ): Uint8Array {
-  // A declared length is only ever config.valueLengthOpt (caller-supplied,
-  // not shape-checked upstream) or readU32BE's output (always a non-negative
-  // safe integer when the >>> 0 coercion is intact). Validate it explicitly
-  // before the bounds check below: a negative or non-finite n would make
-  // `offset + n` UNDERSHOOT b.length, so the bounds check alone would not
-  // catch it, and slicing with a negative end silently returns a truncated
-  // (not throwing) result instead of the declared field.
+  // A declared length is only ever config.keyLength, config.valueLengthOpt
+  // (both caller-supplied, not shape-checked upstream), or readU32BE's output
+  // (always a non-negative safe integer when the >>> 0 coercion is intact).
+  // Validate it explicitly before the bounds check below: a negative or
+  // non-finite n would make `offset + n` UNDERSHOOT b.length, so the bounds
+  // check alone would not catch it, and slicing with a negative end silently
+  // returns a truncated (not throwing) result instead of the declared field.
   if (!Number.isSafeInteger(n) || n < 0) {
     throw new RangeError(`deserializeNode: invalid length ${n} for ${field}`)
   }
