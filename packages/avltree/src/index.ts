@@ -15,6 +15,24 @@ export { BatchAVLProver, type ProverOperationResult } from './batch-prover.js'
 export { PersistentBatchAVLProver } from './persistent-prover.js'
 export type { VersionedAVLStorage } from './versioned-storage.js'
 
-// Internal types (NOT exported): BatchAvlVerifier, node types,
-// modify/delete helpers, rotation primitives, tree-traversal state.
+// Node types, constructors, and label computation — exported for
+// storage-backend consumers (e.g. DAGsocial) that need to serialize
+// and reconstruct AVL+ trees.
+export {
+  type AvlNode,
+  type LeafNode,
+  type InternalNode,
+  type LabelNode,
+  type Balance,
+  newLeaf,
+  newInternal,
+  newLabel,
+  label,
+} from './node.js'
+
+// Storage-format serialization (consensus-agnostic — proofs are verifier-side).
+export { serializeNode, deserializeNode } from './serialize.js'
+
+// Internal types (NOT exported): BatchAvlVerifier, modify/delete helpers,
+// rotation primitives, tree-traversal state.
 // These are implementation detail and may change without notice.
