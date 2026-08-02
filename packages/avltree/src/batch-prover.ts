@@ -297,19 +297,42 @@ export class BatchAVLProver {
     if (modifyResult.needsDelete) {
       const deleteResult = deleteHelper(modifyResult.newSubtreeRoot, op, callbacks)
       if (!deleteResult.ok) {
-        this.root = null
-        this.height = 0
-        return { success: false }
+        // Unreachable for the prover: deleteHelper's ok:false arm exists for
+        // the verifier, which shares this engine and fails when a proof runs
+        // out of bytes. The prover's getFailedReason() always returns null, so
+        // there is no failure to report. The previous code nulled the root
+        // here, permanently poisoning the tree and skipping the direction
+        // rollback the modify phase performs.
+        throw new Error(
+          'BatchAVLProver: deleteHelper reported failure, which cannot happen for a prover — the shared engine is in an inconsistent state',
+        )
       }
       this.root = deleteResult.newSubtreeRoot
-      this.height = Math.max(0, this.height + deleteResult.heightDelta)
+      this.height = this.applyHeightDelta(deleteResult.heightDelta)
       return { success: true, value: modifyResult.oldValue }
     }
 
     // No delete
     this.root = modifyResult.newSubtreeRoot
-    this.height = Math.max(0, this.height + modifyResult.heightDelta)
+    this.height = this.applyHeightDelta(modifyResult.heightDelta)
     return { success: true, value: modifyResult.oldValue }
+  }
+
+  /**
+   * Apply a height delta from the shared engine.
+   *
+   * Rust does a guarded `height += 1` / `height -= 1`. The clamp this replaces
+   * (`Math.max(0, height + delta)`) hid a wrong delta instead of surfacing it —
+   * a negative result means the engine miscounted, which is a bug to report.
+   */
+  private applyHeightDelta(delta: number): number {
+    const next = this.height + delta
+    if (next < 0) {
+      throw new Error(
+        `BatchAVLProver: height delta ${delta} would take height ${this.height} negative — the mutation engine returned an inconsistent result`,
+      )
+    }
+    return next
   }
 
   // -------------------------------------------------------------------------
@@ -324,10 +347,20 @@ export class BatchAVLProver {
    */
   digest(): Uint8Array | null {
     if (this.root === null) return null
+    // Rust asserts height < 256 (authenticated_tree_ops.rs::digest). The bound
+    // is unreachable for a real tree — height 256 needs more leaves than there
+    // are atoms on Earth — so reaching it means the height counter is wrong.
+    // Masking with & 0xff would emit a plausible but incorrect 33-byte digest,
+    // which is a consensus fault rather than a local error.
+    if (!Number.isInteger(this.height) || this.height < 0 || this.height > 255) {
+      throw new RangeError(
+        `BatchAVLProver.digest: tree height ${this.height} is outside the encodable range 0..255`,
+      )
+    }
     const rootLabel = label(this.root)
     const out = new Uint8Array(DIGEST_LENGTH + 1)
     out.set(rootLabel, 0)
-    out[DIGEST_LENGTH] = this.height & 0xff
+    out[DIGEST_LENGTH] = this.height
     return out
   }
 

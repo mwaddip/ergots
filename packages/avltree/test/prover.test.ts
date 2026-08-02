@@ -411,3 +411,27 @@ describe('BatchAVLProver modified-node tracking', () => {
     expect(counting.addCalls).toBeGreaterThan(counting.size)
   })
 })
+
+describe('BatchAVLProver height handling', () => {
+  it('throws rather than wrapping when height exceeds one byte', () => {
+    const prover = new BatchAVLProver(32, null)
+    // Set height directly — building a real tree of this depth is infeasible,
+    // which is exactly why Rust treats the bound as an assertion.
+    ;(prover as unknown as { height: number }).height = 256
+    expect(() => prover.digest()).toThrow(RangeError)
+  })
+
+  it('throws on a negative height', () => {
+    const prover = new BatchAVLProver(32, null)
+    ;(prover as unknown as { height: number }).height = -1
+    expect(() => prover.digest()).toThrow(RangeError)
+  })
+
+  it('still produces a digest at the maximum valid height', () => {
+    const prover = new BatchAVLProver(32, null)
+    ;(prover as unknown as { height: number }).height = 255
+    const d = prover.digest()
+    expect(d).not.toBeNull()
+    expect(d![32]).toBe(255)
+  })
+})
