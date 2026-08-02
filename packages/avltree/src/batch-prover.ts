@@ -78,6 +78,10 @@ export class BatchAVLProver {
   height = 0
   readonly keyLength: number
   readonly valueLengthOpt: number | null
+  /** All-zero key, the exclusive lower bound. Depends only on keyLength. */
+  private readonly negInfKey: Uint8Array
+  /** All-0xff key, the exclusive upper bound. Depends only on keyLength. */
+  private readonly posInfKey: Uint8Array
 
   // Direction recording (batch_avl_prover.rs:27-28)
   private directions: number[] = [] // Uint8 bytes, grown dynamically
@@ -91,8 +95,12 @@ export class BatchAVLProver {
   private found = false
   oldTopNode: AvlNode | null = null
 
-  // Modified nodes for proof generation (Rust: modified_nodes)
-  private modifiedNodes: AvlNode[] = []
+  // Modified nodes for proof generation (Rust: per-node `visited` flag).
+  // A Set gives O(1) membership — the array this replaced made packTree
+  // O(n*m) — and deduplicates the repeat visits that descent and rotation
+  // produce. Reference identity is the right equality: nodes are plain
+  // objects and Set uses SameValueZero.
+  private modifiedNodes: Set<AvlNode> = new Set()
 
   // -------------------------------------------------------------------------
   // Constructor — ports batch_avl_prover.rs:54-76
@@ -106,12 +114,12 @@ export class BatchAVLProver {
     // The leaf's nextLeafKey = posInfKey so it spans the entire key space.
     // This matches Rust's AVLTree — the empty tree is a single LeafNode, NOT an
     // internal node with two sentinel leaves.
-    const negInfKey = new Uint8Array(keyLength) // all zeroes
-    const posInfKey = new Uint8Array(keyLength)
-    posInfKey.fill(0xff)
+    this.negInfKey = new Uint8Array(keyLength) // all zeroes
+    this.posInfKey = new Uint8Array(keyLength)
+    this.posInfKey.fill(0xff)
     const dummyValue = new Uint8Array(valueLengthOpt ?? 0)
 
-    this.root = newLeaf(negInfKey, dummyValue, posInfKey)
+    this.root = newLeaf(this.negInfKey, dummyValue, this.posInfKey)
     this.height = 0 // single leaf has height 0
     this.oldTopNode = this.root
   }
@@ -134,7 +142,7 @@ export class BatchAVLProver {
     this.height = height
 
     // Drop stale dirty-node bookkeeping from any previous proof cycle.
-    this.modifiedNodes = []
+    this.modifiedNodes = new Set()
 
     // Rebase the proof baseline to the freshly-restored root.
     this.oldTopNode = root
@@ -213,7 +221,7 @@ export class BatchAVLProver {
 
       // Ports authenticated_tree_ops.rs:98-122 — on_node_visit
       onNodeVisit: (node: AvlNode, _operation: Operation, _isRotate: boolean) => {
-        self.modifiedNodes.push(node)
+        self.modifiedNodes.add(node)
       },
 
       getFailedReason: () => null, // prover never fails direction reads
@@ -234,18 +242,15 @@ export class BatchAVLProver {
    */
   performOneOperation(op: Operation): ProverOperationResult {
     const key = op.key
-    const negInfKey = new Uint8Array(this.keyLength) // all zeroes
-    const posInfKey = new Uint8Array(this.keyLength)
-    posInfKey.fill(0xff)
 
     // Precondition checks (authenticated_tree_ops.rs:243-245)
-    if (compareBytes(key, negInfKey) <= 0) {
+    if (compareBytes(key, this.negInfKey) <= 0) {
       throw new AvlVerifyError(
         'Key is less than or equal to negative infinity',
         'invalid-config-key-length',
       )
     }
-    if (compareBytes(key, posInfKey) >= 0) {
+    if (compareBytes(key, this.posInfKey) >= 0) {
       throw new AvlVerifyError(
         'Key is greater than or equal to positive infinity',
         'invalid-config-key-length',
@@ -443,7 +448,7 @@ export class BatchAVLProver {
     // unmodified node's cached label stays valid for its lifetime; modified
     // subtrees are rebuilt as fresh nodes with labelCache: null. Clearing here
     // would force a full O(n) re-hash on the next digest().
-    this.modifiedNodes = []
+    this.modifiedNodes = new Set()
     this.directions = []
     this.directionsBitLength = 0
     this.oldTopNode = this.root
@@ -470,7 +475,7 @@ export class BatchAVLProver {
    * so === works correctly.
    */
   private wasModified(node: AvlNode): boolean {
-    return this.modifiedNodes.includes(node)
+    return this.modifiedNodes.has(node)
   }
 
   // -------------------------------------------------------------------------

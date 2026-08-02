@@ -326,3 +326,25 @@ describe('BatchAVLProver label cache lifecycle', () => {
     }
   })
 })
+
+describe('BatchAVLProver modified-node tracking', () => {
+  it('records each visited node once, without duplicates', () => {
+    const prover = new BatchAVLProver(32, null)
+    for (let i = 1; i <= 12; i++) {
+      const key = new Uint8Array(32)
+      key.fill(i)
+      prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([i]) })
+    }
+
+    // modifiedNodes is private; reach it deliberately for this structural
+    // assertion. A timing assertion would be flaky and is not written.
+    const tracked = (prover as unknown as { modifiedNodes: Set<AvlNode> | AvlNode[] })
+      .modifiedNodes
+    expect(tracked instanceof Set).toBe(true)
+    const asSet = tracked as Set<AvlNode>
+    expect(asSet.size).toBeGreaterThan(0)
+    // A Set cannot hold duplicates; assert the count matches distinct membership
+    // so a future revert to an array is caught here.
+    expect(new Set(asSet).size).toBe(asSet.size)
+  })
+})
