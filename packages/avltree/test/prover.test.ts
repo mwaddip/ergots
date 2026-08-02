@@ -434,4 +434,20 @@ describe('BatchAVLProver height handling', () => {
     expect(d).not.toBeNull()
     expect(d![32]).toBe(255)
   })
+
+  // Number.isInteger is the clause the guard's own comment cites as its
+  // rationale, yet none of the three cases above exercises it: 256 and -1
+  // are both rejected by the plain `< 0 || > 255` range check alone. A bare
+  // range check does not reject NaN or an in-range fractional value — both
+  // comparisons are false for NaN, and 3.5 sits inside [0, 255]. Without the
+  // guard, `out[DIGEST_LENGTH] = this.height` would coerce via Uint8Array's
+  // ToUint8: NaN → byte 0, 3.5 → byte 3 — a silently wrong digest, not a
+  // thrown error. (Infinity/-Infinity are included for direct regression
+  // coverage; see the discrimination check in task-4-report.md for why they
+  // don't specifically exercise this clause.)
+  it.each([NaN, Infinity, -Infinity, 3.5])('throws on a non-integer height (%s)', (badHeight) => {
+    const prover = new BatchAVLProver(32, null)
+    ;(prover as unknown as { height: number }).height = badHeight
+    expect(() => prover.digest()).toThrow(RangeError)
+  })
 })

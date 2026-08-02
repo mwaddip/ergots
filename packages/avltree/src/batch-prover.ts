@@ -297,14 +297,17 @@ export class BatchAVLProver {
     if (modifyResult.needsDelete) {
       const deleteResult = deleteHelper(modifyResult.newSubtreeRoot, op, callbacks)
       if (!deleteResult.ok) {
-        // Unreachable for the prover: deleteHelper's ok:false arm exists for
-        // the verifier, which shares this engine and fails when a proof runs
-        // out of bytes. The prover's getFailedReason() always returns null, so
-        // there is no failure to report. The previous code nulled the root
-        // here, permanently poisoning the tree and skipping the direction
+        // Unreachable for the prover: the getFailedReason() exit never fires
+        // because directions come from the prover's own just-recorded bits,
+        // not a byte-bounded external proof. Three of deleteHelper's other
+        // exits check that a node expected to be Internal isn't a Leaf or a
+        // Label — also unreachable, since the prover's tree is always fully
+        // materialized (no LabelNodes) and satisfies the AVL balance invariant
+        // by construction. The previous code nulled the root on this branch
+        // instead, permanently poisoning the tree and skipping the direction
         // rollback the modify phase performs.
         throw new Error(
-          'BatchAVLProver: deleteHelper reported failure, which cannot happen for a prover — the shared engine is in an inconsistent state',
+          `BatchAVLProver: deleteHelper reported failure (${deleteResult.reason}), which cannot happen for a prover — the shared engine is in an inconsistent state`,
         )
       }
       this.root = deleteResult.newSubtreeRoot
