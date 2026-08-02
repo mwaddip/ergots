@@ -259,7 +259,20 @@ describe('BatchAVLProver.restoreRoot', () => {
 })
 
 describe('BatchAVLProver label cache lifecycle', () => {
-  it('preserves cached labels on unmodified nodes across generateProof', () => {
+  /** Collect every node reachable from `node`, in traversal order. */
+  const collectNodes = (node: AvlNode, out: AvlNode[] = []): AvlNode[] => {
+    out.push(node)
+    if (node.kind === 'internal') {
+      collectNodes(node.left, out)
+      collectNodes(node.right, out)
+    }
+    return out
+  }
+
+  const cacheOf = (n: AvlNode): Uint8Array | null =>
+    n.kind === 'label' ? null : (n as { labelCache: Uint8Array | null }).labelCache
+
+  it('preserves cached labels on nodes that survive a proof cycle', () => {
     const prover = new BatchAVLProver(32, null)
     for (let i = 1; i <= 8; i++) {
       const key = new Uint8Array(32)
@@ -267,20 +280,29 @@ describe('BatchAVLProver label cache lifecycle', () => {
       prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([i]) })
     }
     prover.generateProof()
+    prover.digest() // populates every label in the tree
 
-    // Populate every label, then grab a node that the next batch will not touch.
-    const rootDigest = prover.digest()
-    expect(rootDigest).not.toBeNull()
-    const root = prover.root
-    expect(root).not.toBeNull()
-    expect(root!.kind).toBe('internal')
-    const untouched = (root as Extract<AvlNode, { kind: 'internal' }>).left
-    expect(untouched.kind).not.toBe('label')
-    expect((untouched as { labelCache: Uint8Array | null }).labelCache).not.toBeNull()
+    const cachedBefore = collectNodes(prover.root!).filter((n) => cacheOf(n) !== null)
+    expect(cachedBefore.length).toBeGreaterThan(0)
 
-    // A proof cycle must not invalidate it.
-    prover.generateProof()
-    expect((untouched as { labelCache: Uint8Array | null }).labelCache).not.toBeNull()
+    // The pre-fix clear was LAZY: generateProof() only set a flag, and the
+    // actual clearing happened inside the NEXT performOneOperation(). This
+    // operation is what makes the assertion below discriminate — without it the
+    // test passes whether or not the clearing code exists.
+    const laterKey = new Uint8Array(32)
+    laterKey.fill(200)
+    prover.performOneOperation({ tag: 'Insert', key: laterKey, value: new Uint8Array([9]) })
+
+    // Only assert on nodes still reachable after the insert: an immutable AVL
+    // rebuilds the root-to-insertion path, so nodes on it are legitimately
+    // replaced by fresh ones with a null cache. Nodes off the path are shared
+    // by reference and must keep their cached labels.
+    const reachableAfter = new Set(collectNodes(prover.root!))
+    const survivors = cachedBefore.filter((n) => reachableAfter.has(n))
+    expect(survivors.length).toBeGreaterThan(0) // guards against a vacuous filter
+    for (const n of survivors) {
+      expect(cacheOf(n)).not.toBeNull()
+    }
   })
 
   it('produces correct digests across several proof cycles', () => {
