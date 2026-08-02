@@ -261,6 +261,10 @@ export function parseProofPackedTree(
         valueLength = vl
       }
       if (valueLength < 0) return { ok: false, reason: 'proof-malformed' }
+      // JVM scrypto 3.1.1+: reject oversized declared value lengths before
+      // attempting the read (DOS guard; matches BatchAVLVerifier require).
+      if (valueLength > 4_194_304) return { ok: false, reason: 'proof-malformed' }
+      if (valueLength > state.proof.length - state.i) return { ok: false, reason: 'proof-malformed' }
       const value = readBytes(state, valueLength)
       if (value === null) return { ok: false, reason: 'proof-truncated' }
 

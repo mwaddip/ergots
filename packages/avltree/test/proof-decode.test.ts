@@ -51,4 +51,44 @@ describe('parseProofPackedTree — single-leaf-insert', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(['proof-truncated', 'proof-malformed']).toContain(result.reason)
   })
+
+  it('rejects oversized declared value length (> 4MB)', () => {
+    // Craft a proof: LEAF(0x02) + 32B key + 32B nextLeafKey + 4B valueLen + END(0x04)
+    // Declare valueLength = 5,000,000 — exceeds the JVM 4,194,304 cap.
+    const key = new Uint8Array(32)
+    const nxt = new Uint8Array(32)
+    const valueLenBE = new Uint8Array([0x00, 0x4c, 0x4b, 0x40]) // 5,000,000 in BE u32
+    const proof = new Uint8Array(1 + 32 + 32 + 4 + 1)
+    proof[0] = 0x02 // LEAF
+    proof.set(key, 1)
+    proof.set(nxt, 33)
+    proof.set(valueLenBE, 65)
+    proof[69] = 0x04 // END
+
+    const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
+    const startingDigest = new Uint8Array(33) // 32B digest + 1B treeHeight
+    const result = parseProofPackedTree(proof, config, startingDigest)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('proof-malformed')
+  })
+
+  it('rejects value length exceeding remaining proof bytes', () => {
+    // Proof declares valueLength=100 but END follows immediately (0 bytes
+    // of value data). Should be rejected as proof-malformed, not truncated.
+    const key = new Uint8Array(32)
+    const nxt = new Uint8Array(32)
+    const valueLenBE = new Uint8Array([0x00, 0x00, 0x00, 0x64]) // 100 in BE u32
+    const proof = new Uint8Array(1 + 32 + 32 + 4 + 1)
+    proof[0] = 0x02 // LEAF
+    proof.set(key, 1)
+    proof.set(nxt, 33)
+    proof.set(valueLenBE, 65)
+    proof[69] = 0x04 // END
+
+    const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
+    const startingDigest = new Uint8Array(33)
+    const result = parseProofPackedTree(proof, config, startingDigest)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('proof-malformed')
+  })
 })
