@@ -174,6 +174,13 @@ type ProverOperationResult =
 - **`generateProof()`** — serializes the proof covering all operations since the last call to `generateProof()` (or since construction). Uses the same packed proof format as `ergo_avltree_rust`'s `BatchAVLProver`. Resets direction-tracking state after generation.
 - **`unauthenticatedLookup(key)`** — walks the tree without modifying it. Returns the value at `key`, or `null` if absent. Does not record directions or touch modified-nodes tracking.
 - **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned (`root === null`).
+- **Precondition (throws `RangeError`):** the tree height is in `0..=255`, and
+  when the root is a `LabelNode` its stored digest is exactly 32 bytes. Both are
+  unreachable states for a tree built through this API — the height bound needs
+  more leaves than there are atoms on Earth, and `newLabel` enforces the digest
+  length — but a hand-built node or a storage backend calling `restoreRoot` can
+  reach them, and silently returning a wrong 33-byte digest would be a consensus
+  fault rather than a local error.
 - **`generateProofForOperations(operations)`** — clones the current tree, applies the given operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
 - **`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, sets `oldTopNode` to the restored root, and suppresses the next cycle reset. Required after startup resume, snapshot bootstrap, or recovery rollback. Ports `restore_root` from the reference.
 
@@ -374,6 +381,13 @@ Ported from `ergo_avltree_rust`'s `batch_node.rs::Node` enum plus the
   `labelCache`**, and return a defensive copy — the cache itself is never
   handed out directly, so callers cannot corrupt it. A cache hit skips
   recomputation and still returns a fresh copy.
+
+**Node immutability invariant.** Nodes are never mutated after construction —
+every operation on the tree builds new nodes via `newLeaf` / `newInternal` /
+`newLabel`. The single exception is `labelCache`, a memo of a pure function of
+otherwise-immutable fields. Consumers must not mutate a node obtained from this
+package; doing so invalidates cached labels on every ancestor and silently
+corrupts subsequent digests and proofs.
 
 ## Storage codec (v0.4.0)
 
