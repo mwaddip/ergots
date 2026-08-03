@@ -537,6 +537,24 @@ function rebalanceShrinkLeft(
     // unreachable from `oldTopNode` and `generateProof` never queries it. The
     // node the proof actually needs went unvisited.
     callbacks.onNodeVisit(rootRight.left, op, true)
+    // Grandchild guard — the promoted sub-root. `doubleLeftRotate` reads
+    // `node.right.left` (rotation.ts:58-63) and this is that node.
+    //
+    // DELIBERATE DIVERGENCE from the reference, which PANICS here:
+    // `double_left_rotate` (authenticated_tree_ops.rs:151-180 @191052c) does
+    // `this.tree.left(right_child)` at :158 and then `this.tree.balance(&new_root)`
+    // at :159; `AVLTree::balance` (batch_node.rs:382-384) delegates to
+    // `Node::balance` (batch_node.rs:129-135), which does
+    // `panic!("not internal node")` for a Leaf or a LabelOnly node.
+    //
+    // The verifier's tree is materialised from attacker-chosen proof bytes, so
+    // a crafted proof can put a LABEL (or, with a crafted balance byte, a LEAF)
+    // in this slot. Per facts/avltree.md's no-throw contract we reject instead —
+    // the same treatment scrypto's JVM `BatchAVLVerifier` gives it by wrapping
+    // replay in a `Try`. Mirrors the child guard above (`rootRight.kind`).
+    if (rootRight.left.kind !== 'internal') {
+      return { ok: false, reason: 'proof-malformed' }
+    }
     // Rust line 573 @191052c:
     // `self.double_left_rotate(&new_root, &new_left, &root_right)`.
     // doubleLeftRotate takes a parent node and reads .right + .right.left
@@ -671,6 +689,19 @@ function rebalanceShrinkRight(
     // `deleteInner` had already visited on the way down, so the call added
     // nothing and the promoted node was left unvisited.
     callbacks.onNodeVisit(rootLeft.right, op, true)
+    // Grandchild guard — mirror of `rebalanceShrinkLeft`'s. `doubleRightRotate`
+    // reads `node.left.right` (rotation.ts:117-122) and this is that node.
+    //
+    // DELIBERATE DIVERGENCE from the reference, which PANICS here:
+    // `double_right_rotate` (authenticated_tree_ops.rs:187-216 @191052c) does
+    // `this.tree.right(left_child)` at :194 and then `this.tree.balance(&new_root)`
+    // at :195; `AVLTree::balance` (batch_node.rs:382-384) delegates to
+    // `Node::balance` (batch_node.rs:129-135) → `panic!("not internal node")`
+    // for a Leaf or a LabelOnly node. We reject per facts/avltree.md's no-throw
+    // contract, as scrypto's JVM `BatchAVLVerifier` effectively does via `Try`.
+    if (rootLeft.right.kind !== 'internal') {
+      return { ok: false, reason: 'proof-malformed' }
+    }
     // Rust line 622 @191052c:
     // `self.double_right_rotate(r_node, &r.left, &new_right)`.
     // doubleRightRotate takes a parent and reads .left + .left.right

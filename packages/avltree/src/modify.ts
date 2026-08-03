@@ -505,6 +505,31 @@ function rotateLeftDescent(
     }
   }
 
+  // Grandchild guard — `doubleRightRotate` promotes `node.left.right`, i.e.
+  // `newLeftm.right` (rotation.ts:117-122), and the check at the top of this
+  // function only covers `newLeftm` itself.
+  //
+  // REACHABLE, contrary to what the AVL invariant suggests. The only subtree
+  // that reports `heightDelta === 1` with a balance >= 0 (the condition that
+  // selects the DOUBLE rotation over the single one) is `addNode`'s split node,
+  // whose children are both freshly-built LEAVES — every other +1 producer is a
+  // `newInternal` whose promoted side is itself internal. Reaching the rotation
+  // branch from a split node needs `node.balance < 0` while `node.left` was a
+  // LEAF, which a well-formed AVL tree cannot contain but a crafted proof can:
+  // the verifier materialises the balance byte straight out of the proof
+  // (proof-decode.ts's internal-node token IS the balance).
+  //
+  // DELIBERATE DIVERGENCE from the reference, which PANICS here:
+  // `double_right_rotate` (authenticated_tree_ops.rs:187-216 @191052c) does
+  // `this.tree.right(left_child)` at :194 then `this.tree.balance(&new_root)`
+  // at :195; `AVLTree::balance` (batch_node.rs:382-384) delegates to
+  // `Node::balance` (batch_node.rs:129-135) → `panic!("not internal node")`.
+  // We reject per facts/avltree.md's no-throw contract (scrypto's JVM
+  // `BatchAVLVerifier` poisons the tree via `Try` for the same input).
+  if (newLeftm.right.kind !== 'internal') {
+    return { ok: false, reason: 'proof-malformed' }
+  }
+
   // Rust line 341: `else { self.double_right_rotate(r_node, &new_leftm, &r.right) }`.
   // doubleRightRotate from rotation.ts takes (parent) and reads .left/.right
   // internally — so we synthesize a parent whose left = newLeftm, right = node.right.
@@ -610,6 +635,23 @@ function rotateRightDescent(
       oldValue,
       needsDelete: false,
     }
+  }
+
+  // Grandchild guard — mirror of `rotateLeftDescent`'s. `doubleLeftRotate`
+  // promotes `node.right.left`, i.e. `newRightm.left` (rotation.ts:58-63);
+  // the check at the top of this function only covers `newRightm` itself.
+  // Same reachability argument, sign-flipped: `addNode`'s split node (balance
+  // 0, two LEAF children) under a crafted `node.balance > 0` whose `node.right`
+  // was a LEAF.
+  //
+  // DELIBERATE DIVERGENCE from the reference, which PANICS here:
+  // `double_left_rotate` (authenticated_tree_ops.rs:151-180 @191052c) does
+  // `this.tree.left(right_child)` at :158 then `this.tree.balance(&new_root)`
+  // at :159; `AVLTree::balance` (batch_node.rs:382-384) delegates to
+  // `Node::balance` (batch_node.rs:129-135) → `panic!("not internal node")`.
+  // We reject per facts/avltree.md's no-throw contract.
+  if (newRightm.left.kind !== 'internal') {
+    return { ok: false, reason: 'proof-malformed' }
   }
 
   // Rust line 367: `else { self.double_left_rotate(r_node, &r.left, &new_rightm) }`.
