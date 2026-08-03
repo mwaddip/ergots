@@ -164,3 +164,69 @@ describe('updateFn — UnknownModification', () => {
     expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
   })
 })
+
+describe('updateFn — UpdateLongBy i64 overflow (JVM Math.addExact semantics)', () => {
+  /**
+   * The JVM reference (scrypto 3.0.0 `UpdateLongBy.updateFn`, bytecode-verified)
+   * computes the sum with `Math.addExact`, so an i64 overflow in EITHER
+   * direction throws ArithmeticException — caught by the verifier's `Try` →
+   * per-op Failure. The sign checks (0 → remove, >0 → store, <0 → fail) only
+   * ever see in-range sums.
+   *
+   * Deliberate divergence from `ergo_avltree_rust` @191052c `operation.rs`,
+   * which does a plain `+` (wraps in release, panics in debug) and sign-checks
+   * the WRAPPED value — storing a wrapped-positive, or removing the key at
+   * exactly MIN+MIN, on negative overflow where the JVM rejects. The JVM is
+   * canonical; the crate-side divergence is routed cross-project. See the
+   * `update_fn` row in facts/avltree.md.
+   */
+  const i64 = (v: bigint): Uint8Array => {
+    const b = new Uint8Array(8)
+    new DataView(b.buffer).setBigInt64(0, v, false)
+    return b
+  }
+  const MAX = 2n ** 63n - 1n
+  const MIN = -(2n ** 63n)
+
+  it('fails on positive overflow instead of storing a wrapped-negative value (MAX + 1)', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 1n }
+    expect(updateFn(op, i64(MAX))).toEqual({
+      ok: false,
+      reason: 'result-out-of-i64-range',
+    })
+  })
+
+  it('fails on negative overflow with the overflow reason, not result-negative (MIN - 1)', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -1n }
+    expect(updateFn(op, i64(MIN))).toEqual({
+      ok: false,
+      reason: 'result-out-of-i64-range',
+    })
+  })
+
+  it('fails on MIN + MIN — the sum whose WRAPPED value is 0, which Rust release removes the key on', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: MIN }
+    expect(updateFn(op, i64(MIN))).toEqual({
+      ok: false,
+      reason: 'result-out-of-i64-range',
+    })
+  })
+
+  // Boundary regression guards — these pass pre-fix too; they pin that the
+  // overflow guard is not over-broad (they constrain the fix rather than
+  // demonstrate the bug).
+  it('still accepts the exact upper boundary: (MAX - 1) + 1 = MAX', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 1n }
+    expect(updateFn(op, i64(MAX - 1n))).toEqual({ ok: true, newValue: i64(MAX) })
+  })
+
+  it('still fails in-range negative results with result-negative: 1 - 2', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -2n }
+    expect(updateFn(op, i64(1n))).toEqual({ ok: false, reason: 'result-negative' })
+  })
+
+  it('still removes the key on an in-range zero result: 5 - 5', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -5n }
+    expect(updateFn(op, i64(5n))).toEqual({ ok: true, newValue: null })
+  })
+})

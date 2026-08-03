@@ -197,7 +197,7 @@ All 8 variants use `key: Uint8Array` of length `config.keyLength`. For `Insert`,
 | `Insert` | Fail (key already exists) | Split leaf; tree grows by 1 |
 | `Update` | Replace value; height unchanged | Fail (key not found) |
 | `InsertOrUpdate` | Replace value (match path) | Split leaf (gap path) |
-| `UpdateLongBy` | Add `delta` to stored i64; result = 0 → delete | Insert `delta` if positive; fail if negative |
+| `UpdateLongBy` | Add `delta` to stored i64 (a sum overflowing i64 fails the operation — JVM `addExact` semantics); result = 0 → delete | Insert `delta` if positive; fail if negative |
 | `Remove` | Delete leaf; tree shrinks by 1 | Fail (key not found) |
 | `RemoveIfExists` | Delete leaf; tree shrinks by 1 | No-op (absent key; no change) |
 

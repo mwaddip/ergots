@@ -28,13 +28,20 @@ export type UpdateFnFailReason =
   | 'key-already-exists'           // Insert on existing key
   | 'key-not-found'                // Update or Remove on absent key
   | 'decrement-on-absent-key'      // UpdateLongBy delta < 0 on absent key
-  | 'result-negative'              // UpdateLongBy result < 0
+  | 'result-negative'              // UpdateLongBy result < 0 (in-range)
+  | 'result-out-of-i64-range'      // UpdateLongBy sum overflows i64 (JVM Math.addExact analogue)
   | 'invalid-long-value-length'    // UpdateLongBy existing value is not exactly 8 bytes (audit AVL-02)
+
+/** Signed 64-bit range bounds for the UpdateLongBy overflow guard. */
+const I64_MAX = 2n ** 63n - 1n
+const I64_MIN = -(2n ** 63n)
 
 /**
  * Encode a signed i64 value as 8-byte big-endian.
  * Ports Rust i64::to_be_bytes (operation.rs:91, 98) via BigEndian::write_i64.
- * Uses bigint arithmetic; assumes value fits in the i64 range [-2^63, 2^63-1].
+ * Uses bigint arithmetic; assumes value fits in the i64 range [-2^63, 2^63-1]
+ * (the UpdateLongBy arm's range guard enforces this for the only caller that
+ * can overflow; delta itself is i64-validated at the public boundary, AVL-03).
  */
 function i64ToBeBytes(value: bigint): Uint8Array {
   const bytes = new Uint8Array(8)
@@ -141,6 +148,20 @@ export function updateFn(op: Operation, oldValue: Uint8Array | null): UpdateFnRe
       // operation.rs:93-103 — key present: add delta to existing value.
       const current = beBytesToI64(oldValue)
       const newVal = current + op.delta
+      // scrypto's UpdateLongBy.updateFn computes this sum with Math.addExact
+      // (bytecode-verified: scrypto 3.0.0 $anonfun$updateFn$7, offset 169),
+      // so an i64 overflow in EITHER direction is a per-op failure before any
+      // sign check runs — the sign checks below only ever see in-range sums.
+      // Deliberate divergence from ergo_avltree_rust @191052c, whose plain
+      // release-mode `+` wraps and sign-checks the WRAPPED value (storing a
+      // wrapped-positive, or removing the key at exactly MIN+MIN, on negative
+      // overflow where the JVM rejects). The JVM is canonical; the crate-side
+      // divergence is routed cross-project. Without this guard the true-sum
+      // checks accepted positive overflow and i64ToBeBytes stored the
+      // wrapped-NEGATIVE encoding.
+      if (newVal > I64_MAX || newVal < I64_MIN) {
+        return { ok: false, reason: 'result-out-of-i64-range' }
+      }
       if (newVal === 0n) {
         // operation.rs:95 — result zero → remove.
         return { ok: true, newValue: null }

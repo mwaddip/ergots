@@ -846,3 +846,19 @@ describe('PersistentBatchAVLProver.rollback', () => {
     expect(Array.from(proof)).toEqual(Array.from(fresh.generateProof()))
   })
 })
+
+describe('BatchAVLProver — UpdateLongBy i64 overflow', () => {
+  it('fails the operation instead of storing a wrapped-negative value', () => {
+    // JVM Math.addExact semantics: MAX + 1 overflows i64 → per-op failure.
+    // Pre-fix, updateFn sign-checked the TRUE bigint sum (> 0) and stored the
+    // wrapped-negative 8-byte encoding. See operation.test.ts's overflow block
+    // for the three-way reference comparison.
+    const prover = new BatchAVLProver(1, 8)
+    const key = new Uint8Array([0x10])
+    const max = new Uint8Array(8)
+    new DataView(max.buffer).setBigInt64(0, 2n ** 63n - 1n, false)
+    expect(prover.performOneOperation({ tag: 'Insert', key, value: max }).success).toBe(true)
+    const result = prover.performOneOperation({ tag: 'UpdateLongBy', key, delta: 1n })
+    expect(result.success).toBe(false)
+  })
+})
