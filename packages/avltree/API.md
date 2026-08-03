@@ -66,7 +66,7 @@ Reconstructs the tree from `proof`, replays each operation in `operations` order
 
 **Returns:** `VerifyAvlBatchResult | null`. Returns `null` on any verification failure: malformed proof, digest mismatch, or operation precondition violation. Returns a `VerifyAvlBatchResult` on success.
 
-**Throws:** `AvlVerifyError` (6 codes) on programmer-error input — invalid config, wrong digest length, key/value length mismatch. These are bugs in calling code, not proof-data failures.
+**Throws:** `AvlVerifyError` (8 codes) on programmer-error input — invalid config, wrong digest length, key/value length mismatch, or an out-of-bounds operation key. These are bugs in calling code, not proof-data failures. This function's own shape-validation wrapper throws 7 of the 8 codes; the 8th, `operation-key-out-of-bounds`, is thrown only by `BatchAVLProver.performOneOperation` — see "Error handling" below for the full code list.
 
 **Example:**
 
@@ -265,6 +265,7 @@ export type AvlVerifyErrorCode =
   | 'operation-key-length-mismatch'
   | 'operation-value-length-mismatch'
   | 'operation-delta-out-of-range'
+  | 'operation-key-out-of-bounds'
 ```
 
 ### `AvlVerifyErrorCode` meanings
@@ -278,6 +279,7 @@ export type AvlVerifyErrorCode =
 | `'operation-key-length-mismatch'` | `op.key.length !== config.keyLength` for some operation `op` |
 | `'operation-value-length-mismatch'` | `op.value.length !== config.valueLengthOpt` for some operation `op` with a `value` field, when `valueLengthOpt` is not `null` |
 | `'operation-delta-out-of-range'` | `UpdateLongBy.delta` outside signed i64 range (audit AVL-03) |
+| `'operation-key-out-of-bounds'` | `op.key` is at or beyond the ±infinity sentinel (all-`0x00` / all-`0xFF` × `keyLength`) — thrown only by `BatchAVLProver.performOneOperation`, never by the verify-side wrappers |
 
 ### Tier 2 — `null` return (verification failures)
 
@@ -328,9 +330,9 @@ class BatchAVLProver {
   performOneOperation(op: Operation): ProverOperationResult
   generateProof(): Uint8Array
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
-  digest(): Uint8Array | null
+  digest(): Uint8Array
   generateProofForOperations(operations: Operation[]):
-    { proof: Uint8Array; digest: Uint8Array } | { success: false }
+    { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false }
   restoreRoot(root: AvlNode, height: number): void
 }
 ```
@@ -345,17 +347,26 @@ In-memory AVL+ tree prover. Ports `ergo_avltree_rust/src/batch_avl_prover.rs`.
 
 Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds key, value length mismatch with fixed config, `UpdateLongBy.delta` outside signed i64 range).
 
+Checks run in reference order — −inf, then +inf, then key length — and must not be reordered. Because byte comparison length-tiebreaks, a *short all-zero* key fires the −inf gate (`operation-key-out-of-bounds`) before the length check ever runs, while a short non-zero key falls through to the length gate (`operation-key-length-mismatch`) — the same caller mistake (a too-short key) surfaces under two different codes depending on the key's byte content.
+
 **`generateProof()`** — serializes a proof covering all operations since the last call (or since construction). Returns a `Uint8Array` in the packed proof format. Resets direction tracking after generation; subsequent operations start a fresh cycle.
 
 **`unauthenticatedLookup(key)`** — walks the tree without recording state. Returns the value at `key`, or `null` if absent. Does not affect proof generation.
 
-**`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height). The `| null` in the return type is vestigial: a prover built through this API always has a root (the constructor seeds a sentinel leaf, and this phase removed the sole path that nulled the root on a delete-helper failure), so `null` is unreachable here — the type will be tightened in a later release.
+**`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height). The return type is `Uint8Array` — not `Uint8Array | null` — because a prover built through this API always has a root: the constructor's direct assignment gives TypeScript definite-assignment proof, and no reachable code path un-sets it afterward. This is a deliberate prover-side tightening, not a divergence from the reference: Rust's `digest()` returns `Option` only because prover and verifier share one `AVLTree` struct there; ergots splits them into separate classes, so the non-null prover type is the behavior-faithful shape. The **verifier's** digest stays nullable — poisoning on failure is real on that side.
 
-Throws `RangeError` if the tree height is outside `0..=255`, or if the root is a `LabelNode` whose stored digest is not exactly 32 bytes. Both states are unreachable for a tree built through this API — the height bound needs more leaves than there are atoms on Earth, and `newLabel` enforces the digest length — but a hand-built node installed via `restoreRoot` can reach them. Emitting a plausible but wrong 33-byte digest (height masked with `& 0xff`, or a short label zero-padded into the slot) would be a consensus fault, so it fails loudly instead.
+Throws `RangeError` in three cases, all unreachable through this API's own operations but reachable via a hand-built node or a `restoreRoot`-installed root:
+- the root has been forced to `null` by a type-unsafe caller (e.g. `prover.root = null as any`) — this fails as a named invariant error rather than letting a bare `TypeError` leak out of the internal `label()` call;
+- the tree height is outside `0..=255`;
+- the root is a `LabelNode` whose stored digest is not exactly 32 bytes.
 
-**`generateProofForOperations(operations)`** — clones the tree, applies all operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is untouched. This is the primary entry point for producing proofs verifiable by `verifyAvlBatch`.
+The height and label-length cases are unreachable through normal use — the height bound needs more leaves than there are atoms on Earth, and `newLabel` enforces the digest length — but emitting a plausible-but-wrong 33-byte digest (height masked with `& 0xff`, or a short label zero-padded into the slot) would be a consensus fault, so all three cases fail loudly instead of returning a corrupted result.
+
+**`generateProofForOperations(operations)`** — clones the tree and applies all operations on the clone; the original tree is NOT mutated. Failure model is two-tier: shape-invalid ops (±inf key, wrong key/value length, out-of-range delta) **throw** `AvlVerifyError`, propagated from `performOneOperation`; engine-level op failure (e.g. `Insert` on an existing key) returns `{ success: false }`. On success, returns `{ success: true, proof, digest }`. This is the primary entry point for producing proofs verifiable by `verifyAvlBatch`.
 
 **`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs.
+
+`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies — mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) follow the same rule: they alias only the verifier's internal reconstruction, which is unreachable after the call returns. One uniform contract across the whole package: the buffer you get is yours.
 
 **Example:**
 
@@ -363,7 +374,7 @@ Throws `RangeError` if the tree height is outside `0..=255`, or if the root is a
 const prover = new BatchAVLProver(32, null)
 prover.performOneOperation({ tag: 'Insert', key: myKey, value: myValue })
 const proof = prover.generateProof()
-const digest = prover.digest()!
+const digest = prover.digest()
 
 // Verify externally:
 const result = verifyAvlBatch(initialDigest, proof, config, [
@@ -389,7 +400,7 @@ class PersistentBatchAVLProver {
   )
   performOneOperation(operation: Operation): ProverOperationResult
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
-  digest(): Uint8Array | null
+  digest(): Uint8Array
   height(): number
   generateProofAndUpdateStorage(additionalData: [Uint8Array, Uint8Array][]): Uint8Array
   rollback(version: Uint8Array): void
@@ -415,7 +426,7 @@ On construction, either rolls back to the stored version (if one exists) or gene
 ```ts
 interface VersionedAVLStorage {
   update(prover: BatchAVLProver, additionalData: [Uint8Array, Uint8Array][]): void
-  rollback(version: Uint8Array): [root: unknown, height: number]
+  rollback(version: Uint8Array): [AvlNode, number]
   version(): Uint8Array | null
   rollbackVersions(): Uint8Array[]
   flush(): void
@@ -460,9 +471,9 @@ interface LeafNode {
 interface InternalNode {
   readonly kind: 'internal'
   readonly key?: Uint8Array
-  left: AvlNode
-  right: AvlNode
-  balance: Balance
+  readonly left: AvlNode
+  readonly right: AvlNode
+  readonly balance: Balance
   labelCache: Uint8Array | null
 }
 
@@ -485,11 +496,11 @@ Ported from `ergo_avltree_rust`'s `batch_node.rs::Node` enum plus the `LeafNode`
 
 A discriminated union on `kind`. `LeafNode` holds a real key/value/next-leaf-key triple. `InternalNode` holds `left`/`right` children (each an `AvlNode`) and an AVL `balance`. `LabelNode` is a stub carrying only a 32-byte digest — it stands in for a subtree the holder doesn't have full data for (e.g. a proof-decoded sibling, or one of a `deserializeNode`d internal node's children; see "Storage codec" below).
 
-`InternalNode.key` is optional: the shared prover/verifier engine (`modify.ts`/`delete.ts`) sets it on every `newInternal` call it makes, but proof decoding reconstructs verifier-only internal nodes without one. `left`, `right`, `balance`, and `labelCache` are currently typed as mutable (not `readonly`); `key`, like `kind`, is `readonly`.
+`InternalNode.key` is optional: the shared prover/verifier engine (`modify.ts`/`delete.ts`) sets it on every `newInternal` call it makes, but proof decoding reconstructs verifier-only internal nodes without one. All data fields on all three node kinds are `readonly`; `labelCache` is the sole mutable field (a lazy memo). `readonly` prevents *reassignment* (`node.left = otherNode` is a compile error) — it does not make the underlying buffer immutable (`node.key[0] = 0xff` still type-checks): the aliasing hole that would otherwise open is closed by the defensive copies described above (`newLeaf` / `newInternal` / `newLabel`), not by `readonly` itself.
 
 `LeafNode`'s fields `key`, `value`, `nextLeafKey`, and `kind` are all `readonly`; only `labelCache` is mutable.
 
-**Do not mutate nodes.** Every node this package returns is treated as immutable: the prover and verifier build new nodes via `newLeaf` / `newInternal` / `newLabel` rather than editing existing ones, and each node memoises its own label on first use. `labelCache` is the single sanctioned in-place write — a memo of a pure function of otherwise-immutable fields. Mutating any other field (`left`, `right`, `balance`, still typed mutable pending the Phase C `readonly` tightening) invalidates the cached label on every ancestor and silently corrupts subsequent digests and proofs. To change a tree, use the prover's operations; to build one from storage, use the constructors.
+**Do not mutate nodes.** Every node this package returns is treated as immutable: the prover and verifier build new nodes via `newLeaf` / `newInternal` / `newLabel` rather than editing existing ones, and each node memoises its own label on first use. `labelCache` is the single sanctioned in-place write — a memo of a pure function of otherwise-immutable fields. Mutating a node's byte fields in place (e.g. writing through a `key`, `value`, or child `label` array obtained from a node) invalidates the cached label on every ancestor and silently corrupts subsequent digests and proofs — `readonly` narrows this risk (it blocks reassigning `left` / `right` / `balance` / `key` outright) but does not eliminate it, since it only stops rebinding a property, not mutating the array already stored there. To change a tree, use the prover's operations; to build one from storage, use the constructors.
 
 ### `Balance`
 
@@ -581,7 +592,7 @@ export function load(key: Uint8Array, read: (k: Uint8Array) => Uint8Array): AvlN
   const node = deserializeNode(read(key), config)
   if (node.kind !== 'internal') return node
   // Build a fresh node via newInternal rather than mutating node.left /
-  // node.right in place — those fields are scheduled to become readonly.
+  // node.right in place — those fields are readonly.
   const left = node.left.kind === 'label' ? load(node.left.label, read) : node.left
   const right = node.right.kind === 'label' ? load(node.right.label, read) : node.right
   return newInternal(left, right, node.balance, node.key)
