@@ -275,6 +275,22 @@ All 8 `Operation` variants are implemented and covered by fixtures:
 | `Remove` | signal `needsDelete`; delete pass | fail (`key-not-found`) |
 | `RemoveIfExists` | signal `needsDelete`; delete pass | no-op (absent key; no change) |
 
+**Documented JVM divergence — `UnknownModification` (ruling 2026-08-03, task 6f).**
+scrypto 3.0.0 models this op as a case *object* (bytecode-verified: `key()` returns a
+static zero-length array; `updateFn` is `old => Success(old)`), so on the JVM the
+caller's key never reaches it, the zero-length key fails the strict `key > -inf`
+require, and the op is a guaranteed failure that poisons the verifier. ergots keeps
+the `ergo_avltree_rust` model instead: keyed, Lookup-equivalent (table above). The
+JVM behavior is dead code — nothing in scrypto 3.0.0 constructs the object, it has
+no wire encoding, and sigmastate never references it, so no JVM execution path can
+reach it and the divergence is not script-consensus-reachable. SANTA's authds tier
+pins the resulting 4 verify-vector reds as a known divergence (their
+`docs/findings/authds-unknownmodification-jvm-vs-rust.md`; no ask attached).
+Note for Phase E: Rust routes the op through the generic `update_fn` same-value
+rewrite (`change_happened=true`), not the Lookup arm — observably identical
+(digest + returned value), but `modify.ts:184-188`'s "matching Rust's Lookup
+branch" citation is imprecise about which arm.
+
 Prover support: `BatchAVLProver` and `PersistentBatchAVLProver` are now ported to TS (v0.3.0). The verifier and prover share the same mutation engine (`modify.ts` / `delete.ts`) through the `AvlTreeOpsCallbacks` interface. The Rust `fixture-gen/` crate remains the authoritative fixture source for byte-equality validation.
 
 ## Source mapping to `ergo_avltree_rust`
