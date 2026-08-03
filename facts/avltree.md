@@ -19,7 +19,7 @@ regeneration was needed.
 3. `verifyAvlLookup` — thin convenience wrapper over `verifyAvlBatch` for single-key reads.
 4. All 8 `Operation` variants: `Lookup`, `UnknownModification`, `Insert`, `Update`, `InsertOrUpdate`, `UpdateLongBy`, `Remove`, `RemoveIfExists`.
 5. `AvlTreeConfig` — verifier-input shape (key length, optional fixed value length, optional DoS bounds).
-6. `AvlVerifyError` — programmer-error rejection class with 7 typed codes.
+6. `AvlVerifyError` — programmer-error rejection class with 8 typed codes.
 7. `BatchAVLProver` — in-memory AVL+ tree prover. Builds a tree from authenticated operations, records traversal directions, and generates serialized AD proofs suitable for verification by `verifyAvlBatch`.
 8. `PersistentBatchAVLProver` — wraps a `BatchAVLProver` with versioned storage, enabling rollback across proof-generation cycles.
 9. `VersionedAVLStorage` — interface for persistent AVL+ tree storage. No concrete implementation ships; consumers provide their own.
@@ -33,6 +33,7 @@ regeneration was needed.
 - Direct exposure of the internal stateful `BatchAvlVerifier` class on v0.4.0. The class is designed with clean inspectable state; promoting it to public surface later is a one-line export change.
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
+- `compareBytes`. A single internal module (`src/compare-bytes.ts`) consolidating what were four duplicate private byte-comparison implementations (prover, verifier, tree-traversal, persistent-prover); not exported from the package entry point.
 
 ## Public surface (v0.4.0)
 
@@ -135,8 +136,8 @@ class BatchAVLProver {
   performOneOperation(op: Operation): ProverOperationResult
   generateProof(): Uint8Array
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
-  digest(): Uint8Array | null
-  generateProofForOperations(operations: Operation[]): { proof: Uint8Array; digest: Uint8Array } | { success: false }
+  digest(): Uint8Array
+  generateProofForOperations(operations: Operation[]): { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false }
   restoreRoot(root: AvlNode, height: number): void
 }
 
@@ -148,7 +149,7 @@ class PersistentBatchAVLProver {
   )
   performOneOperation(operation: Operation): ProverOperationResult
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
-  digest(): Uint8Array | null
+  digest(): Uint8Array
   height(): number
   generateProofAndUpdateStorage(additionalData: [Uint8Array, Uint8Array][]): Uint8Array
   rollback(version: Uint8Array): void
@@ -156,7 +157,7 @@ class PersistentBatchAVLProver {
 
 interface VersionedAVLStorage {
   update(prover: BatchAVLProver, additionalData: [Uint8Array, Uint8Array][]): void
-  rollback(version: Uint8Array): [root: unknown, height: number]
+  rollback(version: Uint8Array): [root: AvlNode, height: number]
   version(): Uint8Array | null
   rollbackVersions(): Uint8Array[]
   flush(): void
@@ -173,7 +174,8 @@ type ProverOperationResult =
 - **`performOneOperation(op)`** — applies a single operation (Insert, Update, Remove, etc.) to the in-memory tree, recording traversal directions for proof generation. Returns `{ success: true, value }` on success (`value` is the old value or `null` if the key was absent) or `{ success: false }` on precondition failure.
 - **`generateProof()`** — serializes the proof covering all operations since the last call to `generateProof()` (or since construction). Uses the same packed proof format as `ergo_avltree_rust`'s `BatchAVLProver`. Resets direction-tracking state after generation.
 - **`unauthenticatedLookup(key)`** — walks the tree without modifying it. Returns the value at `key`, or `null` if absent. Does not record directions or touch modified-nodes tracking.
-- **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned (`root === null`).
+- **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height). `root`, `oldTopNode`, and `digest()`'s return type are all non-nullable: the constructor's direct assignment gives TypeScript definite-assignment proof for `root`, and no reachable code path un-sets either field afterward. Port-faithfulness: Rust's `digest()` returns `Option` because prover and verifier share one `AVLTree` struct; ergots has separate classes, so the prover-side tightening is behavior-faithful, not a divergence. The **verifier's** digest stays nullable (poisoning is real there).
+- **Precondition (throws, not part of the typed `AvlVerifyErrorCode` taxonomy):** if a type-unsafe caller forces `root` to `null` anyway (e.g. `prover.root = null as any`), `digest()` throws a named invariant error rather than leaking a bare `TypeError` out of the internal `label()` call.
 - **Precondition (throws `RangeError`):** the tree height is in `0..=255`, and
   when the root is a `LabelNode` its stored digest is exactly 32 bytes. Both are
   unreachable states for a tree built through this API — the height bound needs
@@ -181,8 +183,12 @@ type ProverOperationResult =
   length — but a hand-built node or a storage backend calling `restoreRoot` can
   reach them, and silently returning a wrong 33-byte digest would be a consensus
   fault rather than a local error.
-- **`generateProofForOperations(operations)`** — clones the current tree, applies the given operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
+- **`generateProofForOperations(operations)`** — clones the current tree and applies the given operations on the clone. Shape-invalid ops (±inf key, wrong key/value length, out-of-range delta) **throw** `AvlVerifyError` (propagated from `performOneOperation`); engine-level op failure (e.g. Insert on an existing key) returns `{ success: false }`. Success arm is `{ success: true, proof, digest }`. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
 - **`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Required after startup resume, snapshot bootstrap, or recovery rollback. Ports `restore_root` from the reference.
+
+Root installation is consolidated: `PersistentBatchAVLProver.rollback` (Phase B) and the `generateProofForOperations` clone install route through `restoreRoot`; the constructor deliberately keeps direct assignment (definite-assignment proof for the non-null `root`; no overridable-method-from-constructor; matches Rust's `new()`, which does not call `restore_root`).
+
+`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies; mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) are also safe to mutate — they alias only the verifier's internal reconstruction, which is unreachable after return. One uniform contract: the buffer you get is yours.
 
 #### `PersistentBatchAVLProver`
 
@@ -196,9 +202,9 @@ Interface for persistent tree storage. Consumers implement this for their storag
 
 The package enforces a strict two-tier failure model:
 
-**Tier 1 — `AvlVerifyError` thrown (7 codes; programmer errors only)**
+**Tier 1 — `AvlVerifyError` thrown (8 codes; programmer errors only)**
 
-Checked at the public entry point before any `BatchAvlVerifier` state is constructed. These indicate bugs in calling code, not in the proof data.
+Checked at the verifier's public entry point before any `BatchAvlVerifier` state is constructed, and at the prover's `BatchAVLProver.performOneOperation` — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below. These indicate bugs in calling code, not in the proof data.
 
 ```ts
 export class AvlVerifyError extends Error {
@@ -213,7 +219,19 @@ export type AvlVerifyErrorCode =
   | 'operation-key-length-mismatch'      // op.key.length !== config.keyLength
   | 'operation-value-length-mismatch'    // op.value.length !== config.valueLengthOpt when fixed
   | 'operation-delta-out-of-range'       // UpdateLongBy.delta outside signed i64 range (verify.ts:301-310; same check at the prover boundary, batch-prover.ts::performOneOperation)
+  | 'operation-key-out-of-bounds'        // op key <= -inf sentinel (0x00×kl) or >= +inf sentinel (0xFF×kl) — thrown by BatchAVLProver.performOneOperation
 ```
+
+The prover checks −inf, then +inf, then key length, in reference order
+(`authenticated_tree_ops.rs` entry requires). Because `compareBytes`
+length-tiebreaks, a *short all-zero* key fires the −inf gate
+(`operation-key-out-of-bounds`) while a short non-zero key fires the length
+gate (`operation-key-length-mismatch`) — the same caller mistake surfaces
+under two codes depending on byte content. Reference-faithful; do not
+reorder. Naming: the code deliberately parallels the verifier's internal
+`'key-out-of-bounds'` fail reason — same condition, different tier (prover
+throws = programmer error; verifier fails-and-poisons = adversarial input,
+the references' own asymmetry).
 
 **Tier 2 — `AvlVerifyFailReason` internal taxonomy (11 reasons; not public on v0.4.0)**
 
@@ -334,10 +352,10 @@ Phase E's mandate; until then each number's base is explicit, not implied by
 | `operation.rs::Operation` enum (13-22) | `Operation` discriminated union (`operation.ts`) | Rust `KeyValue { key, value }` and `KeyDelta { key, delta }` structs flattened inline on variants — TS-idiomatic; intentional structural divergence |
 | `operation.rs::Operation::update_fn` (64-106) | `updateFn` (`operation.ts`) | 1:1 port; WARNING: `Lookup` branch exists as a defensive stub but must never be called — `modifyHelper` short-circuits before `updateFn` for Lookup. Deliberate divergence in the `UpdateLongBy` arm: the i64 sum is range-checked before the sign checks (`'result-out-of-i64-range'`), matching JVM scrypto's `Math.addExact` (bytecode-verified). The reference's plain release-mode `+` wraps and sign-checks the WRAPPED value — storing a wrapped-positive, or removing the key at exactly MIN+MIN, on negative overflows the JVM rejects (and panicking in debug builds); that crate-side Rust-vs-JVM divergence is routed cross-project |
 | `operation.rs::ADKey / ADValue / ADDigest` type aliases (7-9) | `ADKey / ADValue` type aliases (`types.ts`); no `ADDigest` alias — the 33-byte digest flows as the plain `Uint8Array` returned as `newDigest` | Documentation-only aliases on `Uint8Array`; the digest is exactly 33 bytes |
-| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (7 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
+| (TS-only) | `verifyAvlBatch` + `verifyAvlLookup` (`verify.ts`) | Public functional wrappers — Rust has no equivalent; consumers call `BatchAVLVerifier` directly; these wrappers add shape validation (8 `AvlVerifyError` codes) and a clean null-on-failure return. `verifyAvlBatch` is a thin wrapper over `verifyAvlBatchPartial` (v0.2.0). |
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 206 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
-| (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (7 codes); Rust uses `anyhow::Result` throughout with no separate error class |
-| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (10 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.4.0 |
+| (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (8 codes); Rust uses `anyhow::Result` throughout with no separate error class |
+| (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (11 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.4.0 |
 
 ## Node types and constructors (v0.4.0)
 
@@ -355,9 +373,9 @@ export interface LeafNode {
 export interface InternalNode {
   readonly kind: 'internal'
   readonly key?: Uint8Array
-  left: AvlNode
-  right: AvlNode
-  balance: Balance
+  readonly left: AvlNode
+  readonly right: AvlNode
+  readonly balance: Balance
   labelCache: Uint8Array | null
 }
 
@@ -385,9 +403,11 @@ Ported from `ergo_avltree_rust`'s `batch_node.rs::Node` enum plus the
   internal node's children; see "Storage codec" below).
 - **`InternalNode.key`** is optional: the shared prover/verifier engine
   (`modify.ts`/`delete.ts`) sets it on every `newInternal` call it makes, but
-  `proof-decode.ts` reconstructs verifier-only internal nodes without one.
-  `left`, `right`, `balance`, and `labelCache` are currently typed as mutable
-  (not `readonly`); `key`, like `kind`, is `readonly`.
+  `proof-decode.ts` reconstructs verifier-only internal nodes without one. All
+  data fields on all three node kinds are `readonly`; `labelCache` stays
+  mutable (lazy memo). `readonly` prevents *reassignment*, not buffer
+  mutation — the aliasing hole is closed by the defensive copies above, not by
+  `readonly`.
 - **`LeafNode`** fields `key`, `value`, `nextLeafKey`, and `kind` are all
   `readonly`; only `labelCache` is mutable.
 - **`Balance`** is the literal union `-1 | 0 | 1`. Rust's equivalent
