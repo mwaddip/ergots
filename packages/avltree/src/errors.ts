@@ -29,7 +29,7 @@ export class AvlVerifyError extends Error {
 }
 
 /**
- * Internal verification-failure reason taxonomy (10 reasons). Tracked by
+ * Internal verification-failure reason taxonomy (11 reasons). Tracked by
  * BatchAvlVerifier.lastFailReason but NOT exposed in the public API on v0.1.0.
  * Promoted to a getLastFailReason() method if/when the internal class is
  * promoted to public surface (deferred per design spec's option-3 decision).
@@ -42,6 +42,7 @@ export type AvlVerifyFailReason =
   | 'leaf-key-out-of-order'
   | 'max-nodes-exceeded'
   | 'operation-precondition-failed'
+  | 'key-out-of-bounds'  // op key not strictly inside the ±inf sentinels (references' entry requires)
   | 'tree-poisoned'
   | 'empty-tree'
   | 'operation-required-but-not-allowed'  // reserved for ABI stability

@@ -281,7 +281,7 @@ export type AvlVerifyErrorCode =
 
 ### Tier 2 — `null` return (verification failures)
 
-Any failure inside the verifier — malformed proof bytes, digest mismatch, operation precondition violation, DoS-bound exceeded — causes `verifyAvlBatch` / `verifyAvlLookup` to return `null`. No exception is thrown (one engine-level carve-out, below). The distinction allows callers to handle "bad proof from peer" (return `null`) separately from "bad arguments from my own code" (throw).
+Any failure inside the verifier — malformed proof bytes, digest mismatch, operation precondition violation, an op key at or beyond the ±infinity sentinels (all-`0x00` / all-`0xFF` × keyLength; both references reject these at op entry), DoS-bound exceeded — causes `verifyAvlBatch` / `verifyAvlLookup` to return `null`. No exception is thrown (one engine-level carve-out, below). The distinction allows callers to handle "bad proof from peer" (return `null`) separately from "bad arguments from my own code" (throw).
 
 This guarantee holds on the adversarial path too. A crafted proof that places a non-`Internal` node (a `LABEL` token, or a `LEAF` under a crafted balance byte) where a delete- or insert-path double rotation must descend into a real subtree is rejected with `null`, not an escaping `TypeError`. The `ergo_avltree_rust` reference `panic!`s on these inputs; matching the JVM `BatchAVLVerifier`, which wraps replay in a `Try` and poisons the tree, is a deliberate divergence — see the `double_*_rotate` / `modify_helper` / `delete_helper` rows in `facts/avltree.md`.
 

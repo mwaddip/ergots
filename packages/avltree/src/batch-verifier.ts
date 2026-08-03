@@ -17,10 +17,13 @@
  *
  * Per the design spec (docs/specs/2026-05-18-ergots-avltree-package-design.md),
  * this class is INTERNAL on v0.1.0 — consumers use `verifyAvlBatch` /
- * `verifyAvlLookup` (T18+T19) which wrap this. The shape-validation work
- * (key length, value length, infinity-key checks per Rust lines 226-229)
- * lives in those wrappers, not here. Once construction finishes, this class
- * trusts the inputs and operates on bytes.
+ * `verifyAvlLookup` (T18+T19) which wrap this. Key/value LENGTH validation
+ * lives in those wrappers (throws, documented contract). The references'
+ * two strict ±inf bounds requires (Rust `ensure!`s at
+ * authenticated_tree_ops.rs:267-268 @d18773c; scrypto's identical requires)
+ * are enforced HERE at the top of performOneOperation as fail-and-poison
+ * ('key-out-of-bounds') — task 6g. Beyond those per-op gates, once
+ * construction finishes this class trusts the inputs and operates on bytes.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
  * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (lines 221-248)
@@ -42,6 +45,20 @@ import type { AvlVerifyFailReason } from './errors.js'
  * 32 bytes of blake2b-256 + 1 height byte = 33 bytes for the digest tuple.
  */
 const DIGEST_LENGTH = 32
+
+/**
+ * Lexicographic comparison of two Uint8Arrays. Returns -1, 0, or 1.
+ * Fourth private copy in the package (batch-prover.ts, persistent-prover.ts,
+ * tree-traversal.ts carry the others) — Phase C consolidates them.
+ */
+function compareBytes(a: Uint8Array, b: Uint8Array): number {
+  const min = Math.min(a.length, b.length)
+  for (let i = 0; i < min; i++) {
+    if ((a[i] ?? 0) < (b[i] ?? 0)) return -1
+    if ((a[i] ?? 0) > (b[i] ?? 0)) return 1
+  }
+  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
+}
 
 /**
  * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl), the integration
@@ -94,6 +111,11 @@ export class BatchAvlVerifier {
    */
   lastFailReason: AvlVerifyFailReason | null = null
 
+  /** −inf sentinel key (0x00 × config.keyLength). Op keys must sort STRICTLY above. */
+  private readonly negInfKey: Uint8Array
+  /** +inf sentinel key (0xFF × config.keyLength). Op keys must sort STRICTLY below. */
+  private readonly posInfKey: Uint8Array
+
   /**
    * Verifier traversal state — proof-byte cursor (directionsIndex), deepest
    * right-step (lastRightStep), and delete-pass replay cursor (replayIndex).
@@ -122,6 +144,8 @@ export class BatchAvlVerifier {
   constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
     this.proof = proof
     this.config = config
+    this.negInfKey = new Uint8Array(config.keyLength)
+    this.posInfKey = new Uint8Array(config.keyLength).fill(0xff)
     // Rust struct init (lines 44-52): directions_index=0, last_right_step=0,
     // replay_index=0. We replicate the same triple-zero init; directionsIndex
     // is set to the post-tree byte position after parseProofPackedTree below.
@@ -248,6 +272,27 @@ export class BatchAvlVerifier {
       // Preserve the original poisoning reason if already set (proof-decode
       // failure or a prior op's failure); otherwise mark 'tree-poisoned'.
       this.lastFailReason ??= 'tree-poisoned'
+      return { failed: true }
+    }
+
+    // Both references open the shared op entry with two strict bounds
+    // requires — ergo_avltree_rust authenticated_tree_ops.rs:267-268
+    // (@d18773c: `ensure!(key > neg_inf)`, `ensure!(key < pos_inf)`),
+    // scrypto returnResultOfOneOperation (same two requires,
+    // bytecode-verified) — and fail-and-poison on violation, before any
+    // descent. Without this gate a proof steered to the −inf sentinel leaf
+    // lets an out-of-bounds key match it (dummy-value lookup, sentinel
+    // rewrite/delete — digests no reference produces). The references'
+    // THIRD entry check, key length, is a wrapper throw here by documented
+    // contract (verify.ts::validateOperationShape); lexicographically short
+    // keys below −inf still land in this gate, same as the references.
+    if (
+      compareBytes(op.key, this.negInfKey) <= 0 ||
+      compareBytes(op.key, this.posInfKey) >= 0
+    ) {
+      this.root = null
+      this.height = 0
+      this.lastFailReason = 'key-out-of-bounds'
       return { failed: true }
     }
 

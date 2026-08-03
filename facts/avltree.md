@@ -215,7 +215,7 @@ export type AvlVerifyErrorCode =
   | 'operation-delta-out-of-range'       // UpdateLongBy.delta outside signed i64 range (verify.ts:301-310; same check at the prover boundary, batch-prover.ts::performOneOperation)
 ```
 
-**Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.4.0)**
+**Tier 2 — `AvlVerifyFailReason` internal taxonomy (11 reasons; not public on v0.4.0)**
 
 Tracked by `BatchAvlVerifier.lastFailReason`. Not exposed in the public API on v0.4.0; promoted to a `getLastFailReason()` accessor when the internal class is exposed (the design spec explains why it stays internal).
 
@@ -228,6 +228,7 @@ type AvlVerifyFailReason =               // (internal; not exported)
   | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
   | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
   | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)
+  | 'key-out-of-bounds'                  // op key not STRICTLY inside the ±inf sentinels (0x00×kl / 0xFF×kl) — 6g
   | 'tree-poisoned'                      // performOneOperation called after a prior failure
   | 'empty-tree'                         // performOneOperation called on tree with null root
   | 'operation-required-but-not-allowed' // reserved for ABI stability (currently unreachable)
@@ -235,7 +236,7 @@ type AvlVerifyFailReason =               // (internal; not exported)
 
 **Invariants on the boundary:**
 
-1. Shape validation is sole and comprehensive at the public entry point. After construction, `BatchAvlVerifier` trusts shapes and operates on bytes.
+1. Shape validation is sole and comprehensive at the public entry point. After construction, `BatchAvlVerifier` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @d18773c; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw by documented contract.
 2. No throws from inside `BatchAvlVerifier` to the consumer. Verification failures set `root = null` (tree poisoned) and `performOneOperation` returns `{ failed: true }` on this and every subsequent call. One engine-level exception — stack exhaustion on a pathologically deep proof — is carved out under "No throws on verification failures" below.
 3. Internal panics from `@noble/hashes` bubble as plain `Error` — those are contract violations inside a dependency, not consumer-input issues.
 
@@ -301,7 +302,7 @@ Pinned at `~/projects/ergo_avltree_rust/` HEAD `191052c`, branch `main`, includi
 |---|---|---|
 | `batch_avl_verifier.rs::BatchAVLVerifier::new` (59-77) | `BatchAvlVerifier` constructor (`batch-verifier.ts`) | 1:1 port; proof-decode delegated to `parseProofPackedTree` |
 | `batch_avl_verifier.rs::reconstruct_tree` (80-181) | `parseProofPackedTree` (`proof-decode.ts`) | 1:1 port; bounds-checks added (TS OOB returns undefined, not panic); token constants from `batch_node.rs:14-16`; max-nodes DoS formula from `batch_avl_verifier.rs:86-109` |
-| `batch_avl_verifier.rs::perform_one_operation` (195-210) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (237-264); needsDelete two-phase dispatch; height bookkeeping |
+| `batch_avl_verifier.rs::perform_one_operation` (195-210) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (237-264); needsDelete two-phase dispatch; height bookkeeping; 6g ports the entry's two strict ±inf bounds `ensure!`s (`:267-268` @d18773c) as fail-and-poison (`'key-out-of-bounds'`) — the third `ensure!` (key length, `:269`) stays a wrapper throw by documented contract |
 | `batch_avl_verifier.rs::next_direction_is_left` (230-241) | `nextDirectionIsLeft` (`tree-traversal.ts`) | 1:1 port; LSB-first bit indexing (`1 << (i & 7)`) confirmed |
 | `batch_avl_verifier.rs::key_matches_leaf` (251-265) | `keyMatchesLeaf` (`tree-traversal.ts`) | 1:1 port; returns discriminated-union result instead of throwing on out-of-order |
 | `batch_avl_verifier.rs::replay_comparison` (277-289) | `replayComparison` (`tree-traversal.ts`) | 1:1 port; three-way return (-1/0/1); advances `state.replayIndex` |
