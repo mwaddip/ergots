@@ -585,6 +585,47 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
+  // removedNodes — output-contract port of batch_avl_prover.rs removed_nodes
+  //   (derived walk; see facts/avltree.md for the divergence table. Rust
+  //   range verified via `git show 568e7c3:src/batch_avl_prover.rs`:
+  //   removed_nodes spans lines 146-153 — signature through closing brace.)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Nodes of the previous cycle's tree whose labels are no longer in the
+   * current tree — the rows a storage backend should delete.
+   *
+   * ORDERING: call after the batch's operations and BEFORE `generateProof()`
+   * or `restoreRoot()`; both rebase the proof cycle, after which this
+   * returns `[]` (the reference's cleared-buffer observable — misordering is
+   * the ergo-node-rust 235 GB orphan incident). Calling from inside
+   * `VersionedAVLStorage.update()` is correct by construction:
+   * `generateProofAndUpdateStorage` runs update before generateProof.
+   *
+   * Pure and idempotent; mid-batch calls allowed (diff as of the current
+   * tree). Order of returned nodes unspecified — treat as a set. Returned
+   * nodes are live tree objects: do not mutate; derive storage keys via the
+   * exported `label()`. The never-persisted first-cycle sentinel leaf is
+   * reported on the first mutating cycle (reference parity) — storage must
+   * tolerate deleting absent rows.
+   */
+  removedNodes(): AvlNode[] {
+    const out: AvlNode[] = []
+    const walk = (node: AvlNode): void => {
+      // Unvisited ⇒ subtree untouched this cycle ⇒ shared with the current
+      // tree by structural sharing ⇒ nothing under it was removed.
+      if (!this.modifiedNodes.has(node)) return
+      if (!containsLabel(this.root, node)) out.push(node)
+      if (node.kind === 'internal') {
+        walk(node.left)
+        walk(node.right)
+      }
+    }
+    walk(this.oldTopNode)
+    return out
+  }
+
+  // -------------------------------------------------------------------------
   // deepCloneNode
   // -------------------------------------------------------------------------
 
