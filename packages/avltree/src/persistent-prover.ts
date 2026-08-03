@@ -39,7 +39,7 @@ export class PersistentBatchAVLProver {
     // Rust line 30: ensure!(storage.version() == digest())
     const sv = storage.version()
     const d = this.digest()
-    if (!sv || !d || compareBytes(sv, d) !== 0) {
+    if (!sv || compareBytes(sv, d) !== 0) {
       throw new Error('Storage version does not match prover digest')
     }
   }
@@ -52,7 +52,7 @@ export class PersistentBatchAVLProver {
     return this.prover.unauthenticatedLookup(key)
   }
 
-  digest(): Uint8Array | null {
+  digest(): Uint8Array {
     return this.prover.digest()
   }
 

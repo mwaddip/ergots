@@ -74,7 +74,7 @@ export type ProverOperationResult =
  */
 export class BatchAVLProver {
   // Tree state
-  root: AvlNode | null = null
+  root: AvlNode
   height = 0
   readonly keyLength: number
   readonly valueLengthOpt: number | null
@@ -93,7 +93,7 @@ export class BatchAVLProver {
 
   // Operation state (batch_avl_prover.rs:40-43)
   private found = false
-  oldTopNode: AvlNode | null = null
+  oldTopNode: AvlNode
 
   // Modified nodes for proof generation (Rust: per-node `visited` flag).
   // A Set gives O(1) membership — the array this replaced made packTree
@@ -119,6 +119,11 @@ export class BatchAVLProver {
     this.posInfKey.fill(0xff)
     const dummyValue = new Uint8Array(valueLengthOpt ?? 0)
 
+    // Direct triple-assignment, deliberately NOT routed through restoreRoot():
+    // (a) keeps TS's definite-assignment proof for the non-null `root`;
+    // (b) avoids calling an overridable public method from the constructor;
+    // (c) matches Rust's BatchAVLProver::new, which does not call restore_root
+    //     (batch_avl_prover.rs @191052c).
     this.root = newLeaf(this.negInfKey, dummyValue, this.posInfKey)
     this.height = 0 // single leaf has height 0
     this.oldTopNode = this.root
@@ -294,7 +299,7 @@ export class BatchAVLProver {
 
     // Phase 1: modifyHelper (authenticated_tree_ops.rs:248-249)
     const callbacks = this.buildCallbacks(op)
-    const modifyResult = modifyHelper(this.root!, op, callbacks)
+    const modifyResult = modifyHelper(this.root, op, callbacks)
     if (!modifyResult.ok) {
       // Rollback directions (batch_avl_prover.rs:127-139)
       const oldByteLength = (this.replayIndex + 7) >> 3
@@ -364,13 +369,20 @@ export class BatchAVLProver {
   // -------------------------------------------------------------------------
 
   /**
-   * Current 33-byte digest (root label || height). Null if tree poisoned.
+   * Current 33-byte digest (root label || height). Throws if the tree's
+   * non-null root invariant has been violated by a type-unsafe caller.
    *
    * Ports authenticated_tree_ops.rs's digest() trait method, returning a 33-byte value
    * (32-byte blake2b label + 1-byte height).
    */
-  digest(): Uint8Array | null {
-    if (this.root === null) return null
+  digest(): Uint8Array {
+    // JS callers can still violate the non-null type; fail legibly (package
+    // precedent: the height/label RangeError guards below). Rust returns Option
+    // here only because prover+verifier share one AVLTree struct — separate
+    // classes make non-null the faithful shape (see facts/avltree.md).
+    if ((this.root as AvlNode | null) === null) {
+      throw new RangeError('BatchAVLProver.digest: root is null — tree invariant violated by a type-unsafe caller')
+    }
     // Rust asserts height < 256 (authenticated_tree_ops.rs::digest). The bound
     // is unreachable for a real tree — height 256 needs more leaves than there
     // are atoms on Earth — so reaching it means the height counter is wrong.
@@ -406,7 +418,6 @@ export class BatchAVLProver {
    * if absent. Does not record directions or touch modified-nodes tracking.
    */
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null {
-    if (this.root === null) return null
     return this.lookupWalk(this.root, key)
   }
 
@@ -497,9 +508,7 @@ export class BatchAVLProver {
       }
     }
 
-    if (this.oldTopNode !== null) {
-      packTree(this.oldTopNode)
-    }
+    packTree(this.oldTopNode)
 
     // End of tree marker (batch_avl_prover.rs:243)
     parts.push(new Uint8Array([END_OF_TREE_IN_PACKAGED_PROOF]))
@@ -564,11 +573,9 @@ export class BatchAVLProver {
     operations: Operation[],
   ): { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false } {
     // Clone the tree (deep copy nodes)
-    const cloneRoot = this.deepCloneNode(this.root!)
+    const cloneRoot = this.deepCloneNode(this.root)
     const clonedProver = new BatchAVLProver(this.keyLength, this.valueLengthOpt)
-    clonedProver.root = cloneRoot
-    clonedProver.height = this.height
-    clonedProver.oldTopNode = cloneRoot
+    clonedProver.restoreRoot(cloneRoot, this.height)
 
     for (const op of operations) {
       const result = clonedProver.performOneOperation(op)
@@ -578,7 +585,7 @@ export class BatchAVLProver {
     }
 
     const proof = clonedProver.generateProof()
-    const digest = clonedProver.digest()!
+    const digest = clonedProver.digest()
     return { success: true, proof, digest }
   }
 

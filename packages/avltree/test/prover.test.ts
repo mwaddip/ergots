@@ -888,6 +888,14 @@ describe('BatchAVLProver.digest root label validation', () => {
   })
 })
 
+describe('BatchAVLProver.digest root-null invariant guard', () => {
+  it('digest() throws a legible invariant error if root is forcibly nulled', () => {
+    const prover = new BatchAVLProver(32, null)
+    ;(prover as unknown as { root: unknown }).root = null // type-unsafe caller
+    expect(() => prover.digest()).toThrow(/root is null/)
+  })
+})
+
 describe('PersistentBatchAVLProver.rollback', () => {
   it('clears the aborted cycle so the next proof is not polluted', () => {
     const seed = new BatchAVLProver(32, null)

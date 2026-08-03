@@ -22,7 +22,6 @@ describe('prover returns defensive copies (C7)', () => {
     prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([1, 2, 3]) })
     prover.generateProof()
     const digest = prover.digest()
-    if (digest === null) throw new Error('setup: digest null') // drops after C8
 
     const lookup = prover.performOneOperation({ tag: 'Lookup', key })
     if (!lookup.success || lookup.value === null) throw new Error('setup: lookup failed')
@@ -40,7 +39,6 @@ describe('prover returns defensive copies (C7)', () => {
     prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([9, 9, 9]) })
     prover.generateProof()
     const digest = prover.digest()
-    if (digest === null) throw new Error('setup: digest null')
 
     const value = prover.unauthenticatedLookup(key)
     if (value === null) throw new Error('setup: unauthenticated lookup missed')
@@ -58,7 +56,6 @@ describe('prover returns defensive copies (C7)', () => {
     prover.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([4, 5, 6]) })
     prover.generateProof()
     const digest = prover.digest()
-    if (digest === null) throw new Error('setup: digest null')
 
     const op: Operation = { tag: 'Update', key, value: new Uint8Array([7, 7, 7]) }
     const updated = prover.performOneOperation(op)
