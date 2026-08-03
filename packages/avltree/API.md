@@ -250,7 +250,7 @@ The package enforces a two-tier failure model.
 
 ### Tier 1 — `AvlVerifyError` thrown (programmer errors)
 
-Shape validation runs at the public entry point before any verifier state is constructed. These errors indicate bugs in calling code, not malformed proof data.
+Checked at the verifier's public entry point before any `BatchAvlVerifier` state is constructed, and at the prover's `BatchAVLProver.performOneOperation` — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below. These errors indicate bugs in calling code, not malformed proof data.
 
 ```ts
 export class AvlVerifyError extends Error {
