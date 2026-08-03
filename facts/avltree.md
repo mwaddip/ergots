@@ -26,7 +26,8 @@ regeneration was needed.
 10. Node types and constructors — `AvlNode`, `LeafNode`, `InternalNode`, `LabelNode`, `Balance`, `newLeaf`, `newInternal`, `newLabel`, `label`. Exported so `VersionedAVLStorage` implementers can walk and rebuild trees without depending on package internals.
 11. `serializeNode` / `deserializeNode` — per-node storage codec, byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack` for well-formed input (four decode/encode checks are intentionally stricter than the reference on malformed input — see "Storage codec" below). Consumer-owned traversal: the codec handles one node, the storage backend walks the tree.
 12. `BatchAVLProver.restoreRoot(root, height)` — installs a storage-loaded root and height, then rebases the proof cycle (clears directions and modified-node bookkeeping, resets `oldTopNode`). Required after startup resume, snapshot bootstrap, or recovery rollback.
-13. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+13. `removedNodes()` — storage-GC surface (Phase D) — old-minus-new label set difference for `VersionedAVLStorage` pruning.
+14. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
 **Does NOT ship:**
 
@@ -403,8 +404,8 @@ Phase E's mandate; until then each number's base is explicit, not implied by
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 206 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (8 codes); Rust uses `anyhow::Result` throughout with no separate error class |
 | (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (11 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.4.0 |
-| `removedNodes()` | `batch_avl_prover.rs` `removed_nodes` | Output-contract port (derived walk over the immutable old tree; the reference's visit-time buffers rest on per-node `visited`/`is_new` flags our engine lacks). Same output, safer on the remove-reinsert edge — see divergence table. |
-| `containsLabel` (module-level, batch-prover.ts) | `batch_node.rs` `contains` / `contains_recursive` | Behavioral port: descend current tree by candidate key, label-compare each node, LabelOnly → fail-safe present. Key-less candidate → invariant throw (reference panics on the same input). |
+| `batch_avl_prover.rs::BatchAVLProver::removed_nodes` (146-153 @568e7c3) | `removedNodes()` (`batch-prover.ts`) | Output-contract port (derived walk over the immutable old tree; the reference's visit-time buffers rest on per-node `visited`/`is_new` flags our engine lacks). Same output, safer on the remove-reinsert edge — see divergence table. |
+| `batch_node.rs::AVLTree::contains` + `contains_recursive` (519-525, 535-607 @568e7c3) | `containsLabel` (module-level, `batch-prover.ts`) | Behavioral port: descend current tree by candidate key, label-compare each node, LabelOnly → fail-safe present. Key-less candidate → invariant throw (reference panics on the same input). |
 
 ## Node types and constructors (v0.4.0)
 
