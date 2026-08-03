@@ -212,7 +212,7 @@ export type AvlVerifyErrorCode =
   | 'invalid-starting-digest-length'     // startingDigest.length !== 33
   | 'operation-key-length-mismatch'      // op.key.length !== config.keyLength
   | 'operation-value-length-mismatch'    // op.value.length !== config.valueLengthOpt when fixed
-  | 'operation-delta-out-of-range'       // UpdateLongBy.delta outside signed i64 range (verify.ts:295-298)
+  | 'operation-delta-out-of-range'       // UpdateLongBy.delta outside signed i64 range (verify.ts:301-310; same check at the prover boundary, batch-prover.ts::performOneOperation)
 ```
 
 **Tier 2 — `AvlVerifyFailReason` internal taxonomy (10 reasons; not public on v0.4.0)**
