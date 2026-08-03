@@ -225,6 +225,15 @@ describe('updateFn — UpdateLongBy i64 overflow (JVM Math.addExact semantics)',
     expect(updateFn(op, i64(1n))).toEqual({ ok: false, reason: 'result-negative' })
   })
 
+  it('still fails a sum of exactly i64::MIN with result-negative — the exact lower boundary the guard must not fire on', () => {
+    // Mirrors the JVM: addExact(MIN+1, -1) returns MIN without throwing, then
+    // the < 0 check fails it. The upper boundary is doubly pinned (the
+    // (MAX-1)+1 unit above + the Rust-generated i64-max-boundary fixture);
+    // this pins the lower one.
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -1n }
+    expect(updateFn(op, i64(MIN + 1n))).toEqual({ ok: false, reason: 'result-negative' })
+  })
+
   it('still removes the key on an in-range zero result: 5 - 5', () => {
     const op: Operation = { tag: 'UpdateLongBy', key, delta: -5n }
     expect(updateFn(op, i64(5n))).toEqual({ ok: true, newValue: null })

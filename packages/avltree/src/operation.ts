@@ -32,16 +32,22 @@ export type UpdateFnFailReason =
   | 'result-out-of-i64-range'      // UpdateLongBy sum overflows i64 (JVM Math.addExact analogue)
   | 'invalid-long-value-length'    // UpdateLongBy existing value is not exactly 8 bytes (audit AVL-02)
 
-/** Signed 64-bit range bounds for the UpdateLongBy overflow guard. */
-const I64_MAX = 2n ** 63n - 1n
-const I64_MIN = -(2n ** 63n)
+/**
+ * Signed 64-bit range bounds. Used by the UpdateLongBy sum-overflow guard
+ * below and by the delta range checks at both public boundaries
+ * (`verify.ts::validateOperationShape`, `BatchAVLProver.performOneOperation`).
+ */
+export const I64_MAX = 2n ** 63n - 1n
+export const I64_MIN = -(2n ** 63n)
 
 /**
  * Encode a signed i64 value as 8-byte big-endian.
  * Ports Rust i64::to_be_bytes (operation.rs:91, 98) via BigEndian::write_i64.
- * Uses bigint arithmetic; assumes value fits in the i64 range [-2^63, 2^63-1]
- * (the UpdateLongBy arm's range guard enforces this for the only caller that
- * can overflow; delta itself is i64-validated at the public boundary, AVL-03).
+ * Uses bigint arithmetic; assumes value fits in the i64 range [-2^63, 2^63-1].
+ * Enforced by the UpdateLongBy arm's range guard for the sum path, and by the
+ * delta range checks at BOTH public boundaries for the absent-key insert path
+ * (`verify.ts::validateOperationShape`, AVL-03, and
+ * `BatchAVLProver.performOneOperation` — 6e review finding I-1).
  */
 function i64ToBeBytes(value: bigint): Uint8Array {
   const bytes = new Uint8Array(8)

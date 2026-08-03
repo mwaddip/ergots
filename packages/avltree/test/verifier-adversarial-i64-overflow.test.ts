@@ -54,8 +54,12 @@ describe('verifier rejects i64-overflowing UpdateLongBy', () => {
     expect(() => {
       result = verifyAvlBatch(startingDigest, proof, CONFIG, [op])
     }, 'overflow rejection must not throw').not.toThrow()
-    // `?? null` so an unexecuted closure cannot pass vacuously. Pre-fix this
+    // Deliberately NO `?? null` here: for a positive toBeNull assertion,
+    // coalescing would MASK an unexecuted closure (undefined → null passes),
+    // whereas a bare undefined FAILS toBeNull — which is what an unexecuted
+    // closure must do. (The recursion test's control uses `?? null` for the
+    // opposite reason: its assertion is .not.toBeNull().) Pre-fix this
     // returned { newDigest, results } with the wrapped-negative value stored.
-    expect(result ?? null, 'verifier must reject the overflowing UpdateLongBy').toBeNull()
+    expect(result, 'verifier must reject the overflowing UpdateLongBy').toBeNull()
   })
 })

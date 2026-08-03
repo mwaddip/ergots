@@ -15,7 +15,7 @@ import { newLeaf, newInternal, label, type AvlNode, type InternalNode, type Leaf
 import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import { modifyHelper } from './modify.js'
 import { deleteHelper } from './delete.js'
-import type { Operation } from './operation.js'
+import { I64_MAX, I64_MIN, type Operation } from './operation.js'
 import { AvlVerifyError } from './errors.js'
 
 // ---------------------------------------------------------------------------
@@ -271,6 +271,17 @@ export class BatchAVLProver {
       throw new AvlVerifyError(
         'Value length does not match fixed value length',
         'invalid-config-value-length',
+      )
+    }
+    // Delta range check (AVL-03 class, prover boundary) — mirrors
+    // verify.ts::validateOperationShape. TS `bigint` is wider than the
+    // references' i64; an unvalidated out-of-range delta would silently wrap
+    // inside i64ToBeBytes (DataView.setBigInt64) on the absent-key insert
+    // path. 6e review finding I-1.
+    if (op.tag === 'UpdateLongBy' && (op.delta < I64_MIN || op.delta > I64_MAX)) {
+      throw new AvlVerifyError(
+        `op UpdateLongBy: delta=${op.delta} out of signed i64 range`,
+        'operation-delta-out-of-range',
       )
     }
 

@@ -343,7 +343,7 @@ In-memory AVL+ tree prover. Ports `ergo_avltree_rust/src/batch_avl_prover.rs`.
 - `{ success: true, value }` — operation succeeded. `value` is the old value at the key (`Uint8Array`) or `null` if the key was absent.
 - `{ success: false }` — operation precondition failed (e.g., `Insert` on an existing key, `Update` on an absent key).
 
-Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds key, value length mismatch with fixed config).
+Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds key, value length mismatch with fixed config, `UpdateLongBy.delta` outside signed i64 range).
 
 **`generateProof()`** — serializes a proof covering all operations since the last call (or since construction). Returns a `Uint8Array` in the packed proof format. Resets direction tracking after generation; subsequent operations start a fresh cycle.
 

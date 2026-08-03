@@ -861,4 +861,54 @@ describe('BatchAVLProver — UpdateLongBy i64 overflow', () => {
     const result = prover.performOneOperation({ tag: 'UpdateLongBy', key, delta: 1n })
     expect(result.success).toBe(false)
   })
+
+  // Delta RANGE is a separate axis from sum overflow: TS `bigint` is wider
+  // than the references' i64, so an out-of-range delta is representable only
+  // in TS. The verifier boundary rejects it (verify.ts::validateOperationShape,
+  // audit AVL-03); the prover boundary must too, else i64ToBeBytes silently
+  // wraps it on the absent-key insert path (6e review finding I-1).
+  it('throws operation-delta-out-of-range for delta above i64::MAX (prover boundary)', () => {
+    const prover = new BatchAVLProver(1, 8)
+    const key = new Uint8Array([0x10])
+    expect(() =>
+      prover.performOneOperation({ tag: 'UpdateLongBy', key, delta: 2n ** 63n }),
+    ).toThrow(/out of signed i64 range/)
+  })
+
+  it('throws operation-delta-out-of-range for delta below i64::MIN (prover boundary)', () => {
+    const prover = new BatchAVLProver(1, 8)
+    const key = new Uint8Array([0x10])
+    expect(() =>
+      prover.performOneOperation({ tag: 'UpdateLongBy', key, delta: -(2n ** 63n) - 1n }),
+    ).toThrow(/out of signed i64 range/)
+  })
+
+  // Boundary regression guards — pass pre-fix too; they pin that the range
+  // check is not over-broad at the exact i64 endpoints.
+  it('accepts delta exactly i64::MAX as a shape (absent key → inserts MAX)', () => {
+    const prover = new BatchAVLProver(1, 8)
+    const key = new Uint8Array([0x10])
+    let result: ReturnType<BatchAVLProver['performOneOperation']> | undefined
+    expect(() => {
+      result = prover.performOneOperation({ tag: 'UpdateLongBy', key, delta: 2n ** 63n - 1n })
+    }).not.toThrow()
+    expect(result?.success).toBe(true)
+    const stored = prover.unauthenticatedLookup(key)
+    expect(stored).not.toBeNull()
+    expect(Array.from(stored!)).toEqual([0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
+  })
+
+  it('accepts delta exactly i64::MIN as a shape (per-op semantics then reject the sum)', () => {
+    const prover = new BatchAVLProver(1, 8)
+    const key = new Uint8Array([0x10])
+    const hundred = new Uint8Array(8)
+    new DataView(hundred.buffer).setBigInt64(0, 100n, false)
+    expect(prover.performOneOperation({ tag: 'Insert', key, value: hundred }).success).toBe(true)
+    let result: ReturnType<BatchAVLProver['performOneOperation']> | undefined
+    expect(() => {
+      // 100 + MIN is IN-RANGE negative → per-op result-negative failure, not a throw.
+      result = prover.performOneOperation({ tag: 'UpdateLongBy', key, delta: -(2n ** 63n) })
+    }).not.toThrow()
+    expect(result?.success).toBe(false)
+  })
 })

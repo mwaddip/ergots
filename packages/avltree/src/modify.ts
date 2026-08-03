@@ -201,7 +201,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
   // Modification: invoke updateFn with the existing value (Rust line 285).
   const u = updateFn(op, leaf.value)
   if (!u.ok) {
-    // key-already-exists (Insert), result-negative (UpdateLongBy), etc.
+    // key-already-exists (Insert), result-negative / result-out-of-i64-range (UpdateLongBy), etc.
     // Rust returns `Err(anyhow!(...))?` — TS maps all updateFn failures
     // to 'operation-precondition-failed' (per spec).
     return { ok: false, reason: 'operation-precondition-failed' }
