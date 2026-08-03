@@ -71,15 +71,23 @@ function runWalk(seed: number, opCount: number): void {
     const roll = rand()
 
     // Every branch is chosen so the operation is valid for the CURRENT model
-    // state, which is what lets the assertion below be unconditional. Note
-    // Lookup is only issued for keys known to be present: whether the prover
-    // treats an absent-key Lookup as success-with-null or as a failure is not
-    // settled here, and guessing would make the walk assert the wrong thing.
-    // Absent-key paths are still exercised — every Insert is on an absent key —
-    // and the committed fixture suite covers absent-key Lookup directly.
+    // state, which is what lets the assertion below be unconditional.
+    // Absent-key Lookup is source-verified to succeed with a null value:
+    // modify.ts's handleLeafGap (the keyMatchesLeaf===false branch) short-
+    // circuits Lookup before ever calling updateFn, returning
+    // { ok: true, changeHappened: false, oldValue: null } — see the direct
+    // pin in prover.test.ts ("performOneOperation Lookup on an absent key
+    // succeeds with a null value"). So Lookup is safe to issue here too: the
+    // model's `before` is already `null` for an absent key (see below) and
+    // Lookup never mutates the model, so the bookkeeping after this block
+    // needs no change for the absent case.
     let op: Operation
     if (!present) {
-      op = { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
+      if (roll < 0.2) {
+        op = { tag: 'Lookup', key }
+      } else {
+        op = { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
+      }
     } else if (roll < 0.35) {
       op = { tag: 'Update', key, value: new Uint8Array([(i * 7) & 0xff]) }
     } else if (roll < 0.6) {
@@ -156,7 +164,11 @@ function runPerOperationWalk(seed: number, opCount: number): void {
     // Same generator as runWalk — see the rationale on operation choice there.
     let op: Operation
     if (!present) {
-      op = { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
+      if (roll < 0.2) {
+        op = { tag: 'Lookup', key }
+      } else {
+        op = { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
+      }
     } else if (roll < 0.35) {
       op = { tag: 'Update', key, value: new Uint8Array([(i * 7) & 0xff]) }
     } else if (roll < 0.6) {
