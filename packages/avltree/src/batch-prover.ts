@@ -608,3 +608,76 @@ export class BatchAVLProver {
     return { kind: 'label', label: new Uint8Array(node.label) }
   }
 }
+
+// ---------------------------------------------------------------------------
+// containsLabel — behavioral port of batch_node.rs contains/contains_recursive
+//   (verified via `git show 568e7c3:src/batch_node.rs`: `contains` 519-525,
+//   `contains_recursive` 535-607 — pub fn/fn through closing brace)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the tree rooted at `root` contains a node whose label equals
+ * `candidate`'s. Descends by the candidate's key (key-equal → one step right,
+ * then left to the leaf), label-comparing every node on the path.
+ *
+ * A `LabelNode` stub encountered ON THE PATH is fail-safe `true`: inside an
+ * unresolved subtree we cannot prove absence, and deleting a node still
+ * referenced from it would leave dangling parent→child references on disk
+ * (the reference documents exactly this hazard in contains_recursive).
+ *
+ * A candidate (or descent node) without a key is an invariant violation —
+ * unreachable through the prover's own operations, reachable only via an
+ * invariant-violating restoreRoot tree; the reference panics on the same
+ * input. Internal, not exported from index.ts.
+ */
+export function containsLabel(root: AvlNode, candidate: AvlNode): boolean {
+  const key = requiredCandidateKey(candidate)
+  const target = label(candidate)
+
+  const walk = (node: AvlNode, keyFound: boolean): boolean => {
+    if (compareBytes(label(node), target) === 0) return true
+    if (node.kind === 'label') return true // fail-safe: unresolved subtree
+    if (node.kind === 'leaf') return false
+    if (node.key === undefined) {
+      throw new Error(
+        'removedNodes: internal node without key on containsLabel descent — tree invariant violated',
+      )
+    }
+    if (keyFound) return walk(node.left, true)
+    const cmp = compareBytes(key, node.key)
+    if (cmp === 0) return walk(node.right, true)
+    return walk(cmp < 0 ? node.left : node.right, false)
+  }
+  return walk(root, false)
+}
+
+/**
+ * Candidate's key, or throws the invariant error for a label-only or
+ * key-less-internal candidate (see `containsLabel`'s JSDoc).
+ *
+ * Written as one early return per branch rather than a single `candidate.kind
+ * === 'label' || (candidate.kind === 'internal' && candidate.key ===
+ * undefined)` guard: TS's control-flow analysis narrows the `kind`
+ * discriminant across a branch join, but does not carry a *property*-level
+ * refinement (`key !== undefined`) established inside only one arm through
+ * that same join — confirmed against tsc directly (a `||`-guard and a
+ * nested-if-no-else version both leave `candidate.key` typed
+ * `Uint8Array | undefined` at the use site; only per-branch early return
+ * type-checks). Runtime behavior is identical to the single-guard form.
+ */
+function requiredCandidateKey(candidate: AvlNode): Uint8Array {
+  if (candidate.kind === 'label') {
+    throw new Error(
+      'removedNodes: candidate node carries no key (label-only or key-less internal) — old-tree invariant violated; a well-formed prover tree cannot produce this candidate',
+    )
+  }
+  if (candidate.kind === 'leaf') {
+    return candidate.key
+  }
+  if (candidate.key === undefined) {
+    throw new Error(
+      'removedNodes: candidate node carries no key (label-only or key-less internal) — old-tree invariant violated; a well-formed prover tree cannot produce this candidate',
+    )
+  }
+  return candidate.key
+}
