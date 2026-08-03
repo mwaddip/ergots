@@ -81,10 +81,11 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
   })
 
   it('Remove at the −inf sentinel key fails at the bounds gate, before the delete pass', () => {
-    // On this proof shape the pre-gate code also failed — but deep in the
-    // delete replay, after matching the sentinel leaf. The references never
-    // reach the walk at all: the op dies at the entry requires. Pin the gate
-    // (not an incidental deep failure) via the failure reason.
+    // On this proof shape the pre-gate code also failed — but deeper, as
+    // 'proof-malformed' out of the delete-pass replay (measured in the 6g
+    // review's neutralized run), not at any entry check. The references
+    // never reach the walk at all: the op dies at the entry requires. Pin
+    // the gate (not an incidental deep failure) via the failure reason.
     const { digest, proof } = treeWithSentinelPathProof(32)
     const v = new BatchAvlVerifier(digest, proof, config32)
 
@@ -98,13 +99,27 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
     const config8: AvlTreeConfig = { keyLength: 8, valueLengthOpt: null }
     const { digest, proof } = treeWithSentinelPathProof(8)
 
+    // −inf side: gate presence at keyLength=8. (Presence only — a hardcoded
+    // 32-byte −inf sentinel would ALSO reject 0x00×8 via the length tiebreak.)
     const r = verifyAvlBatchPartial(digest, proof, config8, [
       { tag: 'Lookup', key: new Uint8Array(8) },
     ])
-
     expect(r).not.toBeNull()
     expect(r!.opsCompleted).toBe(0)
     expect(r!.results).toEqual([])
+
+    // +inf side: THE derivation discriminator (6g review I-2).
+    // compareBytes(0xFF×8, 0xFF×32) = -1 via the length tiebreak, so a
+    // hardcoded 32-byte +inf sentinel lets this key sail past the gate and
+    // die deeper as 'leaf-key-out-of-order'; the config-derived sentinel
+    // rejects it AT THE GATE.
+    const v = new BatchAvlVerifier(digest, proof, config8)
+    const rf = v.performOneOperation({
+      tag: 'Lookup',
+      key: new Uint8Array(8).fill(0xff),
+    })
+    expect(isFailed(rf)).toBe(true)
+    expect(v.lastFailReason).toBe('key-out-of-bounds')
   })
 
   it('Lookup at the +inf sentinel key fails at the bounds gate, not on leaf ordering', () => {
@@ -144,9 +159,16 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
     const first = v.performOneOperation({ tag: 'Lookup', key: new Uint8Array(32) })
     expect(isFailed(first)).toBe(true)
     expect(v.lastFailReason).toBe('key-out-of-bounds')
+    // Poisoning must be directly observable (6g review I-1): digest() is
+    // null iff root === null — Rust nulls root AND zeroes height
+    // (batch_avl_verifier.rs:206-207); scrypto nulls topNode.
+    expect(v.digest()).toBeNull()
+    expect(v.height).toBe(0)
 
-    // Both references null the root on op failure; every later op fails.
+    // Both references null the root on op failure; every later op fails,
+    // and the poisoned-root guard's `??=` preserves the ORIGINAL reason.
     const second = v.performOneOperation({ tag: 'Lookup', key: k1 })
     expect(isFailed(second)).toBe(true)
+    expect(v.lastFailReason).toBe('key-out-of-bounds')
   })
 })

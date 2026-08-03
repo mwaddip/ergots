@@ -8,7 +8,7 @@
  *     latter lives in proof-decode.ts and is invoked from the constructor)
  *   - `perform_one_operation` (lines 157-172)
  * PLUS the orchestration recipe from authenticated_tree_ops.rs::
- *   - `return_result_of_one_operation` (lines 221-248)
+ *   - `return_result_of_one_operation` (237-264 @191052c)
  *
  * CONSENSUS-CRITICAL — the modify_helper → delete_helper dispatch, the proof
  * traversal state lifecycle, and the height bookkeeping must match the Rust
@@ -18,7 +18,10 @@
  * Per the design spec (docs/specs/2026-05-18-ergots-avltree-package-design.md),
  * this class is INTERNAL on v0.1.0 — consumers use `verifyAvlBatch` /
  * `verifyAvlLookup` (T18+T19) which wrap this. Key/value LENGTH validation
- * lives in those wrappers (throws, documented contract). The references'
+ * lives in those wrappers (throws — kept deliberately: converting the shipped
+ * 'operation-key-length-mismatch' throw to a per-op failure would be a
+ * breaking API change, and the eval path routes around it via savltree's
+ * shape pre-scan; see facts/avltree.md invariant #1). The references'
  * two strict ±inf bounds requires (Rust `ensure!`s at
  * authenticated_tree_ops.rs:267-268 @d18773c; scrypto's identical requires)
  * are enforced HERE at the top of performOneOperation as fail-and-poison
@@ -26,7 +29,7 @@
  * construction finishes this class trusts the inputs and operates on bytes.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
- * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (lines 221-248)
+ * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (237-264 @191052c; ±inf ensure!s :267-268 @d18773c)
  */
 
 import { parseProofPackedTree } from './proof-decode.js'

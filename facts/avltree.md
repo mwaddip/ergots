@@ -2,7 +2,7 @@
 
 The boundary contract for the AVL+ batch authenticated-tree verifier package. This package is independently useful to any consumer wanting AVL+ proof verification without parsing or evaluating a full ErgoTree — wallets, DEX simulators, and light clients verifying state transitions. It is also a runtime dependency of `@ergots/ergoscript`, which calls into this package from its eleven `SAvlTree.*` method handlers. The narrative rationale and validation strategy live in `docs/specs/2026-05-18-ergots-avltree-package-design.md`; this file is *only* the interface.
 
-Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` HEAD `191052c` (branch `main`, including upstream PRs #10/#11/#13). Where this file is silent on implementation detail, the Rust source is canonical.
+Authoritative algorithmic reference: `~/projects/ergo_avltree_rust/` at pin `191052c` (upstream PRs #10/#11/#13 included; no longer on `main` — see the rebase note in "Source mapping"). Where this file is silent on implementation detail, the Rust source is canonical.
 
 The node-pack fixtures under `test/fixtures/node-pack/` were generated against
 the prior pin `2941396`; `pack` and `unpack` are byte-identical across the
@@ -236,7 +236,7 @@ type AvlVerifyFailReason =               // (internal; not exported)
 
 **Invariants on the boundary:**
 
-1. Shape validation is sole and comprehensive at the public entry point. After construction, `BatchAvlVerifier` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @d18773c; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw by documented contract.
+1. Shape validation is sole and comprehensive at the public entry point. After construction, `BatchAvlVerifier` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @d18773c; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw — deliberately: converting the published `'operation-key-length-mismatch'` throw into a per-op failure would be a breaking change on a shipped package (observable as `opsCompleted` for `[goodOp, wrongLengthOp]`: references apply then fail at index 1; ergots throws before applying anything), and the consensus path is unaffected either way — `@ergots/ergoscript`'s `savltree` pre-scans op shapes (`keyShapeBad`/`firstShapeBadOpIndex`) and reproduces the JVM's per-op failure index and charging exactly.
 2. No throws from inside `BatchAvlVerifier` to the consumer. Verification failures set `root = null` (tree poisoned) and `performOneOperation` returns `{ failed: true }` on this and every subsequent call. One engine-level exception — stack exhaustion on a pathologically deep proof — is carved out under "No throws on verification failures" below.
 3. Internal panics from `@noble/hashes` bubble as plain `Error` — those are contract violations inside a dependency, not consumer-input issues.
 
@@ -296,13 +296,24 @@ Prover support: `BatchAVLProver` and `PersistentBatchAVLProver` are now ported t
 
 ## Source mapping to `ergo_avltree_rust`
 
-Pinned at `~/projects/ergo_avltree_rust/` HEAD `191052c`, branch `main`, including upstream PRs #10/#11/#13.
+Pinned at `~/projects/ergo_avltree_rust/` commit `191052c` (upstream PRs #10/#11/#13 included).
+
+**Rebase note (2026-08-03).** The fork's `main` was rebased and `191052c` is no
+longer reachable from it (current `main` HEAD `568e7c3` — a test-only commit atop
+`d18773c`, which carries the fixes for our findings 1–3). `191052c` stays readable
+via branch `backup/pre-rebase-main-20260803`:
+`git -C ~/projects/ergo_avltree_rust show 191052c:src/<file>`. Untagged line
+numbers in this table are `@191052c`; citations added by 6e/6g are explicitly
+tagged `@d18773c` (the behavior at those sites changed in the rebase — panic→`Err`
+conversions, `checked_add`). Retargeting every citation to the new base is
+Phase E's mandate; until then each number's base is explicit, not implied by
+`main`.
 
 | Rust function (file:lines) | TS function(s) (file) | Note |
 |---|---|---|
 | `batch_avl_verifier.rs::BatchAVLVerifier::new` (59-77) | `BatchAvlVerifier` constructor (`batch-verifier.ts`) | 1:1 port; proof-decode delegated to `parseProofPackedTree` |
 | `batch_avl_verifier.rs::reconstruct_tree` (80-181) | `parseProofPackedTree` (`proof-decode.ts`) | 1:1 port; bounds-checks added (TS OOB returns undefined, not panic); token constants from `batch_node.rs:14-16`; max-nodes DoS formula from `batch_avl_verifier.rs:86-109` |
-| `batch_avl_verifier.rs::perform_one_operation` (195-210) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (237-264); needsDelete two-phase dispatch; height bookkeeping; 6g ports the entry's two strict ±inf bounds `ensure!`s (`:267-268` @d18773c) as fail-and-poison (`'key-out-of-bounds'`) — the third `ensure!` (key length, `:269`) stays a wrapper throw by documented contract |
+| `batch_avl_verifier.rs::perform_one_operation` (195-210) | `BatchAvlVerifier.performOneOperation` (`batch-verifier.ts`) | 1:1 port plus orchestration from `authenticated_tree_ops.rs::return_result_of_one_operation` (237-264 @191052c); needsDelete two-phase dispatch; height bookkeeping; 6g ports the entry's two strict ±inf bounds `ensure!`s (`:267-268` @d18773c) as fail-and-poison (`'key-out-of-bounds'`) — the third `ensure!` (key length, `:269`) stays a wrapper throw by documented contract |
 | `batch_avl_verifier.rs::next_direction_is_left` (230-241) | `nextDirectionIsLeft` (`tree-traversal.ts`) | 1:1 port; LSB-first bit indexing (`1 << (i & 7)`) confirmed |
 | `batch_avl_verifier.rs::key_matches_leaf` (251-265) | `keyMatchesLeaf` (`tree-traversal.ts`) | 1:1 port; returns discriminated-union result instead of throwing on out-of-order |
 | `batch_avl_verifier.rs::replay_comparison` (277-289) | `replayComparison` (`tree-traversal.ts`) | 1:1 port; three-way return (-1/0/1); advances `state.replayIndex` |
@@ -499,5 +510,5 @@ leaf:     0x01 || key(keyLength) || [valueLen(u32) iff valueLengthOpt === null] 
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, architecture, validation strategy, error model detail
 - `facts/ergoscript-eval.md` — upstream consumer; `SAvlTree.*` method handlers call into this package
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list
-- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at HEAD `191052c` (verifier + prover)
+- `~/projects/ergo_avltree_rust/src/` — Rust reference implementation at pin `191052c` (verifier + prover; see the rebase note in "Source mapping")
 - KMZ16 paper: <https://eprint.iacr.org/2016/994> — AVL+ authenticated dictionary; KMZ17 Appendix B documents the `keyMatchesLeaf` range semantics
