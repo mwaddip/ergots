@@ -283,6 +283,8 @@ export type AvlVerifyErrorCode =
 
 Any failure inside the verifier — malformed proof bytes, digest mismatch, operation precondition violation, DoS-bound exceeded — causes `verifyAvlBatch` / `verifyAvlLookup` to return `null`. No exception is thrown. The distinction allows callers to handle "bad proof from peer" (return `null`) separately from "bad arguments from my own code" (throw).
 
+This guarantee holds on the adversarial path too. A crafted proof that places a non-`Internal` node (a `LABEL` token, or a `LEAF` under a crafted balance byte) where a delete- or insert-path double rotation must descend into a real subtree is rejected with `null`, not an escaping `TypeError`. The `ergo_avltree_rust` reference `panic!`s on these inputs; matching the JVM `BatchAVLVerifier`, which wraps replay in a `Try` and poisons the tree, is a deliberate divergence — see the `double_*_rotate` / `modify_helper` / `delete_helper` rows in `facts/avltree.md`.
+
 Internal failure reasons (malformed token, digest mismatch, leaf out-of-order, etc.) are tracked by the internal `BatchAvlVerifier` class but are not exposed in the public v0.4.0 surface. This avoids locking the internal taxonomy prematurely; diagnostic reasons may be exposed via a `getLastFailReason()` accessor in a later release.
 
 ```ts
@@ -342,7 +344,9 @@ Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds
 
 **`unauthenticatedLookup(key)`** — walks the tree without recording state. Returns the value at `key`, or `null` if absent. Does not affect proof generation.
 
-**`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height), or `null` if the tree is poisoned.
+**`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height). The `| null` in the return type is vestigial: a prover built through this API always has a root (the constructor seeds a sentinel leaf, and this phase removed the sole path that nulled the root on a delete-helper failure), so `null` is unreachable here — the type will be tightened in a later release.
+
+Throws `RangeError` if the tree height is outside `0..=255`, or if the root is a `LabelNode` whose stored digest is not exactly 32 bytes. Both states are unreachable for a tree built through this API — the height bound needs more leaves than there are atoms on Earth, and `newLabel` enforces the digest length — but a hand-built node installed via `restoreRoot` can reach them. Emitting a plausible but wrong 33-byte digest (height masked with `& 0xff`, or a short label zero-padded into the slot) would be a consensus fault, so it fails loudly instead.
 
 **`generateProofForOperations(operations)`** — clones the tree, applies all operations on the clone, and returns `{ proof, digest }`. Returns `{ success: false }` if any operation fails. The original tree is untouched. This is the primary entry point for producing proofs verifiable by `verifyAvlBatch`.
 
@@ -479,6 +483,8 @@ A discriminated union on `kind`. `LeafNode` holds a real key/value/next-leaf-key
 `InternalNode.key` is optional: the shared prover/verifier engine (`modify.ts`/`delete.ts`) sets it on every `newInternal` call it makes, but proof decoding reconstructs verifier-only internal nodes without one. `left`, `right`, `balance`, and `labelCache` are currently typed as mutable (not `readonly`); `key`, like `kind`, is `readonly`.
 
 `LeafNode`'s fields `key`, `value`, `nextLeafKey`, and `kind` are all `readonly`; only `labelCache` is mutable.
+
+**Do not mutate nodes.** Every node this package returns is treated as immutable: the prover and verifier build new nodes via `newLeaf` / `newInternal` / `newLabel` rather than editing existing ones, and each node memoises its own label on first use. `labelCache` is the single sanctioned in-place write — a memo of a pure function of otherwise-immutable fields. Mutating any other field (`left`, `right`, `balance`, still typed mutable pending the Phase C `readonly` tightening) invalidates the cached label on every ancestor and silently corrupts subsequent digests and proofs. To change a tree, use the prover's operations; to build one from storage, use the constructors.
 
 ### `Balance`
 
