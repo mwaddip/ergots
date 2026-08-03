@@ -7,7 +7,7 @@
  * places a non-Internal node in that slot escaped as an uncaught `TypeError`
  * from `rotation.ts`'s precondition — violating `facts/avltree.md`'s no-throw
  * contract ("`verifyAvlBatch` / `verifyAvlLookup` return `null` on verification
- * failure. Throws indicate programmer errors only.").
+ * failure. Throws indicate programmer errors only").
  *
  * Deliberate divergence from the reference: ergo_avltree_rust @191052c PANICS on
  * these inputs — `double_left_rotate` / `double_right_rotate`

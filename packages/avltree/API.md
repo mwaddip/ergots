@@ -285,6 +285,8 @@ Any failure inside the verifier — malformed proof bytes, digest mismatch, oper
 
 This guarantee holds on the adversarial path too. A crafted proof that places a non-`Internal` node (a `LABEL` token, or a `LEAF` under a crafted balance byte) where a delete- or insert-path double rotation must descend into a real subtree is rejected with `null`, not an escaping `TypeError`. The `ergo_avltree_rust` reference `panic!`s on these inputs; matching the JVM `BatchAVLVerifier`, which wraps replay in a `Try` and poisons the tree, is a deliberate divergence — see the `double_*_rotate` / `modify_helper` / `delete_helper` rows in `facts/avltree.md`.
 
+One engine-level carve-out: a pathologically deep proof spine (tens of thousands of nodes) overflows the call stack during the constructor's digest check — `label()` recurses once per tree level — and escapes as a `RangeError` ("Maximum call stack size exceeded"). That is resource exhaustion, not a verification verdict. Both references share the exposure (the Rust reference recurses the same way and aborts; the JVM's `Try` does not catch `StackOverflowError`, and its script-eval verifier sets no node bound), so no reference-corroborated cap exists to reject such proofs earlier without risking an accept/reject divergence. Callers verifying untrusted proofs can either set `config.maxNumOperations` — reconstruction then enforces a node-count bound before any recursion — or catch `RangeError` at their own boundary. Documented by `verifier-adversarial-recursion.test.ts`; detail in `facts/avltree.md`.
+
 Internal failure reasons (malformed token, digest mismatch, leaf out-of-order, etc.) are tracked by the internal `BatchAvlVerifier` class but are not exposed in the public v0.4.0 surface. This avoids locking the internal taxonomy prematurely; diagnostic reasons may be exposed via a `getLastFailReason()` accessor in a later release.
 
 ```ts
@@ -596,7 +598,7 @@ rebases the prover's proof cycle onto the loaded root.
 - **`bigint` for `UpdateLongBy.delta`.** Represents a signed 64-bit integer (i64 equivalent).
 - **No async surface.** Every function is synchronous. Blake2b-256 runs in tight inner loops; an async boundary would only add overhead.
 - **No I/O, no globals.** Pure functions: no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output.
-- **Throws on programmer errors, returns `null` on verification failures.** `AvlVerifyError` codes are for programmatic dispatch on bugs in calling code. Malformed proofs never throw.
+- **Throws on programmer errors, returns `null` on verification failures.** `AvlVerifyError` codes are for programmatic dispatch on bugs in calling code. Malformed proofs never throw — with one carve-out: engine stack exhaustion on a pathologically deep proof escapes as `RangeError` (see "Tier 2 — `null` return").
 - **Deterministic.** `newDigest` is byte-identical to what `ergo_avltree_rust`'s `BatchAVLVerifier` produces on the same inputs. Every fixture in the test corpus asserts this.
 
 ---
