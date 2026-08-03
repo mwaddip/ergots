@@ -244,22 +244,26 @@ export class BatchAVLProver {
     const key = op.key
 
     // Precondition checks (authenticated_tree_ops.rs:243-245)
+    // Reference check order: −inf, +inf, then length (authenticated_tree_ops.rs
+    // entry requires). compareBytes length-tiebreaks, so a SHORT all-zero key
+    // is < −inf and fires here — same caller mistake, different code than the
+    // length gate below. Faithful to both references; do not reorder.
     if (compareBytes(key, this.negInfKey) <= 0) {
       throw new AvlVerifyError(
         'Key is less than or equal to negative infinity',
-        'invalid-config-key-length',
+        'operation-key-out-of-bounds',
       )
     }
     if (compareBytes(key, this.posInfKey) >= 0) {
       throw new AvlVerifyError(
         'Key is greater than or equal to positive infinity',
-        'invalid-config-key-length',
+        'operation-key-out-of-bounds',
       )
     }
     if (key.length !== this.keyLength) {
       throw new AvlVerifyError(
         'Key length does not match tree key length',
-        'invalid-config-key-length',
+        'operation-key-length-mismatch',
       )
     }
     // Value length check

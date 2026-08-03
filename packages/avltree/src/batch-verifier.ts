@@ -16,7 +16,7 @@
  * the needsDelete handoff would silently diverge downstream digests.
  *
  * Per the design spec (docs/specs/2026-05-18-ergots-avltree-package-design.md),
- * this class is INTERNAL on v0.1.0 — consumers use `verifyAvlBatch` /
+ * this class is INTERNAL on v0.4.0 — consumers use `verifyAvlBatch` /
  * `verifyAvlLookup` (T18+T19) which wrap this. Key/value LENGTH validation
  * lives in those wrappers (throws — kept deliberately: converting the shipped
  * 'operation-key-length-mismatch' throw to a per-op failure would be a

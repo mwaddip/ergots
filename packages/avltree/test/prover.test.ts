@@ -4,12 +4,27 @@ import { PersistentBatchAVLProver } from '../src/persistent-prover.js'
 import {
   newLabel,
   verifyAvlBatch,
+  AvlVerifyError,
   type AvlNode,
   type AvlTreeConfig,
   type InternalNode,
   type Operation,
   type VersionedAVLStorage,
 } from '../src/index.js'
+
+// C4: shared assertion helper for the prover/verifier's thrown AvlVerifyError
+// codes. Fallback idiom (no prior standalone helper existed in this file;
+// verify-batch.test.ts's AVL-03 pins use an inline try/catch of the same shape).
+function expectAvlCode(fn: () => unknown, code: string): void {
+  let caught: unknown
+  try {
+    fn()
+  } catch (e) {
+    caught = e
+  }
+  expect(caught).toBeInstanceOf(AvlVerifyError)
+  expect((caught as AvlVerifyError).code).toBe(code)
+}
 
 describe('BatchAVLProver', () => {
   it('constructs an empty tree and produces a valid digest', () => {
@@ -95,20 +110,17 @@ describe('BatchAVLProver', () => {
     if (result.success) expect(result.value).toBeNull()
   })
 
-  it('throws on key shorter than tree key length', () => {
-    const prover = new BatchAVLProver(32, null)
-    const shortKey = new Uint8Array(16)
-    expect(() =>
-      prover.performOneOperation({ tag: 'Insert', key: shortKey, value: new Uint8Array([1]) }),
-    ).toThrow()
-  })
+  // 'throws on key shorter than tree key length' (16-byte all-zero fixture)
+  // deleted (C4): it exercised the −inf gate, not the length gate — it is
+  // redundant with the 'short ALL-ZERO key fires the −inf gate' pin below.
 
   it('throws on key longer than tree key length', () => {
     const prover = new BatchAVLProver(32, null)
     const longKey = new Uint8Array(64)
-    expect(() =>
-      prover.performOneOperation({ tag: 'Insert', key: longKey, value: new Uint8Array([1]) }),
-    ).toThrow()
+    expectAvlCode(
+      () => prover.performOneOperation({ tag: 'Insert', key: longKey, value: new Uint8Array([1]) }),
+      'operation-key-length-mismatch',
+    )
   })
 
   it('throws on value length mismatch when fixed value length is set', () => {
@@ -210,6 +222,60 @@ describe('BatchAVLProver', () => {
     const absentKey = new Uint8Array(32)
     absentKey[0] = 99
     expect(prover.unauthenticatedLookup(absentKey)).toBeNull()
+  })
+})
+
+describe('performOneOperation key-gate codes (C4)', () => {
+  const value = new Uint8Array([1])
+
+  it('short ALL-ZERO key fires the −inf gate: operation-key-out-of-bounds', () => {
+    const prover = new BatchAVLProver(32, null)
+    expectAvlCode(
+      () => prover.performOneOperation({ tag: 'Insert', key: new Uint8Array(16), value }),
+      'operation-key-out-of-bounds',
+    )
+  })
+
+  it('short NON-ZERO key reaches the length gate: operation-key-length-mismatch', () => {
+    const prover = new BatchAVLProver(32, null)
+    expectAvlCode(
+      () => prover.performOneOperation({ tag: 'Insert', key: new Uint8Array(16).fill(0x42), value }),
+      'operation-key-length-mismatch',
+    )
+  })
+
+  it('exact −inf sentinel (32×0x00): operation-key-out-of-bounds', () => {
+    const prover = new BatchAVLProver(32, null)
+    expectAvlCode(
+      () => prover.performOneOperation({ tag: 'Insert', key: new Uint8Array(32), value }),
+      'operation-key-out-of-bounds',
+    )
+  })
+
+  it('exact +inf sentinel (32×0xFF): operation-key-out-of-bounds', () => {
+    const prover = new BatchAVLProver(32, null)
+    expectAvlCode(
+      () => prover.performOneOperation({ tag: 'Insert', key: new Uint8Array(32).fill(0xff), value }),
+      'operation-key-out-of-bounds',
+    )
+  })
+
+  // Regression guard, not RED — this site (verify.ts's config-shape wrapper
+  // check) already carries the right code pre-fix; it constrains against a
+  // future accidental rename of this specific config code, it doesn't
+  // demonstrate the C4 split (Task-4-class guard). Note: brief's example
+  // passed (config, operations) as ([], {keyLength:0,...}) — reversed vs the
+  // real verifyAvlBatch(startingDigest, proof, config, operations) signature;
+  // corrected here (see task-2-report.md deviations).
+  it('config keyLength <= 0 keeps invalid-config-key-length (verify.ts wrapper)', () => {
+    expectAvlCode(
+      () =>
+        verifyAvlBatch(new Uint8Array(33), new Uint8Array([0]), {
+          keyLength: 0,
+          valueLengthOpt: null,
+        }, []),
+      'invalid-config-key-length',
+    )
   })
 })
 

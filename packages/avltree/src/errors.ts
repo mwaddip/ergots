@@ -1,8 +1,9 @@
 /**
- * Six-variant string union of programmer-error codes.
+ * Eight-variant string union of programmer-error codes.
  * TS-only: Rust uses anyhow::Result throughout (no typed error codes).
- * Each code corresponds to a shape-validation precondition on the public entry point
- * (verifyAvlBatch / verifyAvlLookup). See facts/avltree.md § Failure model overview.
+ * Each code corresponds to a shape-validation precondition on a public entry
+ * point (verifyAvlBatch / verifyAvlLookup / BatchAVLProver.performOneOperation).
+ * See facts/avltree.md § Failure model overview.
  */
 export type AvlVerifyErrorCode =
   | 'invalid-config-key-length'
@@ -12,11 +13,14 @@ export type AvlVerifyErrorCode =
   | 'operation-key-length-mismatch'
   | 'operation-value-length-mismatch'
   | 'operation-delta-out-of-range' // AVL-03: UpdateLongBy.delta outside i64
+  | 'operation-key-out-of-bounds' // op key at/beyond a ±inf sentinel (references' entry requires)
 
 /**
- * Programmer-error rejection class. Thrown (never returned) by verifyAvlBatch /
- * verifyAvlLookup for invalid shapes in calling code: bad config, wrong digest
- * length, or key/value length mismatches. TS-only: Rust uses anyhow::Result.
+ * Programmer-error rejection class. Thrown (never returned) by the public
+ * verify wrappers (verifyAvlBatch / verifyAvlLookup) and by
+ * BatchAVLProver.performOneOperation, for invalid shapes in calling code:
+ * bad config, wrong digest length, or key/value length mismatches. TS-only:
+ * Rust uses anyhow::Result.
  */
 export class AvlVerifyError extends Error {
   constructor(
@@ -30,7 +34,7 @@ export class AvlVerifyError extends Error {
 
 /**
  * Internal verification-failure reason taxonomy (11 reasons). Tracked by
- * BatchAvlVerifier.lastFailReason but NOT exposed in the public API on v0.1.0.
+ * BatchAvlVerifier.lastFailReason but NOT exposed in the public API on v0.4.0.
  * Promoted to a getLastFailReason() method if/when the internal class is
  * promoted to public surface (deferred per design spec's option-3 decision).
  */
