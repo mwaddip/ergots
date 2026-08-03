@@ -327,13 +327,19 @@ export class BatchAVLProver {
       }
       this.root = deleteResult.newSubtreeRoot
       this.height = this.applyHeightDelta(deleteResult.heightDelta)
-      return { success: true, value: modifyResult.oldValue }
+      // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
+      // label input); handing it out uncopied lets a caller corrupt cached labels
+      // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
+      return { success: true, value: modifyResult.oldValue === null ? null : modifyResult.oldValue.slice() }
     }
 
     // No delete
     this.root = modifyResult.newSubtreeRoot
     this.height = this.applyHeightDelta(modifyResult.heightDelta)
-    return { success: true, value: modifyResult.oldValue }
+    // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
+    // label input); handing it out uncopied lets a caller corrupt cached labels
+    // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
+    return { success: true, value: modifyResult.oldValue === null ? null : modifyResult.oldValue.slice() }
   }
 
   /**
@@ -433,7 +439,10 @@ export class BatchAVLProver {
    */
   private lookupFoundWalk(node: AvlNode): Uint8Array | null {
     if (node.kind === 'leaf') {
-      return node.value
+      // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
+      // label input); handing it out uncopied lets a caller corrupt cached labels
+      // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
+      return node.value.slice()
     }
     if (node.kind === 'internal') {
       return this.lookupFoundWalk(node.left)
