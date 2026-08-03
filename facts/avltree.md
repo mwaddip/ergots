@@ -186,6 +186,51 @@ type ProverOperationResult =
 - **`generateProofForOperations(operations)`** — clones the current tree and applies the given operations on the clone. Shape-invalid ops (±inf key, wrong key/value length, out-of-range delta) **throw** `AvlVerifyError` (propagated from `performOneOperation`); engine-level op failure (e.g. Insert on an existing key) returns `{ success: false }`. Success arm is `{ success: true, proof, digest }`. The original tree is NOT mutated. This is the primary entry point for producing proofs that will be verified by `verifyAvlBatch`.
 - **`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Required after startup resume, snapshot bootstrap, or recovery rollback. Ports `restore_root` from the reference.
 
+##### `removedNodes(): AvlNode[]` (v0.4.0, Phase D)
+
+Storage-GC support. Returns the nodes of the previous cycle's tree (leaves and
+internals) whose labels are no longer reachable from the current root — the
+rows a storage backend should delete. The returned set equals the exact set
+difference {nodes reachable from the previous cycle's root} − {nodes whose
+label is reachable from the current root}.
+
+- **Ordering contract:** call after the batch's operations and BEFORE
+  `generateProof()` / `restoreRoot()` — both rebase the cycle, after which
+  this returns `[]` (same observable as the reference's cleared buffers).
+  Implementers calling from inside `VersionedAVLStorage.update()` are correct
+  by construction: `PersistentBatchAVLProver.generateProofAndUpdateStorage`
+  runs `update` before `generateProof`.
+- **Purity:** idempotent; mid-batch calls are allowed, return the diff as of
+  the current tree, and do not perturb later calls. Order of returned nodes
+  is unspecified — treat as a set.
+- **Returned nodes are live tree objects** (`readonly` types, immutable
+  engine): do not mutate; derive storage keys via the exported `label()`.
+- **First-cycle sentinel:** the never-persisted sentinel leaf of a
+  fresh-constructed prover is reported as removed on the first mutating
+  cycle — reference parity (its constructor clears `is_new` via
+  `tree.reset()`). Storage must tolerate deleting absent rows.
+- **Invariant throws** (plain `Error`, not `AvlVerifyError`): a candidate or
+  descent node without a key (label-only stub, or key-less internal) — both
+  unreachable through this API's own operations, reachable only via an
+  invariant-violating `restoreRoot` tree. A `LabelNode` encountered on the
+  containsLabel descent (as opposed to a candidate) is fail-safe "present"
+  and never reported removed.
+
+##### removedNodes() divergences from the reference (deliberate)
+
+| # | Divergence | Why safer / acceptable |
+|---|---|---|
+| 1 | Derived walk instead of collect-at-visit buffers | Output equals the true set difference; no engine callbacks; no silent-miss corruption class |
+| 2 | Remove-then-reinsert an identical leaf in one cycle: Rust's "definite" buffer deletes a label still live in the final tree; we keep it | Matches the set-diff. Rust's answer corrupted storage when consumed naively: ergo-node-rust survives this edge only via `update_internal`'s written-labels overlap guard (`state/src/storage.rs`, added after its "v0.4.x at-tip state corruption"; verified 2026-08-04). The set-diff answer needs no guard |
+| 3 | Idempotent and mid-cycle-safe; Rust's repeat calls self-append, and a mid-cycle call permanently poisons the final answer (absent-at-midpoint `to_check` entries move to the definite buffer, never re-checked) | Pure derivation, snapshot semantics |
+| 4 | No `collectChangedNodes` flag; Rust with `false` returns `[]` | Nothing to opt out of; superset behavior |
+| 5 | Lookup-heavy cycles pay walk+contains cost where Rust skips Lookup visits at collection | Cost-only divergence; output identical (`[]` for lookup-only cycles) |
+
+**Reference-parity notes (not divergences):** the never-persisted first-cycle
+sentinel leaf is reported as removed by **both** implementations (Rust's
+constructor clears `is_new` on it via `tree.reset()`); storage must tolerate
+deleting absent rows.
+
 Root installation is consolidated: `PersistentBatchAVLProver.rollback` (Phase B) and the `generateProofForOperations` clone install route through `restoreRoot`; the constructor deliberately keeps direct assignment (definite-assignment proof for the non-null `root`; no overridable-method-from-constructor; matches Rust's `new()`, which does not call `restore_root`).
 
 `performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies; mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) are also safe to mutate — they alias only the verifier's internal reconstruction, which is unreachable after return. One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. This does NOT extend to node *fields* (`node.key` / `node.value` / `LabelNode.label`) reached via the public `root` / `oldTopNode` — those are live buffers; see "Node immutability invariant" below.
@@ -279,6 +324,8 @@ Four test layers plus cross-runtime, mirroring the proof and ergoscript packages
 4. **Adversarial rejection** (`verifier-adversarial-rotation.test.ts`, `verifier-adversarial-recursion.test.ts`, `verifier-adversarial-i64-overflow.test.ts`): hard-coded crafted proofs. The rotation file asserts `verifyAvlBatch` returns `null` **and does not throw** at the four double-rotation call sites where the reference implementation panics. The recursion file documents the single engine-level carve-out from that guarantee — a deep-spine proof escapes as `RangeError` (stack exhaustion), with a sub-threshold control proving depth, not shape, is the trigger. The i64-overflow file pins rejection of a captured pre-fix proof whose `UpdateLongBy` sum exceeds `i64::MAX` (JVM `Math.addExact` semantics; both overflow directions unit-covered in `operation.test.ts`).
 5. **Cross-runtime**: Vitest configured for both `node` and `jsdom`. Every test runs in both.
 
+`removed-nodes/` — 7 Rust-emitted removedNodes() label-set vectors (emitter source preserved as EMITTER.rs in the same directory; regenerate via worktree off ergo_avltree_rust 568e7c3, ERGOTS_FIXTURE_DIR env).
+
 ## Coverage
 
 All 8 `Operation` variants are implemented and covered by fixtures:
@@ -356,6 +403,8 @@ Phase E's mandate; until then each number's base is explicit, not implied by
 | (TS-only) | `verifyAvlBatchPartial` (`verify.ts`) | v0.2.0 partial-success variant. Wraps the per-op `BatchAvlVerifier.performOneOperation` loop with mid-loop break + pre-op `digest()` snapshot to surface the AFTER-last-successful-op digest. The snapshot is necessary because sigma-rust poisons `root = null` on per-op failure (line 206 of `batch_avl_verifier.rs`), after which `digest()` returns `None`. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` handlers, which honor sigma-rust's break-on-failure-with-state-after-last-success semantics. |
 | (TS-only) | `AvlVerifyError` class + `AvlVerifyErrorCode` type (`errors.ts`) | Programmer-error throws (8 codes); Rust uses `anyhow::Result` throughout with no separate error class |
 | (TS-only) | `AvlVerifyFailReason` type (`errors.ts`) | Internal verification-failure taxonomy (11 reasons); tracked on `BatchAvlVerifier.lastFailReason`; not exported on v0.4.0 |
+| `removedNodes()` | `batch_avl_prover.rs` `removed_nodes` | Output-contract port (derived walk over the immutable old tree; the reference's visit-time buffers rest on per-node `visited`/`is_new` flags our engine lacks). Same output, safer on the remove-reinsert edge — see divergence table. |
+| `containsLabel` (module-level, batch-prover.ts) | `batch_node.rs` `contains` / `contains_recursive` | Behavioral port: descend current tree by candidate key, label-compare each node, LabelOnly → fail-safe present. Key-less candidate → invariant throw (reference panics on the same input). |
 
 ## Node types and constructors (v0.4.0)
 
