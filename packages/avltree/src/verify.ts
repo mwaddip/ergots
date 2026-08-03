@@ -135,6 +135,13 @@ export function verifyAvlBatchPartial(
  * inconsistency). Verification failures are untrusted-input rejections and
  * are intentionally NOT thrown — callers can treat `null` as "proof invalid".
  *
+ * One engine-level carve-out: a pathologically deep proof spine can overflow
+ * the call stack during the constructor's digest check and escape as a
+ * `RangeError` — resource exhaustion, not a verdict. Treat a caught
+ * `RangeError` as INDETERMINATE (abort or propagate); never record it as
+ * "proof invalid". See "No throws on verification failures" in
+ * `facts/avltree.md` and the Tier-2 section of `API.md`.
+ *
  * All-or-nothing semantics: any per-op failure collapses the entire batch
  * to `null`, even if earlier ops succeeded. For partial-success semantics
  * (state-after-last-successful-op + opsCompleted), use
@@ -154,6 +161,8 @@ export function verifyAvlBatchPartial(
  * @param operations      Ordered list of operations to apply.
  * @returns               `{ newDigest, results }` on success, `null` on failure.
  * @throws AvlVerifyError on programmer-error inputs.
+ * @throws RangeError on a pathologically deep proof (stack exhaustion —
+ *                    indeterminate, see the carve-out above).
  */
 export function verifyAvlBatch(
   startingDigest: Uint8Array,

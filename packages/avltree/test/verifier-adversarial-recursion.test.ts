@@ -4,7 +4,7 @@
  *
  * A packed proof encoding a deep left spine — `LEAF` then depth ×
  * (`LABEL`, `INTERNAL` balance 0) — decodes fine (reconstruction is an
- * explicit-stack loop, `proof-decode.ts:198`), but the constructor's digest
+ * explicit-stack loop, `proof-decode.ts:200-206`), but the constructor's digest
  * check calls `label(root)` (`proof-decode.ts:297`), which recurses once per
  * internal level (`node.ts:196`). Past an engine-dependent depth the
  * recursion overflows the JS call stack and a `RangeError` ("Maximum call
@@ -109,10 +109,11 @@ function buildSpineDigest(depth: number, heightByte: number): Uint8Array {
 describe('engine-level resource exhaustion — the single no-throw carve-out', () => {
   it('a pathologically deep spine proof escapes as a RangeError, not a null rejection', () => {
     // 100_000 levels ≈ 3.4 MB of proof. label() needs one stack frame per
-    // level, and every default JS stack (V8 main thread ≈ 1 MB, Node
-    // worker_threads default 4 MB, browsers ≈ 1 MB) is exhausted well
-    // before 100k frames — so the depth is safely past the overflow
-    // threshold in any pool vitest runs this under.
+    // level. This package's vitest configs use pool: 'forks' (child-process
+    // main thread, V8 default ≈ 1 MB stack — overflow measured near depth
+    // 6.3e3); a worker-threads pool would default to a 4 MB stack (overflow
+    // near 2.5e4). Surviving 100k frames would need ≈ 16 MB of stack, which
+    // no default engine or pool configuration provides.
     const proof = buildSpineProof(100_000)
     // Starting digest content is irrelevant here: the overflow fires while
     // COMPUTING label(root) for the comparison, before any byte is compared.
