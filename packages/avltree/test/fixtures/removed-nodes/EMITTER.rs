@@ -1,5 +1,14 @@
 //! removedNodes() conformance vectors for @ergots/avltree Phase D.
 //! Emits one JSON per scripted sequence into ERGOTS_FIXTURE_DIR.
+//!
+//! REGENERATION (this file is preserved in-repo for exactly this):
+//!   1. git -C ~/projects/ergo_avltree_rust worktree add --detach <scratch>/avltree-d-vectors 568e7c3
+//!   2. cp this file to <worktree>/tests/removed_nodes_vectors.rs
+//!   3. cd <worktree> && ERGOTS_FIXTURE_DIR=<ergots-repo>/packages/avltree/test/fixtures/removed-nodes \
+//!        cargo test --test removed_nodes_vectors -- --nocapture
+//!   4. Run a second time into a scratch dir and diff against committed — must be EMPTY.
+//!   5. git -C ~/projects/ergo_avltree_rust worktree remove --force <worktree>
+//!   Reference: ergo_avltree_rust @ 568e7c3 (canonical main at generation time).
 //! Capture discipline (spec-review F5): removed_nodes() exactly once per
 //! cycle, BEFORE generate_proof() — generate_proof clears the buffers as its
 //! first statements and repeat calls self-append. Rollback cycles call
