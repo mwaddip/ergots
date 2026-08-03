@@ -40,8 +40,10 @@ export interface LeafNode {
  * Internal node with left/right subtrees and AVL balance ∈ {-1, 0, 1}.
  *
  * Ports batch_node.rs::InternalNode (lines ~33-38).
- * Children and balance are not declared `readonly`, but the engine never
- * mutates them.
+ * All data fields are readonly — the engine builds fresh nodes rather than
+ * mutating (independently verified: the only field write in src/ is the
+ * labelCache memo in label()). readonly stops reassignment, not buffer
+ * mutation; the public-boundary defensive copies close the aliasing side.
  * A fresh node starts with `labelCache: null` and is populated on the first
  * call to `label()`; because nodes are immutable, a populated cache stays
  * valid for the node's lifetime.
@@ -55,9 +57,9 @@ export interface InternalNode {
    * undefined only for proof-decode.ts reconstructed nodes (verifier-only).
    */
   readonly key?: Uint8Array
-  left: AvlNode
-  right: AvlNode
-  balance: Balance
+  readonly left: AvlNode
+  readonly right: AvlNode
+  readonly balance: Balance
   /** Cached blake2b-256 label; null until first call to `label()`. */
   labelCache: Uint8Array | null
 }

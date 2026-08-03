@@ -76,6 +76,6 @@ export class PersistentBatchAVLProver {
     // directly by prover.restore_root() (validation/src/utxo.rs:166 and :477;
     // src/main.rs:1841 and :2355 on resume/snapshot-load). Delegating here
     // matches that production usage pattern, not the crate's own method.
-    this.prover.restoreRoot(root as import('./node.js').AvlNode, height)
+    this.prover.restoreRoot(root, height)
   }
 }
