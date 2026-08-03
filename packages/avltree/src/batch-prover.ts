@@ -223,9 +223,13 @@ export class BatchAVLProver {
    * Apply a single operation (Insert, Update, Remove, Lookup, etc.) to the
    * in-memory tree. Records traversal directions for later proof generation.
    *
+   * Failure model is two-tier: shape-invalid ops (±inf key, wrong key/value
+   * length, out-of-range delta) THROW `AvlVerifyError`; engine-level op
+   * failure (e.g. Insert on an existing key) returns `{ success: false }`.
+   *
    * @returns ProverOperationResult — `{ success: true, value }` on success
    *   (value is the old value or null if the key was absent), or
-   *   `{ success: false }` on precondition failure.
+   *   `{ success: false }` on engine-level operation failure.
    */
   performOneOperation(op: Operation): ProverOperationResult {
     const key = op.key
@@ -261,7 +265,7 @@ export class BatchAVLProver {
     ) {
       throw new AvlVerifyError(
         'Value length does not match fixed value length',
-        'invalid-config-value-length',
+        'operation-value-length-mismatch',
       )
     }
     // Delta range check (AVL-03 class, prover boundary) — mirrors
@@ -351,8 +355,17 @@ export class BatchAVLProver {
   // -------------------------------------------------------------------------
 
   /**
-   * Current 33-byte digest (root label || height). Throws if the tree's
-   * non-null root invariant has been violated by a type-unsafe caller.
+   * Current 33-byte digest (root label || height). Throws `RangeError` in
+   * three cases: (1) the root has been forced to `null` by a type-unsafe
+   * caller — reachable only via a direct cast on `root` itself, since
+   * `restoreRoot`'s parameter is typed non-nullable and cannot carry `null`
+   * without its own cast; (2) the tree height is outside `0..=255` —
+   * reachable via a `restoreRoot`-installed height, an unchecked `number`;
+   * (3) the root is a `LabelNode` whose stored digest is not exactly 32
+   * bytes — reachable via a hand-built `LabelNode` or one installed through
+   * `restoreRoot`, since `label` is a plain `Uint8Array` with no length
+   * captured in its type. All three are unreachable through this API's own
+   * operations alone.
    *
    * Ports authenticated_tree_ops.rs's digest() trait method, returning a 33-byte value
    * (32-byte blake2b label + 1-byte height).
@@ -432,9 +445,9 @@ export class BatchAVLProver {
    */
   private lookupFoundWalk(node: AvlNode): Uint8Array | null {
     if (node.kind === 'leaf') {
-      // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
-      // label input); handing it out uncopied lets a caller corrupt cached labels
-      // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
+      // Defensive copy: node.value is the leaf's LIVE value buffer (a blake2b
+      // label input); handing it out uncopied lets a caller corrupt cached
+      // labels and the next proof's packTree bytes (C7).
       return node.value.slice()
     }
     if (node.kind === 'internal') {

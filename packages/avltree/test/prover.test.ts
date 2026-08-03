@@ -7,6 +7,7 @@ import {
   AvlVerifyError,
   type AvlNode,
   type AvlTreeConfig,
+  type AvlVerifyErrorCode,
   type InternalNode,
   type Operation,
   type VersionedAVLStorage,
@@ -15,7 +16,7 @@ import {
 // C4: shared assertion helper for the prover/verifier's thrown AvlVerifyError
 // codes. Fallback idiom (no prior standalone helper existed in this file;
 // verify-batch.test.ts's AVL-03 pins use an inline try/catch of the same shape).
-function expectAvlCode(fn: () => unknown, code: string): void {
+function expectAvlCode(fn: () => unknown, code: AvlVerifyErrorCode): void {
   let caught: unknown
   try {
     fn()
@@ -125,11 +126,15 @@ describe('BatchAVLProver', () => {
 
   it('throws on value length mismatch when fixed value length is set', () => {
     const prover = new BatchAVLProver(32, 8) // fixed 8-byte values
-    const key = new Uint8Array(32)
+    // Non-zero, strictly-inside-bounds key — an all-zero key would fire the
+    // −inf gate first (I-2: that was the prior fixture's defect, giving this
+    // test zero real coverage of the value-length gate below it).
+    const key = new Uint8Array(32).fill(0x42)
     const wrongValue = new Uint8Array([1, 2, 3]) // 3 bytes, not 8
-    expect(() =>
-      prover.performOneOperation({ tag: 'Insert', key, value: wrongValue }),
-    ).toThrow()
+    expectAvlCode(
+      () => prover.performOneOperation({ tag: 'Insert', key, value: wrongValue }),
+      'operation-value-length-mismatch',
+    )
   })
 
   it('accepts any value length when valueLengthOpt is null', () => {
@@ -159,7 +164,6 @@ describe('BatchAVLProver', () => {
     const result = prover.generateProofForOperations([
       { tag: 'Update', key: new Uint8Array(32).fill(0x01), value: new Uint8Array([4, 5, 6]) },
     ])
-    expect(result).not.toHaveProperty('success', false)
     expect(result.success).toBe(true)
     if (!result.success) throw new Error('unreachable: asserted above')
     expect(result.proof.length).toBeGreaterThan(0)

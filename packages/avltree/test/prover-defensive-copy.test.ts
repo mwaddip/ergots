@@ -28,7 +28,13 @@ describe('prover returns defensive copies (C7)', () => {
     lookup.value.fill(0xee) // caller scribbles on the returned buffer
 
     const op: Operation = { tag: 'Lookup', key }
-    prover.performOneOperation(op) // note: first Lookup already consumed cycle 2; see step 2
+    // The setup Lookup above (which produced `lookup.value`) already runs
+    // inside this proof cycle, opened by generateProof() before it — so the
+    // proof generated below covers both Lookups, not just `op`. Harmless:
+    // repeating a Lookup for the same key visits no new nodes and its
+    // direction bits are a shared prefix, so replaying only `[op]` against
+    // the resulting proof still verifies.
+    prover.performOneOperation(op)
     const proof = prover.generateProof()
     expect(verifyAvlBatch(digest, proof, CONFIG, [op])).not.toBeNull()
   })

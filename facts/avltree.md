@@ -64,7 +64,7 @@ verifyAvlLookup(
 
 #### `verifyAvlBatch(startingDigest, proof, config, operations)`
 
-- **Precondition (throws `AvlVerifyError`):** `config.keyLength > 0`; `config.valueLengthOpt >= 0` or `null`; `config.maxNumOperations >= 0` if set; `config.maxDeletes <= config.maxNumOperations` if both set; `startingDigest.length === 33`; for every op, `op.key.length === config.keyLength`; for every op with a `value` field, `op.value.length === config.valueLengthOpt` when `valueLengthOpt` is not null.
+- **Precondition (throws `AvlVerifyError`):** `config.keyLength > 0`; `config.valueLengthOpt >= 0` or `null`; `config.maxNumOperations >= 0` if set; `config.maxDeletes <= config.maxNumOperations` if both set; `startingDigest.length === 33`; for every op, `op.key.length === config.keyLength`; for every op with a `value` field, `op.value.length === config.valueLengthOpt` when `valueLengthOpt` is not null; for every `UpdateLongBy` op, `delta` is within the signed i64 range (`-2^63 .. 2^63-1`).
 - **Postcondition (success):** Returns `{ newDigest: Uint8Array, results: (Uint8Array | null)[] }` where `newDigest` is exactly 33 bytes (32-byte blake2b-256 root label + 1-byte tree height), `results[i]` is the old value at `op.key` before operation `i` (or `null` when the key was absent before the operation), and `newDigest` is byte-identical to what `ergo_avltree_rust`'s `BatchAVLVerifier` would produce on the same inputs.
 - **Postcondition (failure):** Returns `null` on any verification failure: malformed proof, digest mismatch, precondition violation by an operation, or structural inconsistency. All-or-nothing — any per-op failure collapses the whole batch to `null` even if earlier ops succeeded.
 - **Invariant:** Stateless. No I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output. Implemented as a thin wrapper over `verifyAvlBatchPartial`: returns the partial result on full success, `null` on construct failure OR when `opsCompleted < operations.length`.
@@ -188,7 +188,7 @@ type ProverOperationResult =
 
 Root installation is consolidated: `PersistentBatchAVLProver.rollback` (Phase B) and the `generateProofForOperations` clone install route through `restoreRoot`; the constructor deliberately keeps direct assignment (definite-assignment proof for the non-null `root`; no overridable-method-from-constructor; matches Rust's `new()`, which does not call `restore_root`).
 
-`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies; mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) are also safe to mutate — they alias only the verifier's internal reconstruction, which is unreachable after return. One uniform contract: the buffer you get is yours.
+`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies; mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) are also safe to mutate — they alias only the verifier's internal reconstruction, which is unreachable after return. One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. This does NOT extend to node *fields* (`node.key` / `node.value` / `LabelNode.label`) reached via the public `root` / `oldTopNode` — those are live buffers; see "Node immutability invariant" below.
 
 #### `PersistentBatchAVLProver`
 
