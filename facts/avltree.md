@@ -252,7 +252,7 @@ type AvlVerifyFailReason =               // (internal; not exported)
 
 ## Test corpus
 
-Three test layers plus cross-runtime, mirroring the proof and ergoscript packages:
+Four test layers plus cross-runtime, mirroring the proof and ergoscript packages:
 
 1. **Per-component fixture tests** (`verify-batch.test.ts`, `verify-lookup.test.ts`, `operations.test.ts`, `proof-decode.test.ts`): per-Operation-variant coverage with byte-equality on `newDigest` and per-op `results[]`.
 2. **Bulk corpus** (`corpus.test.ts`): 50 fixtures across 8 Operation variants; asserts byte-equality between TS verifier output and `ergo_avltree_rust` verifier output on every fixture. Corpus categories: per-Operation-variant fixtures (8 variants × varied pre-state: empty, single-leaf, balanced-10, balanced-100, balanced-1000, all-left-spine, all-right-spine), multi-op batches (sizes 0, 1, 2, 16, 256, stress-mixed-100), edge cases (all-deletes, boundary keys, single-leaf), config-variance (keyLength 1/8/32, fixed vs variable valueLengthOpt, maxNumOperations bounds), and adverse cases (truncated proof, swapped digest, mismatched config — all must return `null`).
