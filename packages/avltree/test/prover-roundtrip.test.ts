@@ -144,13 +144,14 @@ describe('Prover → Verifier round-trip', () => {
     const result = prover.generateProofForOperations([
       { tag: 'Insert', key: key2, value: new Uint8Array([9]) },
     ])
-    expect('proof' in result).toBe(true)
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('unreachable: asserted above')
 
     // Original prover's digest must be unchanged
     expect(prover.digest()!).toEqual(digestBefore)
 
     // The proof+digest from the clone should verify against the original starting digest
-    const { proof, digest } = result as { proof: Uint8Array; digest: Uint8Array }
+    const { proof, digest } = result
     const verified = verifyAvlBatch(digestBefore, proof, config, [
       { tag: 'Insert', key: key2, value: new Uint8Array([9]) },
     ])

@@ -546,12 +546,14 @@ export class BatchAVLProver {
    * Clone the current tree, apply a batch of operations on the clone,
    * and generate a proof + digest covering all operations.
    *
-   * The original tree is NOT mutated. If any operation fails (precondition),
-   * returns `{ success: false }`.
+   * The original tree is NOT mutated. Failure model is two-tier:
+   * shape-invalid ops (±inf key, wrong key/value length, out-of-range delta)
+   * THROW AvlVerifyError, propagated from performOneOperation; engine-level
+   * op failure (e.g. Insert on an existing key) returns { success: false }.
    */
   generateProofForOperations(
     operations: Operation[],
-  ): { proof: Uint8Array; digest: Uint8Array } | { success: false } {
+  ): { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false } {
     // Clone the tree (deep copy nodes)
     const cloneRoot = this.deepCloneNode(this.root!)
     const clonedProver = new BatchAVLProver(this.keyLength, this.valueLengthOpt)
@@ -568,7 +570,7 @@ export class BatchAVLProver {
 
     const proof = clonedProver.generateProof()
     const digest = clonedProver.digest()!
-    return { proof, digest }
+    return { success: true, proof, digest }
   }
 
   // -------------------------------------------------------------------------

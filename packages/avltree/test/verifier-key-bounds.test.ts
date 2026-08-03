@@ -40,7 +40,7 @@ function treeWithSentinelPathProof(keyLength: number) {
   const gapKey = new Uint8Array(keyLength)
   gapKey[keyLength - 1] = 0x01 // strictly between −inf and k1
   const gen = prover.generateProofForOperations([{ tag: 'Lookup', key: gapKey }])
-  if (!('proof' in gen)) throw new Error('setup: lookup proof generation failed')
+  if (!gen.success) throw new Error('setup: lookup proof generation failed')
   return { digest, proof: gen.proof, k1 }
 }
 

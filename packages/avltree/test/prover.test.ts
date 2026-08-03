@@ -160,10 +160,10 @@ describe('BatchAVLProver', () => {
       { tag: 'Update', key: new Uint8Array(32).fill(0x01), value: new Uint8Array([4, 5, 6]) },
     ])
     expect(result).not.toHaveProperty('success', false)
-    if ('proof' in result) {
-      expect(result.proof.length).toBeGreaterThan(0)
-      expect(result.digest.length).toBe(33)
-    }
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('unreachable: asserted above')
+    expect(result.proof.length).toBeGreaterThan(0)
+    expect(result.digest.length).toBe(33)
   })
 
   it('generateProofForOperations returns success:false on failed operation', () => {
@@ -173,6 +173,16 @@ describe('BatchAVLProver', () => {
       { tag: 'Update', key: new Uint8Array(32).fill(0x01), value: new Uint8Array([1, 2, 3]) },
     ])
     expect(result).toEqual({ success: false })
+  })
+
+  it('generateProofForOperations success arm carries success: true', () => {
+    const prover = new BatchAVLProver(32, null)
+    const key = new Uint8Array(32)
+    key[0] = 0x01
+    const result = prover.generateProofForOperations([
+      { tag: 'Insert', key, value: new Uint8Array([1]) },
+    ])
+    expect('success' in result && result.success).toBe(true)
   })
 
   it('supports Update operation after Insert', () => {
