@@ -17,6 +17,7 @@ import { modifyHelper } from './modify.js'
 import { deleteHelper } from './delete.js'
 import { I64_MAX, I64_MIN, type Operation } from './operation.js'
 import { AvlVerifyError } from './errors.js'
+import { compareBytes } from './compare-bytes.js'
 
 // ---------------------------------------------------------------------------
 // Token constants for packed proof format (batch_node.rs:14-16)
@@ -26,25 +27,6 @@ const LEAF_IN_PACKAGED_PROOF = 0x02
 const LABEL_IN_PACKAGED_PROOF = 0x03
 const END_OF_TREE_IN_PACKAGED_PROOF = 0x04
 const DIGEST_LENGTH = 32
-
-// ---------------------------------------------------------------------------
-// compareBytes helper
-// ---------------------------------------------------------------------------
-
-/**
- * Lexicographic byte comparison. Ports the per-op key-comparison logic
- * within batch_avl_prover.rs::next_direction_is_left (lines 440-477).
- *
- * Defined locally because tree-traversal.ts's version is not exported.
- */
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if (a[i]! < b[i]!) return -1
-    if (a[i]! > b[i]!) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
-}
 
 // ---------------------------------------------------------------------------
 // ProverOperationResult

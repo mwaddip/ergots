@@ -1,6 +1,7 @@
 import type { LeafNode } from './node.js'
 import type { AvlVerifyFailReason } from './errors.js'
 import { type KeyMatchesResult } from './avl-tree-ops.js'
+import { compareBytes } from './compare-bytes.js'
 // Re-export so existing consumers don't break
 export type { KeyMatchesResult }
 
@@ -94,19 +95,6 @@ export function replayComparison(
   }
   state.replayIndex = i + 1
   return ret
-}
-
-/**
- * Lexicographic comparison of two Uint8Arrays. Returns -1, 0, or 1.
- * Used only internally by keyMatchesLeaf.
- */
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if ((a[i] ?? 0) < (b[i] ?? 0)) return -1
-    if ((a[i] ?? 0) > (b[i] ?? 0)) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
 }
 
 /**

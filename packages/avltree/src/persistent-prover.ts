@@ -7,15 +7,7 @@ import { BatchAVLProver } from './batch-prover.js'
 import type { VersionedAVLStorage } from './versioned-storage.js'
 import type { Operation } from './operation.js'
 import type { ProverOperationResult } from './batch-prover.js'
-
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if (a[i]! < b[i]!) return -1
-    if (a[i]! > b[i]!) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
-}
+import { compareBytes } from './compare-bytes.js'
 
 export class PersistentBatchAVLProver {
   readonly prover: BatchAVLProver

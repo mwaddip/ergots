@@ -42,26 +42,13 @@ import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
+import { compareBytes } from './compare-bytes.js'
 
 /**
  * Constants — mirrors `DIGEST_LENGTH` from the Rust source.
  * 32 bytes of blake2b-256 + 1 height byte = 33 bytes for the digest tuple.
  */
 const DIGEST_LENGTH = 32
-
-/**
- * Lexicographic comparison of two Uint8Arrays. Returns -1, 0, or 1.
- * Fourth private copy in the package (batch-prover.ts, persistent-prover.ts,
- * tree-traversal.ts carry the others) — Phase C consolidates them.
- */
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if ((a[i] ?? 0) < (b[i] ?? 0)) return -1
-    if ((a[i] ?? 0) > (b[i] ?? 0)) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
-}
 
 /**
  * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl), the integration
