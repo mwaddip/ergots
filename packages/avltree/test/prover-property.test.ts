@@ -42,6 +42,33 @@ function bytesEqual(a: Uint8Array | null, b: Uint8Array | null): boolean {
 }
 
 /**
+ * Choose the operation for one walk step. Pure — it draws no randomness itself:
+ * the caller draws `key` then `roll` (in that order) and passes them in, which
+ * keeps the RNG stream identical to the pre-extraction inline code. Shared by
+ * both walks so they issue the SAME sequence for a given seed; when the choice
+ * lived inline in each, a one-line op-mix edit had to be hand-copied and could
+ * drift between them.
+ *
+ * Every branch is valid for the CURRENT model state, which is what lets the
+ * callers' post-op assertions be unconditional. Absent-key Lookup is
+ * source-verified to succeed with a null value: modify.ts's `handleLeafGap` (the
+ * `keyMatchesLeaf === false` branch) short-circuits Lookup before ever calling
+ * updateFn, returning `{ ok: true, changeHappened: false, oldValue: null }` —
+ * see the pin in prover.test.ts ("performOneOperation Lookup on an absent key
+ * succeeds with a null value"). Lookup never mutates the model, and the model's
+ * `before` is already null for an absent key, so no caller-side special case.
+ */
+function chooseOp(present: boolean, roll: number, key: Uint8Array, i: number): Operation {
+  if (!present) {
+    if (roll < 0.2) return { tag: 'Lookup', key }
+    return { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
+  }
+  if (roll < 0.35) return { tag: 'Update', key, value: new Uint8Array([(i * 7) & 0xff]) }
+  if (roll < 0.6) return { tag: 'Remove', key }
+  return { tag: 'Lookup', key }
+}
+
+/**
  * One random walk: build a sequence, apply it to the prover, then prove it to
  * the verifier and check the model agrees.
  */
@@ -70,31 +97,7 @@ function runWalk(seed: number, opCount: number): void {
     const present = model.has(hex)
     const roll = rand()
 
-    // Every branch is chosen so the operation is valid for the CURRENT model
-    // state, which is what lets the assertion below be unconditional.
-    // Absent-key Lookup is source-verified to succeed with a null value:
-    // modify.ts's handleLeafGap (the keyMatchesLeaf===false branch) short-
-    // circuits Lookup before ever calling updateFn, returning
-    // { ok: true, changeHappened: false, oldValue: null } — see the direct
-    // pin in prover.test.ts ("performOneOperation Lookup on an absent key
-    // succeeds with a null value"). So Lookup is safe to issue here too: the
-    // model's `before` is already `null` for an absent key (see below) and
-    // Lookup never mutates the model, so the bookkeeping after this block
-    // needs no change for the absent case.
-    let op: Operation
-    if (!present) {
-      if (roll < 0.2) {
-        op = { tag: 'Lookup', key }
-      } else {
-        op = { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
-      }
-    } else if (roll < 0.35) {
-      op = { tag: 'Update', key, value: new Uint8Array([(i * 7) & 0xff]) }
-    } else if (roll < 0.6) {
-      op = { tag: 'Remove', key }
-    } else {
-      op = { tag: 'Lookup', key }
-    }
+    const op = chooseOp(present, roll, key, i)
 
     const before = model.get(hex) ?? null
     const result = prover.performOneOperation(op)
@@ -127,7 +130,7 @@ function runWalk(seed: number, opCount: number): void {
   expect(verified!.results.length, `seed=${seed}: result count mismatch`).toBe(applied.length)
   for (let i = 0; i < applied.length; i++) {
     expect(
-      bytesEqual(verified!.results[i]!, expectedOldValues[i]!),
+      bytesEqual(verified!.results[i] ?? null, expectedOldValues[i] ?? null),
       `seed=${seed} op#${i} tag=${applied[i]!.tag}: old value disagrees with the model`,
     ).toBe(true)
   }
@@ -161,21 +164,7 @@ function runPerOperationWalk(seed: number, opCount: number): void {
     const present = model.has(hex)
     const roll = rand()
 
-    // Same generator as runWalk — see the rationale on operation choice there.
-    let op: Operation
-    if (!present) {
-      if (roll < 0.2) {
-        op = { tag: 'Lookup', key }
-      } else {
-        op = { tag: 'Insert', key, value: new Uint8Array([i & 0xff, (i >> 8) & 0xff]) }
-      }
-    } else if (roll < 0.35) {
-      op = { tag: 'Update', key, value: new Uint8Array([(i * 7) & 0xff]) }
-    } else if (roll < 0.6) {
-      op = { tag: 'Remove', key }
-    } else {
-      op = { tag: 'Lookup', key }
-    }
+    const op = chooseOp(present, roll, key, i)
 
     const digestBefore = prover.digest()
     expect(digestBefore, `seed=${seed} op#${i}: prover has no digest`).not.toBeNull()
