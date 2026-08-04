@@ -6,8 +6,10 @@
  *
  * A packed proof encoding a deep left spine — `LEAF` then depth ×
  * (`LABEL`, `INTERNAL` balance 0) — decodes fine (reconstruction is an
- * explicit-stack loop, `proof-decode.ts:200-206`); the constructor's digest
- * check then calls `label(root)` (`proof-decode.ts:297`). Before this task,
+ * explicit-stack loop — proof-decode.ts::parseProofPackedTree's
+ * explicit-stack reconstruction loop); the constructor's digest check then
+ * calls `label(root)` (proof-decode.ts::parseProofPackedTree's digest-check
+ * `label(root)` call). Before this task,
  * `label()`'s Internal arm recursed directly into its children once per
  * tree level (`node.ts`), and past an engine-dependent depth that recursion
  * overflowed the JS call stack — a `RangeError` ("Maximum call stack size
@@ -85,8 +87,9 @@ const LABEL_FILL = 0x11
  * Packed proof for a left spine of `depth` internal nodes over one leaf:
  * `LEAF`, then depth × (`LABEL`, `INTERNAL` balance 0), then END_OF_TREE.
  * Each INTERNAL token pops right = the just-pushed LABEL and left = the
- * subtree so far (`proof-decode.ts:281-283`), so the spine grows down the
- * LEFT — the side `label()` walks first (via `labelSubtree`; pre-fix, via
+ * subtree so far (proof-decode.ts::parseProofPackedTree's INTERNAL-token pop,
+ * right then left), so the spine grows down the LEFT — the side `label()`
+ * walks first (via `labelSubtree`; pre-fix, via
  * direct recursion). No direction bytes: no operation runs in these tests.
  * 4 + 34·depth + 1 bytes.
  */
@@ -117,7 +120,8 @@ function buildSpineProof(depth: number): Uint8Array {
  * now just a convenient sub-threshold-proof-size control, not a value
  * chosen to dodge overflow.
  * The height byte is unread on this config path: the digest check compares
- * only the first 32 bytes (`proof-decode.ts:296-302`), and without
+ * only the first 32 bytes (proof-decode.ts::parseProofPackedTree's
+ * digest-check comparison loop (first 32 bytes)), and without
  * `maxNumOperations` no node bound consults the height.
  */
 function buildSpineDigest(depth: number, heightByte: number): Uint8Array {

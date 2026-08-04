@@ -95,7 +95,7 @@ describe('verifier rejects labels in the promoted-grandchild slot (delete path)'
   /**
    * Site 1 — `delete.ts` `rebalanceShrinkLeft`, double-LEFT branch.
    * Unguarded operand: `rootRight.left` (read as `node.right.left` inside
-   * `doubleLeftRotate`, rotation.ts:58-63).
+   * `doubleLeftRotate`, rotation.ts::doubleLeftRotate's grandchild guard).
    *
    * Shape: insertion order 2,4,1,3 then `Remove(0x01)`.
    *   I[0x02](bal +1)
@@ -131,7 +131,7 @@ describe('verifier rejects labels in the promoted-grandchild slot (delete path)'
   /**
    * Site 2 — `delete.ts` `rebalanceShrinkRight`, double-RIGHT branch.
    * Unguarded operand: `rootLeft.right` (read as `node.left.right` inside
-   * `doubleRightRotate`, rotation.ts:117-122).
+   * `doubleRightRotate`, rotation.ts::doubleRightRotate's grandchild guard).
    *
    * Shape: insertion order 3,1,4,2 (the key-mirror k -> 5-k of site 1) then
    * `Remove(0x04)`.
@@ -181,7 +181,7 @@ describe('verifier rejects leaves in the promoted-grandchild slot (insert path)'
   /**
    * Site 3 — `modify.ts` `rotateLeftDescent`, double-RIGHT branch.
    * Unguarded operand: `newLeftm.right` (read as `node.left.right` inside
-   * `doubleRightRotate`, rotation.ts:117-122).
+   * `doubleRightRotate`, rotation.ts::doubleRightRotate's grandchild guard).
    *
    * Crafted tree — `I(balance = -1, left = Leaf, right = Label)`:
    *   02 10 20 aa                LEAF   key=0x10 nextLeafKey=0x20 value=0xaa
@@ -230,7 +230,7 @@ describe('verifier rejects leaves in the promoted-grandchild slot (insert path)'
   /**
    * Site 4 — `modify.ts` `rotateRightDescent`, double-LEFT branch. Mirror of
    * site 3. Unguarded operand: `newRightm.left` (read as `node.right.left`
-   * inside `doubleLeftRotate`, rotation.ts:58-63).
+   * inside `doubleLeftRotate`, rotation.ts::doubleLeftRotate's grandchild guard).
    *
    * Crafted tree — `I(balance = +1, left = Label, right = Leaf)`:
    *   03 22*32                   LABEL  (32 arbitrary digest bytes)
