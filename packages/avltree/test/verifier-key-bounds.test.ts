@@ -36,7 +36,7 @@ function treeWithSentinelPathProof(keyLength: number) {
   const k2 = new Uint8Array(keyLength).fill(0x77)
   prover.performOneOperation({ tag: 'Insert', key: k1, value: new Uint8Array([1]) })
   prover.performOneOperation({ tag: 'Insert', key: k2, value: new Uint8Array([2]) })
-  const digest = prover.digest()!
+  const digest = prover.digest()
   const gapKey = new Uint8Array(keyLength)
   gapKey[keyLength - 1] = 0x01 // strictly between −inf and k1
   const gen = prover.generateProofForOperations([{ tag: 'Lookup', key: gapKey }])

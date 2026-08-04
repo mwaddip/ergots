@@ -20,7 +20,7 @@ describe('Prover proof mutation → verifier rejects', () => {
     const key = new Uint8Array(32).fill(0x55)
     const value = new Uint8Array([1, 2, 3, 4])
 
-    const startDigest = prover.digest()!
+    const startDigest = prover.digest()
     prover.performOneOperation({ tag: 'Insert', key, value })
     const proof = prover.generateProof()
 

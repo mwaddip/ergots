@@ -125,7 +125,7 @@ describe('BatchAVLProver — byte-for-byte against Rust', () => {
           fix.genProofAfter[genIdx] === i
         ) {
           const proof = prover.generateProof()
-          const digest = prover.digest()!
+          const digest = prover.digest()
 
           const actualProofHex = bytesToHex(proof)
           const actualDigestHex = bytesToHex(digest)

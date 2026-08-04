@@ -31,13 +31,12 @@ describe('BatchAVLProver', () => {
   it('constructs an empty tree and produces a valid digest', () => {
     const prover = new BatchAVLProver(32, null)
     const d = prover.digest()
-    expect(d).not.toBeNull()
-    expect(d!.length).toBe(33)
+    expect(d.length).toBe(33)
     // Height byte is the last byte; empty tree is a single sentinel leaf → height 0
-    expect(d![32]).toBe(0)
+    expect(d[32]).toBe(0)
     // The root label is deterministic — blake2b of (0x00 || negInfKey || dummyValue || posInfKey)
     // Verify the root label is non-zero (not all zeroes)
-    const rootLabel = d!.slice(0, 32)
+    const rootLabel = d.slice(0, 32)
     const allZero = rootLabel.every((b) => b === 0)
     expect(allZero).toBe(false)
   })
@@ -66,12 +65,12 @@ describe('BatchAVLProver', () => {
 
   it('digest changes after Insert', () => {
     const prover = new BatchAVLProver(32, null)
-    const before = prover.digest()!
+    const before = prover.digest()
     const key = new Uint8Array(32)
     key.fill(0x01)
     const value = new Uint8Array([1, 2, 3])
     prover.performOneOperation({ tag: 'Insert', key, value })
-    const after = prover.digest()!
+    const after = prover.digest()
     // Digest should change after insertion
     expect(after).not.toEqual(before)
     // Height should still be valid (0 or 1 — depends on tree shape after single insert)
@@ -418,7 +417,6 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     prover.generateProof()
 
     const digestBefore = prover.digest()
-    expect(digestBefore).not.toBeNull()
 
     // Shape anchor. The last digest byte is the tree height, and height 3 is
     // what pins the shape this test needs: a root separator with two INTERNAL
@@ -428,7 +426,7 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     // Remove elsewhere; the test would still pass and silently stop covering
     // the recursive delete path.
     expect(
-      digestBefore![32],
+      digestBefore[32],
       'tree shape drifted — this test needs the two-internal-children root (height 3)',
     ).toBe(3)
 
@@ -438,7 +436,6 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
 
     const proof = prover.generateProof()
     const digestAfter = prover.digest()
-    expect(digestAfter).not.toBeNull()
 
     const config: AvlTreeConfig = {
       keyLength: KEY_LENGTH,
@@ -446,12 +443,12 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
       maxNumOperations: 1,
       maxDeletes: 1,
     }
-    const verified = verifyAvlBatch(digestBefore!, proof, config, [op])
+    const verified = verifyAvlBatch(digestBefore, proof, config, [op])
     expect(verified, 'verifier rejected a single-Remove proof the prover produced').not.toBeNull()
     expect(
       Array.from(verified!.newDigest),
       'verifier digest disagrees with the prover after the Remove',
-    ).toEqual(Array.from(digestAfter!))
+    ).toEqual(Array.from(digestAfter))
   })
 
   /** Narrow a node to InternalNode, failing with a useful message if it isn't. */
@@ -513,9 +510,8 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     const prover = buildFlushed([2, 4, 1, 3])
 
     const digestBefore = prover.digest()
-    expect(digestBefore).not.toBeNull()
     expect(
-      digestBefore![32],
+      digestBefore[32],
       'tree shape drifted — the double-left case needs a height-3 tree',
     ).toBe(3)
 
@@ -535,9 +531,8 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
 
     const proof = prover.generateProof()
     const digestAfter = prover.digest()
-    expect(digestAfter, 'prover has no digest after the Remove').not.toBeNull()
 
-    const verified = verifyAvlBatch(digestBefore!, proof, singleOpConfig, [op])
+    const verified = verifyAvlBatch(digestBefore, proof, singleOpConfig, [op])
     expect(
       verified,
       'verifier rejected the double-left-rotation Remove proof the prover produced',
@@ -545,7 +540,7 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     expect(
       Array.from(verified!.newDigest),
       'verifier digest disagrees with the prover after the double-left rotation',
-    ).toEqual(Array.from(digestAfter!))
+    ).toEqual(Array.from(digestAfter))
   })
 
   /**
@@ -576,9 +571,8 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     const prover = buildFlushed([3, 1, 4, 2])
 
     const digestBefore = prover.digest()
-    expect(digestBefore).not.toBeNull()
     expect(
-      digestBefore![32],
+      digestBefore[32],
       'tree shape drifted — the double-right case needs a height-3 tree',
     ).toBe(3)
 
@@ -595,9 +589,8 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
 
     const proof = prover.generateProof()
     const digestAfter = prover.digest()
-    expect(digestAfter, 'prover has no digest after the Remove').not.toBeNull()
 
-    const verified = verifyAvlBatch(digestBefore!, proof, singleOpConfig, [op])
+    const verified = verifyAvlBatch(digestBefore, proof, singleOpConfig, [op])
     expect(
       verified,
       'verifier rejected the double-right-rotation Remove proof the prover produced',
@@ -605,7 +598,7 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
     expect(
       Array.from(verified!.newDigest),
       'verifier digest disagrees with the prover after the double-right rotation',
-    ).toEqual(Array.from(digestAfter!))
+    ).toEqual(Array.from(digestAfter))
   })
 })
 
@@ -622,21 +615,18 @@ describe('BatchAVLProver.restoreRoot', () => {
       expect(r.success).toBe(true)
     }
     const srcDigest = src.digest()
-    expect(srcDigest).not.toBeNull()
 
     // Snapshot root and height.
     const savedRoot = src.root
     const savedHeight = src.height
-    expect(savedRoot).not.toBeNull()
     expect(savedHeight).toBeGreaterThan(0)
 
     // Restore into a fresh prover.
     const restored = new BatchAVLProver(32, null)
-    restored.restoreRoot(savedRoot!, savedHeight)
+    restored.restoreRoot(savedRoot, savedHeight)
 
     // Digest must match.
     const restoredDigest = restored.digest()
-    expect(restoredDigest).not.toBeNull()
     expect(restoredDigest).toEqual(srcDigest)
 
     // Perform an operation on the restored tree — must succeed.
@@ -652,9 +642,8 @@ describe('BatchAVLProver.restoreRoot', () => {
 
     // Generate a proof from the restored prover.
     const proof = restored.generateProof()
-    expect(proof).not.toBeNull()
     // Proof should be non-empty (at least one operation)
-    expect(proof!.length).toBeGreaterThan(0)
+    expect(proof.length).toBeGreaterThan(0)
   })
 
   it('allows lookup on restored tree', () => {
@@ -666,7 +655,7 @@ describe('BatchAVLProver.restoreRoot', () => {
     src.performOneOperation({ tag: 'Insert', key, value })
 
     const restored = new BatchAVLProver(32, null)
-    restored.restoreRoot(src.root!, src.height)
+    restored.restoreRoot(src.root, src.height)
 
     // Lookup must find the inserted key.
     expect(restored.unauthenticatedLookup(key)).toEqual(value)
@@ -697,7 +686,7 @@ describe('BatchAVLProver label cache lifecycle', () => {
     prover.generateProof()
     prover.digest() // populates every label in the tree
 
-    const cachedBefore = collectNodes(prover.root!).filter((n) => cacheOf(n) !== null)
+    const cachedBefore = collectNodes(prover.root).filter((n) => cacheOf(n) !== null)
     expect(cachedBefore.length).toBeGreaterThan(0)
 
     // The pre-fix clear was LAZY: generateProof() only set a flag, and the
@@ -712,7 +701,7 @@ describe('BatchAVLProver label cache lifecycle', () => {
     // rebuilds the root-to-insertion path, so nodes on it are legitimately
     // replaced by fresh ones with a null cache. Nodes off the path are shared
     // by reference and must keep their cached labels.
-    const reachableAfter = new Set(collectNodes(prover.root!))
+    const reachableAfter = new Set(collectNodes(prover.root))
     const survivors = cachedBefore.filter((n) => reachableAfter.has(n))
     expect(survivors.length).toBeGreaterThan(0) // guards against a vacuous filter
     for (const n of survivors) {
@@ -846,8 +835,7 @@ describe('BatchAVLProver height handling', () => {
     const prover = new BatchAVLProver(32, null)
     ;(prover as unknown as { _height: number })._height = 255
     const d = prover.digest()
-    expect(d).not.toBeNull()
-    expect(d![32]).toBe(255)
+    expect(d[32]).toBe(255)
   })
 
   // Number.isInteger is the clause the guard's own comment cites as its
@@ -886,9 +874,8 @@ describe('BatchAVLProver.digest root label validation', () => {
     const goodRoot = newLabel(new Uint8Array(32).fill(0xab))
     prover.restoreRoot(goodRoot, 3)
     const d = prover.digest()
-    expect(d).not.toBeNull()
-    expect(d!.length).toBe(33)
-    expect(Array.from(d!.slice(0, 32))).toEqual(Array(32).fill(0xab))
+    expect(d.length).toBe(33)
+    expect(Array.from(d.slice(0, 32))).toEqual(Array(32).fill(0xab))
   })
 })
 
@@ -906,9 +893,9 @@ describe('PersistentBatchAVLProver.rollback', () => {
     const key = new Uint8Array(32)
     key.fill(0x11)
     seed.performOneOperation({ tag: 'Insert', key, value: new Uint8Array([1]) })
-    const savedRoot = seed.root!
+    const savedRoot = seed.root
     const savedHeight = seed.height
-    const savedDigest = seed.digest()!
+    const savedDigest = seed.digest()
 
     const storage: VersionedAVLStorage = {
       update: () => {},

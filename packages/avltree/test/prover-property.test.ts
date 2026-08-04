@@ -86,7 +86,6 @@ function runWalk(seed: number, opCount: number): void {
   const model = new Map<string, Uint8Array>()
 
   const startingDigest = prover.digest()
-  expect(startingDigest).not.toBeNull()
 
   const applied: Operation[] = []
   const expectedOldValues: (Uint8Array | null)[] = []
@@ -118,9 +117,8 @@ function runWalk(seed: number, opCount: number): void {
 
   const proof = prover.generateProof()
   const finalDigest = prover.digest()
-  expect(finalDigest).not.toBeNull()
 
-  const verified = verifyAvlBatch(startingDigest!, proof, config, applied)
+  const verified = verifyAvlBatch(startingDigest, proof, config, applied)
   expect(verified, `seed=${seed}: verifier rejected a proof the prover produced`).not.toBeNull()
   expect(
     bytesEqual(verified!.newDigest, finalDigest),
@@ -167,7 +165,6 @@ function runPerOperationWalk(seed: number, opCount: number): void {
     const op = chooseOp(present, roll, key, i)
 
     const digestBefore = prover.digest()
-    expect(digestBefore, `seed=${seed} op#${i}: prover has no digest`).not.toBeNull()
 
     const before = model.get(hex) ?? null
     const result = prover.performOneOperation(op)
@@ -175,12 +172,8 @@ function runPerOperationWalk(seed: number, opCount: number): void {
 
     const proof = prover.generateProof()
     const digestAfter = prover.digest()
-    expect(
-      digestAfter,
-      `seed=${seed} op#${i} tag=${op.tag}: prover has no digest after the operation`,
-    ).not.toBeNull()
 
-    const verified = verifyAvlBatch(digestBefore!, proof, config, [op])
+    const verified = verifyAvlBatch(digestBefore, proof, config, [op])
     expect(
       verified,
       `seed=${seed} op#${i} tag=${op.tag}: verifier rejected the per-operation proof`,
