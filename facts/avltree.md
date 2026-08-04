@@ -8,7 +8,7 @@ The node-pack fixtures under `test/fixtures/node-pack/` were generated against
 the prior pin `2941396`; `pack` and `unpack` are byte-identical across the
 rebase to the fork's pre-Phase-E pin (per the fork-side session's
 verification — no diff hunk touches either function; their extracted bodies
-checksum identically), so no regeneration was needed.
+checksum identically), and this chain reaches `568e7c3` (pack/unpack byte-identical across the rebase), so no regeneration was needed.
 
 ## Scope
 
@@ -386,7 +386,7 @@ in use since.
 | `authenticated_tree_ops.rs::change_next_leaf_key_of_max_node` (446-461 @568e7c3) | `changeNextLeafKeyOfMaxNode` (`delete.ts`) | 1:1 port; traverses rightmost path to update `nextLeafKey` of the max node |
 | `authenticated_tree_ops.rs::change_key_and_value_of_min_node` (463-479 @568e7c3) | `changeKeyAndValueOfMinNode` (`delete.ts`) | 1:1 port; traverses leftmost path to promote in-order successor |
 | `authenticated_tree_ops.rs::digest` (133-149 @568e7c3) | `BatchAvlVerifier.digest()` (`batch-verifier.ts`) | 1:1 port; returns 32-byte root label `||` 1-byte height; height clamped to u8 via `& 0xff` |
-| `batch_node.rs::Node::label` (83-121, across LeafNode/InternalNode/LabelOnly branches @568e7c3) | `label` (`node.ts`) | Dispatch on `node.kind`; CRITICAL byte layout: LeafNode = `0x00 \|\| key \|\| value \|\| nextLeafKey`; InternalNode = `0x01 \|\| balance \|\| leftLabel \|\| rightLabel` (balance precedes child labels per `batch_node.rs:111-114` @568e7c3); LabelNode returns stored label directly. Internal-node children are labelled via an iterative walk (`Node::label_subtree` — called at `:100-109`, defined at `:130-157` @568e7c3) before the parent hashes them, not direct recursion — see "No throws on verification failures" for why the TS port's `label()` hasn't been made to match |
+| `batch_node.rs::Node::label` (83-121, across LeafNode/InternalNode/LabelOnly branches @568e7c3) | `label` (`node.ts`) | Dispatch on `node.kind`; CRITICAL byte layout: LeafNode = `0x00 \|\| key \|\| value \|\| nextLeafKey`; InternalNode = `0x01 \|\| balance \|\| leftLabel \|\| rightLabel` (balance precedes child labels per `batch_node.rs:111-114` @568e7c3); LabelNode returns stored label directly. Internal-node children are labelled via an iterative walk (`Node::label_subtree` — called at `:108-109`, defined at `:130-157` @568e7c3) before the parent hashes them, not direct recursion — see "No throws on verification failures" for why the TS port's `label()` hasn't been made to match |
 | `batch_node.rs::LeafNode::new` (347-353 @568e7c3) | `newLeaf` (`node.ts`) | 1:1 port; defensive copies on all byte args |
 | `batch_node.rs::InternalNode::new` (277-284 @568e7c3) | `newInternal` (`node.ts`) | 1:1 port; no defensive copy on children (object references; GC handles lifecycle) |
 | `batch_node.rs::Node::new_label` (211-216 @568e7c3) | `newLabel` (`node.ts`) | 1:1 port; defensive copy; RangeError if label !== 32 bytes |

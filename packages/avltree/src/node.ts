@@ -159,7 +159,7 @@ export function newLabel(label: Uint8Array): LabelNode {
  *   LeafNode:   blake2b256(0x00 || key || value || nextLeafKey)
  *                 — Rust: hasher.update([0u8]), key, value, next_node_key (lines 90-94 @568e7c3)
  *   Internal:   blake2b256(0x01 || balance || leftLabel || rightLabel)
- *                 — Rust: hasher.update([1u8]), [balance as u8], left.label(), right.label() (lines 110-114 @568e7c3)
+ *                 — Rust: hasher.update([1u8]), [balance as u8], left/right get_label() — children pre-labelled iteratively by Node::label_subtree (:108-109 @568e7c3)
  *                 — NOTE: balance comes BEFORE the child labels, not after.
  *                   The PLAN.md spec had this wrong (said leftLabel || rightLabel || balance).
  *                   Source is authoritative.
