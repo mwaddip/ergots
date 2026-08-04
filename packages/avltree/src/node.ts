@@ -2,8 +2,11 @@
  * AVL+ tree node types, constructors, and blake2b-256 label computation.
  *
  * Ports batch_node.rs::Node (enum) + LeafNode / InternalNode / LabelOnly structs
- * (33-52 @568e7c3; constructors cited per-function below) and Node::label()
- * (83-121 @568e7c3).
+ * (33-52 @568e7c3; constructors cited per-function below), Node::label()
+ * (83-121 @568e7c3), Node::get_label() (79-81 @568e7c3, as `cachedLabel`),
+ * and Node::label_subtree (130-157 @568e7c3, as `labelSubtree`) — the
+ * iterative walk that keeps label()'s Internal arm off the native call
+ * stack (deep-spine hardening; ports the reference's `b785d0d` fix).
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_node.rs
  */
@@ -149,6 +152,84 @@ export function newLabel(label: Uint8Array): LabelNode {
 // ---------------------------------------------------------------------------
 
 /**
+ * Memoises the label of every node in the subtree rooted at `root` using an
+ * explicit heap-allocated stack, so traversal cost is heap, not native call
+ * stack.
+ *
+ * Ports batch_node.rs::Node::label_subtree (130-157 @568e7c3), called from
+ * label()'s Internal arm — mirrors the reference's own call sites at
+ * :108-109 @568e7c3. A verifier's tree comes from proof bytes, so before
+ * this fix a crafted deep spine could exhaust the native stack computing
+ * labels (an abort, not a catchable panic) before any operation ran; the
+ * reference closed this in commit `b785d0d`, and this is that port.
+ *
+ * Nodes that already carry a label are skipped — the walk stops exactly at
+ * the memo boundary the old recursive version stopped at. `label()` is only
+ * ever called here on a node whose children are already labelled (an
+ * internal node is re-pushed with `childrenDone = true` only after both
+ * children have themselves been popped and processed by this same loop),
+ * so every `label()` call this function makes computes without descending
+ * further.
+ */
+function labelSubtree(root: AvlNode): void {
+  // (node, childrenAlreadyProcessed) — mirrors the Rust `(NodeId, bool)` stack.
+  const stack: Array<[AvlNode, boolean]> = [[root, false]]
+  while (stack.length > 0) {
+    const [node, childrenDone] = stack.pop()!
+
+    // Memo boundary: a label-only stub carries its digest already; a
+    // populated labelCache means an earlier iteration already labelled
+    // this node. Two sequential checks (not a combined `||`) so the
+    // discriminant narrowing each establishes survives into the code that
+    // follows — see node.ts's own label() for the same pattern.
+    if (node.kind === 'label') continue
+    if (node.labelCache !== null) continue
+
+    if (childrenDone) {
+      // Both children were scheduled (and, by the memo-boundary checks
+      // above, are now labelled) by the branch below on an earlier pop of
+      // this same node — label() reads cache hits only from here.
+      label(node)
+      continue
+    }
+    if (node.kind === 'leaf') {
+      // Self-contained — no children to schedule first.
+      label(node)
+      continue
+    }
+    // Internal, children not yet scheduled: push self (to revisit once
+    // children are done), then right, then left. Pop order is therefore
+    // left-first, matching the reference — cosmetic, since label()'s
+    // Internal-arm hash input never depends on the ORDER children are
+    // computed in, only their values (see label()'s JSDoc above).
+    stack.push([node, true], [node.right, false], [node.left, false])
+  }
+}
+
+/**
+ * Returns a node's already-memoised label, throwing if it has none.
+ *
+ * Ports batch_node.rs::Node::get_label() (79-81 @568e7c3) —
+ * `self.hdr().label.unwrap()`, a PANICKING read used only where the caller
+ * has already guaranteed the node is labelled. label()'s Internal arm is
+ * the sole caller here, always immediately after `labelSubtree(node.left)`
+ * / `labelSubtree(node.right)` have returned — so under a correct
+ * `labelSubtree` this never throws. A throw means `labelSubtree` left a
+ * node unlabelled: an invariant violation inside this module, not a
+ * caller-input problem, so it fails loudly here instead of silently
+ * falling back into label()'s own (recursive) compute path one level down.
+ *
+ * Returns a defensively-sliced copy — same contract as `label()` itself.
+ */
+function cachedLabel(node: AvlNode): Uint8Array {
+  if (node.kind === 'label') return node.label.slice()
+  if (node.labelCache !== null) return node.labelCache.slice()
+  throw new Error(
+    'cachedLabel: node has no cached label — labelSubtree should have labelled it first',
+  )
+}
+
+/**
  * Compute the 32-byte blake2b-256 label for a node.
  *
  * Ports batch_node.rs::Node::label() (lines 83-121 @568e7c3).
@@ -165,6 +246,20 @@ export function newLabel(label: Uint8Array): LabelNode {
  *                   Source is authoritative.
  *
  * Balance encoding: i8 → u8 via `& 0xff` (-1 → 0xff, 0 → 0x00, 1 → 0x01).
+ *
+ * ITERATIVE SUBTREE LABELING (deep-spine hardening): the Internal arm does
+ * not recurse into its children directly. It calls the module-private
+ * `labelSubtree` helper on `node.left` and `node.right` first — an explicit
+ * heap-allocated-stack walk, ports `Node::label_subtree` (130-157 @568e7c3),
+ * called from the reference at :108-109 — then reads the now-memoised
+ * labels back via `cachedLabel` (ports the panicking `Node::get_label()`,
+ * 79-81 @568e7c3). A verifier's tree comes from proof bytes, so a crafted
+ * deep spine used to be able to exhaust the native call stack computing
+ * labels (an abort, not a catchable panic) before any operation ran; this
+ * closes that exposure, matching the reference's own `b785d0d` fix.
+ * Traversal cost is heap, not stack; call-stack depth stays bounded to a
+ * small constant regardless of tree depth. See `label-deep-spine.test.ts`
+ * and `docs/superpowers/specs/2026-08-04-avltree-label-iterative-design.md`.
  *
  * Result is memoised in `node.labelCache` (null on a freshly constructed node).
  * Nodes must not be mutated — operations build new nodes instead of editing
@@ -196,8 +291,16 @@ export function label(node: AvlNode): Uint8Array {
     // Internal: 0x01 || balance || leftLabel || rightLabel
     // Rust batch_node.rs lines 100-119 @568e7c3: Node::Internal branch of Node::label()
     // IMPORTANT: balance precedes child labels (not follows — see JSDoc above).
-    const leftLbl = label(node.left)
-    const rightLbl = label(node.right)
+    // Children are labelled iteratively (heap stack, not native recursion)
+    // BEFORE reading them back — ports the Node::label_subtree calls at
+    // :108-109 @568e7c3. cachedLabel (ports the panicking get_label(),
+    // :79-81 @568e7c3) reads the now-populated cache; a labelSubtree bug
+    // that left a child unlabelled fails loudly here instead of silently
+    // falling back to recursion.
+    labelSubtree(node.left)
+    labelSubtree(node.right)
+    const leftLbl = cachedLabel(node.left)
+    const rightLbl = cachedLabel(node.right)
     // Signed i8 → unsigned 8-bit byte: -1 → 0xff, 0 → 0x00, 1 → 0x01
     const balanceByte = new Uint8Array([node.balance & 0xff])
     const input = concatBytes([

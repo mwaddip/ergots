@@ -1,29 +1,42 @@
 /**
- * Documents the single engine-level carve-out from the verifier's no-throw
- * contract: resource exhaustion on a pathologically deep proof.
+ * Regression coverage for the label-path stack-overflow exposure that this
+ * package used to share with the pre-`b785d0d` reference — CLOSED as of
+ * this task — plus the digest-mismatch behavior a deep-but-otherwise-valid
+ * proof gets now that decoding no longer overflows.
  *
  * A packed proof encoding a deep left spine — `LEAF` then depth ×
  * (`LABEL`, `INTERNAL` balance 0) — decodes fine (reconstruction is an
- * explicit-stack loop, `proof-decode.ts:200-206`), but the constructor's digest
- * check calls `label(root)` (`proof-decode.ts:297`), which recurses once per
- * internal level (`node.ts:196`). Past an engine-dependent depth the
- * recursion overflows the JS call stack and a `RangeError` ("Maximum call
- * stack size exceeded" on V8) escapes `verifyAvlBatch` — resource
- * exhaustion, not a verification verdict.
+ * explicit-stack loop, `proof-decode.ts:200-206`); the constructor's digest
+ * check then calls `label(root)` (`proof-decode.ts:297`). Before this task,
+ * `label()`'s Internal arm recursed directly into its children once per
+ * tree level (`node.ts`), and past an engine-dependent depth that recursion
+ * overflowed the JS call stack — a `RangeError` ("Maximum call stack size
+ * exceeded" on V8) escaped `verifyAvlBatch` as resource exhaustion, not a
+ * verification verdict. This was documented as the verifier's single
+ * engine-level carve-out from its no-throw contract (`facts/avltree.md`,
+ * "No throws on verification failures").
  *
- * This is deliberately NOT converted to a `null` rejection (see
- * `facts/avltree.md`, "No throws on verification failures" carve-out):
+ * This task closed it: `label()`'s Internal arm now labels its children via
+ * the module-private `labelSubtree` helper — an explicit heap-allocated
+ * stack, ports `Node::label_subtree` (`batch_node.rs:130-157 @568e7c3`) —
+ * instead of recursing directly, matching the reference's own `b785d0d`
+ * fix. See `node.ts`'s `label()` JSDoc and
+ * `docs/superpowers/specs/2026-08-04-avltree-label-iterative-design.md`.
+ * Test 1 below now asserts the closure directly: the same depth-100,000
+ * spine that used to overflow now decodes cleanly and reports an ordinary
+ * digest-mismatch `null` — never a throw.
  *
- *  - `ergo_avltree_rust`'s `label` used to recurse the same way
- *    (`batch_node.rs`) and its process aborted on stack exhaustion too; the
- *    crate has SINCE been fixed to label subtrees iteratively via an
- *    explicit heap-allocated stack (`Node::label_subtree`, `batch_node.rs`),
- *    closing its own exposure — this package's `label()` (`node.ts`) has
- *    not been made iterative to match. On the JVM, scrypto's
- *    `BatchAVLVerifier` wraps replay in `scala.util.Try`, which catches
- *    `NonFatal` only — `StackOverflowError` is a `VirtualMachineError` and
- *    escapes, so the JVM path — the canonical semantic reference — still
- *    shares this exposure.
+ * This is NOT a claim that every recursive walk in this package is now
+ * stack-bounded — only the label/digest-check path. `modifyHelper` /
+ * `deleteHelper`'s per-operation descent (`modify.ts` / `delete.ts`) and
+ * several prover-side walks (`containsLabel`, `packTree`, `deepCloneNode`,
+ * `lookupWalk`, `removedNodes`' walk) are each independently recursive and
+ * untouched by this task — see the design spec's "Out of scope" section;
+ * they remain candidates for the whole-branch review. The reference's own
+ * `b785d0d` fix was likewise label-only, so its `modify_helper` /
+ * `delete_helper` recursion is presumably unchanged, and the JVM context
+ * below still applies to that residual surface:
+ *
  *  - No reference-corroborated bound exists to reject deep proofs earlier:
  *    the JVM script-eval path constructs its verifier with NO
  *    `maxNumOperations` (sigmastate-interpreter
@@ -32,14 +45,21 @@
  *    `savltree.ts`. A TS-side cap would be an invented limit: if the
  *    reference's differently-sized stack survives a depth we reject, that
  *    is an accept/reject fork on the consensus path — worse than the crash
- *    it prevents.
+ *    it prevents. On the JVM, scrypto's `BatchAVLVerifier` wraps replay in
+ *    `scala.util.Try`, which catches `NonFatal` only — `StackOverflowError`
+ *    is a `VirtualMachineError` and escapes, so the JVM path — the
+ *    canonical semantic reference — still shares whatever recursion-depth
+ *    exposure remains on the non-label surfaces above.
  *
- * Callers feeding untrusted proofs who need crash-isolation have two
- * contract-sanctioned options: set `config.maxNumOperations` (activates the
- * pre-reconstruction node-count bound — the configuration ergo-node-rust
- * uses) or catch `RangeError` at their own boundary.
+ * Callers feeding untrusted proofs who need crash-isolation on those
+ * residual surfaces still have two contract-sanctioned options: set
+ * `config.maxNumOperations` (activates the pre-reconstruction node-count
+ * bound — the configuration ergo-node-rust uses) or catch `RangeError` at
+ * their own boundary.
  *
  * @see facts/avltree.md — "No throws on verification failures"
+ * @see packages/avltree/test/label-deep-spine.test.ts — the direct,
+ *      unit-level `label()` regression for the same fix
  * @see .superpowers/sdd/2026-08-02-avltree-phase-b-prover-engine/task-6c-report.md
  *      ("Sweep finding, NOT fixed: unbounded recursion escapes as RangeError")
  */
@@ -66,8 +86,9 @@ const LABEL_FILL = 0x11
  * `LEAF`, then depth × (`LABEL`, `INTERNAL` balance 0), then END_OF_TREE.
  * Each INTERNAL token pops right = the just-pushed LABEL and left = the
  * subtree so far (`proof-decode.ts:281-283`), so the spine grows down the
- * LEFT — the side `label()` recurses into first. No direction bytes: no
- * operation runs in these tests. 4 + 34·depth + 1 bytes.
+ * LEFT — the side `label()` walks first (via `labelSubtree`; pre-fix, via
+ * direct recursion). No direction bytes: no operation runs in these tests.
+ * 4 + 34·depth + 1 bytes.
  */
 function buildSpineProof(depth: number): Uint8Array {
   const out = new Uint8Array(4 + 34 * depth + 1)
@@ -88,10 +109,13 @@ function buildSpineProof(depth: number): Uint8Array {
 
 /**
  * Correct 33-byte starting digest for the same spine, built through the
- * public node constructors. Construction is iterative; the final `label()`
- * call recurses `depth` frames, so callers must stay under the engine
- * threshold (the control test's depth 1000 does — the 6c probe measured the
- * overflow boundary between depth 1e3 and 1e4 under plain Node).
+ * public node constructors. Construction is iterative, and — since this
+ * task's iterative `labelSubtree` port — so is the final `label()` call: it
+ * no longer costs a native stack frame per level (pre-fix, callers had to
+ * stay under the engine threshold; the 6c probe measured the overflow
+ * boundary between depth 1e3 and 1e4 under plain Node). Depth 1000 here is
+ * now just a convenient sub-threshold-proof-size control, not a value
+ * chosen to dodge overflow.
  * The height byte is unread on this config path: the digest check compares
  * only the first 32 bytes (`proof-decode.ts:296-302`), and without
  * `maxNumOperations` no node bound consults the height.
@@ -111,31 +135,28 @@ function buildSpineDigest(depth: number, heightByte: number): Uint8Array {
   return digest
 }
 
-describe('engine-level resource exhaustion — the single no-throw carve-out', () => {
-  it('a pathologically deep spine proof escapes as a RangeError, not a null rejection', () => {
-    // 100_000 levels ≈ 3.4 MB of proof. label() needs one stack frame per
-    // level. This package's vitest configs use pool: 'forks' (child-process
-    // main thread, V8 default ≈ 1 MB stack — overflow measured near depth
-    // 6.3e3); a worker-threads pool would default to a 4 MB stack (overflow
-    // near 2.5e4). Surviving 100k frames would need ≈ 16 MB of stack, which
-    // no default engine or pool configuration provides.
+describe('label-path stack exhaustion — closed by iterative subtree labeling', () => {
+  it('a pathologically deep spine proof no longer overflows the stack — it decodes and reports a clean digest mismatch', () => {
+    // 100_000 levels ≈ 3.4 MB of proof. PRE-fix, label() needed one native
+    // stack frame per level and this depth reliably overflowed (this
+    // package's vitest configs use pool: 'forks' — V8 default ≈ 1 MB stack,
+    // overflow measured near depth 6.3e3; see the top-of-file comment for
+    // the fix). POST-fix, label()'s Internal arm labels children via the
+    // iterative labelSubtree helper — heap, not native stack — so depth no
+    // longer costs a stack frame on this path.
     const proof = buildSpineProof(100_000)
-    // Starting digest content is irrelevant here: the overflow fires while
-    // COMPUTING label(root) for the comparison, before any byte is compared.
+    // Starting digest deliberately does NOT match the spine's real label
+    // (all-zero vs. a blake2b-256 chain). This proves the decode path
+    // itself now runs to completion (no throw) and falls through to the
+    // ordinary digest-mismatch failure — not a vacuous "didn't get far
+    // enough to compare" pass.
     const startingDigest = new Uint8Array(33)
 
-    let caught: unknown
-    try {
-      verifyAvlBatch(startingDigest, proof, SPINE_CONFIG, [])
-    } catch (e) {
-      caught = e
-    }
-    // Anchored to both the class and the stack-overflow message (V8 says
-    // "Maximum call stack size exceeded", SpiderMonkey "too much recursion")
-    // so this cannot pass via newLabel's unrelated RangeError or any
-    // AvlVerifyError.
-    expect(caught, 'expected the deep spine to overflow the stack').toBeInstanceOf(RangeError)
-    expect(String(caught)).toMatch(/call stack|too much recursion/i)
+    let result: ReturnType<typeof verifyAvlBatch> | undefined
+    expect(() => {
+      result = verifyAvlBatch(startingDigest, proof, SPINE_CONFIG, [])
+    }).not.toThrow()
+    expect(result).toBeNull()
   })
 
   it('the same shape at depth 1000 with a matching digest is accepted — depth, not shape, is the trigger', () => {

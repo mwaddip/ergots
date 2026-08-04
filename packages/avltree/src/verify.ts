@@ -135,8 +135,19 @@ export function verifyAvlBatchPartial(
  * inconsistency). Verification failures are untrusted-input rejections and
  * are intentionally NOT thrown — callers can treat `null` as "proof invalid".
  *
- * One engine-level carve-out: a pathologically deep proof spine can overflow
- * the call stack during the constructor's digest check and escape as a
+ * The constructor's digest check used to be a second source of engine-level
+ * `RangeError`s here — a pathologically deep proof spine could overflow the
+ * call stack computing `label(root)` for the starting-digest comparison.
+ * That is CLOSED as of this package's `0.4.0` line: `label()`'s Internal
+ * arm now labels subtrees iteratively (`labelSubtree`, an explicit
+ * heap-allocated stack) instead of recursing, so a deep spine decodes
+ * cleanly and, absent a matching digest, returns an ordinary `null`.
+ *
+ * One engine-level carve-out remains: when `operations` is non-empty,
+ * applying an operation walks the tree via `modifyHelper` / `deleteHelper`
+ * (`modify.ts` / `delete.ts`), which are each independently recursive — a
+ * proof deep enough, combined with an operation that descends deep into
+ * it, can still overflow the call stack there and escape as a
  * `RangeError` — resource exhaustion, not a verdict. Treat a caught
  * `RangeError` as INDETERMINATE (abort or propagate); never record it as
  * "proof invalid". See "No throws on verification failures" in
@@ -161,8 +172,12 @@ export function verifyAvlBatchPartial(
  * @param operations      Ordered list of operations to apply.
  * @returns               `{ newDigest, results }` on success, `null` on failure.
  * @throws AvlVerifyError on programmer-error inputs.
- * @throws RangeError on a pathologically deep proof (stack exhaustion —
- *                    indeterminate, see the carve-out above).
+ * @throws RangeError on a pathologically deep proof whose operations descend
+ *                    deep into it (stack exhaustion on the per-operation
+ *                    tree walk — indeterminate, see the carve-out above).
+ *                    The construction-time digest-check recursion this tag
+ *                    used to also cover is closed as of this package's
+ *                    `0.4.0` line.
  */
 export function verifyAvlBatch(
   startingDigest: Uint8Array,
