@@ -56,8 +56,8 @@ export type ProverOperationResult =
  */
 export class BatchAVLProver {
   // Tree state
-  root: AvlNode
-  height = 0
+  private _root: AvlNode
+  private _height = 0
   readonly keyLength: number
   readonly valueLengthOpt: number | null
   /** All-zero key, the exclusive lower bound. Depends only on keyLength. */
@@ -75,7 +75,7 @@ export class BatchAVLProver {
 
   // Operation state (batch_avl_prover.rs:40-43 @568e7c3)
   private found = false
-  oldTopNode: AvlNode
+  private _oldTopNode: AvlNode
 
   // Modified nodes for proof generation (Rust: modified_nodes map, kept
   // separate from the per-node visited/is_new flags —
@@ -108,9 +108,9 @@ export class BatchAVLProver {
     // (b) avoids calling an overridable public method from the constructor;
     // (c) matches Rust's BatchAVLProver::new, which does not call restore_root
     //     (batch_avl_prover.rs @568e7c3).
-    this.root = newLeaf(this.negInfKey, dummyValue, this.posInfKey)
-    this.height = 0 // single leaf has height 0
-    this.oldTopNode = this.root
+    this._root = newLeaf(this.negInfKey, dummyValue, this.posInfKey)
+    this._height = 0 // single leaf has height 0
+    this._oldTopNode = this._root
   }
 
   // -------------------------------------------------------------------------
@@ -127,18 +127,50 @@ export class BatchAVLProver {
    * Ports batch_avl_prover.rs `restore_root` (86-107 @568e7c3).
    */
   restoreRoot(root: AvlNode, height: number): void {
-    this.root = root
-    this.height = height
+    this._root = root
+    this._height = height
 
     // Drop stale dirty-node bookkeeping from any previous proof cycle.
     this.modifiedNodes = new Set()
 
     // Rebase the proof baseline to the freshly-restored root.
-    this.oldTopNode = root
+    this._oldTopNode = root
 
     // Clear accumulated directions from any prior (possibly failed) cycle.
     this.directions = []
     this.directionsBitLength = 0
+  }
+
+  // -------------------------------------------------------------------------
+  // Public accessors — root/height/oldTopNode are read-only from outside the
+  // class; restoreRoot() above is the one sanctioned write path.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Current tree root. Read-only: direct external assignment would silently
+   * desync the proof cycle (`oldTopNode` vs `root`) and yield wrong proofs.
+   * `restoreRoot(root, height)` is the one sanctioned way to install external
+   * state (startup resume, snapshot bootstrap, recovery rollback).
+   */
+  get root(): AvlNode {
+    return this._root
+  }
+
+  /**
+   * Current tree height. Read-only for the same reason as `root` — see its
+   * JSDoc and `restoreRoot`.
+   */
+  get height(): number {
+    return this._height
+  }
+
+  /**
+   * Root as of the last proof-cycle boundary (construction, `restoreRoot`,
+   * or `generateProof`). Read-only for the same reason as `root` — see its
+   * JSDoc and `restoreRoot`.
+   */
+  get oldTopNode(): AvlNode {
+    return this._oldTopNode
   }
 
   // -------------------------------------------------------------------------
@@ -287,7 +319,7 @@ export class BatchAVLProver {
 
     // Phase 1: modifyHelper (authenticated_tree_ops.rs:272-273 @568e7c3)
     const callbacks = this.buildCallbacks(op)
-    const modifyResult = modifyHelper(this.root, op, callbacks)
+    const modifyResult = modifyHelper(this._root, op, callbacks)
     if (!modifyResult.ok) {
       // Rollback directions (batch_avl_prover.rs:127-139 @568e7c3)
       const oldByteLength = (this.replayIndex + 7) >> 3
@@ -318,8 +350,8 @@ export class BatchAVLProver {
           `BatchAVLProver: deleteHelper reported failure (${deleteResult.reason}), which cannot happen for a prover — the shared engine is in an inconsistent state`,
         )
       }
-      this.root = deleteResult.newSubtreeRoot
-      this.height = this.applyHeightDelta(deleteResult.heightDelta)
+      this._root = deleteResult.newSubtreeRoot
+      this._height = this.applyHeightDelta(deleteResult.heightDelta)
       // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
       // label input); handing it out uncopied lets a caller corrupt cached labels
       // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
@@ -327,8 +359,8 @@ export class BatchAVLProver {
     }
 
     // No delete
-    this.root = modifyResult.newSubtreeRoot
-    this.height = this.applyHeightDelta(modifyResult.heightDelta)
+    this._root = modifyResult.newSubtreeRoot
+    this._height = this.applyHeightDelta(modifyResult.heightDelta)
     // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
     // label input); handing it out uncopied lets a caller corrupt cached labels
     // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
@@ -343,10 +375,10 @@ export class BatchAVLProver {
    * a negative result means the engine miscounted, which is a bug to report.
    */
   private applyHeightDelta(delta: number): number {
-    const next = this.height + delta
+    const next = this._height + delta
     if (next < 0) {
       throw new Error(
-        `BatchAVLProver: height delta ${delta} would take height ${this.height} negative — the mutation engine returned an inconsistent result`,
+        `BatchAVLProver: height delta ${delta} would take height ${this._height} negative — the mutation engine returned an inconsistent result`,
       )
     }
     return next
@@ -359,7 +391,9 @@ export class BatchAVLProver {
   /**
    * Current 33-byte digest (root label || height). Throws `RangeError` in
    * three cases: (1) the root has been forced to `null` by a type-unsafe
-   * caller — reachable only via a direct cast on `root` itself, since
+   * caller — reachable only via a direct cast on the private `_root`
+   * backing field (e.g. `(prover as unknown as { _root: AvlNode | null
+   * })._root = null`), since `root` itself is a getter with no setter and
    * `restoreRoot`'s parameter is typed non-nullable and cannot carry `null`
    * without its own cast; (2) the tree height is outside `0..=255` —
    * reachable via a `restoreRoot`-installed height, an unchecked `number`;
@@ -377,7 +411,7 @@ export class BatchAVLProver {
     // precedent: the height/label RangeError guards below). Rust returns Option
     // here only because prover+verifier share one AVLTree struct — separate
     // classes make non-null the faithful shape (see facts/avltree.md).
-    if ((this.root as AvlNode | null) === null) {
+    if ((this._root as AvlNode | null) === null) {
       throw new RangeError('BatchAVLProver.digest: root is null — tree invariant violated by a type-unsafe caller')
     }
     // Rust asserts height < 256 (authenticated_tree_ops.rs::digest). The bound
@@ -385,12 +419,12 @@ export class BatchAVLProver {
     // are atoms on Earth — so reaching it means the height counter is wrong.
     // Masking with & 0xff would emit a plausible but incorrect 33-byte digest,
     // which is a consensus fault rather than a local error.
-    if (!Number.isInteger(this.height) || this.height < 0 || this.height > 255) {
+    if (!Number.isInteger(this._height) || this._height < 0 || this._height > 255) {
       throw new RangeError(
-        `BatchAVLProver.digest: tree height ${this.height} is outside the encodable range 0..255`,
+        `BatchAVLProver.digest: tree height ${this._height} is outside the encodable range 0..255`,
       )
     }
-    const rootLabel = label(this.root)
+    const rootLabel = label(this._root)
     // Same defect class as the storage codec's child-label guard: out.set()
     // zero-pads a short array, so an undersized root digest would produce a
     // plausible but wrong 33-byte result. newLabel enforces the length, but a
@@ -402,7 +436,7 @@ export class BatchAVLProver {
     }
     const out = new Uint8Array(DIGEST_LENGTH + 1)
     out.set(rootLabel, 0)
-    out[DIGEST_LENGTH] = this.height
+    out[DIGEST_LENGTH] = this._height
     return out
   }
 
@@ -415,7 +449,7 @@ export class BatchAVLProver {
    * if absent. Does not record directions or touch modified-nodes tracking.
    */
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null {
-    return this.lookupWalk(this.root, key)
+    return this.lookupWalk(this._root, key)
   }
 
   /**
@@ -505,7 +539,7 @@ export class BatchAVLProver {
       }
     }
 
-    packTree(this.oldTopNode)
+    packTree(this._oldTopNode)
 
     // End of tree marker (batch_avl_prover.rs:243 @568e7c3)
     parts.push(new Uint8Array([END_OF_TREE_IN_PACKAGED_PROOF]))
@@ -529,7 +563,7 @@ export class BatchAVLProver {
     this.modifiedNodes = new Set()
     this.directions = []
     this.directionsBitLength = 0
-    this.oldTopNode = this.root
+    this._oldTopNode = this._root
 
     // Concatenate all parts
     const totalLen = parts.reduce((n, p) => n + p.length, 0)
@@ -573,9 +607,9 @@ export class BatchAVLProver {
     operations: Operation[],
   ): { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false } {
     // Clone the tree (deep copy nodes)
-    const cloneRoot = this.deepCloneNode(this.root)
+    const cloneRoot = this.deepCloneNode(this._root)
     const clonedProver = new BatchAVLProver(this.keyLength, this.valueLengthOpt)
-    clonedProver.restoreRoot(cloneRoot, this.height)
+    clonedProver.restoreRoot(cloneRoot, this._height)
 
     for (const op of operations) {
       const result = clonedProver.performOneOperation(op)
@@ -623,13 +657,13 @@ export class BatchAVLProver {
       // Unvisited ⇒ subtree untouched this cycle ⇒ shared with the current
       // tree by structural sharing ⇒ nothing under it was removed.
       if (!this.modifiedNodes.has(node)) return
-      if (!containsLabel(this.root, node)) out.push(node)
+      if (!containsLabel(this._root, node)) out.push(node)
       if (node.kind === 'internal') {
         walk(node.left)
         walk(node.right)
       }
     }
-    walk(this.oldTopNode)
+    walk(this._oldTopNode)
     return out
   }
 

@@ -832,19 +832,19 @@ describe('BatchAVLProver height handling', () => {
     const prover = new BatchAVLProver(32, null)
     // Set height directly — building a real tree of this depth is infeasible,
     // which is exactly why Rust treats the bound as an assertion.
-    ;(prover as unknown as { height: number }).height = 256
+    ;(prover as unknown as { _height: number })._height = 256
     expect(() => prover.digest()).toThrow(RangeError)
   })
 
   it('throws on a negative height', () => {
     const prover = new BatchAVLProver(32, null)
-    ;(prover as unknown as { height: number }).height = -1
+    ;(prover as unknown as { _height: number })._height = -1
     expect(() => prover.digest()).toThrow(RangeError)
   })
 
   it('still produces a digest at the maximum valid height', () => {
     const prover = new BatchAVLProver(32, null)
-    ;(prover as unknown as { height: number }).height = 255
+    ;(prover as unknown as { _height: number })._height = 255
     const d = prover.digest()
     expect(d).not.toBeNull()
     expect(d![32]).toBe(255)
@@ -855,14 +855,14 @@ describe('BatchAVLProver height handling', () => {
   // are both rejected by the plain `< 0 || > 255` range check alone. A bare
   // range check does not reject NaN or an in-range fractional value — both
   // comparisons are false for NaN, and 3.5 sits inside [0, 255]. Without the
-  // guard, `out[DIGEST_LENGTH] = this.height` would coerce via Uint8Array's
+  // guard, `out[DIGEST_LENGTH] = this._height` would coerce via Uint8Array's
   // ToUint8: NaN → byte 0, 3.5 → byte 3 — a silently wrong digest, not a
   // thrown error. (Infinity/-Infinity are included for direct regression
   // coverage; see the discrimination check in task-4-report.md for why they
   // don't specifically exercise this clause.)
   it.each([NaN, Infinity, -Infinity, 3.5])('throws on a non-integer height (%s)', (badHeight) => {
     const prover = new BatchAVLProver(32, null)
-    ;(prover as unknown as { height: number }).height = badHeight
+    ;(prover as unknown as { _height: number })._height = badHeight
     expect(() => prover.digest()).toThrow(RangeError)
   })
 })
@@ -895,7 +895,7 @@ describe('BatchAVLProver.digest root label validation', () => {
 describe('BatchAVLProver.digest root-null invariant guard', () => {
   it('digest() throws a legible invariant error if root is forcibly nulled', () => {
     const prover = new BatchAVLProver(32, null)
-    ;(prover as unknown as { root: unknown }).root = null // type-unsafe caller
+    ;(prover as unknown as { _root: unknown })._root = null // type-unsafe caller
     expect(() => prover.digest()).toThrow(/root is null/)
   })
 })

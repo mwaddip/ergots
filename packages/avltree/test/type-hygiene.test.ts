@@ -41,3 +41,17 @@ describe('type hygiene probes (C2 + C3)', () => {
     expect(typeof probe).toBe('function')
   })
 })
+
+describe('type hygiene probes (BatchAVLProver getters)', () => {
+  it('root/height/oldTopNode are get-only — restoreRoot is the one write path', () => {
+    const probe = (prover: BatchAVLProver, other: AvlNode): void => {
+      // @ts-expect-error root has no setter — restoreRoot(root, height) is the sanctioned write path
+      prover.root = other
+      // @ts-expect-error height has no setter — restoreRoot(root, height) is the sanctioned write path
+      prover.height = 1
+      // @ts-expect-error oldTopNode has no setter — restoreRoot(root, height) is the sanctioned write path
+      prover.oldTopNode = other
+    }
+    expect(typeof probe).toBe('function')
+  })
+})
