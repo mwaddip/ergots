@@ -372,6 +372,7 @@ All three are unreachable through this API's own operations alone. The height an
 - **Purity:** pure and idempotent — mid-batch calls are allowed, return the diff as of the current tree, and do not perturb later calls. The order of returned nodes is unspecified; treat the result as a set.
 - **Live nodes — do not mutate:** the returned nodes are the prover's own tree objects, not copies. Derive storage keys via the exported `label()` function rather than reading a node field directly.
 - **First-cycle sentinel:** the never-persisted sentinel leaf of a freshly constructed prover is reported as removed on the first mutating cycle (reference parity). Storage backends must tolerate deleting rows that were never written.
+- **Throws:** a plain `Error` (not `AvlVerifyError`) on a key-less candidate or descent node — reachable only via an invariant-violating `restoreRoot` tree; see `facts/avltree.md`'s invariant-throws bullet.
 
 See `facts/avltree.md`'s `removedNodes()` divergence table for the deliberate differences from `ergo_avltree_rust`'s `removed_nodes`.
 

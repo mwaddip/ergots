@@ -608,6 +608,10 @@ export class BatchAVLProver {
    * exported `label()`. The never-persisted first-cycle sentinel leaf is
    * reported on the first mutating cycle (reference parity) — storage must
    * tolerate deleting absent rows.
+   *
+   * Throws a plain `Error` (not `AvlVerifyError`) on a key-less candidate or
+   * descent node — reachable only via an invariant-violating `restoreRoot`
+   * tree; see facts/avltree.md's invariant-throws bullet.
    */
   removedNodes(): AvlNode[] {
     const out: AvlNode[] = []
