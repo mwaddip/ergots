@@ -382,7 +382,7 @@ function hardDeleteLeftDescent(
   // Rust lines 578-599: prepare the new root for the rebalance step.
   let newRoot: InternalNode
   if (direction === 0) {
-    // Rust lines 522-534. Take saved_node — the leaf that bottomed-out on
+    // Rust lines 583-585 @568e7c3. Take saved_node — the leaf that bottomed-out on
     // the deleteMax descent. We need its key and value.
     const savedLeaf = saved.node
     if (savedLeaf === null) {
