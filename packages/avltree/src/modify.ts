@@ -56,8 +56,8 @@ import type { AvlVerifyFailReason } from './errors.js'
  * for the recursive rebalance branch: when no change happened the parent
  * returns its original node without creating a new internal node.
  *
- * `needsDelete` mirrors Rust's `to_delete` flag (authenticated_tree_ops.rs:234,
- * lines 288, 351, 377). When true, the leaf at the matching key must be removed
+ * `needsDelete` mirrors Rust's `to_delete` flag (authenticated_tree_ops.rs lines
+ * 328, 397, 423 @568e7c3). When true, the leaf at the matching key must be removed
  * by the caller via `deleteHelper` (T16). The caller (`return_result_of_one_operation`
  * in T17/BatchAvlVerifier) handles this two-phase dispatch:
  *   1. modifyHelper returns needsDelete=true (UpdateLongBy result=0 case)
