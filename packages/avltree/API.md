@@ -366,6 +366,15 @@ All three are unreachable through this API's own operations alone. The height an
 
 **`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs.
 
+**`removedNodes()`** — returns `AvlNode[]`: the nodes of the previous cycle's tree (leaves and internals) whose labels are no longer reachable from the current root. This is exactly the set difference {nodes reachable from the previous cycle's root} − {nodes whose label is reachable from the current root} — the rows a `VersionedAVLStorage` backend should delete.
+
+- **Ordering:** call after the batch's operations and BEFORE `generateProof()` / `restoreRoot()` — both rebase the proof cycle, after which this returns `[]` (same observable as the reference's cleared buffers). Calling from inside `VersionedAVLStorage.update()` is correct by construction: `PersistentBatchAVLProver.generateProofAndUpdateStorage` runs `update` before `generateProof`.
+- **Purity:** pure and idempotent — mid-batch calls are allowed, return the diff as of the current tree, and do not perturb later calls. The order of returned nodes is unspecified; treat the result as a set.
+- **Live nodes — do not mutate:** the returned nodes are the prover's own tree objects, not copies. Derive storage keys via the exported `label()` function rather than reading a node field directly.
+- **First-cycle sentinel:** the never-persisted sentinel leaf of a freshly constructed prover is reported as removed on the first mutating cycle (reference parity). Storage backends must tolerate deleting rows that were never written.
+
+See `facts/avltree.md`'s `removedNodes()` divergence table for the deliberate differences from `ergo_avltree_rust`'s `removed_nodes`.
+
 `performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies — mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) follow the same rule: they alias only the verifier's internal reconstruction, which is unreachable after the call returns. One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. Node **fields** reached via the public `root` / `oldTopNode` are the exception, not the rule — see "Do not mutate nodes" below, which documents the opposite for those.
 
 **Example:**

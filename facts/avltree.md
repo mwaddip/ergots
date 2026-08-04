@@ -216,6 +216,11 @@ label is reachable from the current root}.
   invariant-violating `restoreRoot` tree. A `LabelNode` encountered on the
   containsLabel descent (as opposed to a candidate) is fail-safe "present"
   and never reported removed.
+  (One malformed-tree edge is deliberately wider than the reference: the
+  descent-side key-less-internal throw fires in found-mode too, where the
+  reference's `contains_recursive` recurses left without touching the key —
+  both paths are reachable only through an invariant-violating `restoreRoot`
+  tree, and a uniform throw beats a panic-or-recurse lottery there.)
 
 ##### removedNodes() divergences from the reference (deliberate)
 

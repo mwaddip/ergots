@@ -83,6 +83,32 @@ lookup after loading. Once loaded, call `BatchAVLProver.restoreRoot(root, height
 before using the prover further. See `API.md` for the byte layout, error
 conditions, and a full load-then-restore example.
 
+### Storage GC
+
+`BatchAVLProver.removedNodes()` returns the previous cycle's nodes whose labels
+are no longer reachable from the current root — the rows a `VersionedAVLStorage`
+backend should delete. Call it after applying a batch's operations and before
+`generateProof()` / `restoreRoot()`; both rebase the proof cycle, after which it
+returns `[]`.
+
+```ts
+import { label, type BatchAVLProver, type VersionedAVLStorage } from '@ergots/avltree'
+
+class MyStorage implements VersionedAVLStorage {
+  update(prover: BatchAVLProver, additionalData: [Uint8Array, Uint8Array][]): void {
+    // ... write current nodes ...
+    for (const node of prover.removedNodes()) {
+      this.deleteRow(label(node)) // must tolerate absent rows
+    }
+  }
+  // PersistentBatchAVLProver.generateProofAndUpdateStorage() calls update()
+  // BEFORE generateProof() — the ordering removedNodes() requires.
+}
+```
+
+See [API.md](./API.md) for the full ordering contract, purity guarantees, and
+the first-cycle sentinel note.
+
 ## Browser compatibility
 
 Runs unchanged in evergreen browsers and Node >= 20. No `Buffer`, no `node:crypto`, no dynamic Node built-ins, no WASM. ESM-only.

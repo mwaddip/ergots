@@ -159,9 +159,9 @@ function deleteInner(
   // Rust line 475 @191052c: `self.on_node_visit(r_node, operation, false)` — the
   // FIRST statement of `delete_helper`, ahead of both the direction computation
   // and the node-kind match. Placed identically here so the visit ORDER matches
-  // the reference and not merely the visit set: the `removedNodes()` bookkeeping
-  // a later phase hangs off these call sites is order-sensitive in a way
-  // `packTree` is not.
+  // the reference and not merely the visit set. (`removedNodes()` consumes
+  // membership only — the derived walk is order-insensitive, like `packTree`;
+  // the placement is reference fidelity, not a consumer constraint.)
   //
   // Hoisting it above the guards below is behaviour-preserving on both
   // consumers: neither `replayComparison` nor `getFailedReason` touches
