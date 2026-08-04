@@ -51,7 +51,7 @@ import { newInternal } from './node.js'
  * (authenticated_tree_ops.rs:171-174 @568e7c3); the `node.right` check defends
  * against a case the reference does not check inside this function at all — it
  * would already have panicked one level up, in the caller's unguarded
- * `.balance()` call (authenticated_tree_ops.rs:382 @568e7c3, via `Node::balance`
+ * `.balance()` call (authenticated_tree_ops.rs:408 @568e7c3, via `Node::balance`
  * batch_node.rs:174-180 @568e7c3).
  */
 export function doubleLeftRotate(node: InternalNode): InternalNode {
