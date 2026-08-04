@@ -379,7 +379,7 @@ function hardDeleteLeftDescent(
   const newLeft = childResult.newSubtreeRoot
   const childHeightDecreased = childResult.heightDecreased
 
-  // Rust lines 578-599: prepare the new root for the rebalance step.
+  // Rust lines 578-599 @568e7c3: prepare the new root for the rebalance step.
   let newRoot: InternalNode
   if (direction === 0) {
     // Rust lines 583-585 @568e7c3. Take saved_node — the leaf that bottomed-out on
@@ -422,7 +422,7 @@ function hardDeleteLeftDescent(
     // leaf's key/value into the right subtree's leftmost leaf, which makes
     // `savedLeaf.key` the new minimum of the right subtree.
     //
-    // Rust lines 587-596: build the new internal node from the re-keyed one,
+    // Rust lines 587-596 @568e7c3: build the new internal node from the re-keyed one,
     // with the modified right subtree.
     const newRightSubtree = changeKeyAndValueOfMinNode(
       node.right,
@@ -434,18 +434,18 @@ function hardDeleteLeftDescent(
     if (!newRightSubtree.ok) return newRightSubtree
     newRoot = newInternal(newLeft, newRightSubtree.node, node.balance, savedLeaf.key)
   } else {
-    // Rust line 598: `r_node.clone()` — preserve the original node's right
+    // Rust line 598 @568e7c3: `r_node.clone()` — preserve the original node's right
     // and balance, but with the new left from the recursion.
     newRoot = newInternal(newLeft, node.right, node.balance, node.key)
   }
 
-  // Rust lines 600-647: rebalance.
+  // Rust lines 600-647 @568e7c3: rebalance.
   // We read balance + right from newRoot (mirrors Rust's `let root_balance =
   // self.tree().balance(&new_root)` and `let root_right = self.tree().right(&new_root)`).
   const rootBalance = newRoot.balance
   const rootRight = newRoot.right
 
-  // Rust line 602: rotation case — child shrank AND we are right-heavy.
+  // Rust line 602 @568e7c3: rotation case — child shrank AND we are right-heavy.
   if (childHeightDecreased && rootBalance > 0) {
     return rebalanceShrinkLeft(newLeft, rootRight, op, callbacks, newRoot)
   }
@@ -600,19 +600,19 @@ function hardDeleteRightDescent(
   callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
-  // Rust lines 650-651: recurse right; deleteMax propagates unchanged.
+  // Rust lines 650-651 @568e7c3: recurse right; deleteMax propagates unchanged.
   const childResult = deleteInner(node.right, deleteMax, op, callbacks, saved)
   if (!childResult.ok) return childResult
   const newRight = childResult.newSubtreeRoot
   const childHeightDecreased = childResult.heightDecreased
 
-  // Rust line 652: rotation needed iff right subtree shrank AND we were
+  // Rust line 652 @568e7c3: rotation needed iff right subtree shrank AND we were
   // already left-heavy.
   if (childHeightDecreased && node.balance < 0) {
     return rebalanceShrinkRight(node, newRight, op, callbacks)
   }
 
-  // Rust lines 684-693: no rotation, just balance update.
+  // Rust lines 684-693 @568e7c3: no rotation, just balance update.
   const newBalance: Balance = childHeightDecreased
     ? ((node.balance - 1) as Balance) // was 0 → -1 (still valid); +1 → 0 (still valid)
     : node.balance
