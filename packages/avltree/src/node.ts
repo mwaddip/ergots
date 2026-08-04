@@ -2,7 +2,8 @@
  * AVL+ tree node types, constructors, and blake2b-256 label computation.
  *
  * Ports batch_node.rs::Node (enum) + LeafNode / InternalNode / LabelOnly structs
- * (lines ~33-52, ~200-275) and Node::label() (lines ~83-112).
+ * (33-52 @568e7c3; constructors cited per-function below) and Node::label()
+ * (83-121 @568e7c3).
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_node.rs
  */
@@ -24,7 +25,7 @@ export type AvlNode = LeafNode | InternalNode | LabelNode
 /**
  * A real leaf with key, value, and pointer-to-next-leaf-key.
  *
- * Ports batch_node.rs::LeafNode (lines ~41-45).
+ * Ports batch_node.rs::LeafNode (lines 41-45 @568e7c3).
  * `labelCache` is mutable because it is populated lazily by the `label()` helper.
  */
 export interface LeafNode {
@@ -39,7 +40,7 @@ export interface LeafNode {
 /**
  * Internal node with left/right subtrees and AVL balance ∈ {-1, 0, 1}.
  *
- * Ports batch_node.rs::InternalNode (lines ~33-38).
+ * Ports batch_node.rs::InternalNode (lines 33-38 @568e7c3).
  * All data fields are readonly — the engine builds fresh nodes rather than
  * mutating (independently verified: the only field write in src/ is the
  * labelCache memo in label()). readonly stops reassignment, not buffer
@@ -68,7 +69,7 @@ export interface InternalNode {
  * Label-only node — a stub that exists only as a hash reference
  * (from a `LABEL_IN_PACKAGED_PROOF` token in the serialized proof stream).
  *
- * Ports batch_node.rs::Node::LabelOnly(NodeHeader) (line ~49).
+ * Ports batch_node.rs::Node::LabelOnly(NodeHeader) (line 49 @568e7c3).
  * The label IS the data; no separate cache needed.
  */
 export interface LabelNode {
@@ -85,7 +86,7 @@ export interface LabelNode {
  * AVL balance bit.
  *
  * Rust uses `pub type Balance = i8` with valid values -1, 0, 1
- * (batch_node.rs line ~18). TS narrows to the three valid values for type safety.
+ * (batch_node.rs line 18 @568e7c3). TS narrows to the three valid values for type safety.
  */
 export type Balance = -1 | 0 | 1
 
@@ -94,7 +95,7 @@ export type Balance = -1 | 0 | 1
 // ---------------------------------------------------------------------------
 
 /**
- * Ports batch_node.rs::LeafNode::new (~lines 240-260).
+ * Ports batch_node.rs::LeafNode::new (347-353 @568e7c3).
  * Defensively copies key, value, and nextLeafKey to prevent caller-side
  * mutations from corrupting the node (or invalidating its cached label later).
  */
@@ -109,7 +110,7 @@ export function newLeaf(key: ADKey, value: ADValue, nextLeafKey: ADKey): LeafNod
 }
 
 /**
- * Ports batch_node.rs::InternalNode::new (~lines 212-219).
+ * Ports batch_node.rs::InternalNode::new (277-284 @568e7c3).
  * Note: the Rust constructor returns a NodeId = Rc<RefCell<Node>> (smart-
  * pointer wrapper). TS returns the plain InternalNode value — no ref-
  * counting needed; the GC handles reference lifecycle.
@@ -127,7 +128,7 @@ export function newInternal(
 }
 
 /**
- * Ports batch_node.rs::Node::new_label (~lines 264-275).
+ * Ports batch_node.rs::Node::new_label (211-216 @568e7c3).
  * Defensively copies the label bytes so caller-side mutations don't corrupt
  * the node. The label is the blake2b-256 digest of a sub-tree the verifier
  * doesn't have full data for; it MUST be exactly 32 bytes.
@@ -150,15 +151,15 @@ export function newLabel(label: Uint8Array): LabelNode {
 /**
  * Compute the 32-byte blake2b-256 label for a node.
  *
- * Ports batch_node.rs::Node::label() (lines ~83-112).
+ * Ports batch_node.rs::Node::label() (lines 83-121 @568e7c3).
  *
  * CONSENSUS-CRITICAL — byte layout is load-bearing:
  *
  *   LabelNode:  return stored label directly (no re-hash)
  *   LeafNode:   blake2b256(0x00 || key || value || nextLeafKey)
- *                 — Rust: hasher.update([0u8]), key, value, next_node_key (lines ~90-94)
+ *                 — Rust: hasher.update([0u8]), key, value, next_node_key (lines 90-94 @568e7c3)
  *   Internal:   blake2b256(0x01 || balance || leftLabel || rightLabel)
- *                 — Rust: hasher.update([1u8]), [balance as u8], left.label(), right.label() (lines ~101-105)
+ *                 — Rust: hasher.update([1u8]), [balance as u8], left.label(), right.label() (lines 110-114 @568e7c3)
  *                 — NOTE: balance comes BEFORE the child labels, not after.
  *                   The PLAN.md spec had this wrong (said leftLabel || rightLabel || balance).
  *                   Source is authoritative.
@@ -183,7 +184,7 @@ export function label(node: AvlNode): Uint8Array {
   let result: Uint8Array
   if (node.kind === 'leaf') {
     // Leaf: 0x00 || key || value || nextLeafKey
-    // Rust batch_node.rs lines ~89-98: Node::Leaf branch of Node::label()
+    // Rust batch_node.rs lines 89-99 @568e7c3: Node::Leaf branch of Node::label()
     const input = concatBytes([
       new Uint8Array([0x00]),
       node.key,
@@ -193,7 +194,7 @@ export function label(node: AvlNode): Uint8Array {
     result = blake2b(input, { dkLen: 32 })
   } else {
     // Internal: 0x01 || balance || leftLabel || rightLabel
-    // Rust batch_node.rs lines ~100-109: Node::Internal branch of Node::label()
+    // Rust batch_node.rs lines 100-119 @568e7c3: Node::Internal branch of Node::label()
     // IMPORTANT: balance precedes child labels (not follows — see JSDoc above).
     const leftLbl = label(node.left)
     const rightLbl = label(node.right)
