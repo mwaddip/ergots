@@ -7,13 +7,13 @@
  * directions for proof generation.
  *
  * Ports the three trait methods from ergo_avltree_rust's AuthenticatedTreeOps:
- *   - next_direction_is_left (prover: batch_avl_prover.rs:409-446;
- *                            verifier: batch_avl_verifier.rs:192-203)
- *   - key_matches_leaf       (prover: batch_avl_prover.rs:455-462;
- *                            verifier: batch_avl_verifier.rs:213-227)
- *   - replay_comparison      (prover: batch_avl_prover.rs:474-484;
- *                            verifier: batch_avl_verifier.rs:239-251)
- * Plus on_node_visit (authenticated_tree_ops.rs:100-123) for proof-generation
+ *   - next_direction_is_left (prover: batch_avl_prover.rs:440-477 @568e7c3;
+ *                            verifier: batch_avl_verifier.rs:230-241 @568e7c3)
+ *   - key_matches_leaf       (prover: batch_avl_prover.rs:486-493 @568e7c3;
+ *                            verifier: batch_avl_verifier.rs:251-265 @568e7c3)
+ *   - replay_comparison      (prover: batch_avl_prover.rs:505-515 @568e7c3;
+ *                            verifier: batch_avl_verifier.rs:277-289 @568e7c3)
+ * Plus on_node_visit (authenticated_tree_ops.rs:102-127 @568e7c3) for proof-generation
  * tracking — no-op on the verifier, records modified nodes on the prover.
  */
 
@@ -45,7 +45,7 @@ export interface AvlTreeOpsCallbacks {
    * @param node     The visited node
    * @param operation The current operation
    * @param isRotate  True if this visit is during a rotation (affects
-   *                  changed-nodes tracking per Rust lines 104-121)
+   *                  changed-nodes tracking per Rust lines 107-124 @568e7c3)
    */
   onNodeVisit(node: AvlNode, operation: Operation, isRotate: boolean): void
 
