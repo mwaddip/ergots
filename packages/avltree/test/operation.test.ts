@@ -164,3 +164,87 @@ describe('updateFn — UnknownModification', () => {
     expect(updateFn(op, null)).toEqual({ ok: true, newValue: null })
   })
 })
+
+describe('updateFn — UpdateLongBy i64 overflow (JVM Math.addExact semantics)', () => {
+  /**
+   * The JVM reference (scrypto 3.0.0 `UpdateLongBy.updateFn`, bytecode-verified)
+   * computes the sum with `Math.addExact`, so an i64 overflow in EITHER
+   * direction throws ArithmeticException — caught by the verifier's `Try` →
+   * per-op Failure. The sign checks (0 → remove, >0 → store, <0 → fail) only
+   * ever see in-range sums.
+   *
+   * This guard was originally a deliberate divergence from
+   * `ergo_avltree_rust`, whose plain release-mode `+` wrapped and then
+   * sign-checked the WRAPPED value — storing a wrapped-positive, or removing
+   * the key at exactly MIN+MIN, on negative overflow where the JVM rejects.
+   * The reference has SINCE been fixed to a checked add (`operation.rs:103
+   * @568e7c3`, commit `d18773c`) that fails the same way this guard does. See
+   * the `update_fn` row in facts/avltree.md.
+   */
+  const i64 = (v: bigint): Uint8Array => {
+    const b = new Uint8Array(8)
+    new DataView(b.buffer).setBigInt64(0, v, false)
+    return b
+  }
+  const MAX = 2n ** 63n - 1n
+  const MIN = -(2n ** 63n)
+
+  it('fails on positive overflow instead of storing a wrapped-negative value (MAX + 1)', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 1n }
+    expect(updateFn(op, i64(MAX))).toEqual({
+      ok: false,
+      reason: 'result-out-of-i64-range',
+    })
+  })
+
+  it('fails on negative overflow with the overflow reason, not result-negative (MIN - 1)', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -1n }
+    expect(updateFn(op, i64(MIN))).toEqual({
+      ok: false,
+      reason: 'result-out-of-i64-range',
+    })
+  })
+
+  // Title note (Phase E, 2026-08-04): "which Rust release removes the key on"
+  // was true when this title was written (plain wrapping `+`); the reference
+  // has since been fixed to a checked add (commit `d18773c`,
+  // `operation.rs:103 @568e7c3`) that REJECTS this overflow instead of
+  // wrapping to 0, matching the JVM and this test's own assertion below. Not
+  // renamed — a test title is a code byte, out of this comment-only phase's
+  // scope — but the claim itself is now historical, not current, and the
+  // assertion already tests the CURRENT (rejecting) behavior correctly.
+  it('fails on MIN + MIN — the sum whose WRAPPED value is 0, which Rust release removes the key on', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: MIN }
+    expect(updateFn(op, i64(MIN))).toEqual({
+      ok: false,
+      reason: 'result-out-of-i64-range',
+    })
+  })
+
+  // Boundary regression guards — these pass pre-fix too; they pin that the
+  // overflow guard is not over-broad (they constrain the fix rather than
+  // demonstrate the bug).
+  it('still accepts the exact upper boundary: (MAX - 1) + 1 = MAX', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: 1n }
+    expect(updateFn(op, i64(MAX - 1n))).toEqual({ ok: true, newValue: i64(MAX) })
+  })
+
+  it('still fails in-range negative results with result-negative: 1 - 2', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -2n }
+    expect(updateFn(op, i64(1n))).toEqual({ ok: false, reason: 'result-negative' })
+  })
+
+  it('still fails a sum of exactly i64::MIN with result-negative — the exact lower boundary the guard must not fire on', () => {
+    // Mirrors the JVM: addExact(MIN+1, -1) returns MIN without throwing, then
+    // the < 0 check fails it. The upper boundary is doubly pinned (the
+    // (MAX-1)+1 unit above + the Rust-generated i64-max-boundary fixture);
+    // this pins the lower one.
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -1n }
+    expect(updateFn(op, i64(MIN + 1n))).toEqual({ ok: false, reason: 'result-negative' })
+  })
+
+  it('still removes the key on an in-range zero result: 5 - 5', () => {
+    const op: Operation = { tag: 'UpdateLongBy', key, delta: -5n }
+    expect(updateFn(op, i64(5n))).toEqual({ ok: true, newValue: null })
+  })
+})

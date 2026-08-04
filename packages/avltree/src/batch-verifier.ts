@@ -3,12 +3,13 @@
  * per-operation modification (modify.ts), and structural deletion (delete.ts).
  *
  * Ports ergo_avltree_rust/src/batch_avl_verifier.rs::BatchAVLVerifier:
- *   - struct (lines 21-34)
- *   - constructor `new` (lines 37-55) + `reconstruct_tree` (lines 58-143; the
- *     latter lives in proof-decode.ts and is invoked from the constructor)
- *   - `perform_one_operation` (lines 157-172)
+ *   - struct (lines 25-38 @568e7c3)
+ *   - constructor `new` (lines 59-77 @568e7c3) + `reconstruct_tree` (lines
+ *     80-181 @568e7c3; the latter lives in proof-decode.ts and is invoked
+ *     from the constructor)
+ *   - `perform_one_operation` (lines 195-210 @568e7c3)
  * PLUS the orchestration recipe from authenticated_tree_ops.rs::
- *   - `return_result_of_one_operation` (lines 221-248)
+ *   - `return_result_of_one_operation` (261-288 @568e7c3)
  *
  * CONSENSUS-CRITICAL — the modify_helper → delete_helper dispatch, the proof
  * traversal state lifecycle, and the height bookkeeping must match the Rust
@@ -16,14 +17,20 @@
  * the needsDelete handoff would silently diverge downstream digests.
  *
  * Per the design spec (docs/specs/2026-05-18-ergots-avltree-package-design.md),
- * this class is INTERNAL on v0.1.0 — consumers use `verifyAvlBatch` /
- * `verifyAvlLookup` (T18+T19) which wrap this. The shape-validation work
- * (key length, value length, infinity-key checks per Rust lines 226-229)
- * lives in those wrappers, not here. Once construction finishes, this class
- * trusts the inputs and operates on bytes.
+ * this class is INTERNAL on v0.4.0 — consumers use `verifyAvlBatch` /
+ * `verifyAvlLookup` (T18+T19) which wrap this. Key/value LENGTH validation
+ * lives in those wrappers (throws — kept deliberately: converting the shipped
+ * 'operation-key-length-mismatch' throw to a per-op failure would be a
+ * breaking API change, and the eval path routes around it via savltree's
+ * shape pre-scan; see facts/avltree.md invariant #1). The references'
+ * two strict ±inf bounds requires (Rust `ensure!`s at
+ * authenticated_tree_ops.rs:267-268 @568e7c3; scrypto's identical requires)
+ * are enforced HERE at the top of performOneOperation as fail-and-poison
+ * ('key-out-of-bounds') — task 6g. Beyond those per-op gates, once
+ * construction finishes this class trusts the inputs and operates on bytes.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
- * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (lines 221-248)
+ * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (261-288 @568e7c3; ±inf ensure!s :267-268 @568e7c3)
  */
 
 import { parseProofPackedTree } from './proof-decode.js'
@@ -36,6 +43,7 @@ import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
+import { compareBytes } from './compare-bytes.js'
 
 /**
  * Constants — mirrors `DIGEST_LENGTH` from the Rust source.
@@ -75,12 +83,12 @@ export class BatchAvlVerifier {
   readonly config: AvlTreeConfig
   /**
    * The current root node, or `null` after a verification failure (poisoned).
-   * Mirrors `self.base.tree.root` in Rust (line 168: set to None on failure).
+   * Mirrors `self.base.tree.root` in Rust (line 206 @568e7c3: set to None on failure).
    */
   root: AvlNode | null
   /**
    * The current tree height. Set from `startingDigest[32]` on construction
-   * (Rust line 61) and updated by `performOneOperation` via
+   * (Rust line 83 @568e7c3) and updated by `performOneOperation` via
    * `heightDelta` from modify/delete results.
    */
   height: number
@@ -94,10 +102,15 @@ export class BatchAvlVerifier {
    */
   lastFailReason: AvlVerifyFailReason | null = null
 
+  /** −inf sentinel key (0x00 × config.keyLength). Op keys must sort STRICTLY above. */
+  private readonly negInfKey: Uint8Array
+  /** +inf sentinel key (0xFF × config.keyLength). Op keys must sort STRICTLY below. */
+  private readonly posInfKey: Uint8Array
+
   /**
    * Verifier traversal state — proof-byte cursor (directionsIndex), deepest
    * right-step (lastRightStep), and delete-pass replay cursor (replayIndex).
-   * Mirrors the three indices on the Rust struct (lines 28, 31, 33).
+   * Mirrors the three indices on the Rust struct (lines 32, 35, 37 @568e7c3).
    * Private so external callers can't corrupt state.
    *
    * All three indices are BIT INDICES (not byte indices), per the Rust
@@ -106,13 +119,13 @@ export class BatchAvlVerifier {
   private state: TraversalState
 
   /**
-   * Ports BatchAVLVerifier::new (lines 37-55) + reconstruct_tree (lines 58-143).
+   * Ports BatchAVLVerifier::new (lines 59-77 @568e7c3) + reconstruct_tree (lines 80-181 @568e7c3).
    *
    * The reconstruct_tree port lives in `proof-decode.ts::parseProofPackedTree`
    * — it returns the root, height, and the directions bit-string start
    * offset (as a BYTE INDEX). The constructor here converts that byte index to
    * a BIT INDEX (× 8) before storing in `state.directionsIndex`, matching the
-   * Rust `self.directions_index = (i + 1) * 8` (line 141).
+   * Rust `self.directions_index = (i + 1) * 8` (line 179 @568e7c3).
    *
    * Failure handling: on parseProofPackedTree failure, `root` stays null,
    * `lastFailReason` is set, and `isValid` returns false. Callers (verifyAvlBatch)
@@ -122,7 +135,9 @@ export class BatchAvlVerifier {
   constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
     this.proof = proof
     this.config = config
-    // Rust struct init (lines 44-52): directions_index=0, last_right_step=0,
+    this.negInfKey = new Uint8Array(config.keyLength)
+    this.posInfKey = new Uint8Array(config.keyLength).fill(0xff)
+    // Rust struct init (lines 66-74 @568e7c3): directions_index=0, last_right_step=0,
     // replay_index=0. We replicate the same triple-zero init; directionsIndex
     // is set to the post-tree byte position after parseProofPackedTree below.
     this.state = { directionsIndex: 0, lastRightStep: 0, replayIndex: 0, failedReason: null }
@@ -131,7 +146,7 @@ export class BatchAvlVerifier {
 
     const decoded = parseProofPackedTree(proof, config, startingDigest)
     if (!decoded.ok) {
-      // Mirrors Rust line 53 `?` operator: `reconstruct_tree` returning Err
+      // Mirrors Rust line 75 @568e7c3 `?` operator: `reconstruct_tree` returning Err
       // propagates out of `new`. We don't throw — the design spec routes
       // proof-decode failure into a null-root state (caller checks isValid).
       this.lastFailReason = decoded.reason
@@ -140,8 +155,8 @@ export class BatchAvlVerifier {
     this.root = decoded.root
     this.height = decoded.height
     // CRITICAL CONVERSION — directionsStart is the BYTE index immediately
-    // after END_OF_TREE; the Rust source stores it as a BIT index (line 141:
-    // `(i + 1) * 8`). The directions bit-string starts at that bit position.
+    // after END_OF_TREE; the Rust source stores it as a BIT index (line 179
+    // @568e7c3: `(i + 1) * 8`). The directions bit-string starts at that bit position.
     // Without this `× 8` the verifier would read directions from inside the
     // tree-bytes region and produce digest-mismatch on every multi-internal-
     // node fixture.
@@ -183,9 +198,9 @@ export class BatchAvlVerifier {
   }
 
   /**
-   * Ports BatchAVLVerifier::perform_one_operation (lines 157-172) plus the
-   * orchestration body from authenticated_tree_ops.rs::
-   * return_result_of_one_operation (lines 221-248).
+   * Ports BatchAVLVerifier::perform_one_operation (lines 195-210 @568e7c3)
+   * plus the orchestration body from authenticated_tree_ops.rs::
+   * return_result_of_one_operation (lines 261-288 @568e7c3).
    *
    * Two-phase dispatch:
    *   1. modifyHelper handles ALL 8 op types (Lookup / Insert / Update /
@@ -194,10 +209,10 @@ export class BatchAvlVerifier {
    *      updateFn returned `null` for the new value — i.e., the leaf must be
    *      structurally removed (Remove on present key, RemoveIfExists on
    *      present key, or UpdateLongBy that produced result=0). Mirrors Rust
-   *      modify_helper lines 286-289 (`to_delete=true` only on update_fn None).
+   *      modify_helper lines 326-329 @568e7c3 (`to_delete=true` only on update_fn None).
    *   2. If `needsDelete=true`, deleteHelper performs the structural removal
    *      using `replay_comparison` on the directions bits modify_helper just
-   *      consumed. Mirrors Rust lines 232-242: pass the new_root_node from
+   *      consumed. Mirrors Rust line 276 @568e7c3: pass the new_root_node from
    *      modify_helper (NOT the original root) into delete_helper.
    *
    * Return type:
@@ -211,7 +226,7 @@ export class BatchAvlVerifier {
    * (verifyAvlBatch, T18) flattens `{ failed: true }` to a top-level null
    * after the batch.
    *
-   * State lifecycle (per Rust line 158 and traversal semantics):
+   * State lifecycle (per Rust line 196 @568e7c3 and traversal semantics):
    *   - `replayIndex` is set to the CURRENT `directionsIndex` at entry.
    *     This snapshots the bit position where this operation's directions
    *     start, so deleteHelper's `replay_comparison` can re-read the same
@@ -225,10 +240,10 @@ export class BatchAvlVerifier {
    *     current op descends; on operations that take NO right steps the
    *     stale value is benign because replay_comparison is only invoked when
    *     needsDelete=true AND modify_helper found the target leaf, which on
-   *     non-trivial trees implies at least one right step (see Rust line 461
+   *     non-trivial trees implies at least one right step (see Rust line 514 @568e7c3
    *     assertion `!(direction < 0 && r.left.is_leaf())`).
    *
-   * Height bookkeeping (mirrors Rust lines 234-246):
+   * Height bookkeeping (mirrors Rust lines 274-286 @568e7c3):
    *   - Modify-only path: `height += result.heightDelta` (0 or +1 for inserts).
    *   - Modify + delete path: `height += deleteResult.heightDelta` (0 or -1).
    *     Modify's heightDelta is asserted 0 in the needsDelete case
@@ -241,9 +256,15 @@ export class BatchAvlVerifier {
    *     defensive.
    */
   performOneOperation(op: Operation): Uint8Array | null | { failed: true } {
-    // Rust line 159-165: empty-tree / already-poisoned guard.
-    // The Rust uses `ok_or(anyhow!("Empty tree"))?` which propagates an Err
-    // that the caller (line 167) catches by setting root=None. Same end state.
+    // Rust lines 197-203 @568e7c3: empty-tree / already-poisoned guard.
+    // The Rust uses `ok_or(anyhow!("Empty tree"))?` (line 202 @568e7c3): the
+    // `?` returns Err immediately when root is already None — root simply
+    // stays None; nothing "catches and sets" it on this path. (Contrast the
+    // is_err() handler at lines 205-208 @568e7c3 — a DIFFERENT failure path,
+    // return_result_of_one_operation failing mid-operation — which DOES
+    // explicitly reset root=None.) Both leave root=None, so this poisoned-
+    // re-entry check reaches the same end state as Rust's early return, by
+    // different means.
     if (this.root === null) {
       // Preserve the original poisoning reason if already set (proof-decode
       // failure or a prior op's failure); otherwise mark 'tree-poisoned'.
@@ -251,18 +272,39 @@ export class BatchAvlVerifier {
       return { failed: true }
     }
 
-    // Rust line 158: `self.replay_index = self.directions_index;` — snapshot
+    // Both references open the shared op entry with two strict bounds
+    // requires — ergo_avltree_rust authenticated_tree_ops.rs:267-268
+    // (@568e7c3: `ensure!(key > neg_inf)`, `ensure!(key < pos_inf)`),
+    // scrypto returnResultOfOneOperation (same two requires,
+    // bytecode-verified) — and fail-and-poison on violation, before any
+    // descent. Without this gate a proof steered to the −inf sentinel leaf
+    // lets an out-of-bounds key match it (dummy-value lookup, sentinel
+    // rewrite/delete — digests no reference produces). The references'
+    // THIRD entry check, key length, is a wrapper throw here by documented
+    // contract (verify.ts::validateOperationShape); lexicographically short
+    // keys below −inf still land in this gate, same as the references.
+    if (
+      compareBytes(op.key, this.negInfKey) <= 0 ||
+      compareBytes(op.key, this.posInfKey) >= 0
+    ) {
+      this.root = null
+      this.height = 0
+      this.lastFailReason = 'key-out-of-bounds'
+      return { failed: true }
+    }
+
+    // Rust line 196 @568e7c3: `self.replay_index = self.directions_index;` — snapshot
     // the start-of-op directions cursor for delete_helper's replay pass.
     // Set BEFORE modifyHelper runs (modifyHelper advances directionsIndex).
     this.state.replayIndex = this.state.directionsIndex
 
-    // Phase 1 — Rust line 232-233:
+    // Phase 1 — Rust lines 272-273 @568e7c3:
     //   let (new_root_node, _, height_increased, to_delete, old_value) =
     //       self.modify_helper(root_node, &key, operation)?;
     const callbacks = this.buildCallbacks(op)
     const modifyResult = modifyHelper(this.root, op, callbacks)
     if (!modifyResult.ok) {
-      // Rust lines 167-170: on Err from return_result_of_one_operation,
+      // Rust lines 205-208 @568e7c3: on Err from return_result_of_one_operation,
       // root=None and height=0. Mirror that poisoning.
       this.root = null
       this.height = 0
@@ -270,16 +312,16 @@ export class BatchAvlVerifier {
       return { failed: true }
     }
 
-    // Phase 2 — Rust lines 234-246: handle needsDelete vs straight-update.
+    // Phase 2 — Rust lines 274-286 @568e7c3: handle needsDelete vs straight-update.
     if (modifyResult.needsDelete) {
-      // Rust line 235-236:
+      // Rust lines 275-276 @568e7c3:
       //   let (post_delete_root_node, height_decreased) =
       //       self.delete_helper(&new_root_node, false, operation, &mut saved_node);
       //
       // IMPORTANT: delete_helper is called on `&new_root_node` (the result of
       // modify_helper, which in the needsDelete case is the unchanged subtree
       // root because modify.ts's handleLeafMatch returns the leaf unchanged
-      // with needsDelete=true; see modify.ts lines 225-234).
+      // with needsDelete=true; see modify.ts lines 232-242).
       //
       // The deleteHelper call uses `replayIndex` (set above to the start-of-op
       // cursor) and `lastRightStep` (set by modifyHelper during its descent).
@@ -293,24 +335,24 @@ export class BatchAvlVerifier {
         this.lastFailReason = deleteResult.reason
         return { failed: true }
       }
-      // Rust lines 237-240:
+      // Rust lines 277-280 @568e7c3:
       //   if height_decreased { self.tree().height -= 1; }
       //   self.tree().root = Some(post_delete_root_node);
       // NOTE: modify_helper's `height_increased` in the to_delete case is
-      // IGNORED (Rust lines 234-241 only consult `height_decreased` from
+      // IGNORED (Rust lines 274-280 @568e7c3 only consult `height_decreased` from
       // delete_helper). modify.ts's needsDelete cases already guarantee
       // heightDelta=0, so the result is identical either way; but for
       // source-fidelity we explicitly use only deleteResult.heightDelta here.
       this.root = deleteResult.newSubtreeRoot
       this.height = Math.max(0, this.height + deleteResult.heightDelta)
-      // Modify returns the oldValue in the to_delete case (Rust line 288:
+      // Modify returns the oldValue in the to_delete case (Rust line 328 @568e7c3:
       // `(r_node.clone(), false, false, true, Some(r.value))`) — surface that
       // to the caller. deleteHelper's oldValue is always null in the wrapped
-      // result (delete.ts line 134) because modify already produced the value.
+      // result (delete.ts line 136) because modify already produced the value.
       return modifyResult.oldValue
     }
 
-    // No-delete path — Rust lines 242-246:
+    // No-delete path — Rust lines 282-285 @568e7c3:
     //   if height_increased { self.tree().height += 1; }
     //   self.tree().root = Some(new_root_node);
     this.root = modifyResult.newSubtreeRoot
@@ -320,13 +362,13 @@ export class BatchAvlVerifier {
 
   /**
    * Compute the current digest: 32-byte blake2b root label || 1-byte height.
-   * Mirrors Rust authenticated_tree_ops.rs::digest (lines 112-128).
+   * Mirrors Rust authenticated_tree_ops.rs::digest (lines 133-149 @568e7c3).
    *
    * Returns `null` when the tree is poisoned (root === null). Returning null
    * (rather than a sentinel value or throwing) lets the wrapper layer
    * propagate proof-failure as a top-level null cleanly.
    *
-   * The Rust source clamps height to 255 (line 123: `this.tree.height as u8`).
+   * The Rust source clamps height to 255 (line 144 @568e7c3: `this.tree.height as u8`).
    * We mirror that with `& 0xff` on the height byte. The wrapper layer relies
    * on this byte matching what the prover produced.
    */
@@ -335,7 +377,7 @@ export class BatchAvlVerifier {
     const rootLabel = label(this.root)
     const out = new Uint8Array(DIGEST_LENGTH + 1)
     out.set(rootLabel, 0)
-    // Rust: `buf.put_u8(this.tree.height as u8)` (line 123). Height should
+    // Rust: `buf.put_u8(this.tree.height as u8)` (line 144 @568e7c3). Height should
     // never exceed 255 in practice (would imply 2^(255/1.4) > 2^177 leaves),
     // but we mask defensively to mirror the Rust truncation.
     out[DIGEST_LENGTH] = this.height & 0xff

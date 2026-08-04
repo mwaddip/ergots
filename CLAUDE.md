@@ -46,8 +46,10 @@ These will exist once scaffolding lands. Treat them as a contract — if a comma
 ```bash
 # TypeScript side (run from repo root)
 npm test                # vitest run across all packages — must pass
-npx tsc --noEmit        # must be clean across all packages
-npm run typecheck       # per-package typecheck if a workspace alias exists
+npm run typecheck       # tsc --noEmit in every workspace — must be clean
+
+# Single package, when iterating:
+npx tsc --noEmit --project packages/<pkg>/tsconfig.json
 
 # Rust fixture-gen side
 cd fixture-gen
@@ -55,6 +57,25 @@ cargo build             # must be clean
 cargo test              # must pass
 cargo run               # regenerates fixtures; diff against committed must be empty (determinism check)
 ```
+
+**Do not run a bare `npx tsc --noEmit` from the repo root.** There is no root
+`tsconfig.json` — only `tsconfig.base.json` — so it prints its usage banner and
+exits 1 no matter what the code does. It looks like a failing gate and is not
+one. This instruction previously listed it and misled a session into reporting a
+typecheck failure that did not exist.
+
+Also always run the suite from the repo root. Running `npx vitest run` from
+inside a package silently scopes it to that package — a plausible-looking count
+(a few hundred instead of several thousand) with no warning.
+
+Note the two root-level commands measure DIFFERENT scopes: `npm test` delegates
+to workspace scripts (packages/* only), while a bare `npx vitest run` at the
+repo root has no root config and default-globs the whole repo — additionally
+picking up `tools/mainnet-validate/harness/test/` (~140 tests, including the
+one standing skip). The session ledgers' gate figures (e.g. "7461 passed + 1
+skipped") come from the bare root run, the superset; comparing them against
+`npm test` output will show a ~140-test "discrepancy" that is scope, not
+staleness (this misled a reviewer on 2026-08-03).
 
 If `cargo run` produces a diff against committed fixtures, **stop and investigate** — that's a determinism regression and the entire byte-equality testing strategy depends on stability.
 

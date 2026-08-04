@@ -29,7 +29,7 @@ describe('nextDirectionIsLeft', () => {
 })
 
 describe('replayComparison', () => {
-  // Specific bit patterns: see batch_avl_verifier.rs lines 239-251.
+  // Specific bit patterns: see batch_avl_verifier.rs::replay_comparison (lines 277-289 @568e7c3).
   it('returns 0 when replayIndex equals lastRightStep', () => {
     const proof = new Uint8Array([0xff])
     const state: TraversalState = { directionsIndex: 8, lastRightStep: 4, replayIndex: 4, failedReason: null }

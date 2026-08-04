@@ -1,6 +1,6 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, HEAD `042c830`). 192 tests.
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 374 tests.
 
 **Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
@@ -58,6 +58,58 @@ const value = prover.unauthenticatedLookup(new Uint8Array(32).fill(0x42));
 ```
 
 See [API.md](./API.md) for the full reference (every export, signature, error codes, and type definitions).
+
+### Storage codec
+
+`serializeNode` / `deserializeNode` encode one node for persistence, byte-identical
+to `ergo_avltree_rust`'s `AVLTree::pack` / `AVLTree::unpack` for well-formed input —
+four checks are deliberately stricter than the reference on malformed input; see
+API.md for what they are. Traversal is yours: walk the
+tree and store one record per node, keyed by `label(node)`.
+
+```ts
+import { serializeNode, label, type AvlNode, type AvlTreeConfig } from '@ergots/avltree'
+
+const config: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
+
+export function store(node: AvlNode, write: (key: Uint8Array, value: Uint8Array) => void) {
+  write(label(node), serializeNode(node, config))
+}
+```
+
+Internal records hold child *labels*, not child subtrees, so `deserializeNode`
+returns internals whose children are `LabelNode` stubs — relink them by label
+lookup after loading. Once loaded, call `BatchAVLProver.restoreRoot(root, height)`
+before using the prover further. See `API.md` for the byte layout, error
+conditions, and a full load-then-restore example.
+
+### Storage GC
+
+`BatchAVLProver.removedNodes()` returns the previous cycle's nodes whose labels
+are no longer reachable from the current root — the rows a `VersionedAVLStorage`
+backend should delete. Call it after applying a batch's operations and before
+`generateProof()` / `restoreRoot()`; both rebase the proof cycle, after which it
+returns `[]`.
+
+```ts
+import { label, type BatchAVLProver, type VersionedAVLStorage } from '@ergots/avltree'
+
+class MyStorage implements VersionedAVLStorage {
+  // rollback / version / rollbackVersions / flush elided for brevity — see
+  // API.md's VersionedAVLStorage entry for their full contracts.
+  update(prover: BatchAVLProver, additionalData: [Uint8Array, Uint8Array][]): void {
+    // ... write current nodes ...
+    for (const node of prover.removedNodes()) {
+      this.deleteRow(label(node)) // must tolerate absent rows
+    }
+  }
+  // PersistentBatchAVLProver.generateProofAndUpdateStorage() calls update()
+  // BEFORE generateProof() — the ordering removedNodes() requires.
+}
+```
+
+See [API.md](./API.md) for the full ordering contract, purity guarantees, and
+the first-cycle sentinel note.
 
 ## Browser compatibility
 

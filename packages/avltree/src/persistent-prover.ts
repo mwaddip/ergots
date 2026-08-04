@@ -1,21 +1,13 @@
 /**
  * PersistentBatchAVLProver — wraps a BatchAVLProver with versioned storage.
  *
- * Ports ergo_avltree_rust/src/persistent_batch_avl_prover.rs (68 lines).
+ * Ports ergo_avltree_rust/src/persistent_batch_avl_prover.rs (69 lines).
  */
 import { BatchAVLProver } from './batch-prover.js'
 import type { VersionedAVLStorage } from './versioned-storage.js'
 import type { Operation } from './operation.js'
 import type { ProverOperationResult } from './batch-prover.js'
-
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if (a[i]! < b[i]!) return -1
-    if (a[i]! > b[i]!) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
-}
+import { compareBytes } from './compare-bytes.js'
 
 export class PersistentBatchAVLProver {
   readonly prover: BatchAVLProver
@@ -29,17 +21,17 @@ export class PersistentBatchAVLProver {
     this.prover = prover
     this.storage = storage
 
-    // Rust lines 22-30
+    // Rust lines 22-29 @568e7c3
     const ver = storage.version()
     if (ver !== null) {
       this.rollback(ver)
     } else {
       this.generateProofAndUpdateStorage(additionalData)
     }
-    // Rust line 31: ensure!(storage.version() == digest())
+    // Rust line 30 @568e7c3: ensure!(storage.version() == digest())
     const sv = storage.version()
     const d = this.digest()
-    if (!sv || !d || compareBytes(sv, d) !== 0) {
+    if (!sv || compareBytes(sv, d) !== 0) {
       throw new Error('Storage version does not match prover digest')
     }
   }
@@ -52,7 +44,7 @@ export class PersistentBatchAVLProver {
     return this.prover.unauthenticatedLookup(key)
   }
 
-  digest(): Uint8Array | null {
+  digest(): Uint8Array {
     return this.prover.digest()
   }
 
@@ -69,12 +61,21 @@ export class PersistentBatchAVLProver {
 
   rollback(version: Uint8Array): void {
     const [root, height] = this.storage.rollback(version)
-    this.prover.root = root as import('./node.js').AvlNode
-    this.prover.height = height
-    // Sync oldTopNode to the restored root — ports ergo_avltree_rust commit 042c830.
-    // Without this, the first generateProof() after rollback walks a stale snapshot
-    // (the dummy-tree root from BatchAVLProver's constructor) instead of the restored
-    // tree, producing a wrong proof.
-    this.prover.oldTopNode = this.prover.root
+    // restoreRoot rebases the whole proof cycle atomically: it installs the
+    // root and height, clears modified-node bookkeeping and any accumulated
+    // direction bits from the aborted cycle, and points oldTopNode at the
+    // restored root. Setting those fields by hand — as this did — left stale
+    // directions behind, so the next generateProof() emitted bits for
+    // operations that were rolled back.
+    //
+    // ergo_avltree_rust's own PersistentBatchAVLProver::rollback()
+    // (src/persistent_batch_avl_prover.rs) still sets root/height/old_top_node
+    // by hand and never calls restore_root — it was never updated after
+    // restore_root was added. But every production caller in ergo-node-rust
+    // bypasses that crate method and calls storage.rollback() followed
+    // directly by prover.restore_root() (validation/src/utxo.rs:166 and :477;
+    // src/main.rs:1880 and :2394 on resume/snapshot-load). Delegating here
+    // matches that production usage pattern, not the crate's own method.
+    this.prover.restoreRoot(root, height)
   }
 }

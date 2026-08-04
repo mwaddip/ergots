@@ -30,9 +30,11 @@ export {
   label,
 } from './node.js'
 
-// Storage-format serialization (consensus-agnostic — proofs are verifier-side).
+// Per-node storage codec, byte-identical to ergo_avltree_rust's
+// AVLTree::pack / unpack for well-formed input. Storage-layer only — not the
+// proof encoding.
 export { serializeNode, deserializeNode } from './serialize.js'
 
 // Internal types (NOT exported): BatchAvlVerifier, modify/delete helpers,
-// rotation primitives, tree-traversal state.
+// rotation primitives, tree-traversal state, compare-bytes.ts's byte comparator.
 // These are implementation detail and may change without notice.

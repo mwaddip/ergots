@@ -6,9 +6,9 @@ import type { InternalNode } from '../src/node.js'
 describe('doubleLeftRotate', () => {
   it('rotates a known unbalanced sub-tree', () => {
     // Construct an unbalanced tree shape that requires a double-left rotation.
-    // Specific shape: see Rust source, double_left_rotate lines 135-170 —
+    // Specific shape: see Rust source, double_left_rotate lines 156-198 @568e7c3 —
     // precondition: node.right is Internal, AND node.right.left is Internal
-    // (the promoted `new_root` per Rust line 142).
+    // (the promoted `new_root` per Rust line 163 @568e7c3).
     //
     //         root (0)
     //        /        \
@@ -83,7 +83,7 @@ describe('doubleRightRotate', () => {
   it('rotates a known unbalanced sub-tree (mirror of left)', () => {
     // Mirror of doubleLeftRotate test —
     // precondition: node.left is Internal, AND node.left.right is Internal
-    // (the promoted `new_root` per Rust line 178).
+    // (the promoted `new_root` per Rust line 212 @568e7c3).
     //
     //         root (0)
     //        /        \
@@ -124,7 +124,7 @@ describe('doubleRightRotate', () => {
       expect(rotated.left.kind).toBe('internal')
       expect(rotated.right.kind).toBe('internal')
 
-      // Same match cases as double_left_rotate per Rust source lines 179-184:
+      // Same match cases as double_left_rotate per Rust source lines 219-224 @568e7c3:
       //   0 → (new_left_balance=0, new_right_balance=0)
       //  -1 → (0, +1)
       //  +1 → (-1, 0)

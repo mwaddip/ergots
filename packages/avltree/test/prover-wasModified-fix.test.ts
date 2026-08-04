@@ -11,12 +11,12 @@ describe('BatchAVLProver wasModified fix', () => {
     const value = new Uint8Array([1, 2, 3, 4])
 
     // Batch 1: Insert
-    const startDigest1 = prover.digest()!
+    const startDigest1 = prover.digest()
     const r1 = prover.performOneOperation({ tag: 'Insert', key, value })
     expect(r1.success).toBe(true)
 
     const proof1 = prover.generateProof()
-    const endDigest1 = prover.digest()!
+    const endDigest1 = prover.digest()
 
     // Verify first proof
     const verified1 = verifyAvlBatch(startDigest1, proof1, config, [
@@ -31,7 +31,7 @@ describe('BatchAVLProver wasModified fix', () => {
     expect(r2.success).toBe(true)
 
     const proof2 = prover.generateProof()
-    const endDigest2 = prover.digest()!
+    const endDigest2 = prover.digest()
 
     // Verify second proof — THIS IS THE BUG: currently fails because
     // the left-sibling leaf is emitted as LABEL instead of LEAF
@@ -52,10 +52,10 @@ describe('BatchAVLProver wasModified fix', () => {
     const val2b = new Uint8Array([50, 60])
 
     // Batch 1: Insert key1
-    const digest0 = prover.digest()!
+    const digest0 = prover.digest()
     prover.performOneOperation({ tag: 'Insert', key: key1, value: val1 })
     const proof1 = prover.generateProof()
-    const digest1 = prover.digest()!
+    const digest1 = prover.digest()
 
     const v1 = verifyAvlBatch(digest0, proof1, config, [
       { tag: 'Insert', key: key1, value: val1 },
@@ -67,7 +67,7 @@ describe('BatchAVLProver wasModified fix', () => {
     // Batch 2: Insert key2
     prover.performOneOperation({ tag: 'Insert', key: key2, value: val2 })
     const proof2 = prover.generateProof()
-    const digest2 = prover.digest()!
+    const digest2 = prover.digest()
 
     const v2 = verifyAvlBatch(digest1, proof2, config, [
       { tag: 'Insert', key: key2, value: val2 },
@@ -79,7 +79,7 @@ describe('BatchAVLProver wasModified fix', () => {
     // Batch 3: Update key2
     prover.performOneOperation({ tag: 'Update', key: key2, value: val2b })
     const proof3 = prover.generateProof()
-    const digest3 = prover.digest()!
+    const digest3 = prover.digest()
 
     const v3 = verifyAvlBatch(digest2, proof3, config, [
       { tag: 'Update', key: key2, value: val2b },

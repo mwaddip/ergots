@@ -1,410 +1,412 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import {
   serializeNode,
   deserializeNode,
   newLeaf,
   newInternal,
   newLabel,
-  label,
   type AvlNode,
+  type AvlTreeConfig,
+  type Balance,
 } from '../src/index.js'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
-/** Encode a 16-bit unsigned integer as 2 bytes big-endian. */
-function u16BE(n: number): Uint8Array {
-  const out = new Uint8Array(2)
-  out[0] = (n >> 8) & 0xff
-  out[1] = n & 0xff
-  return out
+const CASES = [
+  'leaf-fixed-value',
+  'leaf-variable-ordinary',
+  'leaf-variable-empty',
+  'leaf-variable-long',
+  'leaf-sentinel-bounds',
+  'internal-balance-zero',
+  'internal-balance-plus-one',
+  'internal-balance-minus-one',
+  'internal-sentinel-key',
+  'leaf-keylength-8',
+  'internal-keylength-8',
+] as const
+
+interface LeafSpec {
+  kind: 'leaf'
+  keyHex: string
+  valueHex: string
+  nextLeafKeyHex: string
+}
+interface InternalSpec {
+  kind: 'internal'
+  keyHex: string
+  balance: Balance
+  leftLabelHex: string
+  rightLabelHex: string
+}
+interface Fixture {
+  name: string
+  config: AvlTreeConfig
+  node: LeafSpec | InternalSpec
+  packedHex: string
 }
 
-/** Encode a 32-bit unsigned integer as 4 bytes big-endian. */
-function u32BE(n: number): Uint8Array {
-  const out = new Uint8Array(4)
-  out[0] = (n >>> 24) & 0xff
-  out[1] = (n >>> 16) & 0xff
-  out[2] = (n >>> 8) & 0xff
-  out[3] = n & 0xff
-  return out
+function loadCase(name: string): Fixture {
+  const p = resolve(__dirname, `fixtures/node-pack/${name}.json`)
+  return JSON.parse(readFileSync(p, 'utf-8')) as Fixture
 }
 
-/** Concatenate Uint8Arrays. */
-function concat(...parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((n, p) => n + p.length, 0)
-  const out = new Uint8Array(total)
-  let offset = 0
-  for (const p of parts) {
-    out.set(p, offset)
-    offset += p.length
+function hexToBytes(h: string): Uint8Array {
+  const out = new Uint8Array(h.length / 2)
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16)
   }
   return out
 }
 
-/** Compare two nodes structurally (ignore labelCache). */
-function nodesEqual(a: AvlNode, b: AvlNode): boolean {
-  if (a.kind !== b.kind) return false
-
-  switch (a.kind) {
-    case 'leaf': {
-      const lb = b as typeof a
-      return (
-        bytesEqual(a.key, lb.key) &&
-        bytesEqual(a.value, lb.value) &&
-        bytesEqual(a.nextLeafKey, lb.nextLeafKey)
-      )
-    }
-    case 'internal': {
-      const ib = b as typeof a
-      return (
-        // key: both undefined, or both defined + equal
-        (a.key === undefined && ib.key === undefined) ||
-        (a.key !== undefined && ib.key !== undefined && bytesEqual(a.key, ib.key))
-      ) &&
-        a.balance === ib.balance &&
-        // skip labelCache — reconstructed nodes have null
-        nodesEqual(a.left, ib.left) &&
-        nodesEqual(a.right, ib.right)
-    }
-    case 'label': {
-      const llb = b as typeof a
-      return bytesEqual(a.label, llb.label)
-    }
-    default:
-      return false
-  }
+function bytesToHex(b: Uint8Array): string {
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
 }
 
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false
+function buildNode(spec: LeafSpec | InternalSpec): AvlNode {
+  if (spec.kind === 'leaf') {
+    return newLeaf(
+      hexToBytes(spec.keyHex),
+      hexToBytes(spec.valueHex),
+      hexToBytes(spec.nextLeafKeyHex),
+    )
   }
-  return true
+  return newInternal(
+    newLabel(hexToBytes(spec.leftLabelHex)),
+    newLabel(hexToBytes(spec.rightLabelHex)),
+    spec.balance,
+    hexToBytes(spec.keyHex),
+  )
 }
 
-// ---------------------------------------------------------------------------
-// Roundtrip tests
-// ---------------------------------------------------------------------------
-
-describe('serializeNode / deserializeNode roundtrip', () => {
-  it('roundtrips a LeafNode with key, value, and nextLeafKey', () => {
-    const leaf = newLeaf(
-      new Uint8Array([0x01, 0x02, 0x03]),
-      new Uint8Array([0xaa, 0xbb]),
-      new Uint8Array([0x10, 0x20]),
-    )
-    const bytes = serializeNode(leaf)
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(leaf, restored)).toBe(true)
-  })
-
-  it('roundtrips a LeafNode with zero-length key (key omission)', () => {
-    const leaf = newLeaf(
-      new Uint8Array([]),
-      new Uint8Array([0xcc]),
-      new Uint8Array([0xff]),
-    )
-    const bytes = serializeNode(leaf)
-    // Verify wire format: keyLen=0, no key bytes
-    expect(bytes[0]).toBe(0x01) // kind
-    expect(bytes[1]).toBe(0x00) // keyLen hi
-    expect(bytes[2]).toBe(0x00) // keyLen lo
-    // valueLen immediately follows keyLen (2 bytes for keyLen + 0 key bytes)
-    expect(bytes[3]).toBe(0x00) // valueLen byte 0
-    expect(bytes[4]).toBe(0x00) // valueLen byte 1
-    expect(bytes[5]).toBe(0x00) // valueLen byte 2
-    expect(bytes[6]).toBe(0x01) // valueLen byte 3 (1 byte)
-    expect(bytes[7]).toBe(0xcc) // value
-
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(leaf, restored)).toBe(true)
-  })
-
-  it('roundtrips a LeafNode with zero-length value', () => {
-    const leaf = newLeaf(
-      new Uint8Array([0x01]),
-      new Uint8Array([]),
-      new Uint8Array([0x02]),
-    )
-    const bytes = serializeNode(leaf)
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(leaf, restored)).toBe(true)
-  })
-
-  it('roundtrips an InternalNode with key', () => {
-    const left = newLeaf(
-      new Uint8Array([0x01]),
-      new Uint8Array([0xaa]),
-      new Uint8Array([0x02]),
-    )
-    const right = newLeaf(
-      new Uint8Array([0x03]),
-      new Uint8Array([0xbb]),
-      new Uint8Array([0x04]),
-    )
-    const internal = newInternal(left, right, 1, new Uint8Array([0x02]))
-    // Pre-compute labels so the reconstructed node can be compared
-    label(internal)
-
-    const bytes = serializeNode(internal)
-    const restored = deserializeNode(bytes)
-
-    // Internal: reconstructed children are LabelNodes (label-only stubs).
-    // We verify:
-    //   1. key, balance roundtrip
-    //   2. left/right are LabelNodes with correct labels
-    expect(restored.kind).toBe('internal')
-    const ri = restored as typeof internal
-    expect(ri.balance).toBe(1)
-    expect(ri.key).toBeDefined()
-    expect(bytesEqual(ri.key!, new Uint8Array([0x02]))).toBe(true)
-    expect(ri.left.kind).toBe('label')
-    expect(ri.right.kind).toBe('label')
-    expect(bytesEqual((ri.left as { label: Uint8Array }).label, label(left))).toBe(true)
-    expect(bytesEqual((ri.right as { label: Uint8Array }).label, label(right))).toBe(true)
-  })
-
-  it('roundtrips an InternalNode without key', () => {
-    const left = newLabel(new Uint8Array(32).fill(0x11))
-    const right = newLabel(new Uint8Array(32).fill(0x22))
-    const internal = newInternal(left, right, -1) // key undefined
-
-    const bytes = serializeNode(internal)
-    const restored = deserializeNode(bytes)
-
-    expect(restored.kind).toBe('internal')
-    const ri = restored as typeof internal
-    expect(ri.balance).toBe(-1)
-    expect(ri.key).toBeUndefined()
-    // left/right are label stubs with correct labels
-    expect(ri.left.kind).toBe('label')
-    expect(ri.right.kind).toBe('label')
-    expect(bytesEqual((ri.left as { label: Uint8Array }).label, left.label)).toBe(true)
-    expect(bytesEqual((ri.right as { label: Uint8Array }).label, right.label)).toBe(true)
-  })
-
-  it('roundtrips a LabelNode', () => {
-    const lbl = newLabel(new Uint8Array(32).fill(0xab))
-    const bytes = serializeNode(lbl)
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(lbl, restored)).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Balance byte roundtrip
-// ---------------------------------------------------------------------------
-
-describe('balance byte roundtrip', () => {
-  for (const balance of [-1, 0, 1] as const) {
-    it(`roundtrips balance=${balance}`, () => {
-      const left = newLabel(new Uint8Array(32).fill(0xaa))
-      const right = newLabel(new Uint8Array(32).fill(0xbb))
-      const internal = newInternal(left, right, balance)
-
-      const bytes = serializeNode(internal)
-      // balance is at offset: 1 (kind) + 2 (keyLen=0) + 0 (no key) = 3
-      expect(bytes[3]).toBe(balance & 0xff)
-
-      const restored = deserializeNode(bytes)
-      expect(restored.kind).toBe('internal')
-      expect((restored as typeof internal).balance).toBe(balance)
+describe('serializeNode — byte equality with ergo_avltree_rust AVLTree::pack', () => {
+  for (const name of CASES) {
+    it(`encodes ${name} byte-for-byte`, () => {
+      const f = loadCase(name)
+      const encoded = serializeNode(buildNode(f.node), f.config)
+      expect(bytesToHex(encoded)).toBe(f.packedHex)
     })
   }
 })
 
-// ---------------------------------------------------------------------------
-// Malformed input
-// ---------------------------------------------------------------------------
+describe('deserializeNode — round-trips every fixture', () => {
+  for (const name of CASES) {
+    it(`decodes ${name} back to the original node`, () => {
+      const f = loadCase(name)
+      const decoded = deserializeNode(hexToBytes(f.packedHex), f.config)
 
-describe('deserializeNode malformed input', () => {
-  it('throws on empty input', () => {
-    expect(() => deserializeNode(new Uint8Array([]))).toThrow()
+      expect(decoded.kind).toBe(f.node.kind)
+
+      if (f.node.kind === 'leaf') {
+        const leaf = decoded as Extract<AvlNode, { kind: 'leaf' }>
+        expect(bytesToHex(leaf.key)).toBe(f.node.keyHex)
+        expect(bytesToHex(leaf.value)).toBe(f.node.valueHex)
+        expect(bytesToHex(leaf.nextLeafKey)).toBe(f.node.nextLeafKeyHex)
+      } else {
+        const internal = decoded as Extract<AvlNode, { kind: 'internal' }>
+        expect(internal.key).toBeDefined()
+        expect(bytesToHex(internal.key!)).toBe(f.node.keyHex)
+        expect(internal.balance).toBe(f.node.balance)
+        // Children come back as label stubs carrying the encoded digests.
+        expect(internal.left.kind).toBe('label')
+        expect(internal.right.kind).toBe('label')
+        expect(
+          bytesToHex((internal.left as Extract<AvlNode, { kind: 'label' }>).label),
+        ).toBe(f.node.leftLabelHex)
+        expect(
+          bytesToHex((internal.right as Extract<AvlNode, { kind: 'label' }>).label),
+        ).toBe(f.node.rightLabelHex)
+      }
+    })
+  }
+})
+
+const K32: AvlTreeConfig = { keyLength: 32, valueLengthOpt: null }
+const K32_FIXED: AvlTreeConfig = { keyLength: 32, valueLengthOpt: 4 }
+
+function leafBytes(config: AvlTreeConfig, valueLen: number): Uint8Array {
+  const variable = config.valueLengthOpt === null
+  const out = new Uint8Array(
+    1 + config.keyLength + (variable ? 4 : 0) + valueLen + config.keyLength,
+  )
+  out[0] = 0x01
+  if (variable) {
+    const o = 1 + config.keyLength
+    out[o] = (valueLen >>> 24) & 0xff
+    out[o + 1] = (valueLen >>> 16) & 0xff
+    out[o + 2] = (valueLen >>> 8) & 0xff
+    out[o + 3] = valueLen & 0xff
+  }
+  return out
+}
+
+describe('deserializeNode — rejection paths', () => {
+  it('rejects empty input', () => {
+    expect(() => deserializeNode(new Uint8Array(0), K32)).toThrow(RangeError)
   })
 
-  it('throws on unknown kind byte', () => {
-    // kind=0xFF doesn't exist
-    expect(() => deserializeNode(new Uint8Array([0xff, 0x00, 0x00, 0x00]))).toThrow()
+  // 0x02 and 0x03 were the retired format's internal and label tags.
+  for (const tag of [0x02, 0x03, 0x7f, 0xff]) {
+    it(`rejects unknown node prefix 0x${tag.toString(16)}`, () => {
+      const bytes = new Uint8Array(80)
+      bytes[0] = tag
+      expect(() => deserializeNode(bytes, K32)).toThrow(/unknown node prefix/)
+    })
+  }
+
+  it('rejects a leaf truncated inside the key', () => {
+    const bytes = new Uint8Array(20)
+    bytes[0] = 0x01
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* key/)
   })
 
-  it('throws on truncated leaf (missing fields after kind)', () => {
-    // valid kind, but not enough bytes for the header
-    expect(() => deserializeNode(new Uint8Array([0x01, 0x00]))).toThrow()
+  it('rejects a leaf truncated before the value length', () => {
+    const bytes = new Uint8Array(1 + 32 + 2)
+    bytes[0] = 0x01
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* valueLength/)
   })
 
-  it('throws on truncated leaf (keyLen says 5 bytes but only 2 present)', () => {
-    const bytes = concat(
-      new Uint8Array([0x01]), // kind
-      u16BE(5), // keyLen = 5
-      new Uint8Array([0xaa, 0xbb]), // only 2 key bytes
+  it('rejects a leaf whose declared value length exceeds the input', () => {
+    // Header only: tag + key + a u32 claiming 1,000,000 value bytes, then 10
+    // actual bytes. Built directly so the test never allocates the claimed size —
+    // deserializeNode must bounds-check before slicing.
+    const bytes = new Uint8Array(1 + 32 + 4 + 10)
+    bytes[0] = 0x01
+    const o = 1 + 32
+    bytes[o] = 0x00
+    bytes[o + 1] = 0x0f
+    bytes[o + 2] = 0x42
+    bytes[o + 3] = 0x40 // 1,000,000
+    // Anchored on `$` so this can only match the value-body guard's message
+    // ("...reading value"), not the earlier valueLength-header guard's
+    // ("...reading valueLength") — the two would otherwise both satisfy a
+    // bare /value/ substring match.
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value$/)
+  })
+
+  it('rejects a leaf whose declared value length is 0xFFFFFFFF', () => {
+    // A well-formed header (tag + key + u32 length) declaring the maximum
+    // representable unsigned 32-bit length, followed by a few real bytes.
+    // Built directly so the test never allocates 4 GiB — deserializeNode
+    // must bounds-check the declared length before slicing, and readU32BE
+    // must report it as a positive 4,294,967,295, not a negative number.
+    const bytes = new Uint8Array(1 + 32 + 4 + 10)
+    bytes[0] = 0x01
+    const o = 1 + 32
+    bytes[o] = 0xff
+    bytes[o + 1] = 0xff
+    bytes[o + 2] = 0xff
+    bytes[o + 3] = 0xff // 0xFFFFFFFF
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value$/)
+  })
+
+  it('rejects a leaf whose declared value length has the u32 high bit set', () => {
+    // 0x80000000 is negative as a raw 32-bit signed read (bytes[o] << 24
+    // sign-extends). readU32BE's trailing `>>> 0` must coerce this back to
+    // +2,147,483,648 so the ordinary bounds check catches it; if `>>> 0`
+    // were ever dropped, this would decode as -2,147,483,648 and (absent the
+    // takeBytes length guard) slip past `offset + n > b.length` entirely.
+    const bytes = new Uint8Array(1 + 32 + 4 + 10)
+    bytes[0] = 0x01
+    const o = 1 + 32
+    bytes[o] = 0x80
+    bytes[o + 1] = 0x00
+    bytes[o + 2] = 0x00
+    bytes[o + 3] = 0x00 // 0x80000000
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* value$/)
+  })
+
+  it('rejects a negative valueLengthOpt in config instead of silently truncating', () => {
+    // Rust's Option<usize> makes a negative length unrepresentable; our
+    // `number` does not, so a malformed config must be checked explicitly.
+    // Buffer is sized generously (well beyond key + rewound value + a full
+    // nextLeafKey) so that, absent the takeBytes length guard, EVERY
+    // downstream read still lands in-bounds and the call returns a
+    // structurally corrupt LeafNode with no throw at all, rather than
+    // incidentally tripping a later truncation check.
+    const bytes = new Uint8Array(1 + 32 + 32 + 10)
+    bytes[0] = 0x01
+    const badConfig: AvlTreeConfig = { keyLength: 32, valueLengthOpt: -1 }
+    expect(() => deserializeNode(bytes, badConfig)).toThrow(/invalid length/)
+  })
+
+  it('rejects a leaf truncated inside nextLeafKey', () => {
+    const full = leafBytes(K32, 3)
+    expect(() => deserializeNode(full.slice(0, full.length - 5), K32)).toThrow(
+      /truncated .* nextLeafKey/,
     )
-    expect(() => deserializeNode(bytes)).toThrow()
   })
 
-  it('throws on truncated leaf (valueLen says 10 bytes but only 2 present)', () => {
-    const key = new Uint8Array([0x01, 0x02])
-    const bytes = concat(
-      new Uint8Array([0x01]), // kind
-      u16BE(key.length), // keyLen
-      key,
-      u32BE(10), // valueLen = 10
-      new Uint8Array([0xaa, 0xbb]), // only 2 value bytes
+  it('rejects an internal node truncated before the balance byte', () => {
+    expect(() => deserializeNode(new Uint8Array([0x00]), K32)).toThrow(
+      /truncated .* balance/,
     )
-    expect(() => deserializeNode(bytes)).toThrow()
   })
 
-  it('throws on truncated leaf (nextLeafKeyLen says 3 bytes but only 1 present)', () => {
-    const key = new Uint8Array([0x01])
-    const value = new Uint8Array([0x02])
-    const bytes = concat(
-      new Uint8Array([0x01]),
-      u16BE(key.length),
-      key,
-      u32BE(value.length),
-      value,
-      u16BE(3), // nextLeafKeyLen = 3
-      new Uint8Array([0xaa]), // only 1 byte
-    )
-    expect(() => deserializeNode(bytes)).toThrow()
+  it('rejects an internal node with an out-of-range balance', () => {
+    const bytes = new Uint8Array(1 + 1 + 32 + 64)
+    bytes[0] = 0x00
+    bytes[1] = 0x05 // decodes to +5
+    expect(() => deserializeNode(bytes, K32)).toThrow(/invalid balance/)
   })
 
-  it('throws on truncated internal (missing balance after keyLen)', () => {
-    expect(() =>
-      deserializeNode(new Uint8Array([0x02, 0x00, 0x00])),
-    ).toThrow()
+  it('rejects an internal node truncated inside the key', () => {
+    const bytes = new Uint8Array(1 + 1 + 10) // tag + balance + partial 32-byte key
+    bytes[0] = 0x00
+    bytes[1] = 0x00
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* key/)
   })
 
-  it('throws on truncated internal (balance present but missing child labels)', () => {
-    const bytes = concat(
-      new Uint8Array([0x02]), // kind
-      u16BE(0), // keyLen = 0
-      new Uint8Array([0x00]), // balance
-      // missing left label (32 bytes)
-    )
-    expect(() => deserializeNode(bytes)).toThrow()
+  it('rejects an internal node truncated inside the left label', () => {
+    const bytes = new Uint8Array(1 + 1 + 32 + 16) // tag + balance + key + partial leftLabel
+    bytes[0] = 0x00
+    bytes[1] = 0x00
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* leftLabel/)
   })
 
-  it('throws on truncated internal (only one child label)', () => {
-    const bytes = concat(
-      new Uint8Array([0x02]), // kind
-      u16BE(0), // keyLen = 0
-      new Uint8Array([0x01]), // balance
-      new Uint8Array(32).fill(0xaa), // left label (full)
-      new Uint8Array(16).fill(0xbb), // right label (half)
-    )
-    expect(() => deserializeNode(bytes)).toThrow()
+  it('rejects an internal node truncated inside the right label', () => {
+    const bytes = new Uint8Array(1 + 1 + 32 + 32 + 16)
+    bytes[0] = 0x00
+    bytes[1] = 0x00
+    expect(() => deserializeNode(bytes, K32)).toThrow(/truncated .* rightLabel/)
   })
 
-  it('throws on truncated label (not enough bytes for 32-byte label)', () => {
-    const bytes = concat(
-      new Uint8Array([0x03]), // kind
-      new Uint8Array(16).fill(0xab), // only 16 bytes
-    )
-    expect(() => deserializeNode(bytes)).toThrow()
-  })
-
-  it('accepts exact-length input (no trailing bytes required)', () => {
-    const lbl = newLabel(new Uint8Array(32).fill(0xcc))
-    const bytes = serializeNode(lbl)
-    // Should parse fine
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(lbl, restored)).toBe(true)
-  })
-
-  it('ignores trailing bytes after valid node', () => {
-    const leaf = newLeaf(
-      new Uint8Array([0x01]),
-      new Uint8Array([0x02]),
-      new Uint8Array([0x03]),
-    )
-    const bytes = serializeNode(leaf)
-    const withTrailing = concat(bytes, new Uint8Array([0xff, 0xee, 0xdd]))
-
-    // Should parse fine (trailing bytes ignored — consumer owns framing)
-    const restored = deserializeNode(withTrailing)
-    expect(nodesEqual(leaf, restored)).toBe(true)
+  it('honours a fixed valueLengthOpt when decoding', () => {
+    // No u32 prefix in fixed mode: total is 1 + 32 + 4 + 32.
+    const bytes = new Uint8Array(1 + 32 + 4 + 32)
+    bytes[0] = 0x01
+    const node = deserializeNode(bytes, K32_FIXED)
+    expect(node.kind).toBe('leaf')
+    expect((node as Extract<AvlNode, { kind: 'leaf' }>).value.length).toBe(4)
   })
 })
 
-// ---------------------------------------------------------------------------
-// Variable-length values
-// ---------------------------------------------------------------------------
-
-describe('variable-length values', () => {
-  it('roundtrips a leaf with long variable-length value', () => {
-    const longValue = new Uint8Array(256)
-    for (let i = 0; i < 256; i++) longValue[i] = i & 0xff
-
-    const leaf = newLeaf(
-      new Uint8Array([0x42]),
-      longValue,
-      new Uint8Array([0x99]),
+describe('serializeNode — rejection paths', () => {
+  it('refuses to serialize a LabelNode', () => {
+    expect(() => serializeNode(newLabel(new Uint8Array(32)), K32)).toThrow(
+      /not serializable/,
     )
-    const bytes = serializeNode(leaf)
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(leaf, restored)).toBe(true)
-    expect(restored.kind).toBe('leaf')
-    const rl = restored as typeof leaf
-    expect(rl.value.length).toBe(256)
   })
 
-  it('roundtrips a leaf with empty nextLeafKey', () => {
-    const leaf = newLeaf(
-      new Uint8Array([0x01]),
-      new Uint8Array([0x02]),
-      new Uint8Array([]),
+  it('refuses an InternalNode with no key', () => {
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      newLabel(new Uint8Array(32).fill(0x02)),
+      0,
     )
-    const bytes = serializeNode(leaf)
-    const restored = deserializeNode(bytes)
-    expect(nodesEqual(leaf, restored)).toBe(true)
+    expect(() => serializeNode(node, K32)).toThrow(/has no key/)
+  })
+
+  it('rejects a key whose length disagrees with config', () => {
+    const node = newLeaf(new Uint8Array(8), new Uint8Array(2), new Uint8Array(32))
+    expect(() => serializeNode(node, K32)).toThrow(/key length 8/)
+  })
+
+  it('rejects a fixed-length value of the wrong size', () => {
+    const node = newLeaf(
+      new Uint8Array(32),
+      new Uint8Array(7), // config says 4
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32_FIXED)).toThrow(/valueLengthOpt/)
+  })
+
+  it('rejects an InternalNode whose left child label is undersized', () => {
+    // Built as a plain object literal, NOT via newLabel (which would throw
+    // first) — a LabelNode's 32-byte invariant is enforced by the newLabel
+    // constructor but not by the LabelNode type itself, so this literal
+    // type-checks under tsc --strict with no cast. Without the encode-side
+    // length guard, serializeNode would write these 16 bytes into a fixed
+    // 32-byte slot with zero padding, silently producing a record that
+    // decodes back as a different node.
+    const node = newInternal(
+      { kind: 'label', label: new Uint8Array(16) },
+      newLabel(new Uint8Array(32).fill(0x02)),
+      0,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/left child label length 16/)
+  })
+
+  it('rejects an InternalNode whose right child label is undersized', () => {
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      { kind: 'label', label: new Uint8Array(16) },
+      0,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/right child label length 16/)
+  })
+
+  it('rejects a NaN balance instead of silently emitting byte 0x00', () => {
+    // Built as a plain object literal value, not a real rebalance output —
+    // `Balance` types as -1|0|1 but nothing enforces that at the value level
+    // for a hand-built InternalNode. A bare range check (`< -1 || > 1`) does
+    // not catch this: `NaN < -1` and `NaN > 1` are both false, so NaN would
+    // slide through and `node.balance & 0xff` below would silently coerce it
+    // to byte 0x00 (ToInt32(NaN) === 0).
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      newLabel(new Uint8Array(32).fill(0x02)),
+      NaN as Balance,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/balance/)
+  })
+
+  it('rejects a fractional balance instead of silently emitting byte 0x00', () => {
+    // Same gap as above: 0.5 passes a bare range check ([-1, 1]) but is not
+    // one of the three valid Balance values, and `0.5 & 0xff` truncates to
+    // byte 0x00 with no error (ToInt32 truncates toward zero).
+    const node = newInternal(
+      newLabel(new Uint8Array(32).fill(0x01)),
+      newLabel(new Uint8Array(32).fill(0x02)),
+      0.5 as Balance,
+      new Uint8Array(32),
+    )
+    expect(() => serializeNode(node, K32)).toThrow(/balance/)
   })
 })
 
-// ---------------------------------------------------------------------------
-// Deep tree roundtrip (Internal with nested Internal children)
-// ---------------------------------------------------------------------------
+describe('codec round-trip property', () => {
+  it('is stable across randomised leaves in both config modes', () => {
+    let seed = 0x9e3779b9
+    const next = (): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed
+    }
+    const randBytes = (n: number): Uint8Array => {
+      const out = new Uint8Array(n)
+      for (let i = 0; i < n; i++) out[i] = next() & 0xff
+      return out
+    }
 
-describe('deep tree roundtrip', () => {
-  it('roundtrips a tree where Internal children become LabelNodes', () => {
-    // Build a small tree:
-    //        Internal(key=5, bal=0)
-    //       /                    \
-    //   Leaf(1,v=a,nxt=2)   Leaf(5,v=b,nxt=9)
-    const leaf1 = newLeaf(
-      new Uint8Array([0x01]),
-      new Uint8Array([0x0a]),
-      new Uint8Array([0x02]),
-    )
-    const leaf2 = newLeaf(
-      new Uint8Array([0x05]),
-      new Uint8Array([0x0b]),
-      new Uint8Array([0x09]),
-    )
-    const root = newInternal(leaf1, leaf2, 0, new Uint8Array([0x05]))
-    // Pre-compute labels so we can verify
-    const rootLabel = label(root)
+    for (const config of [K32, K32_FIXED]) {
+      for (let i = 0; i < 50; i++) {
+        const valueLen = config.valueLengthOpt ?? next() % 64
+        const node = newLeaf(randBytes(32), randBytes(valueLen), randBytes(32))
+        const once = serializeNode(node, config)
+        const twice = serializeNode(deserializeNode(once, config), config)
+        expect(bytesToHex(twice)).toBe(bytesToHex(once))
+      }
+    }
+  })
 
-    const bytes = serializeNode(root)
-    const restored = deserializeNode(bytes)
-
-    // Root is internal
-    expect(restored.kind).toBe('internal')
-    const rr = restored as typeof root
-    expect(rr.balance).toBe(0)
-    expect(rr.key).toBeDefined()
-    expect(bytesEqual(rr.key!, new Uint8Array([0x05]))).toBe(true)
-
-    // Children are LabelNodes
-    expect(rr.left.kind).toBe('label')
-    expect(rr.right.kind).toBe('label')
-
-    // The label of the restored root should match
-    // (since children are label stubs with the same digests,
-    // re-computing the root label should give the same result)
-    const restoredRootLabel = label(restored)
-    expect(bytesEqual(rootLabel, restoredRootLabel)).toBe(true)
+  it('is stable across randomised internals', () => {
+    const balances: Balance[] = [-1, 0, 1]
+    for (let i = 0; i < 30; i++) {
+      const node = newInternal(
+        newLabel(new Uint8Array(32).fill(i & 0xff)),
+        newLabel(new Uint8Array(32).fill((i * 7) & 0xff)),
+        balances[i % 3]!,
+        new Uint8Array(32).fill((i * 13) & 0xff),
+      )
+      const once = serializeNode(node, K32)
+      const twice = serializeNode(deserializeNode(once, K32), K32)
+      expect(bytesToHex(twice)).toBe(bytesToHex(once))
+    }
   })
 })

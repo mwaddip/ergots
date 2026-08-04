@@ -1,0 +1,12 @@
+{
+  "name": "internal-keylength-8",
+  "config": { "keyLength": 8, "valueLengthOpt": null },
+  "node": {
+    "kind": "internal",
+    "keyHex": "5656565656565656",
+    "balance": 1,
+    "leftLabelHex": "0909090909090909090909090909090909090909090909090909090909090909",
+    "rightLabelHex": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+  },
+  "packedHex": "0001565656565656565609090909090909090909090909090909090909090909090909090909090909090a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+}

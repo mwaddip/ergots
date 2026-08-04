@@ -1,13 +1,13 @@
 /**
  * Ports operation.rs's Operation enum and update_fn.
- * Source: ergo_avltree_rust/src/operation.rs (107 lines).
+ * Source: ergo_avltree_rust/src/operation.rs (116 lines @568e7c3).
  *
  * Note: Rust's KeyValue { key, value } and KeyDelta { key, delta } structs
  * are flattened inline onto the variants here — TS-idiomatic for discriminated
  * unions, intentional divergence from the Rust struct shape.
  */
 
-/** Ports operation.rs::Operation enum (lines 13-22). */
+/** Ports operation.rs::Operation enum (lines 13-22 @568e7c3). */
 export type Operation =
   | { tag: 'Lookup'; key: Uint8Array }
   | { tag: 'UnknownModification'; key: Uint8Array }
@@ -28,13 +28,26 @@ export type UpdateFnFailReason =
   | 'key-already-exists'           // Insert on existing key
   | 'key-not-found'                // Update or Remove on absent key
   | 'decrement-on-absent-key'      // UpdateLongBy delta < 0 on absent key
-  | 'result-negative'              // UpdateLongBy result < 0
+  | 'result-negative'              // UpdateLongBy result < 0 (in-range)
+  | 'result-out-of-i64-range'      // UpdateLongBy sum overflows i64 (JVM Math.addExact analogue)
   | 'invalid-long-value-length'    // UpdateLongBy existing value is not exactly 8 bytes (audit AVL-02)
 
 /**
+ * Signed 64-bit range bounds. Used by the UpdateLongBy sum-overflow guard
+ * below and by the delta range checks at both public boundaries
+ * (`verify.ts::validateOperationShape`, `BatchAVLProver.performOneOperation`).
+ */
+export const I64_MAX = 2n ** 63n - 1n
+export const I64_MIN = -(2n ** 63n)
+
+/**
  * Encode a signed i64 value as 8-byte big-endian.
- * Ports Rust i64::to_be_bytes (operation.rs:91, 98) via BigEndian::write_i64.
+ * Ports Rust i64::to_be_bytes (operation.rs:91, 107 @568e7c3) via BigEndian::write_i64.
  * Uses bigint arithmetic; assumes value fits in the i64 range [-2^63, 2^63-1].
+ * Enforced by the UpdateLongBy arm's range guard for the sum path, and by the
+ * delta range checks at BOTH public boundaries for the absent-key insert path
+ * (`verify.ts::validateOperationShape`, AVL-03, and
+ * `BatchAVLProver.performOneOperation` — 6e review finding I-1).
  */
 function i64ToBeBytes(value: bigint): Uint8Array {
   const bytes = new Uint8Array(8)
@@ -46,7 +59,7 @@ function i64ToBeBytes(value: bigint): Uint8Array {
 
 /**
  * Decode 8-byte big-endian as a signed i64.
- * Ports BigEndian::read_i64 (operation.rs:94).
+ * Ports BigEndian::read_i64 (operation.rs:103 @568e7c3).
  * Interprets byte[0] bit 7 as the sign bit (two's complement).
  *
  * Precondition: bytes.length === 8. Caller (updateFn UpdateLongBy branch) MUST
@@ -62,14 +75,14 @@ function beBytesToI64(bytes: Uint8Array): bigint {
 }
 
 /**
- * Ports operation.rs::Operation::update_fn (lines 64-106).
+ * Ports operation.rs::Operation::update_fn (lines 64-115 @568e7c3).
  * Per-op old-value → new-value transform used by the AVL+ batch verifier
  * at the matching leaf. Returns ok+newValue on success, ok:false+reason on
  * precondition failure. null = key is absent (or removal result).
  *
  * WARNING: For `Lookup` ops, the verifier's tree-walking code (modify.ts /
  * delete.ts) MUST short-circuit BEFORE calling updateFn — mirrors Rust's
- * handling at authenticated_tree_ops.rs:280-282, 303-305. Passing a Lookup
+ * handling at authenticated_tree_ops.rs:320-323, 346-349 @568e7c3. Passing a Lookup
  * op into updateFn always returns { ok: true, newValue: null }, which the
  * naive caller would treat as "remove key" — a critical bug. The Lookup
  * branch here exists as a defensive stub but should never be reached in
@@ -78,55 +91,55 @@ function beBytesToI64(bytes: Uint8Array): bigint {
 export function updateFn(op: Operation, oldValue: Uint8Array | null): UpdateFnResult {
   switch (op.tag) {
     case 'Lookup':
-      // operation.rs:65 — Lookup always returns None (no modification).
+      // operation.rs:66 @568e7c3 — Lookup always returns None (no modification).
       return { ok: true, newValue: null }
 
     case 'UnknownModification':
-      // operation.rs:66 — pass through old value unchanged.
+      // operation.rs:67 @568e7c3 — pass through old value unchanged.
       return { ok: true, newValue: oldValue }
 
     case 'Insert':
-      // operation.rs:67-70 — insert only when absent.
+      // operation.rs:68-71 @568e7c3 — insert only when absent.
       if (oldValue === null) {
         return { ok: true, newValue: op.value }
       }
       return { ok: false, reason: 'key-already-exists' }
 
     case 'Update':
-      // operation.rs:71-74 — update only when present.
+      // operation.rs:72-75 @568e7c3 — update only when present.
       if (oldValue === null) {
         return { ok: false, reason: 'key-not-found' }
       }
       return { ok: true, newValue: op.value }
 
     case 'InsertOrUpdate':
-      // operation.rs:75 — always write new value.
+      // operation.rs:76 @568e7c3 — always write new value.
       return { ok: true, newValue: op.value }
 
     case 'Remove':
-      // operation.rs:76-79 — remove only when present.
+      // operation.rs:77-80 @568e7c3 — remove only when present.
       if (oldValue === null) {
         return { ok: false, reason: 'key-not-found' }
       }
       return { ok: true, newValue: null }
 
     case 'RemoveIfExists':
-      // operation.rs:80 — remove unconditionally (no-op if absent).
+      // operation.rs:81 @568e7c3 — remove unconditionally (no-op if absent).
       return { ok: true, newValue: null }
 
     case 'UpdateLongBy': {
-      // operation.rs:89-105 — add delta to existing i64 value stored as 8 BE bytes.
+      // operation.rs:89-113 @568e7c3 — add delta to existing i64 value stored as 8 BE bytes.
       // Pattern: delta == 0 short-circuits first regardless of key presence.
       if (op.delta === 0n) {
-        // operation.rs:90 — `m if kv.delta == 0 => Ok(m)` returns old value as-is.
+        // operation.rs:90 @568e7c3 — `m if kv.delta == 0 => Ok(m)` returns old value as-is.
         return { ok: true, newValue: oldValue }
       }
       if (oldValue === null) {
         if (op.delta > 0n) {
-          // operation.rs:91 — insert with delta as 8 BE bytes.
+          // operation.rs:91 @568e7c3 — insert with delta as 8 BE bytes.
           return { ok: true, newValue: i64ToBeBytes(op.delta) }
         }
-        // operation.rs:92 — delta < 0 on absent key.
+        // operation.rs:92 @568e7c3 — delta < 0 on absent key.
         return { ok: false, reason: 'decrement-on-absent-key' }
       }
       // Audit AVL-02: pre-fix beBytesToI64 threw RangeError when oldValue
@@ -138,18 +151,34 @@ export function updateFn(op: Operation, oldValue: Uint8Array | null): UpdateFnRe
       if (oldValue.length !== 8) {
         return { ok: false, reason: 'invalid-long-value-length' }
       }
-      // operation.rs:93-103 — key present: add delta to existing value.
+      // operation.rs:93-103 @568e7c3 — key present: add delta to existing value.
       const current = beBytesToI64(oldValue)
       const newVal = current + op.delta
+      // scrypto's UpdateLongBy.updateFn computes this sum with Math.addExact
+      // (bytecode-verified: scrypto 3.0.0 $anonfun$updateFn$7, offset 169),
+      // so an i64 overflow in EITHER direction is a per-op failure before any
+      // sign check runs — the sign checks below only ever see in-range sums.
+      // This guard was originally a deliberate divergence from
+      // ergo_avltree_rust, whose plain release-mode `+` wrapped and then
+      // sign-checked the WRAPPED value (storing a wrapped-positive, or
+      // removing the key at exactly MIN+MIN, on negative overflow where the
+      // JVM rejects). The reference has SINCE been fixed to a checked add
+      // (operation.rs:103 @568e7c3) that fails the same way this guard does;
+      // without this guard here, TS's bigint `+` never overflows on its own,
+      // so the true-sum checks would accept positive overflow and
+      // i64ToBeBytes would store the wrapped-NEGATIVE encoding.
+      if (newVal > I64_MAX || newVal < I64_MIN) {
+        return { ok: false, reason: 'result-out-of-i64-range' }
+      }
       if (newVal === 0n) {
-        // operation.rs:95 — result zero → remove.
+        // operation.rs:105 @568e7c3 — result zero → remove.
         return { ok: true, newValue: null }
       }
       if (newVal > 0n) {
-        // operation.rs:97 — positive result → write new value.
+        // operation.rs:107 @568e7c3 — positive result → write new value.
         return { ok: true, newValue: i64ToBeBytes(newVal) }
       }
-      // operation.rs:99 — negative result → fail.
+      // operation.rs:109 @568e7c3 — negative result → fail.
       return { ok: false, reason: 'result-negative' }
     }
 

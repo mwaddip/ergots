@@ -3,8 +3,8 @@
  * UpdateLongBy-result==0.
  *
  * Ports authenticated_tree_ops.rs::AuthenticatedTreeOps::delete_helper
- * (lines 446-637) plus `change_next_leaf_key_of_max_node` (lines 400-415)
- * and `change_key_and_value_of_min_node` (lines 417-432).
+ * (492-699 @568e7c3) plus `change_next_leaf_key_of_max_node` (446-461 @568e7c3)
+ * and `change_key_and_value_of_min_node` (463-479 @568e7c3).
  *
  * CONSENSUS-CRITICAL — every branch is byte-faithful with the Rust reference.
  * Structural changes during deletion (which leaf is spliced out, which nextLeafKey
@@ -22,7 +22,7 @@
  *     up the tree.
  *
  * The Rust orchestration is at `return_result_of_one_operation`
- * (authenticated_tree_ops.rs lines 221-248): modify_helper first, then
+ * (authenticated_tree_ops.rs 261-288 @568e7c3): modify_helper first, then
  * delete_helper if to_delete=true. The same dispatch pattern lives in T17's
  * BatchAvlVerifier::performOneOperation.
  *
@@ -33,8 +33,13 @@
  * `deleteHelper` does NOT inspect `op.tag` — once we reach this code, the
  * structural operation is the same regardless of which operation triggered
  * the delete (Remove, RemoveIfExists, or UpdateLongBy result==0). The `op`
- * parameter is kept in the signature for API symmetry with `modifyHelper`
- * (and would be needed for `on_node_visit` tracking if/when added).
+ * parameter is threaded through solely to reach `callbacks.onNodeVisit`, which
+ * the Rust reference calls nine times across this span — see each call site for
+ * its `authenticated_tree_ops.rs` counterpart. Every one is load-bearing for
+ * proof generation: `onNodeVisit` is what puts a node into `modifiedNodes`, and
+ * `generateProof` packs a node outside that set as a bare label. A structurally
+ * involved node that goes unvisited is emitted as a label the verifier cannot
+ * descend into, and the prover's own proof is rejected.
  *
  * Per [[feedback-rust-port-style]]: decomposed into TS-idiomatic helpers
  * rather than one ~95-line function, each with per-section source-line
@@ -76,15 +81,15 @@ type DeleteInner =
 
 /**
  * Out-parameter wrapper for the `saved_node` reference in the Rust source
- * (authenticated_tree_ops.rs line 451: `saved_node: &mut Option<NodeId>`).
+ * (authenticated_tree_ops.rs line 497 @568e7c3: `saved_node: &mut Option<NodeId>`).
  *
- * Set in `tryEasyDeleteRightLeaf` when deleteMax=true (Rust line 478).
+ * Set in `tryEasyDeleteRightLeaf` when deleteMax=true (Rust line 534 @568e7c3).
  * Read in `hardDeleteLeftDescent` when direction==0 after the recursive
- * deleteMax returned (Rust line 523).
+ * deleteMax returned (Rust lines 583-585 @568e7c3).
  *
- * Always a LeafNode in practice: it is set only at line 478 where `r.right`
+ * Always a LeafNode in practice: it is set only at line 534 @568e7c3 where `r.right`
  * was just verified to be a Leaf via `if let Node::Leaf(right_child) = ...`
- * (Rust line 470).
+ * (Rust line 526 @568e7c3).
  */
 type SavedNodeRef = { node: LeafNode | null }
 
@@ -93,7 +98,7 @@ type SavedNodeRef = { node: LeafNode | null }
 // ---------------------------------------------------------------------------
 
 /**
- * Ports authenticated_tree_ops.rs::delete_helper (lines 446-637), public entry
+ * Ports authenticated_tree_ops.rs::delete_helper (492-699 @568e7c3), public entry
  * variant. Begins the second-pass descent at `node` and returns a
  * ModifyResult for uniform consumption by T17's BatchAvlVerifier.
  *
@@ -139,9 +144,10 @@ export function deleteHelper(
 
 /**
  * Ports authenticated_tree_ops.rs::delete_helper recursive body
- * (lines 446-637). Maintains the Rust signature's `delete_max` parameter
- * (true while descending the leftmost path to find the max for the in-order
- * predecessor swap; see file-level JSDoc above + Rust comment at lines 387-398).
+ * (Rust lines 492-699 @568e7c3). Maintains the Rust signature's `delete_max`
+ * parameter (true while descending the leftmost path to find the max for the
+ * in-order predecessor swap; see file-level JSDoc above + the strategy comment
+ * at Rust lines 433-444 @568e7c3).
  */
 function deleteInner(
   node: AvlNode,
@@ -150,7 +156,23 @@ function deleteInner(
   callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
-  // Rust line 458: `let direction = if delete_max { 1 } else { self.replay_comparison() };`
+  // Rust line 499 @568e7c3: `self.on_node_visit(r_node, operation, false)` — the
+  // FIRST statement of `delete_helper`, ahead of both the direction computation
+  // and the node-kind match. Placed identically here so the visit ORDER matches
+  // the reference and not merely the visit set. (`removedNodes()` consumes
+  // membership only — the derived walk is order-insensitive, like `packTree`;
+  // the placement is reference fidelity, not a consumer constraint.)
+  //
+  // Hoisting it above the guards below is behaviour-preserving on both
+  // consumers: neither `replayComparison` nor `getFailedReason` touches
+  // `modifiedNodes`, the prover cannot reach this frame with a non-internal node
+  // (batch-prover.ts::performOneOperation's deleteHelper-failure branch), and
+  // the verifier's `onNodeVisit` is a no-op
+  // (batch-verifier.ts::buildCallbacks's onNodeVisit no-op).
+  callbacks.onNodeVisit(node, op, false)
+
+  // Rust lines 501-505 @568e7c3:
+  // `let direction = if delete_max { 1 } else { self.replay_comparison() };`
   // deleteMax=true forces direction=1 (we are not searching for a specific key
   // anymore; we are descending the rightmost path of a subtree to find its max).
   const direction = deleteMax ? 1 : callbacks.replayComparison()
@@ -162,20 +184,17 @@ function deleteInner(
     }
   }
 
-  // Rust line 460: `if let Node::Internal(r) = self.tree().copy(r_node) { ... }`
+  // Rust line 506 @568e7c3: `if let Node::Internal(r) = self.tree().copy(r_node) { ... }`
   // Both branches of the `delete_helper` body assume the current node is
   // Internal. Leaf/Label here = proof-malformed.
   if (node.kind !== 'internal') {
-    // Rust line 635: `panic!("Not internal node")` — for the verifier, this
-    // is a malformed proof (the prover would have arranged for this branch
-    // to land on an internal node).
+    // Rust line 697 @568e7c3: `bail!("Malformed AVL proof: delete on a
+    // non-internal node")` — for the verifier, this is a malformed proof (the
+    // prover would have arranged for this branch to land on an internal node).
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 453: `self.on_node_visit(r_node, operation, false)`
-  callbacks.onNodeVisit(node, op, false)
-
-  // Rust line 461: `assert!(!(direction < 0 && r.left.borrow().is_leaf()));`
+  // Rust lines 514-517 @568e7c3: `ensure!(!(direction < 0 && r.left.borrow().is_leaf()), ...)`
   // If we are descending left looking for the deletion target and the left
   // child is a leaf, the target key is not in any internal node's subtree —
   // impossible for a valid proof of a present key.
@@ -183,25 +202,26 @@ function deleteInner(
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Easy case 1 (Rust lines 469-494): direction >= 0 AND r.right is a Leaf.
+  // Easy case 1 (Rust lines 525-554 @568e7c3): direction >= 0 AND r.right is a Leaf.
   if (direction >= 0 && node.right.kind === 'leaf') {
     return tryEasyDeleteRightLeaf(node, node.right, direction, deleteMax, op, callbacks, saved)
   }
 
-  // Easy case 2 (Rust lines 495-511): direction == 0 AND r.left is a Leaf.
+  // Easy case 2 (Rust lines 555-571 @568e7c3): direction == 0 AND r.left is a Leaf.
   if (direction === 0 && node.left.kind === 'leaf') {
     return tryEasyDeleteLeftLeaf(node, node.left, op, callbacks)
   }
 
-  // Hard cases (Rust lines 512-633).
+  // Hard cases (Rust lines 572-695 @568e7c3).
   if (direction <= 0) {
-    // Rust lines 513-585: going left (or deleteMax-from-here case).
-    // The structural assertion (line 461) plus the easy-case exits above
-    // guarantee node.left is Internal at this point.
+    // Rust lines 573-647 @568e7c3: going left (or deleteMax-from-here case).
+    // The structural assertion (Rust lines 514-517 @568e7c3) plus the easy-case exits
+    // above guarantee node.left is Internal at this point.
     return hardDeleteLeftDescent(node, direction, op, callbacks, saved)
   }
-  // Rust lines 586-633: going right. The easy-case exits guarantee node.right
-  // is Internal here (line 469 fired on Leaf right-children).
+  // Rust lines 648-695 @568e7c3: going right. The easy-case exits guarantee
+  // node.right is Internal here (Rust line 525 @568e7c3 fired on Leaf
+  // right-children).
   return hardDeleteRightDescent(node, deleteMax, op, callbacks, saved)
 }
 
@@ -210,24 +230,25 @@ function deleteInner(
 // ---------------------------------------------------------------------------
 
 /**
- * Ports authenticated_tree_ops.rs lines 469-494.
+ * Ports authenticated_tree_ops.rs Rust lines 525-554 @568e7c3.
  *
  * Two sub-cases:
  *   - deleteMax (direction == 1): save the right leaf's info into `saved.node`
  *     (it will be promoted into the in-order successor by an ancestor frame).
- *     Return the left subtree as the new subtree root. (Rust lines 474-479.)
+ *     Return the left subtree as the new subtree root.
+ *     (Rust lines 530-535 @568e7c3.)
  *
  *   - direction == 0: we found the leaf to delete. Replace `nextLeafKey` of
  *     the rightmost leaf of `r.left` with the deleted leaf's `nextLeafKey`,
- *     then return the modified left subtree. (Rust lines 482-491.)
+ *     then return the modified left subtree. (Rust lines 538-551 @568e7c3.)
  *
  * Both sub-cases return heightDecreased=true: the subtree at this node was
  * `(left subtree height + 1)` deep — replacing it with the left subtree
  * decreases that subtree's height by 1.
  *
  * Note: direction is asserted to be exactly 0 in the non-deleteMax branch
- * (Rust line 483: `assert!(direction == 0)`). direction can't be < 0 here
- * because the caller already checked `direction >= 0`.
+ * (Rust lines 539-543 @568e7c3: `ensure!(direction == 0, ...)`). direction can't be < 0
+ * here because the caller already checked `direction >= 0`.
  */
 function tryEasyDeleteRightLeaf(
   node: InternalNode,
@@ -238,19 +259,28 @@ function tryEasyDeleteRightLeaf(
   callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
+  // Rust line 529 @568e7c3: `self.on_node_visit(&r.right, operation, false)`,
+  // ahead of the deleteMax branch and so covering both sub-cases.
+  //
+  // Load-bearing in the deleteMax sub-case: this leaf is the max of an
+  // ancestor's left subtree, not the leaf `modifyHelper` matched on the first
+  // pass, so no other visit reaches it. Left unvisited it is packed as a bare
+  // label, and the verifier cannot read the key and value it has to promote.
+  callbacks.onNodeVisit(rightLeaf, op, false)
+
   if (deleteMax) {
-    // Rust lines 474-479. Save the right leaf for the ancestor that started
-    // this deleteMax (the one at hardDeleteLeftDescent direction==0 case).
+    // Rust lines 530-535 @568e7c3. Save the right leaf for the ancestor that
+    // started this deleteMax (the one at hardDeleteLeftDescent direction==0 case).
     saved.node = rightLeaf
     // Returning r.left means: detach this internal node and the right leaf;
     // the parent picks up r.left in our place.
     return { ok: true, newSubtreeRoot: node.left, heightDecreased: true }
   }
 
-  // Rust lines 482-491. direction == 0. Splice out the right leaf, but the
-  // left subtree's max leaf must have its nextLeafKey updated to point past
+  // Rust lines 538-551 @568e7c3. direction == 0. Splice out the right leaf, but
+  // the left subtree's max leaf must have its nextLeafKey updated to point past
   // the deleted leaf (i.e. to the deleted leaf's nextLeafKey).
-  // direction asserted == 0 (Rust line 483).
+  // direction asserted == 0 (Rust lines 539-543 @568e7c3).
   if (direction !== 0) {
     // Defensive: caller invariant says direction >= 0 here; combined with
     // !deleteMax, direction must be exactly 0. If 1, we'd be in deleteMax
@@ -267,7 +297,7 @@ function tryEasyDeleteRightLeaf(
 // ---------------------------------------------------------------------------
 
 /**
- * Ports authenticated_tree_ops.rs lines 495-511.
+ * Ports authenticated_tree_ops.rs Rust lines 555-571 @568e7c3.
  *
  * Entered when the target was found (direction == 0) and the left child is
  * a Leaf (but the right child is NOT a Leaf, else easy case 1 would have
@@ -290,8 +320,14 @@ function tryEasyDeleteLeftLeaf(
   op: Operation,
   callbacks: AvlTreeOpsCallbacks,
 ): DeleteInner {
-  // Rust lines 501-509. Recurse into node.right's leftmost leaf, replacing
-  // its key and value with the deleted left leaf's key and value.
+  // Rust line 560 @568e7c3: `self.on_node_visit(&r.left, operation, false)`.
+  // This leaf is spliced out of the tree; the leaf `modifyHelper` matched is
+  // the minimum of `node.right`, so nothing else visits this one. Its key and
+  // value are exactly what the verifier writes into that minimum leaf below.
+  callbacks.onNodeVisit(leftLeaf, op, false)
+
+  // Rust lines 561-569 @568e7c3. Recurse into node.right's leftmost leaf,
+  // replacing its key and value with the deleted left leaf's key and value.
   const newRight = changeKeyAndValueOfMinNode(node.right, leftLeaf.key, leftLeaf.value, callbacks, op)
   if (!newRight.ok) return newRight
   return { ok: true, newSubtreeRoot: newRight.node, heightDecreased: true }
@@ -302,27 +338,27 @@ function tryEasyDeleteLeftLeaf(
 // ---------------------------------------------------------------------------
 
 /**
- * Ports authenticated_tree_ops.rs lines 512-585.
+ * Ports authenticated_tree_ops.rs 573-647 @568e7c3.
  *
  * Reached when (a) direction < 0 (target is further left; both children are
  * internal because the easy-case checks above only handled leaf right-children)
- * or (b) direction == 0 AND both children are internal (line 495's check on
+ * or (b) direction == 0 AND both children are internal (line 556 @568e7c3's check on
  * `r.left is Leaf` failed). In sub-case (b), we still need to delete from
  * this node, but with neither child being a leaf — so we initiate a deleteMax
  * descent down the left subtree to find the in-order predecessor and copy
  * its key/value into the leftmost leaf of the right subtree.
  *
- * Recursion call (Rust line 516):
+ * Recursion call (Rust lines 575-576 @568e7c3):
  *   `(new_left, child_height_decreased) = self.delete_helper(&r.left, direction == 0, ...)`
  * The `delete_max` arg becomes `true` exactly when direction == 0.
  *
- * Post-recursion (Rust lines 518-537):
+ * Post-recursion (Rust lines 578-599 @568e7c3):
  *   - direction == 0: take saved_node from the wrapper (the leaf the deleteMax
  *     bottomed out on). Update the right subtree's leftmost leaf's key+value
  *     to the saved leaf's key+value.
  *   - direction < 0: just propagate new_left.
  *
- * Rebalance (Rust lines 538-585):
+ * Rebalance (Rust lines 600-647 @568e7c3):
  *   - if child shrank and our balance was right-heavy (> 0), we must rotate.
  *     The right child is the offending taller subtree.
  *     - right.balance < 0 → double-left rotation, height decreases.
@@ -336,7 +372,7 @@ function hardDeleteLeftDescent(
   callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
-  // Rust line 516: recursive call into the left subtree.
+  // Rust lines 575-576 @568e7c3: recursive call into the left subtree.
   // deleteMax becomes true iff direction == 0 (we're at the deletion site
   // with two non-leaf children — start the deleteMax descent on the left).
   const childResult = deleteInner(node.left, direction === 0, op, callbacks, saved)
@@ -344,10 +380,10 @@ function hardDeleteLeftDescent(
   const newLeft = childResult.newSubtreeRoot
   const childHeightDecreased = childResult.heightDecreased
 
-  // Rust lines 518-537: prepare the new root for the rebalance step.
+  // Rust lines 578-599 @568e7c3: prepare the new root for the rebalance step.
   let newRoot: InternalNode
   if (direction === 0) {
-    // Rust lines 522-534. Take saved_node — the leaf that bottomed-out on
+    // Rust lines 583-585 @568e7c3. Take saved_node — the leaf that bottomed-out on
     // the deleteMax descent. We need its key and value.
     const savedLeaf = saved.node
     if (savedLeaf === null) {
@@ -358,19 +394,37 @@ function hardDeleteLeftDescent(
     }
     saved.node = null
 
-    // Rust line 524: `InternalNode::update_key(r_node, &self.tree().key(&s))` —
-    // updates this internal node's stored key to the saved leaf's key. The
-    // verifier's TS InternalNode has no `key` field (see node.ts) — internal
-    // node keys are reconstructed on the fly via replay_comparison. So the
-    // key update is a no-op for the verifier.
+    // Rust line 586 @568e7c3:
+    // `InternalNode::update_key(r_node, &self.tree().key(&s))` —
+    // this node's separator key becomes the saved (promoted) leaf's key, and
+    // every node built from it downstream inherits that key, because Rust's
+    // `InternalNode::update` takes its key from the template node it is
+    // handed (batch_node.rs:321 @568e7c3).
     //
-    // Rust lines 525-528: extract left/right/balance from the updated node.
-    // For us, these are just node.left (already deleted from above) and
-    // node.right.
+    // The update is REQUIRED, not cosmetic. `deleteHelper` is shared by the
+    // prover and the verifier, and the two read this field differently:
     //
-    // Rust lines 529-534: build new internal node with the modified right
-    // subtree (where the leftmost leaf has been replaced with saved_leaf's
-    // key+value).
+    //   - The prover navigates BY key. `BatchAVLProver.nextDirectionIsLeft`
+    //     and `unauthenticatedLookup` both do `compareBytes(key, node.key)`,
+    //     and `serialize.ts` writes the field into stored trees. A stale
+    //     separator here silently corrupts every later traversal through this
+    //     subtree — the removed key still routes to a leaf, and a surviving
+    //     key on the wrong side of the stale separator becomes unreachable.
+    //   - The verifier ignores it: it replays proof direction bits rather
+    //     than comparing keys, and `label()` does not hash the key, so proof
+    //     bytes and digests are identical either way.
+    //
+    // An earlier comment here concluded "no-op for the verifier" and dropped
+    // the update. That was true of the verifier and false of the prover.
+    //
+    // The invariant being restored: an internal node's key equals the minimum
+    // key of its right subtree. The deleteMax descent above pulled the left
+    // subtree's max leaf out; `changeKeyAndValueOfMinNode` below writes that
+    // leaf's key/value into the right subtree's leftmost leaf, which makes
+    // `savedLeaf.key` the new minimum of the right subtree.
+    //
+    // Rust lines 587-596 @568e7c3: build the new internal node from the re-keyed one,
+    // with the modified right subtree.
     const newRightSubtree = changeKeyAndValueOfMinNode(
       node.right,
       savedLeaf.key,
@@ -379,29 +433,36 @@ function hardDeleteLeftDescent(
       op,
     )
     if (!newRightSubtree.ok) return newRightSubtree
-    newRoot = newInternal(newLeft, newRightSubtree.node, node.balance, node.key)
+    newRoot = newInternal(newLeft, newRightSubtree.node, node.balance, savedLeaf.key)
   } else {
-    // Rust line 536: `r_node.clone()` — preserve the original node's right
+    // Rust line 598 @568e7c3: `r_node.clone()` — preserve the original node's right
     // and balance, but with the new left from the recursion.
     newRoot = newInternal(newLeft, node.right, node.balance, node.key)
   }
 
-  // Rust lines 538-585: rebalance.
+  // Rust lines 600-647 @568e7c3: rebalance.
   // We read balance + right from newRoot (mirrors Rust's `let root_balance =
   // self.tree().balance(&new_root)` and `let root_right = self.tree().right(&new_root)`).
   const rootBalance = newRoot.balance
   const rootRight = newRoot.right
 
-  // Rust line 540: rotation case — child shrank AND we are right-heavy.
+  // Rust line 602 @568e7c3: rotation case — child shrank AND we are right-heavy.
   if (childHeightDecreased && rootBalance > 0) {
     return rebalanceShrinkLeft(newLeft, rootRight, op, callbacks, newRoot)
   }
 
-  // Rust lines 574-584: no rotation, just balance update.
+  // Rust lines 636-646 @568e7c3: no rotation, just balance update.
   const newBalance: Balance = childHeightDecreased
     ? ((rootBalance + 1) as Balance) // was 0 (childGrew can yield +1=balance 1, OK) or -1 → 0
     : rootBalance
-  const finalNode = newInternal(newLeft, rootRight, newBalance, node.key)
+  // Rust line 644 @568e7c3 templates this node on `&new_root`, so it inherits
+  // new_root's key — which the direction === 0 branch above re-keyed to the
+  // promoted leaf. Reading `node.key` here instead would throw that update
+  // away on the whole no-rotation path, which is the common one: the repro
+  // above (Remove of a two-internal-children separator, child shrank, node
+  // balance 0) lands here, not in rebalanceShrinkLeft. The rotation path is
+  // already correct because it receives `newRoot` as its template.
+  const finalNode = newInternal(newLeft, rootRight, newBalance, newRoot.key)
   return {
     ok: true,
     newSubtreeRoot: finalNode,
@@ -410,24 +471,24 @@ function hardDeleteLeftDescent(
 }
 
 /**
- * Ports authenticated_tree_ops.rs lines 541-572 — rotation when left child
- * shrank and we are right-heavy.
+ * Ports authenticated_tree_ops.rs Rust lines 604-634 @568e7c3 — rotation when
+ * left child shrank and we are right-heavy.
  *
  * Sub-case selector: right child's balance.
  *   - right.balance < 0  → double left rotation. Height ALWAYS decreases.
- *     (Rust lines 547-553.)
+ *     (Rust lines 608-615 @568e7c3.)
  *   - right.balance >= 0 → single left rotation. Height decreases iff the
- *     new right-side balance == 0. (Rust lines 555-569.)
+ *     new right-side balance == 0. (Rust lines 616-632 @568e7c3.)
  *
- * Single left rotation construction (Rust lines 556-569):
+ * Single left rotation construction (Rust lines 618-631 @568e7c3):
  *   newLeftChild = (newRoot, newLeft, rightChild.left, 1 - rightChild.balance)
  *   newRBalance  = rightChild.balance - 1
  *   newR         = (rootRight, newLeftChild, rightChild.right, newRBalance)
  *   returns (newR, newRBalance == 0)
  *
- * Per the Rust comment at line 544: at this point right child is guaranteed
- * Internal — it's taller than our left subtree (rootBalance > 0 + left
- * shrank), and that requires at least an internal node on the right.
+ * Per the Rust comment at line 606 @568e7c3: at this point right child is
+ * guaranteed Internal — it's taller than our left subtree (rootBalance > 0 +
+ * left shrank), and that requires at least an internal node on the right.
  */
 function rebalanceShrinkLeft(
   newLeft: AvlNode,
@@ -436,17 +497,53 @@ function rebalanceShrinkLeft(
   callbacks: AvlTreeOpsCallbacks,
   rotateNode: InternalNode,
 ): DeleteInner {
+  // Rust line 604 @568e7c3: `self.on_node_visit(&root_right, operation, true)`,
+  // UNCONDITIONAL and ahead of the `if let Node::Internal(right_child)` copy at
+  // Rust line 607 @568e7c3 — so it precedes the guard below, and it covers the
+  // single-rotate sub-case too. When the caller descended with direction < 0
+  // this is the original right child, which the rotation re-parents but never
+  // rebuilds wholesale; the verifier must descend into it to replay the rotation.
+  callbacks.onNodeVisit(rootRight, op, true)
+
   if (rootRight.kind !== 'internal') {
-    // Defensive: per Rust line 571's panic, the verifier sees this as a
-    // malformed proof.
+    // Defensive: mirrors the `bail!` at Rust line 634 @568e7c3 — the verifier sees
+    // this as a malformed proof.
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 546: `if right_child.balance < 0` — double left rotation.
+  // Rust line 608 @568e7c3: `if right_child.balance < 0` — double left rotation.
   if (rootRight.balance < 0) {
-    // Rust line 551: `self.on_node_visit(r_node, operation, true)`
-    callbacks.onNodeVisit(rotateNode, op, true)
-    // Rust line 551: `self.double_left_rotate(&new_root, &new_left, &root_right)`.
+    // Rust line 611 @568e7c3:
+    // `self.on_node_visit(&right_child.left, operation, true)`.
+    // `right_child.left` is `rootRight.left` — the node `doubleLeftRotate`
+    // promotes to sub-root. An earlier port visited `rotateNode` here instead;
+    // that node is built by `newInternal` in this same frame, so it is
+    // unreachable from `oldTopNode` and `generateProof` never queries it. The
+    // node the proof actually needs went unvisited.
+    callbacks.onNodeVisit(rootRight.left, op, true)
+    // Grandchild guard — the promoted sub-root. `doubleLeftRotate` reads
+    // `node.right.left` (rotation.ts::doubleLeftRotate's grandchild guard)
+    // and this is that node.
+    //
+    // Formerly a DELIBERATE DIVERGENCE from the reference, which PANICKED here
+    // pre-568e7c3: `double_left_rotate` read `new_root` and called `.balance()`
+    // on it directly, so a non-internal `new_root` (Leaf or LabelOnly) hit the
+    // panic inside `Node::balance`. As of `double_left_rotate`
+    // (authenticated_tree_ops.rs:156-198 @568e7c3), the reference checks
+    // explicitly instead — `ensure!(new_root.borrow().is_internal(), ...)` at
+    // :171-174, before calling `.balance()` at :175 — so this guard now mirrors
+    // the reference's own check rather than diverging from it.
+    //
+    // The verifier's tree is materialised from attacker-chosen proof bytes, so
+    // a crafted proof can put a LABEL (or, with a crafted balance byte, a LEAF)
+    // in this slot. Per facts/avltree.md's no-throw contract we reject instead —
+    // the same treatment scrypto's JVM `BatchAVLVerifier` gives it by wrapping
+    // replay in a `Try`. Mirrors the child guard above (`rootRight.kind`).
+    if (rootRight.left.kind !== 'internal') {
+      return { ok: false, reason: 'proof-malformed' }
+    }
+    // Rust line 613 @568e7c3:
+    // `self.double_left_rotate(&new_root, &new_left, &root_right)`.
     // doubleLeftRotate takes a parent node and reads .right + .right.left
     // (we synthesize that parent here). The key must match the Rust r_node
     // (new_root / rotateNode), not the right child.
@@ -455,24 +552,24 @@ function rebalanceShrinkLeft(
     return { ok: true, newSubtreeRoot: rotated, heightDecreased: true }
   }
 
-  // Rust lines 555-569: single left rotation.
-  // Rust line 560: new_left_child balance = 1 - right_child.balance.
+  // Rust lines 616-632 @568e7c3: single left rotation.
+  // Rust line 622 @568e7c3: new_left_child balance = 1 - right_child.balance.
   //   right_child.balance == 0 → new_left_child.balance = 1.
   //   right_child.balance == 1 → new_left_child.balance = 0.
   // Rust: new_left_child template = r_node (rotateNode), key = rotateNode.key
   const newLeftChildBalance: Balance = (1 - rootRight.balance) as Balance
   const newLeftChild = newInternal(newLeft, rootRight.left, newLeftChildBalance, rotateNode.key)
 
-  // Rust line 562: new_rbalance = right_child.balance - 1.
+  // Rust line 624 @568e7c3: new_rbalance = right_child.balance - 1.
   //   right_child.balance == 0 → -1.
   //   right_child.balance == 1 → 0.
   const newRBalance: Balance = (rootRight.balance - 1) as Balance
 
-  // Rust lines 563-568: new_r = update(root_right, new_left_child,
-  //                       right_child.right, new_rbalance).
+  // Rust lines 625-630 @568e7c3: new_r = update(root_right, new_left_child,
+  //                              right_child.right, new_rbalance).
   const newR = newInternal(newLeftChild, rootRight.right, newRBalance, rootRight.key)
 
-  // Rust line 569: returns (new_r, new_rbalance == 0).
+  // Rust line 631 @568e7c3: returns (new_r, new_rbalance == 0).
   return { ok: true, newSubtreeRoot: newR, heightDecreased: newRBalance === 0 }
 }
 
@@ -481,18 +578,18 @@ function rebalanceShrinkLeft(
 // ---------------------------------------------------------------------------
 
 /**
- * Ports authenticated_tree_ops.rs lines 586-633.
+ * Ports authenticated_tree_ops.rs 648-695 @568e7c3.
  *
  * Mirror of `hardDeleteLeftDescent` for the right-descent case. Easy-case
  * 1 above already short-circuited when r.right was a Leaf, so here r.right
  * is guaranteed Internal.
  *
- * Recursion call (Rust line 588):
+ * Recursion call (Rust lines 650-651 @568e7c3):
  *   `(new_right, child_height_decreased) = self.delete_helper(&r.right, delete_max, ...)`
  * `delete_max` propagates unchanged (we're still in the same deleteMax mode
  * if our caller started one).
  *
- * Rebalance (Rust lines 590-632) — symmetric:
+ * Rebalance (Rust lines 652-694 @568e7c3) — symmetric:
  *   - child shrank AND we were left-heavy (balance < 0) → rotate.
  *     - left.balance > 0 → double-right rotation, height decreases.
  *     - left.balance <= 0 → single-right rotation (inline below).
@@ -505,19 +602,19 @@ function hardDeleteRightDescent(
   callbacks: AvlTreeOpsCallbacks,
   saved: SavedNodeRef,
 ): DeleteInner {
-  // Rust line 588: recurse right; deleteMax propagates unchanged.
+  // Rust lines 650-651 @568e7c3: recurse right; deleteMax propagates unchanged.
   const childResult = deleteInner(node.right, deleteMax, op, callbacks, saved)
   if (!childResult.ok) return childResult
   const newRight = childResult.newSubtreeRoot
   const childHeightDecreased = childResult.heightDecreased
 
-  // Rust line 590: rotation needed iff right subtree shrank AND we were
+  // Rust line 652 @568e7c3: rotation needed iff right subtree shrank AND we were
   // already left-heavy.
   if (childHeightDecreased && node.balance < 0) {
     return rebalanceShrinkRight(node, newRight, op, callbacks)
   }
 
-  // Rust lines 622-631: no rotation, just balance update.
+  // Rust lines 684-693 @568e7c3: no rotation, just balance update.
   const newBalance: Balance = childHeightDecreased
     ? ((node.balance - 1) as Balance) // was 0 → -1 (still valid); +1 → 0 (still valid)
     : node.balance
@@ -530,23 +627,23 @@ function hardDeleteRightDescent(
 }
 
 /**
- * Ports authenticated_tree_ops.rs lines 592-620 — rotation when right child
- * shrank and we are left-heavy.
+ * Ports authenticated_tree_ops.rs Rust lines 654-681 @568e7c3 — rotation when
+ * right child shrank and we are left-heavy.
  *
  * Mirror of `rebalanceShrinkLeft`. Sub-case selector on LEFT child's balance.
  *   - left.balance > 0 → double right rotation. Height ALWAYS decreases.
- *     (Rust lines 597-600.)
+ *     (Rust lines 658-662 @568e7c3.)
  *   - left.balance <= 0 → single right rotation. Height decreases iff
- *     new sub-root balance == 0. (Rust lines 602-616.)
+ *     new sub-root balance == 0. (Rust lines 663-679 @568e7c3.)
  *
- * Single right rotation construction (Rust lines 603-616):
+ * Single right rotation construction (Rust lines 665-678 @568e7c3):
  *   newRightChild = (r_node, leftChild.right, newRight, -leftChild.balance - 1)
  *   newRBalance   = 1 + leftChild.balance
  *   newR          = (r.left, leftChild.left, newRightChild, newRBalance)
  *   returns (newR, newRBalance == 0)
  *
- * Per Rust comment at line 594: left child is guaranteed Internal at this
- * point (taller than the right subtree).
+ * Per the Rust comment at line 656 @568e7c3: left child is guaranteed Internal
+ * at this point (taller than the right subtree).
  */
 function rebalanceShrinkRight(
   node: InternalNode,
@@ -555,17 +652,49 @@ function rebalanceShrinkRight(
   callbacks: AvlTreeOpsCallbacks,
 ): DeleteInner {
   const rootLeft = node.left
+
+  // Rust line 654 @568e7c3: `self.on_node_visit(&r.left, operation, true)`,
+  // UNCONDITIONAL and ahead of the `if let Node::Internal(left_child)` copy at
+  // Rust line 657 @568e7c3 — the mirror of rebalanceShrinkLeft's visit at Rust
+  // line 604 @568e7c3, and it covers the single-rotate sub-case too. `r.left`
+  // is the original left child; the rotation re-parents it and the verifier
+  // must descend into it.
+  callbacks.onNodeVisit(rootLeft, op, true)
+
   if (rootLeft.kind !== 'internal') {
-    // Defensive: per Rust line 619's panic, the verifier sees this as
-    // malformed proof.
+    // Defensive: mirrors the `bail!` at Rust line 681 @568e7c3 — the verifier sees
+    // this as a malformed proof.
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 596: `if left_child.balance > 0` — double right rotation.
+  // Rust line 658 @568e7c3: `if left_child.balance > 0` — double right rotation.
   if (rootLeft.balance > 0) {
-    // Rust line 600: `self.on_node_visit(r_node, operation, true)`
-    callbacks.onNodeVisit(node, op, true)
-    // Rust line 600: `self.double_right_rotate(r_node, &r.left, &new_right)`.
+    // Rust line 661 @568e7c3:
+    // `self.on_node_visit(&left_child.right, operation, true)`.
+    // `left_child.right` is `rootLeft.right` — the node `doubleRightRotate`
+    // promotes to sub-root. An earlier port visited `node` here instead, which
+    // `deleteInner` had already visited on the way down, so the call added
+    // nothing and the promoted node was left unvisited.
+    callbacks.onNodeVisit(rootLeft.right, op, true)
+    // Grandchild guard — mirror of `rebalanceShrinkLeft`'s. `doubleRightRotate`
+    // reads `node.left.right`
+    // (rotation.ts::doubleRightRotate's grandchild guard) and this is that node.
+    //
+    // Formerly a DELIBERATE DIVERGENCE from the reference, which PANICKED here
+    // pre-568e7c3: `double_right_rotate` read `new_root` and called `.balance()`
+    // on it directly, so a non-internal `new_root` (Leaf or LabelOnly) hit the
+    // panic inside `Node::balance`. As of `double_right_rotate`
+    // (authenticated_tree_ops.rs:205-240 @568e7c3), the reference checks
+    // explicitly instead — `ensure!(new_root.borrow().is_internal(), ...)` at
+    // :215-218, before calling `.balance()` at :219 — so this guard now mirrors
+    // the reference's own check rather than diverging from it. We reject per
+    // facts/avltree.md's no-throw contract, as scrypto's JVM `BatchAVLVerifier`
+    // effectively does via `Try`.
+    if (rootLeft.right.kind !== 'internal') {
+      return { ok: false, reason: 'proof-malformed' }
+    }
+    // Rust line 662 @568e7c3:
+    // `self.double_right_rotate(r_node, &r.left, &new_right)`.
     // doubleRightRotate takes a parent and reads .left + .left.right
     // (we synthesize that parent here). The key must match the Rust r_node
     // (node), not the left child.
@@ -574,24 +703,24 @@ function rebalanceShrinkRight(
     return { ok: true, newSubtreeRoot: rotated, heightDecreased: true }
   }
 
-  // Rust lines 602-616: single right rotation.
-  // Rust line 607: new_right_child balance = -left_child.balance - 1.
+  // Rust lines 663-679 @568e7c3: single right rotation.
+  // Rust line 669 @568e7c3: new_right_child balance = -left_child.balance - 1.
   //   left_child.balance ==  0 → new_right_child.balance = -1.
   //   left_child.balance == -1 → new_right_child.balance =  0.
   // Rust: new_right_child template = r_node (node), key = node.key
   const newRightChildBalance: Balance = (-rootLeft.balance - 1) as Balance
   const newRightChild = newInternal(rootLeft.right, newRight, newRightChildBalance, node.key)
 
-  // Rust line 609: new_rbalance = 1 + left_child.balance.
+  // Rust line 671 @568e7c3: new_rbalance = 1 + left_child.balance.
   //   left_child.balance ==  0 → 1.
   //   left_child.balance == -1 → 0.
   const newRBalance: Balance = (1 + rootLeft.balance) as Balance
 
-  // Rust lines 610-615: new_r = update(r.left, left_child.left,
-  //                       new_right_child, new_rbalance).
+  // Rust lines 672-677 @568e7c3: new_r = update(r.left, left_child.left,
+  //                              new_right_child, new_rbalance).
   const newR = newInternal(rootLeft.left, newRightChild, newRBalance, rootLeft.key)
 
-  // Rust line 616: returns (new_r, new_rbalance == 0).
+  // Rust line 678 @568e7c3: returns (new_r, new_rbalance == 0).
   return { ok: true, newSubtreeRoot: newR, heightDecreased: newRBalance === 0 }
 }
 
@@ -606,7 +735,7 @@ type ChangeResult =
 
 /**
  * Ports authenticated_tree_ops.rs::change_next_leaf_key_of_max_node
- * (lines 400-415).
+ * (Rust lines 446-461 @568e7c3).
  *
  * Walks down the rightmost path of the given subtree (always recursing into
  * `right`) until hitting a Leaf; replaces that leaf's `nextLeafKey`. Returns
@@ -626,19 +755,24 @@ function changeNextLeafKeyOfMaxNode(
   callbacks: AvlTreeOpsCallbacks,
   op: Operation,
 ): ChangeResult {
-  // Rust lines 408-409: Leaf branch.
+  // Rust line 452 @568e7c3: `self.on_node_visit(r_node, operation, false)` sits
+  // at the top of the function, AHEAD of the node-kind match — so every node on
+  // this descent is visited, internal nodes included, not only the leaf it
+  // bottoms out on.
+  //
+  // An earlier port visited the leaf alone. That left the right spine of
+  // `node.left` packed as labels: `modifyHelper` went down the other side on
+  // the first pass, so nothing else visits these nodes, and the verifier's own
+  // walk down the spine hits a label and rejects the proof.
+  callbacks.onNodeVisit(node, op, false)
+
+  // Rust lines 454-455 @568e7c3: Leaf branch.
   if (node.kind === 'leaf') {
-    // Visit the OLD leaf before creating the replacement, so packTree (which
-    // traverses from oldTopNode) can find it in modifiedNodes. In Rust this is
-    // unnecessary (the leaf is mutated in place, Rc identity preserved), but
-    // in our immutable model the replacement is a fresh object — the old leaf
-    // must be marked so the proof encoder expands it instead of emitting a label.
-    callbacks.onNodeVisit(node, op, false)
     // LeafNode::update(r_node, &node.hdr.key.unwrap(), &node.value, &next_leaf_key)
     // — same key, same value, new nextLeafKey.
     return { ok: true, node: newLeaf(node.key, node.value, newNextLeafKey) }
   }
-  // Rust lines 410-411: Internal branch — recurse into right.
+  // Rust lines 456-457 @568e7c3: Internal branch — recurse into right.
   if (node.kind === 'internal') {
     const recursed = changeNextLeafKeyOfMaxNode(node.right, newNextLeafKey, callbacks, op)
     if (!recursed.ok) return recursed
@@ -648,14 +782,14 @@ function changeNextLeafKeyOfMaxNode(
       node: newInternal(node.left, recursed.node, node.balance, node.key),
     }
   }
-  // Rust lines 412-414: LabelOnly → panic. For the verifier this is a
+  // Rust lines 458-459 @568e7c3: LabelOnly → bail. For the verifier this is a
   // malformed proof (the prover must have supplied the rightmost path).
   return { ok: false, reason: 'proof-malformed' }
 }
 
 /**
  * Ports authenticated_tree_ops.rs::change_key_and_value_of_min_node
- * (lines 417-432).
+ * (Rust lines 463-479 @568e7c3).
  *
  * Walks down the leftmost path of the given subtree (always recursing into
  * `left`) until hitting a Leaf; replaces that leaf's `key` and `value`
@@ -666,8 +800,8 @@ function changeNextLeafKeyOfMaxNode(
  * over the deleted leaf's logical slot, hence inheriting the deleted leaf's
  * (or the saved-node's) key + value.
  *
- * Note (Rust line 427): `next_node_key` is intentionally PRESERVED (not
- * replaced) — the leaf already points to its in-order successor, and that
+ * Note (Rust line 473 @568e7c3): `next_node_key` is intentionally PRESERVED
+ * (not replaced) — the leaf already points to its in-order successor, and that
  * relationship doesn't change as we shift its key/value.
  */
 function changeKeyAndValueOfMinNode(
@@ -677,15 +811,19 @@ function changeKeyAndValueOfMinNode(
   callbacks: AvlTreeOpsCallbacks,
   op: Operation,
 ): ChangeResult {
-  // Rust lines 426-427: Leaf branch.
+  // Rust line 470 @568e7c3: `self.on_node_visit(r_node, operation, false)` at
+  // the top of the function, ahead of the node-kind match — the mirror of
+  // `changeNextLeafKeyOfMaxNode`'s visit at Rust line 452 @568e7c3. Every node
+  // on the left-spine descent is visited, not only the leaf; see that function
+  // for what visiting the leaf alone costs.
+  callbacks.onNodeVisit(node, op, false)
+
+  // Rust lines 472-473 @568e7c3: Leaf branch.
   if (node.kind === 'leaf') {
-    // Visit the OLD leaf before creating the replacement (see changeNextLeafKeyOfMaxNode
-    // for rationale — same immutable-model divergence from Rust's in-place mutation).
-    callbacks.onNodeVisit(node, op, false)
     // LeafNode::update(r_node, new_key, new_value, &node.next_node_key)
     return { ok: true, node: newLeaf(newKey, newValue, node.nextLeafKey) }
   }
-  // Rust lines 428-429: Internal branch — recurse into left.
+  // Rust lines 474-475 @568e7c3: Internal branch — recurse into left.
   if (node.kind === 'internal') {
     const recursed = changeKeyAndValueOfMinNode(node.left, newKey, newValue, callbacks, op)
     if (!recursed.ok) return recursed
@@ -695,6 +833,6 @@ function changeKeyAndValueOfMinNode(
       node: newInternal(recursed.node, node.right, node.balance, node.key),
     }
   }
-  // Rust lines 430-431: LabelOnly → panic. Verifier: malformed proof.
+  // Rust lines 476-477 @568e7c3: LabelOnly → bail. Verifier: malformed proof.
   return { ok: false, reason: 'proof-malformed' }
 }

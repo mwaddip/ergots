@@ -6,7 +6,7 @@
  * the AvlTreeOpsCallbacks interface (Task 1), with prover-specific callbacks
  * that record traversal directions for later proof serialization.
  *
- * Ports ergo_avltree_rust/src/batch_avl_prover.rs (506 lines).
+ * Ports ergo_avltree_rust/src/batch_avl_prover.rs (537 lines).
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_prover.rs
  */
@@ -15,36 +15,18 @@ import { newLeaf, newInternal, label, type AvlNode, type InternalNode, type Leaf
 import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
 import { modifyHelper } from './modify.js'
 import { deleteHelper } from './delete.js'
-import type { Operation } from './operation.js'
+import { I64_MAX, I64_MIN, type Operation } from './operation.js'
 import { AvlVerifyError } from './errors.js'
+import { compareBytes } from './compare-bytes.js'
 
 // ---------------------------------------------------------------------------
-// Token constants for packed proof format (batch_node.rs:14-16)
+// Token constants for packed proof format (batch_node.rs:14-16 @568e7c3)
 // ---------------------------------------------------------------------------
 
 const LEAF_IN_PACKAGED_PROOF = 0x02
 const LABEL_IN_PACKAGED_PROOF = 0x03
 const END_OF_TREE_IN_PACKAGED_PROOF = 0x04
 const DIGEST_LENGTH = 32
-
-// ---------------------------------------------------------------------------
-// compareBytes helper
-// ---------------------------------------------------------------------------
-
-/**
- * Lexicographic byte comparison. Ports the per-op key-comparison logic
- * within batch_avl_prover.rs::next_direction_is_left (lines 409-446).
- *
- * Defined locally because tree-traversal.ts's version is not exported.
- */
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if (a[i]! < b[i]!) return -1
-    if (a[i]! > b[i]!) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
-}
 
 // ---------------------------------------------------------------------------
 // ProverOperationResult
@@ -59,7 +41,7 @@ export type ProverOperationResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Ports batch_avl_prover.rs::BatchAVLProver (506 lines).
+ * Ports batch_avl_prover.rs::BatchAVLProver (struct + impl @568e7c3).
  *
  * Builds an in-memory AVL+ tree from a sequence of authenticated operations,
  * records traversal directions, and generates serialized AD proofs suitable
@@ -74,53 +56,65 @@ export type ProverOperationResult =
  */
 export class BatchAVLProver {
   // Tree state
-  root: AvlNode | null = null
-  height = 0
+  private _root: AvlNode
+  private _height = 0
   readonly keyLength: number
   readonly valueLengthOpt: number | null
+  /** All-zero key, the exclusive lower bound. Depends only on keyLength. */
+  private readonly negInfKey: Uint8Array
+  /** All-0xff key, the exclusive upper bound. Depends only on keyLength. */
+  private readonly posInfKey: Uint8Array
 
-  // Direction recording (batch_avl_prover.rs:27-28)
+  // Direction recording (batch_avl_prover.rs:27-28 @568e7c3)
   private directions: number[] = [] // Uint8 bytes, grown dynamically
   private directionsBitLength = 0
 
-  // Deletion replay (batch_avl_prover.rs:31-36)
+  // Deletion replay (batch_avl_prover.rs:31-36 @568e7c3)
   private replayIndex = 0
   private lastRightStep = 0
 
-  // Operation state (batch_avl_prover.rs:40-43)
+  // Operation state (batch_avl_prover.rs:40-43 @568e7c3)
   private found = false
-  oldTopNode: AvlNode | null = null
+  private _oldTopNode: AvlNode
 
-  // Modified nodes for proof generation (Rust: modified_nodes)
-  private modifiedNodes: AvlNode[] = []
-
-  // Cycle reset flag (batch_avl_prover.rs:49-50)
-  private needsCycleReset = false
+  // Modified nodes for proof generation (Rust: modified_nodes map, kept
+  // separate from the per-node visited/is_new flags —
+  // authenticated_tree_ops.rs:27 @568e7c3).
+  // A Set gives O(1) membership — the array this replaced made packTree
+  // O(n*m) — and deduplicates the repeat visits that descent and rotation
+  // produce. Reference identity is the right equality: nodes are plain
+  // objects and Set uses SameValueZero.
+  private modifiedNodes: Set<AvlNode> = new Set()
 
   // -------------------------------------------------------------------------
-  // Constructor — ports batch_avl_prover.rs:54-76
+  // Constructor — ports batch_avl_prover.rs:54-76 @568e7c3
   // -------------------------------------------------------------------------
 
   constructor(keyLength: number, valueLengthOpt: number | null) {
     this.keyLength = keyLength
     this.valueLengthOpt = valueLengthOpt
 
-    // Rust lines 65-73: initialize empty tree with a single neg-inf sentinel leaf.
+    // Rust lines 65-73 @568e7c3: initialize empty tree with a single neg-inf sentinel leaf.
     // The leaf's nextLeafKey = posInfKey so it spans the entire key space.
     // This matches Rust's AVLTree — the empty tree is a single LeafNode, NOT an
     // internal node with two sentinel leaves.
-    const negInfKey = new Uint8Array(keyLength) // all zeroes
-    const posInfKey = new Uint8Array(keyLength)
-    posInfKey.fill(0xff)
+    this.negInfKey = new Uint8Array(keyLength) // all zeroes
+    this.posInfKey = new Uint8Array(keyLength)
+    this.posInfKey.fill(0xff)
     const dummyValue = new Uint8Array(valueLengthOpt ?? 0)
 
-    this.root = newLeaf(negInfKey, dummyValue, posInfKey)
-    this.height = 0 // single leaf has height 0
-    this.oldTopNode = this.root
+    // Direct triple-assignment, deliberately NOT routed through restoreRoot():
+    // (a) keeps TS's definite-assignment proof for the non-null `root`;
+    // (b) avoids calling an overridable public method from the constructor;
+    // (c) matches Rust's BatchAVLProver::new, which does not call restore_root
+    //     (batch_avl_prover.rs @568e7c3).
+    this._root = newLeaf(this.negInfKey, dummyValue, this.posInfKey)
+    this._height = 0 // single leaf has height 0
+    this._oldTopNode = this._root
   }
 
   // -------------------------------------------------------------------------
-  // restoreRoot — ports batch_avl_prover.rs:78-108
+  // restoreRoot — ports batch_avl_prover.rs:86-107 @568e7c3
   // -------------------------------------------------------------------------
 
   /**
@@ -130,29 +124,57 @@ export class BatchAVLProver {
    * bootstrap, recovery rollback). Without this, `oldTopNode` is a stale
    * sentinel and `generateProof` produces wrong proofs.
    *
-   * Ports batch_avl_prover.rs `restore_root` (commit 2941396).
+   * Ports batch_avl_prover.rs `restore_root` (86-107 @568e7c3).
    */
   restoreRoot(root: AvlNode, height: number): void {
-    this.root = root
-    this.height = height
+    this._root = root
+    this._height = height
 
     // Drop stale dirty-node bookkeeping from any previous proof cycle.
-    this.modifiedNodes = []
+    this.modifiedNodes = new Set()
 
     // Rebase the proof baseline to the freshly-restored root.
-    this.oldTopNode = root
+    this._oldTopNode = root
 
     // Clear accumulated directions from any prior (possibly failed) cycle.
     this.directions = []
     this.directionsBitLength = 0
-
-    // Tree was just reset — don't double-reset on the next
-    // performOneOperation.
-    this.needsCycleReset = false
   }
 
   // -------------------------------------------------------------------------
-  // buildCallbacks — ports batch_avl_prover.rs:409-484
+  // Public accessors — root/height/oldTopNode are read-only from outside the
+  // class; restoreRoot() above is the one sanctioned write path.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Current tree root. Read-only: direct external assignment would silently
+   * desync the proof cycle (`oldTopNode` vs `root`) and yield wrong proofs.
+   * `restoreRoot(root, height)` is the one sanctioned way to install external
+   * state (startup resume, snapshot bootstrap, recovery rollback).
+   */
+  get root(): AvlNode {
+    return this._root
+  }
+
+  /**
+   * Current tree height. Read-only for the same reason as `root` — see its
+   * JSDoc and `restoreRoot`.
+   */
+  get height(): number {
+    return this._height
+  }
+
+  /**
+   * Root as of the last proof-cycle boundary (construction, `restoreRoot`,
+   * or `generateProof`). Read-only for the same reason as `root` — see its
+   * JSDoc and `restoreRoot`.
+   */
+  get oldTopNode(): AvlNode {
+    return this._oldTopNode
+  }
+
+  // -------------------------------------------------------------------------
+  // buildCallbacks — ports batch_avl_prover.rs::next_direction_is_left (440-477), key_matches_leaf (486-493), replay_comparison (505-515) @568e7c3
   // -------------------------------------------------------------------------
 
   /**
@@ -162,7 +184,7 @@ export class BatchAVLProver {
   private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
     const self = this
     return {
-      // Ports batch_avl_prover.rs:409-446 — next_direction_is_left
+      // Ports batch_avl_prover.rs:440-477 @568e7c3 — next_direction_is_left
       nextDirectionIsLeft: (key: Uint8Array, r: InternalNode): boolean => {
         // The shared engine must have set r.key on internal nodes during
         // addNode and all rebalance helpers. If it's undefined, the tree
@@ -185,7 +207,7 @@ export class BatchAVLProver {
             ret = cmp < 0 // go left if key < node key
           }
         }
-        // Encode direction bit (Rust lines 434-444)
+        // Encode direction bit (batch_avl_prover.rs:464-475 @568e7c3)
         if ((self.directionsBitLength & 7) === 0) {
           self.directions.push(ret ? 1 : 0)
         } else if (ret) {
@@ -196,14 +218,14 @@ export class BatchAVLProver {
         return ret
       },
 
-      // Ports batch_avl_prover.rs:455-462 — key_matches_leaf
+      // Ports batch_avl_prover.rs:486-493 @568e7c3 — key_matches_leaf
       keyMatchesLeaf: (_key: Uint8Array, _leaf: LeafNode) => {
         const matches = self.found
         self.found = false // reset for next operation
         return { ok: true, matches }
       },
 
-      // Ports batch_avl_prover.rs:474-484 — replay_comparison
+      // Ports batch_avl_prover.rs:505-515 @568e7c3 — replay_comparison
       replayComparison: (): -1 | 0 | 1 => {
         const i = self.replayIndex
         let ret: -1 | 0 | 1
@@ -218,9 +240,9 @@ export class BatchAVLProver {
         return ret
       },
 
-      // Ports authenticated_tree_ops.rs:100-123 — on_node_visit
+      // Ports authenticated_tree_ops.rs:102-127 @568e7c3 — on_node_visit
       onNodeVisit: (node: AvlNode, _operation: Operation, _isRotate: boolean) => {
-        self.modifiedNodes.push(node)
+        self.modifiedNodes.add(node)
       },
 
       getFailedReason: () => null, // prover never fails direction reads
@@ -228,40 +250,45 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // performOneOperation — ports batch_avl_prover.rs:89-110 + 226-246
+  // performOneOperation — ports batch_avl_prover.rs::perform_one_operation (120-141) + authenticated_tree_ops.rs::return_result_of_one_operation (261-288) @568e7c3
   // -------------------------------------------------------------------------
 
   /**
    * Apply a single operation (Insert, Update, Remove, Lookup, etc.) to the
    * in-memory tree. Records traversal directions for later proof generation.
    *
+   * Failure model is two-tier: shape-invalid ops (±inf key, wrong key/value
+   * length, out-of-range delta) THROW `AvlVerifyError`; engine-level op
+   * failure (e.g. Insert on an existing key) returns `{ success: false }`.
+   *
    * @returns ProverOperationResult — `{ success: true, value }` on success
    *   (value is the old value or null if the key was absent), or
-   *   `{ success: false }` on precondition failure.
+   *   `{ success: false }` on engine-level operation failure.
    */
   performOneOperation(op: Operation): ProverOperationResult {
     const key = op.key
-    const negInfKey = new Uint8Array(this.keyLength) // all zeroes
-    const posInfKey = new Uint8Array(this.keyLength)
-    posInfKey.fill(0xff)
 
-    // Precondition checks (Rust lines 226-229)
-    if (compareBytes(key, negInfKey) <= 0) {
+    // Precondition checks (authenticated_tree_ops.rs:267-269 @568e7c3)
+    // Reference check order: −inf, +inf, then length (authenticated_tree_ops.rs
+    // entry requires). compareBytes length-tiebreaks, so a SHORT all-zero key
+    // is < −inf and fires here — same caller mistake, different code than the
+    // length gate below. Faithful to both references; do not reorder.
+    if (compareBytes(key, this.negInfKey) <= 0) {
       throw new AvlVerifyError(
         'Key is less than or equal to negative infinity',
-        'invalid-config-key-length',
+        'operation-key-out-of-bounds',
       )
     }
-    if (compareBytes(key, posInfKey) >= 0) {
+    if (compareBytes(key, this.posInfKey) >= 0) {
       throw new AvlVerifyError(
         'Key is greater than or equal to positive infinity',
-        'invalid-config-key-length',
+        'operation-key-out-of-bounds',
       )
     }
     if (key.length !== this.keyLength) {
       throw new AvlVerifyError(
         'Key length does not match tree key length',
-        'invalid-config-key-length',
+        'operation-key-length-mismatch',
       )
     }
     // Value length check
@@ -272,24 +299,29 @@ export class BatchAVLProver {
     ) {
       throw new AvlVerifyError(
         'Value length does not match fixed value length',
-        'invalid-config-value-length',
+        'operation-value-length-mismatch',
+      )
+    }
+    // Delta range check (AVL-03 class, prover boundary) — mirrors
+    // verify.ts::validateOperationShape. TS `bigint` is wider than the
+    // references' i64; an unvalidated out-of-range delta would silently wrap
+    // inside i64ToBeBytes (DataView.setBigInt64) on the absent-key insert
+    // path. 6e review finding I-1.
+    if (op.tag === 'UpdateLongBy' && (op.delta < I64_MIN || op.delta > I64_MAX)) {
+      throw new AvlVerifyError(
+        `op UpdateLongBy: delta=${op.delta} out of signed i64 range`,
+        'operation-delta-out-of-range',
       )
     }
 
-    // Cycle reset (Rust line 90-93)
-    if (this.needsCycleReset) {
-      this.clearVisitedFlags(this.root)
-      this.needsCycleReset = false
-    }
-
-    // Snapshot replay index (Rust line 94)
+    // Snapshot replay index (batch_avl_prover.rs:125 @568e7c3)
     this.replayIndex = this.directionsBitLength
 
-    // Phase 1: modifyHelper (Rust lines 232-233)
+    // Phase 1: modifyHelper (authenticated_tree_ops.rs:272-273 @568e7c3)
     const callbacks = this.buildCallbacks(op)
-    const modifyResult = modifyHelper(this.root!, op, callbacks)
+    const modifyResult = modifyHelper(this._root, op, callbacks)
     if (!modifyResult.ok) {
-      // Rollback directions (Rust lines 96-108)
+      // Rollback directions (batch_avl_prover.rs:127-139 @568e7c3)
       const oldByteLength = (this.replayIndex + 7) >> 3
       this.directions.length = oldByteLength
       this.directionsBitLength = this.replayIndex
@@ -301,46 +333,115 @@ export class BatchAVLProver {
       return { success: false }
     }
 
-    // Phase 2: delete if needed (Rust lines 234-246)
+    // Phase 2: delete if needed (authenticated_tree_ops.rs:274-286 @568e7c3)
     if (modifyResult.needsDelete) {
       const deleteResult = deleteHelper(modifyResult.newSubtreeRoot, op, callbacks)
       if (!deleteResult.ok) {
-        this.root = null
-        this.height = 0
-        return { success: false }
+        // Unreachable for the prover: the getFailedReason() exit never fires
+        // because directions come from the prover's own just-recorded bits,
+        // not a byte-bounded external proof. Three of deleteHelper's other
+        // exits check that a node expected to be Internal isn't a Leaf or a
+        // Label — also unreachable, since the prover's tree is always fully
+        // materialized (no LabelNodes) and satisfies the AVL balance invariant
+        // by construction. The previous code nulled the root on this branch
+        // instead, permanently poisoning the tree and skipping the direction
+        // rollback the modify phase performs.
+        throw new Error(
+          `BatchAVLProver: deleteHelper reported failure (${deleteResult.reason}), which cannot happen for a prover — the shared engine is in an inconsistent state`,
+        )
       }
-      this.root = deleteResult.newSubtreeRoot
-      this.height = Math.max(0, this.height + deleteResult.heightDelta)
-      return { success: true, value: modifyResult.oldValue }
+      this._root = deleteResult.newSubtreeRoot
+      this._height = this.applyHeightDelta(deleteResult.heightDelta)
+      // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
+      // label input); handing it out uncopied lets a caller corrupt cached labels
+      // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
+      return { success: true, value: modifyResult.oldValue === null ? null : modifyResult.oldValue.slice() }
     }
 
     // No delete
-    this.root = modifyResult.newSubtreeRoot
-    this.height = Math.max(0, this.height + modifyResult.heightDelta)
-    return { success: true, value: modifyResult.oldValue }
+    this._root = modifyResult.newSubtreeRoot
+    this._height = this.applyHeightDelta(modifyResult.heightDelta)
+    // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
+    // label input); handing it out uncopied lets a caller corrupt cached labels
+    // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
+    return { success: true, value: modifyResult.oldValue === null ? null : modifyResult.oldValue.slice() }
+  }
+
+  /**
+   * Apply a height delta from the shared engine.
+   *
+   * Rust does a guarded `height += 1` / `height -= 1`. The clamp this replaces
+   * (`Math.max(0, height + delta)`) hid a wrong delta instead of surfacing it —
+   * a negative result means the engine miscounted, which is a bug to report.
+   */
+  private applyHeightDelta(delta: number): number {
+    const next = this._height + delta
+    if (next < 0) {
+      throw new Error(
+        `BatchAVLProver: height delta ${delta} would take height ${this._height} negative — the mutation engine returned an inconsistent result`,
+      )
+    }
+    return next
   }
 
   // -------------------------------------------------------------------------
-  // digest — ports batch_avl_prover.rs:299-300 (rootHash + height)
+  // digest — ports authenticated_tree_ops.rs::digest (133-149 @568e7c3)
   // -------------------------------------------------------------------------
 
   /**
-   * Current 33-byte digest (root label || height). Null if tree poisoned.
+   * Current 33-byte digest (root label || height). Throws `RangeError` in
+   * three cases: (1) the root has been forced to `null` by a type-unsafe
+   * caller — reachable only via a direct cast on the private `_root`
+   * backing field (e.g. `(prover as unknown as { _root: AvlNode | null
+   * })._root = null`), since `root` itself is a getter with no setter and
+   * `restoreRoot`'s parameter is typed non-nullable and cannot carry `null`
+   * without its own cast; (2) the tree height is outside `0..=255` —
+   * reachable via a `restoreRoot`-installed height, an unchecked `number`;
+   * (3) the root is a `LabelNode` whose stored digest is not exactly 32
+   * bytes — reachable via a hand-built `LabelNode` or one installed through
+   * `restoreRoot`, since `label` is a plain `Uint8Array` with no length
+   * captured in its type. All three are unreachable through this API's own
+   * operations alone.
    *
-   * Ports batch_avl_prover.rs rootHash() returning a 33-byte value
+   * Ports authenticated_tree_ops.rs's digest() trait method, returning a 33-byte value
    * (32-byte blake2b label + 1-byte height).
    */
-  digest(): Uint8Array | null {
-    if (this.root === null) return null
-    const rootLabel = label(this.root)
+  digest(): Uint8Array {
+    // JS callers can still violate the non-null type; fail legibly (package
+    // precedent: the height/label RangeError guards below). Rust returns Option
+    // here only because prover+verifier share one AVLTree struct — separate
+    // classes make non-null the faithful shape (see facts/avltree.md).
+    if ((this._root as AvlNode | null) === null) {
+      throw new RangeError('BatchAVLProver.digest: root is null — tree invariant violated by a type-unsafe caller')
+    }
+    // Rust asserts height < 256 (authenticated_tree_ops.rs::digest). The bound
+    // is unreachable for a real tree — height 256 needs more leaves than there
+    // are atoms on Earth — so reaching it means the height counter is wrong.
+    // Masking with & 0xff would emit a plausible but incorrect 33-byte digest,
+    // which is a consensus fault rather than a local error.
+    if (!Number.isInteger(this._height) || this._height < 0 || this._height > 255) {
+      throw new RangeError(
+        `BatchAVLProver.digest: tree height ${this._height} is outside the encodable range 0..255`,
+      )
+    }
+    const rootLabel = label(this._root)
+    // Same defect class as the storage codec's child-label guard: out.set()
+    // zero-pads a short array, so an undersized root digest would produce a
+    // plausible but wrong 33-byte result. newLabel enforces the length, but a
+    // hand-built LabelNode installed via restoreRoot bypasses it.
+    if (rootLabel.length !== DIGEST_LENGTH) {
+      throw new RangeError(
+        `BatchAVLProver.digest: root label length ${rootLabel.length} does not match required digest length ${DIGEST_LENGTH}`,
+      )
+    }
     const out = new Uint8Array(DIGEST_LENGTH + 1)
     out.set(rootLabel, 0)
-    out[DIGEST_LENGTH] = this.height & 0xff
+    out[DIGEST_LENGTH] = this._height
     return out
   }
 
   // -------------------------------------------------------------------------
-  // unauthenticatedLookup — ports batch_avl_prover.rs:302-337
+  // unauthenticatedLookup — ports batch_avl_prover.rs:333-368 @568e7c3
   // -------------------------------------------------------------------------
 
   /**
@@ -348,8 +449,7 @@ export class BatchAVLProver {
    * if absent. Does not record directions or touch modified-nodes tracking.
    */
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null {
-    if (this.root === null) return null
-    return this.lookupWalk(this.root, key)
+    return this.lookupWalk(this._root, key)
   }
 
   /**
@@ -381,7 +481,10 @@ export class BatchAVLProver {
    */
   private lookupFoundWalk(node: AvlNode): Uint8Array | null {
     if (node.kind === 'leaf') {
-      return node.value
+      // Defensive copy: node.value is the leaf's LIVE value buffer (a blake2b
+      // label input); handing it out uncopied lets a caller corrupt cached
+      // labels and the next proof's packTree bytes (C7).
+      return node.value.slice()
     }
     if (node.kind === 'internal') {
       return this.lookupFoundWalk(node.left)
@@ -390,7 +493,7 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
-  // generateProof — ports batch_avl_prover.rs:155-227
+  // generateProof — ports batch_avl_prover.rs:186-258 @568e7c3
   // -------------------------------------------------------------------------
 
   /**
@@ -400,20 +503,20 @@ export class BatchAVLProver {
    */
   generateProof(): Uint8Array {
     // NOTE: Do NOT clear modifiedNodes here — packTree relies on it for
-    // wasModified checks. Clear only after packTree (Rust line ~219:
+    // wasModified checks. Clear only after packTree (batch_avl_prover.rs:251 @568e7c3:
     // self.base.modified_nodes.clear() after pack_tree, not before).
     const parts: Uint8Array[] = []
     let previousLeafAvailable = false
 
-    // Ports batch_avl_prover.rs:155-194 — pack_tree (post-order traversal)
+    // Ports batch_avl_prover.rs:186-225 @568e7c3 — pack_tree (post-order traversal)
     const packTree = (node: AvlNode): void => {
       if (!this.wasModified(node)) {
-        // Unmodified node → emit label (Rust lines 165-169)
+        // Unmodified node → emit label (batch_avl_prover.rs:195-200 @568e7c3)
         parts.push(new Uint8Array([LABEL_IN_PACKAGED_PROOF]))
         parts.push(label(node))
         previousLeafAvailable = false
       } else if (node.kind === 'leaf') {
-        // Modified leaf (Rust lines 172-183)
+        // Modified leaf (batch_avl_prover.rs:203-214 @568e7c3)
         parts.push(new Uint8Array([LEAF_IN_PACKAGED_PROOF]))
         if (!previousLeafAvailable) {
           parts.push(node.key)
@@ -428,30 +531,39 @@ export class BatchAVLProver {
         parts.push(node.value)
         previousLeafAvailable = true
       } else if (node.kind === 'internal') {
-        // Modified internal node: recurse into children (Rust lines 184-188)
+        // Modified internal node: recurse into children (batch_avl_prover.rs:215-219 @568e7c3)
         packTree(node.left)
         packTree(node.right)
-        // Balance byte (Rust line 189)
+        // Balance byte (batch_avl_prover.rs:218 @568e7c3)
         parts.push(new Uint8Array([node.balance & 0xff]))
       }
     }
 
-    if (this.oldTopNode !== null) {
-      packTree(this.oldTopNode)
-    }
+    packTree(this._oldTopNode)
 
-    // End of tree marker (Rust line 212)
+    // End of tree marker (batch_avl_prover.rs:243 @568e7c3)
     parts.push(new Uint8Array([END_OF_TREE_IN_PACKAGED_PROOF]))
 
-    // Directions bit-string (Rust line 213)
+    // Directions bit-string (batch_avl_prover.rs:244 @568e7c3)
     parts.push(new Uint8Array(this.directions))
 
-    // Cycle reset (Rust lines 220-224)
-    this.modifiedNodes = []
-    this.needsCycleReset = true
+    // Cycle reset (batch_avl_prover.rs:251-255 @568e7c3). Rust does NOT call
+    // tree.reset() here — it defers that to the start of the NEXT
+    // perform_one_operation() call via a needs_cycle_reset flag (set at
+    // batch_avl_prover.rs:252, consumed at :121-123, both @568e7c3), which
+    // clears its per-node is_new/visited flags while PRESERVING each node's
+    // cached label. We have no equivalent flags — `visited` is membership in
+    // modifiedNodes, cleared below, and `is_new` has no meaning in an
+    // immutable model — so there is nothing left to reset, now or later.
+    //
+    // Labels are deliberately NOT cleared. Nodes are immutable, so an
+    // unmodified node's cached label stays valid for its lifetime; modified
+    // subtrees are rebuilt as fresh nodes with labelCache: null. Clearing here
+    // would force a full O(n) re-hash on the next digest().
+    this.modifiedNodes = new Set()
     this.directions = []
     this.directionsBitLength = 0
-    this.oldTopNode = this.root
+    this._oldTopNode = this._root
 
     // Concatenate all parts
     const totalLen = parts.reduce((n, p) => n + p.length, 0)
@@ -466,7 +578,7 @@ export class BatchAVLProver {
 
   // -------------------------------------------------------------------------
   // wasModified — ports AuthenticatedTreeOpsBase::was_modified
-  //   (authenticated_tree_ops.rs:39-44)
+  //   (authenticated_tree_ops.rs:43-46 @568e7c3)
   // -------------------------------------------------------------------------
 
   /**
@@ -475,29 +587,29 @@ export class BatchAVLProver {
    * so === works correctly.
    */
   private wasModified(node: AvlNode): boolean {
-    return this.modifiedNodes.includes(node)
+    return this.modifiedNodes.has(node)
   }
 
   // -------------------------------------------------------------------------
-  // generateProofForOperations — ports batch_avl_prover.rs:128-141
+  // generateProofForOperations — ports batch_avl_prover.rs:159-172 @568e7c3
   // -------------------------------------------------------------------------
 
   /**
    * Clone the current tree, apply a batch of operations on the clone,
    * and generate a proof + digest covering all operations.
    *
-   * The original tree is NOT mutated. If any operation fails (precondition),
-   * returns `{ success: false }`.
+   * The original tree is NOT mutated. Failure model is two-tier:
+   * shape-invalid ops (±inf key, wrong key/value length, out-of-range delta)
+   * THROW AvlVerifyError, propagated from performOneOperation; engine-level
+   * op failure (e.g. Insert on an existing key) returns { success: false }.
    */
   generateProofForOperations(
     operations: Operation[],
-  ): { proof: Uint8Array; digest: Uint8Array } | { success: false } {
+  ): { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false } {
     // Clone the tree (deep copy nodes)
-    const cloneRoot = this.deepCloneNode(this.root!)
+    const cloneRoot = this.deepCloneNode(this._root)
     const clonedProver = new BatchAVLProver(this.keyLength, this.valueLengthOpt)
-    clonedProver.root = cloneRoot
-    clonedProver.height = this.height
-    clonedProver.oldTopNode = cloneRoot
+    clonedProver.restoreRoot(cloneRoot, this._height)
 
     for (const op of operations) {
       const result = clonedProver.performOneOperation(op)
@@ -507,8 +619,52 @@ export class BatchAVLProver {
     }
 
     const proof = clonedProver.generateProof()
-    const digest = clonedProver.digest()!
-    return { proof, digest }
+    const digest = clonedProver.digest()
+    return { success: true, proof, digest }
+  }
+
+  // -------------------------------------------------------------------------
+  // removedNodes — output-contract port of
+  //   batch_avl_prover.rs::BatchAVLProver::removed_nodes (146-153 @568e7c3)
+  //   (derived walk; see facts/avltree.md for the divergence table).
+  // -------------------------------------------------------------------------
+
+  /**
+   * Nodes of the previous cycle's tree whose labels are no longer in the
+   * current tree — the rows a storage backend should delete.
+   *
+   * ORDERING: call after the batch's operations and BEFORE `generateProof()`
+   * or `restoreRoot()`; both rebase the proof cycle, after which this
+   * returns `[]` (the reference's cleared-buffer observable — misordering is
+   * the ergo-node-rust 235 GB orphan incident). Calling from inside
+   * `VersionedAVLStorage.update()` is correct by construction:
+   * `generateProofAndUpdateStorage` runs update before generateProof.
+   *
+   * Pure and idempotent; mid-batch calls allowed (diff as of the current
+   * tree). Order of returned nodes unspecified — treat as a set. Returned
+   * nodes are live tree objects: do not mutate; derive storage keys via the
+   * exported `label()`. The never-persisted first-cycle sentinel leaf is
+   * reported on the first mutating cycle (reference parity) — storage must
+   * tolerate deleting absent rows.
+   *
+   * Throws a plain `Error` (not `AvlVerifyError`) on a key-less candidate or
+   * descent node — reachable only via an invariant-violating `restoreRoot`
+   * tree; see facts/avltree.md's invariant-throws bullet.
+   */
+  removedNodes(): AvlNode[] {
+    const out: AvlNode[] = []
+    const walk = (node: AvlNode): void => {
+      // Unvisited ⇒ subtree untouched this cycle ⇒ shared with the current
+      // tree by structural sharing ⇒ nothing under it was removed.
+      if (!this.modifiedNodes.has(node)) return
+      if (!containsLabel(this._root, node)) out.push(node)
+      if (node.kind === 'internal') {
+        walk(node.left)
+        walk(node.right)
+      }
+    }
+    walk(this._oldTopNode)
+    return out
   }
 
   // -------------------------------------------------------------------------
@@ -534,25 +690,76 @@ export class BatchAVLProver {
     // LabelNode
     return { kind: 'label', label: new Uint8Array(node.label) }
   }
+}
 
-  // -------------------------------------------------------------------------
-  // clearVisitedFlags
-  // -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// containsLabel — behavioral port of batch_node.rs::AVLTree::contains +
+//   contains_recursive (519-525, 535-607 @568e7c3)
+// ---------------------------------------------------------------------------
 
-  /**
-   * Recursively clear labelCache on all nodes. Called during the cycle reset
-   * that follows every generateProof() call (Rust's `tree.reset()`).
-   * Forces re-labeling on the next digest() call after the tree has been
-   * mutated in the new cycle.
-   */
-  private clearVisitedFlags(node: AvlNode | null): void {
-    if (node === null) return
-    if (node.kind !== 'label') {
-      node.labelCache = null
+/**
+ * Whether the tree rooted at `root` contains a node whose label equals
+ * `candidate`'s. Descends by the candidate's key (key-equal → one step right,
+ * then left to the leaf), label-comparing every node on the path.
+ *
+ * A `LabelNode` stub encountered ON THE PATH is fail-safe `true`: inside an
+ * unresolved subtree we cannot prove absence, and deleting a node still
+ * referenced from it would leave dangling parent→child references on disk
+ * (the reference documents exactly this hazard in contains_recursive).
+ *
+ * A candidate (or descent node) without a key is an invariant violation —
+ * unreachable through the prover's own operations, reachable only via an
+ * invariant-violating restoreRoot tree; the reference panics on the same
+ * input. Internal, not exported from index.ts.
+ */
+export function containsLabel(root: AvlNode, candidate: AvlNode): boolean {
+  const key = requiredCandidateKey(candidate)
+  const target = label(candidate)
+
+  const walk = (node: AvlNode, keyFound: boolean): boolean => {
+    if (compareBytes(label(node), target) === 0) return true
+    if (node.kind === 'label') return true // fail-safe: unresolved subtree
+    if (node.kind === 'leaf') return false
+    if (node.key === undefined) {
+      throw new Error(
+        'removedNodes: internal node without key on containsLabel descent — tree invariant violated',
+      )
     }
-    if (node.kind === 'internal') {
-      this.clearVisitedFlags(node.left)
-      this.clearVisitedFlags(node.right)
-    }
+    if (keyFound) return walk(node.left, true)
+    const cmp = compareBytes(key, node.key)
+    if (cmp === 0) return walk(node.right, true)
+    return walk(cmp < 0 ? node.left : node.right, false)
   }
+  return walk(root, false)
+}
+
+/**
+ * Candidate's key, or throws the invariant error for a label-only or
+ * key-less-internal candidate (see `containsLabel`'s JSDoc).
+ *
+ * Written as one early return per branch rather than a single `candidate.kind
+ * === 'label' || (candidate.kind === 'internal' && candidate.key ===
+ * undefined)` guard: TS's control-flow analysis narrows the `kind`
+ * discriminant across a branch join, but does not carry a *property*-level
+ * refinement (`key !== undefined`) established inside only one arm through
+ * that same join — confirmed against tsc directly (a `||`-guard and a
+ * nested-if-no-else version both leave `candidate.key` typed
+ * `Uint8Array | undefined` at the use site; only per-branch early return
+ * type-checks). Runtime behavior is identical to the single-guard form.
+ */
+function requiredCandidateKey(candidate: AvlNode): Uint8Array {
+  if (candidate.kind === 'label') {
+    throw new Error(
+      'removedNodes: candidate node carries no key (label-only or key-less internal) — old-tree invariant violated; a well-formed prover tree cannot produce this candidate',
+    )
+  }
+  if (candidate.kind === 'leaf') {
+    return candidate.key
+  }
+  if (candidate.key === undefined) {
+    throw new Error(
+      'removedNodes: candidate node carries no key (label-only or key-less internal) — old-tree invariant violated; a well-formed prover tree cannot produce this candidate',
+    )
+  }
+  return candidate.key
 }

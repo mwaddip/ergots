@@ -6,6 +6,7 @@
  * their own (in-memory for tests, redb/SQLite for production).
  */
 import type { BatchAVLProver } from './batch-prover.js'
+import type { AvlNode } from './node.js'
 
 export interface VersionedAVLStorage {
   /**
@@ -19,10 +20,8 @@ export interface VersionedAVLStorage {
 
   /**
    * Return the root node and tree height at the given version.
-   * The return type is implementation-specific; PersistentBatchAVLProver
-   * wires it to the prover's internal tree.
    */
-  rollback(version: Uint8Array): [/* root */ unknown, /* height */ number]
+  rollback(version: Uint8Array): [AvlNode, number]
 
   /** Current version digest, or null if storage is empty. */
   version(): Uint8Array | null

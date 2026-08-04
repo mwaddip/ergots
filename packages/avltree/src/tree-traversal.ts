@@ -1,12 +1,13 @@
 import type { LeafNode } from './node.js'
 import type { AvlVerifyFailReason } from './errors.js'
 import { type KeyMatchesResult } from './avl-tree-ops.js'
+import { compareBytes } from './compare-bytes.js'
 // Re-export so existing consumers don't break
 export type { KeyMatchesResult }
 
 /**
  * Mutable verifier traversal state. Mirrors the directions/replay indices
- * on BatchAVLVerifier (batch_avl_verifier.rs lines 26-33).
+ * on BatchAVLVerifier (batch_avl_verifier.rs lines 30-37 @568e7c3).
  *
  * `failedReason` is a TS-only out-channel for surfacing OOB reads from
  * `nextDirectionIsLeft` / `replayComparison`. The Rust verifier indexes a
@@ -23,7 +24,7 @@ export interface TraversalState {
 }
 
 /**
- * Ports batch_avl_verifier.rs::BatchAVLVerifier::next_direction_is_left (lines 192-203).
+ * Ports batch_avl_verifier.rs::BatchAVLVerifier::next_direction_is_left (lines 230-241 @568e7c3).
  * Reads one bit from the proof's "directions" bit-string at position
  * state.directionsIndex; advances the index by 1. Returns true if the bit is set
  * (left), false otherwise (right) — also updates state.lastRightStep when right.
@@ -57,7 +58,7 @@ export function nextDirectionIsLeft(
 }
 
 /**
- * Ports batch_avl_verifier.rs::BatchAVLVerifier::replay_comparison (lines 239-251).
+ * Ports batch_avl_verifier.rs::BatchAVLVerifier::replay_comparison (lines 277-289 @568e7c3).
  *
  * Deletions traverse the tree twice: once to find the leaf, once to perform the
  * deletion. This method re-creates the comparison results from the first pass by
@@ -97,20 +98,7 @@ export function replayComparison(
 }
 
 /**
- * Lexicographic comparison of two Uint8Arrays. Returns -1, 0, or 1.
- * Used only internally by keyMatchesLeaf.
- */
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const min = Math.min(a.length, b.length)
-  for (let i = 0; i < min; i++) {
-    if ((a[i] ?? 0) < (b[i] ?? 0)) return -1
-    if ((a[i] ?? 0) > (b[i] ?? 0)) return 1
-  }
-  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0
-}
-
-/**
- * Ports batch_avl_verifier.rs::BatchAVLVerifier::key_matches_leaf (lines 213-227).
+ * Ports batch_avl_verifier.rs::BatchAVLVerifier::key_matches_leaf (lines 251-265 @568e7c3).
  *
  * The verifier does not store keys in internal nodes, so it must check the
  * key against the leaf's range during operation execution. This function asserts

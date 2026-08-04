@@ -3,7 +3,7 @@
  * UpdateLongBy / UnknownModification.
  *
  * Ports authenticated_tree_ops.rs::AuthenticatedTreeOps::modify_helper
- * (lines 262-385) plus `add_node` (lines 205-219).
+ * (302-431 @568e7c3) plus `add_node` (245-259 @568e7c3).
  *
  * CONSENSUS-CRITICAL — every branch is byte-faithful with the Rust
  * reference. Tree-shape changes (Insert split ordering, balance updates,
@@ -56,14 +56,14 @@ import type { AvlVerifyFailReason } from './errors.js'
  * for the recursive rebalance branch: when no change happened the parent
  * returns its original node without creating a new internal node.
  *
- * `needsDelete` mirrors Rust's `to_delete` flag (authenticated_tree_ops.rs:234,
- * lines 288, 351, 377). When true, the leaf at the matching key must be removed
+ * `needsDelete` mirrors Rust's `to_delete` flag (authenticated_tree_ops.rs lines
+ * 328, 397, 423 @568e7c3). When true, the leaf at the matching key must be removed
  * by the caller via `deleteHelper` (T16). The caller (`return_result_of_one_operation`
  * in T17/BatchAvlVerifier) handles this two-phase dispatch:
  *   1. modifyHelper returns needsDelete=true (UpdateLongBy result=0 case)
  *   2. caller calls deleteHelper on the returned newSubtreeRoot
  * The flag propagates upward through internal nodes in the !changeHappened path
- * (Rust lines 351, 377 — `(r_node.clone(), false, false, to_delete, old_value)`).
+ * (Rust lines 397, 423 @568e7c3 — `(r_node.clone(), false, false, to_delete, old_value)`).
  */
 export type ModifyOk = {
   readonly ok: true
@@ -78,11 +78,11 @@ export type ModifyOk = {
   /** Old value at this key, or null if key was absent. */
   readonly oldValue: Uint8Array | null
   /**
-   * Mirrors Rust `to_delete` (authenticated_tree_ops.rs line 288).
+   * Mirrors Rust `to_delete` (authenticated_tree_ops.rs line 328 @568e7c3).
    * True only when UpdateLongBy result == 0: the leaf must be deleted by the
    * caller via deleteHelper (T16). Always false for all other operations handled
    * here. When true, changeHappened is always false and newSubtreeRoot is the
-   * unchanged original node (mirroring Rust line 288: `(r_node.clone(), false, false, true, ...)`).
+   * unchanged original node (mirroring Rust line 328 @568e7c3: `(r_node.clone(), false, false, true, ...)`).
    */
   readonly needsDelete: boolean
 }
@@ -94,14 +94,14 @@ export type ModifyResult = ModifyOk | ModifyFail
 // ---------------------------------------------------------------------------
 
 /**
- * Ports authenticated_tree_ops.rs::modify_helper (lines 262-385).
+ * Ports authenticated_tree_ops.rs::modify_helper (302-431 @568e7c3).
  * Walks the tree per the callbacks' direction decisions, applies the operation
  * at the matching leaf, and rebalances the subtree on the way back up.
  *
  * Top-level dispatch on `node.kind`:
  *  - 'leaf'      → handleLeafNode (leaf-match check + per-op semantics)
  *  - 'internal'  → handleInternalNode (recurse + rebalance, consumes one direction decision)
- *  - 'label'     → 'proof-malformed' (mirrors Rust line 381-382 bail)
+ *  - 'label'     → 'proof-malformed' (mirrors Rust lines 427-428 @568e7c3 bail)
  *
  * `callbacks` provides direction, key-matching, visit-tracking, and failure
  * reporting — the verifier and prover each supply their own implementation.
@@ -117,7 +117,7 @@ export function modifyHelper(
     case 'internal':
       return handleInternalNode(node, op, callbacks)
     case 'label':
-      // Rust line 381-382: `_ => bail!("...this proof is wrong")`.
+      // Rust lines 427-428 @568e7c3: `_ => bail!("...this proof is wrong")`.
       // A LabelNode at this point means the proof's "directions" descended
       // into a subtree we don't have full data for — the prover should have
       // included the path.
@@ -130,7 +130,7 @@ export function modifyHelper(
 // ---------------------------------------------------------------------------
 
 /**
- * Ports the leaf branch of modify_helper (lines 277-322 — `Node::Leaf(r) => { ... }`).
+ * Ports the leaf branch of modify_helper (317-368 @568e7c3 — `Node::Leaf(r) => { ... }`).
  *
  * Two top-level sub-branches keyed off `keyMatchesLeaf`:
  *   - matches=true  (key === leaf.key): the leaf IS the target.
@@ -145,7 +145,7 @@ export function modifyHelper(
  * "leaf-key-out-of-order" (proof-malformed → caller rejects).
  */
 function handleLeafNode(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallbacks): ModifyResult {
-  // Rust line 278: `if self.key_matches_leaf(key, &r)? { ... }`
+  // Rust line 318 @568e7c3: `if self.key_matches_leaf(key, &r)? { ... }`
   const m = callbacks.keyMatchesLeaf(op.key, leaf)
   if (!m.ok) {
     // 'leaf-key-out-of-order' propagates as a verification failure.
@@ -159,33 +159,42 @@ function handleLeafNode(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCall
 }
 
 /**
- * Ports Rust modify_helper lines 278-299 — the `if key_matches_leaf(...)` true branch.
+ * Ports Rust modify_helper lines 318-343 @568e7c3 — the `if key_matches_leaf(...)` true branch.
  *
  * key === leaf.key. Behavior by operation:
  *   - Lookup             — short-circuit; return leaf.value as oldValue, no change.
- *                          (Rust lines 280-283.)
+ *                          (Rust lines 320-323 @568e7c3.)
  *   - UnknownModification — short-circuit; return leaf.value as oldValue, no change.
- *                          (Rust lines 280-283 — same path as Lookup: updateFn returns
- *                          oldValue, so changeHappened=false, tree unmodified.)
+ *                          Behaviorally equivalent at the tree level to the reference's
+ *                          update_fn same-value rewrite (operation.rs:67 @568e7c3;
+ *                          authenticated_tree_ops.rs:330-339 @568e7c3) — not literally
+ *                          Rust's Lookup arm (authenticated_tree_ops.rs:320-323 @568e7c3).
  *   - Insert             — updateFn returns 'key-already-exists' → fail.
  *   - Update             — updateFn returns newValue; replace leaf with new value.
- *                          oldValue = leaf.value. (Rust lines 290-296.)
+ *                          oldValue = leaf.value. (Rust lines 330-339 @568e7c3.)
  *   - InsertOrUpdate     — same as Update on match.
  *   - UpdateLongBy       — updateFn computes delta+existing. Three sub-cases:
- *                          a. result > 0  → update leaf value (Rust lines 290-296).
+ *                          a. result > 0  → update leaf value (Rust lines 330-339 @568e7c3).
  *                          b. result == 0 → signal needsDelete=true; tree not yet
- *                             modified (Rust lines 286-289: to_delete=true,
+ *                             modified (Rust lines 326-329 @568e7c3: to_delete=true,
  *                             change_happened=false, returns r_node unchanged).
  *                          c. updateFn fails (result < 0, decrement-on-absent-key)
  *                             → 'operation-precondition-failed'.
  *   - (Remove, RemoveIfExists — live in delete.ts T16.)
  */
 function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallbacks): ModifyResult {
-  // Lookup + UnknownModification short-circuit (Rust lines 280-283).
-  // UnknownModification's updateFn returns oldValue unchanged — equivalent to
-  // Lookup at the tree-structure level (no modification, return existing value).
-  // We short-circuit before calling updateFn for UnknownModification too, matching
-  // Rust's Lookup branch: (r_node.clone(), false, false, false, Some(r.value)).
+  // Lookup + UnknownModification short-circuit here in TS. Only Lookup has a
+  // dedicated arm in the reference (authenticated_tree_ops.rs:320-323 @568e7c3:
+  // `(r_node.clone(), false, false, false, Some(r.value))`); UnknownModification
+  // does not reach it.
+  // UnknownModification's updateFn returns oldValue unchanged (operation.rs:67
+  // @568e7c3). The reference instead routes that through the generic
+  // modification arm's same-value rewrite (authenticated_tree_ops.rs:330-339
+  // @568e7c3, the `Some(v) => { ... }` case): it reconstructs the leaf via
+  // LeafNode::update and reports changeHappened=true even though v equals the
+  // existing value byte-for-byte. Our short-circuit skips that redundant
+  // rebuild — behaviorally equivalent at the tree level (same digest, same
+  // oldValue, needsDelete=false), not a literal match to Rust's Lookup arm.
   if (op.tag === 'Lookup' || op.tag === 'UnknownModification') {
     callbacks.onNodeVisit(leaf, op, false)
     return {
@@ -198,17 +207,17 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
     }
   }
 
-  // Modification: invoke updateFn with the existing value (Rust line 285).
+  // Modification: invoke updateFn with the existing value (Rust line 325 @568e7c3).
   const u = updateFn(op, leaf.value)
   if (!u.ok) {
-    // key-already-exists (Insert), result-negative (UpdateLongBy), etc.
+    // key-already-exists (Insert), result-negative / result-out-of-i64-range (UpdateLongBy), etc.
     // Rust returns `Err(anyhow!(...))?` — TS maps all updateFn failures
     // to 'operation-precondition-failed' (per spec).
     return { ok: false, reason: 'operation-precondition-failed' }
   }
 
   // newValue === null means "delete this leaf" — UpdateLongBy result==0.
-  // Rust lines 286-289:
+  // Rust lines 326-329 @568e7c3:
   //   None => {  // delete key
   //     self.on_node_visit(r_node, operation, false);
   //     (r_node.clone(), false, false, true, Some(r.value))
@@ -216,8 +225,10 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
   // We return the leaf unchanged (newSubtreeRoot=leaf, changeHappened=false)
   // and signal needsDelete=true. The caller (BatchAvlVerifier T17) routes this
   // to deleteHelper (T16) after modifyHelper completes.
-  // Note: Remove/RemoveIfExists (also null) are dispatched through delete.ts
-  // directly (T16) and never reach this function.
+  // Note: Remove/RemoveIfExists DO reach this function on their first pass —
+  // updateFn returns null, the needsDelete branch below fires, and the caller
+  // then routes to deleteHelper for the second pass. Those first-pass visits
+  // are ones removedNodes()'s walk relies on (see batch-prover.ts).
   if (u.newValue === null) {
     callbacks.onNodeVisit(leaf, op, false)
     return {
@@ -231,7 +242,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
   }
 
   // Update / InsertOrUpdate / UpdateLongBy (non-zero result): replace the leaf
-  // with a new one carrying the new value, same key and nextLeafKey (Rust line 293).
+  // with a new one carrying the new value, same key and nextLeafKey (Rust line 336 @568e7c3).
   // The Rust impl uses `LeafNode::update(r_node, &r.hdr.key.unwrap(), &v, &r.next_node_key)`.
   callbacks.onNodeVisit(leaf, op, false)
   const newLeafNode = newLeaf(leaf.key, u.newValue, leaf.nextLeafKey)
@@ -246,17 +257,17 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
 }
 
 /**
- * Ports Rust modify_helper lines 300-321 — the `else` branch
+ * Ports Rust modify_helper lines 344-367 @568e7c3 — the `else` branch
  * (key falls in the gap [leaf.key, leaf.nextLeafKey)).
  *
  * leaf.key < op.key < leaf.nextLeafKey. Behavior by operation:
  *   - Lookup             — short-circuit; oldValue = null, no change.
- *                          (Rust lines 303-305.)
+ *                          (Rust lines 346-349 @568e7c3.)
  *   - UnknownModification — short-circuit; oldValue = null, no change.
- *                          (Rust lines 303-305 — same path as Lookup: updateFn returns
- *                          null on absent, so no change happens.)
+ *                          (Rust lines 352-355 @568e7c3 — same path as Lookup: updateFn
+ *                          returns null on absent, so no change happens.)
  *   - Insert             — updateFn returns newValue; SPLIT the leaf via add_node.
- *                          oldValue = null, heightDelta = +1. (Rust lines 313-317.)
+ *                          oldValue = null, heightDelta = +1. (Rust lines 356-363 @568e7c3.)
  *   - Update             — updateFn returns 'key-not-found' → fail.
  *   - InsertOrUpdate     — same as Insert on absent.
  *   - UpdateLongBy delta > 0 — same as Insert on absent (new key inserted with delta).
@@ -265,7 +276,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
  *   - (Remove, RemoveIfExists — live in delete.ts T16.)
  */
 function handleLeafGap(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallbacks): ModifyResult {
-  // Lookup + UnknownModification short-circuit (Rust lines 303-305).
+  // Lookup + UnknownModification short-circuit (Rust lines 346-349, 352-355 @568e7c3).
   // For UnknownModification on an absent key: updateFn returns null (oldValue=null),
   // which we handle in the null branch below — but we short-circuit here for
   // clarity and to match the Rust structural pattern exactly.
@@ -281,7 +292,7 @@ function handleLeafGap(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallb
     }
   }
 
-  // Modification: invoke updateFn with null (absent) — Rust line 308.
+  // Modification: invoke updateFn with null (absent) — Rust line 351 @568e7c3.
   const u = updateFn(op, null)
   if (!u.ok) {
     // key-not-found (Update / Remove), key-already-exists (impossible here),
@@ -290,7 +301,7 @@ function handleLeafGap(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallb
   }
 
   // newValue === null on absent key means "no insertion needed" — matches
-  // Rust lines 309-311:
+  // Rust lines 352-355 @568e7c3:
   //   None => {  // don't change anything, just lookup
   //     self.on_node_visit(r_node, operation, false);
   //     (r_node.clone(), false, false, false, None)
@@ -311,8 +322,8 @@ function handleLeafGap(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallb
 
   // Insert / InsertOrUpdate / UpdateLongBy (absent, delta > 0): SPLIT — wrap
   // the existing leaf and the new leaf into a new internal node.
-  // Rust line 316: `self.add_node(r_node, &key, &v)`.
-  // The new subtree grew by 1 level. (Rust line 316: heightIncreased=true.)
+  // Rust line 362 @568e7c3: `self.add_node(r_node, &key, &v)`.
+  // The new subtree grew by 1 level. (Rust line 362 @568e7c3: heightIncreased=true.)
   callbacks.onNodeVisit(leaf, op, false)
   return {
     ok: true,
@@ -325,7 +336,7 @@ function handleLeafGap(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCallb
 }
 
 /**
- * Ports authenticated_tree_ops.rs::add_node (lines 205-219).
+ * Ports authenticated_tree_ops.rs::add_node (245-259 @568e7c3).
  *
  * Constructs a new internal node containing:
  *   - left:  modified original leaf with nextLeafKey = newKey (was leaf.nextLeafKey)
@@ -356,7 +367,7 @@ function addNode(leaf: LeafNode, newKey: Uint8Array, newValue: Uint8Array): Inte
 // ---------------------------------------------------------------------------
 
 /**
- * Ports the internal branch of modify_helper (lines 323-380 — `Node::Internal(r) => { ... }`).
+ * Ports the internal branch of modify_helper (369-426 @568e7c3 — `Node::Internal(r) => { ... }`).
  *
  * 1. Get direction from callbacks: goLeft = callbacks.nextDirectionIsLeft(...).
  * 2. Check getFailedReason() for OOB / error state.
@@ -365,8 +376,8 @@ function addNode(leaf: LeafNode, newKey: Uint8Array, newValue: Uint8Array): Inte
  * 5. On recursive success: if changeHappened, possibly rotate; otherwise return
  *    the original node unchanged.
  *
- * The post-recursion logic mirrors Rust lines 332-352 (left descent) and
- * 358-378 (right descent), factored into the helper rebalanceLeftDescent /
+ * The post-recursion logic mirrors Rust lines 378-398 @568e7c3 (left descent) and
+ * 404-424 @568e7c3 (right descent), factored into the helper rebalanceLeftDescent /
  * rebalanceRightDescent below.
  */
 function handleInternalNode(
@@ -374,7 +385,7 @@ function handleInternalNode(
   op: Operation,
   callbacks: AvlTreeOpsCallbacks,
 ): ModifyResult {
-  // Rust line 327: `if self.next_direction_is_left(key, &r) { ... }`
+  // Rust line 373 @568e7c3: `if self.next_direction_is_left(key, &r) { ... }`
   const goLeft = callbacks.nextDirectionIsLeft(op.key, node)
   const failedReason = callbacks.getFailedReason()
   if (failedReason !== null) {
@@ -394,23 +405,23 @@ function handleInternalNode(
 }
 
 /**
- * Ports Rust modify_helper lines 332-352 — post-recursion logic for left descent.
+ * Ports Rust modify_helper lines 378-398 @568e7c3 — post-recursion logic for left descent.
  *
  * Cases (in order, per Rust):
- *   1. !changeHappened  → return original node, propagate oldValue (line 351).
+ *   1. !changeHappened  → return original node, propagate oldValue (line 397 @568e7c3).
  *                         (Lookups and no-op modifications take this path.)
  *   2. childHeightIncreased && node.balance < 0  → ROTATE.
  *      Sub-case by new left child's balance:
- *        a. newLeft.balance < 0  → single right rotation (line 336-339).
- *        b. newLeft.balance >= 0 → double right rotation (line 341).
+ *        a. newLeft.balance < 0  → single right rotation (lines 384-385 @568e7c3).
+ *        b. newLeft.balance >= 0 → double right rotation (line 387 @568e7c3).
  *      Rotation absorbs the height growth: returned heightDelta = 0.
  *   3. !rotate (no rotation needed):
- *      - If childHeightIncreased && node.balance == 0: my height grew (line 345).
- *      - new balance = balance - 1 if child grew, else balance unchanged (line 346).
- *      - Construct new internal node with the new left child (line 347).
+ *      - If childHeightIncreased && node.balance == 0: my height grew (line 391 @568e7c3).
+ *      - new balance = balance - 1 if child grew, else balance unchanged (line 392 @568e7c3).
+ *      - Construct new internal node with the new left child (line 393 @568e7c3).
  */
 function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult {
-  // Case 1: no change happened. Rust line 351:
+  // Case 1: no change happened. Rust line 397 @568e7c3:
   //   `(r_node.clone(), false, false, to_delete, old_value)`
   // to_delete propagates upward here — if the child signals needsDelete=true,
   // the parent returns the original node unchanged but propagates needsDelete.
@@ -428,20 +439,20 @@ function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult
   const childGrew = child.heightDelta === 1
 
   // Case 2: rotation needed (child grew AND we were already left-heavy).
-  // Rust line 333: `if child_height_increased && r.balance < 0`.
+  // Rust line 379 @568e7c3: `if child_height_increased && r.balance < 0`.
   if (childGrew && node.balance < 0) {
     return rotateLeftDescent(node, child.newSubtreeRoot, child.oldValue)
   }
 
   // Case 3: no rotation. Update balance and possibly height.
-  // Rust line 345: `my_height_increased = child_height_increased && r.balance == 0`.
+  // Rust line 391 @568e7c3: `my_height_increased = child_height_increased && r.balance == 0`.
   const myHeightIncreased: 0 | 1 = childGrew && node.balance === 0 ? 1 : 0
-  // Rust line 346: `r_balance = if child_height_increased { r.balance - 1 } else { r.balance }`.
+  // Rust line 392 @568e7c3: `r_balance = if child_height_increased { r.balance - 1 } else { r.balance }`.
   const newBalance: Balance = childGrew
     ? ((node.balance - 1) as Balance) // -1 → -2 is impossible here (would have rotated)
     : node.balance
 
-  // Rust line 347: new internal node with new left, same right, new balance.
+  // Rust line 393 @568e7c3: new internal node with new left, same right, new balance.
   const newNode = newInternal(child.newSubtreeRoot, node.right, newBalance, node.key)
   return {
     ok: true,
@@ -454,13 +465,13 @@ function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult
 }
 
 /**
- * Ports Rust modify_helper lines 336-342 — rotation when descending left.
+ * Ports Rust modify_helper lines 382-388 @568e7c3 — rotation when descending left.
  *
  * Selects single-right vs double-right rotation by the new left child's balance:
- *   - balance < 0  (left-heavy)  → single right rotation (Rust line 338-339).
- *   - balance >= 0 (right-heavy) → double right rotation (Rust line 341).
+ *   - balance < 0  (left-heavy)  → single right rotation (Rust lines 384-385 @568e7c3).
+ *   - balance >= 0 (right-heavy) → double right rotation (Rust line 387 @568e7c3).
  *
- * Single right rotation construction (Rust lines 338-339):
+ * Single right rotation construction (Rust lines 384-385 @568e7c3):
  *   newR = (r_node, newLeftm.right, r.right, balance=0)
  *   root = (newLeftm.left, newR, balance=0)
  *
@@ -468,7 +479,7 @@ function rebalanceLeftDescent(node: InternalNode, child: ModifyOk): ModifyResult
  * new sub-root's left; its old right joins r.right under a new internal
  * node (which becomes the sub-root's right).
  *
- * Per the Rust source comment at line 335: at this point we know newLeftm
+ * Per the Rust source comment at line 381 @568e7c3: at this point we know newLeftm
  * is an InternalNode (not a LeafNode) — because the height increased,
  * which a leaf-replacement can never cause. If it's a LabelNode here, the
  * proof is malformed.
@@ -481,14 +492,18 @@ function rotateLeftDescent(
   oldValue: Uint8Array | null,
 ): ModifyResult {
   if (newLeftm.kind !== 'internal') {
-    // Defensive: the Rust source asserts this implicitly via balance() returning
-    // 0 for leaf/label. If we hit this in practice, the proof is malformed.
+    // Defensive: the reference has no check here — its own comment
+    // (authenticated_tree_ops.rs:381 @568e7c3) just assumes newLeftM is
+    // internal "because height increased", then calls `.balance(&new_leftm)`
+    // (:382 @568e7c3) unguarded, which panics inside Node::balance()
+    // (batch_node.rs:174-180 @568e7c3) on a non-internal node — unlike
+    // double_right_rotate below, this call site has never been guarded.
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 336: `if self.tree().balance(&new_leftm) < 0` — single right rotate.
+  // Rust line 382 @568e7c3: `if self.tree().balance(&new_leftm) < 0` — single right rotate.
   if (newLeftm.balance < 0) {
-    // Rust line 338-339:
+    // Rust lines 384-385 @568e7c3:
     //   new_r = InternalNode::update(r_node, new_leftm.right, r.right, 0)
     //   root  = InternalNode::update(new_leftm, new_leftm.left, new_r, 0)
     // new_r: template=r_node → key from original parent (node.key)
@@ -505,7 +520,35 @@ function rotateLeftDescent(
     }
   }
 
-  // Rust line 341: `else { self.double_right_rotate(r_node, &new_leftm, &r.right) }`.
+  // Grandchild guard — `doubleRightRotate` promotes `node.left.right`, i.e.
+  // `newLeftm.right` (rotation.ts::doubleRightRotate's grandchild guard), and
+  // the check at the top of this function only covers `newLeftm` itself.
+  //
+  // REACHABLE, contrary to what the AVL invariant suggests. The only subtree
+  // that reports `heightDelta === 1` with a balance >= 0 (the condition that
+  // selects the DOUBLE rotation over the single one) is `addNode`'s split node,
+  // whose children are both freshly-built LEAVES — every other +1 producer is a
+  // `newInternal` whose promoted side is itself internal. Reaching the rotation
+  // branch from a split node needs `node.balance < 0` while `node.left` was a
+  // LEAF, which a well-formed AVL tree cannot contain but a crafted proof can:
+  // the verifier materialises the balance byte straight out of the proof
+  // (proof-decode.ts's internal-node token IS the balance).
+  //
+  // Formerly a DELIBERATE DIVERGENCE from the reference, which PANICKED here
+  // pre-568e7c3: `double_right_rotate` read `new_root` and called `.balance()`
+  // on it directly, so a non-internal `new_root` (Leaf or LabelOnly) hit the
+  // panic inside `Node::balance`. As of `double_right_rotate`
+  // (authenticated_tree_ops.rs:205-240 @568e7c3), the reference checks
+  // explicitly instead — `ensure!(new_root.borrow().is_internal(), ...)` at
+  // :215-218, before calling `.balance()` at :219 — so this guard now mirrors
+  // the reference's own check rather than diverging from it. We reject per
+  // facts/avltree.md's no-throw contract (scrypto's JVM `BatchAVLVerifier`
+  // poisons the tree via `Try` for the same input).
+  if (newLeftm.right.kind !== 'internal') {
+    return { ok: false, reason: 'proof-malformed' }
+  }
+
+  // Rust line 387 @568e7c3: `else { self.double_right_rotate(r_node, &new_leftm, &r.right)? }`.
   // doubleRightRotate from rotation.ts takes (parent) and reads .left/.right
   // internally — so we synthesize a parent whose left = newLeftm, right = node.right.
   // The temporary parent's key must be node.key (original parent, like Rust's r_node).
@@ -524,15 +567,15 @@ function rotateLeftDescent(
 
 /**
  * Mirror of `rebalanceLeftDescent` for right descents.
- * Ports Rust modify_helper lines 358-378.
+ * Ports Rust modify_helper lines 404-424 @568e7c3.
  *
  * Sign flips throughout:
- *   - Rust line 359: `if child_height_increased && r.balance > 0` (was < 0).
- *   - Rust line 362: `if self.tree().balance(&new_rightm) > 0` (was < 0).
- *   - Rust line 372: `r_balance = r.balance + 1` (was -1).
+ *   - Rust line 405 @568e7c3: `if child_height_increased && r.balance > 0` (was < 0).
+ *   - Rust line 408 @568e7c3: `if self.tree().balance(&new_rightm) > 0` (was < 0).
+ *   - Rust line 418 @568e7c3: `r_balance = r.balance + 1` (was -1).
  */
 function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResult {
-  // Case 1: no change. Rust line 377:
+  // Case 1: no change. Rust line 423 @568e7c3:
   //   `(r_node.clone(), false, false, to_delete, old_value)`
   // to_delete (needsDelete) propagates upward here too.
   if (!child.changeHappened) {
@@ -549,18 +592,18 @@ function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResul
   const childGrew = child.heightDelta === 1
 
   // Case 2: rotation needed (child grew AND we were already right-heavy).
-  // Rust line 359.
+  // Rust line 405 @568e7c3.
   if (childGrew && node.balance > 0) {
     return rotateRightDescent(node, child.newSubtreeRoot, child.oldValue)
   }
 
-  // Case 3: no rotation. Rust lines 371-373.
+  // Case 3: no rotation. Rust lines 417-419 @568e7c3.
   const myHeightIncreased: 0 | 1 = childGrew && node.balance === 0 ? 1 : 0
   const newBalance: Balance = childGrew
     ? ((node.balance + 1) as Balance)
     : node.balance
 
-  // Rust line 373.
+  // Rust line 419 @568e7c3.
   const newNode = newInternal(node.left, child.newSubtreeRoot, newBalance, node.key)
   return {
     ok: true,
@@ -574,9 +617,9 @@ function rebalanceRightDescent(node: InternalNode, child: ModifyOk): ModifyResul
 
 /**
  * Mirror of `rotateLeftDescent` for right descents.
- * Ports Rust modify_helper lines 362-368.
+ * Ports Rust modify_helper lines 408-414 @568e7c3.
  *
- * Single left rotation construction (Rust lines 364-365):
+ * Single left rotation construction (Rust lines 410-411 @568e7c3):
  *   newR = (r_node, r.left, newRightm.left, balance=0)
  *   root = (newRightm, newR, newRightm.right, balance=0)
  *
@@ -593,9 +636,9 @@ function rotateRightDescent(
     return { ok: false, reason: 'proof-malformed' }
   }
 
-  // Rust line 362: `if self.tree().balance(&new_rightm) > 0` — single left rotate.
+  // Rust line 408 @568e7c3: `if self.tree().balance(&new_rightm) > 0` — single left rotate.
   if (newRightm.balance > 0) {
-    // Rust lines 364-365:
+    // Rust lines 410-411 @568e7c3:
     //   new_r = InternalNode::update(r_node, r.left, new_rightm.left, 0)
     //   root  = InternalNode::update(new_rightm, new_r, new_rightm.right, 0)
     // new_r: template=r_node → key from original parent (node.key)
@@ -612,7 +655,28 @@ function rotateRightDescent(
     }
   }
 
-  // Rust line 367: `else { self.double_left_rotate(r_node, &r.left, &new_rightm) }`.
+  // Grandchild guard — mirror of `rotateLeftDescent`'s. `doubleLeftRotate`
+  // promotes `node.right.left`, i.e. `newRightm.left`
+  // (rotation.ts::doubleLeftRotate's grandchild guard); the check at the top
+  // of this function only covers `newRightm` itself.
+  // Same reachability argument, sign-flipped: `addNode`'s split node (balance
+  // 0, two LEAF children) under a crafted `node.balance > 0` whose `node.right`
+  // was a LEAF.
+  //
+  // Formerly a DELIBERATE DIVERGENCE from the reference, which PANICKED here
+  // pre-568e7c3: `double_left_rotate` read `new_root` and called `.balance()`
+  // on it directly, so a non-internal `new_root` (Leaf or LabelOnly) hit the
+  // panic inside `Node::balance`. As of `double_left_rotate`
+  // (authenticated_tree_ops.rs:156-198 @568e7c3), the reference checks
+  // explicitly instead — `ensure!(new_root.borrow().is_internal(), ...)` at
+  // :171-174, before calling `.balance()` at :175 — so this guard now mirrors
+  // the reference's own check rather than diverging from it. We reject per
+  // facts/avltree.md's no-throw contract.
+  if (newRightm.left.kind !== 'internal') {
+    return { ok: false, reason: 'proof-malformed' }
+  }
+
+  // Rust line 413 @568e7c3: `else { self.double_left_rotate(r_node, &r.left, &new_rightm)? }`.
   // doubleLeftRotate takes (parent) and reads .left/.right internally.
   // Synthesize a parent whose left = node.left, right = newRightm.
   // The temporary parent's key must be node.key (original parent, like Rust's r_node).

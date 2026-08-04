@@ -10,12 +10,12 @@ describe('Prover → Verifier round-trip', () => {
     const key = new Uint8Array(32).fill(0x42)
     const value = new Uint8Array([1, 2, 3, 4])
 
-    const startDigest = prover.digest()!
+    const startDigest = prover.digest()
     const result = prover.performOneOperation({ tag: 'Insert', key, value })
     expect(result.success).toBe(true)
 
     const proof = prover.generateProof()
-    const endDigest = prover.digest()!
+    const endDigest = prover.digest()
 
     // Verify the proof
     const verified = verifyAvlBatch(startDigest, proof, config, [
@@ -35,12 +35,12 @@ describe('Prover → Verifier round-trip', () => {
     const val1b = new Uint8Array([30, 40])
     const val2 = new Uint8Array([50, 60])
 
-    const startDigest = prover.digest()!
+    const startDigest = prover.digest()
     prover.performOneOperation({ tag: 'Insert', key: key1, value: val1 })
     prover.performOneOperation({ tag: 'Insert', key: key2, value: val2 })
     prover.performOneOperation({ tag: 'Update', key: key1, value: val1b })
     const proof = prover.generateProof()
-    const endDigest = prover.digest()!
+    const endDigest = prover.digest()
 
     const verified = verifyAvlBatch(startDigest, proof, config, [
       { tag: 'Insert', key: key1, value: val1 },
@@ -61,10 +61,10 @@ describe('Prover → Verifier round-trip', () => {
     // Commit the Insert so the next proof covers only the Lookup.
     prover.generateProof()
 
-    const startDigest = prover.digest()!
+    const startDigest = prover.digest()
     prover.performOneOperation({ tag: 'Lookup', key })
     const proof = prover.generateProof()
-    const endDigest = prover.digest()!
+    const endDigest = prover.digest()
 
     const verified = verifyAvlBatch(startDigest, proof, config, [
       { tag: 'Lookup', key },
@@ -79,11 +79,11 @@ describe('Prover → Verifier round-trip', () => {
     const key = new Uint8Array(32).fill(0x11)
     const value = new Uint8Array([1])
 
-    const startDigest = prover.digest()!
+    const startDigest = prover.digest()
     prover.performOneOperation({ tag: 'Insert', key, value })
     prover.performOneOperation({ tag: 'Remove', key })
     const proof = prover.generateProof()
-    const endDigest = prover.digest()!
+    const endDigest = prover.digest()
 
     const verified = verifyAvlBatch(startDigest, proof, config, [
       { tag: 'Insert', key, value },
@@ -117,13 +117,13 @@ describe('Prover → Verifier round-trip', () => {
       { tag: 'Insert', key: k1, value: new Uint8Array(8).fill(0) }, // 8-byte for UpdateLongBy prep
     ]
 
-    const startDigest = prover.digest()!
+    const startDigest = prover.digest()
     for (const op of ops) {
       const r = prover.performOneOperation(op)
       if (!r.success && op.tag !== 'Remove') throw new Error(`Op failed: ${op.tag}`)
     }
     const proof = prover.generateProof()
-    const endDigest = prover.digest()!
+    const endDigest = prover.digest()
 
     const verified = verifyAvlBatch(startDigest, proof, config, ops)
     expect(verified).not.toBeNull()
@@ -137,20 +137,21 @@ describe('Prover → Verifier round-trip', () => {
 
     // Establish a known tree state
     prover.performOneOperation({ tag: 'Insert', key, value })
-    const digestBefore = prover.digest()!
+    const digestBefore = prover.digest()
 
     // generateProofForOperations on a separate key — must not mutate original
     const key2 = new Uint8Array(32).fill(0xaa)
     const result = prover.generateProofForOperations([
       { tag: 'Insert', key: key2, value: new Uint8Array([9]) },
     ])
-    expect('proof' in result).toBe(true)
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('unreachable: asserted above')
 
     // Original prover's digest must be unchanged
-    expect(prover.digest()!).toEqual(digestBefore)
+    expect(prover.digest()).toEqual(digestBefore)
 
     // The proof+digest from the clone should verify against the original starting digest
-    const { proof, digest } = result as { proof: Uint8Array; digest: Uint8Array }
+    const { proof, digest } = result
     const verified = verifyAvlBatch(digestBefore, proof, config, [
       { tag: 'Insert', key: key2, value: new Uint8Array([9]) },
     ])
