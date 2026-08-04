@@ -21,14 +21,14 @@ export class PersistentBatchAVLProver {
     this.prover = prover
     this.storage = storage
 
-    // Rust lines 22-30
+    // Rust lines 22-29 @568e7c3
     const ver = storage.version()
     if (ver !== null) {
       this.rollback(ver)
     } else {
       this.generateProofAndUpdateStorage(additionalData)
     }
-    // Rust line 30: ensure!(storage.version() == digest())
+    // Rust line 30 @568e7c3: ensure!(storage.version() == digest())
     const sv = storage.version()
     const d = this.digest()
     if (!sv || compareBytes(sv, d) !== 0) {
@@ -74,7 +74,7 @@ export class PersistentBatchAVLProver {
     // restore_root was added. But every production caller in ergo-node-rust
     // bypasses that crate method and calls storage.rollback() followed
     // directly by prover.restore_root() (validation/src/utxo.rs:166 and :477;
-    // src/main.rs:1841 and :2355 on resume/snapshot-load). Delegating here
+    // src/main.rs:1880 and :2394 on resume/snapshot-load). Delegating here
     // matches that production usage pattern, not the crate's own method.
     this.prover.restoreRoot(root, height)
   }

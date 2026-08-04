@@ -1,9 +1,9 @@
 /**
  * Per-node storage codec for AVL+ trees.
  *
- * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:610-635`)
- * and `AVLTree::unpack` (`batch_node.rs:637-670`) for well-formed input,
- * branch `main` @ 191052c. Storage-layer only — the consensus-critical proof
+ * Byte-identical to `ergo_avltree_rust`'s `AVLTree::pack` (`batch_node.rs:655-680 @568e7c3`)
+ * and `AVLTree::unpack` (`batch_node.rs:682-715 @568e7c3`) for well-formed input.
+ * Storage-layer only — the consensus-critical proof
  * encoding lives in `proof-decode.ts`.
  *
  * Format (big-endian):
@@ -35,9 +35,9 @@ import {
 } from './node.js'
 import type { AvlTreeConfig } from './types.js'
 
-/** batch_node.rs:54 */
+/** batch_node.rs:54 @568e7c3 */
 const INTERNAL_NODE_PREFIX = 0x00
-/** batch_node.rs:55 */
+/** batch_node.rs:55 @568e7c3 */
 const LEAF_NODE_PREFIX = 0x01
 const LABEL_LENGTH = 32
 

@@ -8,7 +8,7 @@
 //!        cargo test --test removed_nodes_vectors -- --nocapture
 //!   4. Run a second time into a scratch dir and diff against committed — must be EMPTY.
 //!   5. git -C ~/projects/ergo_avltree_rust worktree remove --force <worktree>
-//!   Reference: ergo_avltree_rust @ 568e7c3 (canonical main at generation time).
+//!   Reference: ergo_avltree_rust @568e7c3 (canonical main at generation time).
 //! Capture discipline (spec-review F5): removed_nodes() exactly once per
 //! cycle, BEFORE generate_proof() — generate_proof clears the buffers as its
 //! first statements and repeat calls self-append. Rollback cycles call

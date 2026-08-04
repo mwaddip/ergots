@@ -8,7 +8,7 @@ import { verifyAvlBatchPartial, type AvlTreeConfig } from '../src/index.js'
  *
  * Both references fail-and-poison any operation whose key is not STRICTLY
  * inside the sentinel bounds, at the shared op entry:
- *   - ergo_avltree_rust `authenticated_tree_ops.rs:267-268` @d18773c
+ *   - ergo_avltree_rust `authenticated_tree_ops.rs:267-268` @568e7c3
  *     (`ensure!(key > neg_inf)`, `ensure!(key < pos_inf)`)
  *   - scrypto 3.0.0 `AuthenticatedTreeOps.returnResultOfOneOperation`
  *     (same two requires, bytecode-verified; -inf = 0x00×keyLength,
@@ -161,7 +161,7 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
     expect(v.lastFailReason).toBe('key-out-of-bounds')
     // Poisoning must be directly observable (6g review I-1): digest() is
     // null iff root === null — Rust nulls root AND zeroes height
-    // (batch_avl_verifier.rs:206-207); scrypto nulls topNode.
+    // (batch_avl_verifier.rs:206-207 @568e7c3); scrypto nulls topNode.
     expect(v.digest()).toBeNull()
     expect(v.height).toBe(0)
 

@@ -10,10 +10,13 @@
  * MAX + 1) — accepting a proof both references reject, and planting a stored
  * value whose i64 reading is negative.
  *
- * (`ergo_avltree_rust` @191052c release builds reject positive overflow by
- * accident — the plain wrapping `+` yields a negative wrapped value, hitting
- * the `< 0` Err arm. Its NEGATIVE-overflow behaviour diverges from the JVM;
- * that crate-side issue is routed cross-project and is not covered here.)
+ * (`ergo_avltree_rust` release builds originally rejected positive overflow
+ * by accident — the plain wrapping `+` yielded a negative wrapped value,
+ * hitting the `< 0` Err arm — while diverging from the JVM on NEGATIVE
+ * overflow (silently wrapping to a positive stored value). The crate has
+ * SINCE been fixed to a checked add (`operation.rs:103 @568e7c3`, commit
+ * `d18773c`) that rejects overflow in EITHER direction, matching the JVM
+ * directly rather than by accident; no crate-side divergence remains.)
  *
  * Byte provenance (6c capture technique): the proof below is exactly what a
  * pre-fix prover emitted for `Insert(0x10, i64::MAX)`, `generateProof()`,

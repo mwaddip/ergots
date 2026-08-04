@@ -14,11 +14,16 @@
  * This is deliberately NOT converted to a `null` rejection (see
  * `facts/avltree.md`, "No throws on verification failures" carve-out):
  *
- *  - Both references share the exposure. `ergo_avltree_rust` @191052c
- *    `label` recurses the same way (`batch_node.rs`) and the process aborts
- *    on stack exhaustion. On the JVM, scrypto's `BatchAVLVerifier` wraps
- *    replay in `scala.util.Try`, which catches `NonFatal` only —
- *    `StackOverflowError` is a `VirtualMachineError` and escapes.
+ *  - `ergo_avltree_rust`'s `label` used to recurse the same way
+ *    (`batch_node.rs`) and its process aborted on stack exhaustion too; the
+ *    crate has SINCE been fixed to label subtrees iteratively via an
+ *    explicit heap-allocated stack (`Node::label_subtree`, `batch_node.rs`),
+ *    closing its own exposure — this package's `label()` (`node.ts`) has
+ *    not been made iterative to match. On the JVM, scrypto's
+ *    `BatchAVLVerifier` wraps replay in `scala.util.Try`, which catches
+ *    `NonFatal` only — `StackOverflowError` is a `VirtualMachineError` and
+ *    escapes, so the JVM path — the canonical semantic reference — still
+ *    shares this exposure.
  *  - No reference-corroborated bound exists to reject deep proofs earlier:
  *    the JVM script-eval path constructs its verifier with NO
  *    `maxNumOperations` (sigmastate-interpreter

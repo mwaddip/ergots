@@ -486,7 +486,7 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
 
   /**
    * Deterministic cover for the retargeted DOUBLE-LEFT rotation visit
-   * (`delete.ts` `rebalanceShrinkLeft`, Rust line 571 @191052c —
+   * (`delete.ts` `rebalanceShrinkLeft`, Rust line 611 @568e7c3 —
    * `on_node_visit(&right_child.left, …)`).
    *
    * Insertion order 2,4,1,3 builds:
@@ -550,7 +550,7 @@ describe('BatchAVLProver per-operation proofs on the recursive delete path', () 
 
   /**
    * Mirror of the test above, for the retargeted DOUBLE-RIGHT rotation visit
-   * (`delete.ts` `rebalanceShrinkRight`, Rust line 621 @191052c —
+   * (`delete.ts` `rebalanceShrinkRight`, Rust line 661 @568e7c3 —
    * `on_node_visit(&left_child.right, …)`).
    *
    * Insertion order 3,1,4,2 is the exact key-mirror (k → 5-k) of the shape

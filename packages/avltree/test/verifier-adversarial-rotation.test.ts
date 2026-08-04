@@ -9,14 +9,19 @@
  * contract ("`verifyAvlBatch` / `verifyAvlLookup` return `null` on verification
  * failure. Throws indicate programmer errors only").
  *
- * Deliberate divergence from the reference: ergo_avltree_rust @191052c PANICS on
- * these inputs — `double_left_rotate` / `double_right_rotate`
- * (`authenticated_tree_ops.rs:150-181` / `:187-217`) call `tree.left(...)` /
- * `tree.right(...)` and then `tree.balance(&new_root)`, and those accessors do
- * `panic!("Not internal node")` / `panic!("not internal node")`
- * (`batch_node.rs:366-384` tree-level, `:114-135` node-level). We reject with
- * `proof-malformed`, matching scrypto/JVM `BatchAVLVerifier`, which wraps replay
- * in a `Try` and poisons the tree on any exception.
+ * Formerly a deliberate divergence from the reference: pre-568e7c3
+ * `ergo_avltree_rust` PANICKED on these inputs — `double_left_rotate` /
+ * `double_right_rotate` (`authenticated_tree_ops.rs:156-198 @568e7c3` /
+ * `:205-240 @568e7c3`) called `tree.left(...)` / `tree.right(...)` and then
+ * `tree.balance(&new_root)` on the unguarded grandchild, and those accessors
+ * do `panic!("Not internal node")` / `panic!("not internal node")`
+ * (`batch_node.rs:411-429 @568e7c3` tree-level, `:159-180 @568e7c3`
+ * node-level). The reference has SINCE been fixed (commit `c459191`) to
+ * `ensure!` the grandchild is Internal before touching it — `Malformed AVL
+ * proof: double left/right rotation on a non-internal node` — so this
+ * package's `proof-malformed` rejection now matches Rust's own `ensure!`
+ * directly, on top of already matching scrypto/JVM `BatchAVLVerifier`, which
+ * wraps replay in a `Try` and poisons the tree on any exception.
  *
  * Each test asserts BOTH that nothing throws AND that the result is `null`.
  *
