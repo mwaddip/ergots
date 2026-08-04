@@ -1,6 +1,6 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 372 tests.
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 374 tests.
 
 **Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
@@ -95,6 +95,8 @@ returns `[]`.
 import { label, type BatchAVLProver, type VersionedAVLStorage } from '@ergots/avltree'
 
 class MyStorage implements VersionedAVLStorage {
+  // rollback / version / rollbackVersions / flush elided for brevity — see
+  // API.md's VersionedAVLStorage entry for their full contracts.
   update(prover: BatchAVLProver, additionalData: [Uint8Array, Uint8Array][]): void {
     // ... write current nodes ...
     for (const node of prover.removedNodes()) {

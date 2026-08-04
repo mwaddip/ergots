@@ -166,8 +166,9 @@ function deleteInner(
   // Hoisting it above the guards below is behaviour-preserving on both
   // consumers: neither `replayComparison` nor `getFailedReason` touches
   // `modifiedNodes`, the prover cannot reach this frame with a non-internal node
-  // (batch-prover.ts:300-311), and the verifier's `onNodeVisit` is a no-op
-  // (batch-verifier.ts:178-180).
+  // (batch-prover.ts::performOneOperation's deleteHelper-failure branch), and
+  // the verifier's `onNodeVisit` is a no-op
+  // (batch-verifier.ts::buildCallbacks's onNodeVisit no-op).
   callbacks.onNodeVisit(node, op, false)
 
   // Rust lines 501-505 @568e7c3:
@@ -521,7 +522,8 @@ function rebalanceShrinkLeft(
     // node the proof actually needs went unvisited.
     callbacks.onNodeVisit(rootRight.left, op, true)
     // Grandchild guard — the promoted sub-root. `doubleLeftRotate` reads
-    // `node.right.left` (rotation.ts:58-63) and this is that node.
+    // `node.right.left` (rotation.ts::doubleLeftRotate's grandchild guard)
+    // and this is that node.
     //
     // Formerly a DELIBERATE DIVERGENCE from the reference, which PANICKED here
     // pre-568e7c3: `double_left_rotate` read `new_root` and called `.balance()`
@@ -675,7 +677,8 @@ function rebalanceShrinkRight(
     // nothing and the promoted node was left unvisited.
     callbacks.onNodeVisit(rootLeft.right, op, true)
     // Grandchild guard — mirror of `rebalanceShrinkLeft`'s. `doubleRightRotate`
-    // reads `node.left.right` (rotation.ts:117-122) and this is that node.
+    // reads `node.left.right`
+    // (rotation.ts::doubleRightRotate's grandchild guard) and this is that node.
     //
     // Formerly a DELIBERATE DIVERGENCE from the reference, which PANICKED here
     // pre-568e7c3: `double_right_rotate` read `new_root` and called `.balance()`

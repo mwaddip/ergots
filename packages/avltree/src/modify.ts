@@ -521,8 +521,8 @@ function rotateLeftDescent(
   }
 
   // Grandchild guard — `doubleRightRotate` promotes `node.left.right`, i.e.
-  // `newLeftm.right` (rotation.ts:123-128), and the check at the top of this
-  // function only covers `newLeftm` itself.
+  // `newLeftm.right` (rotation.ts::doubleRightRotate's grandchild guard), and
+  // the check at the top of this function only covers `newLeftm` itself.
   //
   // REACHABLE, contrary to what the AVL invariant suggests. The only subtree
   // that reports `heightDelta === 1` with a balance >= 0 (the condition that
@@ -656,8 +656,9 @@ function rotateRightDescent(
   }
 
   // Grandchild guard — mirror of `rotateLeftDescent`'s. `doubleLeftRotate`
-  // promotes `node.right.left`, i.e. `newRightm.left` (rotation.ts:64-69);
-  // the check at the top of this function only covers `newRightm` itself.
+  // promotes `node.right.left`, i.e. `newRightm.left`
+  // (rotation.ts::doubleLeftRotate's grandchild guard); the check at the top
+  // of this function only covers `newRightm` itself.
   // Same reachability argument, sign-flipped: `addNode`'s split node (balance
   // 0, two LEAF children) under a crafted `node.balance > 0` whose `node.right`
   // was a LEAF.

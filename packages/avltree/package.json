@@ -2,7 +2,7 @@
   "name": "@ergots/avltree",
   "version": "0.4.0",
   "publishConfig": { "access": "public" },
-  "description": "Pure-TypeScript Ergo batch AVL+ authenticated tree verifier — proof verification + per-operation result computation.",
+  "description": "Pure-TypeScript Ergo batch AVL+ authenticated tree — verifier (proof verification + per-operation results) and prover (in-memory tree + proof generation), plus a node storage codec and storage garbage collection.",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
@@ -19,7 +19,7 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md", "LICENSE"],
+  "files": ["dist", "src", "README.md", "API.md", "LICENSE"],
   "scripts": {
     "build": "tsup",
     "prepublishOnly": "npm run build",
@@ -39,5 +39,5 @@
     "vitest": "^2.0.0"
   },
   "engines": { "node": ">=20" },
-  "keywords": ["ergo", "avl-tree", "blockchain", "verifier", "browser"]
+  "keywords": ["ergo", "avl-tree", "authenticated-dictionary", "blockchain", "verifier", "prover", "proof", "browser"]
 }

@@ -1,6 +1,6 @@
 # API — `@ergots/avltree`
 
-Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (pin `191052c`; see the rebase note in `facts/avltree.md` § Source mapping); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
+Public surface for the AVL+ authenticated dictionary verifier. The verification semantics this implements come from `ergo_avltree_rust` (pin `568e7c3`; see the rebase note in `facts/avltree.md` § Source mapping); see `facts/avltree.md` in the repo root for the load-bearing interface contract.
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, WASM, or other Node built-ins.
 
@@ -636,4 +636,4 @@ rebases the prover's proof cycle onto the loaded root.
 - `docs/specs/2026-05-18-ergots-avltree-package-design.md` — design rationale, validation strategy, error model detail
 - `facts/ergoscript-eval.md` — upstream consumer: `SAvlTree.*` method handlers in `@ergots/ergoscript` phase 2h-b
 - [KMZ16 paper](https://eprint.iacr.org/2016/994) — AVL+ authenticated dictionary
-- [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (pin `191052c`)
+- [`ergo_avltree_rust`](https://github.com/ergoplatform/ergo_avltree_rust) — reference Rust implementation (pin `568e7c3`)

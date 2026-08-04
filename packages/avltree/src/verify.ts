@@ -289,8 +289,8 @@ function validateStartingDigest(d: Uint8Array): void {
 /**
  * Validates a single operation's key (and value if applicable) against the
  * config's length constraints.
- * Throws AvlVerifyError (codes 'operation-key-length-mismatch' or
- * 'operation-value-length-mismatch').
+ * Throws AvlVerifyError (codes 'operation-key-length-mismatch',
+ * 'operation-value-length-mismatch', or 'operation-delta-out-of-range').
  */
 function validateOperationShape(op: Operation, config: AvlTreeConfig): void {
   if (op.key.length !== config.keyLength) {
