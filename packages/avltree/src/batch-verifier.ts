@@ -257,8 +257,14 @@ export class BatchAvlVerifier {
    */
   performOneOperation(op: Operation): Uint8Array | null | { failed: true } {
     // Rust lines 197-203 @568e7c3: empty-tree / already-poisoned guard.
-    // The Rust uses `ok_or(anyhow!("Empty tree"))?` which propagates an Err
-    // that the caller (line 206 @568e7c3) catches by setting root=None. Same end state.
+    // The Rust uses `ok_or(anyhow!("Empty tree"))?` (line 202 @568e7c3): the
+    // `?` returns Err immediately when root is already None — root simply
+    // stays None; nothing "catches and sets" it on this path. (Contrast the
+    // is_err() handler at lines 205-208 @568e7c3 — a DIFFERENT failure path,
+    // return_result_of_one_operation failing mid-operation — which DOES
+    // explicitly reset root=None.) Both leave root=None, so this poisoned-
+    // re-entry check reaches the same end state as Rust's early return, by
+    // different means.
     if (this.root === null) {
       // Preserve the original poisoning reason if already set (proof-decode
       // failure or a prior op's failure); otherwise mark 'tree-poisoned'.
@@ -315,7 +321,7 @@ export class BatchAvlVerifier {
       // IMPORTANT: delete_helper is called on `&new_root_node` (the result of
       // modify_helper, which in the needsDelete case is the unchanged subtree
       // root because modify.ts's handleLeafMatch returns the leaf unchanged
-      // with needsDelete=true; see modify.ts lines 225-234).
+      // with needsDelete=true; see modify.ts lines 232-242).
       //
       // The deleteHelper call uses `replayIndex` (set above to the start-of-op
       // cursor) and `lastRightStep` (set by modifyHelper during its descent).
@@ -342,7 +348,7 @@ export class BatchAvlVerifier {
       // Modify returns the oldValue in the to_delete case (Rust line 328 @568e7c3:
       // `(r_node.clone(), false, false, true, Some(r.value))`) — surface that
       // to the caller. deleteHelper's oldValue is always null in the wrapped
-      // result (delete.ts line 134) because modify already produced the value.
+      // result (delete.ts line 136) because modify already produced the value.
       return modifyResult.oldValue
     }
 
