@@ -1,12 +1,14 @@
 # `label()` iterative subtree labeling — deep-spine hardening
 
-**Date:** 2026-08-04
+**Date:** 2026-08-04 (rev 2, same day — spec-review findings applied; review
+at `.superpowers/sdd/2026-08-04-avltree-label-iterative/`)
 **Parent:** Phase E's user-decision item (ledger + HANDOFF: the reference went
 iterative in `b785d0d`; ours stayed recursive; the deep-spine stack-overflow
 surface was ours alone). User decision 2026-08-04: fix now as a small pre-PR
 task.
 **Branch:** `avltree-0.4.0` (continues from E; base `811a0a3`)
-**Status:** approved design, pre-implementation
+**Status:** approved design, spec-reviewed (APPROVE-WITH-FIXES, F1-F6
+applied), pre-implementation
 
 ## Goal
 
@@ -47,7 +49,8 @@ function labelSubtree(root: AvlNode): void {
   const stack: Array<[AvlNode, boolean]> = [[root, false]]
   while (stack.length > 0) {
     const [node, childrenDone] = stack.pop()!
-    if (node.kind === 'label' || (node.kind !== 'label' && node.labelCache !== null)) continue
+    if (node.kind === 'label') continue
+    if (node.labelCache !== null) continue // leaf/internal: memo boundary
     if (childrenDone || node.kind === 'leaf') {
       label(node) // children labeled (or none) — computes + caches, no descent
       continue
@@ -68,9 +71,16 @@ but match the reference's left-first POP order anyway, as shown.)
 ```ts
 labelSubtree(node.left)
 labelSubtree(node.right)
-const leftLbl = label(node.left)   // cache hit — no descent
-const rightLbl = label(node.right) // cache hit — no descent
+const leftLbl = cachedLabel(node.left)
+const rightLbl = cachedLabel(node.right)
 ```
+
+where `cachedLabel(node)` is a second module-private helper mirroring Rust's
+PANICKING `get_label()` (spec-review F2): returns the LabelNode digest or the
+populated `labelCache` (sliced, same defensive-copy semantics as `label()`),
+and THROWS a plain invariant `Error` if the cache is empty — a `labelSubtree`
+bug then fails loudly instead of silently degrading toward recursion. Same
+bytes, strict read.
 
 Recursion audit of the result: `labelSubtree` calls `label()` only on nodes
 whose children are labeled, so `label()`'s own `labelSubtree` calls hit the
@@ -108,12 +118,19 @@ notation, verified at write time, never copied.
 
 ## Docs (same task — the statements E wrote become stale the moment this lands)
 
-- `facts/avltree.md`: the "No throws on verification failures" carve-out and
-  the `Node::label` Source Mapping row currently state ours "has not been
-  made iterative to match" — flip to: iterative as of this task, matching
-  `b785d0d`; exposure closed on the label path; keep the JVM-comparison and
-  indeterminate-`RangeError` context accurate (re-read, don't assume —
-  some of that prose may survive unchanged, some may now be deletable).
+Spec-review F1 found the flip surface is SEVEN passages, not three — the
+implementer greps for stragglers after editing rather than trusting this
+list either (`rtk proxy grep -n "recurs\|iterative\|call stack\|StackOverflow\|RangeError" facts/avltree.md packages/avltree/API.md packages/avltree/src/verify.ts packages/avltree/src/node.ts packages/avltree/test/verifier-adversarial-recursion.test.ts`, judge every hit):
+- `facts/avltree.md`: the "No throws on verification failures" carve-out,
+  the `Node::label` Source Mapping row, AND the Test Corpus line (~:330) —
+  flip to: iterative as of this task, matching `b785d0d`; exposure closed on
+  the label path; keep the JVM-comparison and indeterminate-`RangeError`
+  context accurate where it still applies (re-read, don't assume).
+- `packages/avltree/API.md` (~:290, :307-309, :625): the engine-level
+  recursion carve-out statements — same flip, matching API.md's house style.
+- `packages/avltree/src/verify.ts` (~:138-143 + the `@throws` tag ~:164):
+  the verifier-side JSDoc carve-out — comment-only edit; this file joins the
+  touched list for JSDoc ONLY.
 - `verifier-adversarial-recursion.test.ts` top comment: same flip.
 - `node.ts` `label()` JSDoc: add the iterative note + `label_subtree` port
   citation.
@@ -122,17 +139,21 @@ notation, verified at write time, never copied.
 
 Focused RED/GREEN evidence; `cd packages/avltree && npm test && npm run
 test:browser && npm run typecheck` (372 + the new test(s), both runtimes);
-repo-root `npx vitest run` superset; fixtures byte-identical (`git status`
-clean of fixture paths); publint. One commit (`fix(avltree): iterative
+repo-root `npx vitest run` superset AND `npm run typecheck` (workspace-wide);
+fixtures byte-identical (`git status` clean of fixture paths);
+`cd packages/avltree && npm run build && npx publint` (build first — publint
+inspects dist). One commit (`fix(avltree): iterative
 subtree labeling — deep-spine stack-overflow closed (ports label_subtree
 @568e7c3)`), plus docs in the same commit.
 
 ## Out of scope
 
 - Other recursion surfaces (`packTree`, `deepCloneNode`, `lookupWalk`,
-  `removedNodes`' walk, `containsLabel`, serialize) — the reference's own
-  fix scope was label only; the rest carries to the whole-branch review as
-  an audit question, not silently changed here.
+  `removedNodes`' walk, `containsLabel`) — the reference's own fix scope was
+  label only; these carry to the whole-branch review as an audit question,
+  not silently changed here. (`serializeInternal` is NOT independently
+  recursive — it labels children via `label()` — so its deep-spine exposure
+  closes as a side effect of this task; spec-review F3.)
 - Any label byte-layout or memoization-semantics change.
 - index.ts surface (labelSubtree stays module-private).
 
