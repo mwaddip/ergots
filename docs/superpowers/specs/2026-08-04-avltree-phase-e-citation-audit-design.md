@@ -1,10 +1,12 @@
 # Phase E — Rust source-citation audit
 
-**Date:** 2026-08-04
+**Date:** 2026-08-04 (rev 2, same day — spec-review findings F1-F5 applied; review
+at `.superpowers/sdd/2026-08-04-avltree-phase-e-citation-audit/`)
 **Parent:** `2026-08-02-avltree-remediation-umbrella-design.md` ("Phase E —
 Rust source-citation audit"; no finding number — postdates the audit)
 **Branch:** `avltree-0.4.0` (continues from D; base `b7934bd`)
-**Status:** approved design, pre-implementation
+**Status:** approved design, spec-reviewed (APPROVE-WITH-FIXES, F1-F5 applied),
+pre-implementation
 
 ## Goal
 
@@ -16,10 +18,13 @@ they are the least trustworthy text in the repo.
 
 **Census (2026-08-04, this session):** ~158 citation-bearing lines across 15
 `src/` files (top: `batch-prover.ts` 44, `delete.ts` 23, `operation.ts` 22,
-`node.ts` 13, `modify.ts` 12), 9 lines across 7 `test/` files, the ~25-row
-Source Mapping table in `facts/avltree.md`, and README's pin line. Three pins
-coexist (`@191052c` ×80, `@d18773c` ×3, `568e7c3` in prose ×2, ~75 untagged
-sites that facts declares implicitly-191052c) in at least three notations.
+`node.ts` 13, `modify.ts` 12), 9 lines across 6 `test/` files (plus
+`EMITTER.rs`'s spaced-notation header line), the 29-row Source Mapping table
+in `facts/avltree.md`, and README's pin line. Three pins coexist
+(`@191052c` ×80, `@d18773c` ×3, `568e7c3` in prose ×2, ~75 untagged sites
+that facts declares implicitly-191052c) in at least FOUR notations — the
+spec review found a spaced `@ 191052c` form (`serialize.ts:6`, recurring as
+`@ 568e7c3` in `EMITTER.rs`) beyond the suffix, prose, and untagged forms.
 The umbrella's finding stands: for the nine files Phase A fenced off, many
 citations were never correct at *any* pin (fabrication class — one cited a
 function that does not exist in the named file).
@@ -54,10 +59,17 @@ only their prose notation is normalized to the standard form below.
 
 **In:**
 - `packages/avltree/src/*.ts` — all 15 citation-bearing files.
-- `packages/avltree/test/*.ts` — the 9 citation-bearing lines across 7 files.
-- `facts/avltree.md` — Source Mapping table (~25 rows), the pin declarations
-  (head, "Source mapping" preamble, cross-references), and the rebase note,
-  which collapses to a one-sentence history line once the pin is uniform.
+- `packages/avltree/test/*.ts` — the 9 citation-bearing lines across 6 files.
+- `facts/avltree.md` — ALL citation-bearing content, not an enumerated
+  subset (spec-review F1): the 29-row Source Mapping table, the pin
+  declarations (head, "Source mapping" preamble, cross-references), the
+  rebase note (collapses to a one-sentence history line once the pin is
+  uniform), and the Coverage section's self-labeled "Note for Phase E"
+  (~:361-364) — which also names its own fix: the `modify.ts:184-188`
+  "matching Rust's Lookup branch" citation is semantically imprecise (the
+  reference routes UnknownModification through the generic `update_fn`
+  same-value rewrite, not the Lookup arm); correct the src comment in the
+  modify batch, then retire the facts note.
 - `packages/avltree/README.md` — the pin line (also corrects the stale
   "338 tests" count while that sentence is open — 372 as of D).
 - **B-emitter preservation** (the D pattern, applied retroactively):
@@ -71,10 +83,16 @@ only their prose notation is normalized to the standard form below.
   tree rule guards against rebased-branch confusion, which cannot apply to
   an untracked file; the sanction covers exactly this file, once.
 - Named known-stale fixes inside the sweep: `batch-verifier.ts:215` and
-  `delete.ts:25` (the two legacy stale cites), and the spec-F6 false
+  `delete.ts:25` (the two legacy stale cites); the spec-F6 false
   dispatch narrative in `modify.ts` ("Remove/RemoveIfExists … never reach
   this function" — Remove's first pass routes through `handleLeafMatch`,
-  which is where the D3 invariant gets its first-pass visits).
+  which is where the D3 invariant gets its first-pass visits); the
+  `delete.ts` "NUMBERING NOTE" (~:396-411), which documents a pre-existing
+  ~22-line offset convention for that file's untagged citations — the
+  re-pin retires the convention (every citation gets true verified numbers),
+  so the note is deleted with it (spec-review F2); and `EMITTER.rs`'s
+  spaced `@ 568e7c3` normalized to the standard suffix (header-only edit —
+  the preserved emitter body below stays byte-unmodified).
 
 **Out:**
 - Tracked specs under `docs/superpowers/specs/` — **point-in-time exemption
@@ -127,10 +145,15 @@ read via `git show` only (single sanctioned exception above).
   survives the phase per house precedent) emits a structured inventory —
   file, line, class (1-4), cited file, construct, range, pin tag. Its match
   surface is wider than the 2026-08-04 counts: lines matching `\.rs` OR
-  `Rust` (the prose class-3/4 mentions — "matches Rust's `reset()`" — often
-  carry no `.rs` at all, so a `.rs`-only census cannot prove completeness;
-  the 2026-08-04 numbers are the `.rs` subset and the tool's first run at
-  phase open supersedes them as the worklist). It runs at phase open (the
+  `Rust` OR any bare pin string (`191052c`, `d18773c`, `568e7c3`) — the
+  prose class-3/4 mentions ("matches Rust's `reset()`") often carry no
+  `.rs`, and spec-review F2 found bare pin strings on lines with NEITHER
+  marker (`delete.ts` NUMBERING NOTE, lines ~408/411), which the closing
+  "`191052c` exactly once" assertion must be able to see. The spaced
+  `@ <pin>` notation matches via the bare-string term and is normalized to
+  the suffix form wherever encountered. The 2026-08-04 numbers are the
+  `.rs` subset; the tool's first run at phase open supersedes them as the
+  worklist. It runs at phase open (the
   worklist), after each task (progress), and at phase close (the acceptance
   assertion). The script is scaffolding, not a shipped artifact.
 - **Batched per-file passes**, one subagent + one review each, sized by
@@ -157,11 +180,18 @@ read via `git show` only (single sanctioned exception above).
 ## Gates
 
 Per task commit:
-- **Comment-only proof (src/test files):** comment-stripped compile output
-  byte-identical before/after — a workspace script runs TypeScript
-  `transpileModule` with `removeComments: true` over every touched `.ts`
-  file at the parent and at HEAD and byte-compares. Docs files (facts,
-  README) are exempt (they are all "comment").
+- **Comment-only proof (src/test files), two mechanical layers:**
+  (a) comment-stripped compile output byte-identical before/after — a
+  workspace script runs TypeScript `transpileModule` with
+  `removeComments: true` over every touched `.ts` file at the parent and at
+  HEAD and byte-compares (empirically validated by the spec review:
+  deterministic, zero diagnostics, catches real code edits); PLUS
+  (b) zero changed import lines — `transpileModule` erases `import type`
+  specifiers regardless of content (spec-review F3), so an edit confined to
+  a type-only import would slip layer (a); since E has no legitimate reason
+  to touch ANY import, every task diff must show zero `^[-+]\s*import`
+  lines in src/test files, asserted mechanically per commit. Docs files
+  (facts, README) are exempt from both (they are all "comment").
 - Package fast loop: `cd packages/avltree && npm test && npm run typecheck`.
 
 Phase close:
