@@ -39,12 +39,16 @@ export const ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BB
  *   - otherwise:
  *     required_target = (ORDER / decode_compact_bits(header.nBits)).toF64()
  *     real_target     = pow_hit(header).toF64()
- *     level           = trunc(log2(required_target) - log2(real_target))
- *                     = trunc(log2(required_target / real_target))
+ *     level           = trunc(ln(required_target)/ln(2) - ln(real_target)/ln(2))
+ *                     = trunc(ln(required_target/real_target)/ln(2))
  *
- * The level is computed using f64 log2 subtraction (matching sigma-rust's
- * f64 cast), then truncated toward zero (see the -0 → 0 normalization below
- * for the one spot JS's `Math.trunc` needs help to match JVM/Rust exactly).
+ * The level is computed using the JVM's log2 formulation (natural log ratio),
+ * NOT native f64 log2. JVM: NipopowAlgos.scala:166 computes log2(x) as
+ * math.log(x) / math.log(2), which differs from Math.log2 at power-of-two
+ * boundaries due to floating-point precision (e.g., ratio 32 gives 4.999...
+ * via ln-ratio but 5.0 exactly via native log2). JVM is canonical for
+ * consensus; verified against mainnet proof vectors. Truncation toward zero
+ * (see the -0 → 0 normalization below) matches JVM exactly.
  * Returns a signed number; may be negative if the hit exceeds the required
  * target.
  */
@@ -65,7 +69,14 @@ export function maxLevelOf(header: Header): number {
 
   if (realF64 <= 0) return -1; // degenerate: hit is 0
 
-  const level = Math.log2(requiredF64) - Math.log2(realF64);
+  // JVM NipopowAlgos.scala:166 computes log2(x) as math.log(x) / math.log(2) —
+  // NOT a native log2. The distinction is load-bearing at exact power-of-two
+  // hit ratios (fake-pow test chains): ln-ratio can land epsilon-below the
+  // integer (e.g. 4.999999999999972 at ratio 32 → level 4) where native
+  // Math.log2 returns the exact integer (5.0 → level 5). JVM is canonical;
+  // verified against JVM prover vectors (jvm-chain-32 h22) 2026-08-19.
+  const LN2 = Math.log(2);
+  const level = Math.log(requiredF64) / LN2 - Math.log(realF64) / LN2;
   // JVM `level.toInt` / Rust `as i32`: truncation toward zero. NOT floor —
   // an epsilon-negative float level must map to 0 like the JVM, or
   // provePrefix's level-0 filter drops a header the JVM keeps.
