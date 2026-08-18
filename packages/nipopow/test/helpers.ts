@@ -1,6 +1,8 @@
 import type { Header } from '@ergots/scorex';
 import type { PoPowHeader } from '../src/popow-header.ts';
 import type { NipopowProof } from '../src/proof.ts';
+import { updateInterlinks, makePopowHeader } from '../src/interlinks.ts';
+import { ORDER } from '../src/level.ts';
 
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length === 0) return new Uint8Array(0);
@@ -112,13 +114,55 @@ export function buildSyntheticProof(opts: SyntheticProofOptions): NipopowProof {
   };
 }
 
-/** v1 header whose powHit is exactly `hit` (powDistance passthrough in level.ts). */
+/**
+ * v1 header whose powHit is exactly `hit` (powDistance passthrough in level.ts).
+ * `powOnetimePk` is a 33-byte inert placeholder (mirrors `minerPk` in
+ * makeSyntheticHeader) — v1's wire format requires it present (see
+ * @ergots/scorex autolykos-solution.ts), needed once a caller serializes a
+ * chain built from this helper (Task 6 prove()+round-trip tests); no existing
+ * caller (maxLevelOf) reads this field.
+ */
 export function headerWithHit(height: number, hit: bigint): Header {
   const h = makeSyntheticHeader(makeId(height), makeId(height - 1), height);
   return {
     ...h,
     version: 1,
     nBits: 0x03001000, // decodeCompactBits → 4096n
-    autolykosSolution: { ...h.autolykosSolution, powDistance: hit },
+    autolykosSolution: {
+      ...h.autolykosSolution,
+      powOnetimePk: new Uint8Array(33),
+      powDistance: hit,
+    },
   };
+}
+
+/**
+ * Deterministic chain builder: heights 1..N with scripted superblock levels.
+ * levels[i] = desired maxLevelOf for height i+1 (levels[0] is genesis and
+ * ignored — genesis level is MAX_SAFE_INTEGER by definition).
+ * Interlinks maintained by OUR updateInterlinks (self-consistency by design;
+ * JVM-anchored selection comes from the SANTA vectors in Task 7).
+ *
+ * hit = REQUIRED·(2/3)/2^L → ratio = 1.5·2^L → log2 = L + 0.585 → trunc = L.
+ * The 2/3 offset keeps the float away from exact power-of-two boundaries.
+ */
+export function buildTestChain(levels: number[]): PoPowHeader[] {
+  const REQUIRED = ORDER / 4096n; // matches headerWithHit's nBits = 0x03001000
+  const chain: PoPowHeader[] = [];
+  let interlinks: Uint8Array[] = [];
+  let prev: PoPowHeader | null = null;
+  for (let i = 0; i < levels.length; i++) {
+    const height = i + 1;
+    const hit = (REQUIRED * 2n) / (3n * (1n << BigInt(levels[i]!)));
+    const header = headerWithHit(height, hit);
+    if (prev) {
+      header.parentId = prev.header.id;
+      interlinks = updateInterlinks(prev.header, interlinks);
+    }
+    const ph = makePopowHeader(header, height === 1 ? [header.id] : interlinks);
+    if (height === 1) interlinks = [header.id];
+    chain.push(ph);
+    prev = ph;
+  }
+  return chain;
 }

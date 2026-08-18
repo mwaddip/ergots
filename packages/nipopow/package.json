@@ -21,6 +21,10 @@
     "./envelope": {
       "types": "./dist/envelope.d.ts",
       "import": "./dist/envelope.js"
+    },
+    "./prover": {
+      "types": "./dist/prover.d.ts",
+      "import": "./dist/prover.js"
     }
   },
   "main": "./dist/index.js",
