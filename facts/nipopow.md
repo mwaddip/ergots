@@ -173,12 +173,33 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
   `'invalid-k'`; `await reader.headersHeight() >= m + k`
   (`'chain-too-short'`). A required header the reader answers `null` for →
   `'missing-popow-header'`; no silent partial proofs.
-- **Postcondition:** Byte-identical to `prove` on the same underlying
-  chain (tested property). Suffix: `headerId` given → that header is
-  `suffixHead` and `bestHeadersAfter(suffixHead.header, k-1)` is the tail;
-  omitted → `lastHeaders(k)` from the tip. Genesis (height 1) is always
-  seeded into the prefix. Header loads are O(m + k + m·log N) — the
-  backward interlink walk (JVM `NipopowProverWithDbAlgs`), not a full scan.
+- **Postcondition:** Byte-identical to `prove` on realistic, organically-grown
+  chains — verified against real JVM-generated ground truth (6/6 tip-mode +
+  2/2 anchored-mode SANTA vectors, `prover-santa.test.ts`) and consistent
+  with the JVM's own equivalence test methodology (`PoPowAlgosWithDBSpec.scala`
+  `genChain(3000)`). **NOT guaranteed byte-identical on arbitrary chains** —
+  this is a property of the two JVM source algorithms themselves, not a
+  TS-port gap (`prover-reader.test.ts`'s comment block has the full
+  derivation): (a) `prove`'s filter-based level pass gives genesis
+  unconditional credit at every not-yet-narrowed level (`maxLevelOf` =
+  `Int.MaxValue`, height 1 always qualifies) with no walk-side counterpart
+  (genesis is never present in any header's interlinks tail, so
+  `proveWithReader`'s walk can never "see" it) — when the *true*
+  (non-genesis) count at a level equals exactly `m`, the narrowing decision
+  can flip between the two algorithms; (b) no interlink position represents
+  "level 0" at all (`linksWithIndexes` only ever yields positions for levels
+  ≥1) — `prove`'s explicit level-0 pass sweeps every header from the anchor
+  onward regardless of interlink connectivity, but a run of consecutive
+  low-level blocks whose id was never recorded by a later block's interlinks
+  is structurally undiscoverable by the walk. Both proveWithReader outputs
+  remain individually valid (`verifyParsedProof` accepts them) even where
+  they diverge from `prove`'s prefix — this is prefix-selection divergence
+  between two different-but-both-correct provers, not a validity defect.
+  Suffix: `headerId` given → that header is `suffixHead` and
+  `bestHeadersAfter(suffixHead.header, k-1)` is the tail; omitted →
+  `lastHeaders(k)` from the tip. Genesis (height 1) is always seeded into
+  the prefix. Header loads are O(m + k + m·log N) — the backward interlink
+  walk (JVM `NipopowProverWithDbAlgs`), not a full scan.
 - **Reader contract:** `popowHeaderAtHeight(1)` / `popowHeaderById(genesis
   id)` MUST synthesize `interlinks = [genesisId]` (e.g. via
   `makePopowHeader`) — real on-chain genesis extensions are empty and
