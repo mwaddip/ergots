@@ -111,6 +111,7 @@ export function buildSyntheticProof(opts: SyntheticProofOptions): NipopowProof {
     prefix,
     suffixHead,
     suffixTail,
+    continuous: false,
   };
 }
 

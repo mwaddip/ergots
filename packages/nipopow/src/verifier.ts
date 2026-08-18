@@ -27,6 +27,10 @@
  *   'v1-header-after-v2-activation'   version 1 header at height >= opts.v2ActivationHeight
  *                                     (when checkPoW: true); audit finding NIP-02
  *   'invalid-interlinks-proof'        per-PoPowHeader interlinks Merkle proof rejected
+ *   'continuous-unsupported'          proof.continuous === true (Task 7b / NIP-12) — the
+ *                                     JVM's hasValidDifficultyHeaders check isn't implemented
+ *                                     yet, so a continuous proof is rejected rather than
+ *                                     accepted-and-under-verified
  */
 
 import { parseProof } from './proof.ts';
@@ -107,6 +111,23 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
   }
   if (proof.k <= 0) {
     throw new ProofVerificationError(`k must be > 0; got ${proof.k}`, 'invalid-k');
+  }
+
+  // Task 7b (NIP-12): the JVM validates continuous proofs via a dedicated
+  // hasValidDifficultyHeaders check (heightsForNextRecalculation + per-epoch
+  // difficulty-header verification) that this package does not implement
+  // yet — that machinery is a planned follow-up unit shipping prover +
+  // verifier together (see facts/nipopow.md "Does NOT ship"). Accepting a
+  // continuous proof here without running that check would be unfaithful
+  // (silently skip a real JVM validation step), so we reject loudly instead
+  // of accepting-and-under-verifying. Placed with the early shape gates,
+  // before any connection/height work, so a continuous proof never falls
+  // through to logic that assumes the non-continuous shape.
+  if (proof.continuous) {
+    throw new ProofVerificationError(
+      'continuous proofs are not supported yet',
+      'continuous-unsupported',
+    );
   }
 
   const checkPoW = opts.checkPoW ?? true;

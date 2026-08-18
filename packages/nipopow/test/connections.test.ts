@@ -107,6 +107,7 @@ describe('hasValidConnections boundary cases', () => {
       prefix: [],
       suffixHead: makePoPowHeader(makeId(0), makeId(99)),
       suffixTail: [],
+      continuous: false,
     };
     expect(hasValidConnections(proof)).toBe(true);
   });
@@ -118,6 +119,7 @@ describe('hasValidConnections boundary cases', () => {
       prefix: [makePoPowHeader(makeId(1), makeId(0))],
       suffixHead: makePoPowHeader(makeId(2), makeId(1)),
       suffixTail: [],
+      continuous: false,
     };
     expect(hasValidConnections(proof)).toBe(true);
   });
@@ -129,6 +131,7 @@ describe('hasValidConnections boundary cases', () => {
       prefix: [makePoPowHeader(makeId(1), makeId(0))],
       suffixHead: makePoPowHeader(makeId(2), makeId(99)),
       suffixTail: [],
+      continuous: false,
     };
     expect(hasValidConnections(proof)).toBe(false);
   });
@@ -145,6 +148,7 @@ describe('hasValidConnections boundary cases', () => {
       prefix,
       suffixHead,
       suffixTail: [],
+      continuous: false,
     };
     expect(hasValidConnections(proof)).toBe(true);
   });

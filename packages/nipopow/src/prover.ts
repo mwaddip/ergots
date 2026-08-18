@@ -51,7 +51,10 @@ export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
   }
   prefix.sort((a, b) => a.header.height - b.header.height);
 
-  return { m, k, prefix, suffixHead, suffixTail };
+  // Task 7b: prove() only ever builds non-continuous proofs (Task 8's
+  // proveWithReader does the same; continuous-mode proving is a planned
+  // follow-up unit, see facts/nipopow.md "Does NOT ship").
+  return { m, k, prefix, suffixHead, suffixTail, continuous: false };
 }
 
 // ── /prover subpath surface ──────────────────────────────────────────────────
