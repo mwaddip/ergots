@@ -47,8 +47,9 @@ export const ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BB
  * math.log(x) / math.log(2), which differs from Math.log2 at power-of-two
  * boundaries due to floating-point precision (e.g., ratio 32 gives 4.999...
  * via ln-ratio but 5.0 exactly via native log2). JVM is canonical for
- * consensus; verified against mainnet proof vectors. Truncation toward zero
- * (see the -0 → 0 normalization below) matches JVM exactly.
+ * consensus; verified against JVM prover vectors (SANTA fake-PoW chains
+ * jvm-chain-32/64). Truncation toward zero (see the -0 → 0 normalization
+ * below) matches JVM exactly.
  * Returns a signed number; may be negative if the hit exceeds the required
  * target.
  */
