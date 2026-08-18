@@ -28,19 +28,25 @@ export const ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BB
 /**
  * Compute the maximum μ-level of a header.
  *
- * Mirrors sigma-rust NipopowAlgos::max_level_of:
+ * Truncates the float level toward zero — this is the primary, current
+ * behavior, matching JVM `NipopowAlgos.scala maxLevelOf` (`Double.toInt`)
+ * and the level-0 filtering in `NipopowProof.scala`. sigma-rust's
+ * `max_level_of` also truncates (Rust's `as i32` cast from f64 truncates
+ * toward zero, not floor) — `Math.floor` was never correct per either
+ * reference; it was this package's own earlier implementation, since fixed.
+ *
  *   - genesis (height == 1): return MAX (we use Number.MAX_SAFE_INTEGER to represent i32::MAX)
  *   - otherwise:
  *     required_target = (ORDER / decode_compact_bits(header.nBits)).toF64()
  *     real_target     = pow_hit(header).toF64()
- *     level           = floor(log2(required_target) - log2(real_target))
- *                     = floor(log2(required_target / real_target))
+ *     level           = trunc(log2(required_target) - log2(real_target))
+ *                     = trunc(log2(required_target / real_target))
  *
- * The level is computed using f64 log2 subtraction (matching sigma-rust's f64 cast).
- * Returns a signed number; may be negative if the hit exceeds the required target.
- *
- * Also mirrors the JVM: NipopowAlgos.scala maxLevelOf + NipopowProof.scala —
- * the JVM truncates the float level toward zero (Double.toInt), not floor.
+ * The level is computed using f64 log2 subtraction (matching sigma-rust's
+ * f64 cast), then truncated toward zero (see the -0 → 0 normalization below
+ * for the one spot JS's `Math.trunc` needs help to match JVM/Rust exactly).
+ * Returns a signed number; may be negative if the hit exceeds the required
+ * target.
  */
 export function maxLevelOf(header: Header): number {
   if (header.height === 1) {

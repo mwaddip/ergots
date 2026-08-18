@@ -28,11 +28,10 @@
  *     max over acc of BigInt(2)^BigInt(level) * BigInt(count)
  *
  *   max_level_of(header):
- *     if header.height === 1: return Number.MAX_SAFE_INTEGER  // genesis ≈ i32::MAX
- *     required_target = ORDER / decode_compact_bits(header.nBits)   // BigInt division
- *     real_hit = autolykos_v2_hit(header)                            // BigInt
- *     level = Math.floor(Math.log2(toF64(required_target)) - Math.log2(toF64(real_hit)))
- *     return level  // signed; may be negative if hit > required_target
+ *     see ./level.ts (maxLevelOf) — shared with the prover. Genesis returns
+ *     Number.MAX_SAFE_INTEGER; otherwise a signed level truncated toward
+ *     zero (JVM Double.toInt semantics, NOT floor — see level.ts's doc for
+ *     the exact formula and the -0 → 0 normalization).
  *
  * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs:is_better_than
  *            sigma-rust ergo-nipopow/src/nipopow_algos.rs:best_arg, max_level_of
