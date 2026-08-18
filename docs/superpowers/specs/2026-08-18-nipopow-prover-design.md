@@ -78,10 +78,14 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree      // kvToLeaf + build
 - Hashing: blake2b-256 with the **existing** leaf / internal-node domain-
   separation prefixes already defined and fixture-validated in `merkle.ts`
   (verify side). The builder introduces **no new crypto constants**.
-- Odd node counts: match scrypto's layout exactly. The existing verifier's
-  root-reconstruction walk pins the expected layout (promote, don't
-  duplicate); the builder must produce trees the verifier's walk agrees
-  with, and fixtures decide (Validation, Layer 1).
+- Tree layout: exactly the one `merkle.ts` already pins in
+  `merkleRootFromLeaves` (fixture-validated): pad leaves to the next power
+  of two (minimum 2) with empty sentinels; internal node = `prefixedHash2`
+  when both children present, `prefixedHash` of the single child when one
+  is empty, empty when both are. The builder retains the levels this
+  produces; `proofByIndices` reads siblings (including empty ones —
+  `LevelNode.hash: null`) off those levels. Fixtures decide (Validation,
+  Layer 1).
 - `proofByIndices` extracts the compact multi-proof (sorted leaf indices +
   minimal sibling set with side flags) in the shape `BatchMerkleProof`
   already models. `null` when indices are empty/out of range, mirroring the
