@@ -13,13 +13,13 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 3. Pairwise comparison (KMZ17 §4.3 "is A better than B"). The proof-of-work hit it computes uses `@ergots/scorex`'s `autolykosHitForMessage`.
 4. P2P envelope codec for message codes 90 (`GetNipopowProof`) and 91 (`NipopowProof`), exposed via the `/envelope` subpath.
 5. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+6. Proof construction, via the `/prover` subpath: `prove` (sync, in-memory chain) and `proveWithReader` (async, demand-loaded through a caller-implemented `PopowHeaderReader`), plus the building blocks (`updateInterlinks`, `packInterlinks`, `unpackInterlinks`, `proofForInterlinkVector`, `makePopowHeader`, `maxLevelOf`, `MerkleTree`, `buildExtensionTree`). Canonical reference: the JVM Ergo node (`NipopowAlgos.scala`, `NipopowProverWithDbAlgs.scala`); sigma-rust is secondary.
 
 **Does NOT ship:**
 
 - **Consensus header validation.** `verifyProof` validates each header's Autolykos v2 solution against that header's **self-declared** `nBits`, but does NOT validate `nBits` against consensus chain parameters (difficulty-adjustment rule, hard-fork schedule for header.version, trusted anchor / checkpoint policy). An attacker who controls proof construction can choose the work target. Consumers MUST combine `verifyProof` with an external consensus verifier for any security-critical use. Full consensus header validation is a planned future phase. See "Limitations" below.
-- Proof construction (`build_nipopow_proof` in the Rust). Requires header-chain + extension cache; out of scope.
+- Continuous-mode proofs (prover side as well as verifier side). `prove` / `proveWithReader` emit non-continuous proofs only; the difficulty-header machinery (`heightsForNextRecalculation`, `hasValidDifficultyHeaders`) is a planned follow-up unit that ships prover + verifier together.
 - Multi-peer best-arg orchestration (collecting/voting on multiple proofs from multiple peers). The pairwise `compareProofs` is in; the orchestration is not.
-- Continuous-mode proofs. `VerificationResult.continuous` is always `false`, mirroring `chain/src/nipopow_proof.rs:43-44`.
 - Transport, storage, sync. All caller-provided.
 - Signature verification on the miner public key. `AutolykosSolution.minerPk` is consumed as raw bytes only.
 
@@ -120,6 +120,109 @@ envelope (`pad_length=0`) rather than a byte-identical copy. This is intentional
 code-91 is a framing codec, and its output is always passed to `parseProof`, never
 re-emitted verbatim.
 
+### Subpath export: `@ergots/nipopow/prover`
+
+```ts
+prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof
+proveWithReader(reader: PopowHeaderReader, params: PoPowParams, headerId?: Uint8Array): Promise<NipopowProof>
+
+type PoPowParams = { m: number; k: number }
+interface PopowHeaderReader {
+  headersHeight(): Promise<number>
+  popowHeaderById(id: Uint8Array): Promise<PoPowHeader | null>
+  popowHeaderAtHeight(height: number): Promise<PoPowHeader | null>
+  lastHeaders(n: number): Promise<Header[]>
+  bestHeadersAfter(header: Header, n: number): Promise<Header[]>
+}
+
+updateInterlinks(prevHeader: Header, prevInterlinks: Uint8Array[]): Uint8Array[]
+packInterlinks(interlinks: Uint8Array[]): ExtensionKV[]
+unpackInterlinks(fields: ExtensionKV[]): Uint8Array[]
+proofForInterlinkVector(fields: ExtensionKV[]): BatchMerkleProof
+makePopowHeader(header: Header, interlinks: Uint8Array[]): PoPowHeader
+maxLevelOf(header: Header): number
+
+class MerkleTree {
+  constructor(leafHashes: Uint8Array[])
+  readonly leafCount: number
+  rootHash(): Uint8Array
+  proofByIndices(indices: number[]): BatchMerkleProof | null
+}
+buildExtensionTree(fields: ExtensionKV[]): MerkleTree
+```
+
+#### `prove(chain, params)`
+
+- **Precondition (throws `ProofBuildError`):** `params.m >= 1`
+  (`'invalid-m'`), `params.k >= 1` (`'invalid-k'`),
+  `chain.length >= m + k` (`'chain-too-short'`),
+  `chain[0].header.height === 1` (`'non-anchored-chain'`). The chain is
+  trusted: contiguous from genesis, interlinks already correct; `prove`
+  re-derives nothing.
+- **Postcondition:** Returns a `NipopowProof` that (a) passes
+  `verifyParsedProof` structural checks (PoW validity is a property of the
+  input chain, not the prover), (b) round-trips byte-identically through
+  `serializeProof`/`parseProof`, (c) is byte-identical to the JVM
+  `NipopowAlgos.prove` output on the same chain (KMZ17 provePrefix walk,
+  dedupe by header id, prefix sorted ascending by height).
+- **Invariant:** Pure, synchronous, deterministic.
+
+#### `proveWithReader(reader, params, headerId?)`
+
+- **Precondition (throws `ProofBuildError`):** same `'invalid-m'` /
+  `'invalid-k'`; `await reader.headersHeight() >= m + k`
+  (`'chain-too-short'`). A required header the reader answers `null` for →
+  `'missing-popow-header'`; no silent partial proofs.
+- **Postcondition:** Byte-identical to `prove` on the same underlying
+  chain (tested property). Suffix: `headerId` given → that header is
+  `suffixHead` and `bestHeadersAfter(suffixHead.header, k-1)` is the tail;
+  omitted → `lastHeaders(k)` from the tip. Genesis (height 1) is always
+  seeded into the prefix. Header loads are O(m + k + m·log N) — the
+  backward interlink walk (JVM `NipopowProverWithDbAlgs`), not a full scan.
+- **Reader contract:** `popowHeaderAtHeight(1)` / `popowHeaderById(genesis
+  id)` MUST synthesize `interlinks = [genesisId]` (e.g. via
+  `makePopowHeader`) — real on-chain genesis extensions are empty and
+  unpacking them yields wrong (empty) interlinks. Readers are not trusted
+  to be consistent; inconsistency surfaces as `'missing-popow-header'` or
+  a connection-invalid proof, never silent corruption. Async is the ONLY
+  async surface in the package; everything else remains synchronous.
+
+#### Building blocks
+
+- `updateInterlinks(prevHeader, prevInterlinks)` — interlinks for the
+  block AFTER `prevHeader`. Genesis: `[prevHeader.id]`. Non-genesis with
+  empty `prevInterlinks` throws `'empty-interlinks'`. With
+  `L = maxLevelOf(prevHeader)`: `L <= 0` → input returned unchanged
+  (same array contents, fresh array); `L > 0` →
+  `[genesis, ...tail.slice(0, max(0, tail.length - L)), ...L copies of prevHeader.id]`.
+- `unpackInterlinks(fields)` — inverse of `packInterlinks`: filters keys
+  with `key[0] === 0x01`, requires each value be exactly 33 bytes
+  (`[qty, blockId32]`) else throws `'malformed-interlinks'`; expands qty
+  duplicates in field order. `unpackInterlinks(packInterlinks(x))` ≡ x.
+- `proofForInterlinkVector(fields)` — batch proof over the
+  interlinks-only tree for all interlink-prefixed keys; zero interlink
+  fields → `{ indices: [], proofs: [] }`.
+- `makePopowHeader(header, interlinks)` — packs interlinks, builds the
+  proof, returns `{ header, interlinks, interlinksProof }`.
+- `maxLevelOf(header)` — superblock level; genesis →
+  `Number.MAX_SAFE_INTEGER`; level float is truncated toward zero
+  (`Math.trunc`, JVM `Double.toInt` semantics — NOT floor).
+- `MerkleTree` / `buildExtensionTree` — construction counterpart of the
+  verify-side codec: same padded-power-of-two layout `merkleRootFromLeaves`
+  pins; `proofByIndices` emits explicit empty-sibling nodes
+  (`hash: null`, serialized all-zero) for padding positions, `null` for
+  empty/out-of-range/duplicate index lists.
+
+#### Error taxonomy addition
+
+```ts
+class ProofBuildError extends Error   // recoverable; construction input rejected
+```
+
+codes: `'invalid-m' | 'invalid-k' | 'chain-too-short' |
+'non-anchored-chain' | 'missing-popow-header' | 'empty-interlinks' |
+'malformed-interlinks'` (conditions above).
+
 ## Type invariants
 
 These hold on every `NipopowProof` returned by the public API. Callers may rely on them without re-checking.
@@ -171,8 +274,7 @@ interface NipopowProof {
 
 ## Determinism and purity
 
-- All functions are pure: no I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output.
-- No async surface. Every function is synchronous. (Rationale: the verifier hits blake2b-256 in tight loops; the async boundary would only add overhead without enabling concurrency.)
+- All functions are pure… **All verifier-surface functions are synchronous**; the single async surface is the `/prover` subpath's `proveWithReader` + `PopowHeaderReader` (demand-loading is its purpose). No function touches clock, PRNG, or `globalThis`.
 - No throwing on success paths. Throws indicate contract violations or input rejection — they're the typed failure surface.
 
 ## Browser-compat guarantees
