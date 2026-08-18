@@ -41,19 +41,10 @@
 
 import { parseProof, type NipopowProof } from './proof.ts';
 import type { Header } from '@ergots/scorex';
-import {
-  decodeCompactBits,
-  autolykosMessage,
-  calcBigN,
-  autolykosHitForMessage,
-  int32BE,
-} from '@ergots/scorex';
 import { hasValidConnections } from './connections.ts';
 import { checkInterlinksProof } from './verifier.ts';
 import { bytesEqual } from './bytes.ts';
-
-// secp256k1 curve order (constant — matches sigma-rust order_bigint())
-const ORDER = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
+import { maxLevelOf } from './level.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
@@ -239,96 +230,6 @@ function bestArg(chain: Header[], m: number): bigint {
   return best;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal: max_level_of
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Compute the maximum μ-level of a header.
- *
- * Mirrors sigma-rust NipopowAlgos::max_level_of:
- *   - genesis (height == 1): return MAX (we use Number.MAX_SAFE_INTEGER to represent i32::MAX)
- *   - otherwise:
- *     required_target = (ORDER / decode_compact_bits(header.nBits)).toF64()
- *     real_target     = pow_hit(header).toF64()
- *     level           = floor(log2(required_target) - log2(real_target))
- *                     = floor(log2(required_target / real_target))
- *
- * The level is computed using f64 log2 subtraction (matching sigma-rust's f64 cast).
- * Returns a signed number; may be negative if the hit exceeds the required target.
- */
-function maxLevelOf(header: Header): number {
-  if (header.height === 1) {
-    return Number.MAX_SAFE_INTEGER; // genesis: i32::MAX in sigma-rust
-  }
-
-  const decoded = decodeCompactBits(header.nBits);
-  if (decoded <= 0n) return -1; // invalid target; level is effectively 0 or below
-
-  const requiredTarget = ORDER / decoded; // BigInt integer division
-  const realHit = powHit(header);        // BigInt: Autolykos v2 hit
-
-  // Convert to f64 (JS number) for log2 computation, matching sigma-rust's .to_f64().unwrap().
-  const requiredF64 = bigintToF64(requiredTarget);
-  const realF64 = bigintToF64(realHit);
-
-  if (realF64 <= 0) return -1; // degenerate: hit is 0
-
-  const level = Math.log2(requiredF64) - Math.log2(realF64);
-  // For positive values, Math.floor matches Rust's `as i32` truncation
-  // (round toward zero). Negative levels are excluded by the >= check in
-  // bestArg, so the floor-vs-trunc difference is immaterial.
-  return Math.floor(level);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal: pow_hit (Autolykos v2)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Compute the Autolykos v2 pow_hit for a non-genesis v2 header.
- *
- * This is the same computation as verifyAutolykosV2 but returns the hit value
- * as a BigInt rather than comparing it to the target.
- *
- * Mirrors sigma-rust AutolykosPowScheme::pow_hit for version >= 2.
- *
- * For version 1 headers: sigma-rust uses pow_distance if present; we treat
- * v1 headers as having max hit (level effectively 0 or below) since we
- * cannot re-derive the v1 hit. The compareProofs caller should already
- * be working with v2 proofs for any real Ergo chain post-activation.
- */
-function powHit(header: Header): bigint {
-  if (header.version === 1) {
-    // Autolykos v1: pow_distance is stored in the solution.
-    // If present, use it; otherwise return ORDER (max) to indicate level ~= 0.
-    if (header.autolykosSolution.powDistance !== null) {
-      return header.autolykosSolution.powDistance;
-    }
-    return ORDER; // fallback: no level contribution
-  }
-
-  const hit = autolykosHitForMessage(
-    32,
-    autolykosMessage(header),
-    header.autolykosSolution.nonce,
-    int32BE(header.height),
-    calcBigN(header.version, header.height),
-  );
-  return hit;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utilities
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Convert a BigInt to a JS float64 (f64). Mirrors Rust's BigUint::to_f64(). */
-function bigintToF64(v: bigint): number {
-  if (v === 0n) return 0;
-  // Use hex representation for precision; Number() on a BigInt also works
-  // since JS coerces to f64. For large values, precision is lost at mantissa
-  // boundaries — this matches Rust's BigUint::to_f64() behaviour (also lossy).
-  return Number(v);
-}
-
+// max_level_of, pow_hit, and bigintToF64 now live in level.ts — see the
+// `maxLevelOf` import above.
 

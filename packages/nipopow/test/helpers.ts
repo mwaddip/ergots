@@ -111,3 +111,14 @@ export function buildSyntheticProof(opts: SyntheticProofOptions): NipopowProof {
     suffixTail,
   };
 }
+
+/** v1 header whose powHit is exactly `hit` (powDistance passthrough in level.ts). */
+export function headerWithHit(height: number, hit: bigint): Header {
+  const h = makeSyntheticHeader(makeId(height), makeId(height - 1), height);
+  return {
+    ...h,
+    version: 1,
+    nBits: 0x03001000, // decodeCompactBits → 4096n
+    autolykosSolution: { ...h.autolykosSolution, powDistance: hit },
+  };
+}
