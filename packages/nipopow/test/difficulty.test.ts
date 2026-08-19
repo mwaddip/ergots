@@ -120,10 +120,12 @@ describe('hasValidDifficultyHeaders (e=16, u=8 unless noted)', () => {
     expect(hasValidDifficultyHeaders(proof, 16, 8)).toBe(false);
   });
 
-  test('needed height only in suffixTail still counts (chain-wide scan, JVM headersChain)', () => {
+  test('suffixTail entries participate in the flat scan without corrupting the cursor', () => {
     // suffixHead 95: next = 97, prevHeights(97) = [0,16,...,96]; gated (0,95) -> [16,...,80].
-    // Put 96 in the tail anyway (not needed) and one needed height, 80, ONLY implicitly:
-    // heights strictly increasing: prefix has 16..64, tail has 96; 80 missing -> false.
+    // All needed heights (16..80) are < suffixHead, so none can come from suffixTail (all > suffixHead).
+    // The tail entry (96) participates in chainHeights but never satisfies a needed height.
+    // Test verifies the non-resetting cursor still finds all needed heights from the prefix.
+    // Heights strictly increasing: prefix has 16..64, tail has 96; 80 missing -> false.
     const missing80 = {
       ...buildSyntheticProof({
         prefixHeights: [1, 16, 32, 48, 64],
