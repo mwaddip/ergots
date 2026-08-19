@@ -3,25 +3,24 @@
 // Usage: node tools/nipopow-capture/live-walk.mjs [m] [k] [--expect-full-identity]
 // Env: ERGO_NODE_URL (default public JVM node).
 //
-// ── Controller ruling (task-9, this round) — read before changing the gate ──
+// ── Why this file has two modes (historical context) ──
 //
-// Raw byte-identity against the live REST endpoint's response is
-// UNREACHABLE TODAY, structurally, not as a data/environment fluke:
 // `PopowProcessor.scala:109-111` (`popowProof`, backing every
 // `GET /nipopow/proof/{m}/{k}[/{headerId}]` response) unconditionally
 // builds `PoPowParams(m, k, continuous = true)` — there is no query
-// parameter to ask for `continuous = false`. `@ergots/nipopow` does not
-// implement continuous mode at all (facts/nipopow.md "Does NOT ship"), so
-// `proveWithReader` unconditionally returns `continuous: false`
-// (packages/nipopow/src/prover.ts:190) and has no way to produce the extra
-// prefix headers `NipopowProverWithDbAlgs.scala:93-105` injects under
-// continuous mode (see the worked derivation below). Corollary the
-// controller flagged for Task 10's docs (not this file's job to fix):
-// since every live node serves continuous-mode proofs unconditionally,
-// `@ergots/nipopow`'s own `verifyProof` — which rejects `continuous: true`
-// as `'continuous-unsupported'` — currently rejects every live-served
-// proof outright. That's a real gap for the future continuous-mode unit,
-// not something this walk can or should paper over.
+// parameter to ask for `continuous = false`, then or now. Before 0.4.0,
+// `@ergots/nipopow` had no continuous-mode support at all: `proveWithReader`
+// unconditionally returned `continuous: false` and had no way to produce
+// the extra prefix headers `NipopowProverWithDbAlgs.scala:93-105` injects
+// under continuous mode (see the worked derivation below), and `verifyProof`
+// rejected every `continuous: true` proof as `'continuous-unsupported'` —
+// which, since the live endpoint only ever serves `continuous: true`, meant
+// it rejected every live-served proof outright. So raw byte-identity
+// against the live REST endpoint's response was unreachable, structurally,
+// not as a data/environment fluke — `--expect-full-identity` (added in the
+// prior phase, before continuous-mode support existed) was a flag for a
+// check that could not yet pass. That gap is what this package's 0.4.0
+// (the continuous-mode unit) closed — see "Resolved in 0.4.0" below.
 //
 // What the DEFAULT mode's PASS now proves (and only this): (a) our prefix
 // is a subset of the live endpoint's — proveWithReader never selects a

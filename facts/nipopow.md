@@ -318,29 +318,27 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
   are multiples of `epochLength > 1` and so never collide with genesis
   (height 1) or each other.
 
-  **Live-endpoint byte-identity — the 0.4.0 acceptance gate.**
+  **Live-endpoint byte-identity — the 0.4.0 acceptance gate (RESOLVED).**
   `PopowProcessor.popowProof` (`PopowProcessor.scala:109-111`, cited above)
   hardcodes `continuous = true` on every call — there is no route parameter
-  on `GET /nipopow/proof/{m}/{k}` to request `continuous = false`. Before
-  0.4.0, neither `prove` nor `proveWithReader` implemented continuous mode,
-  so their output could never be byte-identical to a live JVM node's REST
-  response — the achievable bar was prefix-selection agreement modulo the
-  continuous-mode-injected difficulty-recalculation heights.
-  `proveWithReader(reader, { ..., continuous: true }, headerId?)` is
-  specified (see "Continuous-mode injection" above) to inject those same
-  heights, closing that gap — but that is this contract's target, not yet
-  a recorded result: at this commit no continuous-mode code has landed.
-  Task 9's live-mainnet acceptance walk (`tools/nipopow-capture/live-walk.mjs
-  --expect-full-identity`) is the acceptance GATE for that claim: raw
-  byte-identity against a real node's response, no filtering, no flag
-  normalization, for both of Task 9's parameter sets (`m=6,k=6` and
-  `m=2,k=10`), plus the interop headline itself —
-  `verifyProof(rawLiveBytes, { checkPoW: true })` succeeding directly on
-  the unmodified live response — are REQUIRED to hold before 0.4.0 ships.
-  This paragraph will be flipped to recorded-outcome framing once Task 9
-  has actually run the walk. The coarser filtered-subset comparison mode
-  (`--expect-full-identity` omitted) remains available for callers against
-  non-conformant or historical nodes.
+  on `GET /nipopow/proof/{m}/{k}` to request `continuous = false`. Task 9
+  ran the live-mainnet acceptance walk
+  (`tools/nipopow-capture/live-walk.mjs --expect-full-identity`) on
+  2026-08-19 against `213.239.193.208:9053` (`ergo-mainnet-6.x`) at tip
+  height 1854246, for both of Task 9's parameter sets: `m=6,k=6` (our/JVM
+  prefix 131/131, `totalHeaders` 137) and `m=2,k=10` (our/JVM prefix 49/49,
+  `totalHeaders` 59). Both achieved raw byte-identity against the live
+  node's own response — no filtering, no flag normalization — and
+  `verifyProof(rawLiveBytes, { checkPoW: true })` succeeded directly on the
+  unmodified live response, with `continuous: true` on both. The default
+  (`--expect-full-identity` omitted) composite mode still passes unchanged
+  too: a 123-header subset of the live prefix, with the 8-height surplus
+  fully attributed to continuous-mode difficulty-recalculation heights.
+  `tools/nipopow-capture/live-walk.mjs --expect-full-identity` remains the
+  reproduction path for this claim against any live node; the permanent
+  run logs live in the arc's ledger workspace
+  (`.superpowers/sdd/2026-08-19-nipopow-continuous-mode/`), not in this
+  file.
 
   **What the committed SANTA vectors are (and are not) ground truth for.**
   All 8 `nipopow_prove` vectors — the 6 tip-mode cases *and* the 2 anchored
