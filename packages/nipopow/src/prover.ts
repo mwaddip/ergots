@@ -45,6 +45,8 @@ export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
   const { m, k } = params;
   if (!Number.isInteger(m) || m < 1) throw new ProofBuildError(`m must be >= 1, got ${m}`, 'invalid-m');
   if (!Number.isInteger(k) || k < 1) throw new ProofBuildError(`k must be >= 1, got ${k}`, 'invalid-k');
+  const continuous = params.continuous ?? false;
+  const { epochLength, useLastEpochs } = resolveDifficultyParams(params);
   if (chain.length < m + k) {
     throw new ProofBuildError(`cannot prove chain of size ${chain.length} < m+k=${m + k}`, 'chain-too-short');
   }
@@ -78,10 +80,21 @@ export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
   }
   prefix.sort((a, b) => a.header.height - b.header.height);
 
-  // Task 7b: prove() only ever builds non-continuous proofs (Task 8's
-  // proveWithReader does the same; continuous-mode proving is a planned
-  // follow-up unit, see facts/nipopow.md "Does NOT ship").
-  return { m, k, prefix, suffixHead, suffixTail, continuous: false };
+  // Continuous mode: inject difficulty-recalculation headers. DELIBERATE
+  // divergence from JVM NipopowAlgos.prove, which stamps params.continuous
+  // WITHOUT injecting (NipopowAlgos.scala:158 — "Paper-like code used in
+  // tests only") and so emits proofs its own verifier rejects. Both ergots
+  // provers inject the identical set; see facts/nipopow.md.
+  if (continuous) {
+    for (const h of neededPrefixHeights(suffixHead.header.height, epochLength, useLastEpochs)) {
+      const candidate = preSuffix.find(p => p.header.height === h);
+      if (candidate === undefined) continue; // absent from chain: silent skip, mirrors reader path
+      if (!prefix.some(q => bytesEqual(q.header.id, candidate.header.id))) prefix.push(candidate);
+    }
+    prefix.sort((a, b) => a.header.height - b.header.height);
+  }
+
+  return { m, k, prefix, suffixHead, suffixTail, continuous };
 }
 
 // ── proveWithReader — JVM NipopowProverWithDbAlgs.prove port ────────────────
