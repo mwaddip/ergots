@@ -39,6 +39,7 @@ nextRecalculationHeight(height: number, epochLength: number): number
 previousHeightsRequiredForRecalculation(height: number, epochLength: number, useLastEpochs: number): number[]
 heightsForNextRecalculation(height: number, epochLength: number, useLastEpochs: number): number[]
 hasValidDifficultyHeaders(proof: NipopowProof, epochLength: number, useLastEpochs: number): boolean
+type DifficultyParams = { epochLength?: number; useLastEpochs?: number }
 const EPOCH_LENGTH_MAINNET = 128
 const USE_LAST_EPOCHS_MAINNET = 8
 ```
@@ -97,7 +98,9 @@ New in 0.4.0 — epoch math and the continuous-mode difficulty-header membership
 - `hasValidDifficultyHeaders(proof, epochLength, useLastEpochs)` — `true` vacuously when `proof.continuous === false` (JVM else-branch). Otherwise, for every height `h` in `heightsForNextRecalculation(proof.suffixHead.header.height, epochLength, useLastEpochs)` with `0 < h < suffixHead.height` (heights outside that range are ignored — the JVM's `height > 0 && height < suffixHead.height` guard), the flat header chain (`prefix` PoPowHeaders' `.header` + `suffixHead.header` + `suffixTail`) must contain a header at height `h`. **Precondition:** the chain's heights are already strictly increasing before this runs. The membership scan is an ordered, non-resetting cursor — JVM `indexWhere(_, lastIndex)`: `lastIndex` starts at 0 and only ever advances — which coincides with plain set membership only because the needle list is ascending *and* the haystack is strictly monotone. Both in-package call sites (`verifyParsedProof`, `compareProofs`'s internal `isValid`) run the heights check first, mirroring the JVM `isValid`'s left-to-right `&&` short-circuit order (`hasValidConnections && hasValidHeights && hasValidProofs && hasValidDifficultyHeaders`, `NipopowProof.scala:75`). Calling this function directly against an out-of-order chain is a caller error the function has no independent way to detect.
 - `EPOCH_LENGTH_MAINNET = 128`, `USE_LAST_EPOCHS_MAINNET = 8` — the `resolveDifficultyParams` defaults (below). `128` is the JVM's *composed* value: mainnet's raw `chainSettings.epochLength` is still 1024 (pre-EIP-37), but `chainSettings.eip37EpochLength = 128` overrides it at every call site this unit touches, unconditionally — no height-gated cutover to EIP-37 behavior. Testnet carries no `eip37EpochLength` override and sets `epochLength = 128` directly, landing on the same composed value via a different path. `useLastEpochs = 8` on both networks. **Not shipped:** the arithmetic that turns these heights' headers into an actual required-difficulty value (`bitcoinCalculate` / `eip37Calculate` / `interpolate`) is not ported — `hasValidDifficultyHeaders` checks header *membership* only, matching the JVM proof-verifier itself, which never runs that arithmetic either.
 
-`resolveDifficultyParams(opts?: DifficultyParams): { epochLength: number; useLastEpochs: number }`, `type DifficultyParams = { epochLength?: number; useLastEpochs?: number }` — the shared resolver `difficulty.ts` uses internally (not itself re-exported from `@ergots/nipopow` — `VerifyOptions`, `PoPowParams`, and `compareProofs`'s third argument all resolve their `epochLength`/`useLastEpochs` fields through it identically, which is why its contract is pinned here). Applies the defaults above when a field is omitted, then gates: both values must be integers (`Number.isInteger`), `epochLength >= 1`, `useLastEpochs >= 2`, `epochLength * useLastEpochs <= 2**31` (the JVM `DifficultyAdjustment` constructor's requirements: `useLastEpochs > 1`, `epochLength > 0`, plus an overflow guard). Violations throw `RangeError` — not `ProofVerificationError` / `ProofBuildError` — deliberately outside those taxonomies, because a bad `epochLength`/`useLastEpochs` is a caller-configuration defect, not a defect in a proof or in prover input.
+`type DifficultyParams = { epochLength?: number; useLastEpochs?: number }` — **exported from `@ergots/nipopow`** (see the Public surface code block above). This names the optional-params shape `VerifyOptions`, `PoPowParams`, and `compareProofs`'s third argument all share; callers may import it directly rather than re-declaring the two fields themselves.
+
+`resolveDifficultyParams(opts?: DifficultyParams): { epochLength: number; useLastEpochs: number }` — the shared resolver `difficulty.ts` uses internally to process a `DifficultyParams` value. **Not** re-exported from `@ergots/nipopow` — of the pair, only the `DifficultyParams` type is public; the resolver function is package-internal plumbing, documented here (with a real name and signature) purely so its behavior is pinned for the call sites that depend on it: `VerifyOptions`, `PoPowParams`, and `compareProofs`'s third argument all resolve their `epochLength`/`useLastEpochs` fields through it identically. Applies the defaults above when a field is omitted, then gates: both values must be integers (`Number.isInteger`), `epochLength >= 1`, `useLastEpochs >= 2`, `epochLength * useLastEpochs <= 2**31` (the JVM `DifficultyAdjustment` constructor's requirements: `useLastEpochs > 1`, `epochLength > 0`, plus an overflow guard). Violations throw `RangeError` — not `ProofVerificationError` / `ProofBuildError` — deliberately outside those taxonomies, because a bad `epochLength`/`useLastEpochs` is a caller-configuration defect, not a defect in a proof or in prover input.
 
 **Coupling with `hasValidConnections`.** The prefix-connections lookback window (`connections.ts` — internal, not re-exported) is derived from the same setting: `hasValidConnections(proof, useLastEpochs = USE_LAST_EPOCHS_MAINNET)` widens its window to `useLastEpochs + 3` predecessors (JVM `NipopowProof.scala:129` `maxDiffHeaders = useLastEpochs + 1`, `:135` the range construction that widens it by 2 more — together `useLastEpochs + 3`). `verifyParsedProof` and `compareProofs`'s internal `isValid` both thread their resolved `useLastEpochs` through to it. At the shared default (8) the window is 11 predecessors — identical to 0.3.0's hardcoded lookback span, so behavior for callers who don't override `useLastEpochs` is bit-for-bit unchanged.
 
@@ -315,25 +318,29 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
   are multiples of `epochLength > 1` and so never collide with genesis
   (height 1) or each other.
 
-  **Live-endpoint byte-identity, resolved in 0.4.0.**
+  **Live-endpoint byte-identity — the 0.4.0 acceptance gate.**
   `PopowProcessor.popowProof` (`PopowProcessor.scala:109-111`, cited above)
   hardcodes `continuous = true` on every call — there is no route parameter
   on `GET /nipopow/proof/{m}/{k}` to request `continuous = false`. Before
   0.4.0, neither `prove` nor `proveWithReader` implemented continuous mode,
   so their output could never be byte-identical to a live JVM node's REST
   response — the achievable bar was prefix-selection agreement modulo the
-  continuous-mode-injected difficulty-recalculation heights. Since 0.4.0,
-  `proveWithReader(reader, { ..., continuous: true }, headerId?)` injects
-  those same heights (see "Continuous-mode injection" above), and Task 9's
-  live-mainnet acceptance walk (`tools/nipopow-capture/live-walk.mjs
-  --expect-full-identity`) is the acceptance record: raw byte-identity
-  against a real node's response, no filtering, no flag normalization, for
-  both of Task 9's parameter sets (`m=6,k=6` and `m=2,k=10`) — plus the
-  interop headline itself, `verifyProof(rawLiveBytes, { checkPoW: true })`
-  succeeding directly on the unmodified live response. The coarser
-  filtered-subset comparison mode (`--expect-full-identity` omitted)
-  remains available for callers against non-conformant or historical
-  nodes.
+  continuous-mode-injected difficulty-recalculation heights.
+  `proveWithReader(reader, { ..., continuous: true }, headerId?)` is
+  specified (see "Continuous-mode injection" above) to inject those same
+  heights, closing that gap — but that is this contract's target, not yet
+  a recorded result: at this commit no continuous-mode code has landed.
+  Task 9's live-mainnet acceptance walk (`tools/nipopow-capture/live-walk.mjs
+  --expect-full-identity`) is the acceptance GATE for that claim: raw
+  byte-identity against a real node's response, no filtering, no flag
+  normalization, for both of Task 9's parameter sets (`m=6,k=6` and
+  `m=2,k=10`), plus the interop headline itself —
+  `verifyProof(rawLiveBytes, { checkPoW: true })` succeeding directly on
+  the unmodified live response — are REQUIRED to hold before 0.4.0 ships.
+  This paragraph will be flipped to recorded-outcome framing once Task 9
+  has actually run the walk. The coarser filtered-subset comparison mode
+  (`--expect-full-identity` omitted) remains available for callers against
+  non-conformant or historical nodes.
 
   **What the committed SANTA vectors are (and are not) ground truth for.**
   All 8 `nipopow_prove` vectors — the 6 tip-mode cases *and* the 2 anchored
