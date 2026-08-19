@@ -69,7 +69,7 @@ describe('prove() selection', () => {
 });
 
 describe('prove() continuous mode (deliberate divergence from JVM stamp-only NipopowAlgos.prove)', () => {
-  const levels = Array.from({ length: 64 }, (_, i) => (i % 8 === 7 ? 2 : 1));
+  const levels = Array.from({ length: 64 }, (_, i) => (i % 7 === 6 ? 2 : 1));
   const E = { epochLength: 16, useLastEpochs: 8 };
 
   test('injects gated needed heights, stamps the flag, and self-verifies', () => {
@@ -91,19 +91,23 @@ describe('prove() continuous mode (deliberate divergence from JVM stamp-only Nip
     expect(serializeProof(a)).toEqual(serializeProof(b));
   });
 
-  // Note (task-7): on this `levels` chain, needed=[16,32,48] (for sh=62) are
-  // ALREADY walk-selected independent of injection — the same superblock
-  // coincidence prover-reader.test.ts documents for proveWithReader (every
-  // multiple of epochLength=16 is also a multiple of this chain's own
-  // 8-height superblock spacing). So the per-height containment loop above
-  // passes vacuously here: it does not by itself discriminate "injection ran"
-  // from "the walk already found these." That discrimination is already
-  // pinned on the reader side (prover-reader.test.ts "injection adds exactly
-  // the gated needed heights on top of the walk selection, nothing more",
-  // using the level-0-gapped `sparseLevels` chain). This unit's unique value
-  // is the cross-prover byte-equivalence test above plus the self-verify
-  // roundtrip and the silent-skip test below — deliberately not redesigning
-  // this chain to also chase injection-discrimination a second time.
+  // Note (task-7, revised after review): needed=[16,32,48] (for sh=62). Unlike
+  // an earlier `i % 8 === 7 ? 2 : 1` motif (every multiple of 16 also a
+  // superblock marker, making injection a no-op for this chain), this
+  // `i % 7 === 6 ? 2 : 1` motif does NOT put superblocks at multiples of 16 —
+  // the walk-only (`continuous: false`) prefix on this chain is
+  // [1,7,14,21,28,35,42,43,...,61]: 48 happens to already be walk-selected
+  // (part of the 43-61 run), but 16 and 32 are genuinely absent. So injection
+  // contributes real content here: both the containment loop above (test 1)
+  // and the cross-prover byte-equality test above (test 2) are load-bearing
+  // against the `if (continuous)` injection block — deleting it drops 16 and
+  // 32 from `prove()`'s continuous output, which fails test 1's containment
+  // check directly and desyncs `prove()` from `proveWithReader` (whose own
+  // Task-6 injection still adds them), failing test 2. Verified via a
+  // read-only probe comparing `prove(chain,{m,k})` (walk-only) against
+  // `prove(chain,{m,k,continuous:true,...E})` (walk+inject) — no production
+  // code was mutated to confirm this; see task-7-report.md's fix addendum for
+  // the probe output.
   test('needed height absent from the chain argument is skipped silently (mirrors reader-path rule)', () => {
     const chain = buildTestChain(levels);
     const sh = 62;
