@@ -5,8 +5,10 @@
  * and the comparator (bestArg) consume the exact same maxLevelOf — see
  * facts/nipopow.md "Building blocks" for the public contract.
  *
- * Reference: sigma-rust ergo-nipopow/src/nipopow_algos.rs:best_arg, max_level_of
- *            sigma-rust ergo-chain-types/src/autolykos_pow_scheme.rs:pow_hit, max_level_of
+ * JVM reference (canonical): NipopowAlgos.scala maxLevelOf; NipopowProof.scala
+ * (level-0 filtering). Second reading: sigma-rust
+ * ergo-nipopow/src/nipopow_algos.rs:best_arg, max_level_of;
+ * ergo-chain-types/src/autolykos_pow_scheme.rs:pow_hit, max_level_of.
  */
 
 import type { Header } from '@ergots/scorex';

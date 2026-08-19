@@ -259,7 +259,7 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
 
     if (!r.isExhausted) {
       throw new ProofParseError(
-        `proof: ${r.remaining} trailing bytes after end of suffix_tail`,
+        `proof: ${r.remaining} trailing bytes after end of continuous byte`,
         'trailing-bytes',
       );
     }

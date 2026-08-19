@@ -153,12 +153,12 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
 
 #### `prove(chain, params)`
 
-- **Precondition (throws `ProofBuildError`):** `params.m >= 1`
-  (`'invalid-m'`), `params.k >= 1` (`'invalid-k'`),
-  `chain.length >= m + k` (`'chain-too-short'`),
-  `chain[0].header.height === 1` (`'non-anchored-chain'`). The chain is
-  trusted: contiguous from genesis, interlinks already correct; `prove`
-  re-derives nothing.
+- **Precondition (throws `ProofBuildError`):** `params.m` and `params.k` must
+  be integers `>= 1` (`Number.isInteger` gate — non-integer or out-of-range
+  values both throw `'invalid-m'`/`'invalid-k'`), `chain.length >= m + k`
+  (`'chain-too-short'`), `chain[0].header.height === 1`
+  (`'non-anchored-chain'`). The chain is trusted: contiguous from genesis,
+  interlinks already correct; `prove` re-derives nothing.
 - **Postcondition:** Returns a `NipopowProof` that (a) passes
   `verifyParsedProof` structural checks (PoW validity is a property of the
   input chain, not the prover), (b) round-trips byte-identically through
@@ -291,7 +291,9 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
   proof, returns `{ header, interlinks, interlinksProof }`.
 - `maxLevelOf(header)` — superblock level; genesis →
   `Number.MAX_SAFE_INTEGER`; level float is truncated toward zero
-  (`Math.trunc`, JVM `Double.toInt` semantics — NOT floor).
+  (`Math.trunc`, JVM `Double.toInt` semantics — NOT floor). JS `Math.trunc`
+  yields `-0` at epsilon-negative levels; normalized to `+0`, JVM int
+  semantics — `level.ts` documents the mechanism.
 - `MerkleTree` / `buildExtensionTree` — construction counterpart of the
   verify-side codec: same padded-power-of-two layout `merkleRootFromLeaves`
   pins; `proofByIndices` emits explicit empty-sibling nodes
@@ -365,7 +367,7 @@ interface NipopowProof {
 
 ## Determinism and purity
 
-- All functions are pure… **All verifier-surface functions are synchronous**; the single async surface is the `/prover` subpath's `proveWithReader` + `PopowHeaderReader` (demand-loading is its purpose). No function touches clock, PRNG, or `globalThis`.
+- All functions are pure: no I/O, no clock, no PRNG, no `globalThis` access; same inputs always produce the same output. All verifier-surface functions are synchronous; the `/prover` subpath's `proveWithReader` + `PopowHeaderReader` are the package's single async surface (demand-loading is their purpose).
 - No throwing on success paths. Throws indicate contract violations or input rejection — they're the typed failure surface.
 
 ## Browser-compat guarantees
@@ -384,11 +386,12 @@ Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 class ProofParseError extends Error          // recoverable; bytes are malformed
 class ProofVerificationError extends Error   // recoverable; proof parses but fails validation
 class EnvelopeParseError extends Error       // recoverable; P2P envelope bytes malformed
+class ProofBuildError extends Error          // recoverable; construction input rejected
 ```
 
 Each error's `.message` is human-readable; each carries a `code: string` matching the postcondition reason strings above (`'truncated'`, `'pow-failed'`, etc.) for programmatic dispatch.
 
-No other error classes are exported from this package. Internal panics (e.g. blake2b implementation bugs) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
+Four error classes are exported from this package in total, no others. `ProofParseError` and `ProofVerificationError` are exported from the primary `@ergots/nipopow` entry point; `EnvelopeParseError` is exported from the `/envelope` subpath; `ProofBuildError` is exported from the `/prover` subpath — each error class is exported from the subpath that raises it. Internal panics (e.g. blake2b implementation bugs) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
 
 ## Limitations
 
