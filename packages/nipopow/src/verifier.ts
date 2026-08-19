@@ -2,19 +2,33 @@
  * verifyProof: public entry point composing parseProof + hasValidConnections +
  * monotonic-heights + per-header Autolykos PoW (v2 only; v1 below activation
  * accepted structurally per sigma-rust's "Unsupported" semantics; v1 at or
- * above activation rejected per audit NIP-02).
+ * above activation rejected per audit NIP-02) + continuous-mode
+ * difficulty-header membership (0.4.0).
  *
  * facts/nipopow.md postconditions:
  *   - headers.length === totalHeaders
  *   - headers heights are strictly increasing
  *   - headers[last].height === suffixTipHeight
- *   - continuous === false
+ *   - continuous echoes proof.continuous (0.4.0 — was always false in 0.3.0;
+ *     a continuous === true proof can now reach success)
  *   - If checkPoW === true, every version >= 2 header has a valid Autolykos v2
  *     solution under its self-declared nBits target; version 1 headers below
  *     opts.v2ActivationHeight (default V2_ACTIVATION_HEIGHT_MAINNET = 417792)
  *     are accepted structurally without PoW verification; version 1 headers
  *     at or above that height are rejected with 'v1-header-after-v2-activation'.
  *   - has_valid_connections holds across the proof
+ *   - when continuous === true, every needed difficulty-recalculation height is
+ *     present in the header chain (hasValidDifficultyHeaders holds); vacuously
+ *     satisfied when continuous === false — that case has exactly 0.3.0's
+ *     accept-set
+ *
+ * opts.epochLength / opts.useLastEpochs (0.4.0) resolve through
+ * resolveDifficultyParams before any other proof inspection, as
+ * verifyParsedProof's first step; invalid values throw RangeError, not
+ * ProofVerificationError. For the bytes entry point (verifyProof) this is
+ * still after parseProof succeeds, since verifyProof parses first and only
+ * then delegates to verifyParsedProof — malformed bytes throw
+ * ProofVerificationError('parse-failed') regardless of opts.
  *
  * Failure modes (all throw ProofVerificationError):
  *   'parse-failed'                    bytes do not parse (wraps ProofParseError)
@@ -27,15 +41,17 @@
  *   'v1-header-after-v2-activation'   version 1 header at height >= opts.v2ActivationHeight
  *                                     (when checkPoW: true); audit finding NIP-02
  *   'invalid-interlinks-proof'        per-PoPowHeader interlinks Merkle proof rejected
- *   'continuous-unsupported'          proof.continuous === true (Task 7b / NIP-12) — the
- *                                     JVM's hasValidDifficultyHeaders check isn't implemented
- *                                     yet, so a continuous proof is rejected rather than
- *                                     accepted-and-under-verified
+ *   'missing-difficulty-headers'      proof.continuous === true (0.4.0) and some needed
+ *                                     difficulty-recalculation height in (0, suffixHead.height)
+ *                                     is absent from the header chain — checked last, after
+ *                                     connections/interlinks/heights/PoW all pass; never
+ *                                     thrown when proof.continuous === false
  */
 
 import { parseProof } from './proof.ts';
 import type { NipopowProof } from './proof.ts';
 import { hasValidConnections } from './connections.ts';
+import { hasValidDifficultyHeaders, resolveDifficultyParams } from './difficulty.ts';
 import { verifyAutolykosV2 } from '@ergots/scorex';
 import type { Header } from '@ergots/scorex';
 import type { PoPowHeader } from './popow-header.ts';
@@ -72,29 +88,61 @@ export interface VerifyOptions {
    * V1 acceptance is unconditional (caller is responsible for PoW externally).
    */
   v2ActivationHeight?: number;
+
+  /**
+   * Difficulty-recalculation epoch length used by the continuous-mode
+   * membership check ({@link hasValidDifficultyHeaders}). Resolved through
+   * `resolveDifficultyParams` — default `EPOCH_LENGTH_MAINNET` (128) when
+   * omitted. An invalid value (not an integer, or < 1) throws `RangeError`
+   * before any other proof inspection (after `parseProof` succeeds, on the
+   * bytes-taking `verifyProof` path). Irrelevant when `proof.continuous === false`
+   * (the check is vacuous), but still validated unconditionally.
+   */
+  epochLength?: number;
+
+  /**
+   * `chainSettings.useLastEpochs` used by both the continuous-mode membership
+   * check and (via `hasValidConnections`) the prefix-connections lookback
+   * window. Resolved through `resolveDifficultyParams` — default
+   * `USE_LAST_EPOCHS_MAINNET` (8) when omitted. An invalid value (not an
+   * integer, or < 2) throws `RangeError` before any other proof inspection
+   * (after `parseProof` succeeds, on the bytes-taking `verifyProof` path).
+   */
+  useLastEpochs?: number;
 }
 
 export interface VerificationResult {
   suffixTipHeight: number;
   totalHeaders: number;
-  continuous: false;
+  continuous: boolean;
   headers: Header[];
 }
 
 /**
  * Verify an already-parsed NiPoPoW proof in-memory.
  *
- * Composes: hasValidConnections → monotonic-height walk → optional PoW.
- * This is the inner logic that `verifyProof` delegates to after parsing.
- * Exported for unit-testing logical invariants (heights, connections) without
- * requiring round-trip serialization.
+ * Composes: hasValidConnections → monotonic-height walk → optional PoW →
+ * continuous-mode difficulty-header membership (0.4.0). This is the inner
+ * logic that `verifyProof` delegates to after parsing. Exported for
+ * unit-testing logical invariants (heights, connections, difficulty headers)
+ * without requiring round-trip serialization.
  *
  * @param proof  A parsed NipopowProof.
- * @param opts   `{ checkPoW?: boolean }` — defaults to `{ checkPoW: true }`.
+ * @param opts   `{ checkPoW?: boolean; epochLength?: number; useLastEpochs?: number }`
+ *               — `checkPoW` defaults to `true`; `epochLength`/`useLastEpochs`
+ *               resolve through `resolveDifficultyParams`.
  * @returns      VerificationResult on success.
- * @throws       ProofVerificationError on any validation failure.
+ * @throws       ProofVerificationError on any validation failure. Throws
+ *               RangeError instead if `opts.epochLength`/`opts.useLastEpochs`
+ *               is invalid (resolved before any proof inspection).
  */
 export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {}): VerificationResult {
+  // Resolved FIRST, before any proof inspection (including the m/k shape
+  // gates below) — an invalid epochLength/useLastEpochs is a caller
+  // configuration defect, not a property of this particular proof, so it
+  // should surface identically regardless of what proof was passed.
+  const { epochLength, useLastEpochs } = resolveDifficultyParams(opts);
+
   // Audit NIP-09: enforce the same scalar shape invariants that parseProof
   // does (NIP-03 m > 0, NIP-04 k > 0) for hand-built proofs that bypass the
   // wire parser. Throws ProofVerificationError so the existing verify-error
@@ -113,28 +161,11 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
     throw new ProofVerificationError(`k must be > 0; got ${proof.k}`, 'invalid-k');
   }
 
-  // Task 7b (NIP-12): the JVM validates continuous proofs via a dedicated
-  // hasValidDifficultyHeaders check (heightsForNextRecalculation + per-epoch
-  // difficulty-header verification) that this package does not implement
-  // yet — that machinery is a planned follow-up unit shipping prover +
-  // verifier together (see facts/nipopow.md "Does NOT ship"). Accepting a
-  // continuous proof here without running that check would be unfaithful
-  // (silently skip a real JVM validation step), so we reject loudly instead
-  // of accepting-and-under-verifying. Placed with the early shape gates,
-  // before any connection/height work, so a continuous proof never falls
-  // through to logic that assumes the non-continuous shape.
-  if (proof.continuous) {
-    throw new ProofVerificationError(
-      'continuous proofs are not supported yet',
-      'continuous-unsupported',
-    );
-  }
-
   const checkPoW = opts.checkPoW ?? true;
   const v2ActivationHeight = opts.v2ActivationHeight ?? V2_ACTIVATION_HEIGHT_MAINNET;
 
   // ── Step 1: Connections ────────────────────────────────────────────────────
-  if (!hasValidConnections(proof)) {
+  if (!hasValidConnections(proof, useLastEpochs)) {
     throw new ProofVerificationError('invalid connections', 'invalid-connections');
   }
 
@@ -202,10 +233,22 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
     }
   }
 
+  // ── Step 4: Continuous-mode difficulty headers ─────────────────────────────
+  // JVM NipopowProof.hasValidDifficultyHeaders — runs last, as in the JVM
+  // isValid &&-chain, so the strictly-increasing-heights precondition of the
+  // ordered membership scan is already established. Vacuous for
+  // continuous === false: the non-continuous accept-set is exactly 0.3.0's.
+  if (!hasValidDifficultyHeaders(proof, epochLength, useLastEpochs)) {
+    throw new ProofVerificationError(
+      `continuous proof is missing difficulty-recalculation headers for suffix head ${proof.suffixHead.header.height}`,
+      'missing-difficulty-headers',
+    );
+  }
+
   return {
     suffixTipHeight: lastHeight!,
     totalHeaders: allHeaders.length,
-    continuous: false,
+    continuous: proof.continuous,
     headers: allHeaders,
   };
 }
@@ -213,12 +256,21 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
 /**
  * Verify a NiPoPoW proof from raw bytes.
  *
- * Composes: parse → verifyParsedProof (connections + heights + optional PoW).
+ * Composes: parse → verifyParsedProof (connections + heights + optional PoW +
+ * continuous-mode difficulty-header membership).
  *
  * @param bytes  Raw wire bytes of the proof (must be ≥ 1 and ≤ 2_000_000 bytes).
- * @param opts   `{ checkPoW?: boolean }` — defaults to `{ checkPoW: true }`.
+ * @param opts   `{ checkPoW?: boolean; epochLength?: number; useLastEpochs?: number }`
+ *               — `checkPoW` defaults to `true`; `epochLength`/`useLastEpochs`
+ *               resolve through `resolveDifficultyParams` — see `VerifyOptions`.
  * @returns      VerificationResult on success.
- * @throws       ProofVerificationError on any validation failure.
+ * @throws       ProofVerificationError on any validation failure (see
+ *               `verifyParsedProof`'s doc comment for the full code list).
+ *               Throws RangeError instead if `opts.epochLength`/
+ *               `opts.useLastEpochs` is invalid — but only once `bytes` has
+ *               parsed successfully; malformed `bytes` throw
+ *               ProofVerificationError('parse-failed') first, regardless of
+ *               `opts`.
  */
 export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): VerificationResult {
   // ── Step 1: Parse ──────────────────────────────────────────────────────────

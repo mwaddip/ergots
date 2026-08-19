@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 
 import { compareProofs } from '../src/compare.ts';
 import { ProofParseError } from '../src/errors.ts';
+import { parseProof } from '../src/proof.ts';
 import { hexToBytes } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -135,5 +136,40 @@ describe('compareProofs', () => {
     const mutatedA = mutate(aBytes);
     const mutatedB = mutate(bBytes);
     expect(compareProofs(mutatedA, mutatedB)).toBe(false);
+  });
+});
+
+describe('continuous gate in compareProofs isValid (JVM NipopowProof.isValid conjunction)', () => {
+  // Fixture: compare.json's "different-chains-chain20-vs-chain64" (a_hex is chain-20 with suffixHead 19).
+  // Chain-20-m2-k2-tip: suffixHead 19, present heights {1,3,5,8,9,10,12,14,19,20}.
+  // At epochLength 8 (u=8): needed gated (0,19) = [8,16]; 16 is ABSENT.
+  const entry = fixtures.find(f => f.label === 'different-chains-chain20-vs-chain64')!;
+  const chain20Bytes = () => hexToBytes(entry.a_hex);
+  const continuousBytes = () => {
+    const b = new Uint8Array(chain20Bytes());
+    b[b.length - 1] = 0x01;
+    return b;
+  };
+
+  test('chain-20 fixture pinning: a_hex side is suffixHead height 19', () => {
+    expect(parseProof(chain20Bytes()).suffixHead.header.height).toBe(19);
+  });
+
+  test('continuous proof missing difficulty headers is not comparable: valid non-continuous wins', () => {
+    expect(compareProofs(chain20Bytes(), continuousBytes(), { epochLength: 8 })).toBe(true);
+    expect(compareProofs(continuousBytes(), chain20Bytes(), { epochLength: 8 })).toBe(false);
+  });
+
+  test('same pair at mainnet defaults: both valid (vacuous check on tiny chain), equal chains -> not better either way', () => {
+    expect(compareProofs(chain20Bytes(), continuousBytes())).toBe(false);
+    expect(compareProofs(continuousBytes(), chain20Bytes())).toBe(false);
+  });
+
+  test('both continuous-invalid: neither is better', () => {
+    expect(compareProofs(continuousBytes(), continuousBytes(), { epochLength: 8 })).toBe(false);
+  });
+
+  test('bad opts throw RangeError', () => {
+    expect(() => compareProofs(chain20Bytes(), chain20Bytes(), { epochLength: 0 })).toThrow(RangeError);
   });
 });

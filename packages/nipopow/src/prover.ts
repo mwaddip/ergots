@@ -11,13 +11,42 @@ import type { NipopowProof } from './proof.ts';
 import { maxLevelOf } from './level.ts';
 import { ProofBuildError } from './errors.ts';
 import { bytesEqual } from './bytes.ts';
+import { heightsForNextRecalculation, resolveDifficultyParams } from './difficulty.ts';
 
-export type PoPowParams = { m: number; k: number };
+export type PoPowParams = {
+  m: number;
+  k: number;
+  /** Build a continuous-mode proof (difficulty-recalculation headers injected into the prefix). Default false. */
+  continuous?: boolean;
+  /** Effective difficulty epoch length; default EPOCH_LENGTH_MAINNET = 128. RangeError on invalid. */
+  epochLength?: number;
+  /** chainSettings.useLastEpochs; default USE_LAST_EPOCHS_MAINNET = 8. RangeError on invalid. */
+  useLastEpochs?: number;
+};
+
+/**
+ * Difficulty-recalculation heights the prover must inject into the prefix:
+ * heightsForNextRecalculation gated to h < suffixHeadHeight (strict — JVM
+ * NipopowProverWithDbAlgs.scala:98). No h > 0 gate: no chain has a header at
+ * height <= 0, so lookup misses and the silent-skip rule applies, matching
+ * the JVM's popowHeader(height).foreach.
+ */
+function neededPrefixHeights(
+  suffixHeadHeight: number,
+  epochLength: number,
+  useLastEpochs: number,
+): number[] {
+  return heightsForNextRecalculation(suffixHeadHeight, epochLength, useLastEpochs).filter(
+    h => h < suffixHeadHeight,
+  );
+}
 
 export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
   const { m, k } = params;
   if (!Number.isInteger(m) || m < 1) throw new ProofBuildError(`m must be >= 1, got ${m}`, 'invalid-m');
   if (!Number.isInteger(k) || k < 1) throw new ProofBuildError(`k must be >= 1, got ${k}`, 'invalid-k');
+  const continuous = params.continuous ?? false;
+  const { epochLength, useLastEpochs } = resolveDifficultyParams(params);
   if (chain.length < m + k) {
     throw new ProofBuildError(`cannot prove chain of size ${chain.length} < m+k=${m + k}`, 'chain-too-short');
   }
@@ -51,10 +80,22 @@ export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
   }
   prefix.sort((a, b) => a.header.height - b.header.height);
 
-  // Task 7b: prove() only ever builds non-continuous proofs (Task 8's
-  // proveWithReader does the same; continuous-mode proving is a planned
-  // follow-up unit, see facts/nipopow.md "Does NOT ship").
-  return { m, k, prefix, suffixHead, suffixTail, continuous: false };
+  // Continuous mode: inject difficulty-recalculation headers. DELIBERATE
+  // divergence from JVM NipopowAlgos.prove, which stamps params.continuous
+  // WITHOUT injecting (NipopowAlgos.scala:158) — its doc comment self-labels
+  // it "Paper-like code used in tests only" (NipopowAlgos.scala:127) — and so
+  // emits proofs its own verifier rejects. Both ergots provers inject the
+  // identical set; see facts/nipopow.md.
+  if (continuous) {
+    for (const h of neededPrefixHeights(suffixHead.header.height, epochLength, useLastEpochs)) {
+      const candidate = preSuffix.find(p => p.header.height === h);
+      if (candidate === undefined) continue; // absent from chain: silent skip, mirrors reader path
+      if (!prefix.some(q => bytesEqual(q.header.id, candidate.header.id))) prefix.push(candidate);
+    }
+    prefix.sort((a, b) => a.header.height - b.header.height);
+  }
+
+  return { m, k, prefix, suffixHead, suffixTail, continuous };
 }
 
 // ── proveWithReader — JVM NipopowProverWithDbAlgs.prove port ────────────────
@@ -127,6 +168,8 @@ export async function proveWithReader(
   const { m, k } = params;
   if (!Number.isInteger(m) || m < 1) throw new ProofBuildError(`m must be >= 1, got ${m}`, 'invalid-m');
   if (!Number.isInteger(k) || k < 1) throw new ProofBuildError(`k must be >= 1, got ${k}`, 'invalid-k');
+  const continuous = params.continuous ?? false;
+  const { epochLength, useLastEpochs } = resolveDifficultyParams(params);
   const height = await reader.headersHeight();
   if (height < m + k) {
     throw new ProofBuildError(`cannot prove chain of height ${height} < m+k=${m + k}`, 'chain-too-short');
@@ -180,14 +223,24 @@ export async function proveWithReader(
   }
   const byHeight = new Map<number, PoPowHeader>();
   byHeight.set(1, genesis);
+  if (continuous) {
+    // JVM NipopowProverWithDbAlgs.scala:93-105: difficulty headers enter
+    // storedHeights before the walk selection, so they take precedence in
+    // the by-height dedupe. A null (reader lacks the height) is silently
+    // skipped — Option.foreach semantics; the resulting proof fails
+    // verification downstream exactly as the JVM's would.
+    for (const h of neededPrefixHeights(suffixHead.header.height, epochLength, useLastEpochs)) {
+      if (byHeight.has(h)) continue;
+      const ph = await reader.popowHeaderAtHeight(h);
+      if (ph !== null) byHeight.set(h, ph);
+    }
+  }
   for (const ph of collected.values()) {
     if (!byHeight.has(ph.header.height)) byHeight.set(ph.header.height, ph);
   }
   const prefix = [...byHeight.values()].sort((a, b) => a.header.height - b.header.height);
 
-  // Task 7b: mirrors prove() — proveWithReader only ever builds
-  // non-continuous proofs (see facts/nipopow.md "Does NOT ship").
-  return { m, k, prefix, suffixHead, suffixTail, continuous: false };
+  return { m, k, prefix, suffixHead, suffixTail, continuous };
 }
 
 // ── /prover subpath surface ──────────────────────────────────────────────────

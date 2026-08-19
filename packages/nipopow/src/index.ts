@@ -8,6 +8,15 @@ export {
   type VerificationResult,
 } from './verifier.ts';
 export { compareProofs } from './compare.ts';
+export {
+  nextRecalculationHeight,
+  previousHeightsRequiredForRecalculation,
+  heightsForNextRecalculation,
+  hasValidDifficultyHeaders,
+  EPOCH_LENGTH_MAINNET,
+  USE_LAST_EPOCHS_MAINNET,
+  type DifficultyParams,
+} from './difficulty.ts';
 
 // Type exports for downstream consumers
 // Re-export Header and AutolykosSolution from @ergots/scorex for backward

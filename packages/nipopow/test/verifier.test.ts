@@ -360,3 +360,67 @@ describe('verifyProof: real mainnet proof with checkPoW: true', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Continuous mode: difficulty-header verification (Task 4)
+//
+// Uses buildSyntheticProofRaw directly (the object-argument form imported
+// above) rather than the local buildSyntheticProof(prefixHeights, suffixHeadHeight)
+// wrapper a few sections up — that wrapper has an incompatible positional
+// signature and does not accept an { m, k } override.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('continuous mode: difficulty-header verification', () => {
+  const NEEDED_100 = [16, 32, 48, 64, 80, 96]; // e=16,u=8, suffixHead 100, gated (0,100)
+
+  test('accepts a continuous proof carrying all needed heights (e=16 override)', () => {
+    const proof = {
+      ...buildSyntheticProofRaw({ prefixHeights: [1, ...NEEDED_100], suffixHeadHeight: 100, m: 2, k: 1 }),
+      continuous: true,
+    };
+    const result = verifyParsedProof(proof, { checkPoW: false, epochLength: 16, useLastEpochs: 8 });
+    expect(result.continuous).toBe(true);
+    expect(result.totalHeaders).toBe(NEEDED_100.length + 2);
+  });
+
+  test('rejects when one needed height is missing', () => {
+    const proof = {
+      ...buildSyntheticProofRaw({ prefixHeights: [1, 16, 32, 64, 80, 96], suffixHeadHeight: 100, m: 2, k: 1 }),
+      continuous: true,
+    };
+    try {
+      verifyParsedProof(proof, { checkPoW: false, epochLength: 16 });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofVerificationError);
+      expect((e as ProofVerificationError).code).toBe('missing-difficulty-headers');
+    }
+  });
+
+  test('non-continuous proofs are untouched by the new check (missing heights, still accepted)', () => {
+    const proof = buildSyntheticProofRaw({ prefixHeights: [1, 50], suffixHeadHeight: 100, m: 2, k: 1 });
+    const result = verifyParsedProof(proof, { checkPoW: false, epochLength: 16 });
+    expect(result.continuous).toBe(false);
+  });
+
+  test('difficulty check runs AFTER structural checks: non-monotone continuous proof fails on heights first', () => {
+    const proof = {
+      ...buildSyntheticProofRaw({ prefixHeights: [1, 50, 40], suffixHeadHeight: 100, m: 2, k: 1 }),
+      continuous: true,
+    };
+    try {
+      verifyParsedProof(proof, { checkPoW: false, epochLength: 16 });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect((e as ProofVerificationError).code).toBe('non-increasing-heights');
+    }
+  });
+
+  test('bad difficulty options throw RangeError before any proof inspection', () => {
+    const proof = buildSyntheticProofRaw({ prefixHeights: [1], suffixHeadHeight: 2, m: 1, k: 1 });
+    expect(() => verifyParsedProof(proof, { epochLength: 0 })).toThrow(RangeError);
+    expect(() => verifyParsedProof(proof, { useLastEpochs: 1 })).toThrow(RangeError);
+    // even a proof that would fail m/k gates: options resolve first
+    const badShape = { ...buildSyntheticProofRaw({ prefixHeights: [1], suffixHeadHeight: 2, m: 0, k: 0 }) };
+    expect(() => verifyParsedProof(badShape, { epochLength: -1 })).toThrow(RangeError);
+  });
+});

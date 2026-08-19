@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { prove, type PoPowParams } from '../src/prover.ts';
+import { describe, it, test, expect } from 'vitest';
+import { prove, proveWithReader, type PoPowParams } from '../src/prover.ts';
 import { ProofBuildError } from '../src/errors.ts';
 import { verifyParsedProof } from '../src/verifier.ts';
 import { serializeProof, parseProof } from '../src/proof.ts';
+import { heightsForNextRecalculation } from '../src/difficulty.ts';
 import type { PoPowHeader } from '../src/popow-header.ts';
 import { buildTestChain, bytesToHex } from './helpers.ts';
+import { MemoryReader } from './reader-double.ts';
 
 describe('prove() gates', () => {
   const chain = buildTestChain([0, 0, 1, 0, 2, 0, 1, 0]); // 8 headers
@@ -63,5 +65,77 @@ describe('prove() selection', () => {
     expect([...new Set(hs)].sort((a, b) => a - b)).toEqual(hs);
     expect(Math.max(...hs)).toBeLessThan(proof.suffixHead.header.height);
     expect(hs[0]).toBe(1); // genesis anchored
+  });
+});
+
+describe('prove() continuous mode (deliberate divergence from JVM stamp-only NipopowAlgos.prove)', () => {
+  const levels = Array.from({ length: 64 }, (_, i) => (i % 7 === 6 ? 2 : 1));
+  const E = { epochLength: 16, useLastEpochs: 8 };
+
+  test('injects gated needed heights, stamps the flag, and self-verifies', () => {
+    const chain = buildTestChain(levels);
+    const proof = prove(chain, { m: 3, k: 3, continuous: true, ...E });
+    expect(proof.continuous).toBe(true);
+    const sh = proof.suffixHead.header.height;
+    const needed = heightsForNextRecalculation(sh, 16, 8).filter(h => h > 0 && h < sh);
+    const prefixHeights = new Set(proof.prefix.map(p => p.header.height));
+    for (const h of needed) expect(prefixHeights.has(h), `height ${h}`).toBe(true);
+    const result = verifyParsedProof(proof, { checkPoW: false, ...E });
+    expect(result.continuous).toBe(true);
+  });
+
+  test('continuous prove() === continuous proveWithReader() on the same chain (injection adds the identical set)', async () => {
+    const chain = buildTestChain(levels);
+    const a = prove(chain, { m: 3, k: 3, continuous: true, ...E });
+    const b = await proveWithReader(new MemoryReader(chain), { m: 3, k: 3, continuous: true, ...E });
+    expect(serializeProof(a)).toEqual(serializeProof(b));
+  });
+
+  // Note (task-7, revised after review): needed=[16,32,48] (for sh=62). Unlike
+  // an earlier `i % 8 === 7 ? 2 : 1` motif (every multiple of 16 also a
+  // superblock marker, making injection a no-op for this chain), this
+  // `i % 7 === 6 ? 2 : 1` motif does NOT put superblocks at multiples of 16 —
+  // the walk-only (`continuous: false`) prefix on this chain is
+  // [1,7,14,21,28,35,42,43,...,61]: 48 happens to already be walk-selected
+  // (part of the 43-61 run), but 16 and 32 are genuinely absent. So injection
+  // contributes real content here: both the containment loop above (test 1)
+  // and the cross-prover byte-equality test above (test 2) are load-bearing
+  // against the `if (continuous)` injection block — deleting it drops 16 and
+  // 32 from `prove()`'s continuous output, which fails test 1's containment
+  // check directly and desyncs `prove()` from `proveWithReader` (whose own
+  // Task-6 injection still adds them), failing test 2. Verified via a
+  // read-only probe comparing `prove(chain,{m,k})` (walk-only) against
+  // `prove(chain,{m,k,continuous:true,...E})` (walk+inject) — no production
+  // code was mutated to confirm this; see task-7-report.md's fix addendum for
+  // the probe output.
+  test('needed height absent from the chain argument is skipped silently (mirrors reader-path rule)', () => {
+    const chain = buildTestChain(levels);
+    const sh = 62;
+    const needed = heightsForNextRecalculation(sh, 16, 8).filter(h => h > 0 && h < sh);
+    const dropped = needed[0]!;
+    const gappy = chain.filter(p => p.header.height !== dropped);
+    const proof = prove(gappy, { m: 3, k: 3, continuous: true, ...E });
+    expect(proof.prefix.some(p => p.header.height === dropped)).toBe(false);
+    expect(proof.continuous).toBe(true);
+  });
+  // Adaptation note (task-7): unlike proveWithReader's GappyReader (which only
+  // breaks the reader's `popowHeaderAtHeight` accessor while `popowHeaderById`
+  // still reaches the full chain via interlink back-pointers — requiring
+  // prover-reader.test.ts's level-0-gapped `sparseLevels` chain to guarantee
+  // genuine walk-absence), prove()'s KMZ17 walk has no graph-traversal step at
+  // all: `maxLevelOf` reads only the header's own PoW fields, and both the
+  // walk (`preSuffix.filter(...)`) and the injection lookup
+  // (`preSuffix.find(...)`) read the SAME flat `preSuffix` array. Filtering
+  // `dropped`'s header out of the `chain` argument removes it from that array
+  // entirely, so it is structurally unreachable by the walk too — no
+  // interlink path can "re-include" it. The brief's `levels` chain therefore
+  // does NOT need the `sparseLevels` motif swap here; this test is left as
+  // specified and verified non-vacuous by construction (see task-7-report.md
+  // for the derivation, including why `sh = 62` still holds after the
+  // mid-chain filter).
+
+  test('bad difficulty params throw RangeError with continuous=false too', () => {
+    const chain = buildTestChain(levels);
+    expect(() => prove(chain, { m: 3, k: 3, useLastEpochs: 1 })).toThrow(RangeError);
   });
 });

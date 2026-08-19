@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, test, expect } from 'vitest';
 import { prove, proveWithReader } from '../src/prover.ts';
 import { serializeProof, parseProof } from '../src/proof.ts';
 import { verifyParsedProof } from '../src/verifier.ts';
+import { heightsForNextRecalculation } from '../src/difficulty.ts';
+import { ProofVerificationError } from '../src/errors.ts';
 import { MemoryReader } from './reader-double.ts';
 import { buildTestChain, bytesToHex } from './helpers.ts';
 
@@ -157,5 +159,146 @@ describe('proveWithReader errors + load bound', () => {
     const bound = 6 * (m + k + m * Math.log2(chain.length));
     expect(reader.calls).toBeLessThan(bound);
     expect(reader.calls).toBeLessThan(chain.length); // and strictly under N
+  });
+});
+
+describe('proveWithReader continuous mode (e=16, u=8)', () => {
+  // 64-header level-0-free-ish chain; exact levels don't matter for injection.
+  const levels = Array.from({ length: 64 }, (_, i) => (i % 8 === 7 ? 2 : 1));
+  const E = { epochLength: 16, useLastEpochs: 8 };
+
+  // Chain with genuine level-0 gaps (motif reused from SHAPES[2] above, tiled
+  // to 64 headers). On the level-0-free `levels` chain above, every needed
+  // difficulty height (multiple of epochLength=16) is ALSO a superblock
+  // marker (multiple of the chain's own 8-height superblock spacing), which
+  // the walk's higher-level pass discovers unconditionally regardless of m
+  // (verified empirically: for m in 1..10, every one of needed=[16,32,48] is
+  // already walk-selected on the `levels` chain) — so a test built on that
+  // chain cannot tell "the prover injected this height" apart from "the walk
+  // already found it independently." On this motif chain, all three needed
+  // heights are genuinely absent from the walk's own selection, so injection
+  // is the only thing that can put them in the prefix — used below wherever
+  // that discrimination matters.
+  const motif = [0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 0, 1, 0];
+  const sparseLevels = Array.from({ length: 64 }, (_, i) => motif[i % motif.length]!);
+
+  test('injects exactly the gated needed heights and verifies end-to-end', async () => {
+    const chain = buildTestChain(levels);
+    const reader = new MemoryReader(chain);
+    const proof = await proveWithReader(reader, { m: 3, k: 3, continuous: true, ...E });
+
+    expect(proof.continuous).toBe(true);
+    const sh = proof.suffixHead.header.height; // tip-mode: 64 - k + 1 = 62
+    const needed = heightsForNextRecalculation(sh, 16, 8).filter(h => h > 0 && h < sh);
+    const prefixHeights = new Set(proof.prefix.map(p => p.header.height));
+    for (const h of needed) expect(prefixHeights.has(h), `height ${h}`).toBe(true);
+
+    // strictly increasing prefix (dedupe + sort held under injection)
+    const hs = proof.prefix.map(p => p.header.height);
+    for (let i = 1; i < hs.length; i++) expect(hs[i]!).toBeGreaterThan(hs[i - 1]!);
+
+    // the unit's promise: what the prover builds, the verifier accepts
+    const result = verifyParsedProof(proof, { checkPoW: false, ...E });
+    expect(result.continuous).toBe(true);
+  });
+
+  test('injection adds exactly the gated needed heights on top of the walk selection, nothing more', async () => {
+    // Discriminates the injection loop itself (review finding: the test above
+    // still passes even with the injection loop deleted, because on the
+    // `levels` chain the walk already selects every needed height on its own
+    // — see the comment on `sparseLevels` above). On `sparseLevels`, the
+    // non-continuous (walk-only) prefix genuinely lacks all of
+    // needed = [16, 32, 48], so:
+    //  - if the injection loop were deleted, `continuousProof.prefix` would
+    //    equal `nonContinuous.prefix` exactly and `delta` would be `[]`,
+    //    failing `toEqual(needed)` below;
+    //  - if injection added anything beyond `needed` (an off-by-one height,
+    //    or a failure to respect set-if-absent dedupe), `delta` would differ
+    //    from `needed` too — this pins BOTH "injection adds them" and
+    //    "nothing extra is injected."
+    const chain = buildTestChain(sparseLevels);
+    const params = { m: 3, k: 3 };
+    const nonContinuous = await proveWithReader(new MemoryReader(chain), params);
+    const continuousProof = await proveWithReader(new MemoryReader(chain), { ...params, continuous: true, ...E });
+
+    const nonContinuousHeights = new Set(nonContinuous.prefix.map(p => p.header.height));
+    const delta = continuousProof.prefix
+      .map(p => p.header.height)
+      .filter(h => !nonContinuousHeights.has(h))
+      .sort((a, b) => a - b);
+
+    const sh = continuousProof.suffixHead.header.height;
+    const needed = heightsForNextRecalculation(sh, 16, 8).filter(h => h > 0 && h < sh);
+    expect(delta).toEqual(needed);
+  });
+
+  test('continuous=false output is byte-region-identical to the pre-0.4.0 shape (flag default false)', async () => {
+    const chain = buildTestChain(levels);
+    const a = await proveWithReader(new MemoryReader(chain), { m: 3, k: 3 });
+    const b = await proveWithReader(new MemoryReader(chain), { m: 3, k: 3, continuous: false, ...E });
+    expect(a.continuous).toBe(false);
+    expect(a.prefix.map(p => p.header.height)).toEqual(b.prefix.map(p => p.header.height));
+  });
+
+  test('reader missing a needed height: silently skipped, proof then fails verification', async () => {
+    // Uses `sparseLevels` (see comment above), not the shared level-0-free
+    // `levels` — on `levels` no needed height is ever absent from the
+    // non-continuous walk, so this test could not demonstrate "silently
+    // skipped" at all.
+    const chain = buildTestChain(sparseLevels);
+    const sh = 62;
+    const needed = heightsForNextRecalculation(sh, 16, 8).filter(h => h > 0 && h < sh);
+    const dropped = needed[0]!;
+    class GappyReader extends MemoryReader {
+      override async popowHeaderAtHeight(h: number) {
+        return h === dropped ? null : super.popowHeaderAtHeight(h);
+      }
+    }
+    const proof = await proveWithReader(new GappyReader(chain), { m: 3, k: 3, continuous: true, ...E });
+    expect(proof.continuous).toBe(true);
+    expect(proof.prefix.some(p => p.header.height === dropped)).toBe(false);
+    // If a future change to buildTestChain/the walk makes needed[0] walk-selected
+    // again on this chain too, pick the first needed height NOT in the
+    // non-continuous proof's prefix instead (see the `sparseLevels` comment
+    // above for why that alone isn't always sufficient — the chain shape
+    // matters more).
+    try {
+      verifyParsedProof(proof, { checkPoW: false, ...E });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect((e as ProofVerificationError).code).toBe('missing-difficulty-headers');
+    }
+  });
+
+  test('boundary: h === suffixHeadHeight is excluded from injection (strict <, not <=)', async () => {
+    // Extends the shared `levels` pattern (same i % 8 === 7 ? 2 : 1 rule) to
+    // 66 headers so tip-mode suffixHead (height 66 - k + 1 = 64) lands
+    // exactly on a multiple of epochLength=16: heightsForNextRecalculation(64,
+    // 16, 8)'s RAW list is [0, 16, 32, 48, 64] — it includes suffixHead's own
+    // height. neededPrefixHeights's strict `h < suffixHeadHeight` filter must
+    // exclude 64 itself; an `h <= suffixHeadHeight` mutant would inject a
+    // SECOND copy of suffixHead's own height into the prefix, immediately
+    // breaking strict monotonicity against suffixHead right after it (both at
+    // height 64) and failing verification below.
+    const boundaryLevels = Array.from({ length: 66 }, (_, i) => (i % 8 === 7 ? 2 : 1));
+    const chain = buildTestChain(boundaryLevels);
+    const proof = await proveWithReader(new MemoryReader(chain), { m: 3, k: 3, continuous: true, ...E });
+
+    expect(proof.suffixHead.header.height).toBe(64);
+    expect(proof.continuous).toBe(true);
+    expect(proof.prefix.some(p => p.header.height === proof.suffixHead.header.height)).toBe(false);
+
+    const hs = proof.prefix.map(p => p.header.height);
+    for (let i = 1; i < hs.length; i++) expect(hs[i]!).toBeGreaterThan(hs[i - 1]!);
+    expect(hs[hs.length - 1]!).toBeLessThan(proof.suffixHead.header.height);
+
+    expect(() => verifyParsedProof(proof, { checkPoW: false, ...E })).not.toThrow();
+  });
+
+  test('bad difficulty params throw RangeError even with continuous=false (JVM constructs DifficultyAdjustment unconditionally)', async () => {
+    const chain = buildTestChain(levels);
+    await expect(
+      proveWithReader(new MemoryReader(chain), { m: 3, k: 3, epochLength: 0 }),
+    ).rejects.toThrow(RangeError);
   });
 });
