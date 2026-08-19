@@ -1,6 +1,6 @@
 # API — `@ergots/nipopow`
 
-Public surface for the verifier package. The wire format and verification semantics this implements come from `ergo-nipopow` (sigma-rust); see `facts/nipopow.md` in the repo root for the load-bearing interface contract.
+Public surface for the verifier and prover package. The verifier's wire format and verification semantics come from `ergo-nipopow` (sigma-rust); the `/prover` subpath (0.3.0) is a port of the JVM Ergo node instead — see [Prover subpath](#prover-subpath) below. `facts/nipopow.md` in the repo root is the load-bearing interface contract for both.
 
 ## Entry points
 
@@ -8,6 +8,7 @@ Public surface for the verifier package. The wire format and verification semant
 |---|---|
 | `@ergots/nipopow` | Parse, serialize, verify, and compare NiPoPoW proofs |
 | `@ergots/nipopow/envelope` | P2P wire envelope for message codes 90 / 91 |
+| `@ergots/nipopow/prover` | Proof construction: `prove`, `proveWithReader`, and the interlink/Merkle-tree building blocks (0.3.0) |
 
 All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no `Buffer`, `node:crypto`, or other Node built-ins.
 
@@ -202,6 +203,269 @@ Wrap inner proof bytes in a code-91 envelope. Useful when relaying a proof to a 
 
 ---
 
+## Prover subpath
+
+```ts
+import {
+  prove, proveWithReader,
+  updateInterlinks, packInterlinks, unpackInterlinks,
+  proofForInterlinkVector, makePopowHeader, maxLevelOf,
+  MerkleTree, buildExtensionTree,
+  type PoPowParams, type PopowHeaderReader,
+  type ExtensionKV, type BatchMerkleProof, type PoPowHeader,
+  ProofBuildError,
+} from '@ergots/nipopow/prover';
+```
+
+New in 0.3.0. Adds proof *construction* to the package: `prove` and
+`proveWithReader` build a `NipopowProof` from a header chain; everything
+else is a building block both are made from (interlink maintenance, Merkle
+tree construction). **The JVM Ergo node is the canonical reference for this
+entire subpath** — `NipopowAlgos.scala` and `NipopowProverWithDbAlgs.scala`
+— not sigma-rust, which has no prover of its own. None of these functions
+validate PoW or consensus rules; they assume a trusted, already-valid input
+chain (see [Scope and consensus caveat](#scope-and-consensus-caveat) above,
+which applies here too).
+
+```ts
+interface PoPowParams {
+  m: number; // >= 1, integer — min superchain-length parameter
+  k: number; // >= 1, integer — suffix-length parameter
+}
+```
+
+### `prove(chain, params)`
+
+```ts
+function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof;
+```
+
+Synchronous, in-memory KMZ17 prover — a clean-room port of the JVM's
+`NipopowAlgos.prove`, which the JVM's own source marks `"Paper-like code
+used in tests only"` (`NipopowAlgos.scala:127`). Requires the entire header
+chain, with correct interlinks already attached, in memory.
+
+- **Precondition:** `params.m` and `params.k` are integers `>= 1`;
+  `chain.length >= m + k`; `chain[0].header.height === 1` (anchored at
+  genesis). The chain is trusted — `prove` re-derives nothing (no interlink
+  recomputation, no PoW check).
+- **Returns:** A `NipopowProof` with `continuous: false`. Passes
+  `verifyParsedProof`'s structural checks, round-trips byte-identically
+  through `serializeProof`/`parseProof`, and is byte-identical to the JVM's
+  own `NipopowAlgos.prove` output on the same chain.
+- **Throws:** `ProofBuildError` with `.code` in `'invalid-m' | 'invalid-k' |
+  'chain-too-short' | 'non-anchored-chain'`.
+- **Invariant:** Pure, synchronous, deterministic.
+
+```ts
+const proof = prove(chain, { m: 6, k: 6 });
+```
+
+### `proveWithReader(reader, params, headerId?)`
+
+```ts
+function proveWithReader(
+  reader: PopowHeaderReader,
+  params: PoPowParams,
+  headerId?: Uint8Array,
+): Promise<NipopowProof>;
+```
+
+Async, demand-loaded prover — a clean-room port of
+`NipopowProverWithDbAlgs.prove`, the algorithm a live JVM node's
+`GET /nipopow/proof/{m}/{k}` REST endpoint actually calls
+(`PopowProcessor.scala:109-111`). This is the **production** prover;
+`prove` above is the JVM's own "paper/test" variant.
+
+- **Precondition:** Same `m`/`k` bounds as `prove`.
+  `await reader.headersHeight() >= m + k`, else `ProofBuildError`
+  (`'chain-too-short'`). Any header the reader answers `null` for →
+  `ProofBuildError('missing-popow-header')` — no silent partial proofs.
+- **Returns:** `Promise<NipopowProof>` with `continuous: false`. When
+  `headerId` is given, that header becomes `suffixHead` and
+  `bestHeadersAfter(suffixHead.header, k - 1)` supplies the suffix tail;
+  when omitted, `lastHeaders(k)` from the reader's current tip is used
+  instead. Genesis (height 1) is always seeded into the prefix. Header
+  loads are O(m + k + m·log N) — a backward interlink walk, not a full
+  chain scan.
+- **Throws:** `ProofBuildError` with `.code` in `'invalid-m' | 'invalid-k' |
+  'chain-too-short' | 'missing-popow-header'`.
+- **Byte-identity vs `prove`:** the two provers are **not** interchangeable
+  on real chains — `proveWithReader`'s output equals `prove`'s only when no
+  non-genesis header between the final anchor and the suffix head is at
+  level 0, and genesis's free per-level credit never flips a narrowing
+  decision. Every committed SANTA fixture (fake-PoW, level-0-free by
+  construction) satisfies this; real chains violate it systematically
+  (roughly half of all blocks are level 0 per KMZ17 — a 21-header mainnet
+  sample has 15/20 parents at level 0). **`proveWithReader` is the one
+  whose output a real node actually produces**; do not treat `prove`'s
+  output as the reference on a real chain. Full derivation:
+  `facts/nipopow.md`'s `proveWithReader` entry.
+- **Reader contract:** `popowHeaderAtHeight(1)` / `popowHeaderById(genesisId)`
+  MUST synthesize `interlinks = [genesisId]` (e.g. via `makePopowHeader`) —
+  real on-chain genesis extensions are empty, and unpacking them yields
+  wrong (empty) interlinks. A reader is not trusted to be internally
+  consistent; inconsistency surfaces as `'missing-popow-header'` or an
+  invalid (never silently-corrupt) proof.
+- **Invariant:** The only async function in the package.
+
+```ts
+const tipProof = await proveWithReader(reader, { m: 6, k: 6 });
+const anchored = await proveWithReader(reader, { m: 6, k: 6 }, someHeaderId);
+```
+
+### `PopowHeaderReader`
+
+```ts
+interface PopowHeaderReader {
+  headersHeight(): Promise<number>;
+  popowHeaderById(id: Uint8Array): Promise<PoPowHeader | null>;
+  popowHeaderAtHeight(height: number): Promise<PoPowHeader | null>;
+  lastHeaders(n: number): Promise<Header[]>;
+  bestHeadersAfter(header: Header, n: number): Promise<Header[]>;
+}
+```
+
+Caller-implemented demand-loading interface consumed by `proveWithReader` —
+the only place in the package that performs I/O, and only through methods
+the caller supplies (no built-in transport). A typical implementation wraps
+a local IndexedDB/SQLite header store or a node's REST API. (`Header` here
+is the same type re-exported from the primary `@ergots/nipopow` entry —
+it is not itself re-exported from `/prover`.)
+
+### `updateInterlinks(prevHeader, prevInterlinks)`
+
+```ts
+function updateInterlinks(prevHeader: Header, prevInterlinks: Uint8Array[]): Uint8Array[];
+```
+
+Computes the interlinks vector for the block immediately **after**
+`prevHeader`, given `prevHeader`'s own interlinks.
+
+- **Precondition:** If `prevHeader.height !== 1` (not genesis),
+  `prevInterlinks.length > 0`.
+- **Returns:** `[prevHeader.id]` when `prevHeader.height === 1` (genesis
+  case — every chain's second block starts its interlinks here). Otherwise,
+  with `L = maxLevelOf(prevHeader)`: `L <= 0` → `prevInterlinks` unchanged
+  (fresh array, same contents); `L > 0` →
+  `[genesis, ...tail.slice(0, max(0, tail.length - L)), ...L copies of prevHeader.id]`
+  where `genesis = prevInterlinks[0]` and `tail = prevInterlinks.slice(1)`.
+- **Throws:** `ProofBuildError('empty-interlinks')` if `prevHeader.height !== 1`
+  and `prevInterlinks.length === 0`.
+
+### `packInterlinks(interlinks)` / `unpackInterlinks(fields)`
+
+```ts
+interface ExtensionKV {
+  key: Uint8Array;   // 2 bytes
+  value: Uint8Array; // variable length
+}
+
+function packInterlinks(interlinks: Uint8Array[]): ExtensionKV[];
+function unpackInterlinks(fields: ExtensionKV[]): Uint8Array[];
+```
+
+Inverses of each other — the construction-side counterpart of the
+verifier's extension-field codec. `packInterlinks` groups consecutive
+duplicate block ids into `{ key: [0x01, firstOccurrencePosition], value:
+[count, ...32-byte id] }` entries (JVM Ergo's position-based key encoding —
+see `facts/nipopow.md` "Limitations" for the sigma-rust divergence this
+fixed, `ergoplatform/sigma-rust#866`). `unpackInterlinks` expands them back
+out in field order.
+
+- **Precondition (`packInterlinks`):** every entry in `interlinks` is
+  exactly 32 bytes, else plain `Error`.
+- **Precondition (`unpackInterlinks`):** every interlink-prefixed
+  (`key[0] === 0x01`) field's `value` is exactly 33 bytes, else
+  `ProofBuildError('malformed-interlinks')`. Non-interlink keys are ignored.
+- **Returns:** `packInterlinks([])` → `[]`.
+  `unpackInterlinks(packInterlinks(x))` ≡ `x` for any valid `x`.
+
+### `proofForInterlinkVector(fields)`
+
+```ts
+function proofForInterlinkVector(fields: ExtensionKV[]): BatchMerkleProof;
+```
+
+Batch Merkle proof over the interlinks-only tree, covering every
+interlink-prefixed key in `fields`, in field order — the construction-side
+counterpart of `verifyProof`'s interlinks-proof check.
+
+- **Returns:** `{ indices: [], proofs: [] }` when `fields` has no
+  interlink-prefixed entries.
+
+### `makePopowHeader(header, interlinks)`
+
+```ts
+function makePopowHeader(header: Header, interlinks: Uint8Array[]): PoPowHeader;
+```
+
+Convenience composition: `packInterlinks(interlinks)` →
+`proofForInterlinkVector(...)` → `{ header, interlinks, interlinksProof }`.
+This is how a caller turns a `Header` plus its interlinks vector into a
+`PoPowHeader` ready for a chain array or a `PopowHeaderReader` response.
+
+### `maxLevelOf(header)`
+
+```ts
+function maxLevelOf(header: Header): number;
+```
+
+Superblock μ-level — how many superchains (per KMZ17) a header qualifies
+for. Shared by the prover (level-based prefix selection) and
+`compareProofs` (best-arg comparison); both consume the exact same
+function.
+
+- **Returns:** `Number.MAX_SAFE_INTEGER` for genesis (`height === 1`,
+  representing the JVM's `Int.MaxValue`). Otherwise
+  `trunc(ln(requiredTarget / realHit) / ln(2))` — **truncated toward zero**
+  (JVM `Double.toInt` / Rust `as i32` semantics, NOT `Math.floor`), using
+  the JVM's own natural-log-ratio log2 formulation rather than a native
+  `log2` (the two diverge by design at exact power-of-two hit ratios —
+  boundary-exact match to `NipopowAlgos.scala:166` is the point). May be
+  negative if the hit exceeds the required target; `-0` is normalized to
+  `0`.
+
+### `MerkleTree` / `buildExtensionTree(fields)`
+
+```ts
+class MerkleTree {
+  constructor(leafHashes: Uint8Array[]);
+  readonly leafCount: number;
+  rootHash(): Uint8Array;
+  proofByIndices(indices: number[]): BatchMerkleProof | null;
+}
+function buildExtensionTree(fields: ExtensionKV[]): MerkleTree;
+```
+
+The construction counterpart of the verify-side `BatchMerkleProof`
+validation codec — same padded-power-of-two layout, so a tree built here
+and one reconstructed by a verifier from the same leaves always agree.
+
+- **`rootHash()`:** 32-byte root; `leafCount === 0` → 32 zero bytes
+  (`Digest32::zero()` parity).
+- **`proofByIndices(indices)`:** Returns `null` for an empty index list, a
+  duplicate index, or any index outside `[0, leafCount)`. Otherwise a
+  `BatchMerkleProof` covering exactly those leaf positions, with explicit
+  empty-sibling nodes (`hash: null`, serialized as 32 zero bytes) standing
+  in for padding positions.
+- **`buildExtensionTree(fields)`:** the tree over a list of extension
+  key-value pairs, hashed the same way the wire-format leaves are.
+
+### Continuous mode is not implemented
+
+Neither `prove` nor `proveWithReader` can produce a continuous-mode proof —
+both hardcode `continuous: false` on every return. Continuous-mode
+construction (and verification) is a planned follow-up unit. **This means
+their output can never be byte-identical to what a live JVM node's REST
+endpoint serves**, since `PopowProcessor.popowProof` hardcodes
+`continuous = true` on every call with no way to opt out — see the
+`'continuous-unsupported'` entry under [`ProofVerificationError`
+codes](#proofverificationerror-codes) below and `facts/nipopow.md`'s
+`proveWithReader` entry for the full finding, including how
+`tools/nipopow-capture/live-walk.mjs` verifies prefix-selection agreement
+modulo the continuous-mode-injected heights.
+
 ## Types
 
 ### `NipopowProof`
@@ -213,6 +477,11 @@ interface NipopowProof {
   prefix: PoPowHeader[];  // may be empty (sigma-rust sets no lower bound); heights strictly increasing
   suffixHead: PoPowHeader; // always present; height > prefix[last].height when prefix is non-empty
   suffixTail: Header[];   // explicit wire length, NOT enforced == k-1 ("anchor"-mode proofs carry 0); strictly increasing from suffixHead.height + 1
+  continuous: boolean;    // JVM wire dialect trailing byte (0.3.0); parser enforces strict 0|1
+                          // ('invalid-continuous-byte' otherwise). verifyProof/verifyParsedProof
+                          // reject continuous === true with 'continuous-unsupported' — every
+                          // successfully-verified proof therefore has continuous === false.
+                          // prove()/proveWithReader() always emit continuous: false.
 }
 ```
 
@@ -235,7 +504,7 @@ interface PoPowHeader {
 > interlinks-only-root only. Full `header.extensionRoot` anchoring is a
 > planned future phase. See `facts/nipopow.md` "Limitations".
 
-`BatchMerkleProof` is structurally accessible but not currently re-exported as a named type. Most callers don't need to inspect it directly — `verifyProof` handles validation.
+`BatchMerkleProof` is not re-exported as a named type from the primary `@ergots/nipopow` entry point — most callers don't need to inspect it directly, since `verifyProof` handles validation. It **is** exported (as `type BatchMerkleProof`, alongside `type ExtensionKV`) from `@ergots/nipopow/prover`, where `MerkleTree`/`buildExtensionTree`/`proofForInterlinkVector` produce and consume it directly — see [Prover subpath](#prover-subpath).
 
 ### `Header`
 
@@ -279,7 +548,8 @@ interface VerifyOptions {
 interface VerificationResult {
   suffixTipHeight: number;  // highest header.height in the proof
   totalHeaders: number;     // prefix.length + 1 + suffixTail.length
-  continuous: false;        // always false (continuous-mode proofs not supported in v1)
+  continuous: false;        // always false — a continuous:true proof throws 'continuous-unsupported'
+                            // before a VerificationResult is ever returned (see Prover subpath)
   headers: Header[];        // every header in the proof, in strictly-increasing height order
 }
 ```
@@ -303,7 +573,7 @@ interface GetNipopowProofRequest {
 
 ## Error classes
 
-All three classes extend `Error` and carry a `.code: string` for programmatic dispatch.
+All four classes extend `Error` and carry a `.code: string` for programmatic dispatch.
 
 ```ts
 class ProofParseError extends Error {
@@ -317,7 +587,28 @@ class ProofVerificationError extends Error {
 class EnvelopeParseError extends Error {
   readonly code: string;
 }
+
+class ProofBuildError extends Error {
+  readonly code: string;
+}
 ```
+
+### `ProofBuildError` codes
+
+Thrown by the [Prover subpath](#prover-subpath)'s construction functions
+(`prove`, `proveWithReader`, `updateInterlinks`, `unpackInterlinks`) when
+given input they refuse to build a proof from — recoverable, same dispatch
+pattern as the other three.
+
+| Code | Meaning |
+|---|---|
+| `'invalid-m'` | `params.m` is not an integer `>= 1` |
+| `'invalid-k'` | `params.k` is not an integer `>= 1` |
+| `'chain-too-short'` | `chain.length < m + k` (`prove`) or the reader reports/returns fewer than `m + k` headers (`proveWithReader`) |
+| `'non-anchored-chain'` | `chain[0].header.height !== 1` (`prove` only — `proveWithReader` has no in-memory chain to check; genesis is fetched via the reader instead) |
+| `'missing-popow-header'` | `proveWithReader` only: the reader returned `null` for a header the walk required (by id or by height) — no silent partial proofs |
+| `'empty-interlinks'` | `updateInterlinks` only: `prevHeader.height !== 1` and `prevInterlinks.length === 0` |
+| `'malformed-interlinks'` | `unpackInterlinks` only: an interlink-prefixed field's `value` is not exactly 33 bytes |
 
 ### `ProofParseError` codes
 
@@ -334,6 +625,7 @@ Thrown by `parseProof` (and indirectly by `verifyProof` via `.cause`).
 | `'invalid-m'` | Parsed `m === 0`. `m` is the minimum superchain-length parameter and must be `> 0`; values `<= 0` would produce a non-terminating loop in `compareProofs` (audit NIP-03). |
 | `'invalid-k'` | Parsed `k === 0`. `k` is the suffix-length parameter and must be `> 0` (matches sigma-rust's `NipopowProof::new` constructor invariant; audit NIP-04). |
 | `'invalid-interlinks-empty'` | A PoPowHeader parsed with `interlinks.length === 0`. Empty interlinks make `check_interlinks_proof` vacuously true (no anchoring); we reject at parse rather than relying on downstream connection checks (audit NIP-05). |
+| `'invalid-continuous-byte'` | The wire-format-mandated trailing `continuous` byte (0.3.0, NIP-12) is present but neither `0x00` nor `0x01`. Stricter than the JVM reference, which maps any byte `!= 1` to `false`; ergots rejects `2..255` outright to preserve the byte-exact round-trip invariant for every proof it accepts. |
 
 ### `ProofVerificationError` codes
 
@@ -347,6 +639,7 @@ Thrown by `verifyProof` and `verifyParsedProof`.
 | `'pow-failed'` | A version ≥ 2 header's Autolykos v2 solution doesn't satisfy that header's **self-declared** `nBits` target. (The target itself is not validated against consensus chain parameters — see [Scope and consensus caveat](#scope-and-consensus-caveat).) |
 | `'v1-header-after-v2-activation'` | A version 1 header appears at a height at or above `opts.v2ActivationHeight` (default mainnet 417792). Audit finding NIP-02: prevents an attacker from bypassing PoW by marking forged high-height headers as V1. Only thrown when `checkPoW: true`. |
 | `'invalid-interlinks-proof'` | A PoPowHeader's interlinks Merkle proof does not verify against the interlinks-only Merkle root (see [`facts/nipopow.md`](../../facts/nipopow.md) "Limitations" — anchoring is interlinks-only-root, not `header.extensionRoot`). |
+| `'continuous-unsupported'` | `proof.continuous === true` (0.3.0, NIP-12). Continuous-mode proofs are not implemented yet (prover or verifier side) — see [Prover subpath](#prover-subpath). **Every live JVM node's REST endpoint serves continuous-mode proofs unconditionally** (`PopowProcessor.popowProof` hardcodes `continuous = true`, no request parameter to opt out), so this code currently fires on every proof fetched from a live node. Checked early, alongside `'invalid-m'`/`'invalid-k'`, before connections/heights/PoW. |
 | `'empty-proof'` | Defensive; unreachable for any well-formed proof |
 
 ### `EnvelopeParseError` codes
@@ -368,13 +661,14 @@ Thrown by `parseGetNipopowProof` and `parseNipopowProofEnvelope`.
 - **All byte sequences are `Uint8Array`.** Never `Buffer`. Hash digests, IDs, and proof bytes all use the same type.
 - **Heights, timestamps, m, k, version are `number`.** JS `Number` is safe up to 2^53; u32 values fit comfortably.
 - **`bigint` for arithmetic on `n_bits`-derived targets and `pow_distance`.** Anything that can exceed `Number.MAX_SAFE_INTEGER` uses `bigint`.
-- **No async surface.** Every function is synchronous. Hashing is a tight loop; the async boundary would only add overhead.
+- **No async surface, except `proveWithReader`.** Every verifier-surface function is synchronous (hashing is a tight loop; the async boundary would only add overhead). The one exception is the `/prover` subpath's `proveWithReader`, whose entire purpose is demand-loading headers through a caller-supplied `PopowHeaderReader` — see [Prover subpath](#prover-subpath).
 - **No I/O, no globals.** Pure functions: same inputs always produce the same output.
 - **Throws on input rejection.** Parse and verify errors throw typed exceptions with `.code` for programmatic dispatch. Programmer-error invariants (out-of-range writes, contract violations) throw plain `Error`.
 
 ## See also
 
 - `facts/nipopow.md` (repo root) — load-bearing interface contract referenced by downstream packages
-- `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — design rationale, validation strategy, risks
+- `docs/specs/2026-05-12-nipopow-proof-verifier-design.md` — design rationale, validation strategy, risks (verifier)
+- `docs/superpowers/specs/2026-08-18-nipopow-prover-design.md` — design rationale for the `/prover` subpath (0.3.0)
 - [KMZ17 paper](https://eprint.iacr.org/2017/963) — original NiPoPoW spec
 - [sigma-rust `ergo-nipopow`](https://github.com/ergoplatform/sigma-rust/tree/develop/ergo-nipopow) — reference Rust implementation
