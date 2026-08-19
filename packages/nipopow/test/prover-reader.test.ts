@@ -13,51 +13,77 @@ const SHAPES: [number[], number, number][] = [
 ];
 
 describe('proveWithReader equivalence with prove()', () => {
-  // FINDING (Task 8 investigation, full detail in task-8-report.md): prove()
-  // (NipopowAlgos.prove, filter-based) and proveWithReader
-  // (NipopowProverWithDbAlgs.prove, interlink-walk-based) are NOT byte-identical
-  // in general on arbitrary chains — confirmed by reading both JVM sources, not
-  // a TS-port bug:
+  // proveWithReader (JVM NipopowProverWithDbAlgs.prove) and prove() (JVM
+  // NipopowAlgos.prove) are NOT byte-identical in general — a real property
+  // of the two JVM source algorithms, not a TS-port bug. Two mechanisms
+  // (both confirmed against JVM source; full detail + hand-verified trace
+  // in task-8-report.md):
   //
-  //  1. Genesis "free credit": NipopowAlgos.scala's provePrefix filters
-  //     `chain.dropRight(k)` by `maxLevelOf(h) >= level && h.height >=
-  //     anchoringPoint.height`. Genesis (maxLevelOf = Int.MaxValue, height = 1)
-  //     trivially satisfies this at EVERY level until the anchor first advances
-  //     past height 1, giving prove() a "free" +1 at the topmost not-yet-narrowed
-  //     level. NipopowProverWithDbAlgs's collectLevel walk can never discover
-  //     genesis (it is never present in any header's interlinks TAIL, only ever
-  //     the special position-0 slot) — no walk-side counterpart to that +1. When
-  //     the *true* (non-genesis) count at that level equals exactly `m`, the
-  //     `m < count` narrowing decision flips between the two algorithms.
-  //  2. No walk position for "level 0": `linksWithIndexes` = `interlinks.tail
-  //     .reverse.zipWithIndex` only ever produces positions for levels >= 1 (the
-  //     tail encodes skip pointers for level >=1 only; level >=0 is trivially
-  //     every block via plain parent-child adjacency, so no interlink position
-  //     represents it). NipopowAlgos.prove's explicit `level = 0` pass therefore
-  //     has no counterpart walk in NipopowProverWithDbAlgs — a run of
+  //  1. No walk position for "level 0": `linksWithIndexes` = `interlinks.tail
+  //     .reverse.zipWithIndex` only ever produces positions for levels >= 1
+  //     (level >= 0 is trivially every block via plain parent-child
+  //     adjacency, so no interlink position represents it). NipopowAlgos
+  //     .prove's explicit `level = 0` pass sweeps every header from the
+  //     anchor onward regardless of interlink connectivity — but a run of
   //     consecutive level-0 blocks whose id is never recorded in any later
-  //     block's interlinks (updateInterlinks only records a PARENT's id when the
-  //     parent's own level >= 1) is structurally undiscoverable by the walk, yet
-  //     prove()'s level-0 filter sweeps every such block in unconditionally.
+  //     block's interlinks (updateInterlinks only records a PARENT's id when
+  //     the parent's own level >= 1) is structurally undiscoverable by
+  //     proveWithReader's walk.
+  //  2. Genesis "free credit": NipopowAlgos.scala's provePrefix filters
+  //     `chain.dropRight(k)` by `maxLevelOf(h) >= level && h.height >=
+  //     anchoringPoint.height`. Genesis (maxLevelOf = Int.MaxValue, height =
+  //     1) trivially satisfies this at EVERY level until the anchor first
+  //     advances past height 1 — a "free" +1 with no walk-side counterpart
+  //     (genesis is never present in any header's interlinks TAIL). When the
+  //     *true* (non-genesis) count at a level equals exactly `m`, the
+  //     narrowing decision can flip between the two algorithms.
   //
-  // Both mechanisms are real properties of the actual JVM sources
-  // (NipopowAlgos.scala, NipopowProverWithDbAlgs.scala) — proveWithReader here is
-  // a faithful, line-by-line port of NipopowProverWithDbAlgs.prove, confirmed
-  // byte-identical to real JVM ground truth (prover-santa.test.ts: 6/6 tip-mode +
-  // 2/2 anchored-mode cases against real 32/64-header JVM-generated chains) and
-  // consistent with the JVM's own equivalence-test methodology
-  // (PoPowAlgosWithDBSpec.scala asserts this same equivalence, but only against a
-  // realistic genChain(3000) — never a short, densely hand-scripted chain like
-  // the SHAPES below). Neither edge case is expected to bite on a realistic,
-  // organically-grown chain, and empirically neither does on any real fixture
-  // checked. The SHAPES chains here are short and densely packed by
-  // construction specifically to exercise proveWithReader's walk machinery
-  // cheaply, so they DO trip these two edges — the assertions below are scoped
-  // to what holds universally (suffix selection, and proveWithReader's own
-  // structural validity as a KMZ17 proof), not to full byte-identity with
-  // prove(), which prover-santa.test.ts already covers against real data.
-  for (const [levels, m, k] of SHAPES) {
-    it(`levels[${levels.length}] m=${m} k=${k}: suffix matches prove(), prefix is a valid KMZ17 prefix`, async () => {
+  // WHICH CHAINS THIS BITES (get this right — the previous version of this
+  // comment had it backwards): mechanism 1 fires on any chain with a level-0
+  // header in [final anchor, suffixHead) — i.e. essentially every REAL
+  // chain. KMZ17 expects level mu with probability 2^-mu, so ~half of all
+  // real blocks are level 0; a captured 21-header mainnet sample has 15/20
+  // parents at level 0 (facts/nipopow.md). It does NOT fire on the SANTA
+  // fixtures below or the JVM's own genChain(3000) equivalence test
+  // (PoPowAlgosWithDBSpec.scala) — both are generated under a fake PoW
+  // scheme (DefaultFakePowScheme, powType = "fake") whose level sequence is
+  // monotonically non-decreasing with ZERO level-0 headers past genesis
+  // (verified directly against both committed SANTA chains: 0/31 and 0/63).
+  // That's an artifact of the fake scheme, not representative of real
+  // mining — "byte-identical on realistic chains" is exactly backwards:
+  // byte-identity holds on the *unrealistic* level-0-free chains and is
+  // violated systematically on real ones.
+  //
+  // WHICH ALGORITHM IS PRODUCTION: proveWithReader (NipopowProverWithDbAlgs)
+  // is what a real JVM node actually serves — PopowProcessor.scala's
+  // popowProof calls it directly, backing the live GET
+  // /nipopow/proof/{m}/{k} REST endpoint. prove() (NipopowAlgos.prove)
+  // carries the JVM's own comment marking it the non-production variant:
+  // "Paper-like code used in tests only" (NipopowAlgos.scala:127). None of
+  // prover-santa.test.ts's SANTA vectors are NipopowProverWithDbAlgs ground
+  // truth either — all 8 were generated by calling NipopowAlgos.prove (on
+  // the full chain for tip cases, on a truncated chain for the anchored
+  // case); the byte match there demonstrates agreement on these specific
+  // level-0-free chains, which is expected given mechanism 1, not general
+  // cross-algorithm equivalence. The actual NipopowProverWithDbAlgs
+  // ground-truth anchor is Task 9's live-node walk.
+  //
+  // The SHAPES chains below deliberately include level-0 headers (unlike
+  // the SANTA fixtures), so they DO trip both mechanisms — closer to how a
+  // real chain behaves than the fake-PoW fixtures are. GOLDEN_PREFIX_HEIGHTS
+  // is captured from the actual implementation: SHAPES[0] (the smallest) is
+  // hand-verified step-by-step in task-8-report.md; all four are
+  // corroborated by prover-santa.test.ts's anchored byte-match (same
+  // collectLevel/foldRight/dedupe logic, real ground truth, just on a
+  // level-0-free chain) and the structural KMZ17 invariants asserted below.
+  const GOLDEN_PREFIX_HEIGHTS: number[][] = [
+    [1, 3, 5, 7],
+    [1, 3, 5, 7, 9],
+    [1, 4, 8, 10, 12],
+    [1, 4, 8, 10, 12, 15, 17, 19],
+  ];
+  for (const [i, [levels, m, k]] of SHAPES.entries()) {
+    it(`levels[${levels.length}] m=${m} k=${k}: suffix matches prove(), prefix matches the pinned walk selection`, async () => {
       const chain = buildTestChain(levels);
       const fromMemory = await proveWithReader(new MemoryReader(chain), { m, k });
       const direct = prove(chain, { m, k });
@@ -66,6 +92,9 @@ describe('proveWithReader equivalence with prove()', () => {
       // both algorithms take the suffix straight from the chain/reader.
       expect(bytesToHex(fromMemory.suffixHead.header.id)).toBe(bytesToHex(direct.suffixHead.header.id));
       expect(fromMemory.suffixTail.map(h => bytesToHex(h.id))).toEqual(direct.suffixTail.map(h => bytesToHex(h.id)));
+
+      // Pinned prefix-selection regression guard — see block comment above.
+      expect(fromMemory.prefix.map(p => p.header.height)).toEqual(GOLDEN_PREFIX_HEIGHTS[i]);
 
       // proveWithReader's own output is a structurally valid, well-formed proof
       // (mirrors prover.test.ts's "prove() selection" invariant checks).

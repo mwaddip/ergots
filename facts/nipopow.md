@@ -173,33 +173,81 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
   `'invalid-k'`; `await reader.headersHeight() >= m + k`
   (`'chain-too-short'`). A required header the reader answers `null` for →
   `'missing-popow-header'`; no silent partial proofs.
-- **Postcondition:** Byte-identical to `prove` on realistic, organically-grown
-  chains — verified against real JVM-generated ground truth (6/6 tip-mode +
-  2/2 anchored-mode SANTA vectors, `prover-santa.test.ts`) and consistent
-  with the JVM's own equivalence test methodology (`PoPowAlgosWithDBSpec.scala`
-  `genChain(3000)`). **NOT guaranteed byte-identical on arbitrary chains** —
-  this is a property of the two JVM source algorithms themselves, not a
-  TS-port gap (`prover-reader.test.ts`'s comment block has the full
-  derivation): (a) `prove`'s filter-based level pass gives genesis
-  unconditional credit at every not-yet-narrowed level (`maxLevelOf` =
-  `Int.MaxValue`, height 1 always qualifies) with no walk-side counterpart
-  (genesis is never present in any header's interlinks tail, so
-  `proveWithReader`'s walk can never "see" it) — when the *true*
-  (non-genesis) count at a level equals exactly `m`, the narrowing decision
-  can flip between the two algorithms; (b) no interlink position represents
-  "level 0" at all (`linksWithIndexes` only ever yields positions for levels
-  ≥1) — `prove`'s explicit level-0 pass sweeps every header from the anchor
-  onward regardless of interlink connectivity, but a run of consecutive
-  low-level blocks whose id was never recorded by a later block's interlinks
-  is structurally undiscoverable by the walk. Both proveWithReader outputs
-  remain individually valid (`verifyParsedProof` accepts them) even where
-  they diverge from `prove`'s prefix — this is prefix-selection divergence
-  between two different-but-both-correct provers, not a validity defect.
+- **Postcondition:** Byte-identical to `prove` **only** on chains satisfying a
+  specific predicate — **no header in the half-open range `[final anchor,
+  suffixHead)` has `maxLevelOf === 0`, and genesis's free per-level credit
+  never flips a narrowing decision** (both defined below). This predicate is
+  **satisfied by `DefaultFakePowScheme`-generated synthetic chains** — every
+  committed `prover-santa.test.ts` SANTA vector (`jvm-chain-32`/`jvm-chain-64`)
+  has **zero** non-genesis headers at level 0 anywhere in the chain (verified
+  directly: level sequence is monotonically non-decreasing, `3,3,3,3,4,4,…`
+  for chain-32, `3,3,3,3,4,…,5,…,6,…` for chain-64 — an artifact of the fake
+  PoW scheme, not representative of real mining), and the JVM's own
+  `PoPowAlgosWithDBSpec.scala` `genChain(3000)` equivalence test is generated
+  under the **same** fake-PoW config (`src/test/resources/application.conf`:
+  `powType = "fake"`) — so it is *not* independent evidence that this holds
+  on realistic chains; it's another data point in the same "satisfies"
+  bucket as the SANTA fixtures, not a counter-example to what follows.
+  **This predicate is VIOLATED by real chains** — KMZ17 expects level μ with
+  probability `2^-μ`, so roughly half of all real blocks are level 0, and a
+  captured 21-header mainnet sample (`test/fixtures/mainnet_consecutive.json`,
+  heights 1,100,000–1,100,020) confirms it empirically: **15 of the 20
+  parent headers are level 0**. On any real chain, the two algorithms'
+  prefixes diverge **systematically**, not as an edge case: `NipopowAlgos.prove`'s
+  explicit level-0 pass sweeps in every header from the anchor onward
+  regardless of interlink connectivity, while `NipopowProverWithDbAlgs`/
+  `proveWithReader`'s walk has no interlink position representing "level 0"
+  at all (`linksWithIndexes` only ever yields positions for levels ≥1) and
+  so can never discover a run of consecutive level-0 blocks whose id was
+  never recorded by a later block's interlinks — a divergence a real chain
+  hits constantly, not rarely. (Second, narrower mechanism: `prove`'s
+  filter-based level pass also gives genesis unconditional credit at every
+  not-yet-narrowed level — `maxLevelOf === Int.MaxValue`, height 1 always
+  qualifies — with no walk-side counterpart, since genesis is never present
+  in any header's interlinks tail; when the *true* non-genesis count at a
+  level equals exactly `m`, this alone can flip the narrowing decision even
+  on a level-0-free chain.) `prover-reader.test.ts`'s comment block has the
+  full derivation with worked per-level traces.
+
+  **Which algorithm is "production."** `proveWithReader` is a port of
+  `NipopowProverWithDbAlgs.prove`, which is what the JVM node actually serves
+  — `PopowProcessor.scala:109-111`'s `popowProof` calls it directly, and
+  that is what backs the live REST endpoint `GET /nipopow/proof/{m}/{k}`
+  (`NipopowApiRoute.scala`). `NipopowAlgos.prove` (what `prove()` ports)
+  carries the JVM's own admission that it is the non-production variant —
+  `NipopowAlgos.scala:127`: `"todo: Paper-like code used in tests only, so
+  maybe better to replace it in tests with prove (histReader)"`. So
+  `proveWithReader` mirrors the **production** prover; `prove()` is the
+  **paper/test** variant. Do not read "`prove()` is the reference
+  implementation" into any comment here or in source — on a real chain it is
+  `proveWithReader` whose output a real node would actually produce.
+
+  **What the committed SANTA vectors are (and are not) ground truth for.**
+  All 8 `nipopow_prove` vectors — the 6 tip-mode cases *and* the 2 anchored
+  cases — were generated by calling `NipopowAlgos.prove` (`source:
+  "NipopowAlgos.prove"` / `"truncated-prove"` in the fixture; the generator's
+  own Scala calls `nipopow.prove(chain)(...)` and `nipopow.prove(truncated)
+  (...)`, both on the `NipopowAlgos` instance, never on
+  `NipopowProverWithDbAlgs`). **No committed vector is
+  `NipopowProverWithDbAlgs` ground truth** — the 8/8 byte-identical match in
+  `prover-santa.test.ts` demonstrates `proveWithReader` agrees with
+  `NipopowAlgos.prove` *on these specific fake-PoW, level-0-free chains*,
+  which is expected given the predicate above, not evidence the two
+  algorithms agree in general. The actual `NipopowProverWithDbAlgs`
+  ground-truth anchor is a **live node's own served proof** — Task 9's
+  REST-backed reader should validate `proveWithReader`'s output directly
+  against a running node's `/nipopow/proof/{m}/{k}` response bytes (same
+  algorithm on both sides — byte-identity there is the correct expectation,
+  unlike byte-identity against `prove()`).
+
   Suffix: `headerId` given → that header is `suffixHead` and
   `bestHeadersAfter(suffixHead.header, k-1)` is the tail; omitted →
   `lastHeaders(k)` from the tip. Genesis (height 1) is always seeded into
   the prefix. Header loads are O(m + k + m·log N) — the backward interlink
-  walk (JVM `NipopowProverWithDbAlgs`), not a full scan.
+  walk (JVM `NipopowProverWithDbAlgs`), not a full scan. Both provers'
+  outputs remain individually valid (`verifyParsedProof` accepts them) even
+  where their prefixes diverge — this is prefix-*selection* divergence
+  between two different-but-both-correct provers, never a validity defect.
 - **Reader contract:** `popowHeaderAtHeight(1)` / `popowHeaderById(genesis
   id)` MUST synthesize `interlinks = [genesisId]` (e.g. via
   `makePopowHeader`) — real on-chain genesis extensions are empty and

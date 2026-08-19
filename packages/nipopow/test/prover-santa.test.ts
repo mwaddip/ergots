@@ -52,6 +52,7 @@ describe('JVM prover vectors (SANTA)', () => {
         // past", asserts), feed it the id of the NEXT header (anchor height +
         // 1), matching the fixture's own truncation arithmetic.
         const anchorIdx = chain.findIndex(p => bytesToHex(p.header.id) === c.headerId);
+        expect(anchorIdx).toBeGreaterThanOrEqual(0); // fixture's headerId must actually be in this chain
         const suffixHeadId = chain[anchorIdx + 1]!.header.id;
         const proof = await proveWithReader(new MemoryReader(chain), { m: c.m, k: c.k }, suffixHeadId);
         expect(bytesToHex(serializeProof(proof))).toBe(c.proofHex);

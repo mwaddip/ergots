@@ -61,9 +61,18 @@ export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
 //
 // Demand-loaded counterpart to prove(): walks the interlink graph backward
 // from suffixHead through a caller-supplied PopowHeaderReader instead of
-// scanning an in-memory chain array. Byte-identical to prove() on the same
-// underlying chain (tested property in prover-reader.test.ts); header loads
-// are O(m + k + m·log N), not O(N).
+// scanning an in-memory chain array. This is the PRODUCTION prover — the
+// JVM node's live proof-serving path (PopowProcessor.scala's popowProof,
+// backing the GET /nipopow/proof/{m}/{k} REST endpoint) calls
+// NipopowProverWithDbAlgs.prove directly, whereas prove() above ports
+// NipopowAlgos.prove, which the JVM's own source marks "Paper-like code
+// used in tests only" (NipopowAlgos.scala:127). The two are NOT
+// byte-identical in general: on any real chain (roughly half of all blocks
+// are level 0 per KMZ17) they diverge systematically, because this walk has
+// no interlink position representing "level 0" at all. They DO coincide on
+// fake-PoW synthetic chains such as the SANTA fixtures (verified
+// level-0-free). See facts/nipopow.md "proveWithReader" for the full
+// predicate and derivation. Header loads are O(m + k + m·log N), not O(N).
 //
 // JVM reference (canonical, clean-room behavior reference only):
 // ~/projects/ergo-jvm-pr/src/main/scala/org/ergoplatform/modifiers/history/popow/NipopowProverWithDbAlgs.scala
@@ -104,9 +113,11 @@ function bytesToHexKey(b: Uint8Array): string {
  * Compute a NiPoPoW proof by demand-loading headers through `reader`, instead
  * of scanning an in-memory chain (contrast `prove`). If `headerId` is given,
  * the result is anchored at that header (it becomes `suffixHead`) rather than
- * the reader's tip — equivalent to `prove()` on the chain truncated just past
- * that header. See facts/nipopow.md "proveWithReader(reader, params, headerId?)"
- * for the full contract.
+ * the reader's tip. On a level-0-free chain (e.g. the SANTA fixtures) this
+ * equals `prove()` on the chain truncated just past that header; in general
+ * (any real chain) the prefix is this walk's own selection, not `prove()`'s
+ * — see facts/nipopow.md "proveWithReader(reader, params, headerId?)" for
+ * the full contract.
  */
 export async function proveWithReader(
   reader: PopowHeaderReader,
