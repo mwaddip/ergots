@@ -68,8 +68,11 @@ export interface NipopowProof {
    * JVM wire dialect (NIP-12, Task 7b): required trailing byte, strictly
    * `0` (false) or `1` (true) on parse — see `parseProof`'s continuous-byte
    * handling for the deliberate strictness delta vs the JVM's lenient
-   * `!= 1 → false`. `verifyParsedProof` rejects `continuous === true`
-   * (`'continuous-unsupported'`) until the continuous-mode verifier unit ships.
+   * `!= 1 → false`. Since 0.4.0, `verifyParsedProof`/`verifyProof` accept
+   * `continuous === true` proofs too, subject to `hasValidDifficultyHeaders`
+   * (`'missing-difficulty-headers'` on failure) — see "Difficulty functions"
+   * in facts/nipopow.md. A successfully-verified proof's `continuous` can
+   * now be either value.
    */
   continuous: boolean;
 }
