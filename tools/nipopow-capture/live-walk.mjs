@@ -35,15 +35,23 @@
 // those three checks failing is a FAIL, printed explicitly with which
 // check and which heights, never a silent pass.
 //
-// What still moves to the future continuous-mode unit: full raw
-// byte-identity against the live response as-is. `--expect-full-identity`
-// (default off) restores that strict, unconditional-raw-bytes comparison
-// so the same script can flip straight to the stricter gate once
-// continuous mode ships, with no other changes needed.
+// Resolved in 0.4.0 (this unit): full raw byte-identity against the live
+// response as-is. `--expect-full-identity` now requests a continuous-mode
+// proof from `proveWithReader` (`{ m, k, continuous: true }`, mainnet
+// epochLength/useLastEpochs defaults — no overrides) and byte-compares its
+// full serialization against the live response's own bytes with NEITHER
+// side's `continuous` flag normalized. It also runs
+// `verifyProof(jvmBytes, { checkPoW: true })` directly against the
+// unmodified live response — the interop headline this unit exists to
+// prove (facts/nipopow.md "Live-endpoint byte-identity — the 0.4.0
+// acceptance gate"). Default mode (this flag omitted) is unchanged: still
+// normalizes `continuous` to `false` on both sides, still does the
+// filtered-prefix + surplus-attribution comparison above, still useful
+// against non-conformant or historical nodes.
 import { headerFromJson } from './json-codec.mjs';
 import { hexToBytes, bytesToHex } from './hex.mjs';
 import { proveWithReader, makePopowHeader } from '@ergots/nipopow/prover';
-import { serializeProof } from '@ergots/nipopow';           // parse/serialize surface
+import { serializeProof, verifyProof } from '@ergots/nipopow'; // parse/serialize/verify surface
 import { serializeHeader, blake2b256, ByteReader, parseHeader } from '@ergots/scorex';
 
 const NODE = process.env.ERGO_NODE_URL ?? 'http://213.239.193.208:9053';
@@ -194,18 +202,32 @@ console.log(`node=${NODE} m=${m} k=${k} tip=${tipId} (h=${tipHeight})${expectFul
 
 // Theirs: JVM node's own proof for the pinned tip, JSON → our structs → bytes.
 const jvmJson = await getJson(`/nipopow/proof/${m}/${k}/${tipId}`);
-console.log(`jvm response continuous=${jvmJson.continuous} (server always requests continuous=true, PopowProcessor.scala:110; forced to false below for the comparison — see file header note)`);
+if (expectFullIdentity) {
+  console.log(`jvm response continuous=${jvmJson.continuous} (server always requests continuous=true, PopowProcessor.scala:110; kept as-is — this mode compares raw bytes, no normalization)`);
+} else {
+  console.log(`jvm response continuous=${jvmJson.continuous} (server always requests continuous=true, PopowProcessor.scala:110; forced to false below for the comparison — see file header note)`);
+}
 const jvmProof = {
   m: jvmJson.m, k: jvmJson.k,
   prefix: jvmJson.prefix.map(popowFromJson),
   suffixHead: popowFromJson(jvmJson.suffixHead),
   suffixTail: jvmJson.suffixTail.map(headerFromJson),
-  continuous: false,
+  // Default mode normalizes to false (pre-continuous-mode filtered-prefix
+  // comparison, unchanged); --expect-full-identity takes the raw value the
+  // live node reported (always true — server hardcodes it, see header note).
+  continuous: expectFullIdentity ? jvmJson.continuous : false,
 };
 const jvmBytes = serializeProof(jvmProof);
 
-// Ours: the backward walk over the same node.
-const ours = await proveWithReader(reader, { m, k }, hexToBytes(tipId));
+// Ours: the backward walk over the same node. --expect-full-identity
+// requests a continuous-mode proof (mainnet epochLength/useLastEpochs
+// defaults — no overrides) to match what the live endpoint always serves;
+// default mode stays non-continuous, unchanged.
+const ours = await proveWithReader(
+  reader,
+  expectFullIdentity ? { m, k, continuous: true } : { m, k },
+  hexToBytes(tipId),
+);
 const ourBytes = serializeProof(ours);
 
 const ourHeights = ours.prefix.map(p => p.header.height);
@@ -227,12 +249,29 @@ function printCommonStats() {
 if (expectFullIdentity) {
   console.log('mode: --expect-full-identity (strict raw comparison; the gate the continuous-mode unit must satisfy)');
   printCommonStats();
+
+  let ok = true;
   if (bytesToHex(ourBytes) === bytesToHex(jvmBytes)) {
     console.log('PASS (raw byte-identical)');
   } else {
     console.error('FAIL (--expect-full-identity): raw proofs differ — see heights above');
-    process.exit(1);
+    ok = false;
   }
+
+  // Interop headline (facts/nipopow.md "Live-endpoint byte-identity — the
+  // 0.4.0 acceptance gate"): the unmodified live response, exactly as
+  // received, must itself pass our own verifier under continuous mode.
+  // Run regardless of the byte-comparison outcome above, so a single
+  // invocation always captures both results for the acceptance record.
+  try {
+    const vr = verifyProof(jvmBytes, { checkPoW: true });
+    console.log(`verify: PASS (suffixTip=${vr.suffixTipHeight}, totalHeaders=${vr.totalHeaders}, continuous=${vr.continuous})`);
+  } catch (err) {
+    console.error(`verify: FAIL — ${err.message}`);
+    ok = false;
+  }
+
+  if (!ok) process.exit(1);
 } else {
   console.log(
     "method: filtered-prefix full-serialization byte-compare " +
