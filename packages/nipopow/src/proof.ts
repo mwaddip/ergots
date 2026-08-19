@@ -1,10 +1,11 @@
 /**
  * NipopowProof parse/serialize.
  *
- * NipopowProof = (m, k, prefix: PoPowHeader[], suffixHead: PoPowHeader, suffixTail: Header[])
+ * NipopowProof = (m, k, prefix: PoPowHeader[], suffixHead: PoPowHeader, suffixTail: Header[], continuous: boolean)
  *
- * WIRE FORMAT (ScorexSerializable — sigma-rust ergo-nipopow/src/nipopow_proof.rs,
- * NipopowProof::scorex_serialize / scorex_parse):
+ * WIRE FORMAT — JVM dialect (canonical: NipopowProof.scala; see "Task 7b"
+ * note below). Structurally identical to sigma-rust's ergo-nipopow/src/nipopow_proof.rs
+ * NipopowProof::scorex_serialize / scorex_parse EXCEPT for the final byte:
  *
  *   m:                      VLQ u32  (put_u32 = VLQ, plain unsigned — NOT zigzag)
  *   k:                      VLQ u32
@@ -19,6 +20,9 @@
  *   for each suffix_tail:
  *     size:                 VLQ u32  (byte length of the Header; read & discarded on parse)
  *     Header bytes:         full serialized Header
+ *   continuous:             1 byte, REQUIRED   (JVM: `w.put(if (obj.continuous) 1 else 0)`
+ *                            on serialize; `val continuous = if (r.getByte() == 1) true else false`
+ *                            on parse — unconditional read, always present on the wire)
  *
  * KEY FINDING (STEP 0 inspection of sigma-rust source):
  *   - m and k are plain VLQ u32 (put_u32), NOT zigzag VLQ.
@@ -30,7 +34,22 @@
  *     does not use it to bound the read; it just reads the next item inline).
  *   - suffix_tail length is explicit (VLQ u32), NOT implicit from k-1.
  *
- * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs lines 203-261.
+ * TASK 7B (2026-08-18/19): the SANTA JVM prover vectors revealed that
+ * sigma-rust's dialect — which every fixture in this package was generated
+ * through, and which this codec originally spoke — OMITS the trailing
+ * `continuous` byte that the JVM's `NipopowProofSerializer` always writes
+ * and always reads (unconditional `getByte()`, not a length-gated optional
+ * field). This is a sigma-rust divergence from its own JVM reference,
+ * deliberately NOT followed here — ergots now speaks the JVM dialect.
+ * Reference (canonical): `NipopowProof.scala` in the JVM Ergo node,
+ * `~/projects/ergo-jvm-pr/ergo-core/src/main/scala/org/ergoplatform/modifiers/history/popow/NipopowProof.scala`,
+ * serialize ~line 208 / parse ~line 226. Note the JVM parser maps ANY byte
+ * != 1 to `false` (does not reject 2..255); ergots is deliberately STRICTER
+ * — see `parseProof`'s continuous-byte handling below and facts/nipopow.md.
+ *
+ * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs lines 203-261
+ * (structural layout only — sigma-rust's own trailing byte is absent; see
+ * Task 7b note above for why this codec does not follow it there).
  */
 
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex';
@@ -45,6 +64,14 @@ export interface NipopowProof {
   prefix: PoPowHeader[];
   suffixHead: PoPowHeader;
   suffixTail: Header[];
+  /**
+   * JVM wire dialect (NIP-12, Task 7b): required trailing byte, strictly
+   * `0` (false) or `1` (true) on parse — see `parseProof`'s continuous-byte
+   * handling for the deliberate strictness delta vs the JVM's lenient
+   * `!= 1 → false`. `verifyParsedProof` rejects `continuous === true`
+   * (`'continuous-unsupported'`) until the continuous-mode verifier unit ships.
+   */
+  continuous: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,14 +227,44 @@ export function parseProof(bytes: Uint8Array): NipopowProof {
       suffixTail.push(tailHeader);
     }
 
+    // continuous: 1 byte, REQUIRED (JVM dialect — NIP-12, Task 7b; see the
+    // file-header doc comment). Unconditional read: the JVM parser does not
+    // gate this on any preceding length/presence field, so a proof that ends
+    // exactly at suffix_tail (the pre-Task-7b sigma-rust-dialect shape) is
+    // now truncated, not merely "at end of a valid proof".
+    let continuousByte: number;
+    try {
+      continuousByte = r.readU8();
+    } catch {
+      throw new ProofParseError('continuous byte: truncated', 'truncated');
+    }
+    // Deliberate strictness delta vs the JVM: the JVM parser maps ANY byte
+    // != 1 to `false` (accepts 2..255 silently, then would re-serialize as
+    // 0 — it does not round-trip non-canonical bytes). ergots instead
+    // accepts exactly 0 or 1 and rejects everything else with a typed error,
+    // preserving the byte-exact round-trip invariant for every proof this
+    // parser accepts — the same "documented hardening where the reference is
+    // permissive" precedent as NIP-03/NIP-04 (m=0 / k=0 rejection).
+    let continuous: boolean;
+    if (continuousByte === 0) {
+      continuous = false;
+    } else if (continuousByte === 1) {
+      continuous = true;
+    } else {
+      throw new ProofParseError(
+        `continuous byte: expected 0 or 1, got ${continuousByte}`,
+        'invalid-continuous-byte',
+      );
+    }
+
     if (!r.isExhausted) {
       throw new ProofParseError(
-        `proof: ${r.remaining} trailing bytes after end of suffix_tail`,
+        `proof: ${r.remaining} trailing bytes after end of continuous byte`,
         'trailing-bytes',
       );
     }
 
-    return { m, k, prefix, suffixHead, suffixTail };
+    return { m, k, prefix, suffixHead, suffixTail, continuous };
   } catch (e) {
     if (e instanceof ProofParseError) throw e;
     if (e instanceof ReaderError) throw new ProofParseError(e.message, e.code);
@@ -258,6 +315,9 @@ export function serializeProof(p: NipopowProof): Uint8Array {
     writeVlqU32(w, hBytes.length);
     w.writeBytes(hBytes);
   }
+
+  // continuous: 1 byte, REQUIRED (JVM dialect — NIP-12, Task 7b)
+  w.writeU8(p.continuous ? 1 : 0);
 
   return w.toBytes();
 }

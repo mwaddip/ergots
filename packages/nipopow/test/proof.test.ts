@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { parseProof, serializeProof } from '../src/proof.ts';
-import { ProofParseError } from '../src/errors.ts';
+import { verifyParsedProof } from '../src/verifier.ts';
+import { ProofParseError, ProofVerificationError } from '../src/errors.ts';
 import { hexToBytes, buildSyntheticProof } from './helpers.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -238,5 +239,71 @@ describe('parseProof error cases', () => {
     // Copy the rest of the original (starting after the 2-byte VLQ at offset 5)
     tampered.set(original.subarray(5), 4);
     expect(() => parseProof(tampered)).toThrow(ProofParseError);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 7b (NIP-12) — JVM wire dialect: required trailing `continuous` byte.
+//
+// Every fixture's bytes_hex now ends with the canonical continuous=false
+// marker (`packages/nipopow/test/fixtures/append-continuous-byte.mjs`
+// surgically appended it — fixture-gen is frozen and was never re-run).
+// These four cases exercise the new final byte directly: canonical parse +
+// round-trip, the byte missing entirely, an out-of-range byte value, and the
+// continuous=true byte (which parses, but is rejected by the verifier since
+// continuous-mode verification isn't implemented yet).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('NipopowProof continuous byte (Task 7b / NIP-12)', () => {
+  test('canonical fixture proof parses with continuous === false and round-trips byte-identically', () => {
+    const bytes = hexToBytes(fixtures[0]!.bytes_hex);
+    const proof = parseProof(bytes);
+    expect(proof.continuous).toBe(false);
+    expect(serializeProof(proof)).toEqual(bytes);
+  });
+
+  test('missing continuous byte (truncated) throws ProofParseError with truncated code', () => {
+    const original = hexToBytes(fixtures[0]!.bytes_hex);
+    const missingLastByte = original.slice(0, original.length - 1);
+    try {
+      parseProof(missingLastByte);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('truncated');
+    }
+  });
+
+  test('continuous byte = 0x02 throws ProofParseError with invalid-continuous-byte code', () => {
+    // NIP-12 strictness delta vs the JVM: the JVM parser maps any byte != 1
+    // to false (accepts 2..255); ergots accepts exactly 0 or 1 and rejects
+    // everything else, preserving the byte-exact round-trip invariant.
+    const original = hexToBytes(fixtures[0]!.bytes_hex);
+    const tampered = new Uint8Array(original);
+    tampered[tampered.length - 1] = 0x02;
+    try {
+      parseProof(tampered);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofParseError);
+      expect((e as ProofParseError).code).toBe('invalid-continuous-byte');
+    }
+  });
+
+  test('continuous byte = 0x01 parses with continuous === true, is rejected by verifyParsedProof, and re-serializes byte-identically', () => {
+    const original = hexToBytes(fixtures[0]!.bytes_hex);
+    const tampered = new Uint8Array(original);
+    tampered[tampered.length - 1] = 0x01;
+
+    const proof = parseProof(tampered);
+    expect(proof.continuous).toBe(true);
+    expect(serializeProof(proof)).toEqual(tampered);
+
+    try {
+      verifyParsedProof(proof);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProofVerificationError);
+      expect((e as ProofVerificationError).code).toBe('continuous-unsupported');
+    }
   });
 });

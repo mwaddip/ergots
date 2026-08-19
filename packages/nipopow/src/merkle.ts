@@ -445,30 +445,94 @@ export function packInterlinks(interlinks: Uint8Array[]): ExtensionKV[] {
  *                present, other empty); empty pairs collapse to empty.
  */
 export function merkleRootFromLeaves(leafHashes: Uint8Array[]): Uint8Array {
-  if (leafHashes.length === 0) return new Uint8Array(32);
+  return new MerkleTree(leafHashes).rootHash();
+}
 
-  let level: (Uint8Array | null)[] = leafHashes.slice();
-  // Pad to next power of two with null sentinels, minimum 2 (single leaf still
-  // pairs with an empty sibling per sigma-rust's leaf padding).
-  let target = 1;
-  while (target < level.length) target *= 2;
-  if (target < 2) target = 2;
-  while (level.length < target) level.push(null);
+/**
+ * Materialized Merkle tree — the construction counterpart of the verify-side
+ * codec above. Layout identical to merkleRootFromLeaves (padded power-of-two,
+ * null-sentinel empties): levels[0] = padded leaf hashes, levels[last] = [root].
+ *
+ * JVM reference: scorex MerkleTree (via Extension.merkleTree /
+ * ExtensionCandidate.batchProofFor); algorithmic second reading:
+ * sigma-rust ergo-merkle-tree/src/merkletree.rs (proof_by_indices).
+ */
+export class MerkleTree {
+  private readonly levels: (Uint8Array | null)[][];
+  readonly leafCount: number;
 
-  while (level.length > 1) {
-    const next: (Uint8Array | null)[] = [];
-    for (let i = 0; i < level.length; i += 2) {
-      const l = level[i] ?? null;
-      const r = level[i + 1] ?? null;
-      if (l === null && r === null) {
-        next.push(null);
-      } else if (l !== null && r !== null) {
-        next.push(prefixedHash2(INTERNAL_PREFIX, l, r));
-      } else {
-        next.push(prefixedHash(INTERNAL_PREFIX, (l ?? r)!));
+  constructor(leafHashes: Uint8Array[]) {
+    this.leafCount = leafHashes.length;
+    let level: (Uint8Array | null)[] = leafHashes.slice();
+    let target = 1;
+    while (target < level.length) target *= 2;
+    if (target < 2) target = 2;
+    while (level.length < target) level.push(null);
+    this.levels = [level];
+    while (level.length > 1) {
+      const next: (Uint8Array | null)[] = [];
+      for (let i = 0; i < level.length; i += 2) {
+        const l = level[i] ?? null;
+        const r = level[i + 1] ?? null;
+        if (l === null && r === null) next.push(null);
+        else if (l !== null && r !== null) next.push(prefixedHash2(INTERNAL_PREFIX, l, r));
+        else next.push(prefixedHash(INTERNAL_PREFIX, (l ?? r)!));
       }
+      this.levels.push(next);
+      level = next;
     }
-    level = next;
   }
-  return level[0]!;
+
+  /** 32-byte root. Empty tree → 32 zero bytes (Digest32::zero parity). */
+  rootHash(): Uint8Array {
+    if (this.leafCount === 0) return new Uint8Array(32);
+    return this.levels[this.levels.length - 1]![0]!;
+  }
+
+  /**
+   * Compact multi-proof for the given leaf positions — the dual of
+   * validateMultiproof: where validation CONSUMES a proof node for each
+   * unpaired index, extraction EMITS the retained sibling (null hash for
+   * padding positions — serialized as 32 zero bytes, per the
+   * single-leaf-genesis fixture). Returns null for empty, duplicate, or
+   * out-of-range indices.
+   */
+  proofByIndices(indices: number[]): BatchMerkleProof | null {
+    if (indices.length === 0 || this.leafCount === 0) return null;
+    const sorted = [...new Set(indices)].sort((x, y) => x - y);
+    if (sorted.length !== indices.length) return null; // duplicates
+    if (sorted[0]! < 0 || sorted[sorted.length - 1]! >= this.leafCount) return null;
+
+    const outIndices: BatchMerkleProofIndex[] = sorted.map(i => ({
+      index: i,
+      hash: (this.levels[0]![i] as Uint8Array).slice(),
+    }));
+
+    const proofs: LevelNode[] = [];
+    let a = sorted;
+    for (let lvl = 0; lvl < this.levels.length - 1; lvl++) {
+      const level = this.levels[lvl]!;
+      const b: [number, number][] = a.map(i => (i % 2 === 0 ? [i, i + 1] : [i - 1, i]));
+      let i = 0;
+      while (i < b.length) {
+        if (i + 1 < b.length && b[i]![0] === b[i + 1]![0] && b[i]![1] === b[i + 1]![1]) {
+          i += 2; // both children in the index set: no proof node needed
+        } else {
+          const idx = a[i]!;
+          const sib = idx % 2 === 0 ? idx + 1 : idx - 1;
+          const side = idx % 2 === 0 ? NodeSide.Right : NodeSide.Left;
+          const h = level[sib] ?? null;
+          proofs.push({ hash: h === null ? null : h.slice(), side });
+          i += 1;
+        }
+      }
+      a = [...new Set(b.map(([, r]) => Math.floor(r / 2)))].sort((x, y) => x - y);
+    }
+    return { indices: outIndices, proofs };
+  }
+}
+
+/** Build the extension-KV Merkle tree (kvToLeaf encoding + MerkleTree). */
+export function buildExtensionTree(fields: ExtensionKV[]): MerkleTree {
+  return new MerkleTree(fields.map(hashExtensionLeaf));
 }

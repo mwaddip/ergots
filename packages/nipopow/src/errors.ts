@@ -18,3 +18,10 @@ export class EnvelopeParseError extends Error {
     this.name = 'EnvelopeParseError';
   }
 }
+
+export class ProofBuildError extends Error {
+  constructor(message: string, public readonly code: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ProofBuildError';
+  }
+}

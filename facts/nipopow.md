@@ -13,13 +13,13 @@ Authoritative wire-format reference: `~/projects/ergo-node-rust/facts/nipopow.md
 3. Pairwise comparison (KMZ17 §4.3 "is A better than B"). The proof-of-work hit it computes uses `@ergots/scorex`'s `autolykosHitForMessage`.
 4. P2P envelope codec for message codes 90 (`GetNipopowProof`) and 91 (`NipopowProof`), exposed via the `/envelope` subpath.
 5. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
+6. Proof construction, via the `/prover` subpath: `prove` (sync, in-memory chain) and `proveWithReader` (async, demand-loaded through a caller-implemented `PopowHeaderReader`), plus the building blocks (`updateInterlinks`, `packInterlinks`, `unpackInterlinks`, `proofForInterlinkVector`, `makePopowHeader`, `maxLevelOf`, `MerkleTree`, `buildExtensionTree`). Canonical reference: the JVM Ergo node (`NipopowAlgos.scala`, `NipopowProverWithDbAlgs.scala`); sigma-rust is secondary.
 
 **Does NOT ship:**
 
 - **Consensus header validation.** `verifyProof` validates each header's Autolykos v2 solution against that header's **self-declared** `nBits`, but does NOT validate `nBits` against consensus chain parameters (difficulty-adjustment rule, hard-fork schedule for header.version, trusted anchor / checkpoint policy). An attacker who controls proof construction can choose the work target. Consumers MUST combine `verifyProof` with an external consensus verifier for any security-critical use. Full consensus header validation is a planned future phase. See "Limitations" below.
-- Proof construction (`build_nipopow_proof` in the Rust). Requires header-chain + extension cache; out of scope.
+- Continuous-mode proofs (prover side as well as verifier side). `prove` / `proveWithReader` emit non-continuous proofs only; the difficulty-header machinery (`heightsForNextRecalculation`, `hasValidDifficultyHeaders`) is a planned follow-up unit that ships prover + verifier together.
 - Multi-peer best-arg orchestration (collecting/voting on multiple proofs from multiple peers). The pairwise `compareProofs` is in; the orchestration is not.
-- Continuous-mode proofs. `VerificationResult.continuous` is always `false`, mirroring `chain/src/nipopow_proof.rs:43-44`.
 - Transport, storage, sync. All caller-provided.
 - Signature verification on the miner public key. `AutolykosSolution.minerPk` is consumed as raw bytes only.
 
@@ -38,13 +38,13 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
 #### `parseProof(bytes)`
 
 - **Precondition:** `bytes.length >= 1` and `bytes.length <= 2_000_000`. (The 2 MB cap mirrors JVM `SizeLimit`; envelope-level cap already enforced this if the caller went through the envelope codec.)
-- **Postcondition (success):** Returns a `NipopowProof` whose serialization is byte-identical to the input. See `Round-trip invariant` below.
-- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`, `trailing-bytes`, `invalid-m`, `invalid-k`, `invalid-interlinks-empty`, `invalid-side` — a `BatchMerkleProof` node-side byte that is neither Left nor Right). The function does NOT silently produce a partial proof, rejects any trailing bytes after the encoded suffix_tail (including inside the bounded PoPowHeader header/proof subreaders), and enforces shape invariants `m > 0` (NIP-03), `k > 0` (NIP-04 — matches sigma-rust's `NipopowProof::new` constructor's `k >= 1` requirement), and `interlinks.length > 0` per PoPowHeader (NIP-05 — empty interlinks make `check_interlinks_proof` vacuously true; sigma-rust permissively accepts but we surface as a typed parse failure).
+- **Postcondition (success):** Returns a `NipopowProof` whose serialization is byte-identical to the input. See `Round-trip invariant` below. The wire format now ends with a **required trailing `continuous` byte** (JVM dialect — NIP-12, Task 7b): `parseProof` always reads exactly one more byte after the suffix_tail entries, strictly `0x00` → `continuous: false` or `0x01` → `continuous: true`. This is a deliberate strictness delta vs the JVM reference (`NipopowProof.scala`), which maps *any* byte `!= 1` to `false` (silently accepts `2..255`, and would not round-trip such a byte on its own re-serialization); ergots instead rejects `2..255` outright with `'invalid-continuous-byte'`, preserving the byte-exact round-trip invariant for every proof this parser accepts — the same precedent as the NIP-03/NIP-04 `m=0`/`k=0` hardening.
+- **Postcondition (failure):** Throws `ProofParseError` with a structural reason (`empty-proof`, `truncated`, `vlq-overflow`, `oversized`, `unexpected-tag`, `trailing-bytes`, `invalid-m`, `invalid-k`, `invalid-interlinks-empty`, `invalid-side` — a `BatchMerkleProof` node-side byte that is neither Left nor Right — `invalid-continuous-byte` — the trailing continuous byte is present but not `0x00`/`0x01`, NIP-12). The function does NOT silently produce a partial proof, rejects any trailing bytes after the encoded suffix_tail + continuous byte (including inside the bounded PoPowHeader header/proof subreaders), and enforces shape invariants `m > 0` (NIP-03), `k > 0` (NIP-04 — matches sigma-rust's `NipopowProof::new` constructor's `k >= 1` requirement), `interlinks.length > 0` per PoPowHeader (NIP-05 — empty interlinks make `check_interlinks_proof` vacuously true; sigma-rust permissively accepts but we surface as a typed parse failure), and a well-formed trailing continuous byte (NIP-12 — a missing byte surfaces as `'truncated'`, an out-of-range byte as `'invalid-continuous-byte'`).
 
 #### `serializeProof(proof)`
 
 - **Precondition:** `proof` was either returned from `parseProof` or constructed satisfying the type invariants below.
-- **Postcondition:** Returns `Uint8Array` of length ≤ 2_000_000. For any `proof` returned by `parseProof(b)`, `serializeProof(parseProof(b))` equals `b` byte-for-byte.
+- **Postcondition:** Returns `Uint8Array` of length ≤ 2_000_000, always ending with the trailing `continuous` byte (`proof.continuous ? 1 : 0` — NIP-12). For any `proof` returned by `parseProof(b)`, `serializeProof(parseProof(b))` equals `b` byte-for-byte — this now holds for JVM-emitted canonical proof bytes too, not only sigma-rust-dialect ones (see "Limitations" below).
 
 #### `verifyProof(bytes, opts)`
 
@@ -59,14 +59,14 @@ compareProofs(a: Uint8Array, b: Uint8Array): boolean
   - If `checkPoW === true`, every version >= 2 `header` has a valid Autolykos v2 solution under that header's **self-declared** `nBits` target (NOT validated against the network's difficulty-adjustment rule — see "Limitations" below); version 1 headers at height < `opts.v2ActivationHeight` (default mainnet `V2_ACTIVATION_HEIGHT_MAINNET = 417792`) are accepted structurally without PoW verification (Autolykos v1 is not implemented in this package); version 1 headers at height >= the threshold are rejected with `'v1-header-after-v2-activation'` per audit finding NIP-02
   - Parent-linkage connections (`has_valid_connections` in the Rust) hold across the proof
   - Interlink Merkle proof per PoPowHeader (`check_interlinks_proof` in the Rust) holds: the proof's stored leaf hashes walk up to the Merkle root computed from `packInterlinks(interlinks)` (interlinks-only extension tree). See "Known limitations" below.
-- **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `v1-header-after-v2-activation` (NIP-02), `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`), `invalid-interlinks-proof`.
+- **Postcondition (failure):** Throws `ProofVerificationError` with one of: `invalid-connections`, `non-increasing-heights`, `pow-failed`, `v1-header-after-v2-activation` (NIP-02), `empty-proof`, `parse-failed` (when bytes don't parse — wraps `ProofParseError`), `invalid-interlinks-proof`, `continuous-unsupported` (NIP-12, Task 7b — `proof.continuous === true`; the JVM's `hasValidDifficultyHeaders` continuous-mode check isn't implemented yet, so a continuous proof is rejected rather than accepted-and-under-verified).
 - **Invariant:** Stateless. No filesystem, network, or `globalThis` access. Same inputs → same result, every call.
 
 #### `verifyParsedProof(proof, opts)`
 
 - The parsed-proof entry point that `verifyProof` delegates to after parsing. Takes an already-parsed `NipopowProof` (no wire decode); exported chiefly to unit-test the logical invariants (heights, connections, interlinks Merkle proof) without round-trip serialization.
-- **Postcondition (success):** Same `VerificationResult` as `verifyProof`.
-- **Postcondition (failure):** Throws `ProofVerificationError` — `'invalid-m'` / `'invalid-k'` (the `m > 0` / `k > 0` shape gates, NIP-09) plus the same logical-verification codes `verifyProof` raises (connections, heights, PoW, v1-after-activation, interlinks). It does not parse, so it never raises `'parse-failed'`. The `'invalid-m'` / `'invalid-k'` codes are reachable here only with a hand-built `NipopowProof`; on the wire path an out-of-range `m`/`k` is rejected earlier by `parseProof` as `ProofParseError('invalid-m'/'invalid-k')`, which `verifyProof` wraps to `'parse-failed'`.
+- **Postcondition (success):** Same `VerificationResult` as `verifyProof` — always has `continuous === false` (a `continuous === true` input never reaches success; see `'continuous-unsupported'` below).
+- **Postcondition (failure):** Throws `ProofVerificationError` — `'invalid-m'` / `'invalid-k'` (the `m > 0` / `k > 0` shape gates, NIP-09), `'continuous-unsupported'` (NIP-12, Task 7b — checked alongside the `invalid-m`/`invalid-k` early shape gates, before connections/heights/PoW) plus the same logical-verification codes `verifyProof` raises (connections, heights, PoW, v1-after-activation, interlinks). It does not parse, so it never raises `'parse-failed'`. The `'invalid-m'` / `'invalid-k'` codes are reachable here only with a hand-built `NipopowProof`; on the wire path an out-of-range `m`/`k` is rejected earlier by `parseProof` as `ProofParseError('invalid-m'/'invalid-k')`, which `verifyProof` wraps to `'parse-failed'`. Likewise a `continuous` byte outside `{0,1}` is rejected at parse time as `'invalid-continuous-byte'` and never reaches `verifyParsedProof` on the wire path.
 - **Invariant:** Stateless, same as `verifyProof`.
 
 #### `compareProofs(a, b)`
@@ -120,6 +120,196 @@ envelope (`pad_length=0`) rather than a byte-identical copy. This is intentional
 code-91 is a framing codec, and its output is always passed to `parseProof`, never
 re-emitted verbatim.
 
+### Subpath export: `@ergots/nipopow/prover`
+
+```ts
+prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof
+proveWithReader(reader: PopowHeaderReader, params: PoPowParams, headerId?: Uint8Array): Promise<NipopowProof>
+
+type PoPowParams = { m: number; k: number }
+interface PopowHeaderReader {
+  headersHeight(): Promise<number>
+  popowHeaderById(id: Uint8Array): Promise<PoPowHeader | null>
+  popowHeaderAtHeight(height: number): Promise<PoPowHeader | null>
+  lastHeaders(n: number): Promise<Header[]>
+  bestHeadersAfter(header: Header, n: number): Promise<Header[]>
+}
+
+updateInterlinks(prevHeader: Header, prevInterlinks: Uint8Array[]): Uint8Array[]
+packInterlinks(interlinks: Uint8Array[]): ExtensionKV[]
+unpackInterlinks(fields: ExtensionKV[]): Uint8Array[]
+proofForInterlinkVector(fields: ExtensionKV[]): BatchMerkleProof
+makePopowHeader(header: Header, interlinks: Uint8Array[]): PoPowHeader
+maxLevelOf(header: Header): number
+
+class MerkleTree {
+  constructor(leafHashes: Uint8Array[])
+  readonly leafCount: number
+  rootHash(): Uint8Array
+  proofByIndices(indices: number[]): BatchMerkleProof | null
+}
+buildExtensionTree(fields: ExtensionKV[]): MerkleTree
+```
+
+#### `prove(chain, params)`
+
+- **Precondition (throws `ProofBuildError`):** `params.m` and `params.k` must
+  be integers `>= 1` (`Number.isInteger` gate — non-integer or out-of-range
+  values both throw `'invalid-m'`/`'invalid-k'`), `chain.length >= m + k`
+  (`'chain-too-short'`), `chain[0].header.height === 1`
+  (`'non-anchored-chain'`). The chain is trusted: contiguous from genesis,
+  interlinks already correct; `prove` re-derives nothing.
+- **Postcondition:** Returns a `NipopowProof` that (a) passes
+  `verifyParsedProof` structural checks (PoW validity is a property of the
+  input chain, not the prover), (b) round-trips byte-identically through
+  `serializeProof`/`parseProof`, (c) is byte-identical to the JVM
+  `NipopowAlgos.prove` output on the same chain (KMZ17 provePrefix walk,
+  dedupe by header id, prefix sorted ascending by height).
+- **Invariant:** Pure, synchronous, deterministic.
+
+#### `proveWithReader(reader, params, headerId?)`
+
+- **Precondition (throws `ProofBuildError`):** same `'invalid-m'` /
+  `'invalid-k'`; `await reader.headersHeight() >= m + k`
+  (`'chain-too-short'`). A required header the reader answers `null` for →
+  `'missing-popow-header'`; no silent partial proofs.
+- **Postcondition:** Byte-identical to `prove` **only** on chains satisfying a
+  specific predicate — **no header in the half-open range `[final anchor,
+  suffixHead)` has `maxLevelOf === 0`, and genesis's free per-level credit
+  never flips a narrowing decision** (both defined below). This predicate is
+  **satisfied by `DefaultFakePowScheme`-generated synthetic chains** — every
+  committed `prover-santa.test.ts` SANTA vector (`jvm-chain-32`/`jvm-chain-64`)
+  has **zero** non-genesis headers at level 0 anywhere in the chain (verified
+  directly: level sequence is monotonically non-decreasing, `3,3,3,3,4,4,…`
+  for chain-32, `3,3,3,3,4,…,5,…,6,…` for chain-64 — an artifact of the fake
+  PoW scheme, not representative of real mining), and the JVM's own
+  `PoPowAlgosWithDBSpec.scala` `genChain(3000)` equivalence test is generated
+  under the **same** fake-PoW config (`src/test/resources/application.conf`:
+  `powType = "fake"`) — so it is *not* independent evidence that this holds
+  on realistic chains; it's another data point in the same "satisfies"
+  bucket as the SANTA fixtures, not a counter-example to what follows.
+  **This predicate is VIOLATED by real chains** — KMZ17 expects level μ with
+  probability `2^-μ`, so roughly half of all real blocks are level 0, and a
+  captured 21-header mainnet sample (`test/fixtures/mainnet_consecutive.json`,
+  heights 1,100,000–1,100,020) confirms it empirically: **15 of the 20
+  parent headers are level 0**. On any real chain, the two algorithms'
+  prefixes diverge **systematically**, not as an edge case: `NipopowAlgos.prove`'s
+  explicit level-0 pass sweeps in every header from the anchor onward
+  regardless of interlink connectivity, while `NipopowProverWithDbAlgs`/
+  `proveWithReader`'s walk has no interlink position representing "level 0"
+  at all (`linksWithIndexes` only ever yields positions for levels ≥1) and
+  so can never discover a run of consecutive level-0 blocks whose id was
+  never recorded by a later block's interlinks — a divergence a real chain
+  hits constantly, not rarely. (Second, narrower mechanism: `prove`'s
+  filter-based level pass also gives genesis unconditional credit at every
+  not-yet-narrowed level — `maxLevelOf === Int.MaxValue`, height 1 always
+  qualifies — with no walk-side counterpart, since genesis is never present
+  in any header's interlinks tail; when the *true* non-genesis count at a
+  level equals exactly `m`, this alone can flip the narrowing decision even
+  on a level-0-free chain.) `prover-reader.test.ts`'s comment block has the
+  full derivation with worked per-level traces.
+
+  **Which algorithm is "production."** `proveWithReader` is a port of
+  `NipopowProverWithDbAlgs.prove`, which is what the JVM node actually serves
+  — `PopowProcessor.scala:109-111`'s `popowProof` calls it directly, and
+  that is what backs the live REST endpoint `GET /nipopow/proof/{m}/{k}`
+  (`NipopowApiRoute.scala`). `NipopowAlgos.prove` (what `prove()` ports)
+  carries the JVM's own admission that it is the non-production variant —
+  `NipopowAlgos.scala:127`: `"todo: Paper-like code used in tests only, so
+  maybe better to replace it in tests with prove (histReader)"`. So
+  `proveWithReader` mirrors the **production** prover; `prove()` is the
+  **paper/test** variant. Do not read "`prove()` is the reference
+  implementation" into any comment here or in source — on a real chain it is
+  `proveWithReader` whose output a real node would actually produce.
+
+  **Live-endpoint byte-identity requires continuous mode.**
+  `PopowProcessor.popowProof` (`PopowProcessor.scala:109-111`, cited above)
+  hardcodes `continuous = true` on every call — there is no route parameter
+  on `GET /nipopow/proof/{m}/{k}` to request `continuous = false`. Since
+  neither `prove` nor `proveWithReader` implements continuous mode (see
+  "Does NOT ship" above), their output can never be byte-identical to a live
+  JVM node's REST response; the achievable bar today is prefix-selection
+  agreement modulo the continuous-mode-injected difficulty-recalculation
+  heights, which is what the live-mainnet acceptance walk
+  (`tools/nipopow-capture/live-walk.mjs`) verifies by default (filtered-subset
+  byte-identity plus a programmatic check that every surplus height is a
+  predicted `heightsForNextRecalculation` height, per
+  `DifficultyAdjustment.scala:27-55`). Full raw byte-identity against a live
+  endpoint is deferred to the continuous-mode unit; the script's
+  `--expect-full-identity` flag is that unit's future acceptance gate.
+
+  **What the committed SANTA vectors are (and are not) ground truth for.**
+  All 8 `nipopow_prove` vectors — the 6 tip-mode cases *and* the 2 anchored
+  cases — were generated by calling `NipopowAlgos.prove` (`source:
+  "NipopowAlgos.prove"` / `"truncated-prove"` in the fixture; the generator's
+  own Scala calls `nipopow.prove(chain)(...)` and `nipopow.prove(truncated)
+  (...)`, both on the `NipopowAlgos` instance, never on
+  `NipopowProverWithDbAlgs`). **No committed vector is
+  `NipopowProverWithDbAlgs` ground truth** — the 8/8 byte-identical match in
+  `prover-santa.test.ts` demonstrates `proveWithReader` agrees with
+  `NipopowAlgos.prove` *on these specific fake-PoW, level-0-free chains*,
+  which is expected given the predicate above, not evidence the two
+  algorithms agree in general. The actual `NipopowProverWithDbAlgs`
+  ground-truth anchor is a **live node's own served proof** — Task 9's
+  REST-backed reader should validate `proveWithReader`'s output directly
+  against a running node's `/nipopow/proof/{m}/{k}` response bytes (same
+  algorithm on both sides — byte-identity there is the correct expectation,
+  unlike byte-identity against `prove()`).
+
+  Suffix: `headerId` given → that header is `suffixHead` and
+  `bestHeadersAfter(suffixHead.header, k-1)` is the tail; omitted →
+  `lastHeaders(k)` from the tip. Genesis (height 1) is always seeded into
+  the prefix. Header loads are O(m + k + m·log N) — the backward interlink
+  walk (JVM `NipopowProverWithDbAlgs`), not a full scan. Both provers'
+  outputs remain individually valid (`verifyParsedProof` accepts them) even
+  where their prefixes diverge — this is prefix-*selection* divergence
+  between two different-but-both-correct provers, never a validity defect.
+- **Reader contract:** `popowHeaderAtHeight(1)` / `popowHeaderById(genesis
+  id)` MUST synthesize `interlinks = [genesisId]` (e.g. via
+  `makePopowHeader`) — real on-chain genesis extensions are empty and
+  unpacking them yields wrong (empty) interlinks. Readers are not trusted
+  to be consistent; inconsistency surfaces as `'missing-popow-header'` or
+  a connection-invalid proof, never silent corruption. Async is the ONLY
+  async surface in the package; everything else remains synchronous.
+
+#### Building blocks
+
+- `updateInterlinks(prevHeader, prevInterlinks)` — interlinks for the
+  block AFTER `prevHeader`. Genesis: `[prevHeader.id]`. Non-genesis with
+  empty `prevInterlinks` throws `'empty-interlinks'`. With
+  `L = maxLevelOf(prevHeader)`: `L <= 0` → input returned unchanged
+  (same array contents, fresh array); `L > 0` →
+  `[genesis, ...tail.slice(0, max(0, tail.length - L)), ...L copies of prevHeader.id]`.
+- `unpackInterlinks(fields)` — inverse of `packInterlinks`: filters keys
+  with `key[0] === 0x01`, requires each value be exactly 33 bytes
+  (`[qty, blockId32]`) else throws `'malformed-interlinks'`; expands qty
+  duplicates in field order. `unpackInterlinks(packInterlinks(x))` ≡ x.
+- `proofForInterlinkVector(fields)` — batch proof over the
+  interlinks-only tree for all interlink-prefixed keys; zero interlink
+  fields → `{ indices: [], proofs: [] }`.
+- `makePopowHeader(header, interlinks)` — packs interlinks, builds the
+  proof, returns `{ header, interlinks, interlinksProof }`.
+- `maxLevelOf(header)` — superblock level; genesis →
+  `Number.MAX_SAFE_INTEGER`; level float is truncated toward zero
+  (`Math.trunc`, JVM `Double.toInt` semantics — NOT floor). JS `Math.trunc`
+  yields `-0` at epsilon-negative levels; normalized to `+0`, JVM int
+  semantics — `level.ts` documents the mechanism.
+- `MerkleTree` / `buildExtensionTree` — construction counterpart of the
+  verify-side codec: same padded-power-of-two layout `merkleRootFromLeaves`
+  pins; `proofByIndices` emits explicit empty-sibling nodes
+  (`hash: null`, serialized all-zero) for padding positions, `null` for
+  empty/out-of-range/duplicate index lists.
+
+#### Error taxonomy addition
+
+```ts
+class ProofBuildError extends Error   // recoverable; construction input rejected
+```
+
+codes: `'invalid-m' | 'invalid-k' | 'chain-too-short' |
+'non-anchored-chain' | 'missing-popow-header' | 'empty-interlinks' |
+'malformed-interlinks'` (conditions above).
+
 ## Type invariants
 
 These hold on every `NipopowProof` returned by the public API. Callers may rely on them without re-checking.
@@ -162,6 +352,12 @@ interface NipopowProof {
                                // NOT enforce `length == k - 1`; the legitimate
                                // anchor-mode proof in fixture chain-64-m2-k2-anchor
                                // has k=2 with empty tail.
+  continuous: boolean          // JVM dialect trailing byte (NIP-12, Task 7b);
+                               // parser enforces strict 0|1 ('invalid-continuous-byte'
+                               // otherwise — stricter than the JVM's lenient `!= 1 → false`).
+                               // `verifyParsedProof`/`verifyProof` reject `continuous === true`
+                               // with 'continuous-unsupported'; every publicly-returned,
+                               // successfully-verified proof therefore has continuous === false.
 }
 ```
 
@@ -171,8 +367,7 @@ interface NipopowProof {
 
 ## Determinism and purity
 
-- All functions are pure: no I/O, no clock, no PRNG, no `globalThis` reads. Same inputs always produce the same output.
-- No async surface. Every function is synchronous. (Rationale: the verifier hits blake2b-256 in tight loops; the async boundary would only add overhead without enabling concurrency.)
+- All functions are pure: no I/O, no clock, no PRNG, no `globalThis` access; same inputs always produce the same output. All verifier-surface functions are synchronous; the `/prover` subpath's `proveWithReader` + `PopowHeaderReader` are the package's single async surface (demand-loading is their purpose).
 - No throwing on success paths. Throws indicate contract violations or input rejection — they're the typed failure surface.
 
 ## Browser-compat guarantees
@@ -191,11 +386,12 @@ Runtime support: Node ≥ 20, evergreen browsers with native ESM. Specifically:
 class ProofParseError extends Error          // recoverable; bytes are malformed
 class ProofVerificationError extends Error   // recoverable; proof parses but fails validation
 class EnvelopeParseError extends Error       // recoverable; P2P envelope bytes malformed
+class ProofBuildError extends Error          // recoverable; construction input rejected
 ```
 
 Each error's `.message` is human-readable; each carries a `code: string` matching the postcondition reason strings above (`'truncated'`, `'pow-failed'`, etc.) for programmatic dispatch.
 
-No other error classes are exported from this package. Internal panics (e.g. blake2b implementation bugs) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
+Four error classes are exported from this package in total, no others. `ProofParseError` and `ProofVerificationError` are exported from the primary `@ergots/nipopow` entry point; `EnvelopeParseError` is exported from the `/envelope` subpath; `ProofBuildError` is exported from the `/prover` subpath — each error class is exported from the subpath that raises it. Internal panics (e.g. blake2b implementation bugs) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
 
 ## Limitations
 
@@ -203,6 +399,8 @@ No other error classes are exported from this package. Internal panics (e.g. bla
 - **Interlink Merkle proof anchors to interlinks-only-root, NOT `header.extensionRoot`.** The NiPoPoW proof commits to an interlinks-only ExtensionCandidate's Merkle root, mirroring sigma-rust's `PoPowHeader::check_interlinks_proof`. For mainnet blocks whose actual on-chain extension contains only interlinks (no votes/params at this height), `header.extensionRoot` coincidentally equals the interlinks-only-root; for blocks with richer extensions, the two diverge, and verification anchors to interlinks-only-root, not the on-chain commitment. Future work: add an explicit `header.extensionRoot` anchoring mode for callers that need full-extension-root assurance.
 
 - **`packInterlinks` uses JVM Ergo's position-based key encoding** (`[0x01, position_of_first_occurrence_in_interlinks_array]`). Sigma-rust's `NipopowAlgos::pack_interlinks` (ergo-nipopow/src/nipopow_algos.rs:326-357) previously used sequential `distinct_ix` which round-tripped internally but didn't match JVM-generated mainnet proofs; **fixed upstream as [ergoplatform/sigma-rust#866](https://github.com/ergoplatform/sigma-rust/pull/866) (landed 2026-05-19, cherry-picked to `integration/ergots`).** This TS port and fixture-gen now agree with patched sigma-rust byte-for-byte.
+
+- **This codec speaks the JVM `NipopowProof` wire dialect, not sigma-rust's.** (Task 7b, 2026-08-18/19, prompted by the first real JVM SANTA prover vectors this package compared against.) The JVM's `NipopowProofSerializer` always writes and always reads one trailing `continuous` byte (`NipopowProof.scala`, serialize ~line 208 / parse ~line 226 — unconditional `getByte()`, not gated on any length/presence field). Sigma-rust's `ergo-nipopow` crate (`nipopow_proof.rs:138-157`) **omits this byte entirely** — its `scorex_serialize`/`scorex_parse` end at `suffix_tail`. This means sigma-rust's own `NipopowProof` codec **cannot correctly parse a real JVM-emitted proof** (it would either read one byte too few if it tried, or — as observed — simply never emits/expects the byte at all): an upstream-bug candidate, the same species as the `pack_interlinks` divergence fixed in #866 above, not yet reported/fixed upstream as of this writing. Every ergots proof fixture predating Task 7b was generated through `fixture-gen`, which calls into sigma-rust — hence the omission was invisible until real JVM vectors arrived. **ergots now speaks the JVM dialect** (required trailing `continuous` byte, strict `0|1` — see `parseProof`/`serializeProof` above); all committed fixtures were surgically updated in place (`packages/nipopow/test/fixtures/append-continuous-byte.mjs`, `fixture-gen` itself is frozen and was not re-run) rather than regenerated.
 
 ## Test plan summary
 
