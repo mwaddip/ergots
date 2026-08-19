@@ -30,7 +30,17 @@ const vectors: ContinuousVector[] = JSON.parse(
   readFileSync(resolve(__dirname, 'fixtures/jvm_continuous/vectors.json'), 'utf8'),
 ).vectors;
 
+// `hasValidDifficultyHeaders` / `isValid` on each vector are the JVM's
+// RECORDED outputs — captured by running the actual JVM code against each
+// vector, not derived or guessed by this package. The "Predict hVDH=..."
+// wording in some vectors' `description` strings is leftover from the
+// construction plan that specified what each vector should exercise; it is
+// not a claim that these booleans are unverified predictions.
 describe('JVM continuous-mode truth vectors (SANTA batch 2)', () => {
+  test('fixture has all 6 vectors (guards against a silently-emptied fixture)', () => {
+    expect(vectors.length).toBe(6);
+  });
+
   test.each(vectors.map(v => [v.name, v] as const))('%s: parse + round-trip + booleans match JVM', (_name, v) => {
     const bytes = hexToBytes(v.bytesHex);
     const proof = parseProof(bytes);

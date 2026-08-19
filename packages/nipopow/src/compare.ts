@@ -17,7 +17,7 @@
  *
  *   is_valid(proof):
  *     has_valid_connections(proof) && has_valid_heights(proof) &&
- *     has_valid_interlinks(proof) && has_valid_difficulty_headers(proof)
+ *     has_valid_proofs(proof) && has_valid_difficulty_headers(proof)
  *     Fourth conjunct (JVM NipopowProof.scala:75) gates continuous-mode proofs
  *     against missing difficulty-recalculation headers.
  *

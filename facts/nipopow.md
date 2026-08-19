@@ -32,7 +32,7 @@ parseProof(bytes: Uint8Array): NipopowProof
 serializeProof(proof: NipopowProof): Uint8Array
 verifyProof(bytes: Uint8Array, opts?: VerifyOptions): VerificationResult
 verifyParsedProof(proof: NipopowProof, opts?: VerifyOptions): VerificationResult
-compareProofs(a: Uint8Array, b: Uint8Array, opts?: { epochLength?: number; useLastEpochs?: number }): boolean
+compareProofs(a: Uint8Array, b: Uint8Array, opts?: DifficultyParams): boolean
 
 // Difficulty / continuous-mode (0.4.0) — see "Difficulty functions" below
 nextRecalculationHeight(height: number, epochLength: number): number
@@ -81,7 +81,7 @@ const USE_LAST_EPOCHS_MAINNET = 8
 
 #### `compareProofs(a, b, opts?)`
 
-- **Precondition:** Both `a` and `b` are valid proof byte sequences. (Parse failures throw; do NOT silently return `false`.) `opts?: { epochLength?: number; useLastEpochs?: number }` (0.4.0) resolves through the same `resolveDifficultyParams` gate as `VerifyOptions` (see "Difficulty functions" below) — invalid values throw `RangeError`, resolved before either proof's validity is inspected.
+- **Precondition:** Both `a` and `b` are valid proof byte sequences. (Parse failures throw; do NOT silently return `false`.) `opts?: { epochLength?: number; useLastEpochs?: number }` (0.4.0) resolves through the same `resolveDifficultyParams` gate as `VerifyOptions` (see "Difficulty functions" below) — invalid values throw `RangeError`, resolved before either proof is parsed (the opposite order from `verifyProof`'s bytes entry point, which parses first and resolves options second) — so a `RangeError` here can preempt what would otherwise be a `ProofParseError` on malformed `a`/`b` bytes.
 - **Postcondition:** Returns `true` iff `a` is strictly better than `b` per KMZ17 §4.3 (`is_better_than` in the Rust). Internally validates each proof via `isValid` = connections ∧ heights ∧ interlinks Merkle proof per PoPowHeader ∧ difficulty-headers membership (0.4.0 addition — the JVM `NipopowProof.isValid` conjunction and its exact order, `NipopowProof.scala:75`) — still NOT PoW; that remains caller responsibility, same as sigma-rust. A continuous proof (`proof.continuous === true`) missing a needed difficulty header is simply invalid for comparison, the same boolean-domain outcome as any other invalid proof — it loses to any valid proof, and two such proofs compare `false` in both directions; no new throw. If both are invalid, returns `false`; if only `b` is invalid, returns `a.isValid()`; both valid → best-arg comparison per KMZ17.
 - **Invariant:** `compareProofs(a, b, opts)` and `compareProofs(b, a, opts)` are not both `true`. Equivalent proofs return `false` in both directions. The same resolved `epochLength`/`useLastEpochs` apply symmetrically to both `a` and `b`.
 
@@ -100,7 +100,7 @@ New in 0.4.0 — epoch math and the continuous-mode difficulty-header membership
 
 `type DifficultyParams = { epochLength?: number; useLastEpochs?: number }` — **exported from `@ergots/nipopow`** (see the Public surface code block above). This names the optional-params shape `VerifyOptions`, `PoPowParams`, and `compareProofs`'s third argument all share; callers may import it directly rather than re-declaring the two fields themselves.
 
-`resolveDifficultyParams(opts?: DifficultyParams): { epochLength: number; useLastEpochs: number }` — the shared resolver `difficulty.ts` uses internally to process a `DifficultyParams` value. **Not** re-exported from `@ergots/nipopow` — of the pair, only the `DifficultyParams` type is public; the resolver function is package-internal plumbing, documented here (with a real name and signature) purely so its behavior is pinned for the call sites that depend on it: `VerifyOptions`, `PoPowParams`, and `compareProofs`'s third argument all resolve their `epochLength`/`useLastEpochs` fields through it identically. Applies the defaults above when a field is omitted, then gates: both values must be integers (`Number.isInteger`), `epochLength >= 1`, `useLastEpochs >= 2`, `epochLength * useLastEpochs <= 2**31` (the JVM `DifficultyAdjustment` constructor's requirements: `useLastEpochs > 1`, `epochLength > 0`, plus an overflow guard). Violations throw `RangeError` — not `ProofVerificationError` / `ProofBuildError` — deliberately outside those taxonomies, because a bad `epochLength`/`useLastEpochs` is a caller-configuration defect, not a defect in a proof or in prover input.
+`resolveDifficultyParams(opts?: DifficultyParams): { epochLength: number; useLastEpochs: number }` — the shared resolver `difficulty.ts` uses internally to process a `DifficultyParams` value. **Not** re-exported from `@ergots/nipopow` — of the pair, only the `DifficultyParams` type is public; the resolver function is package-internal plumbing, documented here (with a real name and signature) purely so its behavior is pinned for the call sites that depend on it: `VerifyOptions`, `PoPowParams`, and `compareProofs`'s third argument all resolve their `epochLength`/`useLastEpochs` fields through it identically. Applies the defaults above when a field is omitted, then gates: both values must be integers (`Number.isInteger`), `epochLength >= 1`, `useLastEpochs >= 2`, `epochLength * useLastEpochs <= 2**31` (an APPROXIMATION of the JVM `DifficultyAdjustment` constructor's guard — `useLastEpochs > 1`, `epochLength > 0`, plus `epochLength < Int.MaxValue / useLastEpochs` using strict Scala integer division, not this multiply-and-compare form; boundary configs can pass one gate and fail the other). Violations throw `RangeError` — not `ProofVerificationError` / `ProofBuildError` — deliberately outside those taxonomies, because a bad `epochLength`/`useLastEpochs` is a caller-configuration defect, not a defect in a proof or in prover input.
 
 **Coupling with `hasValidConnections`.** The prefix-connections lookback window (`connections.ts` — internal, not re-exported) is derived from the same setting: `hasValidConnections(proof, useLastEpochs = USE_LAST_EPOCHS_MAINNET)` widens its window to `useLastEpochs + 3` predecessors (JVM `NipopowProof.scala:129` `maxDiffHeaders = useLastEpochs + 1`, `:135` the range construction that widens it by 2 more — together `useLastEpochs + 3`). `verifyParsedProof` and `compareProofs`'s internal `isValid` both thread their resolved `useLastEpochs` through to it. At the shared default (8) the window is 11 predecessors — identical to 0.3.0's hardcoded lookback span, so behavior for callers who don't override `useLastEpochs` is bit-for-bit unchanged.
 
@@ -324,7 +324,7 @@ buildExtensionTree(fields: ExtensionKV[]): MerkleTree
   on `GET /nipopow/proof/{m}/{k}` to request `continuous = false`. Task 9
   ran the live-mainnet acceptance walk
   (`tools/nipopow-capture/live-walk.mjs --expect-full-identity`) on
-  2026-08-19 against `213.239.193.208:9053` (`ergo-mainnet-6.x`) at tip
+  2026-08-19 against `213.239.193.208:9053` (`ergo-mainnet-6.0.4`) at tip
   height 1854246, for both of Task 9's parameter sets: `m=6,k=6` (our/JVM
   prefix 131/131, `totalHeaders` 137) and `m=2,k=10` (our/JVM prefix 49/49,
   `totalHeaders` 59). Both achieved raw byte-identity against the live

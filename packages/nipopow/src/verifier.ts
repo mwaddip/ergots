@@ -23,8 +23,12 @@
  *     accept-set
  *
  * opts.epochLength / opts.useLastEpochs (0.4.0) resolve through
- * resolveDifficultyParams before any other check; invalid values throw
- * RangeError, not ProofVerificationError.
+ * resolveDifficultyParams before any other proof inspection, as
+ * verifyParsedProof's first step; invalid values throw RangeError, not
+ * ProofVerificationError. For the bytes entry point (verifyProof) this is
+ * still after parseProof succeeds, since verifyProof parses first and only
+ * then delegates to verifyParsedProof — malformed bytes throw
+ * ProofVerificationError('parse-failed') regardless of opts.
  *
  * Failure modes (all throw ProofVerificationError):
  *   'parse-failed'                    bytes do not parse (wraps ProofParseError)
@@ -261,7 +265,10 @@ export function verifyParsedProof(proof: NipopowProof, opts: VerifyOptions = {})
  * @throws       ProofVerificationError on any validation failure (see
  *               `verifyParsedProof`'s doc comment for the full code list).
  *               Throws RangeError instead if `opts.epochLength`/
- *               `opts.useLastEpochs` is invalid.
+ *               `opts.useLastEpochs` is invalid — but only once `bytes` has
+ *               parsed successfully; malformed `bytes` throw
+ *               ProofVerificationError('parse-failed') first, regardless of
+ *               `opts`.
  */
 export function verifyProof(bytes: Uint8Array, opts: VerifyOptions = {}): VerificationResult {
   // ── Step 1: Parse ──────────────────────────────────────────────────────────

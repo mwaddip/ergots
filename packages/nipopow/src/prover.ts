@@ -82,9 +82,10 @@ export function prove(chain: PoPowHeader[], params: PoPowParams): NipopowProof {
 
   // Continuous mode: inject difficulty-recalculation headers. DELIBERATE
   // divergence from JVM NipopowAlgos.prove, which stamps params.continuous
-  // WITHOUT injecting (NipopowAlgos.scala:158 — "Paper-like code used in
-  // tests only") and so emits proofs its own verifier rejects. Both ergots
-  // provers inject the identical set; see facts/nipopow.md.
+  // WITHOUT injecting (NipopowAlgos.scala:158) — its doc comment self-labels
+  // it "Paper-like code used in tests only" (NipopowAlgos.scala:127) — and so
+  // emits proofs its own verifier rejects. Both ergots provers inject the
+  // identical set; see facts/nipopow.md.
   if (continuous) {
     for (const h of neededPrefixHeights(suffixHead.header.height, epochLength, useLastEpochs)) {
       const candidate = preSuffix.find(p => p.header.height === h);

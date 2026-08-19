@@ -2,8 +2,9 @@
  * Parent-linkage check for NipopowProof connections.
  *
  * Mirrors sigma-rust's `NipopowProof::has_valid_connections`. Walks prefix +
- * suffixHead with an 11-entry lookback window, accepting either interlink
- * presence OR direct parent-id match. Suffix tail uses strict parent-id chain.
+ * suffixHead with a `useLastEpochs + 3`-entry lookback window (11 entries at
+ * the mainnet default of 8), accepting either interlink presence OR direct
+ * parent-id match. Suffix tail uses strict parent-id chain.
  *
  * Direct port of sigma-rust ergo-nipopow/src/nipopow_proof.rs
  * `NipopowProof::has_valid_connections`, which is itself a direct port of the
