@@ -212,7 +212,7 @@ import {
   proofForInterlinkVector, makePopowHeader, maxLevelOf,
   MerkleTree, buildExtensionTree,
   type PoPowParams, type PopowHeaderReader,
-  type ExtensionKV, type BatchMerkleProof, type PoPowHeader,
+  type ExtensionKV, type BatchMerkleProof, type PoPowHeader, type NipopowProof,
   ProofBuildError,
 } from '@ergots/nipopow/prover';
 ```
