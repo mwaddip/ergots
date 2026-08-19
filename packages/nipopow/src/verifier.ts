@@ -94,7 +94,8 @@ export interface VerifyOptions {
    * membership check ({@link hasValidDifficultyHeaders}). Resolved through
    * `resolveDifficultyParams` — default `EPOCH_LENGTH_MAINNET` (128) when
    * omitted. An invalid value (not an integer, or < 1) throws `RangeError`
-   * before any proof inspection. Irrelevant when `proof.continuous === false`
+   * before any other proof inspection (after `parseProof` succeeds, on the
+   * bytes-taking `verifyProof` path). Irrelevant when `proof.continuous === false`
    * (the check is vacuous), but still validated unconditionally.
    */
   epochLength?: number;
@@ -104,7 +105,8 @@ export interface VerifyOptions {
    * check and (via `hasValidConnections`) the prefix-connections lookback
    * window. Resolved through `resolveDifficultyParams` — default
    * `USE_LAST_EPOCHS_MAINNET` (8) when omitted. An invalid value (not an
-   * integer, or < 2) throws `RangeError` before any proof inspection.
+   * integer, or < 2) throws `RangeError` before any other proof inspection
+   * (after `parseProof` succeeds, on the bytes-taking `verifyProof` path).
    */
   useLastEpochs?: number;
 }

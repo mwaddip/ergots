@@ -630,8 +630,12 @@ interface VerificationResult {
 `epochLength`/`useLastEpochs` also govern the continuous-mode difficulty-header
 membership check (0.4.0) — see [Difficulty functions](#difficulty-functions-040)
 and, via `hasValidConnections`, widen the prefix-connections lookback window
-(`useLastEpochs + 3` predecessors). Both are resolved once, before any proof
-inspection; an invalid value throws `RangeError`, not `ProofVerificationError`.
+(`useLastEpochs + 3` predecessors). Both are resolved once, before any other
+proof inspection; an invalid value throws `RangeError`, not
+`ProofVerificationError` — this holds for `verifyParsedProof`, and for
+`verifyProof` given well-formed bytes. On `verifyProof`'s bytes path,
+`parseProof` runs first, so malformed bytes surface as
+`ProofVerificationError('parse-failed')` before `opts` is ever resolved.
 
 When `checkPoW: true`, version-1 headers at heights at or above `v2ActivationHeight` are rejected with `'v1-header-after-v2-activation'`. Version-1 headers below the threshold are accepted structurally (Autolykos v1 PoW is not implemented in this package). When `checkPoW: false`, the threshold is not consulted (caller is responsible for PoW externally).
 
