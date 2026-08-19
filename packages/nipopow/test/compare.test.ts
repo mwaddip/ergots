@@ -137,3 +137,32 @@ describe('compareProofs', () => {
     expect(compareProofs(mutatedA, mutatedB)).toBe(false);
   });
 });
+
+describe('continuous gate in compareProofs isValid (JVM NipopowProof.isValid conjunction)', () => {
+  // fixture[0] chain-20-m2-k2-tip: suffixHead 19, present heights {1,3,5,8,9,10,12,14,19,20}.
+  // At epochLength 8 (u=8): needed gated (0,19) = [8,16]; 16 is ABSENT.
+  const originalBytes = () => hexToBytes(fixtures[0]!.a_hex);
+  const continuousBytes = () => {
+    const b = new Uint8Array(originalBytes());
+    b[b.length - 1] = 0x01;
+    return b;
+  };
+
+  test('continuous proof missing difficulty headers is not comparable: valid non-continuous wins', () => {
+    expect(compareProofs(originalBytes(), continuousBytes(), { epochLength: 8 })).toBe(true);
+    expect(compareProofs(continuousBytes(), originalBytes(), { epochLength: 8 })).toBe(false);
+  });
+
+  test('same pair at mainnet defaults: both valid (vacuous check on tiny chain), equal chains -> not better either way', () => {
+    expect(compareProofs(originalBytes(), continuousBytes())).toBe(false);
+    expect(compareProofs(continuousBytes(), originalBytes())).toBe(false);
+  });
+
+  test('both continuous-invalid: neither is better', () => {
+    expect(compareProofs(continuousBytes(), continuousBytes(), { epochLength: 8 })).toBe(false);
+  });
+
+  test('bad opts throw RangeError', () => {
+    expect(() => compareProofs(originalBytes(), originalBytes(), { epochLength: 0 })).toThrow(RangeError);
+  });
+});

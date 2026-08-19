@@ -3,7 +3,8 @@
  *
  * Returns true iff proof-a is strictly better than proof-b.
  *
- * Algorithm (sigma-rust ergo-nipopow/src/nipopow_proof.rs + nipopow_algos.rs):
+ * Algorithm (JVM NipopowProof.scala:74 + NipopowAlgos.scala; ports sigma-rust
+ * ergo-nipopow/src/nipopow_proof.rs + nipopow_algos.rs):
  *
  *   is_better_than(a, b):
  *     if !a.is_valid() && !b.is_valid() → false
@@ -13,6 +14,12 @@
  *     a_above = a.headers_chain().filter(h.height > lca.height)
  *     b_above = b.headers_chain().filter(h.height > lca.height)
  *     best_arg(a_above, a.m) > best_arg(b_above, a.m)
+ *
+ *   is_valid(proof):
+ *     has_valid_connections(proof) && has_valid_heights(proof) &&
+ *     has_valid_interlinks(proof) && has_valid_difficulty_headers(proof)
+ *     Fourth conjunct (JVM NipopowProof.scala:75) gates continuous-mode proofs
+ *     against missing difficulty-recalculation headers.
  *
  *   best_arg(chain, m):
  *     // Level 0: all headers (size = chain.length)
@@ -33,9 +40,10 @@
  *     zero (JVM Double.toInt semantics, NOT floor — see level.ts's doc for
  *     the exact formula and the -0 → 0 normalization).
  *
- * Reference: sigma-rust ergo-nipopow/src/nipopow_proof.rs:is_better_than
+ * Reference: JVM ergo-core .../popow/NipopowProof.scala:is_better_than, is_valid
+ *            JVM ergo-core .../popow/NipopowAlgos.scala:best_arg, max_level_of
+ *            sigma-rust ergo-nipopow/src/nipopow_proof.rs (sigma-rust lacks the JVM's is_valid gate)
  *            sigma-rust ergo-nipopow/src/nipopow_algos.rs:best_arg, max_level_of
- *            sigma-rust ergo-chain-types/src/autolykos_pow_scheme.rs:pow_hit, max_level_of
  */
 
 import { parseProof, type NipopowProof } from './proof.ts';
@@ -44,6 +52,7 @@ import { hasValidConnections } from './connections.ts';
 import { checkInterlinksProof } from './verifier.ts';
 import { bytesEqual } from './bytes.ts';
 import { maxLevelOf } from './level.ts';
+import { hasValidDifficultyHeaders, resolveDifficultyParams, type DifficultyParams } from './difficulty.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
@@ -54,21 +63,24 @@ import { maxLevelOf } from './level.ts';
  * proof-b per KMZ17 §4.3.
  *
  * Parse failures throw ProofParseError (per facts/nipopow.md: do NOT return false).
+ * Bad opts throw RangeError (caller-configuration defect, not a proof defect).
  */
-export function compareProofs(a: Uint8Array, b: Uint8Array): boolean {
+export function compareProofs(a: Uint8Array, b: Uint8Array, opts: DifficultyParams = {}): boolean {
+  // Resolve and validate params — throws RangeError on bad configuration.
+  const { epochLength, useLastEpochs } = resolveDifficultyParams(opts);
   // Parse both — throws ProofParseError on malformed bytes.
   const proofA = parseProof(a);
   const proofB = parseProof(b);
-  return isBetterThan(proofA, proofB);
+  return isBetterThan(proofA, proofB, epochLength, useLastEpochs);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal: is_better_than
 // ─────────────────────────────────────────────────────────────────────────────
 
-function isBetterThan(a: NipopowProof, b: NipopowProof): boolean {
-  const aValid = isValid(a);
-  const bValid = isValid(b);
+function isBetterThan(a: NipopowProof, b: NipopowProof, epochLength: number, useLastEpochs: number): boolean {
+  const aValid = isValid(a, epochLength, useLastEpochs);
+  const bValid = isValid(b, epochLength, useLastEpochs);
 
   // If neither is valid, neither is better.
   if (!aValid && !bValid) return false;
@@ -97,27 +109,34 @@ function isBetterThan(a: NipopowProof, b: NipopowProof): boolean {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Mirrors sigma-rust NipopowProof::is_valid:
- *   has_valid_connections() && has_valid_heights() && has_valid_proofs()
+ * Mirrors JVM NipopowProof::is_valid (NipopowProof.scala:74-75):
+ *   has_valid_connections() && has_valid_heights() && has_valid_proofs() &&
+ *   has_valid_difficulty_headers()
  *
  * has_valid_proofs() runs checkInterlinksProof on every PoPowHeader. Closes
  * Codex audit Finding #2: compareProofs previously skipped the interlink-
  * Merkle-proof check, so it scored proofs with invalid interlinks proofs as
- * if they were valid. Now mirrors sigma-rust's is_better_than: invalid proofs
+ * if they were valid. Now mirrors JVM is_better_than: invalid proofs
  * are NOT comparable; if one is invalid, the valid one "wins"; both invalid
  * returns false.
  *
- * NOT checked (also matches sigma-rust): PoW. Callers that need PoW
+ * has_valid_difficulty_headers() is the fourth conjunct (JVM NipopowProof.scala:75).
+ * It gates continuous-mode proofs against missing difficulty-recalculation headers.
+ * Non-continuous proofs (continuous = false) pass immediately.
+ *
+ * NOT checked (also matches JVM/sigma-rust): PoW. Callers that need PoW
  * enforcement should run verifyProof on each raw-bytes proof BEFORE calling
  * compareProofs.
  */
-function isValid(proof: NipopowProof): boolean {
-  if (!hasValidConnections(proof)) return false;
+function isValid(proof: NipopowProof, epochLength: number, useLastEpochs: number): boolean {
+  if (!hasValidConnections(proof, useLastEpochs)) return false;
   if (!hasValidHeights(proof)) return false;
   for (const ph of [proof.suffixHead, ...proof.prefix]) {
     if (!checkInterlinksProof(ph)) return false;
   }
-  return true;
+  // JVM isValid's fourth conjunct (NipopowProof.scala:75) — runs after the
+  // heights check, preserving the ordered-scan precondition.
+  return hasValidDifficultyHeaders(proof, epochLength, useLastEpochs);
 }
 
 function hasValidHeights(proof: NipopowProof): boolean {
