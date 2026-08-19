@@ -289,7 +289,7 @@ describe('NipopowProof continuous byte (Task 7b / NIP-12)', () => {
     }
   });
 
-  test('continuous byte = 0x01 parses with continuous === true, is rejected by verifyParsedProof, and re-serializes byte-identically', () => {
+  test('continuous byte = 0x01 parses, re-serializes byte-identically, and now VERIFIES (vacuous difficulty check at mainnet defaults on this tiny chain)', () => {
     const original = hexToBytes(fixtures[0]!.bytes_hex);
     const tampered = new Uint8Array(original);
     tampered[tampered.length - 1] = 0x01;
@@ -298,12 +298,25 @@ describe('NipopowProof continuous byte (Task 7b / NIP-12)', () => {
     expect(proof.continuous).toBe(true);
     expect(serializeProof(proof)).toEqual(tampered);
 
+    // suffixHead height 19 < EPOCH_LENGTH_MAINNET: heightsForNextRecalculation
+    // gated to (0, 19) is empty, so the membership check is vacuous.
+    const result = verifyParsedProof(proof, { checkPoW: false });
+    expect(result.continuous).toBe(true);
+    expect(result.suffixTipHeight).toBe(fixtures[0]!.suffix_tail_heights.at(-1) ?? fixtures[0]!.suffix_head_height);
+  });
+
+  test('continuous proof missing a needed height rejects with missing-difficulty-headers (epochLength override 8: needs {8,16}, 16 absent)', () => {
+    const original = hexToBytes(fixtures[0]!.bytes_hex);
+    const tampered = new Uint8Array(original);
+    tampered[tampered.length - 1] = 0x01;
+    const proof = parseProof(tampered);
+
     try {
-      verifyParsedProof(proof);
+      verifyParsedProof(proof, { checkPoW: false, epochLength: 8 });
       throw new Error('expected throw');
     } catch (e) {
       expect(e).toBeInstanceOf(ProofVerificationError);
-      expect((e as ProofVerificationError).code).toBe('continuous-unsupported');
+      expect((e as ProofVerificationError).code).toBe('missing-difficulty-headers');
     }
   });
 });
