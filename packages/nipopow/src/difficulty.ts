@@ -8,6 +8,8 @@
  * is deliberately NOT ported — the proof layer checks header membership only.
  */
 
+import type { NipopowProof } from './proof.ts';
+
 /**
  * Effective mainnet epoch length for difficulty recalculation: the JVM
  * computes eip37EpochLength.getOrElse(epochLength) = 128 (EIP-37) at both
@@ -91,4 +93,38 @@ export function heightsForNextRecalculation(
     epochLength,
     useLastEpochs,
   );
+}
+
+/**
+ * Continuous-mode membership check — clean-room port of
+ * NipopowProof.hasValidDifficultyHeaders (NipopowProof.scala:82-105).
+ *
+ * PRECONDITION: the caller has established strictly-increasing heights
+ * across prefix ++ suffixHead ++ suffixTail. The scan below is an ordered,
+ * non-resetting cursor (the JVM's indexWhere(_, lastIndex)); it equals set
+ * membership only under that precondition. Both in-package callers
+ * (verifyParsedProof, compareProofs' isValid) run the heights check first,
+ * mirroring the JVM isValid &&-chain's short-circuit order.
+ *
+ * Takes resolved numbers (not DifficultyParams) — callers resolve once.
+ */
+export function hasValidDifficultyHeaders(
+  proof: NipopowProof,
+  epochLength: number,
+  useLastEpochs: number,
+): boolean {
+  if (!proof.continuous) return true;
+  const suffixHeadHeight = proof.suffixHead.header.height;
+  const chainHeights: number[] = [
+    ...proof.prefix.map(p => p.header.height),
+    suffixHeadHeight,
+    ...proof.suffixTail.map(h => h.height),
+  ];
+  let cursor = 0; // JVM lastIndex: search resumes at the previous match, never resets
+  for (const h of heightsForNextRecalculation(suffixHeadHeight, epochLength, useLastEpochs)) {
+    if (h <= 0 || h >= suffixHeadHeight) continue; // JVM: only 0 < height < suffixHead.height checked
+    while (cursor < chainHeights.length && chainHeights[cursor] !== h) cursor++;
+    if (cursor === chainHeights.length) return false;
+  }
+  return true;
 }

@@ -12,6 +12,7 @@ export {
   nextRecalculationHeight,
   previousHeightsRequiredForRecalculation,
   heightsForNextRecalculation,
+  hasValidDifficultyHeaders,
   EPOCH_LENGTH_MAINNET,
   USE_LAST_EPOCHS_MAINNET,
   type DifficultyParams,

@@ -11,6 +11,8 @@ import {
   EPOCH_LENGTH_MAINNET,
   USE_LAST_EPOCHS_MAINNET,
 } from '../src/difficulty.ts';
+import { buildSyntheticProof } from './helpers.ts';
+import { hasValidDifficultyHeaders } from '../src/difficulty.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,5 +80,102 @@ describe('resolveDifficultyParams', () => {
       epochLength: 1,
       useLastEpochs: 8,
     });
+  });
+});
+
+describe('hasValidDifficultyHeaders (e=16, u=8 unless noted)', () => {
+  // suffixHead 100, e=16: next = 113, prevHeights(113) = [0,16,...,112];
+  // gated to (0, 100) -> [16, 32, 48, 64, 80, 96].
+  const NEEDED_100 = [16, 32, 48, 64, 80, 96];
+
+  test('continuous=false is vacuously true (headers absent)', () => {
+    const proof = buildSyntheticProof({ prefixHeights: [1, 50], suffixHeadHeight: 100, m: 2, k: 1 });
+    expect(proof.continuous).toBe(false);
+    expect(hasValidDifficultyHeaders(proof, 16, 8)).toBe(true);
+  });
+
+  test('continuous=true with every needed height present is true', () => {
+    const proof = {
+      ...buildSyntheticProof({ prefixHeights: [1, ...NEEDED_100], suffixHeadHeight: 100, m: 2, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(proof, 16, 8)).toBe(true);
+  });
+
+  test('interleaved extra prefix heights do not break the non-resetting cursor', () => {
+    const heights = [1, 10, 16, 20, 32, 40, 48, 60, 64, 77, 80, 90, 96, 99];
+    const proof = {
+      ...buildSyntheticProof({ prefixHeights: heights, suffixHeadHeight: 100, m: 2, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(proof, 16, 8)).toBe(true);
+  });
+
+  test('one missing needed height (48) is false', () => {
+    const heights = [1, 16, 32, 64, 80, 96];
+    const proof = {
+      ...buildSyntheticProof({ prefixHeights: heights, suffixHeadHeight: 100, m: 2, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(proof, 16, 8)).toBe(false);
+  });
+
+  test('needed height only in suffixTail still counts (chain-wide scan, JVM headersChain)', () => {
+    // suffixHead 95: next = 97, prevHeights(97) = [0,16,...,96]; gated (0,95) -> [16,...,80].
+    // Put 96 in the tail anyway (not needed) and one needed height, 80, ONLY implicitly:
+    // heights strictly increasing: prefix has 16..64, tail has 96; 80 missing -> false.
+    const missing80 = {
+      ...buildSyntheticProof({
+        prefixHeights: [1, 16, 32, 48, 64],
+        suffixHeadHeight: 95,
+        suffixTailHeights: [96],
+        m: 2,
+        k: 2,
+      }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(missing80, 16, 8)).toBe(false);
+    const present = {
+      ...buildSyntheticProof({
+        prefixHeights: [1, 16, 32, 48, 64, 80],
+        suffixHeadHeight: 95,
+        suffixTailHeights: [96],
+        m: 2,
+        k: 2,
+      }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(present, 16, 8)).toBe(true);
+  });
+
+  test('boundary suffixHead % e === 0: needed excludes the suffixHead height itself', () => {
+    // suffixHead 48: next = 49, prevHeights(49) = [0, 16, 32, 48]; gated (0, 48) -> [16, 32].
+    const ok = {
+      ...buildSyntheticProof({ prefixHeights: [1, 16, 32], suffixHeadHeight: 48, m: 2, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(ok, 16, 8)).toBe(true);
+    const missing32 = {
+      ...buildSyntheticProof({ prefixHeights: [1, 16], suffixHeadHeight: 48, m: 2, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(missing32, 16, 8)).toBe(false);
+  });
+
+  test('tiny suffixHead: gated needed set empty -> vacuously true with flag set', () => {
+    // suffixHead 16: next = 17, prevHeights(17) = [0, 16]; gated (0, 16) -> [].
+    const proof = {
+      ...buildSyntheticProof({ prefixHeights: [1], suffixHeadHeight: 16, m: 1, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(proof, 16, 8)).toBe(true);
+  });
+
+  test('mainnet defaults on a small chain: vacuously true (matches fixture[0] shape)', () => {
+    const proof = {
+      ...buildSyntheticProof({ prefixHeights: [1, 5], suffixHeadHeight: 19, m: 2, k: 1 }),
+      continuous: true,
+    };
+    expect(hasValidDifficultyHeaders(proof, 128, 8)).toBe(true);
   });
 });
