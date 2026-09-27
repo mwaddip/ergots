@@ -274,6 +274,12 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
     // JVM (a `SerializerException` escapes the `UnparsedErgoTree` fallback). B-core
     // degrade-set; the broader `ValidationException` audit is a tracked residual.
     if (header.hasSize && isSoftForkableParseError(err)) {
+      // The JVM reads the body on the same reader, and the frames that were active when the
+      // failing node threw never lower its level (`r.level - 1` only on a normal return,
+      // ValueSerializer.scala:396-412); the degrade's `finally` restores only the position
+      // limit (ErgoTreeSerializer.scala:196-211). So those levels stay for the rest of the
+      // parse. Our frames leave them on the forked body reader: carry them to `outer`.
+      while (outer.level < inner.level) outer.enterDepth()
       return {
         header,
         unparsedBytes: outer.slice(treeStart, outer.position).slice(),

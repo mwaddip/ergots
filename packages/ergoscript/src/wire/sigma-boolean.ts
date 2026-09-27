@@ -91,14 +91,14 @@ export function parseSigmaBoolean(r: ByteReader): SigmaBoolean {
   // `SigmaBoolean.scala:71-104`: `r.level = depth + 1` on entry, `- 1` on exit).
   // It shares the same reader-level counter as the expr-node parser (`parseExpr`)
   // and data parser (`parseSValue`), so a conjecture tree reached via
-  // `parseSValue(SSigmaProp)` continues the whole-tree depth budget. try/finally
-  // keeps the counter balanced if a nested child parse throws.
+  // `parseSValue(SSigmaProp)` continues the whole-tree depth budget. The level is
+  // lowered only on a normal return, as the JVM's `r.level = r.level - 1` is (no
+  // finally, SigmaBoolean.scala:103): a throw that a soft-fork degrade catches leaves
+  // it raised (facts/ergoscript-wire.md, "Reader depth after a degrade").
   r.enterDepth()
-  try {
-    return parseSigmaBooleanBody(r)
-  } finally {
-    r.exitDepth()
-  }
+  const sb = parseSigmaBooleanBody(r)
+  r.exitDepth()
+  return sb
 }
 
 /**

@@ -120,63 +120,65 @@ function parseRegisterExprWithTag(
   // register is nested to `Coll^109` would be accepted here but rejected by the
   // JVM at depth 111 — a consensus fork). The leaf `parseSValue` adds the data
   // level; nested-Tuple recursion re-enters here, one level per item.
+  //
+  // The level is lowered only on a normal return, as the JVM's `r.level = r.level - 1` is (no
+  // finally, ValueSerializer.scala:396-412): a throw that a soft-fork degrade catches leaves this
+  // frame's level on the reader (facts/ergoscript-wire.md, "Reader depth after a degrade").
   r.enterDepth()
-  try {
-    if (tag <= LAST_CONSTANT_CODE) {
-      // Constant Expr: tag is the SType lead byte.
-      const tpe = parseSTypeWithFirstByte(tag, r)
-      // Rule-1019 `CheckV6Type` (JVM ValidationRules.scala:165-205, enforced at
-      // ErgoBoxCandidate.scala:232): reject — at register deserialize, BEFORE
-      // the value parse — any register type containing SOption / SHeader /
-      // SUnsignedBigInt (recursing STuple items + SColl elemType). UNCONDITIONAL
-      // across all tree versions (the rule is in BOTH ruleSpecsV5 and
-      // ruleSpecsV6). Gating here (before `parseSValue`) takes precedence over
-      // the value-side `soption-tree-version-too-low` gate: an Option-typed
-      // register on a pre-v3 tree rejects as 'register-v6-type', not via the
-      // inner Option DATA version gate (matching the JVM's deserialize-time
-      // CheckV6Type fire, which runs on the parsed Constant's declared type).
-      // A Tuple-Expr register (the OP_TUPLE arm below) is covered by recursion:
-      // each item parses through this same Const arm, so a v6-typed item is
-      // gated at its own node — mirroring the JVM `step(Tuple)` over item tpes.
-      if (violatesCheckV6Type(tpe)) {
-        throw new SValueParseError(
-          'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
-          'register-v6-type'
-        )
-      }
-      const value = parseSValue(tpe, treeVersion, r)
-      return { tpe, value }
+  let entry: { tpe: SType; value: SValue }
+  if (tag <= LAST_CONSTANT_CODE) {
+    // Constant Expr: tag is the SType lead byte.
+    const tpe = parseSTypeWithFirstByte(tag, r)
+    // Rule-1019 `CheckV6Type` (JVM ValidationRules.scala:165-205, enforced at
+    // ErgoBoxCandidate.scala:232): reject — at register deserialize, BEFORE
+    // the value parse — any register type containing SOption / SHeader /
+    // SUnsignedBigInt (recursing STuple items + SColl elemType). UNCONDITIONAL
+    // across all tree versions (the rule is in BOTH ruleSpecsV5 and
+    // ruleSpecsV6). Gating here (before `parseSValue`) takes precedence over
+    // the value-side `soption-tree-version-too-low` gate: an Option-typed
+    // register on a pre-v3 tree rejects as 'register-v6-type', not via the
+    // inner Option DATA version gate (matching the JVM's deserialize-time
+    // CheckV6Type fire, which runs on the parsed Constant's declared type).
+    // A Tuple-Expr register (the OP_TUPLE arm below) is covered by recursion:
+    // each item parses through this same Const arm, so a v6-typed item is
+    // gated at its own node — mirroring the JVM `step(Tuple)` over item tpes.
+    if (violatesCheckV6Type(tpe)) {
+      throw new SValueParseError(
+        'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
+        'register-v6-type'
+      )
     }
-    if (tag === OP_TUPLE) {
-      // Tuple Expr: 1-byte items count, then N nested Exprs.
-      const itemsCount = r.readU8()
-      if (itemsCount < 2) {
-        throw new SValueParseError(
-          `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
-          'sbox-register-tuple-arity'
-        )
-      }
-      const itemTpes: SType[] = []
-      const itemValues: SValue[] = []
-      for (let i = 0; i < itemsCount; i++) {
-        const itemTag = r.readU8()
-        const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
-        itemTpes.push(item.tpe)
-        itemValues.push(item.value)
-      }
-      return {
-        tpe: { tag: 'STuple', items: itemTpes },
-        value: { kind: 'Tuple', items: itemValues },
-      }
+    entry = { tpe, value: parseSValue(tpe, treeVersion, r) }
+  } else if (tag === OP_TUPLE) {
+    // Tuple Expr: 1-byte items count, then N nested Exprs.
+    const itemsCount = r.readU8()
+    if (itemsCount < 2) {
+      throw new SValueParseError(
+        `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
+        'sbox-register-tuple-arity'
+      )
     }
+    const itemTpes: SType[] = []
+    const itemValues: SValue[] = []
+    for (let i = 0; i < itemsCount; i++) {
+      const itemTag = r.readU8()
+      const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
+      itemTpes.push(item.tpe)
+      itemValues.push(item.value)
+    }
+    entry = {
+      tpe: { tag: 'STuple', items: itemTpes },
+      value: { kind: 'Tuple', items: itemValues },
+    }
+  } else {
     throw new SValueParseError(
       `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
         `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
       'sbox-register-unsupported-expr'
     )
-  } finally {
-    r.exitDepth()
   }
+  r.exitDepth()
+  return entry
 }
 
 /** Decoded box additional-registers map: R4.. keyed by register id (4..9). */
@@ -319,21 +321,21 @@ export function parseSValue(t: SType, treeVersion: number, r: ByteReader): SValu
   //
   // The limit fires DATA-DRIVEN: enterDepth runs once per parseSValue call, and
   // empty/shallow data never recurses, so a deeply-nested TYPE with empty data is
-  // accepted (the JVM only descends into elements present). try/finally guarantees
-  // the level is decremented even when a nested parse throws.
+  // accepted (the JVM only descends into elements present). The level is lowered only
+  // on a normal return, as the JVM's `r.level = r.level - 1` is (no finally,
+  // CoreDataSerializer.scala:148): a throw that a soft-fork degrade catches leaves it
+  // raised (facts/ergoscript-wire.md, "Reader depth after a degrade").
   r.enterDepth()
-  try {
-    return parseSValueBody(t, treeVersion, r)
-  } finally {
-    r.exitDepth()
-  }
+  const value = parseSValueBody(t, treeVersion, r)
+  r.exitDepth()
+  return value
 }
 
 /**
  * Body of {@link parseSValue}, run inside the reader-level depth guard. Kept
  * as a separate function so the single enter/exit pair in `parseSValue` wraps
  * every `switch` arm (including the early-returning ones) without repeating
- * try/finally per arm.
+ * the exit per arm.
  */
 function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
   switch (t.tag) {

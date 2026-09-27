@@ -178,20 +178,20 @@ export function parseExprWithFirstByte(
   // depth budget is enforced uniformly. A `Const` Expr counts ONE level here
   // and then `parseConstFromByte` → `parseSValue` counts another (mirroring the
   // JVM's ValueSerializer→ConstantSerializer→DataSerializer chain, two levels
-  // for a constant leaf). try/finally keeps the counter balanced on parse error.
+  // for a constant leaf). The level is lowered only on a normal return, as the JVM's
+  // `r.level = r.level - 1` is (no finally): a throw that a soft-fork degrade catches
+  // leaves it raised (facts/ergoscript-wire.md, "Reader depth after a degrade").
   r.enterDepth()
-  try {
-    return parseExprBody(
-      opcode,
-      r,
-      constantTypes,
-      constantValues,
-      valDefTypes,
-      treeVersion,
-    )
-  } finally {
-    r.exitDepth()
-  }
+  const expr = parseExprBody(
+    opcode,
+    r,
+    constantTypes,
+    constantValues,
+    valDefTypes,
+    treeVersion,
+  )
+  r.exitDepth()
+  return expr
 }
 
 /**
