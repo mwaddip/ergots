@@ -124,7 +124,9 @@ export class ByteReader {
    * JVM keeps reading such a region on the SAME reader via `positionLimit`
    * (`ErgoTreeSerializer.scala:143-211`), so its `level` persists across the
    * size boundary. A naive `new ByteReader(slice)` would reset level to 0 and
-   * under-count depth; this preserves the shared counter faithfully.
+   * under-count depth. The level flows INTO the fork only: a caller that goes on
+   * reading the parent must carry the fork's final level back (levels a caught
+   * error left inside the region), as ergoscript's `parseTreeFromReader` does.
    *
    * Does NOT inherit `positionLimit`: the fork's buffer is rebased to offset 0,
    * so the parent's absolute-offset limit would be meaningless over it — the
