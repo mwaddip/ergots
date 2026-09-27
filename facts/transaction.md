@@ -40,6 +40,7 @@ type TxParseErrorCode =
   | 'trailing-bytes'
   | 'token-table-index-out-of-range'
   | 'count-out-of-range'
+  | 'extension-id-out-of-range'
 ```
 
 ### `parseTransaction(bytes)`
@@ -48,7 +49,8 @@ type TxParseErrorCode =
 - **Postcondition (success):** Returns an `ErgoLikeTransaction` satisfying all type invariants below. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for all accepted inputs.
 - **Postcondition (failure — `TxParseError`):** Thrown for:
   - `'trailing-bytes'` — bytes remain after a structurally complete transaction was parsed. This is STRICTER than sigma-rust's `sigma_parse_bytes` (which tolerates trailing bytes) and matches the JVM modifier-parse path and ergots' own `parseTree` zero-trailing precedent.
-  - `'count-out-of-range'` — an io count violates the `TxIoVec` / `get_u32` bounds (see "Count bounds" below).
+  - `'count-out-of-range'` — an io count violates the `TxIoVec` / `get_u32` bounds, or an input's context-extension entry-count byte is ≥ `0x80` (see "Count bounds" below).
+  - `'extension-id-out-of-range'` — an input's context-extension variable-id byte is ≥ `0x80`. Rejected before the entry's value is read (see "Context-extension bounds" below).
   - `'token-table-index-out-of-range'` — an output candidate references a token-table index that does not exist in the transaction's distinct-token-id table.
 - **Postcondition (failure — other):** `ReaderError` (from `@ergots/scorex`) for truncated / malformed VLQ or fixed-width fields; inner `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` from `@ergots/ergoscript` if a candidate's ergoTree or register bytes are malformed.
 
@@ -56,7 +58,7 @@ type TxParseErrorCode =
 
 - **Precondition:** `tx` satisfies the `ErgoLikeTransaction` type invariants below and the io-count bounds (see "Count bounds").
 - **Postcondition (success):** Returns `Uint8Array` byte-equal to what a JVM sigma-state serializer would produce for the same transaction. The serialize path ALSO enforces all count bounds — it is safe to call `serializeTransaction` on a programmatically-constructed `tx` and rely on it to reject out-of-range counts.
-- **Postcondition (failure — `TxParseError 'count-out-of-range'`):** inputs or outputCandidates is empty or > 32767; dataInputs is > 32767; the computed distinct-token table exceeds 65535 × 255 entries.
+- **Postcondition (failure — `TxParseError 'count-out-of-range'`):** inputs or outputCandidates is empty or > 32767; dataInputs is > 32767; the computed distinct-token table exceeds 65535 × 255 entries; an input's context extension holds more than 127 entries.
 
 ### `signingMessage(tx)`
 
@@ -80,8 +82,17 @@ These mirror the sigma-rust / JVM bounds exactly and are enforced on both parse 
 | `dataInputs.length` | `{0} ∪ [1, 32767]` | `opt_empty_vec`: 0 = None (allowed); otherwise `TxIoVec` |
 | distinct token table | `≤ 65535 × 255 = 16,711,425` | `MAX_OUTPUTS_COUNT × ErgoBox.MAX_TOKENS_COUNT` (`transaction.rs:~308-312`) |
 | token count wire field | `≤ u32::MAX` | `get_u32` (`vlq_encode.rs:267`) narrows the VLQ-u64 read |
+| context-extension entries (per input) | `[0, 127]` | JVM `ContextExtension.scala:53-55` (parse) / `:46-47` (serialize), sigma-state v6.0.6 |
 
 All violations throw `TxParseError('count-out-of-range')`.
+
+## Context-extension bounds
+
+JVM reference: sigma-state v6.0.6 `data/shared/src/main/scala/sigma/interpreter/ContextExtension.scala`, `serializer.parse` (`:52-66`) and `serializer.serialize` (`:44-50`). `parseContextExtension` / `serializeContextExtension` (`wire/input.ts`) port both.
+
+- **Entry count** — one byte, read as a signed byte. A count byte ≥ `0x80` is negative in the JVM and is rejected before any entry is read: `TxParseError('count-out-of-range')` (`:53-55`, every sigma-state version). It is not a VLQ: `0x80 0x00` is a rejected count, not an over-long zero. On serialize, more than 127 entries throws the same error (`:46-47`). A count of at most 127 is written as one byte.
+- **Variable id** — one byte, read as a signed byte. An id byte ≥ `0x80` is rejected before its value is read: `TxParseError('extension-id-out-of-range')` (`:58-60`; new in sigma-state 6.0.5, commit `e4ef1b203`, not version-gated). A parsed extension therefore only has ids in `[0, 127]`, including a storage-rent spend's var 127. The serializer writes the id byte without a bound check, as the JVM serializer does (`:49`). A programmatically built extension with an id of 128–255 serializes to bytes `parseTransaction` rejects.
+- **Residual — rule-1019 `CheckV6Type` (`:62`) is not applied here.** The JVM rejects an extension value whose type contains `SOption`, `SHeader` or `SUnsignedBigInt`. ergots still rejects the first two at this parse, through the tree-version-0 data gates of `parseSValue` (a different error). It parses an `SUnsignedBigInt`-typed value. Open; no JVM-blessed vector pins it yet.
 
 ## Wire format
 
@@ -99,9 +110,9 @@ output_candidates[] each ErgoBoxCandidate::serialize_body_with_indexed_digests
 ```
 
 Key wire-format facts:
-- **VLQ not fixed-width.** `put_u16` / `put_u32` in sigma-rust route through `put_u64` (`vlq_encode.rs:56,78`). Every count field is VLQ; the "u16" / "u32" names describe the narrowing cast applied to the decoded value, not a fixed byte width.
+- **VLQ not fixed-width.** `put_u16` / `put_u32` in sigma-rust route through `put_u64` (`vlq_encode.rs:56,78`). Every envelope count field is VLQ; the "u16" / "u32" names describe the narrowing cast applied to the decoded value, not a fixed byte width. The context-extension entry count and the box-candidate token and register counts are single bytes, not VLQ.
 - **Distinct token-id table.** Built as `IndexSet` (insertion-order de-duplicated) across all output candidates' tokens in output order. Each output candidate's per-token entry writes a VLQ index into this table rather than the raw 32-byte id. The envelope owns table construction (serialize) and resolution (parse). An out-of-range index throws `TxParseError('token-table-index-out-of-range')`.
-- **Input wire layout.** `boxId (32 bytes) + VLQ(proofLen) + proofBytes + contextExtension (VLQ count + per-entry varId u8 + SType + SValue)`.
+- **Input wire layout.** `boxId (32 bytes) + VLQ(proofLen) + proofBytes + contextExtension (count: 1 byte < 0x80, then per entry: varId 1 byte < 0x80 + SType + SValue)`. See "Context-extension bounds".
 - **Data-input wire layout.** `boxId (32 bytes)` only.
 - **Box-candidate wire layout.** `value (VLQ u64) + ergoTree (self-delimiting) + creation_height (VLQ u32) + tokens_count (raw u8) + per-token (VLQ index + VLQ u64 amount) + additional_regs (raw u8 count + per-register SType + SValue)`. The token section uses a RAW `u8` for the per-candidate token count (not VLQ), while the envelope token-table count is VLQ.
 - **Signing message.** Identical to the full serialization except each input's `proofBytes` is replaced by `VLQ(0)` (length 0, then 0 proof bytes). The explicit zero-length VLQ is load-bearing for the `blake2b256` txId hash — omitting it would shift all subsequent bytes and produce an incorrect id.
@@ -128,7 +139,7 @@ export interface SpendingProof {
 }
 
 // ContextExtension is re-exported from @ergots/ergoscript.
-// type ContextExtension = { values: Record<number, { tpe: SType; value: SValue }> }
+// type ContextExtension = { values: Map<number, { tpe: SType; value: SValue }> }
 
 export interface DataInput {
   boxId: Uint8Array;          // 32 bytes
@@ -148,7 +159,7 @@ export interface ErgoBoxCandidate {
 - `Input.boxId` is exactly 32 bytes.
 - `DataInput.boxId` is exactly 32 bytes.
 - `SpendingProof.proofBytes` is a `Uint8Array` of length ≥ 0. Empty (`length === 0`) for storage-rent and `TrivialProp` spends.
-- `SpendingProof.contextExtension.values` is a `Record<number, { tpe: SType; value: SValue }>` keyed by `varId` (u8, 0..=255). Parse order from the wire is NOT preserved; serialization is sorted ascending by `varId` (matching the canonical on-chain encoding).
+- `SpendingProof.contextExtension.values` is an insertion-ordered `Map<number, { tpe: SType; value: SValue }>` keyed by `varId`. A parsed extension's ids are in `[0, 127]` (see "Context-extension bounds"). The received wire order is preserved, and serialization iterates insertion order with no re-sort: the order is part of the signing message (`docs/specs/2026-06-16-context-extension-order-preservation.md`).
 - `ErgoBoxCandidate.ergoTreeBytes` is a verbatim wire span: the ergoTree grammar is self-delimiting, consumed via `parseErgoTreeBytes(r)` from `@ergots/ergoscript`. A `hasSize=true` body whose struct parse fails is captured verbatim as an "unparsed" span (sigma-rust `ErgoTree::Unparsed` equivalent — "burn" boxes).
 - `ErgoBoxCandidate.tokens[i].id` is 32 bytes (resolved from the transaction-wide token table).
 - `ErgoBoxCandidate.registers` keys are `number` in `[4, 9]` (R4..R9). Each value carries the pair `{ tpe: SType; value: SValue }`. For the rare `Tuple`-Expr form (lead byte `0x86 = 134`), `opaqueBytes` carries the verbatim wire bytes for byte-roundtrip identity, mirroring the SBox path in `@ergots/ergoscript`.
@@ -162,16 +173,18 @@ export class TxParseError extends Error {
 export type TxParseErrorCode =
   | 'trailing-bytes'
   | 'token-table-index-out-of-range'
-  | 'count-out-of-range';
+  | 'count-out-of-range'
+  | 'extension-id-out-of-range';
 ```
 
-All three codes are emitted by this package directly.
+All four codes are emitted by this package directly.
 
 | Code | When thrown | Layer |
 |---|---|---|
 | `'trailing-bytes'` | Bytes remain after a structurally complete transaction was parsed (`!r.isExhausted` after all sections). Stricter than sigma-rust's `sigma_parse_bytes` — matches the JVM and ergots' `parseTree` zero-trailing precedent. Parse only. | `wire/transaction.ts:parseTransaction` |
 | `'token-table-index-out-of-range'` | An output candidate's per-token VLQ index is ≥ the number of ids in the transaction-wide token table. | `wire/box-candidate.ts:parseBoxCandidate` |
-| `'count-out-of-range'` | Any io count (inputs, dataInputs, outputCandidates) or the distinct-token count violates the declared bounds (see "Count bounds"). Thrown on parse and serialize. | `wire/transaction.ts`, `wire/_envelope.ts` |
+| `'count-out-of-range'` | Any io count (inputs, dataInputs, outputCandidates), the distinct-token count, or a context-extension entry count violates the declared bounds (see "Count bounds"). Thrown on parse and serialize. | `wire/transaction.ts`, `wire/_envelope.ts`, `wire/input.ts` |
+| `'extension-id-out-of-range'` | A context-extension variable-id byte is ≥ `0x80` (a negative JVM `Byte`). Thrown before the entry's value is read. Parse only. | `wire/input.ts:parseContextExtension` |
 
 **Other errors that may propagate:**
 
@@ -207,7 +220,7 @@ This holds for the full test-fixture corpus (real testnet and mainnet transactio
 | `Transaction::distinct_token_ids` (`transaction.rs:~227-237`) | `writeEnvelope` token-table build (inline in `wire/_envelope.ts`) — `IndexSet` first-seen insertion across output candidates |
 | `Input::sigma_parse` / `sigma_serialize` (`input.rs`) | `parseInput` / `serializeInput` (`wire/input.ts`) |
 | `Input::input_to_sign` (`input.rs:112-120`) | signing-message per-input path in `writeEnvelope` (`wire/_envelope.ts:84-93`) — boxId + VLQ(0) + extension |
-| `ContextExtension::sigma_parse` / `sigma_serialize` (`context_extension.rs`) | `parseContextExtension` / `serializeContextExtension` (`wire/input.ts`) |
+| `ContextExtension::sigma_parse` / `sigma_serialize` (`context_extension.rs`); count and id bounds from JVM `ContextExtension.serializer` (sigma-state v6.0.6 `ContextExtension.scala:44-66`) | `parseContextExtension` / `serializeContextExtension` (`wire/input.ts`) |
 | `DataInput::sigma_parse` / `sigma_serialize` (`data_input.rs`) | `parseDataInput` / `serializeDataInput` (`wire/data-input.ts`) |
 | `ErgoBoxCandidate::parse_body_with_indexed_digests` / `serialize_body_with_indexed_digests` (`ergo_box.rs:415-470 / 357-411`) | `parseBoxCandidate` / `serializeBoxCandidate` (`wire/box-candidate.ts`) |
 
@@ -323,11 +336,19 @@ const DEFAULT_PARAMETERS: ChainParameters;  // all values above
 
 For each input `i`:
 
-a. **Storage-rent fast path** (empty proof only): if `proofBytes.length === 0` and the box is rent-eligible (`blockHeight − creationHeight ≥ 1,051,200`), apply the storage-rent conditions (extension var 127 holds the output index; recreation checks if box value > fee). If rent conditions pass, skip this input at cost 0 (no eval, no verify).
+a. **Storage-rent branch.** A port of the rent branch of the JVM's `ErgoInterpreter.verify` and of `checkExpiredBox` (ergo v6.0.6, `ergo-wallet/src/main/scala/org/ergoplatform/wallet/interpreter/ErgoInterpreter.scala:66-87` and `:42-55`; constants from `wallet/protocol/Constants.scala:19-23`), in `storageRentVerdict` (`validate/storage-rent.ts`).
+   - **Gate** (`:73`, `:77`). The branch applies when all three hold: the box's age `preHeader.height − box.creationHeight` is at least `StoragePeriod = 1,051,200`, computed in signed 32-bit `Int` arithmetic; the spending proof is empty; the extension holds var 127 (`StorageIndexVarId`). Otherwise the input takes the script path (b).
+   - **Fallbacks** (`:78-84`, `Try { .. }.recoverWith { super.verify }`). If var 127 is not an `SShort`, or its value does not index an output (negative, or ≥ the output count), the input takes the script path (b).
+   - **Verdict — final.** Otherwise `checkExpiredBox` decides, and the script is never parsed or evaluated:
+     - `storageFee = storageFeeFactor × boxBytes.length` is `Int × Int` and wraps at 32 bits (`:43`). At factor 1,250,000 it is negative for 1718–3435-byte boxes and a small positive number for 3436–4096-byte boxes (32,704 at 3436). `boxBytes` is the box's full serialization, with txId and index (`ErgoBox.bytes`): the bytes whose blake2b256 matched `tx.inputs[i].boxId` in step 1.
+     - If `box.value − storageFee ≤ 0` (`Long` arithmetic, `:45`), the verdict is true whatever the output.
+     - Otherwise it is true iff the output at the index has `creationHeight == preHeader.height` (`:46`) and `value ≥ box.value − storageFee` (`:47`), and every register except R0 and R3 equals the box's (`:50-52`): R1 (the ergoTree bytes), R2 (the tokens, in order), R4–R9.
+     - A false verdict throws `TxValidationError('script-reduced-false')`. The JVM fails the same rule as for a script that reduces to false (`txScriptValidation`); its reason reads `#i => Success((false,50))`.
+     - A true verdict costs `StorageContractCost = 50` block units (`:81`). `ErgoTransaction.verifyInput` adds it to the running cost like any script cost, and the cost-limit check below applies.
 
 b. **Script path**: `parseTree(ergoTreeBytes)` (parse errors surface unwrapped) → `buildInputContext(…, jitCostLimit: remaining headroom)` → `evaluateWith(tree, ctx)` → check result is `SigmaProp` (else `non-sigmaprop-result`) → `verifySignature(result.value, signingMessage(tx), proofBytes)` (else `script-reduced-false`). After eval, `floor(ctx.jitCost / 10) + floor(estimateCryptoCost(result.value) / 10)` (the reduction cost and the sigma-verification cost, each truncated to block cost) is added to `runningBlock`; if it then exceeds `maxBlockCost`, throws `TxValidationError('cost-limit-exceeded')`. A mid-reduction overrun surfaces `EvalError('cost-limit-exceeded')` unwrapped.
 
-**`cost-limit-exceeded`** (as `TxValidationError`) — when the init cost alone exceeds `maxBlockCost`, OR when the per-input block accumulator (eval + crypto) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead surfaces `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). All forms mean the transaction is rejected.
+**`cost-limit-exceeded`** (as `TxValidationError`) — when the init cost alone exceeds `maxBlockCost`, OR when the per-input block accumulator (eval + crypto, or 50 for a storage-rent input) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead surfaces `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). All forms mean the transaction is rejected.
 
 ## Box id computation
 
@@ -370,11 +391,11 @@ type TxValidationErrorCode =
   | 'token-amount-invalid'
   // per-input verify (TxValidationError only for init cost overrun; see Unwrapped errors)
   | 'non-sigmaprop-result'     // location.inputIndex + location.boxId
-  | 'script-reduced-false'     // location.inputIndex + location.boxId
+  | 'script-reduced-false'     // location.inputIndex + location.boxId; also a false storage-rent verdict
   | 'cost-limit-exceeded';     // TxValidationError only for init overrun (see below)
 ```
 
-**Total: 21 codes** (3 `TxParseErrorCode` + 21 `TxValidationErrorCode` = 24 total in the package's error surface; `TxValidationErrorCode` is a distinct union).
+**Total: 21 codes** (4 `TxParseErrorCode` + 21 `TxValidationErrorCode` = 25 total in the package's error surface; `TxValidationErrorCode` is a distinct union).
 
 ## Unwrapped errors contract
 
@@ -419,14 +440,14 @@ runningBlock += floor(ctx.jitCost / 10) + floor(estimateCryptoCost(result.value)
 if (runningBlock > maxBlockCost) throw TxValidationError('cost-limit-exceeded')
 ```
 
-The eval (reduction) cost and the sigma-verification (crypto) cost are each truncated to block cost **independently** (JVM `Interpreter.scala:280-286`; `JitCost.toBlockCost = value / 10`). The mid-reduction JIT ceiling handed to `evaluateWith` is `(maxBlockCost − runningBlock) × 10`; a reduction exceeding it surfaces `EvalError('cost-limit-exceeded')` unwrapped. Storage-rent inputs add 0.
+The eval (reduction) cost and the sigma-verification (crypto) cost are each truncated to block cost **independently** (JVM `Interpreter.scala:280-286`; `JitCost.toBlockCost = value / 10`). The mid-reduction JIT ceiling handed to `evaluateWith` is `(maxBlockCost − runningBlock) × 10`; a reduction exceeding it surfaces `EvalError('cost-limit-exceeded')` unwrapped. A storage-rent input whose verdict is true adds `StorageContractCost = 50` instead (JVM `ErgoInterpreter.scala:81`), followed by the same `runningBlock > maxBlockCost` check.
 
 **Crypto cost (closed).** The sigma-verification cost is `estimateCryptoCost` (`@ergots/ergoscript`), ported from the JVM `Interpreter.estimateCryptoVerifyCost` (per-leaf ProveDlog 3980 / ProveDhTuple 7140; conjecture node 15; threshold polynomial). The earlier deferral (phase 2 under-counted by this term) is CLOSED. Verdict equivalence with the JVM is pinned by the SANTA `cost-limit-boundary` vector (`test/fixtures/conformance/`). Because the JVM truncates each input's cost to block independently, ergots only needs eval cost correct to within a block (10 JIT) — robust to sub-10-JIT eval differences.
 
 ## Provenance and validation
 
 - Validate path lifted from the mainnet-proven harness `tools/mainnet-validate/validate-tx.ts` (oracle machinery removed; block-validation accounting mirrors sigma-rust `TransactionContext::validate()`).
-- Gated by 2 real testnet fixtures (`multi-input-10`, `multi-input-3`) loaded from `test/fixtures/stateful/` — both are real multi-input transfers (testnet, heights 402900 and 402800) that exercise the full multi-input eval+verify loop. No storage-rent fixture: testnet is younger than the 1,051,200-block storage period. Also gated by the adversarial mutation suite (Task 8): per-field byte flips and structural mutations that must all be rejected.
+- Gated by 2 real testnet fixtures (`multi-input-10`, `multi-input-3`) loaded from `test/fixtures/stateful/` — both are real multi-input transfers (testnet, heights 402900 and 402800) that exercise the full multi-input eval+verify loop. Storage rent is gated by SANTA's JVM-blessed `storage-rent-*` vectors (`test/fixtures/conformance/`; ergo-core 6.0.6 `validateStateful`, synthetic context at height 1,051,200, since testnet is younger than the storage period): every branch of the gate, the fallbacks, the final verdict, dust, the `Int × Int` fee wrap, and the 50-unit cost (pinned by `maxBlockCost` boundary pairs). Also gated by the adversarial mutation suite (Task 8): per-field byte flips and structural mutations that must all be rejected.
 - Re-walk against full mainnet history is a future capstone (outside phase-2 scope).
 
 ## Known residuals
@@ -446,7 +467,7 @@ The SBox serializer (`@ergots/ergoscript`) rejects `creationHeight ≥ 2³¹` (J
 | `ErgoTransaction::validate_stateless` (`ergo_transaction.rs:99-116`) | `validateStateless` (`validate/stateless.ts`) |
 | `TransactionContext::validate` (`tx_context.rs:148-268`) | `validateStateful` (`validate/stateful.ts`) |
 | `TransactionContext::check_structural` (verify_output inline) | `checkStructural` (`validate/stateful.ts`) — internal |
-| `check_storage_rent_conditions` (`storage_rent.rs`) | `checkStorageRent` (`validate/storage-rent.ts`) — internal |
+| JVM `ErgoInterpreter.verify` rent branch + `checkExpiredBox` (ergo v6.0.6 `ErgoInterpreter.scala:66-87`, `:42-55`) | `storageRentVerdict` + `checkExpiredBox` (`validate/storage-rent.ts`) — internal |
 | `ErgoBox::sigma_serialize` / box-id (`ergo_box.rs:141,182-185`) | `computeBoxId` / `serializeBox` (`validate/stateful.ts`) — internal |
 | `TransactionContext::compute_tx_init_cost` (`tx_context.rs:126-145`) | `computeInitCost` (`validate/stateful.ts`) — internal |
 | `Parameters::default()` (`parameters.rs:157-168`) | `DEFAULT_PARAMETERS` (`params.ts`) |
