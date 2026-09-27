@@ -29,17 +29,18 @@
  */
 
 import { ByteReader, ByteWriter } from '@ergots/scorex';
-import { parseSType, parseSValue, serializeSType, serializeSValue } from '@ergots/ergoscript';
+import { parseSType, parseSValue, serializeSType, serializeSValue, violatesCheckV6Type } from '@ergots/ergoscript';
 import type { ContextExtension, Input } from '../types';
 import { TxParseError } from '../errors';
 
 /** JVM `ContextExtension.serializer.parse` (`ContextExtension.scala:52-66`). The count
  *  and each variable id are read as signed bytes (`r.getByte()`); a byte >= 0x80 is a
- *  negative JVM `Byte` and errors. */
+ *  negative JVM `Byte` and errors. Each value is read as `r.getValue()` reads a
+ *  Constant, then checked by rule-1019 `CheckV6Type`. */
 export function parseContextExtension(r: ByteReader): ContextExtension {
   const n = r.readU8();
   if (n >= 0x80) {
-    // :53-55, every sigma-state version.
+    // :53-55 (since sigma-state v4.0).
     throw new TxParseError(`context extension count byte 0x${n.toString(16)} is >= 0x80`, 'count-out-of-range');
   }
   const values: ContextExtension['values'] = new Map();
@@ -49,9 +50,20 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
       // :58-60 (sigma-state >= 6.0.5, e4ef1b203, not version-gated) — before the value is read.
       throw new TxParseError(`context extension variable id 0x${varId.toString(16)} is >= 0x80`, 'extension-id-out-of-range');
     }
-    const tpe = parseSType(r);
-    const value = parseSValue(tpe, 0, r);
-    values.set(varId, { tpe, value });
+    // :61 `r.getValue()` — the value node takes one reader level (ValueSerializer.scala:396-398)
+    // on top of its data's own levels, as a box register does.
+    r.enterDepth();
+    try {
+      const tpe = parseSType(r);
+      // :62 rule-1019 CheckV6Type on the declared type, checked before the data as the register leg does.
+      if (violatesCheckV6Type(tpe)) {
+        throw new TxParseError(`context extension variable ${varId} has a type containing Option, Header or UnsignedBigInt`, 'extension-v6-type');
+      }
+      // :65 `toMap` — a repeated id keeps its first position and takes the last value.
+      values.set(varId, { tpe, value: parseSValue(tpe, 0, r) });
+    } finally {
+      r.exitDepth();
+    }
   }
   return { values };
 }
