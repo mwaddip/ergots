@@ -1,0 +1,31 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Transaction.context_extension_duplicate_ids",
+  "blessed_by" : "jvm:sigma-state-6.0.6",
+  "entries" : [
+    {
+      "name" : "ext-dup-ids-05-07-05-collapse#0",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension with count 3 and entries 05 -> Int 1, 07 -> Int 2, 05 -> Int 3. The JVM builds the map with values.toMap (ContextExtension.scala:65): the repeated id keeps its last value at its first position, so the tx re-serializes with 2 entries, 05 -> Int 3, 07 -> Int 2, and the JVM tx id comes from those collapsed bytes. Non-identity round-trip.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00030504020704040504060000018094ebdc030008d3010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00020504060704040000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-dup-ids-07-05-07-collapse#1",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "The same collapse with the higher id first: 07 -> Int 1, 05 -> Int 2, 07 -> Int 3 re-serializes as 07 -> Int 3, 05 -> Int 2. An id-sorted map matches the JVM on entry #0 by coincidence, not on this one.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00030704020504040704060000018094ebdc030008d3010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00020704060504040000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}

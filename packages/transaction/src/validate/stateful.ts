@@ -1,22 +1,15 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
-import { ByteWriter, blake2b256 } from '@ergots/scorex';
-import { serializeSValue, parseTree, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
+import { blake2b256 } from '@ergots/scorex';
+import { parseTree, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
 import { transactionId, signingMessage } from '../wire/signing-message';
 import { buildHeadersArray, promoteCandidate, buildInputContext, JIT_COST_PER_BLOCK_COST } from '../context';
-import { checkStorageRent } from './storage-rent';
+import { storageRentVerdict, STORAGE_CONTRACT_COST } from './storage-rent';
+import { serializeBox } from './_box';
 
-/** Canonical serialized bytes of a full box (incl. txId+index), at the box's own tree
- *  version — mirrors the proven harness `serializedBoxLen`. */
-function serializeBox(box: ErgoBox): Uint8Array {
-  const tv = box.ergoTreeBytes.length > 0 ? (box.ergoTreeBytes[0]! & 0x07) : 0;
-  const w = new ByteWriter();
-  serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: box }, tv, w);
-  return w.toBytes();
-}
 /** Box id = blake2b256(box's sigma_serialize bytes incl. txId+index). ergo_box.rs:141,182-185. */
 export function computeBoxId(box: ErgoBox): Uint8Array { return blake2b256(serializeBox(box)); }
 
@@ -125,10 +118,11 @@ function computeInitCost(tx: ErgoLikeTransaction, deps: StatefulDeps, params: Ch
  * `TransactionContext::validate` (tx_context.rs:148-268).
  *
  * Cost model: a per-tx init/structural cost (block units) seeds a SINGLE
- * cumulative BLOCK-cost accumulator (`runningBlock`). Each non-storage-rent
- * input adds `floor(evalJit/10) + floor(cryptoJit/10)` — the reduction cost and
+ * cumulative BLOCK-cost accumulator (`runningBlock`). Each scripted input adds
+ * `floor(evalJit/10) + floor(cryptoJit/10)` — the reduction cost and
  * the sigma-verification (crypto) cost, each truncated to block cost
- * independently (JVM `Interpreter.scala:280-286`, `JitCost.toBlockCost`). After
+ * independently (JVM `Interpreter.scala:280-286`, `JitCost.toBlockCost`); a
+ * storage-rent input adds `STORAGE_CONTRACT_COST` (50). After
  * each input `runningBlock > maxBlockCost` rejects. The mid-reduction JIT ceiling
  * handed to `evaluateWith` is `(maxBlockCost − runningBlock) * 10`. The crypto
  * cost is `estimateCryptoCost` (`@ergots/ergoscript`); the earlier deferral is
@@ -171,11 +165,19 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
     const extension = input.spendingProof.contextExtension;
     const location = { inputIndex: i, boxId: input.boxId };
 
-    // storage-rent first (empty proof only) — cost 0, no eval/verify (sigma-rust try_spend_storage_rent).
-    if (input.spendingProof.proofBytes.length === 0) {
-      if (checkStorageRent(selfBox, preHeader.height, extension, outputs, treeVersion, params.storageFeeFactor)) {
-        continue;
+    // Storage-rent branch first (JVM ErgoInterpreter.verify :72-84). When it applies, its verdict is
+    // final and the script is never parsed. False fails the input as a script reducing to false does
+    // (verifyInput's txScriptValidation); true costs StorageContractCost, charged like a script cost
+    // and checked against the limit (bsBlockTransactionsCost, ErgoTransaction.scala verifyInput).
+    const rent = storageRentVerdict(
+      selfBox, input.spendingProof.proofBytes, extension, tx.outputCandidates, preHeader.height, params.storageFeeFactor);
+    if (rent !== null) {
+      if (!rent) throw new TxValidationError(`input ${i} storage-rent verdict (checkExpiredBox) is false`, 'script-reduced-false', location);
+      runningBlock += STORAGE_CONTRACT_COST;
+      if (runningBlock > maxBlockCost) {
+        throw new TxValidationError(`tx cost ${runningBlock} > limit ${maxBlockCost} at input ${i}`, 'cost-limit-exceeded', location);
       }
+      continue;
     }
 
     const tree = parseTree(ergoTreeBytes);   // parse errors surface unwrapped

@@ -96,8 +96,10 @@ export class ByteReader {
    * (`:127-131`). A fresh level-0 reader sets level 1 on the first call and
    * throws on the call that would set level `maxTreeDepth + 1`.
    *
-   * MUST be paired with {@link exitDepth} on the matching exit path (use
-   * try/finally so a parse error still decrements).
+   * Pair with {@link exitDepth} on the frame's normal return. The JVM lowers the
+   * level only there (`r.level = r.level - 1`, no finally), so a throw that a
+   * caller catches and parses past (a soft-fork ErgoTree degrade) leaves the
+   * level raised; `@ergots/ergoscript`'s frames do the same.
    */
   enterDepth(): void {
     const next = this._level + 1;
@@ -122,7 +124,9 @@ export class ByteReader {
    * JVM keeps reading such a region on the SAME reader via `positionLimit`
    * (`ErgoTreeSerializer.scala:143-211`), so its `level` persists across the
    * size boundary. A naive `new ByteReader(slice)` would reset level to 0 and
-   * under-count depth; this preserves the shared counter faithfully.
+   * under-count depth. The level flows INTO the fork only: a caller that goes on
+   * reading the parent must carry the fork's final level back (levels a caught
+   * error left inside the region), as ergoscript's `parseTreeFromReader` does.
    *
    * Does NOT inherit `positionLimit`: the fork's buffer is rebased to offset 0,
    * so the parent's absolute-offset limit would be meaningless over it — the

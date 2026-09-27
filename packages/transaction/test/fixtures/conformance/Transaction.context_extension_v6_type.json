@@ -1,0 +1,88 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Transaction.context_extension_v6_type",
+  "blessed_by" : "jvm:sigma-state-6.0.6",
+  "entries" : [
+    {
+      "name" : "ext-ubi-reject#0",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: UnsignedBigInt(1)}. Under the node's v6 tx parse context (3, 3) the UnsignedBigInt data decodes, then CheckV6Type (rule 1019, ContextExtension.scala:62) rejects the tx at parse: the type is v6-only. An impl without the extension-side check round-trips it: the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a0001010901010000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-bigint-accept#1",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: BigInt(1)}: the signed twin of the UnsignedBigInt reject. Round-trip identity.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a0001010601010000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-coll-option-int-empty-reject#2",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: Coll[Option[Int]]()}. The collection is empty, so no Option data is read and the type alone decides: CheckV6Type walks into the element type and rejects Option at parse.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a0001010c28000000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-coll-header-empty-reject#3",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: Coll[Header]()}. Empty, so no Header data is read: CheckV6Type rejects the Header element type at parse.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a0001010c68000000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-coll-int-empty-accept#4",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: Coll[Int]()}: the empty-collection twin of the Option and Header rejects. Round-trip identity.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010110000000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-tuple-int-ubi-reject#5",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: (1, UnsignedBigInt(1)): (Int, UnsignedBigInt)}. CheckV6Type walks the tuple items and rejects the UnsignedBigInt one at parse.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010140090201010000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "ext-tuple-int-bigint-accept#6",
+      "kind" : "Transaction",
+      "source" : "santa:authored-context-extension-parse",
+      "description" : "Spending-proof extension {1: (1, BigInt(1)): (Int, BigInt)}: the tuple twin. Round-trip identity.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010140060201010000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}

@@ -32,7 +32,8 @@
  * Task 8 wired the envelope around `parseExpr` / `serializeExpr`; Task 9+
  * fleshed out the body parser one opcode at a time. The body parser is now
  * fully built — reserved/undispatched opcodes parse-reject via
- * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path), and corpus
+ * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path for most of them;
+ * JVM 6.0.6 parses OpTrue/OpFalse/ModQ×3, a known residual), and corpus
  * trees round-trip end-to-end.
  *
  * Cross-reference:
@@ -104,7 +105,9 @@ export class ErgoTreeSerializeError extends Error {
  *
  * This set is the VERIFIED pure-`ValidationRule` equivalents (each → ValidationException
  * → caught, confirmed against JVM source):
- *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002)
+ *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002); except six
+ *     opcodes the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable, ModQ×3), which ergots
+ *     degrades as a known residual (facts/ergoscript-wire.md 'opcode-reserved' entry)
  *   - `soption-tree-version-too-low`         ← `CheckSerializableTypeCode` (rule 1009 — the
  *     `typeCode == OptionTypeCode` SPECIAL-CASE at `ValidationRules.scala:135`)
  *
@@ -274,6 +277,9 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
     // JVM (a `SerializerException` escapes the `UnparsedErgoTree` fallback). B-core
     // degrade-set; the broader `ValidationException` audit is a tracked residual.
     if (header.hasSize && isSoftForkableParseError(err)) {
+      // The frames that were open when the failing node threw never lowered their levels, and
+      // the degrade's `finally` restores only the position limit (ErgoTreeSerializer.scala:196-211).
+      carryLeakedLevels(outer, inner)
       return {
         header,
         unparsedBytes: outer.slice(treeStart, outer.position).slice(),
@@ -288,12 +294,26 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
   // sigma-rust (sized-buffer leftover ignored). `parseTree` still rejects OUTER
   // trailing via its outer-exhaustion check; that is ERG-02's actual requirement.
 
+  // A degrade nested in the body (a Box constant's own sized tree) left levels on the fork.
+  carryLeakedLevels(outer, inner)
   return {
     header,
     constantTypes,
     constants,
     body,
   }
+}
+
+/**
+ * The JVM parses a size-flagged body on the SAME reader, and its frames lower `r.level` only on
+ * a normal return (`r.level - 1`, no finally, ValueSerializer.scala:396-412), so levels left by a
+ * caught degrade anywhere in the body stay on that reader. ergots parses the body on a fork, which
+ * inherits the level but cannot hand it back: re-enter on `outer` whatever the fork still holds.
+ * A no-op when `inner === outer` (no size flag) or nothing leaked; it cannot exceed the cap, which
+ * the fork shares (facts/ergoscript-wire.md, "Reader depth after a degrade").
+ */
+function carryLeakedLevels(outer: ByteReader, inner: ByteReader): void {
+  while (outer.level < inner.level) outer.enterDepth()
 }
 
 /**

@@ -10,7 +10,8 @@
  * Two distinct error codes are returned from this module:
  *  - `opcode-reserved` — the opcode is in sigma-rust's `op_code.rs` enum but
  *    is never dispatched at the wire-Expr layer (no registered serializer);
- *    the JVM rejects the identical byte via `CheckValidOpCode`. The error
+ *    the JVM rejects the identical byte via `CheckValidOpCode`, except for
+ *    OpTrue/OpFalse/ModQ×3, which JVM 6.0.6 parses (a known residual). The error
  *    message names the variant. (`not-implemented-yet` is no longer emitted
  *    from this module — it survives only as an `EvalError` code.)
  *  - `unknown-opcode` — the opcode byte is not in the sigma-rust opcode
@@ -178,20 +179,20 @@ export function parseExprWithFirstByte(
   // depth budget is enforced uniformly. A `Const` Expr counts ONE level here
   // and then `parseConstFromByte` → `parseSValue` counts another (mirroring the
   // JVM's ValueSerializer→ConstantSerializer→DataSerializer chain, two levels
-  // for a constant leaf). try/finally keeps the counter balanced on parse error.
+  // for a constant leaf). The level is lowered only on a normal return, as the JVM's
+  // `r.level = r.level - 1` is (no finally): a throw that a soft-fork degrade catches
+  // leaves it raised (facts/ergoscript-wire.md, "Reader depth after a degrade").
   r.enterDepth()
-  try {
-    return parseExprBody(
-      opcode,
-      r,
-      constantTypes,
-      constantValues,
-      valDefTypes,
-      treeVersion,
-    )
-  } finally {
-    r.exitDepth()
-  }
+  const expr = parseExprBody(
+    opcode,
+    r,
+    constantTypes,
+    constantValues,
+    valDefTypes,
+    treeVersion,
+  )
+  r.exitDepth()
+  return expr
 }
 
 /**
@@ -451,10 +452,13 @@ function parseExprBody(
     //     TrivialPropTrue joined, and 19 until FunDef left in v6 P6) —
     //     reserved in sigma-rust's `op_code.rs` enum but NEVER dispatched at
     //     the wire-Expr layer or implemented in `ergotree-interpreter/src/
-    //     eval/`. The JVM rejects each identically: `ValueSerializer.
+    //     eval/`. The JVM rejects most of them: `ValueSerializer.
     //     deserialize` reads the opcode, `getSerializer` returns null (no
     //     registered serializer), `CheckValidOpCode` (rule 1002) throws
-    //     `InvalidOpCode`. We mirror via unconditional parse-reject. The
+    //     `InvalidOpCode`. Not so for OpTrue 0x7F, OpFalse 0x80 and the ModQ
+    //     family 0xE7-0xE9, which JVM 6.0.6 registers and parses (a known
+    //     residual, facts/ergoscript-wire.md 'opcode-reserved' entry). We
+    //     parse-reject all of them unconditionally. The
     //     opcodes exist in the wire enum for forward-compat / historical
     //     reasons but no `Evaluable` impl dispatches the bare byte.
     //     FlatMap's `flatMap` METHOD and the TrivialProp pair's

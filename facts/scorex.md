@@ -62,11 +62,15 @@ export class ByteReader {
   readonly maxTreeDepth: number   // recursion-depth cap (default MAX_TREE_DEPTH)
   get level(): number             // current recursion depth (starts 0 on a fresh reader)
   enterDepth(): void              // ++level; throws ReaderError('max-tree-depth-exceeded') if level would exceed maxTreeDepth
-  exitDepth(): void               // --level (pair with enterDepth via try/finally)
+  exitDepth(): void               // --level. The JVM lowers the level only when a frame returns normally,
+                                  // so a caught error keeps it raised; @ergots/ergoscript's parsers do the
+                                  // same (facts/ergoscript-wire.md, "Reader depth after a degrade")
   // Fork a sub-reader over `bytes` INHERITING this reader's level + maxTreeDepth.
   // For size-prefixed inner regions read into a bounded buffer (e.g. a hasSize=true
-  // ErgoTree body), so the depth counter persists across the size boundary as the
-  // JVM does via positionLimit on the one reader.
+  // ErgoTree body), so the depth counter carries INTO the region as the JVM's one
+  // reader does. It does not flow back: a caller that continues on the parent must
+  // carry the fork's final level back itself (ergoscript's parseTreeFromReader does,
+  // on both of its returns), or levels left by a caught error inside the region are lost.
   // Does NOT inherit positionLimit: the fork's buffer is rebased to offset 0, so the
   // parent's limit (an absolute offset) would be meaningless over it — a fork gets the
   // fresh default over its own buffer. Callers that need a window arm it on the SHARED

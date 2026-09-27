@@ -1,7 +1,9 @@
 export type TxParseErrorCode =
   | 'trailing-bytes'
   | 'token-table-index-out-of-range'
-  | 'count-out-of-range';
+  | 'count-out-of-range'
+  | 'extension-id-out-of-range'
+  | 'extension-v6-type';
 export class TxParseError extends Error {
   readonly code: TxParseErrorCode;
   constructor(message: string, code: TxParseErrorCode) {

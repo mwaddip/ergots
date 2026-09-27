@@ -4,7 +4,7 @@ Per audit OPS-06: before bumping a package's version or publishing, walk this ch
 
 ## Per-package version bump
 
-For the workspace being released (`@ergots/nipopow`, `@ergots/avltree`, or `@ergots/ergoscript`):
+For the workspace being released (`@ergots/scorex`, `@ergots/nipopow`, `@ergots/avltree`, `@ergots/ergoscript`, or `@ergots/transaction`):
 
 1. **`packages/<pkg>/package.json`** — bump `version`.
 2. **`packages/<pkg>/API.md`** — update the `VERSION` constant row (ergoscript) and any inline "v0.x.y" references.
@@ -37,6 +37,12 @@ Inspect the dry-run tarball listing:
 ## Cross-package version coupling
 
 `@ergots/ergoscript` declares `@ergots/avltree: "0.2.0"` as a runtime dependency. **Bumping avltree without simultaneously updating the dep range in ergoscript breaks the workspace alias.** Bump both together when the avltree API changes.
+
+`@ergots/transaction` pins `@ergots/ergoscript` and `@ergots/scorex` exactly, and tsup leaves both external, so the published transaction imports whatever the registry holds at those versions. When transaction starts using a new export of either, as it did with ergoscript's `violatesCheckV6Type` and `sValueStructuralEq` (2026-09-27), publishing transaction alone breaks it at module load. Release in dependency order:
+
+1. Bump the dependency (e.g. ergoscript: `package.json`, the `VERSION` constant in `src/index.ts`, `API.md`, the `facts/` version lines), build, test and publish it.
+2. Update transaction's pin to exactly that version and bump transaction itself. A new error code breaks consumers' exhaustive `switch`es, so it is a minor bump.
+3. `npm install` so the workspace link resolves again, then `npm run build`, `npm test`, `npm pack --dry-run --workspace @ergots/transaction`, and publish.
 
 ## CI gate (future)
 

@@ -32,6 +32,7 @@ import { parseParsedTree as parseTree } from '../_helpers'
 import { serializeExpr } from '../../src/wire/serialize'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { parseSValue } from '../../src/wire/parse-svalue'
+import { parseTreeFromReader } from '../../src/wire/ergo-tree'
 import { serializeSType } from '../../src/wire/serialize-stype'
 import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
@@ -311,5 +312,66 @@ describe('MaxTreeDepth — box internals (register / nested ergoTree)', () => {
     }
     expect(err).toBeInstanceOf(ReaderError)
     expect((err as ReaderError).code).toBe('max-tree-depth-exceeded')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5) A soft-fork degrade leaves its levels on the reader (the JVM's level leak)
+// ---------------------------------------------------------------------------
+
+describe('MaxTreeDepth — levels leaked by a soft-fork degrade', () => {
+  // JVM frames lower `r.level` only on a normal return (`r.level = r.level - 1`, no finally,
+  // ValueSerializer.scala:396-412), and deserializeErgoTree's degrade restores only the position
+  // limit (ErgoTreeSerializer.scala:196-211). SANTA Transaction.degraded_tree_depth_leak
+  // (jvm:sigma-state-6.0.6) pins the effect at the transaction level.
+  //
+  // Tree 0b 0a d1 ef×8 fd: v3 with the size flag, a 10-byte body of BoolToSigmaProp (level 1),
+  // 8 LogicalNot (levels 2-9) and the unknown opcode 0xfd, which throws at level 10 and degrades.
+  const DEGRADING_TREE = [0x0b, 0x0a, 0xd1, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xfd]
+
+  it('a degrade 10 levels deep leaves the reader at level 10', () => {
+    const r = new ByteReader(new Uint8Array(DEGRADING_TREE))
+    const tree = parseTreeFromReader(r)
+    expect('unparsedBytes' in tree).toBe(true)
+    expect(r.level).toBe(10)
+  })
+
+  it('the leak survives the normal return of an enclosing frame (a Box whose tree degrades)', () => {
+    // parseSValue(SBox) enters level 1, the tree's failing node throws at 1 + 10 = 11, and the
+    // Box frame's normal return lowers the level by one: 10 remain, as the JVM's relative
+    // `r.level - 1` leaves them (DataSerializer.scala:33-38).
+    const w = new ByteWriter()
+    w.writeVlqU(1_000_000)                      // value
+    w.writeBytes(new Uint8Array(DEGRADING_TREE)) // ergoTree
+    w.writeVlqU(0)                              // creationHeight
+    w.writeU8(0)                                // tokens
+    w.writeU8(0)                                // registers
+    w.writeBytes(new Uint8Array(32))            // txId
+    w.writeVlqU(0)                              // index
+    const r = new ByteReader(w.toBytes())
+    expect(parseSValue({ tag: 'SBox' }, 0, r).kind).toBe('Box')
+    expect(r.level).toBe(10)
+  })
+
+  it('a degrade nested in a size-flagged tree that parses still leaves its levels', () => {
+    // v3 sized + segregated tree whose one constant is a Box carrying DEGRADING_TREE, then body
+    // sigmaProp(true). The Box data frame enters 1, the nested failing node throws at 1 + 10 = 11,
+    // the Box frame's normal return lowers 1: 10 remain on the JVM's one reader after the whole
+    // tree parses (DataSerializer.scala:35-37). SANTA Transaction.nested_degrade_depth_leak
+    // (jvm:sigma-state-6.0.6) pins it at the transaction level.
+    const hex = '1b37' + '01' + '63' + 'c0843d' + '0b0ad1efefefefefefefeffd' + '00'.repeat(36) + '08d3'
+    const r = new ByteReader(new Uint8Array(hex.match(/../g)!.map((x) => parseInt(x, 16))))
+    const tree = parseTreeFromReader(r)
+    expect('unparsedBytes' in tree).toBe(false)
+    expect(r.level).toBe(10)
+  })
+
+  it('a degrade on Option data two data frames deep leaves 2 levels', () => {
+    // v1 sized + segregated tree, constant Coll[Option[Int]] = [Some(1)]: the Coll data frame
+    // (level 1) and the Option element frame (level 2) are open when the pre-v3 Option data gate
+    // throws (CoreDataSerializer.scala:96, :145), so 2 levels stay.
+    const r = new ByteReader(new Uint8Array([0x19, 0x08, 0x01, 0x0c, 0x28, 0x01, 0x01, 0x02, 0x08, 0xd3]))
+    expect('unparsedBytes' in parseTreeFromReader(r)).toBe(true)
+    expect(r.level).toBe(2)
   })
 })

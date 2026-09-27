@@ -39,6 +39,7 @@ import {
   parseSValue, serializeSValue,
   parseSType, serializeSType,
   parseErgoTreeBytes, parseAdditionalRegisters,
+  violatesCheckV6Type, sValueStructuralEq,
   parseSigmaBoolean, serializeSigmaBoolean,
   MAX_TREE_SIZE, VERSION,
   type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
@@ -144,6 +145,15 @@ type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueByt
 ```
 
 Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. `parseErgoTreeBytes` consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim span (header + optional size VLQ + constants + body). As of 2026-06-17 it routes through the SAME deserialize as the bare `parseTree` (`parseTreeFromReader`): the tree is structurally parsed, a `hasSize` soft-forkable failure degrades to `UnparsedErgoTree`, and the non-soft-forkable class (e.g. an SHeader constant, a truncated/empty body) REJECTS — so a box's propBytes reject exactly what a bare tree rejects (the old box-only skip-the-body path is gone). `parseAdditionalRegisters` reads the additional-registers section (raw `u8` count, `>6` rejected, per-register `Const`/`Tuple` Expr keyed R4.., Tuple-Expr `opaqueBytes` capture + rule-1019 `CheckV6Type` gate). Both advance the shared `ByteReader` in place. Full shape + failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
+
+### `violatesCheckV6Type` / `sValueStructuralEq`
+
+```ts
+function violatesCheckV6Type(tpe: SType): boolean;
+function sValueStructuralEq(a: SValue, b: SValue): boolean;
+```
+
+Two JVM rules that `@ergots/transaction` applies from this package rather than re-deriving them. `violatesCheckV6Type` is rule-1019 `CheckV6Type`: true iff the type contains `SOption`, `SHeader` or `SUnsignedBigInt`, through tuple items and collection element types. It is the predicate behind `parseAdditionalRegisters`' `'register-v6-type'` and `@ergots/transaction`'s `'extension-v6-type'`. `sValueStructuralEq` is the JVM's uncosted data equality, the one the evaluator's `Eq`/`NEq` use without cost: a Box compares by its id over its retained bytes, a GroupElement by its point. It does not compare types. `@ergots/transaction` uses it for storage-rent register equality. See `facts/ergoscript-wire.md` § "Shared rules for `@ergots/transaction`".
 
 ### `parseSigmaBoolean` / `serializeSigmaBoolean`
 
@@ -342,7 +352,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
 - **Postcondition (failure):** Throws `EvalError` with one of the 85 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
-- **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added `LastBlockUtxoRootHash` — the bare `0xa6` op-form parses and evaluates; cost 15 vs the PropertyCall form's 20). 21 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject (no registered serializer). `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6. The bare `FlatMap`/`TrivialProp` opcodes joined the reserved set; their non-bare forms reach us elsewhere (`flatMap` as a method-call; the `TrivialProp` pair as a SigmaBoolean leaf inside a SigmaProp constant). Trees whose body reaches a not-yet-implemented method-call handler or one of 3 defensive `EvalError 'not-implemented-yet'` sites (`eval.ts:232`, `global-vars.ts:136`, `bin-op/bit.ts:58`) still throw at runtime.
+- **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added `LastBlockUtxoRootHash` — the bare `0xa6` op-form parses and evaluates; cost 15 vs the PropertyCall form's 20). 21 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject (no registered serializer) for most of them. JVM 6.0.6 does parse `OpTrue`, `OpFalse` and the ModQ family (and `TaggedVariable` `0x71`); ergots rejecting them is a known residual (`facts/ergoscript-wire.md`, `'opcode-reserved'` entry). `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6. The bare `FlatMap`/`TrivialProp` opcodes joined the reserved set; their non-bare forms reach us elsewhere (`flatMap` as a method-call; the `TrivialProp` pair as a SigmaBoolean leaf inside a SigmaProp constant). Trees whose body reaches a not-yet-implemented method-call handler or one of 3 defensive `EvalError 'not-implemented-yet'` sites (`eval.ts:232`, `global-vars.ts:136`, `bin-op/bit.ts:58`) still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
 
