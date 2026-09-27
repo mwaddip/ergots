@@ -70,7 +70,7 @@ export class ByteReader {
   // ErgoTree body), so the depth counter carries INTO the region as the JVM's one
   // reader does. It does not flow back: a caller that continues on the parent must
   // carry the fork's final level back itself (ergoscript's parseTreeFromReader does,
-  // on every exit), or levels left by a caught error inside the region are lost.
+  // on both of its returns), or levels left by a caught error inside the region are lost.
   // Does NOT inherit positionLimit: the fork's buffer is rebased to offset 0, so the
   // parent's limit (an absolute offset) would be meaningless over it — a fork gets the
   // fresh default over its own buffer. Callers that need a window arm it on the SHARED
