@@ -101,6 +101,11 @@ describe('parseContextExtension — each value is read as JVM getValue() reads i
     expectTxParseError(() => parseContextExtension(new ByteReader(oneEntryExtension(tpe, dataHex))), 'extension-v6-type');
   });
 
+  it('applies CheckV6Type before the data, so a present Option value rejects as extension-v6-type', () => {
+    // Some(Int 1): the tree-version-0 Option data gate would reject too, with a different error.
+    expectTxParseError(() => parseContextExtension(new ByteReader(oneEntryExtension({ tag: 'SOption', elem: { tag: 'SInt' } }, '0102'))), 'extension-v6-type');
+  });
+
   it('parses a nested type with no v6 part (Coll[(Int, Coll[Byte])])', () => {
     const tpe: SType = { tag: 'SColl', elem: { tag: 'STuple', items: [{ tag: 'SInt' }, { tag: 'SColl', elem: { tag: 'SByte' } }] } };
     expect(parseContextExtension(new ByteReader(oneEntryExtension(tpe, '00'))).values.get(0)?.tpe).toEqual(tpe);

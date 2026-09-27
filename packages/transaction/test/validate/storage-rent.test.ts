@@ -93,4 +93,24 @@ describe('checkExpiredBox — register equality', () => {
   it('holds when the nested box has the same bytes', () => {
     expect(verdict(rentBox({ registers: { 4: nestedBox(0x01) } }), recreation({ registers: { 4: nestedBox(0x01) } }))).toBe(true);
   });
+
+  // ConstantNode.equals compares `tpe` before the data (values.scala:357): two empty collections of
+  // different element types hold equal (empty) data but are different constants.
+  it('fails when the types differ though the data is equal (empty Coll[Int] vs empty Coll[Long])', () => {
+    const emptyColl = (elem: 'SInt' | 'SLong') => ({
+      tpe: { tag: 'SColl' as const, elem: { tag: elem } },
+      value: { kind: 'Coll' as const, elem: { tag: elem }, items: [] },
+    });
+    expect(verdict(rentBox({ registers: { 4: emptyColl('SInt') } }), recreation({ registers: { 4: emptyColl('SLong') } }))).toBe(false);
+  });
+
+  // A String datum decodes as Java's new String(bytes, UTF_8) (CoreDataSerializer.scala:104-110),
+  // which keeps a leading byte-order mark: "A" and U+FEFF "A" are different registers.
+  it('fails when a String register differs only by a leading byte-order mark', () => {
+    const str = (hex: string) => ({
+      tpe: { tag: 'SString' } as const,
+      value: parseSValue({ tag: 'SString' }, 0, new ByteReader(new Uint8Array(hex.match(/../g)!.map((x) => parseInt(x, 16))))),
+    });
+    expect(verdict(rentBox({ registers: { 4: str('0141') } }), recreation({ registers: { 4: str('04efbbbf41') } }))).toBe(false);
+  });
 });
