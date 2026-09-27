@@ -352,4 +352,25 @@ describe('MaxTreeDepth — levels leaked by a soft-fork degrade', () => {
     expect(parseSValue({ tag: 'SBox' }, 0, r).kind).toBe('Box')
     expect(r.level).toBe(10)
   })
+
+  it('a degrade nested in a size-flagged tree that parses still leaves its levels', () => {
+    // v3 sized + segregated tree whose one constant is a Box carrying DEGRADING_TREE, then body
+    // sigmaProp(true). The Box data frame enters 1, the nested failing node throws at 1 + 10 = 11,
+    // the Box frame's normal return lowers 1: 10 remain on the JVM's one reader after the whole
+    // tree parses (DataSerializer.scala:35-37).
+    const hex = '1b37' + '01' + '63' + 'c0843d' + '0b0ad1efefefefefefefeffd' + '00'.repeat(36) + '08d3'
+    const r = new ByteReader(new Uint8Array(hex.match(/../g)!.map((x) => parseInt(x, 16))))
+    const tree = parseTreeFromReader(r)
+    expect('unparsedBytes' in tree).toBe(false)
+    expect(r.level).toBe(10)
+  })
+
+  it('a degrade on Option data two data frames deep leaves 2 levels', () => {
+    // v1 sized + segregated tree, constant Coll[Option[Int]] = [Some(1)]: the Coll data frame
+    // (level 1) and the Option element frame (level 2) are open when the pre-v3 Option data gate
+    // throws (CoreDataSerializer.scala:96, :145), so 2 levels stay.
+    const r = new ByteReader(new Uint8Array([0x19, 0x08, 0x01, 0x0c, 0x28, 0x01, 0x01, 0x02, 0x08, 0xd3]))
+    expect('unparsedBytes' in parseTreeFromReader(r)).toBe(true)
+    expect(r.level).toBe(2)
+  })
 })

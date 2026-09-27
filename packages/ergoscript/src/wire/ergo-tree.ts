@@ -274,12 +274,9 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
     // JVM (a `SerializerException` escapes the `UnparsedErgoTree` fallback). B-core
     // degrade-set; the broader `ValidationException` audit is a tracked residual.
     if (header.hasSize && isSoftForkableParseError(err)) {
-      // The JVM reads the body on the same reader, and the frames that were active when the
-      // failing node threw never lower its level (`r.level - 1` only on a normal return,
-      // ValueSerializer.scala:396-412); the degrade's `finally` restores only the position
-      // limit (ErgoTreeSerializer.scala:196-211). So those levels stay for the rest of the
-      // parse. Our frames leave them on the forked body reader: carry them to `outer`.
-      while (outer.level < inner.level) outer.enterDepth()
+      // The frames that were open when the failing node threw never lowered their levels, and
+      // the degrade's `finally` restores only the position limit (ErgoTreeSerializer.scala:196-211).
+      carryLeakedLevels(outer, inner)
       return {
         header,
         unparsedBytes: outer.slice(treeStart, outer.position).slice(),
@@ -294,12 +291,26 @@ export function parseTreeFromReader(outer: ByteReader): ErgoTree {
   // sigma-rust (sized-buffer leftover ignored). `parseTree` still rejects OUTER
   // trailing via its outer-exhaustion check; that is ERG-02's actual requirement.
 
+  // A degrade nested in the body (a Box constant's own sized tree) left levels on the fork.
+  carryLeakedLevels(outer, inner)
   return {
     header,
     constantTypes,
     constants,
     body,
   }
+}
+
+/**
+ * The JVM parses a size-flagged body on the SAME reader, and its frames lower `r.level` only on
+ * a normal return (`r.level - 1`, no finally, ValueSerializer.scala:396-412), so levels left by a
+ * caught degrade anywhere in the body stay on that reader. ergots parses the body on a fork, which
+ * inherits the level but cannot hand it back: re-enter on `outer` whatever the fork still holds.
+ * A no-op when `inner === outer` (no size flag) or nothing leaked; it cannot exceed the cap, which
+ * the fork shares (facts/ergoscript-wire.md, "Reader depth after a degrade").
+ */
+function carryLeakedLevels(outer: ByteReader, inner: ByteReader): void {
+  while (outer.level < inner.level) outer.enterDepth()
 }
 
 /**
