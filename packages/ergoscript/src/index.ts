@@ -57,6 +57,13 @@ export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
 export { parseErgoTreeBytes } from './wire/ergo-tree'
 export { parseAdditionalRegisters } from './wire/parse-svalue'
 export type { AdditionalRegisters } from './wire/parse-svalue'
+// JVM rules `@ergots/transaction` applies from this ONE place:
+//   - violatesCheckV6Type(tpe): rule-1019 CheckV6Type, shared by the register
+//     leg above and the transaction's context-extension leg.
+//   - sValueStructuralEq(a, b): the JVM's uncosted data equality (Box by its
+//     retained-bytes id), used for storage-rent register equality.
+export { violatesCheckV6Type } from './wire/parse-svalue'
+export { sValueStructuralEq } from './eval/bin-op/relation'
 // SType wire codec — exposed for the harness's `ContextExtension`
 // Constant decoding (each blob is `SType || SValue` per sigma-rust
 // `Constant::sigma_serialize`).

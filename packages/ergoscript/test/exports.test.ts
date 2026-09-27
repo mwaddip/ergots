@@ -45,6 +45,14 @@ describe('@ergots/ergoscript public error-class surface', () => {
     }
   })
 
+  it('root-exports the JVM rules @ergots/transaction applies from here', () => {
+    // facts/ergoscript-wire.md "Shared rules for @ergots/transaction": the context-extension leg
+    // of rule-1019 CheckV6Type, and storage-rent register equality.
+    const { violatesCheckV6Type, sValueStructuralEq } = pkg as Record<string, unknown>
+    expect(violatesCheckV6Type).toBeTypeOf('function')
+    expect(sValueStructuralEq).toBeTypeOf('function')
+  })
+
   it('a body-parse reject from parseTree is catchable as the root-exported ExprParseError', () => {
     // [0x00, 0x7f] = ErgoTree header V0 (no hasSize, no segregation) + the bare
     // reserved opcode OpTrue (0x7f). parseTree's body parser rejects it with

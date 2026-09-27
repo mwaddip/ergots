@@ -137,7 +137,7 @@ function parseRegisterExprWithTag(
       // A Tuple-Expr register (the OP_TUPLE arm below) is covered by recursion:
       // each item parses through this same Const arm, so a v6-typed item is
       // gated at its own node — mirroring the JVM `step(Tuple)` over item tpes.
-      if (containsV6RegisterType(tpe)) {
+      if (violatesCheckV6Type(tpe)) {
         throw new SValueParseError(
           'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
           'register-v6-type'
@@ -260,24 +260,24 @@ export class SValueParseError extends Error {
  *
  * DISTINCT from `eval/validate-v6-types.ts::containsV6Type` — that predicate
  * gates the tree BODY for the v6 version-gate type set `{ SUnsignedBigInt,
- * SFunc }`. This one gates box REGISTERS (and, on the JVM, context-extension
- * vars) for the set `{ SOption, SHeader, SUnsignedBigInt }`. Different type
- * set, different surface; do NOT merge.
+ * SFunc }`. This one gates box REGISTERS and context-extension values for the
+ * set `{ SOption, SHeader, SUnsignedBigInt }`. Different type set, different
+ * surface; do NOT merge.
  *
- * Residual: the JVM enforces `CheckV6Type` at TWO ingress points — box
- * registers (`ErgoBoxCandidate.scala:232`) and context-extension vars
- * (`ContextExtension.scala:60`). ergots gates only the register leg: it has no
- * context-extension WIRE parser (extensions are built in `makeContext`, not
- * deserialized from bytes), so there is nothing to gate on that leg. The
- * JVM-blessed witness W7 is a register case.
+ * The JVM enforces `CheckV6Type` at two ingress points, both served by this one
+ * predicate: box registers (`ErgoBoxCandidate.scala:232`, here in
+ * `parseRegisterExprWithTag`) and context-extension values
+ * (`ContextExtension.scala:62`, sigma-state v6.0.6 — `@ergots/transaction`'s
+ * `parseContextExtension`, which is why it is exported). The JVM-blessed
+ * witness W7 is a register case.
  */
-function containsV6RegisterType(tpe: SType): boolean {
+export function violatesCheckV6Type(tpe: SType): boolean {
   switch (tpe.tag) {
     // STuple first, matching the JVM `step` (STuple <: SCollection).
     case 'STuple':
-      return tpe.items.some(containsV6RegisterType)
+      return tpe.items.some(violatesCheckV6Type)
     case 'SColl':
-      return containsV6RegisterType(tpe.elem)
+      return violatesCheckV6Type(tpe.elem)
     // Leaf v6TypeCheck: any Option, SHeader (104), SUnsignedBigInt (9).
     case 'SOption':
     case 'SHeader':
