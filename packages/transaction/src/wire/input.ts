@@ -51,19 +51,17 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
       throw new TxParseError(`context extension variable id 0x${varId.toString(16)} is >= 0x80`, 'extension-id-out-of-range');
     }
     // :61 `r.getValue()` — the value node takes one reader level (ValueSerializer.scala:396-398)
-    // on top of its data's own levels, as a box register does.
+    // on top of its data's own levels, as a box register does. Lowered only on a normal return,
+    // as the JVM's `r.level - 1` is: a Box value whose tree degrades leaves its levels behind.
     r.enterDepth();
-    try {
-      const tpe = parseSType(r);
-      // :62 rule-1019 CheckV6Type on the declared type, checked before the data as the register leg does.
-      if (violatesCheckV6Type(tpe)) {
-        throw new TxParseError(`context extension variable ${varId} has a type containing Option, Header or UnsignedBigInt`, 'extension-v6-type');
-      }
-      // :65 `toMap` — a repeated id keeps its first position and takes the last value.
-      values.set(varId, { tpe, value: parseSValue(tpe, 0, r) });
-    } finally {
-      r.exitDepth();
+    const tpe = parseSType(r);
+    // :62 rule-1019 CheckV6Type on the declared type, checked before the data as the register leg does.
+    if (violatesCheckV6Type(tpe)) {
+      throw new TxParseError(`context extension variable ${varId} has a type containing Option, Header or UnsignedBigInt`, 'extension-v6-type');
     }
+    // :65 `toMap` — a repeated id keeps its first position and takes the last value.
+    values.set(varId, { tpe, value: parseSValue(tpe, 0, r) });
+    r.exitDepth();
   }
   return { values };
 }
