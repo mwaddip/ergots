@@ -12,7 +12,7 @@ Authoritative wire-format reference: sigma-rust `ergo-lib/src/chain/transaction.
 2. `serializeTransaction(tx)` — serialize an `ErgoLikeTransaction` to wire bytes; rejects out-of-bound io-counts.
 3. `signingMessage(tx)` — the Fiat–Shamir pre-image: the transaction envelope with every input's proof replaced by an empty proof (VLQ-length-0; extension and all other fields unchanged).
 4. `transactionId(tx)` — `blake2b256(signingMessage(tx))`, the 32-byte transaction identifier.
-5. `TxParseError` — the only error class; 3-variant `code` union documenting each rejection cause.
+5. `TxParseError` — the only error class; 5-variant `code` union documenting each rejection cause.
 6. Data model types: `ErgoLikeTransaction`, `Input`, `SpendingProof`, `DataInput`, `ErgoBoxCandidate`.
 7. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
@@ -47,7 +47,7 @@ type TxParseErrorCode =
 ### `parseTransaction(bytes)`
 
 - **Precondition:** `bytes` is a `Uint8Array` containing exactly one complete `ErgoLikeTransaction` in sigma-serialized wire form. The function calls `ByteReader.isExhausted` after parsing and rejects any trailing bytes.
-- **Postcondition (success):** Returns an `ErgoLikeTransaction` satisfying all type invariants below. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input whose context extensions have no repeated variable id. A repeated id collapses to one entry on parse, as in the JVM (see "Context-extension bounds"), so such an extension re-serializes shorter.
+- **Postcondition (success):** Returns an `ErgoLikeTransaction` satisfying all type invariants below. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input that is canonically encoded (see "Round-trip invariant" for what re-serializes differently).
 - **Postcondition (failure — `TxParseError`):** Thrown for:
   - `'trailing-bytes'` — bytes remain after a structurally complete transaction was parsed. This is STRICTER than sigma-rust's `sigma_parse_bytes` (which tolerates trailing bytes) and matches the JVM modifier-parse path and ergots' own `parseTree` zero-trailing precedent.
   - `'count-out-of-range'` — an io count violates the `TxIoVec` / `get_u32` bounds, or an input's context-extension entry-count byte is ≥ `0x80` (see "Count bounds" below).
@@ -200,13 +200,13 @@ All five codes are emitted by this package directly.
 
 ## Round-trip invariant
 
-For any byte sequence `b` accepted by `parseTransaction` whose context extensions repeat no variable id:
+For any canonically encoded byte sequence `b` accepted by `parseTransaction`:
 
 ```
 serializeTransaction(parseTransaction(b)) === b   (byte-equal)
 ```
 
-A repeated id collapses on parse, as in the JVM, so that extension re-serializes without the repeat (see "Context-extension bounds"). The invariant holds for the full test-fixture corpus (real testnet and mainnet transactions, covering simple transfers, token minting, token burning, multi-input, multi-output, and context-extension inputs).
+Serialization works from the parsed structure, as the JVM's does when it computes the signing message and the ids. So non-canonical data re-serializes in canonical form: an over-long VLQ, a Boolean byte other than `0`/`1`, an identity GroupElement with a non-zero tail, a non-minimal BigInt, padding bits in a `Coll[Boolean]`, ill-formed UTF-8 in a String. A repeated context-extension id collapses (see "Context-extension bounds"). Two encodings keep their received bytes where the JVM would normalize them: a Tuple-expression register (`opaqueBytes`) and an AvlTree flags byte (Known residual 3). ErgoTree bytes are kept verbatim, as the JVM keeps them. The invariant holds for the full test-fixture corpus (real testnet and mainnet transactions, covering simple transfers, token minting, token burning, multi-input, multi-output, and context-extension inputs).
 
 ## Cross-cutting guarantees
 
@@ -352,7 +352,7 @@ a. **Storage-rent branch.** A port of the rent branch of the JVM's `ErgoInterpre
      - Otherwise it is true iff the output at the index has `creationHeight == preHeader.height` (`:46`) and `value ≥ box.value − storageFee` (`:47`), and every register except R0 and R3 equals the box's (`:50-52`). Equality is the JVM's `ErgoBox.get` node equality (sigma-state v6.0.6 `ErgoBoxCandidate.scala:69-83`):
        - R1 compares the retained ergoTree bytes, so a different encoding of the same tree (e.g. an overlong VLQ) is unequal.
        - R2 compares the tokens pairwise, in order.
-       - R4–R9: two absent registers are equal. A Tuple expression never equals a Constant (`ConstantNode.equals`, `values.scala:356-357`). Two Constants are equal when their types are equal and `sValueStructuralEq` (`@ergots/ergoscript`, the JVM's data equality) holds; this compares a Box by its id over the box's retained bytes (`CBox.equals`), not by a re-serialization. Two Tuple expressions compare by their bytes (see Known residual 3).
+       - R4–R9: two absent registers are equal. A Tuple expression never equals a Constant (`ConstantNode.equals`, `values.scala:356-357`). Two Constants are equal when their types are equal and `sValueStructuralEq` (`@ergots/ergoscript`) holds. That is the JVM's data equality except for an AvlTree's flags byte (Known residual 3); it compares a Box by its id over the box's retained bytes (`CBox.equals`), not by a re-serialization. Two Tuple expressions compare by their bytes (see Known residual 3).
      - A false verdict throws `TxValidationError('script-reduced-false')`. The JVM fails the same rule as for a script that reduces to false (`txScriptValidation`); its reason reads `#i => Success((false,50))`.
      - A true verdict costs `StorageContractCost = 50` block units (`:81`). `ErgoTransaction.verifyInput` adds it to the running cost like any script cost, and the cost-limit check below applies.
 
@@ -457,7 +457,7 @@ The eval (reduction) cost and the sigma-verification (crypto) cost are each trun
 ## Provenance and validation
 
 - Validate path lifted from the mainnet-proven harness `tools/mainnet-validate/validate-tx.ts` (oracle machinery removed; block-validation accounting mirrors sigma-rust `TransactionContext::validate()`).
-- Gated by 2 real testnet fixtures (`multi-input-10`, `multi-input-3`) loaded from `test/fixtures/stateful/` — both are real multi-input transfers (testnet, heights 402900 and 402800) that exercise the full multi-input eval+verify loop. Storage rent is gated by SANTA's JVM-blessed `storage-rent-*` vectors (`test/fixtures/conformance/`; ergo-core 6.0.6 `validateStateful`, synthetic context at height 1,051,200, since testnet is younger than the storage period). They cover the gate's age boundary and its non-empty-proof arm, both fallbacks, the final verdict (creation height, value, R1 including a non-canonical tree encoding, R2, R4 including a Tuple expression against a Constant), dust, and the `Int × Int` fee wrap. ergots pins each accept's blessed cost with its own `maxBlockCost` boundary pairs over those vectors. Unit tests cover what the vectors do not: the gate's missing-var-127 arm and, within register equality, a Box compared by its retained bytes, R5–R9, and token content. Also gated by the adversarial mutation suite (Task 8): per-field byte flips and structural mutations that must all be rejected.
+- Gated by 2 real testnet fixtures (`multi-input-10`, `multi-input-3`) loaded from `test/fixtures/stateful/` — both are real multi-input transfers (testnet, heights 402900 and 402800) that exercise the full multi-input eval+verify loop. Storage rent is gated by SANTA's JVM-blessed `storage-rent-*` vectors (`test/fixtures/conformance/`; ergo-core 6.0.6 `validateStateful`, synthetic context at height 1,051,200, since testnet is younger than the storage period). They cover the gate's age boundary and its non-empty-proof arm, both fallbacks, the final verdict (creation height, value, R1 including a non-canonical tree encoding, R2, R4 including a Tuple expression against a Constant), dust, and the `Int × Int` fee wrap. ergots pins each accept's blessed cost with `maxBlockCost` boundaries over those vectors: every accept must reject at its cost − 1, and an accept whose inputs all take the rent path must also accept at exactly its cost. A scripted input's JIT-to-block rounding makes that upper boundary unblessed, so mixed transactions get only the lower one. Unit tests cover what the vectors do not: the gate's missing-var-127 arm and, within register equality, a Box compared by its retained bytes, R5–R9, and token content. Also gated by the adversarial mutation suite (Task 8): per-field byte flips and structural mutations that must all be rejected.
 - Re-walk against full mainnet history is a future capstone (outside phase-2 scope).
 
 ## Known residuals
@@ -485,6 +485,6 @@ Two cases where the rent check's register comparison finds registers unequal tha
 | `TransactionContext::validate` (`tx_context.rs:148-268`) | `validateStateful` (`validate/stateful.ts`) |
 | `TransactionContext::check_structural` (verify_output inline) | `checkStructural` (`validate/stateful.ts`) — internal |
 | JVM `ErgoInterpreter.verify` rent branch + `checkExpiredBox` (ergo v6.0.6 `ErgoInterpreter.scala:66-87`, `:42-55`) | `storageRentVerdict` + `checkExpiredBox` (`validate/storage-rent.ts`) — internal |
-| `ErgoBox::sigma_serialize` / box-id (`ergo_box.rs:141,182-185`) | `computeBoxId` / `serializeBox` (`validate/stateful.ts`) — internal |
+| `ErgoBox::sigma_serialize` / box-id (`ergo_box.rs:141,182-185`) | `computeBoxId` (`validate/stateful.ts`) / `serializeBox` (`validate/_box.ts`) — internal |
 | `TransactionContext::compute_tx_init_cost` (`tx_context.rs:126-145`) | `computeInitCost` (`validate/stateful.ts`) — internal |
 | `Parameters::default()` (`parameters.rs:157-168`) | `DEFAULT_PARAMETERS` (`params.ts`) |
