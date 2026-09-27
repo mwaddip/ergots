@@ -1,8 +1,9 @@
 import { ByteWriter } from '@ergots/scorex';
-import { serializeSType, serializeSValue } from '@ergots/ergoscript';
+import { serializeSType, sValueStructuralEq } from '@ergots/ergoscript';
 import type { ErgoBox, SType, SValue, ContextExtension } from '@ergots/ergoscript';
 import type { ErgoBoxCandidate } from '../types';
 import { bytesEqual } from './_bytes';
+import { serializeBox } from './_box';
 
 // --- Storage rent (expired-box / demurrage) ------------------------------
 // Anyone may spend a box older than StoragePeriod with an empty proof, naming in
@@ -63,7 +64,9 @@ export function checkExpiredBox(
     storageFeeFactor: number,
 ): boolean {
     // :43 — `params.storageFeeFactor * box.bytes.length` is Int * Int: it wraps at 32 bits.
-    const storageFee = Math.imul(storageFeeFactor, serializedBoxLength(box));
+    // `box.bytes` is the full box serialization, the bytes `checkStructural` hashed to match
+    // the input's box id.
+    const storageFee = Math.imul(storageFeeFactor, serializeBox(box).length);
     // :45, :47 — `box.value - storageFee` is Long - Int, computed in Long.
     const valueAfterFee = BigInt.asIntN(64, BigInt.asIntN(64, box.value) - BigInt(storageFee));
     const storageFeeNotCovered = valueAfterFee <= 0n;   // :45
@@ -76,8 +79,9 @@ export function checkExpiredBox(
 }
 
 /** :50-52 — every register except R0 (value) and R3 (creation height and reference)
- *  equal, with `ErgoBoxCandidate.get` semantics: R1 is the script bytes, R2 the
- *  tokens in order. */
+ *  equal, with `ErgoBoxCandidate.get` node equality (sigma-state v6.0.6
+ *  `ErgoBoxCandidate.scala:69-83`): R1 is the retained script bytes, R2 the tokens
+ *  in order, R4..R9 the stored register nodes. */
 function correctRegisters(box: ErgoBox, output: ErgoBoxCandidate): boolean {
     if (!bytesEqual(box.ergoTreeBytes, output.ergoTreeBytes)) return false;   // R1
     if (box.tokens.length !== output.tokens.length) return false;             // R2
@@ -85,39 +89,33 @@ function correctRegisters(box: ErgoBox, output: ErgoBoxCandidate): boolean {
         if (!bytesEqual(box.tokens[i]!.id, output.tokens[i]!.id)) return false;
         if (box.tokens[i]!.amount !== output.tokens[i]!.amount) return false;
     }
-    const treeVersion = treeVersionOf(box);
     for (let id = 4; id <= 9; id++) {                                          // R4..R9
-        const a = registerEntryBytes(box.registers[id], treeVersion);
-        const b = registerEntryBytes(output.registers[id], treeVersion);
-        if (a === null && b === null) continue;
-        if (a === null || b === null || !bytesEqual(a, b)) return false;
+        if (!registerNodesEqual(box.registers[id], output.registers[id])) return false;
     }
     return true;
 }
 
-function treeVersionOf(box: ErgoBox): number {
-    return box.ergoTreeBytes.length > 0 ? (box.ergoTreeBytes[0]! & 0x07) : 0;
+type RegisterEntry = { tpe: SType; value: SValue; opaqueBytes?: Uint8Array };
+
+/** Equality of two stored register nodes, both possibly absent. A Tuple expression
+ *  (kept as its wire bytes, `opaqueBytes`) never equals a Constant
+ *  (`ConstantNode.equals`, `values.scala:356-357`). Two Tuple expressions compare by
+ *  their bytes: equal bytes are JVM-equal, but the JVM would also equate some
+ *  differently-encoded pairs (facts/transaction.md, Known residual 3). Two Constants
+ *  compare as `ConstantNode.equals` does: their types, then their data under the
+ *  JVM's value equality, which takes a Box by its id over its retained bytes
+ *  (`CBox.equals`) rather than by a re-serialization. */
+function registerNodesEqual(a: RegisterEntry | undefined, b: RegisterEntry | undefined): boolean {
+    if (a === undefined || b === undefined) return a === b;
+    if (a.opaqueBytes !== undefined || b.opaqueBytes !== undefined) {
+        return a.opaqueBytes !== undefined && b.opaqueBytes !== undefined && bytesEqual(a.opaqueBytes, b.opaqueBytes);
+    }
+    return bytesEqual(typeBytes(a.tpe), typeBytes(b.tpe)) && sValueStructuralEq(a.value, b.value);
 }
 
-/** `box.bytes.length`: the box's full serialization, with txId and index, at the
- *  box's own tree version — the bytes `checkStructural` hashed to match the input's
- *  box id. */
-function serializedBoxLength(box: ErgoBox): number {
+/** The type's wire encoding: canonical, so equal encodings are equal types. */
+function typeBytes(tpe: SType): Uint8Array {
     const w = new ByteWriter();
-    serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: box }, treeVersionOf(box), w);
-    return w.length;
-}
-
-/** Canonical serialized bytes of one R4..R9 register entry (for the
- *  register-preservation check). */
-function registerEntryBytes(
-    entry: { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined,
-    treeVersion: number,
-): Uint8Array | null {
-    if (entry === undefined) return null;
-    if (entry.opaqueBytes !== undefined) return entry.opaqueBytes;
-    const w = new ByteWriter();
-    serializeSType(entry.tpe, w);
-    serializeSValue(entry.tpe, entry.value, treeVersion, w);
+    serializeSType(tpe, w);
     return w.toBytes();
 }

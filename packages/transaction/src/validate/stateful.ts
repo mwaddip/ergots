@@ -1,22 +1,15 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
-import { ByteWriter, blake2b256 } from '@ergots/scorex';
-import { serializeSValue, parseTree, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
+import { blake2b256 } from '@ergots/scorex';
+import { parseTree, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
 import { transactionId, signingMessage } from '../wire/signing-message';
 import { buildHeadersArray, promoteCandidate, buildInputContext, JIT_COST_PER_BLOCK_COST } from '../context';
 import { storageRentVerdict, STORAGE_CONTRACT_COST } from './storage-rent';
+import { serializeBox } from './_box';
 
-/** Canonical serialized bytes of a full box (incl. txId+index), at the box's own tree
- *  version — mirrors the proven harness `serializedBoxLen`. */
-function serializeBox(box: ErgoBox): Uint8Array {
-  const tv = box.ergoTreeBytes.length > 0 ? (box.ergoTreeBytes[0]! & 0x07) : 0;
-  const w = new ByteWriter();
-  serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: box }, tv, w);
-  return w.toBytes();
-}
 /** Box id = blake2b256(box's sigma_serialize bytes incl. txId+index). ergo_box.rs:141,182-185. */
 export function computeBoxId(box: ErgoBox): Uint8Array { return blake2b256(serializeBox(box)); }
 
