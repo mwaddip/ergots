@@ -62,7 +62,9 @@ export class ByteReader {
   readonly maxTreeDepth: number   // recursion-depth cap (default MAX_TREE_DEPTH)
   get level(): number             // current recursion depth (starts 0 on a fresh reader)
   enterDepth(): void              // ++level; throws ReaderError('max-tree-depth-exceeded') if level would exceed maxTreeDepth
-  exitDepth(): void               // --level (pair with enterDepth via try/finally)
+  exitDepth(): void               // --level. The JVM lowers the level only when a frame returns normally,
+                                  // so a caught error keeps it raised; @ergots/ergoscript's parsers do the
+                                  // same (facts/ergoscript-wire.md, "Reader depth after a degrade")
   // Fork a sub-reader over `bytes` INHERITING this reader's level + maxTreeDepth.
   // For size-prefixed inner regions read into a bounded buffer (e.g. a hasSize=true
   // ErgoTree body), so the depth counter persists across the size boundary as the
