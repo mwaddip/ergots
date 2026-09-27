@@ -6,8 +6,8 @@ import { ExprParseError } from '../src/wire/parse'
  * Phase 2i-d completeness test — asserts each of the 21 reserved wire
  * opcodes (in sigma-rust's OpCode enum but never dispatched at the wire-Expr
  * layer or implemented in `ergotree-interpreter/src/eval/`; the JVM rejects
- * each identically via `CheckValidOpCode`, rule 1002, since `getSerializer`
- * returns null) hits the parse-reject path with code 'opcode-reserved' and a
+ * most of them via `CheckValidOpCode`, rule 1002, since `getSerializer`
+ * returns null — OpTrue/OpFalse/ModQ×3 it parses, a known residual) hits the parse-reject path with code 'opcode-reserved' and a
  * message containing the human-readable opcode name.
  *
  * Was 18 — FlatMap (0xb8), TrivialPropFalse (0xd2), TrivialPropTrue (0xd3)

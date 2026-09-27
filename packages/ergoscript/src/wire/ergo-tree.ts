@@ -32,7 +32,8 @@
  * Task 8 wired the envelope around `parseExpr` / `serializeExpr`; Task 9+
  * fleshed out the body parser one opcode at a time. The body parser is now
  * fully built — reserved/undispatched opcodes parse-reject via
- * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path), and corpus
+ * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path for most of them;
+ * JVM 6.0.6 parses OpTrue/OpFalse/ModQ×3, a known residual), and corpus
  * trees round-trip end-to-end.
  *
  * Cross-reference:
@@ -104,7 +105,9 @@ export class ErgoTreeSerializeError extends Error {
  *
  * This set is the VERIFIED pure-`ValidationRule` equivalents (each → ValidationException
  * → caught, confirmed against JVM source):
- *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002)
+ *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002); except six
+ *     opcodes the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable, ModQ×3), which ergots
+ *     degrades as a known residual (facts/ergoscript-wire.md 'opcode-reserved' entry)
  *   - `soption-tree-version-too-low`         ← `CheckSerializableTypeCode` (rule 1009 — the
  *     `typeCode == OptionTypeCode` SPECIAL-CASE at `ValidationRules.scala:135`)
  *
