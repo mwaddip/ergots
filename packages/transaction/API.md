@@ -48,7 +48,7 @@ import {
 | `validateStateless` | function | Stateless checks (non-empty, no dup inputs, output sum no overflow) |
 | `validateStateful` | function | Full structural + per-input verify; requires `StatefulDeps` |
 | `TxParseError` | class | Typed parse / serialize error; `.code: TxParseErrorCode` |
-| `TxParseErrorCode` | type | `'trailing-bytes' \| 'token-table-index-out-of-range' \| 'count-out-of-range'` |
+| `TxParseErrorCode` | type | `'trailing-bytes' \| 'token-table-index-out-of-range' \| 'count-out-of-range' \| 'extension-id-out-of-range' \| 'extension-v6-type'` |
 | `TxValidationError` | class | Typed validation error; `.code: TxValidationErrorCode`; `.location?: TxValidationLocation` |
 | `TxValidationErrorCode` | type | 21-variant union (see Error handling section) |
 | `TxValidationLocation` | type | `{ inputIndex?, outputIndex?, boxId? }` |
@@ -81,8 +81,10 @@ The bytes must contain exactly one transaction — trailing bytes throw `TxParse
 **Throws:**
 - `TxParseError('trailing-bytes')` — bytes remain after a complete transaction was parsed.
 - `TxParseError('token-table-index-out-of-range')` — an output candidate references a token-table index beyond the transaction's distinct-token table.
-- `TxParseError('count-out-of-range')` — an io count violates the `TxIoVec` / `get_u32` bounds (inputs `[1,32767]`, outputs `[1,32767]`, dataInputs `{0}∪[1,32767]`).
-- `ReaderError` (from `@ergots/scorex`) for truncated / malformed VLQ bytes.
+- `TxParseError('count-out-of-range')` — an io count violates the `TxIoVec` / `get_u32` bounds (inputs `[1,32767]`, outputs `[1,32767]`, dataInputs `{0}∪[1,32767]`), or an input's context-extension entry-count byte is ≥ `0x80`.
+- `TxParseError('extension-id-out-of-range')` — an input's context-extension variable-id byte is ≥ `0x80` (see `SpendingProof`).
+- `TxParseError('extension-v6-type')` — an input's context-extension value has a type containing `Option`, `Header` or `UnsignedBigInt` (see `SpendingProof`).
+- `ReaderError` (from `@ergots/scorex`) for truncated / malformed VLQ bytes, or `'max-tree-depth-exceeded'` for a context-extension value nested deeper than the JVM allows.
 - Inner ergoscript parse errors if a candidate's ergoTree or register bytes are malformed.
 
 ---
@@ -97,7 +99,7 @@ Serialize an `ErgoLikeTransaction` to sigma wire bytes. Enforces all io-count bo
 
 **Returns:** `Uint8Array` byte-equal to the JVM sigma-state serializer's output for the same transaction.
 
-**Throws:** `TxParseError('count-out-of-range')` when io counts or the distinct-token table exceed their bounds.
+**Throws:** `TxParseError('count-out-of-range')` when io counts or the distinct-token table exceed their bounds, or an input's context extension holds more than 127 entries.
 
 ---
 
@@ -179,7 +181,9 @@ interface StateContext {
 4. Per-output well-formedness: dust, future height, monotonic height (post-v3), negative height (post-v1), box/script size ≤ 4096.
 5. Token conservation: amount overflow, not-conserved, invalid minted token.
 6. Init/structural cost (block units) seeds the cumulative block-cost accumulator (`runningBlock`); reject if it alone exceeds `maxBlockCost`.
-7. Per-input (block-cost, JVM-faithful): storage-rent fast path (empty proof + rent-eligible, cost 0) OR parse → evaluate → `SigmaProp` check → accumulate `floor(evalJit/10) + floor(estimateCryptoCost(result.value)/10)` (reject if `runningBlock > maxBlockCost`) → `verifySignature`.
+7. Per-input (block-cost, JVM-faithful), either:
+   - **Storage rent** (the rent branch of the JVM's `ErgoInterpreter.verify`, ergo v6.0.6). It applies when the box is at least 1,051,200 blocks old, the proof is empty, and the extension holds var 127. If var 127 is not a `Short` or does not index an output, the input falls back to the script path. Otherwise `checkExpiredBox`'s verdict is final: false throws `script-reduced-false` without consulting the script; true costs 50 block units (then `runningBlock > maxBlockCost` rejects). The recreation's registers are compared as the JVM compares stored register nodes: a Box-valued register by the nested box's id over its original bytes, and a `Tuple` expression never equal to a Constant. The storage fee is `storageFeeFactor × box bytes` as a 32-bit `Int` product, so it wraps for boxes of 1718 bytes and more at the default factor, as in the JVM.
+   - **Script:** parse → evaluate → `SigmaProp` check → accumulate `floor(evalJit/10) + floor(estimateCryptoCost(result.value)/10)` (reject if `runningBlock > maxBlockCost`) → `verifySignature`.
 
 **Errors surface unwrapped:** Only the validator's own structural verdicts are `TxValidationError`. `EvalError` (incl. `'cost-limit-exceeded'` fired during eval), `VerifyError`, and wire-parse errors propagate as-is. See the "Error handling" section.
 
@@ -318,6 +322,26 @@ IndexMap`) preserves the received wire order. `parseTransaction` therefore
 preserves the on-chain entry order so a non-ascending extension round-trips
 byte-identically (see `docs/specs/2026-06-16-context-extension-order-preservation.md`).
 
+The entry count and each variable id are single bytes that the JVM reads as
+signed (`ContextExtension.scala:52-66`, sigma-state v6.0.6). `parseTransaction`
+rejects a count byte ≥ `0x80` (`count-out-of-range`) and an id byte ≥ `0x80`
+(`extension-id-out-of-range`, before the value is read), so a parsed extension
+holds at most 127 entries with ids in `[0, 127]`. `serializeTransaction`
+rejects an extension with more than 127 entries; it writes ids unchecked, as
+the JVM serializer does.
+
+Each value is read as the JVM's `r.getValue()` reads it: one reader depth level
+for the value itself, so a value nested past the JVM's cap throws
+`ReaderError('max-tree-depth-exceeded')`, and rule-1019 `CheckV6Type` on its
+type, so a type containing `Option`, `Header` or `UnsignedBigInt` throws
+`extension-v6-type` even when the value holds no data of that type (an empty
+`Coll[Option[Int]]`). A repeated id keeps its first position and its last
+value, as the JVM's map does, so such an extension re-serializes without the
+repeat. Two known differences from the JVM remain: an extension with 5 or more
+distinct ids keeps its received order where the JVM re-orders it by hash, and
+values written in opcode form (e.g. a `Tuple` expression) are rejected. See
+`facts/transaction.md` § "Context-extension bounds".
+
 ### `DataInput`
 
 ```ts
@@ -355,14 +379,18 @@ class TxParseError extends Error {
 type TxParseErrorCode =
   | 'trailing-bytes'
   | 'token-table-index-out-of-range'
-  | 'count-out-of-range';
+  | 'count-out-of-range'
+  | 'extension-id-out-of-range'
+  | 'extension-v6-type';
 ```
 
 | Code | When |
 |---|---|
 | `'trailing-bytes'` | Bytes remain after a structurally complete transaction was parsed. Parse only. |
 | `'token-table-index-out-of-range'` | An output candidate references a token-table index beyond the transaction's distinct-token table. Parse only. |
-| `'count-out-of-range'` | inputs/outputCandidates outside `[1, 32767]`; dataInputs outside `{0}∪[1, 32767]`; distinct-token count > 65535×255. Parse and serialize. |
+| `'count-out-of-range'` | inputs/outputCandidates outside `[1, 32767]`; dataInputs outside `{0}∪[1, 32767]`; distinct-token count > 65535×255; a context-extension entry count ≥ 128 (count byte ≥ `0x80` on parse, more than 127 entries on serialize). Parse and serialize. |
+| `'extension-id-out-of-range'` | A context-extension variable-id byte is ≥ `0x80`. Parse only. |
+| `'extension-v6-type'` | A context-extension value's type contains `Option`, `Header` or `UnsignedBigInt` (rule-1019 `CheckV6Type`). Parse only. |
 
 ```ts
 try {
@@ -377,7 +405,13 @@ try {
         console.error('output candidate referenced a missing token');
         break;
       case 'count-out-of-range':
-        console.error('io count out of TxIoVec range');
+        console.error('io or context-extension count out of range');
+        break;
+      case 'extension-id-out-of-range':
+        console.error('context-extension variable id >= 0x80');
+        break;
+      case 'extension-v6-type':
+        console.error('context-extension value of a v6-only type');
         break;
     }
   }
@@ -423,11 +457,11 @@ type TxValidationErrorCode =
   | 'token-amount-invalid'
   // per-input / cost
   | 'non-sigmaprop-result'
-  | 'script-reduced-false'
-  | 'cost-limit-exceeded';   // init-cost overrun OR per-input block-cost (eval+crypto) overrun; see note
+  | 'script-reduced-false'   // also a false storage-rent verdict (the JVM fails the same rule)
+  | 'cost-limit-exceeded';   // init-cost overrun OR per-input block-cost (eval+crypto, or 50 for rent) overrun; see note
 ```
 
-**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` when the per-tx init/structural cost alone exceeds `maxBlockCost`, OR when the per-input block-cost accumulator (eval + sigma-verification cost, each `floor(jit/10)`) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead propagates `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). Callers must catch both.
+**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` when the per-tx init/structural cost alone exceeds `maxBlockCost`, OR when the per-input block-cost accumulator (eval + sigma-verification cost, each `floor(jit/10)`; 50 for a storage-rent input) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead propagates `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). Callers must catch both.
 
 ### Unwrapped errors
 

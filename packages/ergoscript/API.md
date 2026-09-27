@@ -39,6 +39,7 @@ import {
   parseSValue, serializeSValue,
   parseSType, serializeSType,
   parseErgoTreeBytes, parseAdditionalRegisters,
+  violatesCheckV6Type, sValueStructuralEq,
   parseSigmaBoolean, serializeSigmaBoolean,
   MAX_TREE_SIZE, VERSION,
   type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
@@ -144,6 +145,15 @@ type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueByt
 ```
 
 Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. `parseErgoTreeBytes` consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim span (header + optional size VLQ + constants + body). As of 2026-06-17 it routes through the SAME deserialize as the bare `parseTree` (`parseTreeFromReader`): the tree is structurally parsed, a `hasSize` soft-forkable failure degrades to `UnparsedErgoTree`, and the non-soft-forkable class (e.g. an SHeader constant, a truncated/empty body) REJECTS — so a box's propBytes reject exactly what a bare tree rejects (the old box-only skip-the-body path is gone). `parseAdditionalRegisters` reads the additional-registers section (raw `u8` count, `>6` rejected, per-register `Const`/`Tuple` Expr keyed R4.., Tuple-Expr `opaqueBytes` capture + rule-1019 `CheckV6Type` gate). Both advance the shared `ByteReader` in place. Full shape + failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
+
+### `violatesCheckV6Type` / `sValueStructuralEq`
+
+```ts
+function violatesCheckV6Type(tpe: SType): boolean;
+function sValueStructuralEq(a: SValue, b: SValue): boolean;
+```
+
+Two JVM rules that `@ergots/transaction` applies from this package rather than re-deriving them. `violatesCheckV6Type` is rule-1019 `CheckV6Type`: true iff the type contains `SOption`, `SHeader` or `SUnsignedBigInt`, through tuple items and collection element types. It is the predicate behind `parseAdditionalRegisters`' `'register-v6-type'` and `@ergots/transaction`'s `'extension-v6-type'`. `sValueStructuralEq` is the JVM's uncosted data equality, the one the evaluator's `Eq`/`NEq` use without cost: a Box compares by its id over its retained bytes, a GroupElement by its point. It does not compare types. `@ergots/transaction` uses it for storage-rent register equality. See `facts/ergoscript-wire.md` § "Shared rules for `@ergots/transaction`".
 
 ### `parseSigmaBoolean` / `serializeSigmaBoolean`
 

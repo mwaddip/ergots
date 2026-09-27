@@ -1,10 +1,11 @@
 # @ergots/transaction
 
-Pure-TypeScript Ergo transaction wire codec. Parses and serializes `ErgoLikeTransaction` wire bytes, produces the signing message, and computes transaction ids. Browser-clean. Validated byte-for-byte against fixtures derived from the Ergo reference implementation.
+Pure-TypeScript Ergo transaction wire codec and validator. Parses and serializes `ErgoLikeTransaction` wire bytes, produces the signing message, computes transaction ids, and validates transactions statelessly and against their input boxes and block context. Browser-clean. Validated byte-for-byte against fixtures derived from the Ergo reference implementation, and against JVM-blessed conformance vectors.
 
-## Phase 1 — wire codec
+## Scope
 
-This is a phase 1 release: parse, serialize, derive the signing message, compute the transaction id. Validation (stateless well-formedness, conservation rule, per-input script execution, storage rent, cost) is planned for phases 2–4.
+- **Wire codec:** parse, serialize, derive the signing message, compute the transaction id.
+- **Validation:** `validateStateless` (well-formedness) and `validateStateful` (box provisioning, value and token conservation, output rules, per-input script evaluation and signature verification, storage rent, and the JVM block-cost model). See [`API.md`](./API.md).
 
 ## Install
 
@@ -34,7 +35,7 @@ const reBytes = serializeTransaction(tx);
 
 ## API
 
-Four functions, one error class.
+The wire codec is four functions and one error class, below. The validators, `validateStateless` and `validateStateful`, and their `TxValidationError` are documented in [`API.md`](./API.md).
 
 ### `parseTransaction(bytes: Uint8Array): ErgoLikeTransaction`
 
@@ -56,11 +57,11 @@ Full transaction envelope with each input's proof replaced by an empty proof (VL
 
 ```ts
 class TxParseError extends Error {
-  readonly code: 'trailing-bytes' | 'token-table-index-out-of-range' | 'count-out-of-range';
+  readonly code: 'trailing-bytes' | 'token-table-index-out-of-range' | 'count-out-of-range' | 'extension-id-out-of-range' | 'extension-v6-type';
 }
 ```
 
-Thrown by `parseTransaction` and `serializeTransaction`. `count-out-of-range` covers inputs/outputs outside `[1, 32767]` and data-inputs outside `{0}∪[1, 32767]`. `token-table-index-out-of-range` fires when an output candidate references a token id not in the transaction's distinct-token table.
+Thrown by `parseTransaction` and `serializeTransaction`. `count-out-of-range` covers inputs/outputs outside `[1, 32767]`, data-inputs outside `{0}∪[1, 32767]`, and a context extension with more than 127 entries. `extension-id-out-of-range` fires when a context-extension variable id is ≥ `0x80`: the JVM reads the id as a signed byte and rejects a negative one. `extension-v6-type` fires when a context-extension value's type contains `Option`, `Header` or `UnsignedBigInt` (the JVM's rule 1019). `token-table-index-out-of-range` fires when an output candidate references a token id not in the transaction's distinct-token table.
 
 ## Browser compatibility
 
@@ -71,7 +72,6 @@ Runs unchanged in evergreen browsers and Node ≥ 20. No `Buffer`, no `node:cryp
 - **Signing.** Producing `SpendingProof.proofBytes` requires a sigma prover — out of scope.
 - **Transaction construction.** Box selection, fee calculation, token change.
 - **Node communication.** Submit via any conformant Ergo node REST endpoint.
-- **Validation.** Conservation rule, per-input script verification, cost — planned phases 2–4.
 
 ## See also
 
