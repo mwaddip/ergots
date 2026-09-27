@@ -16,7 +16,7 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 All five packages are published to npm under the `@ergots/*` scope.
 
-Total tests across packages: **7613**, passing under both `node` and `jsdom` (cross-runtime).
+Total tests across packages: **7616**, passing under both `node` and `jsdom` (cross-runtime).
 
 A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md).
 

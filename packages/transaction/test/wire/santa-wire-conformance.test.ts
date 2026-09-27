@@ -1,4 +1,4 @@
-// SANTA JVM-blessed Transaction wire vectors (santa@06a6427 and @2f95044,
+// SANTA JVM-blessed Transaction wire vectors (santa@06a6427, @2f95044 and @fb35b8d,
 // vectors/wire/v6/authored/, blessed by sigma-state 6.0.6), replayed as Dasher replays them:
 // an accept must round-trip to its `expected_bytes_hex` when present (a non-identity round-trip),
 // else to its own bytes; a reject must fail parseTransaction, here with the file's own code.
@@ -26,6 +26,8 @@ const FILES: [string, string | null, string[]][] = [
   ['Transaction.context_extension_duplicate_ids.json', null,
     ['ext-dup-ids-05-07-05-collapse#0', 'ext-dup-ids-07-05-07-collapse#1']],
   ['Transaction.degraded_tree_depth_leak.json', DEPTH, ['degrade-leak-coll99-accept#0', 'degrade-leak-coll100-reject#1']],
+  ['Transaction.nested_degrade_depth_leak.json', DEPTH,
+    ['nested-degrade-leak-coll99-accept#0', 'nested-degrade-leak-coll100-reject#1']],
   ['Transaction.register_depth_bound.json', DEPTH, ['register-coll109-accept#0', 'register-coll110-reject#1']],
   ['Transaction.tree_body_depth_bound.json', DEPTH, ['tree-body-108-not-accept#0', 'tree-body-109-not-reject#1']],
   ['Transaction.segregated_constant_depth_bound.json', DEPTH, ['segregated-coll110-accept#0', 'segregated-coll111-reject#1']],

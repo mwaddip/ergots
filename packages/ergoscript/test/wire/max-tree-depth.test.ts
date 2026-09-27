@@ -357,7 +357,8 @@ describe('MaxTreeDepth — levels leaked by a soft-fork degrade', () => {
     // v3 sized + segregated tree whose one constant is a Box carrying DEGRADING_TREE, then body
     // sigmaProp(true). The Box data frame enters 1, the nested failing node throws at 1 + 10 = 11,
     // the Box frame's normal return lowers 1: 10 remain on the JVM's one reader after the whole
-    // tree parses (DataSerializer.scala:35-37).
+    // tree parses (DataSerializer.scala:35-37). SANTA Transaction.nested_degrade_depth_leak
+    // (jvm:sigma-state-6.0.6) pins it at the transaction level.
     const hex = '1b37' + '01' + '63' + 'c0843d' + '0b0ad1efefefefefefefeffd' + '00'.repeat(36) + '08d3'
     const r = new ByteReader(new Uint8Array(hex.match(/../g)!.map((x) => parseInt(x, 16))))
     const tree = parseTreeFromReader(r)
