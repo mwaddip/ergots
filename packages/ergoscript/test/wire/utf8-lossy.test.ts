@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { decodeUtf8Lossy } from '../../src/wire/_utf8'
+import { parseSValue } from '../../src/wire/parse-svalue'
+import { serializeSValue } from '../../src/wire/serialize-svalue'
 
 const b = (...xs: number[]) => new Uint8Array(xs)
 const reHex = (s: string) => {
@@ -50,5 +53,29 @@ describe('decodeUtf8Lossy — JVM-faithful new String(bytes, UTF_8)', () => {
   it('F5..FF (invalid 4+ byte leads) -> 1 U+FFFD each', () => {
     expect(decodeUtf8Lossy(b(0xf5))).toBe('�')
     expect(decodeUtf8Lossy(b(0xff, 0xfe))).toBe('��')
+  })
+})
+
+describe('SString data decodes as the JVM new String(bytes, UTF_8) (CoreDataSerializer.scala:104-110)', () => {
+  // SString data = VLQ u32 length + bytes. TextDecoder would strip a leading byte-order mark and
+  // split an ill-formed surrogate into three U+FFFD; Java does neither.
+  const parseString = (hex: string) => {
+    const bytes = new Uint8Array(hex.match(/../g)!.map((x) => parseInt(x, 16)))
+    return parseSValue({ tag: 'SString' }, 0, new ByteReader(bytes))
+  }
+  const serializeString = (value: string) => {
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SString' }, { kind: 'String', value }, 0, w)
+    return Array.from(w.toBytes(), (x) => x.toString(16).padStart(2, '0')).join('')
+  }
+
+  it('keeps a leading byte-order mark (ef bb bf 41 -> U+FEFF "A")', () => {
+    const v = parseString('04efbbbf41')
+    expect(v).toEqual({ kind: 'String', value: '﻿A' })
+    expect(serializeString('﻿A')).toBe('04efbbbf41')
+  })
+
+  it('decodes an ill-formed surrogate as ONE U+FFFD (ed a0 80)', () => {
+    expect(parseString('03eda080')).toEqual({ kind: 'String', value: '�' })
   })
 })

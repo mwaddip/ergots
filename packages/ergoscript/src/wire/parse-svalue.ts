@@ -70,6 +70,7 @@ import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { parseErgoTreeBytes } from './ergo-tree'
 import { canonicalGePayload } from './_ge-canonical'
+import { decodeUtf8Lossy } from './_utf8'
 
 // OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
 // (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
@@ -749,18 +750,17 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
     // later phase.
     // ---------------------------------------------------------------------
     case 'SString': {
-      // Sigma-rust serialization/data.rs:134-139:
-      //   let len = r.get_u32()?;    // VLQ-encoded u32 (sigma-ser vlq_encode.rs:78)
-      //   let mut buf = vec![0; len as usize];
-      //   r.read_exact(&mut buf)?;
-      //   Literal::String(String::from_utf8_lossy(&buf).into())
+      // JVM CoreDataSerializer.scala:104-110 (sigma-state v6.0.6): `getUIntExact` length, then
+      // `new String(bytes, UTF_8)`. Decoded with the JVM-faithful `decodeUtf8Lossy`, NOT
+      // `TextDecoder`: that strips a leading byte-order mark (Java keeps U+FEFF) and splits an
+      // ill-formed surrogate `ed a0 80` into three U+FFFD (Java gives one), so two strings the
+      // JVM tells apart would compare equal (facts/ergoscript-wire.md "SString data").
       // Harness needs SString parsing for output-roundtrip on boxes whose
       // registers carry SString values (mainnet first surfaces this at
       // h=766,915 tx 15 output 1; iter-17 closes the phase-2a deferral).
       const len = readVlqU32(r, 'SString.length')
       const bytes = r.readBytes(len)
-      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
-      return { kind: 'String', value: decoded }
+      return { kind: 'String', value: decodeUtf8Lossy(bytes) }
     }
 
     case 'SPreHeader':
