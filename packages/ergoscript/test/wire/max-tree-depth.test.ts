@@ -255,12 +255,12 @@ describe('MaxTreeDepth — box internals (register / nested ergoTree)', () => {
     const w = new ByteWriter()
     // value
     w.writeVlqU(1)
-    // ergoTree: minimal hasSize=false tree = header 0x00 + body.
-    // Use a trivial Const(SBoolean) body so the tree self-delimits cleanly.
-    const tw = new ByteWriter()
-    tw.writeU8(0x00)
-    serializeExpr(BOOL_LEAF, tw, 0)
-    w.writeBytes(tw.toBytes())
+    // ergoTree: minimal hasSize=false tree = header 0x00 + body sigmaProp(true) (`08 d3`),
+    // which self-delimits. The root must type as SigmaProp: box ingest applies rule 1001
+    // (ErgoBoxCandidate.scala:194, checkType = true), so a Boolean root would reject the
+    // box at its tree, before the register this test is about. The tree's levels are all
+    // released before the registers are read, so the register chain's depth is unaffected.
+    w.writeBytes(new Uint8Array([0x00, 0x08, 0xd3]))
     // creationHeight
     w.writeVlqU(0)
     // tokens count

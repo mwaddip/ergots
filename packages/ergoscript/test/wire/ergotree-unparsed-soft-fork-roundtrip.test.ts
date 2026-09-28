@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { parseTree, serializeTree, ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { evaluate } from '../../src/eval/evaluate'
 import { EvalError } from '../../src/eval/eval-context'
 import { ExprParseError } from '../../src/wire/errors'
@@ -78,7 +78,13 @@ describe('ErgoTree unparsed soft-fork — eval rejects + hasSize gating', () => 
   it('the soft-fork tolerance is hasSize-ONLY: a non-sized reserved-opcode tree still rejects', () => {
     // header 0x00 (v0, NO size bit) + reserved opcode 0xfd body. Without the size
     // prefix a reader cannot skip the body, so both references — and ergots — reject
-    // rather than preserve. The catch in parseTreeFromReader is gated on hasSize.
-    expect(() => parseTree(hexToBytes('00fd'))).toThrow(ExprParseError)
+    // rather than preserve. The JVM wraps the ValidationException in a
+    // SerializerException (ErgoTreeSerializer.scala:204-207); ergots wraps it as
+    // 'soft-fork-without-size-bit', with the body's ExprParseError as the cause.
+    let err: unknown
+    try { parseTree(hexToBytes('00fd')) } catch (e) { err = e }
+    expect(err).toBeInstanceOf(ErgoTreeParseError)
+    expect((err as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+    expect((err as Error).cause).toBeInstanceOf(ExprParseError)
   })
 })

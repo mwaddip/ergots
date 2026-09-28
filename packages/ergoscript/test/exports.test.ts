@@ -54,16 +54,21 @@ describe('@ergots/ergoscript public error-class surface', () => {
   })
 
   it('a body-parse reject from parseTree is catchable as the root-exported ExprParseError', () => {
-    // [0x00, 0x7f] = ErgoTree header V0 (no hasSize, no segregation) + the bare
-    // reserved opcode OpTrue (0x7f). parseTree's body parser rejects it with
-    // ExprParseError('opcode-reserved') — the same typed surface as the FunDef
-    // nTpeArgs-128 reject SANTA's runner must classify as `errored`, not panicked.
+    // [0x00, 0xd7, 0x01, 0x80] = ErgoTree header V0 (no hasSize, no segregation) +
+    // FunDef (0xd7), id 1, type-arg count 0x80: the FunDef nTpeArgs-128 reject SANTA's
+    // runner must classify as `errored`, not panicked. parseTree's body parser rejects
+    // it with ExprParseError('fun-def-tpe-args-out-of-range'), a hard reject (the JVM's
+    // signed getByte into safeNewArray, ValDefSerializer.scala:38-39), so it surfaces
+    // unwrapped. (A soft-forkable reject in a tree without the size bit, e.g. the bare
+    // reserved opcode OpTrue, surfaces as ErgoTreeParseError('soft-fork-without-size-bit')
+    // with the ExprParseError as its cause, as the JVM wraps it; ErgoTreeSerializer.scala:204-207.)
     let caught: unknown
     try {
-      parseTree(new Uint8Array([0x00, 0x7f]))
+      parseTree(new Uint8Array([0x00, 0xd7, 0x01, 0x80]))
     } catch (e) {
       caught = e
     }
     expect(caught).toBeInstanceOf(ExprParseError)
+    expect((caught as ExprParseError).code).toBe('fun-def-tpe-args-out-of-range')
   })
 })

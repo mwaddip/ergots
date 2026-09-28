@@ -3,8 +3,10 @@ export {
   serializeTree,
   ErgoTreeParseError,
   ErgoTreeSerializeError,
-  MAX_TREE_SIZE
+  MAX_TREE_SIZE,
+  MAX_PROPOSITION_SIZE
 } from './wire/ergo-tree'
+export type { ParseTreeOptions } from './wire/ergo-tree'
 // Body parse/serialize error classes thrown by parseTree/serializeTree's inner
 // Expr parser/serializer (the leaf `wire/errors.ts`, kept import-free to avoid
 // mir/ cycles). Root-exported — alongside `ErgoTreeParseError` above — so
@@ -51,8 +53,8 @@ export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
 // box-body grammar (ergoTree span + additional-registers section, incl. the
 // Tuple-Expr opaqueBytes capture + rule-1019 CheckV6Type gate) lives in ONE
 // place rather than being re-derived across packages.
-//   - parseErgoTreeBytes(r): consume one self-delimiting ergoTree, return its
-//     verbatim span (handles hasSize-true "burn" trees + hasSize-false bodies).
+//   - parseErgoTreeBytes(r): consume one ergoTree under the box rules (rule
+//     1001 included, as the JVM box parser), return its span as received.
 //   - parseAdditionalRegisters(r, treeVersion): u8 count + per-register Expr.
 export { parseErgoTreeBytes } from './wire/ergo-tree'
 export { parseAdditionalRegisters } from './wire/parse-svalue'

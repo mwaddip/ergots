@@ -145,6 +145,12 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     }
   }
 
+  // A box that is PARSED back needs a tree the box rules accept: box ingest applies rule
+  // 1001 (ErgoBoxCandidate.scala:194, checkType = true), which rejects an unsized tree whose
+  // root types as Int, like [0x00,0xa3] above. The parsing tests use sigmaProp(true) instead:
+  // len 3, so putBytes(ergoTree) costs 3 + 3, one more than the len-2 tree.
+  const SIGMA_PROP_TREE = new Uint8Array([0x00, 0x08, 0xd3])
+
   it('serialize[Box] (no tokens, no registers) → cost 72', () => {
     const box: SValue = { kind: 'Box', value: makeBox() }
     const { bytes, cost } = evalSer({ tag: 'SBox' }, box)
@@ -354,6 +360,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     const seed: SValue = {
       kind: 'Box',
       value: makeBox({
+        ergoTreeBytes: SIGMA_PROP_TREE,
         registers: {
           4: { tpe: tupleRegTpe, value: tupleRegValue, opaqueBytes: tupleRegOpaque },
         },
@@ -367,7 +374,9 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     expect(parsed.value.registers[4]?.opaqueBytes).toEqual(tupleRegOpaque)
     const reparsedBox: SValue = { kind: 'Box', value: parsed.value }
     const { cost } = evalSer({ tag: 'SBox' }, reparsedBox)
-    expect(cost).toBe(78)
+    // The seed's own cost, and the 78 above plus one for the len-3 tree.
+    expect(cost).toBe(evalSer({ tag: 'SBox' }, seed).cost)
+    expect(cost).toBe(79)
   })
 
   // ── SHeader ──────────────────────────────────────────────────────────────────
@@ -522,6 +531,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
 
   it('round-trip[Box] (one Int register)', () => {
     const inner = makeBox({
+      ergoTreeBytes: SIGMA_PROP_TREE,
       registers: { 4: { tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 7 } } },
     })
     const box: SValue = { kind: 'Box', value: inner }

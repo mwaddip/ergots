@@ -100,11 +100,15 @@ function roundTrip(T: SType, value: SValue): SValue {
   return deserializeValue(T, bytes)
 }
 
-/** Minimal ErgoBox builder. */
+/**
+ * Minimal ErgoBox builder. Its tree is sigmaProp(true) (`00 08 d3`): deserializeTo[Box] parses
+ * the box under the box rules, whose rule 1001 (ErgoBoxCandidate.scala:194, checkType = true)
+ * rejects an unsized tree with a non-SigmaProp root.
+ */
 function makeBox(overrides: Partial<ErgoBox> = {}): ErgoBox {
   return {
     value: 1000000n,
-    ergoTreeBytes: new Uint8Array([0x00, 0xa3]),
+    ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xd3]),
     registers: {},
     tokens: [],
     creationHeight: 0,
