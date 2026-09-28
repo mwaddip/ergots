@@ -432,8 +432,18 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //   treeFlags       — single u8 (`put_u8`). Caller-supplied byte
       //                     written verbatim, including any high reserved
       //                     bits that the parser tolerated.
-      //   keyLength       — VLQ u32 (`put_u32` → `put_u64(v as u64)`).
-      //                     Bounds-checked to `[0, 2^32 - 1]`.
+      //   keyLength       — VLQ u32 on the wire (`put_u32` → `put_u64(v as u64)`),
+      //                     but bounds-checked to `[0, 2^31 - 1]` here (2026-09-28
+      //                     controller ruling; was `[0, 2^32 - 1]`). The JVM holds
+      //                     `keyLength` as an `Int` and writes it with `putUInt`
+      //                     (`AvlTreeData.scala:73-75`), which rejects a negative
+      //                     `Int` (`"… is out of unsigned int range"`, pinned by
+      //                     `DeserializationResilience.scala:386-395`). A value
+      //                     parsed from `[2^31, 2^32)` — the JVM's `getUInt().toInt`
+      //                     wraps it negative (`AvlTreeData.scala:84`) — can
+      //                     therefore be PARSED but not RE-ENCODED by the JVM, so
+      //                     ergots rejects it here too. See `facts/ergoscript-wire.md`
+      //                     Round-trip Carve-out 6.
       //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
       //                     (`serialization/serializable.rs:213-221`):
       //                       Some(v) → 0x01 + sigma_serialize(v as u32)
@@ -441,7 +451,9 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //                     The serializer always writes the canonical
       //                     `0x01` tag for Some (the parser is permissive
       //                     and accepts any non-zero tag, but we emit the
-      //                     canonical form so round-trips are stable).
+      //                     canonical form so round-trips are stable). The
+      //                     inner `u32` gets the SAME `[0, 2^31 - 1]` bound as
+      //                     `keyLength`, for the same reason (`AvlTreeData.scala:74-75,85`).
       assertKind(t, v, 'AvlTree')
       const a = v.value
       if (!Number.isInteger(a.treeFlags) || a.treeFlags < 0 || a.treeFlags > 0xff) {
@@ -450,9 +462,9 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
           'savltree-tree-flags-out-of-range'
         )
       }
-      if (!Number.isInteger(a.keyLength) || a.keyLength < 0 || a.keyLength > 0xffffffff) {
+      if (!Number.isInteger(a.keyLength) || a.keyLength < 0 || a.keyLength > 0x7fffffff) {
         throw new SValueSerializeError(
-          `SAvlTree keyLength ${a.keyLength} out of u32 range`,
+          `SAvlTree keyLength ${a.keyLength} out of [0, 2^31) range`,
           'savltree-key-length-out-of-range'
         )
       }
@@ -465,10 +477,10 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
         if (
           !Number.isInteger(a.valueLengthOpt) ||
           a.valueLengthOpt < 0 ||
-          a.valueLengthOpt > 0xffffffff
+          a.valueLengthOpt > 0x7fffffff
         ) {
           throw new SValueSerializeError(
-            `SAvlTree valueLengthOpt ${a.valueLengthOpt} out of u32 range`,
+            `SAvlTree valueLengthOpt ${a.valueLengthOpt} out of [0, 2^31) range`,
             'savltree-value-length-out-of-range'
           )
         }
