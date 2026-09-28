@@ -319,7 +319,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     SBYTE_TYPE_CODE,
     99,
   ])
-  // Matching parsed view (STuple of two SByte; what parseRegisterExprWithTag yields).
+  // Matching parsed view (STuple of two SByte; what parseRegisterExpr yields).
   const tupleRegTpe: SType = { tag: 'STuple', items: [{ tag: 'SByte' }, { tag: 'SByte' }] }
   const tupleRegValue: SValue = {
     kind: 'Tuple',

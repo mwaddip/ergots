@@ -287,7 +287,7 @@ describe('MaxTreeDepth — box internals (register / nested ergoTree)', () => {
 
   it('box register data recursing to exactly depth 110 is ACCEPTED', () => {
     // Depth chain (shared reader level): parseSValue(SBox)=L1, then the register
-    // is read as an Expr via parseRegisterExprWithTag (≡ JVM r.getValue() /
+    // is read as an Expr via parseRegisterExpr (≡ JVM r.getValue() /
     // ValueSerializer.deserialize) = L2, then the register's Coll-chain:
     // reg Coll#1=L3 ... reg Coll#108=L110. So a 108-deep register Coll-chain lands
     // the innermost value at level 110 (accepted). Markers: 107 present (len 1)

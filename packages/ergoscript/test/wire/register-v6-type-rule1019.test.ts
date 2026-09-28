@@ -17,7 +17,7 @@
  * step(elemType) (matched AFTER STuple, since STuple <: SCollection); leaf →
  * v6TypeCheck.
  *
- * ergots gates this at `parseRegisterExprWithTag` (parse-svalue.ts) right after
+ * ergots gates this at `parseRegisterExpr` (parse-svalue.ts) right after
  * the register TYPE is parsed and BEFORE the value parse — so the throw happens
  * in `parseTree` / `parseSValue(SBox)` at deserialize, not at eval. Throws
  * `SValueParseError` code `'register-v6-type'`.

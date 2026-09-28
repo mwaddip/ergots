@@ -484,7 +484,7 @@ function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
       // wire FORM (a tuple item may be a Const(STuple) data form OR a nested Tuple
       // Expr opcode form — both yield a kind:'Tuple' value but cost differently),
       // so we cost-walk the register's RAW bytes (their lead bytes preserve the
-      // form), mirroring parseRegisterExprWithTag. This re-parse is COST-ONLY; the
+      // form), mirroring parseRegisterExpr. This re-parse is COST-ONLY; the
       // depth bound was already enforced at the original box parse, so a plain
       // reader over opaqueBytes (no depth re-check / double-count) suffices.
       addRegisterExprCost(new ByteReader(entry.opaqueBytes), ctx)
@@ -500,7 +500,7 @@ function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
 /**
  * Cost of serializing ONE box-register Expr blob (its raw `opaqueBytes` wire),
  * as accrued by SigmaByteWriter when the JVM does `w.putValue(reg)`. Faithful
- * cost-counterpart of `parseRegisterExprWithTag` (parse-svalue.ts:93): it reads
+ * cost-counterpart of `parseRegisterExpr` (parse-svalue.ts): it reads
  * the same wire form (lead byte, then Const data OR Tuple items) but charges the
  * matching SigmaByteWriter primitive costs instead of building values.
  *

@@ -92,9 +92,12 @@ const OP_TUPLE = 134
 const ERGO_BOX_MAX_SIZE = 4096
 
 /**
- * Parse a register-level Expr (sigma-rust calls `Expr::sigma_parse` here and
- * then restricts the result to `Const` or `Tuple` in `register.rs:140-162`).
- * Returns the equivalent Constant view (`tpe` + `value`) for runtime use;
+ * Parse a register-level Expr, read as the JVM's `r.getValue()` reads a register
+ * value (`ErgoBoxCandidate.scala:231`) and each Tuple item (`TupleSerializer.scala:33`);
+ * sigma-rust calls `Expr::sigma_parse` here and then restricts the result to
+ * `Const` or `Tuple` in `register.rs:140-162`.
+ * Returns the equivalent Constant view (`tpe` + `value`) for runtime use, and
+ * `tag`, the value's first byte (a Constant's type code, or `OP_TUPLE`);
  * the caller is responsible for capturing the original wire bytes via
  * `r.position` snapshots if byte-roundtrip is required.
  *
@@ -105,11 +108,10 @@ const ERGO_BOX_MAX_SIZE = 4096
  *
  * Recursive: nested Tuples are accepted (a register can be `((1,2),3)`).
  */
-function parseRegisterExprWithTag(
-  tag: number,
+function parseRegisterExpr(
   r: ByteReader,
   treeVersion: number
-): { tpe: SType; value: SValue } {
+): { tpe: SType; value: SValue; tag: number } {
   // A register value is an Expr read via the JVM's `r.getValue()`
   // (`ValueSerializer.deserialize`, `SigmaByteReader.scala:46`), which bumps the
   // shared reader level once per Expr node BEFORE the inner data parse/recursion.
@@ -124,7 +126,13 @@ function parseRegisterExprWithTag(
   // The level is lowered only on a normal return, as the JVM's `r.level = r.level - 1` is (no
   // finally, ValueSerializer.scala:396-412): a throw that a soft-fork degrade catches leaves this
   // frame's level on the reader (facts/ergoscript-wire.md, "Reader depth after a degrade").
+  //
+  // r.getValue(): ValueSerializer.scala:396-411 — the depth check, then the first-byte peek with
+  // no window check (CoreByteReader.scala:41; at the end of the input a hard error), then the
+  // window-checked read.
   r.enterDepth()
+  r.peekU8()
+  const tag = r.readU8()
   let entry: { tpe: SType; value: SValue }
   if (tag <= LAST_CONSTANT_CODE) {
     // Constant Expr: tag is the SType lead byte.
@@ -161,8 +169,7 @@ function parseRegisterExprWithTag(
     const itemTpes: SType[] = []
     const itemValues: SValue[] = []
     for (let i = 0; i < itemsCount; i++) {
-      const itemTag = r.readU8()
-      const item = parseRegisterExprWithTag(itemTag, r, treeVersion)
+      const item = parseRegisterExpr(r, treeVersion)
       itemTpes.push(item.tpe)
       itemValues.push(item.value)
     }
@@ -178,7 +185,7 @@ function parseRegisterExprWithTag(
     )
   }
   r.exitDepth()
-  return entry
+  return { ...entry, tag }
 }
 
 /** Decoded box additional-registers map: R4.. keyed by register id (4..9). */
@@ -200,7 +207,7 @@ export type AdditionalRegisters = Record<
  * via `opaqueBytes` so the wire form round-trips byte-identically even though
  * the type system stores the value as a regular STuple Constant. The
  * rule-1019 `CheckV6Type` gate and per-Expr depth accounting live in
- * `parseRegisterExprWithTag`, applied identically here.
+ * `parseRegisterExpr`, applied identically here.
  *
  * Rejects a count > 6 with `'sbox-registers-out-of-range'` (R4..R9 only).
  *
@@ -223,9 +230,8 @@ export function parseAdditionalRegisters(
   const registers: AdditionalRegisters = {}
   for (let i = 0; i < regCount; i++) {
     const startPos = r.position
-    const lead = r.readU8()
-    const parsed = parseRegisterExprWithTag(lead, r, treeVersion)
-    if (lead > LAST_CONSTANT_CODE) {
+    const parsed = parseRegisterExpr(r, treeVersion)
+    if (parsed.tag > LAST_CONSTANT_CODE) {
       // Tuple-Expr (or future non-Const Expr) — capture original bytes for
       // byte-identical serializer output.
       const opaqueBytes = r.slice(startPos, r.position).slice()
@@ -269,7 +275,7 @@ export class SValueParseError extends Error {
  *
  * The JVM enforces `CheckV6Type` at two ingress points, both served by this one
  * predicate: box registers (`ErgoBoxCandidate.scala:232`, here in
- * `parseRegisterExprWithTag`) and context-extension values
+ * `parseRegisterExpr`) and context-extension values
  * (`ContextExtension.scala:62`, sigma-state v6.0.6 — `@ergots/transaction`'s
  * `parseContextExtension`, which is why it is exported). The JVM-blessed
  * witness W7 is a register case.

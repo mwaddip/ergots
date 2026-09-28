@@ -140,63 +140,22 @@ export function parseExpr(
   valDefTypes: Map<number, SType>,
   treeVersion: number
 ): Expr {
-  const opcode = r.readU8()
-  return parseExprWithFirstByte(
-    opcode,
-    r,
-    constantTypes,
-    constantValues,
-    valDefTypes,
-    treeVersion
-  )
-}
-
-/**
- * Parse a single Expr node when the opcode byte has already been consumed
- * by the caller. Mirrors sigma-rust's `Expr::parse_with_tag` in
- * `serialization/expr.rs:97`.
- *
- * This is exported to support the `BinOp` parser's bool-pair lookahead:
- * after reading a BinOp opcode, the parser peeks the next byte. If it's
- * `OP_COLL_OF_BOOL_CONST` it takes the fast path; otherwise the peeked byte
- * is the first byte of the left operand and must be fed back into the Expr
- * dispatch. Doing that without re-seeking the reader requires accepting a
- * pre-consumed first byte here.
- */
-export function parseExprWithFirstByte(
-  opcode: number,
-  r: ByteReader,
-  constantTypes: SType[],
-  constantValues: SValue[],
-  valDefTypes: Map<number, SType>,
-  treeVersion: number
-): Expr {
-  // MaxTreeDepth bound (consensus) — this is the expr-node increment point of
-  // the JVM's single shared `r.level` counter (`ValueSerializer.deserialize`,
-  // `ValueSerializer.scala:393-408`: `r.level = depth + 1` on entry, `- 1` on
-  // exit). It shares the very same reader-level counter used by `parseSValue`
-  // (data values) and `parseSigmaBoolean` (sigma-booleans), so the whole-tree
-  // depth budget is enforced uniformly. A `Const` Expr counts ONE level here
-  // and then `parseConstFromByte` → `parseSValue` counts another (mirroring the
-  // JVM's ValueSerializer→ConstantSerializer→DataSerializer chain, two levels
-  // for a constant leaf). The level is lowered only on a normal return, as the JVM's
-  // `r.level = r.level - 1` is (no finally): a throw that a soft-fork degrade catches
-  // leaves it raised (facts/ergoscript-wire.md, "Reader depth after a degrade").
+  // JVM ValueSerializer.deserialize (ValueSerializer.scala:396-411): raise the level (the depth
+  // check), peek the first byte with NO window check (CoreByteReader.scala:41; at the end of the
+  // input a hard error), then the window-checked read. A Const counts this level plus parseSValue's,
+  // as the JVM's ValueSerializer → ConstantSerializer → DataSerializer chain does. The level is
+  // lowered only on a normal return (no finally), as the JVM's is: a throw that a soft-fork degrade
+  // catches leaves it raised (facts/ergoscript-wire.md, "Reader depth after a degrade").
   r.enterDepth()
-  const expr = parseExprBody(
-    opcode,
-    r,
-    constantTypes,
-    constantValues,
-    valDefTypes,
-    treeVersion,
-  )
+  r.peekU8()
+  const opcode = r.readU8()
+  const expr = parseExprBody(opcode, r, constantTypes, constantValues, valDefTypes, treeVersion)
   r.exitDepth()
   return expr
 }
 
 /**
- * Body of {@link parseExprWithFirstByte}, run inside the reader-level depth
+ * Body of {@link parseExpr}, run inside the reader-level depth
  * guard. Separated so the single enter/exit pair wraps every dispatch arm
  * (including the inline-constant branch and all early returns).
  */
@@ -249,10 +208,10 @@ function parseExprBody(
     // ---- BinOp comparison opcodes (Task 13) ----
     // ~22 wire opcodes collapse onto a single `Expr.tag === 'BinOp'` with the
     // discriminator carried by `op: BinOpKind`. Dispatch is centralized in
-    // `parseBinOpFromByte` which maps opcode → kind and handles the bool-pair
-    // packing optimization (BinOp over two `Const(SBoolean)` operands is
-    // encoded via `OP_COLL_OF_BOOL_CONST` rather than two full Const Exprs;
-    // sigma-rust `serialization/bin_op.rs:20-45`).
+    // `parseBinOpFromByte`, which maps opcode → kind. Only the JVM's Relation2
+    // opcodes (these six comparisons and BinOr, BinAnd, BinXor) read the packed
+    // Boolean pair `OP_COLL_OF_BOOL_CONST` (trees/Relation2Serializer.scala:40-52;
+    // ValueSerializer.scala:48-58); the arithmetic and bit opcodes read two full values.
     case OP.OP_LT:
     case OP.OP_LE:
     case OP.OP_GT:
