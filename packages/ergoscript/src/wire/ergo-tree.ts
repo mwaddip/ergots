@@ -73,9 +73,6 @@ export function decodeTreeHeader(rawHeader: number): TreeHeader {
   }
 }
 
-/** sigma-rust's cap (`ergo_tree.rs:245`). Only substituteConstantsBytes' count block still uses it; the tree parse reads the count as the JVM does. */
-const MAX_CONSTANTS_COUNT = 4096
-
 export class ErgoTreeParseError extends Error {
   constructor(message: string, public readonly code: string, options?: { cause?: unknown }) {
     super(message, options)
@@ -467,9 +464,17 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
  *     is DROPPED, so a `hasSize` template's output omits the size slot exactly as
  *     JVM does. `treeVersion` is the EVALUATION's ErgoTree version
  *     (`ctx.treeVersion`), NOT the template header's version.
- *   - `deserializeHeaderWithTreeBytes` does NOT bound the reader by the size
- *     field (`treeBytes = r.getBytes(r.remaining)` reads to end); we mirror that,
- *     so the body is all remaining bytes, not a size-bounded slice.
+ *   - The template's header and size are read as `deserializeHeaderWithTreeBytes`
+ *     reads them (`ErgoTreeSerializer.scala:269-274`, through
+ *     `deserializeHeaderAndSize`, `:217-238`): rule 1012, then, for a
+ *     size-flagged header, the declared size with `getUInt().toInt` (above
+ *     2^32-1 a hard reject), otherwise unused. It does NOT bound the reader by
+ *     that size (`treeBytes = r.getBytes(r.remaining)` reads to end); we mirror
+ *     that, so the body is all remaining bytes, not a size-bounded slice.
+ *   - The constants count follows `deserializeConstants` (`:245-262`), as in
+ *     the tree parse: `getUInt().toInt`, constants read only when it is `> 0`
+ *     (a count that wraps negative as an Int gives none), above the JVM's
+ *     `safeNewArray` bound (100000) `'too-many-constants'`.
  *
  * @param scriptBytes   serialized template ErgoTree
  * @param positions     constant indices to replace (`newValues[i]` ↔ `positions[i]`)
@@ -514,12 +519,13 @@ export function substituteConstantsBytes(
   // (CheckHeaderSizeBit reads ErgoTree.getVersion(header) off the parsed header).
   assertHeaderSizeBit(templateVersion, hasSize)
 
-  // hasSize: read+discard the declared size. JVM does NOT bound the reader here
-  // (deserializeHeaderWithTreeBytes → treeBytes = r.getBytes(r.remaining)), so
-  // the body is everything remaining after the constants, not a size-bounded
-  // slice. Mirror that exactly.
+  // deserializeHeaderAndSize (:217-238, via deserializeHeaderWithTreeBytes
+  // :269-274): a size-flagged header's declared size is a u32 (getUInt().toInt),
+  // read+discarded here — it does not bound the reader (JVM does NOT bound it
+  // either: treeBytes = r.getBytes(r.remaining) reads to end), so the body is
+  // everything remaining after the constants, not a size-bounded slice.
   if (hasSize) {
-    r.readVlqU()
+    readVlqU32(r, 'SubstConstants template size')
   }
 
   // Constants segment. Parsed so we know where the body begins, and held as
@@ -527,22 +533,27 @@ export function substituteConstantsBytes(
   const constantTypes: SType[] = []
   const constants: SValue[] = []
   if (seg) {
-    const count = r.readVlqU()
-    if (count > MAX_CONSTANTS_COUNT) {
-      throw new ErgoTreeParseError(
-        `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
-        'too-many-constants',
-      )
-    }
-    for (let i = 0; i < count; i++) {
-      const tpe = parseSType(r)
-      constantTypes.push(tpe)
-      // Constants in the template parse/serialize under the EVAL-AMBIENT tree
-      // version (the JVM's substituteConstants chain installs no VersionContext
-      // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
-      // is ambient, trees.scala:673-676). The template's own header version byte
-      // governs only its structure flags, NOT the DATA-layer version gates.
-      constants.push(parseSValue(tpe, treeVersion, r))
+    // deserializeConstants (:245-262): getUInt().toInt; read only when > 0;
+    // safeNewArray bound (SAFE_NEW_ARRAY_MAX) — same reader as the tree parse's
+    // constants count (parseTreeFromReader, above).
+    const count = readVlqU32(r, 'SubstConstants constants count') | 0
+    if (count > 0) {
+      if (count > SAFE_NEW_ARRAY_MAX) {
+        throw new ErgoTreeParseError(
+          `constant count ${count} exceeds ${SAFE_NEW_ARRAY_MAX}`,
+          'too-many-constants',
+        )
+      }
+      for (let i = 0; i < count; i++) {
+        const tpe = parseSType(r)
+        constantTypes.push(tpe)
+        // Constants in the template parse/serialize under the EVAL-AMBIENT tree
+        // version (the JVM's substituteConstants chain installs no VersionContext
+        // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
+        // is ambient, trees.scala:673-676). The template's own header version byte
+        // governs only its structure flags, NOT the DATA-layer version gates.
+        constants.push(parseSValue(tpe, treeVersion, r))
+      }
     }
   }
   const numConstants = constants.length

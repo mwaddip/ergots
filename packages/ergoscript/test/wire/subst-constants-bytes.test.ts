@@ -83,3 +83,15 @@ describe('substituteConstantsBytes — type-equality + length guards', () => {
     expect(() => substituteConstantsBytes(template, [0, 0], [intVal(7)], SINT, 0)).toThrow(/length/)
   })
 })
+
+describe('SubstConstants header read (deserializeHeaderWithTreeBytes, ErgoTreeSerializer.scala:269-274)', () => {
+  const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
+  const codeOf = (f: () => unknown) => { try { f(); return 'no-throw' } catch (e) { return (e as { code?: string }).code } }
+  it('a declared size above 2^32-1 is rejected (getUInt)', () => {
+    expect(codeOf(() => substituteConstantsBytes(hex('18808080801000' + '08d3'), [], [], { tag: 'SInt' }, 0))).toBe('vlq-overflow')
+  })
+  it('a constants count that wraps negative gives no constants', () => {
+    const out = substituteConstantsBytes(hex('10' + '8080808008' + '08d3'), [], [], { tag: 'SInt' }, 0)
+    expect(out.numConstants).toBe(0)
+  })
+})
