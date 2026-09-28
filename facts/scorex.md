@@ -410,8 +410,8 @@ These represent malformed or truncated wire input, not programming errors on the
 //                         [0, buf.length] (JVM position_=, CoreByteReader.scala:114), or
 //                         readBytes(n) given a negative or non-integer n, raised after its
 //                         window entry check (JVM getBytes, :85-88). A guard on the cursor:
-//                         ergoscript's tree parse checks its degrade span before it moves
-//                         the cursor back, so it passes neither
+//                         ergoscript's tree parse rewinds only to the tree's start and
+//                         checks its degrade span before it reads it, so it passes neither
 ```
 
 **Plain `Error` — thrown by `ByteWriter` and `writeFixed` on programming errors**

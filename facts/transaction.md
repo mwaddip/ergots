@@ -8,11 +8,11 @@ Authoritative wire-format reference: sigma-rust `ergo-lib/src/chain/transaction.
 
 **Ships in this contract (v0.1.0, phase 1 — wire codec):**
 
-1. `parseTransaction(bytes)` — parse a complete `ErgoLikeTransaction` from a byte array; rejects trailing bytes.
+1. `parseTransaction(bytes)` — parse a complete `ErgoLikeTransaction` from a byte array; rejects trailing bytes, and an output tree that parses but cannot be re-encoded.
 2. `serializeTransaction(tx)` — serialize an `ErgoLikeTransaction` to wire bytes; rejects out-of-bound io-counts.
 3. `signingMessage(tx)` — the Fiat–Shamir pre-image: the transaction envelope with every input's proof replaced by an empty proof (VLQ-length-0; extension and all other fields unchanged).
 4. `transactionId(tx)` — `blake2b256(signingMessage(tx))`, the 32-byte transaction identifier.
-5. `TxParseError` — the only error class; 5-variant `code` union documenting each rejection cause.
+5. `TxParseError` — the only error class; 6-variant `code` union documenting each rejection cause.
 6. Data model types: `ErgoLikeTransaction`, `Input`, `SpendingProof`, `DataInput`, `ErgoBoxCandidate`.
 7. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
@@ -35,6 +35,7 @@ transactionId(tx: ErgoLikeTransaction): Uint8Array    // 32 bytes
 
 class TxParseError extends Error {
   readonly code: TxParseErrorCode;
+  // cause?: unknown — the standard Error.cause; set for 'output-tree-not-reencodable'
 }
 type TxParseErrorCode =
   | 'trailing-bytes'
@@ -42,18 +43,20 @@ type TxParseErrorCode =
   | 'count-out-of-range'
   | 'extension-id-out-of-range'
   | 'extension-v6-type'
+  | 'output-tree-not-reencodable'
 ```
 
 ### `parseTransaction(bytes)`
 
 - **Precondition:** `bytes` is a `Uint8Array` containing exactly one complete `ErgoLikeTransaction` in sigma-serialized wire form. The function calls `ByteReader.isExhausted` after parsing and rejects any trailing bytes.
-- **Postcondition (success):** Returns an `ErgoLikeTransaction` satisfying all type invariants below. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input that is canonically encoded (see "Round-trip invariant" for what re-serializes differently).
+- **Postcondition (success):** Returns an `ErgoLikeTransaction` satisfying all type invariants below. Every output tree of the returned transaction is re-encodable: once the transaction is parsed, `parseTransaction` forces each output tree's re-encoding (`reencodeTreeBytes`, `@ergots/ergoscript`), which is then cached, so the write sites (`serializeTransaction`, `signingMessage`, `transactionId`, the size checks of `validateStateful`) cannot fail on these trees while their `ergoTreeBytes` instances are unchanged. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input that is canonically encoded (see "Round-trip invariant" for what re-serializes differently).
 - **Postcondition (failure — `TxParseError`):** Thrown for:
   - `'trailing-bytes'` — bytes remain after a structurally complete transaction was parsed. This is STRICTER than sigma-rust's `sigma_parse_bytes` (which tolerates trailing bytes) and matches the JVM modifier-parse path and ergots' own `parseTree` zero-trailing precedent.
   - `'count-out-of-range'` — an io count violates the `TxIoVec` / `get_u32` bounds, or an input's context-extension entry-count byte is ≥ `0x80` (see "Count bounds" below).
   - `'extension-id-out-of-range'` — an input's context-extension variable-id byte is ≥ `0x80`. Rejected before the entry's value is read (see "Context-extension bounds" below).
   - `'extension-v6-type'` — an input's context-extension value has a declared type containing `SOption`, `SHeader` or `SUnsignedBigInt` (rule-1019 `CheckV6Type`; see "Context-extension bounds" below).
   - `'token-table-index-out-of-range'` — an output candidate references a token-table index that does not exist in the transaction's distinct-token-id table.
+  - `'output-tree-not-reencodable'` — an output tree parsed but cannot be written back. The forced re-encoding failed, and the underlying error is the `cause`: for example an arity-0/1 generic tuple type, which parses but cannot be serialized (`STypeSerializeError('tuple-too-short')`; `facts/ergoscript-wire.md` Round-trip Carve-out 1; JVM `TypeSerializer.scala:93-94` `sys.error`, against the arity-free parse at `:188-194`). The JVM rejects such a transaction at parse: ergo-core's `ErgoTransaction` computes `serializedId = Algos.hash(messageToSign)` eagerly (`ErgoTransaction.scala:68`), and `ErgoTransactionSerializer.parse` constructs one (`:497-502`), so the signing message, which re-serializes every output tree (`ErgoBoxCandidate.scala:142`), is built during the parse. The order of this check relative to `'trailing-bytes'` is not part of the contract; either rejects.
 - **Postcondition (failure — other):** `ReaderError` (from `@ergots/scorex`) for truncated / malformed VLQ or fixed-width fields, and `'max-tree-depth-exceeded'` for a context-extension value nested deeper than the JVM reader allows; inner `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` from `@ergots/ergoscript` if a candidate's ergoTree or register bytes are malformed. Each output tree is parsed under the box rules (`parseErgoTreeBytes`, `facts/ergoscript-wire.md`): an unsized tree whose root fails rule 1001, or whose body fails soft-forkably, rejects with `ErgoTreeParseError('soft-fork-without-size-bit')`, and a root type the JVM cannot build throws `ExprTpeError`.
 
 ### `serializeTransaction(tx)`
@@ -61,7 +64,7 @@ type TxParseErrorCode =
 - **Precondition:** `tx` satisfies the `ErgoLikeTransaction` type invariants below and the io-count bounds (see "Count bounds").
 - **Postcondition (success):** Returns `Uint8Array` byte-equal to what a JVM sigma-state serializer would produce for the same transaction. The serialize path ALSO enforces all count bounds — it is safe to call `serializeTransaction` on a programmatically-constructed `tx` and rely on it to reject out-of-range counts. Each output candidate's tree is written re-encoded, `reencodeTreeBytes(b.ergoTreeBytes)` from `@ergots/ergoscript`, as the JVM's candidate serializer writes `serializeErgoTree(box.ergoTree)` (`ErgoBoxCandidate.scala:142`, reached from `ErgoLikeTransaction.scala:136-142`): a parsed tree from its structure, with its true size, and an unparsed one as received. For a transaction from `parseTransaction` the tree is the one its ingest parsed (a cache hit); for a constructed candidate it is parsed from `ergoTreeBytes` under the box rules on first use (`facts/ergoscript-wire.md`, "Box trees").
 - **Postcondition (failure — `TxParseError 'count-out-of-range'`):** inputs or outputCandidates is empty or > 32767; dataInputs is > 32767; the computed distinct-token table exceeds 65535 × 255 entries; an input's context extension holds more than 127 entries.
-- **Postcondition (failure — other):** for a constructed candidate whose `ergoTreeBytes` are not a valid box tree, the re-encoding's errors, unwrapped: `boxTreeOf`'s miss rule (e.g. `ErgoTreeParseError('trailing-bytes')`, `'soft-fork-without-size-bit'` or `'box-context-required'`) and `serializeTree`'s.
+- **Postcondition (failure — other):** the re-encoding's errors, unwrapped, from a constructed candidate only. The output trees of a transaction returned by `parseTransaction` are guaranteed re-encodable, since the parse rejected any that are not (`TxParseError('output-tree-not-reencodable')`), and their re-encodings are cached. A constructed candidate's tree is parsed and written on first use, so it can throw here: `boxTreeOf`'s miss rule and the box-rules parse (e.g. `ErgoTreeParseError('trailing-bytes')`, `'soft-fork-without-size-bit'` or `'box-context-required'`), and `serializeTree`'s classes — `ErgoTreeSerializeError`, `ExprSerializeError`, `STypeSerializeError`, `SValueSerializeError` and `SigmaBooleanSerializeError` (e.g. `STypeSerializeError('tuple-too-short')` for an arity-0/1 tuple type).
 
 ### `signingMessage(tx)`
 
@@ -168,7 +171,7 @@ export interface ErgoBoxCandidate {
 - `DataInput.boxId` is exactly 32 bytes.
 - `SpendingProof.proofBytes` is a `Uint8Array` of length ≥ 0. Empty (`length === 0`) for storage-rent and `TrivialProp` spends.
 - `SpendingProof.contextExtension.values` is an insertion-ordered `Map<number, { tpe: SType; value: SValue }>` keyed by `varId`. A parsed extension's ids are in `[0, 127]` (see "Context-extension bounds"). The received wire order is preserved, and serialization iterates insertion order with no re-sort: the order is part of the signing message (`docs/specs/2026-06-16-context-extension-order-preservation.md`). For 5 or more distinct ids the JVM re-orders instead; see the ordering residual under "Context-extension bounds".
-- `ErgoBoxCandidate.ergoTreeBytes` is a verbatim wire span, consumed via `parseErgoTreeBytes(r)` from `@ergots/ergoscript`, which parses the tree under the box rules (rule 1001 included) on the transaction's reader: the span ends at the parse end for a tree that parses, whatever its declared size, and at `bodyPos + declared` for a size-flagged tree that degrades to an "unparsed" tree ("burn" boxes; a non-SigmaProp root degrades too). The size slot keeps the declared value as received, so the span can differ from the tree's re-encoding (`reencodeTreeBytes`), which serialization writes. `parseErgoTreeBytes` seeds its parsed tree into ergoscript's box-tree cache under this span, so later re-encodings and a spend of the output reuse that parse (`facts/ergoscript-wire.md`, "Box trees").
+- `ErgoBoxCandidate.ergoTreeBytes` is a verbatim wire span, consumed via `parseErgoTreeBytes(r)` from `@ergots/ergoscript`, which parses the tree under the box rules (rule 1001 included) on the transaction's reader: the span ends at the parse end for a tree that parses, whatever its declared size, and at `bodyPos + declared` for a size-flagged tree that degrades to an "unparsed" tree ("burn" boxes; a non-SigmaProp root degrades too). The size slot keeps the declared value as received, so the span can differ from the tree's re-encoding (`reencodeTreeBytes`), which serialization writes. `parseErgoTreeBytes` seeds its parsed tree into ergoscript's box-tree cache under this span, so later re-encodings and a spend of the output reuse that parse (`facts/ergoscript-wire.md`, "Box trees"). In a transaction returned by `parseTransaction`, `reencodeTreeBytes(ergoTreeBytes)` does not throw: the parse forced it and rejected the transaction otherwise (`'output-tree-not-reencodable'`).
 - `ErgoBoxCandidate.tokens[i].id` is 32 bytes (resolved from the transaction-wide token table).
 - `ErgoBoxCandidate.registers` keys are `number` in `[4, 9]` (R4..R9). Each value carries the pair `{ tpe: SType; value: SValue }`. For the rare `Tuple`-Expr form (lead byte `0x86 = 134`), `opaqueBytes` carries the verbatim wire bytes for byte-roundtrip identity, mirroring the SBox path in `@ergots/ergoscript`.
 
@@ -177,16 +180,19 @@ export interface ErgoBoxCandidate {
 ```ts
 export class TxParseError extends Error {
   readonly code: TxParseErrorCode;
+  // cause?: unknown — the standard Error.cause (constructor option { cause }); set for
+  // 'output-tree-not-reencodable' to the error the forced re-encoding threw
 }
 export type TxParseErrorCode =
   | 'trailing-bytes'
   | 'token-table-index-out-of-range'
   | 'count-out-of-range'
   | 'extension-id-out-of-range'
-  | 'extension-v6-type';
+  | 'extension-v6-type'
+  | 'output-tree-not-reencodable';
 ```
 
-All five codes are emitted by this package directly.
+All six codes are emitted by this package directly.
 
 | Code | When thrown | Layer |
 |---|---|---|
@@ -195,11 +201,12 @@ All five codes are emitted by this package directly.
 | `'count-out-of-range'` | Any io count (inputs, dataInputs, outputCandidates), the distinct-token count, or a context-extension entry count violates the declared bounds (see "Count bounds"). Thrown on parse and serialize. | `wire/transaction.ts`, `wire/_envelope.ts`, `wire/input.ts` |
 | `'extension-id-out-of-range'` | A context-extension variable-id byte is ≥ `0x80` (a negative JVM `Byte`). Thrown before the entry's value is read. Parse only. | `wire/input.ts:parseContextExtension` |
 | `'extension-v6-type'` | A context-extension value's declared type contains `SOption`, `SHeader` or `SUnsignedBigInt` (rule-1019 `CheckV6Type`, `ContextExtension.scala:62`). Parse only. | `wire/input.ts:parseContextExtension` |
+| `'output-tree-not-reencodable'` | An output tree parsed but its forced re-encoding (`reencodeTreeBytes`) failed, e.g. an arity-0/1 tuple type (`STypeSerializeError('tuple-too-short')`). `cause` is the underlying error. The JVM rejects the same transaction at parse, since ergo-core's `ErgoTransaction` computes its id, and so the signing message, at construction (`ErgoTransaction.scala:68`, `:497-502`). Parse only. | `wire/transaction.ts:parseTransaction` |
 
 **Other errors that may propagate:**
 
 - `ReaderError` (from `@ergots/scorex`) — `'truncated'` / `'vlq-overflow'` / `'position-limit-exceeded'` from the `ByteReader` if wire bytes are malformed or cut short; `'max-tree-depth-exceeded'` for a context-extension value (or register) nested past the reader's depth cap.
-- `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` etc. from `@ergots/ergoscript` — if a box candidate's ergoTree or register bytes are malformed, or its tree fails the box rules without the size flag (`'soft-fork-without-size-bit'`, with the original error as `cause`). These bubble up unwrapped; `parseTransaction` does not catch and re-wrap them. `serializeTransaction` / `signingMessage` / `transactionId` can raise the same classes when they re-encode a constructed candidate's tree (see `serializeTransaction`).
+- `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` etc. from `@ergots/ergoscript` — if a box candidate's ergoTree or register bytes are malformed, or its tree fails the box rules without the size flag (`'soft-fork-without-size-bit'`, with the original error as `cause`). These bubble up unwrapped; `parseTransaction` does not catch and re-wrap them, except a failure of its forced output-tree re-encoding, which it wraps as `TxParseError('output-tree-not-reencodable')` with the failure as `cause`. `serializeTransaction` / `signingMessage` / `transactionId` cannot fail on the output trees of a transaction `parseTransaction` returned, since the parse guaranteed them re-encodable. For a constructed candidate they re-encode the tree on first use, so they can raise the box-rules parse's classes above and `serializeTree`'s: `ErgoTreeSerializeError`, `ExprSerializeError`, `STypeSerializeError`, `SValueSerializeError` and `SigmaBooleanSerializeError` (see `serializeTransaction`).
 
 ## Round-trip invariant
 
@@ -408,7 +415,7 @@ type TxValidationErrorCode =
   | 'cost-limit-exceeded';     // TxValidationError only for init overrun (see below)
 ```
 
-**Total: 21 codes** (4 `TxParseErrorCode` + 21 `TxValidationErrorCode` = 25 total in the package's error surface; `TxValidationErrorCode` is a distinct union).
+**Total: 21 codes** (6 `TxParseErrorCode` + 21 `TxValidationErrorCode` = 27 total in the package's error surface; `TxValidationErrorCode` is a distinct union).
 
 ## Unwrapped errors contract
 
@@ -416,7 +423,7 @@ The validator's own structural verdicts are `TxValidationError`. Errors from the
 
 - `EvalError` (from `@ergots/ergoscript`) — includes `EvalError('cost-limit-exceeded')` fired during per-input script evaluation when the running accumulator exceeds the JIT budget. This is NOT a `TxValidationError`; callers must catch both.
 - `VerifyError` (from `@ergots/ergoscript`) — sigma-proof verification failure at the cryptographic layer (malformed proof structure, group element decoding failure, etc.). Distinct from `script-reduced-false` (which is the logical `false` verdict from a well-formed proof).
-- `ReaderError` / `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` (from `@ergots/scorex` and `@ergots/ergoscript`) — malformed wire bytes when `boxTreeOf` parses an input's `ergoTreeBytes` on a cache miss (a box not produced by the ergoscript box parser; including `ErgoTreeParseError('box-context-required')` and `'trailing-bytes'`), or when a constructed output's tree is re-encoded for the size checks and the signing message.
+- `ReaderError` / `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` (from `@ergots/scorex` and `@ergots/ergoscript`) — malformed wire bytes when `boxTreeOf` parses an input's `ergoTreeBytes` on a cache miss (a box not produced by the ergoscript box parser; including `ErgoTreeParseError('box-context-required')` and `'trailing-bytes'`), or when a constructed box's tree is parsed for its re-encoding: an output candidate's (the size checks and the signing message), or an input or data-input box's that carries no retained bytes (its id and the rent fee, through `boxBytesOf`'s re-serialization). That re-encoding can also raise `serializeTree`'s classes: `ErgoTreeSerializeError`, `ExprSerializeError`, `STypeSerializeError`, `SValueSerializeError`, `SigmaBooleanSerializeError`. The outputs of a transaction `parseTransaction` returned cannot raise any of these at the write sites: the parse rejected any tree that does not re-encode (`TxParseError('output-tree-not-reencodable')`).
 
 **Summary of what to catch:**
 
