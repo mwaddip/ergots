@@ -60,6 +60,19 @@ const HAS_SIZE_FLAG = 0x08
 const CONSTANT_SEGREGATION_FLAG = 0x10
 const VERSION_MASK = 0x07
 
+/**
+ * The fields of a tree's header byte: bits 0–4. Bits 5–7 stay in `rawHeader` only; the JVM never
+ * reads them (getVersion / hasSize / isConstantSegregation, sigma/ast/ErgoTree.scala:237-261).
+ */
+export function decodeTreeHeader(rawHeader: number): TreeHeader {
+  return {
+    version: (rawHeader & VERSION_MASK) as TreeHeader['version'],
+    hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
+    constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
+    rawHeader,
+  }
+}
+
 /** sigma-rust's cap (`ergo_tree.rs:245`). Only substituteConstantsBytes' count block still uses it; the tree parse reads the count as the JVM does. */
 const MAX_CONSTANTS_COUNT = 4096
 
@@ -208,13 +221,7 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
   const start = r.position
   const savedLimit = r.positionLimit
   r.positionLimit = start + MAX_PROPOSITION_SIZE
-  const rawHeader = r.readU8()
-  const header: TreeHeader = {
-    version: (rawHeader & VERSION_MASK) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
-    hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
-    constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
-    rawHeader,
-  }
+  const header = decodeTreeHeader(r.readU8())
   assertHeaderSizeBit(header.version, header.hasSize)
   // getUInt().toInt (:217-237): a u32, wrapped to Int, never checked on a normal pass.
   const declared = header.hasSize ? readVlqU32(r, 'ErgoTree size') | 0 : undefined
@@ -261,6 +268,14 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
     }
     r.position = start
     if (numBytes > r.remaining) {
+      // A hard reject, as the JVM's getBytes fails there (:202). In a nested tree it is marked
+      // like a nested run-out: for a standalone re-parse, the bytes after this tree in its box
+      // may have held the span (boxTreeOf's miss rule, spec 2026-09-28 §8).
+      if (depth > 1) {
+        throw new ErgoTreeParseError(
+          `a nested tree's degrade span runs past the end (${numBytes} > ${r.remaining})`,
+          'nested-tree-truncated', { cause: err })
+      }
       throw new ErgoTreeParseError(`declared size runs past the end (${numBytes} > ${r.remaining})`, 'body-size-overflow', { cause: err })
     }
     const unparsedBytes = r.readBytes(numBytes).slice()

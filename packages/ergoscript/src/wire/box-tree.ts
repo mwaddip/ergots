@@ -3,9 +3,9 @@
  * writes (ErgoBoxCandidate.scala:142, serializeErgoTree at ErgoTreeSerializer.scala:105-127).
  */
 import { ByteReader, ReaderError } from '@ergots/scorex'
-import type { ErgoTree, TreeHeader } from '../mir/types'
+import type { ErgoTree } from '../mir/types'
 import { isUnparsedTree } from '../mir/types'
-import { parseTreeFromReader, serializeTree, ErgoTreeParseError } from './ergo-tree'
+import { parseTreeFromReader, serializeTree, decodeTreeHeader, ErgoTreeParseError } from './ergo-tree'
 import { boxTreeCache, seedBoxTree } from './box-tree-cache'
 
 export { seedBoxTree }
@@ -43,19 +43,16 @@ function parseStandalone(bytes: Uint8Array): ErgoTree {
   try {
     tree = parseTreeFromReader(r, { checkType: true })
   } catch (err) {
-    const rawHeader = bytes[0] ?? 0
-    if ((rawHeader & 0x08) !== 0 && err instanceof ReaderError && err.code === 'truncated') {
+    // An empty array has no header byte and reads as a tree without the size flag.
+    const header = decodeTreeHeader(bytes[0] ?? 0)
+    if (header.hasSize && err instanceof ReaderError && err.code === 'truncated') {
       // The tree's own reads ran past its declared span: in its box it degraded (ErgoTreeSerializer
       // .scala:196-203), so these bytes are its declared span.
-      const header: TreeHeader = {
-        version: (rawHeader & 0x07) as TreeHeader['version'],
-        hasSize: true,
-        constantSegregation: (rawHeader & 0x10) !== 0,
-        rawHeader,
-      }
       return { header, unparsedBytes: bytes.slice(), error: err }
     }
     if (err instanceof ErgoTreeParseError && err.code === 'nested-tree-truncated') {
+      // A nested tree ran out of input, or its degrade span did: in the box, the bytes after
+      // this tree may have held it (spec 2026-09-28 §8).
       throw new ErgoTreeParseError(
         'a nested tree ran out of input: the result depends on the bytes after this tree in its box; ' +
           'parse the box (parseErgoTreeBytes) or seed the tree (seedBoxTree)',

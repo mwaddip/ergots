@@ -109,7 +109,8 @@ describe('sValueEquals — Box', () => {
   })
   it('returns false when ergoTreeBytes differs', () => {
     const ctx = makeContext({})
-    expect(sValueEquals(vBox(syntheticBox()), vBox(syntheticBox({ ergoTreeBytes: new Uint8Array([0xff]) })), ctx)).toBe(false)
+    // Another tree a box can hold: SigmaProp(false).
+    expect(sValueEquals(vBox(syntheticBox()), vBox(syntheticBox({ ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xd2]) })), ctx)).toBe(false)
   })
   it('returns false when creationHeight differs', () => {
     expect(sValueEquals(vBox(syntheticBox()), vBox(syntheticBox({ creationHeight: 999 })), makeContext({}))).toBe(false)

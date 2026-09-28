@@ -78,7 +78,7 @@ function serializeTree(tree: ErgoTree): Uint8Array;
 
 Inverse of `parseTree`. For any well-formed tree bytes `b`, `serializeTree(parseTree(b))` equals `b` byte-for-byte.
 
-- **Precondition:** `tree` was either returned from `parseTree` or constructed satisfying the type invariants below. The `header.rawHeader` byte MUST be derivable from `header.version`, `header.hasSize`, and `header.constantSegregation` (the projection is round-trip-checked at serialize time). `constantTypes.length === constants.length` is required.
+- **Precondition:** `tree` was either returned from `parseTree` or constructed satisfying the type invariants below. Bits 0–4 of `header.rawHeader` (version, size flag, segregation flag) MUST match `header.version`, `header.hasSize` and `header.constantSegregation` (checked at serialize time); bits 5–7 are free and written as stored. `constantTypes.length === constants.length` is required.
 - **Returns:** `Uint8Array` of length ≤ `MAX_TREE_SIZE`.
 - **Throws:** `ErgoTreeSerializeError` with `code` `'header-inconsistent'` (bits 0–4 of rawHeader do not match the derived `(version, hasSize, segregation)` triple) or `'constants-arity-mismatch'`. Body-serialize failures surface as `ExprSerializeError` (notably `'not-supported'` for the un-encodable `ZkProofBlock` variant).
 
@@ -207,7 +207,7 @@ interface TreeHeader {
   version: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // bits 0..2 of rawHeader
   hasSize: boolean;                        // bit 3: VLQ-u32 body size follows
   constantSegregation: boolean;            // bit 4: segregated constants section
-  rawHeader: number;                       // original byte; derivable from the three fields above
+  rawHeader: number;                       // original byte; bits 0–4 match the fields above, bits 5–7 are free
 }
 ```
 

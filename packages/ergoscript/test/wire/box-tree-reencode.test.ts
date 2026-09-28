@@ -10,6 +10,7 @@ import { serializeBoxBytes, serializeBoxBytesWithoutRef } from '../../src/wire/e
 import { boxBytesOf, boxIdOf } from '../../src/eval/_box-id'
 import { serializeCost } from '../../src/eval/serialize-cost'
 import { makeContext } from '../../src/eval/eval-context'
+import { blake2b256 } from '../../src/crypto/hashes'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
 const codeOf = (f: () => unknown) => { try { f(); return 'no-throw' } catch (e) { return (e as { code?: string }).code } }
@@ -26,7 +27,10 @@ describe('reencodeTreeBytes', () => {
   })
   it('a miss parses with the box rules (identity key: a copy is a miss)', () => {
     const bytes = hex('090308d3')
-    expect(Array.from(reencodeTreeBytes(bytes.slice()))).toEqual([0x09, 0x02, 0x08, 0xd3])
+    // A tree seeded on this instance, told apart from the bytes' own tree by its re-encoding.
+    seedBoxTree(bytes, parseTree(hex('000402')))
+    expect(Array.from(reencodeTreeBytes(bytes))).toEqual([0x00, 0x04, 0x02])                  // the instance: a hit
+    expect(Array.from(reencodeTreeBytes(bytes.slice()))).toEqual([0x09, 0x02, 0x08, 0xd3])    // an equal copy: a miss
   })
   it('a miss applies rule 1001: an unsized Int root rejects, a sized one degrades', () => {
     expect(codeOf(() => boxTreeOf(hex('000402')))).toBe('soft-fork-without-size-bit')
@@ -35,6 +39,7 @@ describe('reencodeTreeBytes', () => {
   it('a miss on a sized tree whose own reads run out gives the raw bytes (Unparsed)', () => {
     const t = boxTreeOf(hex('0901d1'))
     expect(isUnparsedTree(t)).toBe(true)
+    if (isUnparsedTree(t)) expect(Array.from(t.unparsedBytes)).toEqual([0x09, 0x01, 0xd1])
   })
   it('a miss whose nested tree runs out needs box context', () => {
     // sized outer, nested Box whose sized tree reads past the outer end
@@ -124,6 +129,39 @@ describe('box ingest seeds the cache (spec 2026-09-28 §8)', () => {
     // A copy is a miss: standalone, the nested Coll runs out of input.
     expect(codeOf(() => boxTreeOf(span.slice()))).toBe('box-context-required')
   })
+  it('a nested degrade whose re-read runs past the end: the seed keeps the ingest result, a miss needs box context', () => {
+    // The outer tree (sized, segregated, declared 8) holds a Box constant whose own sized tree
+    // (declared 60, body the reserved opcode fd) degrades over 62 bytes, past the outer tree's end;
+    // the outer root, typed SBox, then fails rule 1001 and the outer tree degrades to its 10-byte
+    // span (ErgoTreeSerializer.scala:196-209). The box reads on from offset 13 and ends at 49.
+    const tail = [0x01, 0x00, 0x00, ...new Array(32).fill(0), 0x00] // height 1, no tokens, no registers, txId, index 0
+    const tree = [
+      0x18, 0x08, 0x01, 0x63,           // 0: sized + segregated v0, declared 8; 1 constant, SBox
+      0xc0, 0x84, 0x3d,                 // 4: the nested box's value
+      0x08, 0x3c, 0xfd,                 // 7: its tree: sized v0, declared 60, fd -> degrades over 62 bytes
+      ...tail,                          // 10: the outer box's tail, read after the outer degrade
+      ...new Array(23).fill(0),         // 46: the rest of the nested degrade span
+      ...tail,                          // 69: the nested box's tail
+      0x73, 0x00,                       // 105: outer body ConstantPlaceholder(0), typed SBox
+    ]
+    const bytes = Uint8Array.from([0xc0, 0x84, 0x3d, ...tree])
+    const r = new ByteReader(bytes)
+    const v = parseSValue({ tag: 'SBox' }, 0, r)
+    expect(r.position).toBe(49)
+    const span = boxOf(v).ergoTreeBytes
+    expect(toHex(span)).toBe('18080163c0843d083cfd')
+    expect(isUnparsedTree(boxTreeOf(span))).toBe(true)
+    expect(toHex(reencodeTreeBytes(span))).toBe(toHex(span))
+    // A copy is a miss: standalone, the nested degrade's re-read runs past the input. In its box it
+    // may have fitted (ErgoTreeSerializer.scala:199-202), so the verdict needs box context.
+    expect(codeOf(() => boxTreeOf(span.slice()))).toBe('box-context-required')
+    // Box ingest on those bytes alone (nothing after them) rejects hard, as the JVM's getBytes
+    // does, marked as a nested run-out whose cause is the error being degraded.
+    let err: unknown
+    try { parseErgoTreeBytes(new ByteReader(span.slice())) } catch (e) { err = e }
+    expect((err as { code?: string }).code).toBe('nested-tree-truncated')
+    expect(((err as Error).cause as { code?: string }).code).toBe('opcode-reserved')
+  })
 })
 
 describe('a tree that parses but cannot be re-encoded', () => {
@@ -163,6 +201,10 @@ describe('the write sites emit the re-encoded tree; ergoTreeBytes stay as receiv
     const b = boxOf(parseSValue({ tag: 'SBox' }, 0, new ByteReader(received)))
     expect(toHex(b.ergoTreeBytes)).toBe('090308d3')
     expect(toHex(boxBytesOf(b))).toBe(toHex(received))
+    // The id is over the bytes as received (ErgoBox.scala:87-92); a constructed box with the same
+    // fields hashes its re-encoding instead.
+    expect(toHex(boxIdOf(b))).toBe(toHex(blake2b256(received)))
+    expect(toHex(boxIdOf(box(hex('090308d3'))))).toBe(toHex(blake2b256(hex(full('090208d3')))))
     expect(toHex(serializeBoxBytes(b))).toBe(full('090208d3'))
     expect(toHex(serializeBoxBytesWithoutRef(b))).toBe(candidate('090208d3'))
   })
