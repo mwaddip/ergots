@@ -30,16 +30,12 @@
  * then fails to evaluate.
  */
 
-import { readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import { parseSValue, SValueParseError } from '../../src/wire/parse-svalue'
-import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { isUnparsedTree } from '../../src/mir/types'
-import type { ParsedErgoTree } from '../../src/mir/types'
-import { ByteReader, ByteWriter } from '@ergots/scorex'
+import { ByteReader } from '@ergots/scorex'
+import { validHeaderData } from './_helpers'
 
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.replace(/\s+/g, '')
@@ -85,16 +81,6 @@ const T_UBI = 0x09 // 9
 const T_COLL_BYTE = 0x0e // COLL_CONSTR_ID(1)*12 + SByte(2) = 14
 const T_LONG = 0x05
 const T_INT = 0x04
-
-// A valid header's SValue bytes, taken as svalue-sheader-roundtrip.test.ts takes them: the
-// SHeader constant of its v3 fixture, re-serialized.
-function validHeaderData(): number[] {
-  const fixture = join(dirname(fileURLToPath(import.meta.url)), '../fixtures/wire/sheader-constants-v3-single-header.bin')
-  const tree = parseTree(new Uint8Array(readFileSync(fixture))) as ParsedErgoTree
-  const w = new ByteWriter()
-  serializeSValue({ tag: 'SHeader' }, tree.constants[0]!, 3, w)
-  return Array.from(w.toBytes())
-}
 
 describe('rule-1019 CheckV6Type — box register type contains v6-only type', () => {
   // --- W7: full tree, Const(SBox) segregated constant, R4 = Option[Int] ---
