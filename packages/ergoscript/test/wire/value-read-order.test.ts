@@ -54,6 +54,10 @@ describe('the 0x85 lookahead belongs to Relation2 only', () => {
     expect(e.left.tag).toBe('Const')
     expect(r.position).toBe(3)
   })
+  it('Relation2 peeks its lookahead: at the end of the input past the window, truncated', () => {
+    const r = new ByteReader(hex('93')); r.positionLimit = 0
+    expect(codeOf(() => expr(r))).toBe('truncated') // a window-checked lookahead: 'position-limit-exceeded' (rule 1014, a degrade)
+  })
   it('Plus of two Boolean constants serializes as two full values', () => {
     const t = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
     const f = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: false } }
