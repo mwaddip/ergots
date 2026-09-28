@@ -98,12 +98,14 @@ export function parseFuncValue(
  * then each arg as `(VLQ-u32 id, SType tpe)`, then the body Expr.
  */
 export function serializeFuncValue(f: FuncValue, w: ByteWriter, treeVersion: number): void {
-  // JVM FuncValueSerializer.scala:23 writes each id with putUInt, which rejects a negative Int
-  // (scorex-util 0.2.1 VLQWriter.scala:64-67). A parsed id wraps negative from 2^31 up.
+  // JVM FuncValueSerializer.scala:23 writes each id, an Int, with putUInt, which rejects a negative
+  // Int (scorex-util 0.2.1 VLQWriter.scala:64-67): so only [0, 2^31) is writable. A parsed id wraps
+  // negative from 2^31 up; an id at or above 2^31, or a non-integer, is hand-built MIR (as
+  // serializeValDef's bound, val-def.ts).
   for (const a of f.args) {
-    if (a.id < 0) {
+    if (!Number.isInteger(a.id) || a.id < 0 || a.id > 0x7fffffff) {
       throw new ExprSerializeError(
-        `FuncValue arg id ${a.id} is negative (JVM putUInt rejects it)`,
+        `FuncValue arg id ${a.id} is outside [0, 2^31) (JVM Int written with putUInt)`,
         'func-value-arg-id-out-of-range'
       )
     }

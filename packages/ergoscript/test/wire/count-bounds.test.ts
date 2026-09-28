@@ -48,11 +48,8 @@ describe('collection counts: getUShort, before the element type', () => {
   it('Boolean-constant collection 0xFFFF reads on to the bits (runs out)', () => {
     expect(codeOf([0x85, ...vlq(0xffff)])).toBe('truncated')
   })
-  // The JVM's getUShort is getULong().toInt before its range check (scorex-util 0.2.1
-  // VLQReader.scala:30-34), so it reads a count of 2^32 as 0: this input is on the tracked
-  // getUShort follow-up, and the expectation below is ergots' bound, not the JVM's verdict.
-  it('a Boolean-constant collection count of 2^32 rejects at once (it used to loop ~2^32 times)', () => {
-    expect(codeOf([0x85, ...vlq(2 ** 32)])).toBe('collection-size-out-of-range')
+  it('a Boolean-constant collection count of 2^32-1 rejects at once (it used to loop ~2^32 times)', () => {
+    expect(codeOf([0x85, ...vlq(2 ** 32 - 1)])).toBe('collection-size-out-of-range')
   })
 })
 
@@ -69,8 +66,9 @@ describe('ids read with getUInt (≤ u32)', () => {
 // .scala:13; the rows of DeserializationResilience.scala:372-374). It writes them with putUInt
 // (FuncValueSerializer.scala:23, ValUseSerializer.scala:9), which rejects a negative Int
 // ("-1 is out of unsigned int range", DeserializationResilience.scala:386-389). So such a tree parses
-// but cannot be re-encoded.
-describe('FuncValue arg ids and ValUse ids wrap to an Int; a negative id cannot be re-encoded', () => {
+// but cannot be re-encoded. The id domain is a JVM Int, of which putUInt takes [0, 2^31); the
+// serializers reject any other id, which only hand-built MIR can hold.
+describe('FuncValue arg ids and ValUse ids wrap to an Int; an id outside [0, 2^31) cannot be re-encoded', () => {
   // d9 (FuncValue) | 01 (one arg) | id | 04 (SInt) | body: 72 (ValUse) id
   const lambda = (id: number) => [0xd9, 0x01, ...vlq(id), 0x04, 0x72, ...vlq(id)]
   const parse = (bytes: number[]) => parseExpr(new ByteReader(Uint8Array.from(bytes)), [], [], new Map(), 0)
@@ -86,16 +84,18 @@ describe('FuncValue arg ids and ValUse ids wrap to an Int; a negative id cannot 
       })
     })
   }
-  it('an id of 0x7FFFFFFF stays positive and round-trips byte for byte', () => {
-    const bytes = lambda(0x7fffffff)
-    const e = parse(bytes)
-    expect(e).toEqual({
-      tag: 'FuncValue',
-      args: [{ id: 0x7fffffff, tpe: { tag: 'SInt' } }],
-      body: { tag: 'ValUse', valId: 0x7fffffff, tpe: { tag: 'SInt' } },
+  for (const id of [0, 0x7fffffff]) {
+    it(`an id of ${id} parses as itself and round-trips byte for byte`, () => {
+      const bytes = lambda(id)
+      const e = parse(bytes)
+      expect(e).toEqual({
+        tag: 'FuncValue',
+        args: [{ id, tpe: { tag: 'SInt' } }],
+        body: { tag: 'ValUse', valId: id, tpe: { tag: 'SInt' } },
+      })
+      expect(serialize(e)).toEqual(bytes)
     })
-    expect(serialize(e)).toEqual(bytes)
-  })
+  }
   it('serializing the parsed wrapped FuncValue throws func-value-arg-id-out-of-range', () => {
     const e = parse(lambda(2 ** 32 - 1))
     expect(() => serialize(e)).toThrowError(
@@ -108,4 +108,20 @@ describe('FuncValue arg ids and ValUse ids wrap to an Int; a negative id cannot 
       expect.objectContaining({ name: 'ExprSerializeError', code: 'val-use-id-out-of-range' })
     )
   })
+  const outside: [string, number][] = [['0x80000000', 0x80000000], ['1.5', 1.5]]
+  for (const [label, id] of outside) {
+    it(`serializing a FuncValue whose arg id is ${label} throws func-value-arg-id-out-of-range`, () => {
+      const one: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } }
+      const e: Expr = { tag: 'FuncValue', args: [{ id, tpe: { tag: 'SInt' } }], body: one }
+      expect(() => serialize(e)).toThrowError(
+        expect.objectContaining({ name: 'ExprSerializeError', code: 'func-value-arg-id-out-of-range' })
+      )
+    })
+    it(`serializing a ValUse whose id is ${label} throws val-use-id-out-of-range`, () => {
+      const e: Expr = { tag: 'ValUse', valId: id, tpe: { tag: 'SInt' } }
+      expect(() => serialize(e)).toThrowError(
+        expect.objectContaining({ name: 'ExprSerializeError', code: 'val-use-id-out-of-range' })
+      )
+    })
+  }
 })

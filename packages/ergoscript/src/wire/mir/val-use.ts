@@ -56,11 +56,13 @@ export function parseValUse(
  * sigma-rust's `ValUse::sigma_serialize`.
  */
 export function serializeValUse(v: ValUse, w: ByteWriter): void {
-  // JVM ValUseSerializer.scala:9 writes the id with putUInt, which rejects a negative Int
-  // (scorex-util 0.2.1 VLQWriter.scala:64-67). A parsed id wraps negative from 2^31 up.
-  if (v.valId < 0) {
+  // JVM ValUseSerializer.scala:9 writes the id, an Int, with putUInt, which rejects a negative Int
+  // (scorex-util 0.2.1 VLQWriter.scala:64-67): so only [0, 2^31) is writable. A parsed id wraps
+  // negative from 2^31 up; an id at or above 2^31, or a non-integer, is hand-built MIR (as
+  // serializeValDef's bound, val-def.ts).
+  if (!Number.isInteger(v.valId) || v.valId < 0 || v.valId > 0x7fffffff) {
     throw new ExprSerializeError(
-      `ValUse id ${v.valId} is negative (JVM putUInt rejects it)`,
+      `ValUse id ${v.valId} is outside [0, 2^31) (JVM Int written with putUInt)`,
       'val-use-id-out-of-range'
     )
   }
