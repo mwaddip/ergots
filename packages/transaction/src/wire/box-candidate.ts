@@ -10,7 +10,9 @@
  * Wire layout (sigma-rust `serialize_box_with_indexed_digests`,
  * `token_ids_in_tx = Some(table)` arm):
  *   value           — VLQ u64 (BoxValue::sigma_serialize; unsigned, NOT ZigZag)
- *   ergoTree bytes  — written verbatim, self-delimiting via the ErgoTree header
+ *   ergoTree        — self-delimiting via the ErgoTree header; parsed under the box
+ *                     rules and kept as received (`ergoTreeBytes`), written re-encoded
+ *                     (`reencodeTreeBytes`, the JVM's serializeErgoTree)
  *   creation_height — VLQ uint (`put_u32`; JVM reader is `getUIntExact`, i32 ceil)
  *   tokens_count    — raw u8 (`put_u8`, NOT VLQ)
  *   per-token       — token-table INDEX as VLQ uint (`put_u32`/`get_u32`) +
@@ -47,6 +49,7 @@ import {
   serializeSValue,
   parseErgoTreeBytes,
   parseAdditionalRegisters,
+  reencodeTreeBytes,
 } from '@ergots/ergoscript';
 import type { ErgoBoxCandidate } from '../types';
 import { TxParseError } from '../errors';
@@ -110,9 +113,11 @@ export function parseBoxCandidate(r: ByteReader, tokenTable: Uint8Array[]): Ergo
     tokens.push({ id, amount });
   }
 
-  // additional_registers — raw u8 count + per-register Const/Tuple Expr. The
-  // shared reader applies the rule-1019 CheckV6Type gate, the > 6 reject, and
-  // the Tuple-Expr opaqueBytes capture identically to the SBox path. The
+  // additional_registers — raw u8 count + per-register Const/Tuple Expr, read by
+  // the shared reader as the SBox path reads them, in the JVM's order
+  // (ErgoBoxCandidate.scala:226-234): each value whole, then rule-1019
+  // CheckV6Type on it; a seventh register rejects only when the loop reaches it,
+  // after R4..R9 are read; a Tuple-Expr register keeps its opaqueBytes. The
   // standalone box body is a v0 wire form (the JVM never lets v6-typed DATA
   // into registers via CheckV6Type), so treeVersion 0 is passed.
   const parsedRegisters = parseAdditionalRegisters(r, 0);
@@ -146,8 +151,8 @@ export function serializeBoxCandidate(
   // value — VLQ u64, unsigned (NOT ZigZag).
   w.writeVlqBigInt(b.value);
 
-  // ergoTree bytes — verbatim.
-  w.writeBytes(b.ergoTreeBytes);
+  // ergoTree — re-encoded; ergoTreeBytes (R1, propositionBytes) stay as received.
+  w.writeBytes(reencodeTreeBytes(b.ergoTreeBytes)); // ErgoBoxCandidate.scala:142: serializeErgoTree(tree)
 
   // creation_height — VLQ; reject > 2^31-1 mirroring the parse bound (stable
   // round-trip; matches ergoscript's box-body serializer).

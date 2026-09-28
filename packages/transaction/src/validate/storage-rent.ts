@@ -1,9 +1,8 @@
 import { ByteWriter } from '@ergots/scorex';
-import { serializeSType, sValueStructuralEq } from '@ergots/ergoscript';
+import { boxBytesOf, serializeSType, sValueStructuralEq } from '@ergots/ergoscript';
 import type { ErgoBox, SType, SValue, ContextExtension } from '@ergots/ergoscript';
 import type { ErgoBoxCandidate } from '../types';
 import { bytesEqual } from './_bytes';
-import { serializeBox } from './_box';
 
 // --- Storage rent (expired-box / demurrage) ------------------------------
 // Anyone may spend a box older than StoragePeriod with an empty proof, naming in
@@ -64,9 +63,9 @@ export function checkExpiredBox(
     storageFeeFactor: number,
 ): boolean {
     // :43 — `params.storageFeeFactor * box.bytes.length` is Int * Int: it wraps at 32 bits.
-    // `box.bytes` is the full box serialization, the bytes `checkStructural` hashed to match
-    // the input's box id.
-    const storageFee = Math.imul(storageFeeFactor, serializeBox(box).length);
+    // `box.bytes` is the box's bytes as received (ErgoBox.scala:87-92), the bytes `checkStructural`
+    // hashed to match the input's box id; a constructed box's are its re-serialization.
+    const storageFee = Math.imul(storageFeeFactor, boxBytesOf(box).length);
     // :45, :47 — `box.value - storageFee` is Long - Int, computed in Long.
     const valueAfterFee = BigInt.asIntN(64, BigInt.asIntN(64, box.value) - BigInt(storageFee));
     const storageFeeNotCovered = valueAfterFee <= 0n;   // :45

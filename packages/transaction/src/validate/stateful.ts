@@ -1,7 +1,6 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
-import { blake2b256 } from '@ergots/scorex';
-import { parseTree, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
+import { boxIdOf, boxTreeOf, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
@@ -10,8 +9,9 @@ import { buildHeadersArray, promoteCandidate, buildInputContext, JIT_COST_PER_BL
 import { storageRentVerdict, STORAGE_CONTRACT_COST } from './storage-rent';
 import { serializeBox } from './_box';
 
-/** Box id = blake2b256(box's sigma_serialize bytes incl. txId+index). ergo_box.rs:141,182-185. */
-export function computeBoxId(box: ErgoBox): Uint8Array { return blake2b256(serializeBox(box)); }
+/** The box id over the box's bytes as received: `ErgoBox.id` is the hash of `ErgoBox.bytes` (ErgoBox.scala:73),
+ *  the bytes the box parser retained, or a re-serialization for a constructed box (:87-92). */
+export function computeBoxId(box: ErgoBox): Uint8Array { return boxIdOf(box); }
 
 /** Structural / accounting checks (no script eval). Mirrors the non-eval portion of
  *  sigma-rust TransactionContext::validate() + verify_output. Exported for unit testing;
@@ -180,10 +180,12 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
       continue;
     }
 
-    const tree = parseTree(ergoTreeBytes);   // parse errors surface unwrapped
-    // An unparsed (soft-fork) proposition — a size-flagged tree whose body preserved a
-    // reserved/version-gated construct verbatim — is permanently unevaluable: it has no
-    // constants and evaluateWith rejects it with EvalError('unparsed-ergotree'), surfaced
+    // The box's tree under the box rules: the one its ingest parsed, checkType = true (ErgoTransaction.scala:138
+    // evaluates box.ergoTree); on a cache miss one standalone parse, whose errors surface unwrapped.
+    const tree = boxTreeOf(ergoTreeBytes);
+    // An unparsed proposition — a size-flagged tree that degraded under the box rules (a soft-fork
+    // failure, or rule 1001 on its root) — is permanently unevaluable: it has no constants and
+    // evaluateWith rejects it with EvalError('unparsed-ergotree') (Interpreter.scala:131-141), surfaced
     // unwrapped below. Thread empty constants so the union narrows past buildInputContext.
     // Cumulative limit: this input may consume only the remaining headroom; an overrun throws
     // EvalError 'cost-limit-exceeded' (unwrapped), matching validate()'s mid-tx limit firing.

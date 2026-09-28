@@ -13,10 +13,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { ByteReader } from '@ergots/scorex';
+import { parseSValue } from '@ergots/ergoscript';
 import { validateStateful, checkStructural, computeBoxId } from '../../src/validate/stateful';
 import { TxValidationError } from '../../src/errors';
 import { DEFAULT_PARAMETERS } from '../../src/params';
-import { listStatefulFixtures, loadStatefulFixtureAsDeps } from './_load';
+import { hexToBytes, listStatefulFixtures, loadStatefulFixture, loadStatefulFixtureAsDeps } from './_load';
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -142,10 +144,18 @@ describe('validateStateful — adversarial mutations on real fixtures', () => {
     expect(() => validateStateful(tx, d)).toThrow();
   });
 
-  it('point an input at the wrong box (mutate box value) -> input-box-id-mismatch', () => {
+  it('point an input at the wrong box (a box whose value differs) -> input-box-id-mismatch', () => {
     const { tx, deps: d } = loadStatefulFixtureAsDeps(name);
-    // Mutate the provided box so its recomputed id no longer matches tx.inputs[0].boxId.
-    d.inputBoxes[0]!.value += 1n;
+    // A different box: the input box's bytes with the low bit of its value flipped (the value VLQ's
+    // first byte keeps its continuation bit), parsed. A box's id is over its bytes as received
+    // (ErgoBox.scala:87-92), so a parsed box's fields mutated in place would still carry the id of
+    // the bytes it came from.
+    const bytes = hexToBytes(loadStatefulFixture(name).inputBoxesHex[0]!);
+    bytes[0] = bytes[0]! ^ 0x01;
+    const sv = parseSValue({ tag: 'SBox' }, 0, new ByteReader(bytes));
+    if (sv.kind !== 'Box') throw new Error(`parseSValue kind=${sv.kind}, expected Box`);
+    expect(sv.value.value).not.toBe(d.inputBoxes[0]!.value);
+    d.inputBoxes[0] = sv.value;
     expectCode(() => validateStateful(tx, d), 'input-box-id-mismatch');
   });
 });

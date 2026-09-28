@@ -9,7 +9,7 @@
  *
  * Wire layout (sigma-rust `sigma_serialize`):
  *   boxId:           32 bytes (no length prefix)
- *   proofBytes:      VLQ-u32 length, then that many bytes
+ *   proofBytes:      VLQ length, at most 0xFFFF (JVM getUShort / putUShort), then that many bytes
  *   contextExtension count: 1 byte, < 0x80 (not a VLQ), then each entry:
  *                      varId:  1 byte, < 0x80
  *                      tpe:    SType wire encoding
@@ -54,8 +54,11 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
     // on top of its data's own levels, as a box register does. Lowered only on a normal return,
     // as the JVM's `r.level - 1` is: a Box value whose tree degrades leaves its levels behind.
     r.enterDepth();
+    r.peekU8(); // ValueSerializer.scala:399: the depth, then the unchecked peek
     const tpe = parseSType(r);
-    // :62 rule-1019 CheckV6Type on the declared type, checked before the data as the register leg does.
+    // :62 rule-1019 CheckV6Type, on the declared type before the data is read, where the JVM checks the
+    // whole value after `r.getValue()`. Outside a tree no degrade can intervene, so both orders reject
+    // the same extensions; the register leg, which a sized tree can degrade, follows the JVM's order.
     if (violatesCheckV6Type(tpe)) {
       throw new TxParseError(`context extension variable ${varId} has a type containing Option, Header or UnsignedBigInt`, 'extension-v6-type');
     }
@@ -85,6 +88,10 @@ export function serializeContextExtension(ext: ContextExtension, w: ByteWriter):
 export function parseInput(r: ByteReader): Input {
   const boxId = r.readBytes(32);
   const proofLen = r.readVlqU();
+  // ProverResult.serializer (sigma/interpreter/ProverResult.scala:40): the proof length is a getUShort.
+  if (proofLen > 0xffff) {
+    throw new TxParseError(`proof length ${proofLen} exceeds 0xFFFF (JVM getUShort)`, 'count-out-of-range');
+  }
   const proofBytes = r.readBytes(proofLen);
   const contextExtension = parseContextExtension(r);
   return { boxId, spendingProof: { proofBytes, contextExtension } };
@@ -92,6 +99,10 @@ export function parseInput(r: ByteReader): Input {
 
 export function serializeInput(input: Input, w: ByteWriter): void {
   w.writeBytes(input.boxId);
+  // ProverResult.scala:34 writes the proof length with putUShort, which requires it to be at most 0xFFFF.
+  if (input.spendingProof.proofBytes.length > 0xffff) {
+    throw new TxParseError(`proof length ${input.spendingProof.proofBytes.length} exceeds 0xFFFF (JVM putUShort)`, 'count-out-of-range');
+  }
   w.writeVlqU(input.spendingProof.proofBytes.length);
   w.writeBytes(input.spendingProof.proofBytes);
   serializeContextExtension(input.spendingProof.contextExtension, w);

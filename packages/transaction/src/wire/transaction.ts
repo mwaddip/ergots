@@ -40,6 +40,7 @@
  */
 
 import { ByteReader, ByteWriter } from '@ergots/scorex';
+import { reencodeTreeBytes } from '@ergots/ergoscript';
 import type { ErgoLikeTransaction } from '../types';
 import { parseInput } from './input';
 import { parseDataInput } from './data-input';
@@ -110,8 +111,24 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   }
   const outputCandidates = Array.from({ length: nOut }, () => parseBoxCandidate(r, tokenTable));
 
-  // Reject trailing bytes — the JVM/sigma-rust consume the whole tx span; any
-  // remainder means a malformed or extra-padded envelope.
+  // ergo-core ErgoTransaction.serializedId is eager (ErgoTransaction.scala:68): constructing the parsed
+  // transaction re-encodes every output tree (bytesToSign), so one that parses but cannot be written
+  // fails the JVM's parse. The re-encoding is cached and reused by the id and serialization.
+  // Order: ErgoTransactionSerializer.parse constructs the transaction once its last output is read
+  // (:497-502), and nothing is checked after that: ErgoSerializer.parseBytes ignores trailing bytes
+  // (avldb ErgoSerializer.scala:27-30). So the re-encoding runs here, after every output is parsed and
+  // before ergots' own trailing-bytes check, and reports the JVM's failure whatever follows the tx.
+  for (let i = 0; i < outputCandidates.length; i++) {
+    try {
+      reencodeTreeBytes(outputCandidates[i]!.ergoTreeBytes);
+    } catch (err) {
+      throw new TxParseError(`output ${i}'s tree cannot be re-encoded`, 'output-tree-not-reencodable', { cause: err });
+    }
+  }
+
+  // Reject trailing bytes: an envelope check of ergots' own (the JVM's parseBytes and sigma-rust's
+  // sigma_parse_bytes read the transaction and ignore what follows); any remainder means a malformed
+  // or extra-padded envelope.
   if (!r.isExhausted) {
     throw new TxParseError(`${r.remaining} trailing byte(s) after transaction`, 'trailing-bytes');
   }
