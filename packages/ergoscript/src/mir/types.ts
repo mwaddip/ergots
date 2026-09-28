@@ -87,7 +87,11 @@ export const SANY_DECLARED: SType = Object.freeze({ tag: 'SAny' })
 export interface ErgoBox {
   /** nanoErg value (Rust `BoxValue`, a u64 wrapper). */
   value: bigint
-  /** Guarding script as raw bytes; parse with `parseTree` if needed. */
+  /**
+   * Guarding script, the bytes as received (R1, `propositionBytes`). Its tree under the box
+   * rules is `boxTreeOf(ergoTreeBytes)`, and what a box re-serialization writes is
+   * `reencodeTreeBytes(ergoTreeBytes)` (`wire/box-tree.ts`).
+   */
   ergoTreeBytes: Uint8Array
   /**
    * Non-mandatory registers R4..R9. Sparse: a missing register key yields
@@ -996,8 +1000,9 @@ export type SValue =
  * Parsed ErgoTree header (one byte on the wire). `rawHeader` is the original
  * byte; the boolean / number fields are derived projections kept on the
  * struct so callers don't need to re-decode bits. Serialization writes
- * `rawHeader` directly to preserve any reserved bits the parser tolerated
- * (currently none — they're all 0).
+ * `rawHeader` as stored, bits 5–7 included: the parser tolerates them and the
+ * JVM writes the header byte back without inspecting them
+ * (`ErgoTreeSerializer.scala:79-91`).
  */
 export interface TreeHeader {
   /** ErgoTree language version (bits 0..2 of `rawHeader`). 0..7. */

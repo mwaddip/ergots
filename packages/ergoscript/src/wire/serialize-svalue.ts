@@ -20,6 +20,7 @@ import type { ErgoBox, SType, SValue } from '../mir/types'
 import { ByteWriter, serializeHeader } from '@ergots/scorex'
 import { serializeSType } from './serialize-stype'
 import { serializeSigmaBoolean } from './sigma-boolean'
+import { reencodeTreeBytes } from './box-tree'
 
 export class SValueSerializeError extends Error {
   constructor(
@@ -38,7 +39,9 @@ export class SValueSerializeError extends Error {
  * Fields written (sigma-rust `serialize_box_with_indexed_digests`,
  * `chain/ergo_box.rs:302-344`):
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
- *   ergo_tree_bytes — raw bytes verbatim (self-delimiting via ErgoTree header)
+ *   ergo_tree       — the tree re-encoded, `reencodeTreeBytes(box.ergoTreeBytes)`: the JVM
+ *                     writes `serializeErgoTree(box.ergoTree)` (ErgoBoxCandidate.scala:142);
+ *                     `ergoTreeBytes` itself (R1, `propositionBytes`) stays as received
  *   creation_height — VLQ; JVM reads via `getUIntExact` (i32 ceiling, 2^31-1)
  *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
  *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
@@ -54,8 +57,9 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   // value (unsigned VLQ u64 — NOT ZigZag)
   w.writeVlqBigInt(box.value)
 
-  // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
-  w.writeBytes(box.ergoTreeBytes)
+  // The JVM writes serializeErgoTree(box.ergoTree): a parsed tree re-encoded from structure
+  // (ErgoBoxCandidate.scala:142). ergoTreeBytes (R1, propositionBytes) stay as received.
+  w.writeBytes(reencodeTreeBytes(box.ergoTreeBytes))
 
   // creation_height (VLQ). Reject > Int.MaxValue (2^31-1), mirroring the parse
   // bound. The JVM SERIALIZER writes via `putUInt` (accepts full u32; only the
@@ -377,7 +381,8 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //
       // Write sequence:
       //   value           — VLQ u64 (BoxValue, unsigned)
-      //   ergo_tree_bytes — raw bytes written verbatim (`write_all`)
+      //   ergo_tree       — the tree re-encoded (ErgoBoxCandidate.scala:142; see
+      //                     `writeBoxBodyWithoutRef`)
       //   creation_height — VLQ u32
       //   tokens_count    — raw u8 (NOT VLQ)
       //   per-token       — 32-byte id (raw) + VLQ u64 amount

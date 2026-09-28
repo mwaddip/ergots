@@ -80,7 +80,7 @@ Inverse of `parseTree`. For any well-formed tree bytes `b`, `serializeTree(parse
 
 - **Precondition:** `tree` was either returned from `parseTree` or constructed satisfying the type invariants below. The `header.rawHeader` byte MUST be derivable from `header.version`, `header.hasSize`, and `header.constantSegregation` (the projection is round-trip-checked at serialize time). `constantTypes.length === constants.length` is required.
 - **Returns:** `Uint8Array` of length ≤ `MAX_TREE_SIZE`.
-- **Throws:** `ErgoTreeSerializeError` with `code` `'header-inconsistent'` (rawHeader does not match the derived `(version, hasSize, segregation)` triple) or `'constants-arity-mismatch'`. Body-serialize failures surface as `ExprSerializeError` (notably `'not-supported'` for the un-encodable `ZkProofBlock` variant).
+- **Throws:** `ErgoTreeSerializeError` with `code` `'header-inconsistent'` (bits 0–4 of rawHeader do not match the derived `(version, hasSize, segregation)` triple) or `'constants-arity-mismatch'`. Body-serialize failures surface as `ExprSerializeError` (notably `'not-supported'` for the un-encodable `ZkProofBlock` variant).
 
 ### `isP2PK(tree)` / `p2pkPublicKey(tree)`
 
@@ -211,7 +211,7 @@ interface TreeHeader {
 }
 ```
 
-`rawHeader` is the on-wire byte. The `version`, `hasSize`, `constantSegregation` fields are derived projections kept on the struct so callers don't need to re-decode bits. `serializeTree` writes `rawHeader` directly but validates that it matches the derived fields — a hand-constructed `ErgoTree` with inconsistent fields is rejected at serialize time with `'header-inconsistent'`.
+`rawHeader` is the on-wire byte. The `version`, `hasSize`, `constantSegregation` fields are derived projections kept on the struct so callers don't need to re-decode bits. `serializeTree` writes `rawHeader` as stored, bits 5–7 included (the JVM writes the header byte as stored and never inspects them), but validates that its bits 0–4 match the derived fields — a hand-constructed `ErgoTree` with inconsistent fields is rejected at serialize time with `'header-inconsistent'`.
 
 ### `SType`
 
@@ -296,9 +296,10 @@ class SValueSerializeError      extends Error { readonly code: string }
 class SigmaBooleanParseError    extends Error { readonly code: string }
 class SigmaBooleanSerializeError extends Error { readonly code: string }
 class AddressDecodeError        extends Error { readonly code: string }
+class ExprTpeError              extends Error { readonly code: string }
 ```
 
-These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. Two typed errors that can escape are NOT root-exported: the mir-layer type-inference error `ExprTpeError` (it can still surface from `parseTree` via the inner `exprTpe` pass) and scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
+These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. The mir-layer type-inference error `ExprTpeError` is root-exported since 2026-09-28: rule 1001 lets it escape a box-rules parse (`parseErgoTreeBytes`, `parseTree(bytes, { checkType: true })`) as a hard reject. One typed error that can escape is NOT root-exported: scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
 
 ### `ErgoTreeParseError` codes
 
@@ -315,7 +316,7 @@ These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serial
 
 | Code | Meaning |
 |---|---|
-| `'header-inconsistent'` | `rawHeader` byte does not match the derived `(version, hasSize, segregation)` triple |
+| `'header-inconsistent'` | Bits 0–4 of `rawHeader` do not match the derived `(version, hasSize, segregation)` triple (bits 5–7 are written as stored, as the JVM writes them) |
 | `'constants-arity-mismatch'` | `constantTypes.length !== constants.length` |
 
 ### `AddressDecodeError` codes

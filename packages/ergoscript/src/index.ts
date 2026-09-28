@@ -59,6 +59,14 @@ export { serializeSValue, SValueSerializeError } from './wire/serialize-svalue'
 export { parseErgoTreeBytes } from './wire/ergo-tree'
 export { parseAdditionalRegisters } from './wire/parse-svalue'
 export type { AdditionalRegisters } from './wire/parse-svalue'
+// A box's tree under the box rules, and the bytes the JVM writes for it where it
+// re-serializes the box (serializeErgoTree, ErgoBoxCandidate.scala:142); box ingest
+// seeds the tree, an embedder can seed one it parsed. The JVM's ErgoBox.bytes / id
+// (the bytes as received for a parsed box). See facts/ergoscript-wire.md "Box trees".
+export { boxTreeOf, reencodeTreeBytes, seedBoxTree } from './wire/box-tree'
+export { boxIdOf, boxBytesOf } from './eval/_box-id'
+// exprTpe's error: rule 1001 lets it escape a box-rules parse as a hard reject.
+export { ExprTpeError } from './mir/expr-tpe'
 // JVM rules `@ergots/transaction` applies from this ONE place:
 //   - violatesCheckV6Type(tpe): rule-1019 CheckV6Type, shared by the register
 //     leg above and the transaction's context-extension leg.

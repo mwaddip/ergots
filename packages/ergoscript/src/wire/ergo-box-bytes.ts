@@ -5,7 +5,8 @@
  *
  * Wire layout:
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
- *   ergo_tree_bytes — raw bytes written verbatim (self-delimiting via header)
+ *   ergo_tree       — the tree re-encoded, `reencodeTreeBytes(box.ergoTreeBytes)`, as the
+ *                     JVM writes `serializeErgoTree(box.ergoTree)` (ErgoBoxCandidate.scala:142)
  *   creation_height — VLQ u32 (sigma-ser `put_u32`)
  *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
  *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)

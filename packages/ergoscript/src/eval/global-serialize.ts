@@ -19,8 +19,9 @@
  * the JVM DataSerializer.serialize output — confirmed by verifyCases:
  *   serialize[Byte](-128) → [0x80] (1 byte, no type tag).
  *
- * Errors: any failure in serializeSValue (type mismatch, bounds violation,
- * unsupported type) is wrapped in EvalError 'global-serialize-failed'.
+ * Errors: any failure in serializeCost or serializeSValue (type mismatch, bounds
+ * violation, unsupported type, a Box tree that cannot be re-encoded) is wrapped in
+ * EvalError 'global-serialize-failed'; an EvalError from the cost walk passes through.
  */
 
 import { ByteWriter } from '@ergots/scorex'
@@ -61,7 +62,18 @@ export function evalGlobalSerialize(
 
   // DynamicCost walk — charges per JVM SigmaByteWriter primitive write.
   // Throws EvalError 'global-serialize-failed' for unsupported/non-serializable T.
-  serializeCost(T, value, ctx)
+  // A value the JVM's DataSerializer.serialize (methods.scala:1982) fails on can fail
+  // the walk too, e.g. a Box whose tree cannot be re-encoded (ErgoBoxCandidate.scala:142):
+  // wrapped like the byte emission below. An EvalError (the cost limit) passes through.
+  try {
+    serializeCost(T, value, ctx)
+  } catch (e) {
+    if (e instanceof EvalError) throw e
+    throw new EvalError(
+      `Global.serialize failed: ${(e as Error).message}`,
+      'global-serialize-failed',
+    )
+  }
 
   // Byte emission — separate from cost to avoid touching the byte-validated serializer.
   const w = new ByteWriter()

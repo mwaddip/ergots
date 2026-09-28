@@ -21,8 +21,10 @@ import { parseTree, ExprParseError } from '../src'
  * was therefore uncatchable by type downstream. This pins the full wire
  * parse/serialize error surface to the facts taxonomy.
  *
- * NOTE: the mir-layer type-inference error `ExprTpeError` and scorex's
- * `ReaderError` are deliberately NOT part of this guarantee — different layers.
+ * The mir-layer type-inference error `ExprTpeError` is root-exported too, since
+ * 2026-09-28: rule 1001 lets it escape a box-rules parse as a hard reject
+ * (facts/ergoscript-wire.md, "Rule 1001 on the box paths"). scorex's
+ * `ReaderError` is deliberately NOT part of this guarantee — a different package.
  */
 describe('@ergots/ergoscript public error-class surface', () => {
   it('root-exports every wire parse/serialize error class in the facts taxonomy', () => {
@@ -42,6 +44,16 @@ describe('@ergots/ergoscript public error-class surface', () => {
         (pkg as Record<string, unknown>)[name],
         `${name} must be root-exported`,
       ).toBeTypeOf('function')
+    }
+  })
+
+  it('root-exports ExprTpeError, which rule 1001 lets escape a box-rules parse', () => {
+    expect((pkg as Record<string, unknown>).ExprTpeError).toBeTypeOf('function')
+  })
+
+  it('root-exports the box-tree and box-bytes surface (facts/ergoscript-wire.md, "Box trees")', () => {
+    for (const name of ['boxTreeOf', 'reencodeTreeBytes', 'seedBoxTree', 'boxIdOf', 'boxBytesOf']) {
+      expect((pkg as Record<string, unknown>)[name], `${name} must be root-exported`).toBeTypeOf('function')
     }
   })
 

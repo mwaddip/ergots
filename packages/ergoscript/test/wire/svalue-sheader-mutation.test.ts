@@ -19,7 +19,8 @@
  * invariant, facts/ergoscript-eval.md.)
  *
  * Only the following byte classes detect mutations reliably:
- *   A. ErgoTree envelope bytes: header byte (1), VLQ size (1–5), constant-count VLQ (1)
+ *   A. ErgoTree envelope bytes: header byte (1; bits 0–4 only, as the JVM ignores bits 5–7),
+ *      VLQ size (1–5), constant-count VLQ (1)
  *   B. Constant type bytes: SType encoding of SHeader / SOption[SHeader] / SColl[SHeader]
  *   C. SOption.None tag byte (0x00): ALL 8 bit-flips produce nonzero → Some
  *      (JVM getOption: any nonzero = Some) → parse Header → reject/diverge → killed
@@ -179,10 +180,15 @@ describe('SHeader-constant wire mutation testing (structural bytes)', () => {
       const structural = structuralOffsets(bytes)
 
       let killed = 0
-      const total = structural.length * 8
+      let total = 0
 
       for (const i of structural) {
         for (let bit = 0; bit < 8; bit++) {
+          // Bits 5–7 of the ErgoTree header byte are not structural: the JVM never inspects them
+          // and writes the header byte back as stored (ErgoTreeSerializer.scala:79-91), so a flip
+          // there round-trips byte for byte in both — an equivalent mutation, not a survivor.
+          if (i === 0 && bit >= 5) continue
+          total++
           const mutated = new Uint8Array(bytes)
           mutated[i]! ^= 1 << bit
           try {

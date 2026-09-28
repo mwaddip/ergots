@@ -32,11 +32,19 @@ function expectCode(fn: () => void, code: string): void {
 // ---------------------------------------------------------------------------
 // Synthetic box builder — mirrors Task 6's shape.
 //
-// TREE is a 35-byte P2PK-shaped ergoTree (header 0x08cd + 33×0x02).
-// All synthetic boxes use this tree so the structural rule under test fires
-// before script evaluation is ever reached.
+// TREE is a 36-byte P2PK ergoTree: header 00 | SigmaProp constant 08 | ProveDlog cd |
+// the secp256k1 generator G (33 bytes). All synthetic boxes use this tree so the
+// structural rule under test fires before script evaluation is ever reached.
+//
+// Every tree here must be a tree a box can carry: the box serializer writes the tree
+// re-encoded (ergoscript reencodeTreeBytes; the JVM's serializeErgoTree,
+// ErgoBoxCandidate.scala:142), parsing a hand-built box's tree under the box rules to do so.
 
-const TREE = new Uint8Array([0x08, 0xcd, ...new Array(33).fill(2)]);
+const G = [
+  0x02, 0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b, 0x07,
+  0x02, 0x9b, 0xfc, 0xdb, 0x2d, 0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17, 0x98,
+];
+const TREE = new Uint8Array([0x00, 0x08, 0xcd, ...G]);
 
 /** A full ErgoBox (with txId+index so computeBoxId is deterministic). */
 function box(
@@ -204,9 +212,9 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
     // Register keys are numeric ('4'..'9') — the serializer does Number(key).filter(≥4,≤9).
     // 'R4' would NaN-filter to zero registers; use numeric key 4.
     // Register R4 as opaqueBytes: serializeBox writes them verbatim (no length prefix).
-    // Calibrated: base box (TREE, no tokens, no extra registers) = ~74 bytes.
-    // 4022 opaqueBytes → 4096 total; use 4200 for clear headroom → ~4274 bytes > 4096. ✓
-    // Value ≥ 4274 * 360 = 1_538_640; 2_000_000 > that so dust passes on the output.
+    // Calibrated: base box (TREE, no tokens, no extra registers) = 75 bytes.
+    // 4021 opaqueBytes → 4096 total; use 4200 for clear headroom → 4275 bytes > 4096. ✓
+    // Value ≥ 4275 * 360 = 1_539_000; 2_000_000 > that so dust passes on the output.
     const bigReg = { opaqueBytes: new Uint8Array(4200).fill(0x01) };
     const BIG_VALUE = 2_000_000n;
     const largeOut = candidate(BIG_VALUE, 1, [], TREE, { 4: bigReg });
@@ -236,8 +244,14 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
     // MAX_BOX_SIZE === MAX_SCRIPT_SIZE === 4096. A 4097-byte ergoTree causes
     // boxSize > 4096 AND scriptSize > 4096 simultaneously. box-size check comes
     // first (line 72 vs 73 in stateful.ts), so 'box-size-exceeded' fires.
-    // Value generously above 4200 * 360 = 1_512_000 so dust doesn't fire first.
-    const bigTree = new Uint8Array(4097).fill(0x08);
+    // Value generously above 4137 * 360 = 1_489_320 (the box is 4137 bytes) so dust doesn't fire first.
+    //
+    // A 4097-byte tree a box can carry: BoolToSigmaProp(EQ(Coll[Byte](), Coll[Byte](4089 bytes))),
+    // header 00 | d1 | 93 | 0e 00 | 0e f9 1f | 4089 bytes. It parses under the box rules and
+    // re-encodes to itself: its one long read starts at offset 8, inside the tree's 4096-byte window,
+    // which is checked when a read starts. (On the wire no box could carry it: the creation-height
+    // read after it would start past the box's own 4096-byte window.)
+    const bigTree = new Uint8Array([0x00, 0xd1, 0x93, 0x0e, 0x00, 0x0e, 0xf9, 0x1f, ...new Array(4089).fill(0x08)]);
     const BIG_VALUE = 3_000_000n;
     const bigOut = candidate(BIG_VALUE, 1, [], bigTree);
     const ib = [box(BIG_VALUE)];

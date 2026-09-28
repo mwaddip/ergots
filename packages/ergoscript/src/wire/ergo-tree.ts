@@ -39,6 +39,7 @@ import { serializeExpr } from './serialize'
 import { ExprParseError } from './errors'
 import { SAFE_NEW_ARRAY_MAX } from './mir/_jvm-counts'
 import { sTypeEquals } from '../mir/stype-helpers'
+import { seedBoxTree } from './box-tree-cache'
 
 /**
  * Defensive cap on input length. Sigma-rust reads `tree_size_bytes` as a
@@ -279,7 +280,9 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
  * `propositionBytes`, as the JVM's are the parser's re-read `[startPos, r.position)`
  * (`ErgoTreeSerializer.scala:179-181`). The cursor is left where the JVM continues reading the
  * box: the parse end for a tree that parses, whatever its declared size says, and
- * `bodyPos + declared` for a tree that degrades.
+ * `bodyPos + declared` for a tree that degrades. The parsed tree seeds the box-tree cache, keyed
+ * by the returned span, so `boxTreeOf` / `reencodeTreeBytes` on it reuse this parse: the tree a
+ * JVM box carries with it (`ErgoBoxCandidate.scala:194`; spec 2026-09-28 §8).
  *
  * Rejects what the JVM box parser rejects: a non-soft-forkable failure (e.g. an SHeader
  * constant, whose `SerializerException` escapes the `UnparsedErgoTree` fallback), and a
@@ -289,8 +292,10 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
  */
 export function parseErgoTreeBytes(r: ByteReader): Uint8Array {
   const treeStart = r.position
-  parseTreeFromReader(r, { checkType: true })   // JVM ErgoBoxCandidate.scala:194 (checkType = true)
-  return r.slice(treeStart, r.position).slice()
+  const tree = parseTreeFromReader(r, { checkType: true })   // JVM ErgoBoxCandidate.scala:194 (checkType = true)
+  const span = r.slice(treeStart, r.position).slice()
+  seedBoxTree(span, tree)
+  return span
 }
 
 /**
@@ -352,20 +357,21 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
     return tree.unparsedBytes
   }
 
-  // Defensive: verify rawHeader matches the projected boolean/number fields.
-  // Without this, a hand-constructed ErgoTree with inconsistent fields
+  // Defensive: verify bits 0–4 of rawHeader (version, size flag, segregation flag) match the
+  // projected fields. Without this, a hand-constructed ErgoTree with inconsistent fields
   // (e.g. rawHeader=0x00 but hasSize=true) would emit non-round-trippable
   // bytes — the header byte would say "no size prefix" while the writer
   // still emitted one. Parsing the result would either fail or, worse,
   // succeed with a misaligned cursor.
+  // The JVM writes ergoTree.header as stored (serializeHeader, :79-91) and never inspects bits 5–7.
   const expectedRaw =
     tree.header.version |
     (tree.header.hasSize ? HAS_SIZE_FLAG : 0) |
     (tree.header.constantSegregation ? CONSTANT_SEGREGATION_FLAG : 0)
-  if (tree.header.rawHeader !== expectedRaw) {
+  if ((tree.header.rawHeader & (VERSION_MASK | HAS_SIZE_FLAG | CONSTANT_SEGREGATION_FLAG)) !== expectedRaw) {
     throw new ErgoTreeSerializeError(
-      `rawHeader 0x${tree.header.rawHeader.toString(16).padStart(2, '0')} ` +
-        `does not match derived 0x${expectedRaw.toString(16).padStart(2, '0')} ` +
+      `bits 0–4 of rawHeader 0x${tree.header.rawHeader.toString(16).padStart(2, '0')} ` +
+        `do not match derived 0x${expectedRaw.toString(16).padStart(2, '0')} ` +
         `from version=${tree.header.version}, hasSize=${tree.header.hasSize}, segregation=${tree.header.constantSegregation}`,
       'header-inconsistent'
     )
