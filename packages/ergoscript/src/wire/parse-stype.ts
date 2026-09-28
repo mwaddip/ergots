@@ -115,6 +115,10 @@ export function parseSType(r: ByteReader): SType {
  */
 export function parseSTypeWithFirstByte(c: number, r: ByteReader): SType {
   if (c === 0) {
+    // TypeSerializer.deserialize (:133-135): the InvalidTypePrefix message evaluates
+    // r.getBytes(r.remaining), a checked read — so past the window the window error
+    // (rule 1014) wins over 'invalid-type-code'.
+    r.readBytes(0)
     throw new STypeParseError(`invalid type code 0`, 'invalid-type-code')
   }
   if (c < TUPLE_TYPECODE) {

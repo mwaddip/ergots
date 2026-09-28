@@ -394,27 +394,29 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       return { kind: 'Long', value: r.readVlqBigIntSigned() }
 
     case 'SBigInt': {
-      // VLQ length (sigma-rust uses `put_u16`, capped at 32 bytes) + raw
-      // big-endian signed two's-complement bytes (minimal encoding).
+      // JVM CoreDataSerializer.scala:112-117 (sigma-state v6.0.6): `getUShort().toShort`
+      // — above 0xFFFF a hard IAE (getUShort's own bound); 33..0x7FFF throw at once
+      // (a Short > 32 bytes); 0 and 0x8000..0xFFFF (negative as a Short) reach
+      // `getBytes`, which checks the window first (rule 1014) before the
+      // empty/negative message. sigma-rust's BigInt256::from_be_slice returning
+      // None on empty input (bigint256.rs:38) matches the Scala `new BigInteger`
+      // throw on empty bytes — both reachable only once the window passes.
       const len = r.readVlqU()
-      if (len > 32) {
-        throw new SValueParseError(
-          `SBigInt length ${len} exceeds 32 bytes`,
-          'bigint-too-large'
-        )
+      if (len > 0xffff) {
+        throw new SValueParseError(`SBigInt length ${len} exceeds u16`, 'bigint-too-large')
       }
-      // Audit ERG-03: sigma-rust's `BigInt256::from_be_slice` returns None
-      // for empty input (bigint256.rs:38), matching the Scala behavior of
-      // throwing on empty bytes. Pre-fix we accepted zero-length and
-      // decoded as `0n`, then the serializer rewrote as length 1 — breaking
-      // byte-identical round-trip.
-      if (len === 0) {
-        throw new SValueParseError(
-          'SBigInt requires at least 1 byte of content',
-          'bigint-empty',
-        )
+      const size = (len << 16) >> 16
+      if (size > 32) {
+        throw new SValueParseError(`SBigInt length ${len} exceeds 32 bytes`, 'bigint-too-large')
       }
-      const bytes = r.readBytes(len)
+      if (size <= 0) {
+        r.readBytes(0) // the window check getBytes makes first
+        if (size === 0) {
+          throw new SValueParseError('SBigInt requires at least 1 byte of content', 'bigint-empty')
+        }
+        throw new SValueParseError(`SBigInt length ${len} is negative as a Short`, 'bigint-too-large')
+      }
+      const bytes = r.readBytes(size)
       return { kind: 'BigInt', value: decodeBigIntBE(bytes) }
     }
 
@@ -767,6 +769,12 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // registers carry SString values (mainnet first surfaces this at
       // h=766,915 tx 15 output 1; iter-17 closes the phase-2a deferral).
       const len = readVlqU32(r, 'SString.length')
+      // getUIntExact (CoreDataSerializer.scala:105): ArithmeticException above
+      // Int.MaxValue, thrown BEFORE getBytes — so, unlike SBigInt/SUnsignedBigInt's
+      // toShort shape above, this check precedes the window check.
+      if (len > 0x7fffffff) {
+        throw new SValueParseError(`SString length ${len} exceeds Int.MaxValue`, 'string-too-long')
+      }
       const bytes = r.readBytes(len)
       return { kind: 'String', value: decodeUtf8Lossy(bytes) }
     }
@@ -783,17 +791,26 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       )
 
     case 'SUnsignedBigInt': {
-      // VLQ length + unsigned-magnitude BE bytes. Permissive on version (the v3
-      // gate is validateV6Types). Length-0 decodes to 0n (must accept; the JVM
-      // does — rejecting would be stricter = fork). See P2a spec §3.
+      // JVM CoreDataSerializer.scala:118-124 (sigma-state v6.0.6): the same
+      // `getUShort().toShort` shape as SBigInt above — above 0xFFFF a hard IAE;
+      // 33..0x7FFF throw at once; a negative-as-Short size reaches `getBytes`,
+      // which checks the window first. Unlike SBigInt, size 0 is a normal,
+      // accepted value: `BigIntegers.fromUnsignedByteArray` gives 0n for empty
+      // input (must accept — rejecting would be stricter than the JVM = fork.
+      // See P2a spec §3). Permissive on version — the v3 gate is validateV6Types.
       const len = r.readVlqU()
-      if (len > 32) {
-        throw new SValueParseError(
-          `SUnsignedBigInt length ${len} exceeds 32 bytes`,
-          'unsigned-bigint-too-large',
-        )
+      if (len > 0xffff) {
+        throw new SValueParseError(`SUnsignedBigInt length ${len} exceeds u16`, 'unsigned-bigint-too-large')
       }
-      const bytes = r.readBytes(len)
+      const size = (len << 16) >> 16
+      if (size > 32) {
+        throw new SValueParseError(`SUnsignedBigInt length ${len} exceeds 32 bytes`, 'unsigned-bigint-too-large')
+      }
+      if (size < 0) {
+        r.readBytes(0) // the window check getBytes makes first
+        throw new SValueParseError(`SUnsignedBigInt length ${len} is negative as a Short`, 'unsigned-bigint-too-large')
+      }
+      const bytes = r.readBytes(size)
       return { kind: 'UnsignedBigInt', value: decodeUnsignedBigIntBE(bytes) }
     }
 
