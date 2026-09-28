@@ -22,8 +22,8 @@
  */
 
 import type { SType, ValUse } from '../../mir/types'
-import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError } from '../errors'
+import { ByteReader, ByteWriter, readVlqU32 } from '@ergots/scorex'
+import { ExprParseError, ExprSerializeError } from '../errors'
 
 /**
  * Parse a `ValUse` payload (the OP_VAL_USE opcode byte was consumed by the
@@ -36,7 +36,8 @@ export function parseValUse(
   r: ByteReader,
   valDefTypes: Map<number, SType>
 ): ValUse {
-  const valId = r.readVlqU()
+  // JVM ValUseSerializer.scala:13: getUInt().toInt — a u32, wrapped to an Int.
+  const valId = readVlqU32(r, 'ValUse id') | 0
   const tpe = valDefTypes.get(valId)
   if (tpe === undefined) {
     throw new ExprParseError(
@@ -55,5 +56,13 @@ export function parseValUse(
  * sigma-rust's `ValUse::sigma_serialize`.
  */
 export function serializeValUse(v: ValUse, w: ByteWriter): void {
+  // JVM ValUseSerializer.scala:9 writes the id with putUInt, which rejects a negative Int
+  // (scorex-util 0.2.1 VLQWriter.scala:64-67). A parsed id wraps negative from 2^31 up.
+  if (v.valId < 0) {
+    throw new ExprSerializeError(
+      `ValUse id ${v.valId} is negative (JVM putUInt rejects it)`,
+      'val-use-id-out-of-range'
+    )
+  }
   w.writeVlqU(v.valId)
 }

@@ -38,17 +38,13 @@
 
 import type { Expr, MethodCall, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError, ExprSerializeError } from '../errors'
+import { ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
 import { explicitTypeArgNames } from './explicit-type-args'
-
-// Defensive cap on the args array length, mirroring `apply.ts`. Methods
-// take a handful of args at most in practice; a count beyond this is
-// almost certainly a malformed encoding.
-const MAX_METHOD_ARGS = 1 << 16
+import { readArrayCount } from './_jvm-counts'
 
 /**
  * Parse a `MethodCall` payload (the OP_METHOD_CALL opcode byte was consumed
@@ -72,13 +68,8 @@ export function parseMethodCall(
   const typeId = r.readU8()
   const methodId = r.readU8()
   const obj = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
-  const argsCount = r.readVlqU()
-  if (argsCount > MAX_METHOD_ARGS) {
-    throw new ExprParseError(
-      `MethodCall args count ${argsCount} exceeds ${MAX_METHOD_ARGS}`,
-      'method-call-too-many-args'
-    )
-  }
+  // JVM MethodCallSerializer.scala:51 → getValues (SigmaByteReader.scala:53-61): getUIntExact, safeNewArray.
+  const argsCount = readArrayCount(r, 'MethodCall args count', 'method-call-too-many-args')
   const args: Expr[] = []
   for (let i = 0; i < argsCount; i++) {
     args.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))

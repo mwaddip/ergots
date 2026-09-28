@@ -30,6 +30,7 @@ import type { Expr, SigmaOr, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
+import { readArrayCount } from './_jvm-counts'
 
 /**
  * Parse a `SigmaOr` payload (the OP_SIGMA_OR opcode byte was consumed by the
@@ -46,7 +47,8 @@ export function parseSigmaOr(
   valDefTypes: Map<number, SType>,
   treeVersion: number
 ): SigmaOr {
-  const count = r.readVlqU()
+  // JVM SigmaTransformerSerializer.scala:21-25: getUIntExact, then safeNewArray.
+  const count = readArrayCount(r, 'SigmaOr items count', 'sigma-or-too-many-items')
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
     items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))

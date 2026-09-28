@@ -49,6 +49,7 @@ import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
+import { readUShortCount } from './_jvm-counts'
 
 const MAX_COLL_ITEMS = 0xffff
 
@@ -68,7 +69,8 @@ export function parseCollection(
   valDefTypes: Map<number, SType>,
   treeVersion: number
 ): Collection {
-  const count = r.readVlqU()
+  // JVM ConcreteCollectionSerializer.scala:28: getUShort, which throws before getType (:29).
+  const count = readUShortCount(r, 'Collection items count', 'collection-size-out-of-range')
   const elemTpe = parseSType(r)
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
@@ -87,8 +89,9 @@ export function parseCollection(
  * (`sigma-ser/src/vlq_encode.rs::get_bits`).
  */
 export function parseCollectionOfBoolConst(r: ByteReader): Collection {
-  const count = r.readVlqU()
-  const byteCount = (count + 7) >> 3
+  // JVM ConcreteCollectionBooleanConstantSerializer.scala:34: getUShort, then getBits (:35).
+  const count = readUShortCount(r, 'Collection.BoolConstants count', 'collection-size-out-of-range')
+  const byteCount = (count + 7) >>> 3
   const packed = r.readBytes(byteCount)
   const items: boolean[] = []
   for (let i = 0; i < count; i++) {

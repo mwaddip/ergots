@@ -37,18 +37,10 @@
 
 import type { BlockValue, Expr, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError } from '../errors'
 // Forward import for recursive descent — see comment in val-def.ts.
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
-
-// Defensive cap on the items array length. Real BlockValues have only a
-// handful of let-bindings; a count beyond this is almost certainly a
-// malicious/corrupt encoding aimed at allocating a huge array before the
-// reader hits truncation. Sigma-rust caps Vec deserialization indirectly
-// via the surrounding ErgoTree size limit; we add an explicit bound here
-// because the per-element memory cost of `Expr` is non-trivial.
-const MAX_BLOCK_ITEMS = 1 << 16 // 65536, well above any plausible script
+import { readArrayCount } from './_jvm-counts'
 
 /**
  * Parse a `BlockValue` payload (the OP_BLOCK_VALUE opcode byte was consumed
@@ -64,13 +56,8 @@ export function parseBlockValue(
   valDefTypes: Map<number, SType>,
   treeVersion: number
 ): BlockValue {
-  const count = r.readVlqU()
-  if (count > MAX_BLOCK_ITEMS) {
-    throw new ExprParseError(
-      `BlockValue items count ${count} exceeds ${MAX_BLOCK_ITEMS}`,
-      'block-too-many-items'
-    )
-  }
+  // JVM BlockValueSerializer.scala:28-37: getUIntExact, then safeNewArray.
+  const count = readArrayCount(r, 'BlockValue items count', 'block-too-many-items')
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
     items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
