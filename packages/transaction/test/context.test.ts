@@ -4,9 +4,10 @@ import type { ContextExtension, ErgoBox, Header, PreHeader } from '../src/types'
 
 // Minimal synthetic args — buildInputContext only reads headers[0].stateRoot
 // (for lastBlockUtxoRootHash) and otherwise threads fields into makeContext.
+// The box carries a tree a JVM box could hold: `00 08 d3`, sigmaProp(true).
 const selfBox = {
   value: 1000n,
-  ergoTreeBytes: new Uint8Array([0x00]),
+  ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xd3]),
   creationHeight: 1,
   tokens: [],
   registers: {},
