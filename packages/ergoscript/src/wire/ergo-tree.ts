@@ -94,6 +94,9 @@ export class ErgoTreeSerializeError extends Error {
  *     degrades as a known residual (facts/ergoscript-wire.md 'opcode-reserved' entry)
  *   - `soption-tree-version-too-low`         ← `CheckSerializableTypeCode` (rule 1009 — the
  *     `typeCode == OptionTypeCode` SPECIAL-CASE at `ValidationRules.scala:135`)
+ *   - `register-v6-type`                     ← `CheckV6Type` (rule 1019,
+ *     `org/ergoplatform/validation/ValidationRules.scala:165-205`), raised by a nested Box's
+ *     registers once each register's value is read (`ErgoBoxCandidate.scala:231-232`)
  *   - `root-not-sigma-prop`                  ← `CheckDeserializedScriptIsSigmaProp` (rule 1001,
  *     `org/ergoplatform/validation/ValidationRules.scala:39-52`), raised with `checkType` only
  *   - `header-version-requires-size`         ← `CheckHeaderSizeBit` (rule 1012, `:138-151`). A
@@ -120,6 +123,7 @@ export class ErgoTreeSerializeError extends Error {
  */
 const SOFT_FORKABLE_PARSE_CODES: ReadonlySet<string> = new Set([
   'opcode-reserved', 'unknown-opcode', 'soption-tree-version-too-low',
+  'register-v6-type', // rule 1019 CheckV6Type (a nested Box's register), ErgoBoxCandidate.scala:232
 ])
 /** Tree-level JVM ValidationExceptions: rule 1001 (root type), rule 1012 (reachable only from a nested tree). */
 const SOFT_FORKABLE_TREE_CODES: ReadonlySet<string> = new Set(['root-not-sigma-prop', 'header-version-requires-size'])

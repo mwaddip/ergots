@@ -107,6 +107,10 @@ const ERGO_BOX_MAX_SIZE = 4096
  * tag-dispatch step.
  *
  * Recursive: nested Tuples are accepted (a register can be `((1,2),3)`).
+ *
+ * Rule 1019 is not checked here, nor on a Tuple's items: `parseAdditionalRegisters`
+ * runs it once on the complete value, after this frame has returned
+ * (`ErgoBoxCandidate.scala:231-232`).
  */
 function parseRegisterExpr(
   r: ByteReader,
@@ -137,25 +141,6 @@ function parseRegisterExpr(
   if (tag <= LAST_CONSTANT_CODE) {
     // Constant Expr: tag is the SType lead byte.
     const tpe = parseSTypeWithFirstByte(tag, r)
-    // Rule-1019 `CheckV6Type` (JVM ValidationRules.scala:165-205, enforced at
-    // ErgoBoxCandidate.scala:232): reject — at register deserialize, BEFORE
-    // the value parse — any register type containing SOption / SHeader /
-    // SUnsignedBigInt (recursing STuple items + SColl elemType). UNCONDITIONAL
-    // across all tree versions (the rule is in BOTH ruleSpecsV5 and
-    // ruleSpecsV6). Gating here (before `parseSValue`) takes precedence over
-    // the value-side `soption-tree-version-too-low` gate: an Option-typed
-    // register on a pre-v3 tree rejects as 'register-v6-type', not via the
-    // inner Option DATA version gate (matching the JVM's deserialize-time
-    // CheckV6Type fire, which runs on the parsed Constant's declared type).
-    // A Tuple-Expr register (the OP_TUPLE arm below) is covered by recursion:
-    // each item parses through this same Const arm, so a v6-typed item is
-    // gated at its own node — mirroring the JVM `step(Tuple)` over item tpes.
-    if (violatesCheckV6Type(tpe)) {
-      throw new SValueParseError(
-        'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
-        'register-v6-type'
-      )
-    }
     entry = { tpe, value: parseSValue(tpe, treeVersion, r) }
   } else if (tag === OP_TUPLE) {
     // Tuple Expr: 1-byte items count, then N nested Exprs.
@@ -165,6 +150,11 @@ function parseRegisterExpr(
         `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
         'sbox-register-tuple-arity'
       )
+    }
+    // TupleSerializer (TupleSerializer.scala:28-31) reads the arity with a signed getByte; 0x80 and
+    // above are negative and fail safeNewArray before any item is read.
+    if (itemsCount > 127) {
+      throw new SValueParseError(`SBox register Tuple arity ${itemsCount} is negative as a signed byte`, 'sbox-register-tuple-arity')
     }
     const itemTpes: SType[] = []
     const itemValues: SValue[] = []
@@ -196,46 +186,48 @@ export type AdditionalRegisters = Record<
 
 /**
  * Parse a box's additional-registers section from the reader's current
- * position: a raw `u8` count (NOT VLQ; mirrors JVM `r.getUByte()`,
- * ErgoBoxCandidate.scala:236, and sigma-rust `register.rs`), then that many
- * register Exprs in order, keyed R4.. (`4 + i`).
+ * position, in the JVM candidate parser's order (ErgoBoxCandidate.scala:226-234):
+ * a raw `u8` count (NOT VLQ; the JVM's `r.getUByte()`, :226), then, for each
+ * register in turn, keyed R4.. (`4 + i`):
+ *   1. its id is resolved (`nonMandatoryRegisters(iReg)`, :230), so a seventh
+ *      register rejects with `'sbox-registers-out-of-range'` only when the loop
+ *      reaches it, after R4–R9 have been read;
+ *   2. its value is read whole (`r.getValue()`, :231), by `parseRegisterExpr`,
+ *      which also keeps the per-Expr depth accounting;
+ *   3. rule-1019 `CheckV6Type` runs on the complete value (:232;
+ *      `'register-v6-type'`). So a hard error in the value's data comes first.
  *
  * Each register is a full Expr on the wire (sigma-rust `register.rs:140` calls
  * `Expr::sigma_parse(r)`) restricted to `Const` or `Tuple`. Most mainnet
  * registers are Constants (lead byte = SType byte ≤ 112). The rare Tuple-Expr
  * form (lead byte 0x86, ~one box at h=855,650 R8) is recognized + preserved
  * via `opaqueBytes` so the wire form round-trips byte-identically even though
- * the type system stores the value as a regular STuple Constant. The
- * rule-1019 `CheckV6Type` gate and per-Expr depth accounting live in
- * `parseRegisterExpr`, applied identically here.
- *
- * Rejects a count > 6 with `'sbox-registers-out-of-range'` (R4..R9 only).
+ * the type system stores the value as a regular STuple Constant.
  *
  * Shared by the SBox data parser (`case 'SBox'`) and `@ergots/transaction`'s
  * ErgoBoxCandidate codec — the register grammar lives in one place. The caller
  * owns any surrounding read-window (positionLimit) save/restore; this helper
  * only consumes the count + register bytes.
  */
-export function parseAdditionalRegisters(
-  r: ByteReader,
-  treeVersion: number
-): AdditionalRegisters {
-  const regCount = r.readU8() // raw u8, NOT VLQ
-  if (regCount > 6) {
-    throw new SValueParseError(
-      `SBox additional_registers count ${regCount} exceeds 6 (R4..R9 only)`,
-      'sbox-registers-out-of-range'
-    )
-  }
+export function parseAdditionalRegisters(r: ByteReader, treeVersion: number): AdditionalRegisters {
+  const regCount = r.readU8() // getUByte (ErgoBoxCandidate.scala:226)
   const registers: AdditionalRegisters = {}
   for (let i = 0; i < regCount; i++) {
+    // nonMandatoryRegisters(iReg) (:230) resolves the id before the value is read:
+    // the 7th register is an index error only when the loop reaches it.
+    if (i >= 6) {
+      throw new SValueParseError(`register index ${i} is beyond R9 (R4..R9 only)`, 'sbox-registers-out-of-range')
+    }
     const startPos = r.position
-    const parsed = parseRegisterExpr(r, treeVersion)
+    const parsed = parseRegisterExpr(r, treeVersion)   // r.getValue(): enterDepth → peekU8 → readU8 (ValueSerializer.scala:396-411)
+    // CheckV6Type(v) (:232) runs on the complete value, after its frame returned.
+    if (violatesCheckV6Type(parsed.tpe)) {
+      throw new SValueParseError(
+        'box register type contains a v6-only type (Option/Header/UnsignedBigInt) — rule-1019 CheckV6Type',
+        'register-v6-type')
+    }
     if (parsed.tag > LAST_CONSTANT_CODE) {
-      // Tuple-Expr (or future non-Const Expr) — capture original bytes for
-      // byte-identical serializer output.
-      const opaqueBytes = r.slice(startPos, r.position).slice()
-      registers[4 + i] = { tpe: parsed.tpe, value: parsed.value, opaqueBytes }
+      registers[4 + i] = { tpe: parsed.tpe, value: parsed.value, opaqueBytes: r.slice(startPos, r.position).slice() }
     } else {
       registers[4 + i] = { tpe: parsed.tpe, value: parsed.value }
     }
@@ -275,7 +267,7 @@ export class SValueParseError extends Error {
  *
  * The JVM enforces `CheckV6Type` at two ingress points, both served by this one
  * predicate: box registers (`ErgoBoxCandidate.scala:232`, here in
- * `parseRegisterExpr`) and context-extension values
+ * `parseAdditionalRegisters`, once each value is read) and context-extension values
  * (`ContextExtension.scala:62`, sigma-state v6.0.6 — `@ergots/transaction`'s
  * `parseContextExtension`, which is why it is exported). The JVM-blessed
  * witness W7 is a register case.
@@ -537,14 +529,9 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // tx_id + index for full ErgoBox):
       //
       //   value           — VLQ u64 (BoxValue wraps u64; plain VLQ, NOT ZigZag)
-      //   ergo_tree_bytes — self-delimiting via ErgoTree header. Sigma-rust
-      //                     calls `ErgoTree::sigma_parse(r)` on the shared
-      //                     reader (chain/ergo_box.rs:350). We mirror via
-      //                     `parseErgoTreeBytes` which parses the full tree
-      //                     (same deserialize as `parseTree`) and handles both
-      //                     hasSize=true and hasSize=false. The captured byte range
-      //                     is stored verbatim on the SBox; downstream
-      //                     callers may re-parse via parseTree(bytes).
+      //   ergo_tree_bytes — one ErgoTree, parsed on this reader by
+      //                     `parseErgoTreeBytes` under the box rules (see below);
+      //                     its span as received is stored verbatim on the SBox.
       //   creation_height — VLQ u32 (`put_u32`)
       //   tokens_count    — raw u8 (`put_u8`, NOT VLQ); no count gate — the
       //                     u8 ceiling 255 is the natural bound (JVM getUByte,
@@ -579,17 +566,13 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // --- value (VLQ u64, unsigned) ---
       const value = r.readVlqBigInt()
 
-      // --- ergoTreeBytes (self-delimiting via ErgoTree header) ---
-      // Sigma-rust calls `ErgoTree::sigma_parse(r)` on the shared reader
-      // at `chain/ergo_box.rs:350`. We mirror via `parseErgoTreeBytes`
-      // (ergo-tree.ts), which structurally parses exactly one tree off the
-      // shared reader (the SAME deserialize as the bare `parseTree`: degrade
-      // soft-forkable failures to `UnparsedErgoTree`, REJECT the non-soft-forkable
-      // class such as an SHeader constant) and returns its verbatim span. So a
-      // box's propBytes reject exactly what a bare tree rejects — no box-vs-bare
-      // split. The SBox only needs the raw bytes; downstream callers re-parse via
-      // the public `parseTree` for structural access. The same helper is consumed
-      // by `@ergots/transaction`'s ErgoBoxCandidate codec so the tree-length
+      // --- ergoTreeBytes ---
+      // `parseErgoTreeBytes` (ergo-tree.ts) parses one tree on this reader under the box
+      // rules, as the JVM box parser's `deserializeErgoTree` call does
+      // (ErgoBoxCandidate.scala:194, whose 2-argument form passes `checkType = true`,
+      // ErgoTreeSerializer.scala:137-139): rule 1001 applies here, unlike in the lenient
+      // bare `parseTree`. It returns the tree's span as received. The same helper is
+      // consumed by `@ergots/transaction`'s ErgoBoxCandidate codec, so the box's tree
       // grammar lives in one place.
       const ergoTreeBytes = parseErgoTreeBytes(r)
 
@@ -631,9 +614,10 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
 
       // --- additional_registers (raw u8 count + per-register Const/Tuple wire) ---
       // Factored into `parseAdditionalRegisters` (shared with @ergots/transaction's
-      // ErgoBoxCandidate codec): raw u8 count, > 6 reject, per-register Expr read
-      // restricted to Const/Tuple with opaqueBytes capture for the Tuple-Expr form
-      // and the rule-1019 CheckV6Type gate, all under the threaded treeVersion.
+      // ErgoBoxCandidate codec), in the JVM's order (ErgoBoxCandidate.scala:226-234):
+      // raw u8 count, then per register the id (a seventh rejects when reached), the
+      // Const/Tuple value (opaqueBytes for the Tuple-Expr form), then the rule-1019
+      // CheckV6Type check, all under the threaded treeVersion.
       const registers = parseAdditionalRegisters(r, treeVersion)
 
       // Restore the enclosing window: the candidate span ends with the
