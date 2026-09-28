@@ -14,9 +14,9 @@ Where this file is silent on implementation detail, those are canonical.
 
 **Ships in this contract (v0.3.0):**
 
-1. `ByteReader` class — cursor-based reader with VLQ + ZigZag-VLQ decoding, bool/option/array helpers, a `slice()` view, and a JVM-style `positionLimit` read window.
+1. `ByteReader` class — cursor-based reader with VLQ + ZigZag-VLQ decoding, bool/option/array helpers, a `slice()` view, a JVM-style `positionLimit` read window, a JVM-style position setter, and an unchecked one-byte peek (`peekU8`).
 2. `ByteWriter` class — chunk-accumulating writer with VLQ + ZigZag-VLQ encoding, bool/option/array helpers, and a `toBytes()` finalizer.
-3. `ReaderError` class — typed error thrown by `ByteReader` on malformed input; 7-variant `code` union.
+3. `ReaderError` class — typed error thrown by `ByteReader` on malformed input; 8-variant `code` union.
 4. VLQ free functions: `encodeVlqU`, `decodeVlqU`, `encodeVlqZigZag`, `decodeVlqZigZag`, `readVlqU32` — stateless encode/decode operating on `ByteReader` and returning `Uint8Array` / `bigint`.
 5. `MAX_ARRAY_LENGTH` constant — 16,777,216 (`1 << 24`); the DoS cap applied by `readArray`.
 6. Digest constants and helpers: `BLOCK_ID_LEN`, `DIGEST32_LEN`, `AD_DIGEST_LEN`, `EC_POINT_LEN`, `readFixed`, `writeFixed`.
@@ -50,6 +50,12 @@ export class ByteReader {
   constructor(bytes: Uint8Array, maxTreeDepth?: number)
 
   get position(): number          // current cursor offset
+  set position(p: number)         // the JVM position_= (CoreByteReader.scala:114): a plain assignment
+                                  // that throws ReaderError('position-out-of-range') unless p is an
+                                  // integer in [0, bytes.length]. It moves only the cursor: level and
+                                  // positionLimit are untouched. @ergots/ergoscript's tree parse uses it
+                                  // to re-read a degraded tree from its start (ErgoTreeSerializer.scala
+                                  // :200-202; facts/ergoscript-wire.md, "parseTreeFromReader")
   get remaining(): number         // bytes.length - position
   get isExhausted(): boolean      // position >= bytes.length
 
@@ -66,17 +72,15 @@ export class ByteReader {
                                   // so a caught error keeps it raised; @ergots/ergoscript's parsers do the
                                   // same (facts/ergoscript-wire.md, "Reader depth after a degrade")
   // Fork a sub-reader over `bytes` INHERITING this reader's level + maxTreeDepth.
-  // For size-prefixed inner regions read into a bounded buffer (e.g. a hasSize=true
-  // ErgoTree body), so the depth counter carries INTO the region as the JVM's one
-  // reader does. It does not flow back: a caller that continues on the parent must
-  // carry the fork's final level back itself (ergoscript's parseTreeFromReader does,
-  // on both of its returns), or levels left by a caught error inside the region are lost.
-  // Does NOT inherit positionLimit: the fork's buffer is rebased to offset 0, so the
-  // parent's limit (an absolute offset) would be meaningless over it — a fork gets the
-  // fresh default over its own buffer. Callers that need a window arm it on the SHARED
-  // reader (as the ergoscript SBox candidate window does); the JVM never forks — it
-  // scopes positionLimit natively on the one reader. Mechanism difference only; the
-  // accepted byte-language is unchanged as long as windowed spans stay on one reader.
+  // Stays public, but @ergots/ergoscript no longer uses it: since 2026-09-28 it parses
+  // a size-flagged ErgoTree body on the reader the tree arrives on, as the JVM does, so
+  // its levels and windows need no fork (facts/ergoscript-wire.md, "parseTreeFromReader").
+  // The level flows INTO the fork only: a caller that continues on the parent must carry
+  // the fork's final level back itself, or levels left by a caught error inside the
+  // region are lost. Does NOT inherit positionLimit: the fork's buffer is rebased to
+  // offset 0, so the parent's limit (an absolute offset) would be meaningless over it —
+  // a fork gets the fresh default over its own buffer. The JVM never forks; it scopes
+  // positionLimit natively on the one reader.
   forkSubReader(bytes: Uint8Array): ByteReader
 
   // ── Position-limit read window ──────────────────────────────────────────────
@@ -84,7 +88,8 @@ export class ByteReader {
   // check, :36-108 per-get call sites, :133-137 accessor). Default on a fresh reader
   // = the buffer's byte length (JVM default: r.position + r.remaining = buffer end).
   // The setter is a PLAIN assignment with NO clamp (:135-137) — a nested window (e.g.
-  // a box constant inside a register of an outer box) may legitimately EXCEED the
+  // a box constant inside a register of an outer box, or an ErgoTree's own 4096-byte
+  // window set at the tree's start inside its box's window) may legitimately EXCEED the
   // enclosing limit for the inner span; the caller's save/set/restore discipline
   // reinstates the outer limit afterward:
   //   const saved = r.positionLimit
@@ -108,8 +113,9 @@ export class ByteReader {
   // per-byte loop over public readU8 would reject straddling VLQs the JVM accepts).
   // readFixed (digests.ts) PARTICIPATES via readBytes' entry check and passes
   // 'position-limit-exceeded' through UNMODIFIED; any other underlying failure
-  // keeps its named-field re-code to 'truncated'. slice() is non-consuming and does
-  // NOT check. At the DEFAULT limit (buffer end) the entry check can never fire —
+  // keeps its named-field re-code to 'truncated'. slice() and peekU8() are
+  // non-consuming and do NOT check (peekU8 is the JVM peekByte, which has no window
+  // check, :41). At the DEFAULT limit (buffer end) the entry check can never fire —
   // consuming reads hit the 'truncated' end-of-buffer bound first — so readers that
   // never set positionLimit (e.g. @ergots/nipopow's block codec) see no behavior change.
   get positionLimit(): number       // absolute offset; default = buffer byte length
@@ -121,8 +127,19 @@ export class ByteReader {
 
   readU8(): number                // throws ReaderError('truncated') at EOF;
                                   // 'position-limit-exceeded' entry check (window block above)
+  peekU8(): number                // the JVM peekByte (CoreByteReader.scala:41): the next byte, with NO
+                                  // advance and NO window entry check. The one check is end of input,
+                                  // a hard ReaderError('truncated') (the JVM throws a raw index
+                                  // exception there). @ergots/ergoscript runs it between enterDepth
+                                  // and the checked read of each value's first byte, as the JVM's
+                                  // ValueSerializer.deserialize does (facts/ergoscript-wire.md,
+                                  // "Value read order")
   readBytes(n: number): Uint8Array // throws ReaderError('truncated') if n > remaining;
-                                  // 'position-limit-exceeded' entry check (then N bytes unchecked)
+                                  // 'position-limit-exceeded' entry check (then N bytes unchecked);
+                                  // a negative or non-integer n throws 'position-out-of-range' AFTER
+                                  // the entry check, as the JVM getBytes checks the window before it
+                                  // allocates (CoreByteReader.scala:85-88). It never moves the cursor
+                                  // backwards
 
   // VLQ unsigned — narrows bigint result to number (caller ensures <= 2^53-1)
   readVlqU(): number
@@ -171,7 +188,7 @@ export class ByteWriter {
 // ─── Error classes ───────────────────────────────────────────────────────────
 
 export class ReaderError extends Error {
-  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded' | 'value-out-of-range'
+  readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded' | 'value-out-of-range' | 'position-out-of-range'
 }
 
 export class AutolykosV1NotSupportedError extends Error {
@@ -357,14 +374,15 @@ Callers may rely on these without re-checking after any value returned from the 
 
 ## Failure model
 
-**`ReaderError` — thrown by `ByteReader` on malformed bytes (7 codes)**
+**`ReaderError` — thrown by `ByteReader` on malformed bytes (8 codes)**
 
 These represent malformed or truncated wire input, not programming errors on the caller's side.
 
 `ReaderError.code` is one of (the union is inline on the class constructor in `errors.ts`; not separately exported):
 
 ```ts
-// 'truncated'           — readU8/readBytes/readFixed beyond end of buffer;
+// 'truncated'           — readU8/readBytes/readFixed beyond end of buffer, or peekU8 at
+//                         end of buffer (a hard error, never a window error);
 //                         also readBool/readOption when tag byte is out of range
 // 'vlq-overflow'        — VLQ continuation bit set on byte 10 (exceeds u64);
 //                         or decoded value exceeds the declared type bound (readVlqU32 > 0xffffffff)
@@ -388,6 +406,12 @@ These represent malformed or truncated wire input, not programming errors on the
 //                         `powDistance` ≥ 2²⁵⁵ (JVM `toSignedBigIntValueExact`,
 //                         `fitsIn256Bits`, ErgoHeader.scala:77, Extensions.scala:199-223).
 //                         Distinct from `vlq-overflow` (malformed/over-long VLQ encoding).
+// 'position-out-of-range' — set position(p) given a p that is not an integer in
+//                         [0, buf.length] (JVM position_=, CoreByteReader.scala:114), or
+//                         readBytes(n) given a negative or non-integer n, raised after its
+//                         window entry check (JVM getBytes, :85-88). A guard on the cursor:
+//                         ergoscript's tree parse checks its degrade span before it moves
+//                         the cursor back, so it passes neither
 ```
 
 **Plain `Error` — thrown by `ByteWriter` and `writeFixed` on programming errors**
@@ -449,6 +473,7 @@ Pinned at sigma-rust branch `integration/ergots` at `~/projects/ergots/external/
 | JVM `scorex.utils.Ints.toByteArray` | `int32BE` (`autolykos-v2.ts`) | 4-byte big-endian int encoding; used to pass `height` as `h` bytes |
 | JVM `Autolykos2PowValidation.hitForVersion2ForMessageWithChecks` param guards | `PowHitInvalidParamsError` (`errors.ts`) | Typed error for k<2 / k>32 / N<16 guard violations |
 | JVM `CoreByteReader.positionLimit` (`CoreByteReader.scala:25-27, 36-108, 133-137`) | `ByteReader.positionLimit` getter/setter + per-primitive entry checks (`reader.ts`) | Lazy read window: ONE check per logical read, strict `>`, no clamp on set; throws `ReaderError('position-limit-exceeded')` ≡ rule 1014 `CheckPositionLimit` (`ValidationRules.scala:169-189`). sigma-rust has NO equivalent (its `BoundedVec` token cap is a count-shaped approximation — see the SBox candidate-size window section in `facts/ergoscript-wire.md`) |
+| JVM `CoreByteReader.position_=` / `peekByte` / `getBytes` (`CoreByteReader.scala:114`, `:41`, `:85-88`) | `ByteReader.position` setter / `peekU8` / `readBytes` (`reader.ts`) | The setter rejects a position outside `[0, length]` with `ReaderError('position-out-of-range')`; `peekU8` checks end of input only (`'truncated'`), never the window; `readBytes` rejects a negative length after its window entry check. Added 2026-09-28 for ergoscript's single-reader tree parse (spec `docs/specs/2026-09-28-sized-tree-declared-size-design.md` §1) |
 
 ## Known limitations / follow-ups
 
@@ -464,7 +489,7 @@ These follow-ups are documented here so successor sessions can pick them up.
 
 - `docs/specs/2026-05-19-ergots-scorex-package-design.md` — design rationale, extraction scope, Fleet SDK evaluation, migration plan
 - `facts/nipopow.md` — primary consumer; `@ergots/nipopow` imports `ByteReader`, `ByteWriter`, `ReaderError`, VLQ functions, `Header`, `AutolykosSolution`, `parseHeader`, `serializeHeader` from `@ergots/scorex`
-- `facts/ergoscript-wire.md` — primary consumer; `@ergots/ergoscript` imports the same codec layer; its SBox data-parse arm arms a 4096-byte `positionLimit` candidate window (4096 = JVM `ErgoBox.MaxBoxSize`, `SigmaConstants.scala:24`) — see that file's SBox candidate-size window section
+- `facts/ergoscript-wire.md` — primary consumer; `@ergots/ergoscript` imports the same codec layer; its SBox data-parse arm arms a 4096-byte `positionLimit` candidate window (4096 = JVM `ErgoBox.MaxBoxSize`, `SigmaConstants.scala:24`) — see that file's SBox candidate-size window section — and its tree parse a 4096-byte tree window (JVM `MaxPropositionBytes`, `SigmaConstants.scala:40`), rewinding a degraded tree with the position setter and reading each value's first byte after a `peekU8`
 - `CLAUDE.md` — TDD discipline, browser-first rules, confidence-escalation list, package list
 - `~/projects/ergots/external/sigma-rust/sigma-ser/src/vlq_encode.rs` — VLQ reference (pinned `integration/ergots`)
 - `~/projects/ergots/external/sigma-rust/ergo-chain-types/src/header.rs` — Header + AutolykosSolution wire format reference (pinned `integration/ergots`)
