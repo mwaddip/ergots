@@ -64,27 +64,18 @@ export function exprTpe(e: Expr): SType {
       return { tag: 'SFunc', args, result, tpeParams }
     }
     case 'Apply': {
-      // Apply's type is the t_range of the func's SFunc type. Relaxation
-      // (mirrors ByIndex/OptionGet): an SAny func type cascades to SAny — an
-      // unresolved method/property-call return is concrete at runtime and in
-      // the JVM, so propagate SAny statically rather than throwing (avoids
-      // over-rejecting a JVM-accepted tree). A non-SAny, non-SFunc func is a
-      // genuinely malformed AST → typed error.
-      //
-      // sigma-rust `mir/apply.rs::Apply::new` (lines 32-54): Apply's type is
-      // the `t_range` of the func's `SFunc` type; sigma-rust panics-on-unwrap
-      // for a non-SFunc. We surface a typed error instead, but skip SAny.
+      // JVM Apply.tpe (sigma/ast/values.scala:1247-1251): SFunc → its range; a collection
+      // (SCollectionType) → its element type; anything else → NoType. STuple extends the
+      // SCollection trait but is not an SCollectionType (SType.scala:838), so it is NoType.
+      // An SAny func cascades to SAny (unresolved method returns; see the ByIndex arm).
       const ft = exprTpe(e.func)
-      if (ft.tag === 'SAny') {
-        return { tag: 'SAny' }
-      }
-      if (ft.tag !== 'SFunc') {
-        throw new ExprTpeError(
-          `Apply.func has tpe ${ft.tag}, expected SFunc`,
-          'apply-func-not-sfunc'
-        )
-      }
-      return ft.result
+      if (ft.tag === 'SAny') return { tag: 'SAny' }
+      if (ft.tag === 'SFunc') return ft.result
+      if (ft.tag === 'SColl') return ft.elem
+      throw new ExprTpeError(
+        `Apply.func has tpe ${ft.tag}: the JVM types this Apply as NoType`,
+        'apply-func-no-type'
+      )
     }
     case 'ByIndex': {
       // sigma-rust `mir/coll_by_index.rs::ByIndex::tpe` (line 70-72): the type

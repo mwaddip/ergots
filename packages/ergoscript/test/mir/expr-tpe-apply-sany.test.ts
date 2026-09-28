@@ -3,7 +3,7 @@
  *
  * An Apply whose func expression types to SAny (because the func itself is an
  * unresolved PropertyCall/MethodCall, which the A3 fallback returns SAny for)
- * must return SAny instead of throwing `apply-func-not-sfunc`. This mirrors
+ * must return SAny instead of throwing `apply-func-no-type`. This mirrors
  * the ByIndex, OptionGet, SelectField, and Map arms which all carry the same
  * "SAny cascades through" convention: the JVM holds the concrete SFunc at
  * runtime but our static exprTpe can only say SAny; rejecting the tree would
