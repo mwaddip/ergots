@@ -1,8 +1,9 @@
 # 2026-09-28 — A size-flagged ErgoTree's declared size: parse like the JVM, re-encode box trees
 
-**Status:** the design was agreed with the user on 2026-09-28, section by section. It was then amended after two adversarial review passes the same day, and every finding was re-verified against source:
+**Status:** the design was agreed with the user on 2026-09-28, section by section. It was then amended after three adversarial review passes the same day, and every finding was re-verified against source:
 - first pass: C1–C3, I1–I8 and M1–M4;
-- second pass: C-N1, C-N2, I-N1 and I-N2, plus minor points.
+- second pass: C-N1, C-N2, I-N1 and I-N2, plus minor points;
+- third pass: two clarifications (where the register check runs, and `boxTreeOf`'s miss rule), plus minor points.
 
 After the first pass the user decided two points: the method catalog becomes a residual with its own follow-up spec, and the count caps are in scope.
 
@@ -190,7 +191,7 @@ try {
   - scorex `ReaderError` `'position-limit-exceeded'` (rule 1014).
 - `ErgoTreeParseError` gains an optional `cause`. A caller of `parseTree` on an unsized tree now gets the wrapper instead of, for example, `ExprParseError('opcode-reserved')`.
 - The level leak becomes native. With no fork, `forkSubReader` and `carryLeakedLevels` go.
-- `MAX_CONSTANTS_COUNT` (4096) goes. The `toInt`, `> 0` and 100000 semantics replace it, and `'too-many-constants'` now means "above 100000".
+- `MAX_CONSTANTS_COUNT` (4096) goes. The `toInt`, `> 0` and 100000 semantics replace it, and `'too-many-constants'` now means "above 100000". `serializeTree`, which also used `MAX_CONSTANTS_COUNT` (ERG-05), bounds its constants at 100000 too, so every tree it writes re-parses.
 
 ### 3. ergoscript: the JVM's order for each value read
 
@@ -222,7 +223,7 @@ The rule then reads:
 
 Every count the parser reads inside a tree gets its JVM reader and bound:
 - **Apply and MethodCall arguments, BlockValue items, FuncValue arguments, and SigmaAnd and SigmaOr items:** a u32 that must fit an Int (`getUIntExact`), at most 100000 (`safeNewArray`). The four existing caps move from 65536 to 100000. SigmaAnd and SigmaOr get the bound; today they have none.
-- **ConcreteCollection and Boolean-constant collection items:** at most 0xFFFF (`getUShort`), checked while parsing. Today `MAX_COLL_ITEMS` is checked only when serializing. The over-long-VLQ subtlety of `getUShort` is in the follow-ups.
+- **ConcreteCollection and Boolean-constant collection items:** at most 0xFFFF (`getUShort`), checked while parsing, right after the count and before the element type is read. The JVM's `getUShort` throws before `getType` (`ConcreteCollectionSerializer.scala:28-29`). Today `MAX_COLL_ITEMS` is checked only when serializing. The over-long-VLQ subtlety of `getUShort` is in the follow-ups.
 - **The constants count:** see §2.
 
 Above each bound the parse rejects. The error codes keep their names and now mean "above the JVM's bound".
@@ -233,7 +234,7 @@ This list is a hypothesis from the serializers the reviews named. The plan's fir
 
 - **`parseErgoTreeBytes(r)`** calls `parseTreeFromReader(r, { checkType: true })`. It returns the detached span `[start, end)`, which is raw and keeps the declared size as received. It seeds the cache of §8 with the tree, keyed by that span.
 - **Register values follow the JVM** (`ErgoBoxCandidate.scala:226-234`):
-  - Rule 1019 runs after the value is read, not on the declared type before it.
+  - Rule 1019 runs once per register, in `parseAdditionalRegisters`, on the complete value. It runs after `parseRegisterExprWithTag` has returned, so a Tuple's items have all been read and the value's level has been lowered, as in the JVM (`ValueSerializer.scala:409`). Checking each item as it is read would let an early item's rule-1019 failure degrade a tree the JVM rejects on a later item's hard error. It would also leak one level more.
   - The count stays a `getUByte`. More than six registers rejects only when the parser reaches the seventh, after R4–R9 have been read.
   - The context extension keeps its check before the value. Outside a tree both orders reject, so no verdict changes.
 - **`parseTree(bytes, opts?: { checkType?: boolean })`** is lenient by default.
@@ -249,7 +250,8 @@ This list is a hypothesis from the serializers the reviews named. The plan's fir
 ### 8. ergoscript: `boxTreeOf`, `reencodeTreeBytes` and `seedBoxTree` (new exports)
 
 **`boxTreeOf(ergoTreeBytes)`** returns the box's tree under the box rules. It reads from a `WeakMap` keyed by the `Uint8Array` instance, which `parseErgoTreeBytes` seeds. On a miss it parses once, standalone, with `checkType: true`:
-- **The parse runs out of input** (`'truncated'`, including from `peekU8`): a size-flagged tree becomes `Unparsed` with the raw bytes. A tree the JVM accepted inside its box can fail on its own only this way: a degraded tree whose reads went past its declared span.
+- **The tree's own reads run out of input** (`'truncated'`, including from `peekU8`, raised outside any nested tree): a size-flagged tree becomes `Unparsed` with the raw bytes. In its box, that tree degraded after its reads went past its declared span.
+- **A nested tree runs out of input:** the result is ambiguous. In the box, a nested tree may have degraded after reading past this tree's end, then moved back, leaving this tree parsed. The miss throws `ErgoTreeParseError('box-context-required')`, and a JVM-faithful result for such bytes needs the ingest seed or `seedBoxTree`. `parseTreeFromReader` marks a `'truncated'` that escapes a nested tree, so the miss can tell the two cases apart.
 - **Any other failure propagates.** Such bytes are not a valid box tree, and `ErgoTree.fromBytes` would throw too.
 - **Trailing bytes** throw `'trailing-bytes'`. Leaving them in place would make R1 and the re-encoding disagree.
 
@@ -378,9 +380,13 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
    - The JVM also accepts ConcreteCollection and GroupGenerator register values (`ValidationRules.scala:188-193`), where ergots accepts only constants and tuples.
 5. **The constant-store leak** after a degrade, and the six opcodes the JVM parses.
 6. **`parseTree`'s envelope, including P2S address decoding:** the 1 MiB `'oversized'` cap, and trailing bytes beyond the declared span (ERG-02). The JVM's lenient parse ignores trailing bytes and degrades a sized tree above 1 MiB. This is ErgoTree-kind and address only; box trees are bounded by the 4096 windows.
-7. **Block context.** For a tree that reads to the end of its transaction, the JVM degrades the tree when another transaction follows in the block, and rejects it on its own. ergots parses each transaction on its own and takes the standalone verdict. SANTA's in-progress BlockTransactions kind will pin this.
+7. **Block context.** For a tree that reads to the end of its transaction, the JVM degrades the tree when another transaction follows in the block, and rejects it on its own. ergots parses each transaction on its own and takes the standalone verdict. SANTA's BlockTransactions kind (`02c60db`) pins the block side.
 8. **A ValDef whose right-hand side is `Apply` of a non-function, non-collection.** The JVM gives it `NoType` and parses on; ergots rejects with `'val-def-rhs-tpe'`. This predates the change; only the collection case is fixed here.
 9. **Collection item types.** The JVM asserts that each ConcreteCollection item has the declared type (`ConcreteCollectionSerializer.scala:38`). ergots does not check, so it accepts what the JVM rejects. This also predates the change.
+10. **The ValDef type store.**
+    - The JVM keeps one store per reader (`SigmaByteReader.scala:32`), so the outputs of one transaction share it. A ValDef in output 0's tree resolves a ValUse in output 1's (SANTA `02c60db`, `Transaction.valdef_scope#0`, accepted).
+    - ergots starts a fresh map for every tree, so it rejects that transaction.
+    - Adopting the reader's store needs its own look: the JVM's store is flat, while ergots may scope ValDefs inside one tree. It goes to a follow-up.
 
 ## Tests (TDD, contracts first)
 
@@ -402,11 +408,19 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
    - the serialize cost using the re-encoded length;
    - `SubstConstants`' size and count reads;
    - address decoding under the box rules.
+
+   **Existing expectations that change:**
+   - `ergo-tree.test.ts:258-269`: a constants count of 4097 now runs out of input instead of throwing `'too-many-constants'`.
+   - ERG-05, at `:95-123`: the serialize bound.
+   - `register-v6-type-rule1019.test.ts`:
+     - W7 now degrades.
+     - The SHeader case needs valid header bytes, plus a separate hard-reject test.
+     - Option at tree versions 0 and 2 now reports `'soption-tree-version-too-low'`.
 3. **Mutation checks** on the load-bearing lines: the outer-reader parse, the degrade re-read, the read order, each count bound, the register order, rule 1001 and its root type, the unsized wrap, each write site, and the spend.
 4. **The mainnet proof, as the merge gate:** the harness changes of §12, run from h=1 to the tip in ids-and-parse-only mode. The full evaluating walk is optional on top.
 5. **Gates:** `npm test`, `npm run typecheck`, jsdom for the three packages, and the bare-root run.
    - **Local replay.** A local replay of the 21 entries in the six SANTA files against `master` (2026-09-28) has eight reds: the four sized-tree entries, the two `tree_read_window` degrade-accepts, and the two unsized Int-root rejects. All 21 must be green.
-   - **Dasher** reports ten reds on those 21 today: its Box arm grades a `ReaderError` reject as a panic. The Dasher gate therefore depends on SANTA widening the Box arm first (next section). After both changes, all 21 should be green in Dasher, with nothing else moving.
+   - **Dasher** reports ten reds on those 21 today: its Box arm grades a `ReaderError` reject as a panic. The Dasher gate therefore depends on SANTA widening the Box arm first (next section). After both changes, all 21 should be green in Dasher, and nothing else should regress. Other Box-kind panics, such as `4ac2286`'s, may turn green too.
 
 ## SANTA: requests (sent at the start of implementation)
 
@@ -445,4 +459,5 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
 - Register re-encoding and grammar (residual 4), once SANTA answers follow-ups 6–7.
 - **`getUShort`.** The JVM reads `getULong().toInt` before its range check, so it accepts an over-long VLQ whose low 32 bits are in range. ergots rejects it: in the SBox index, the transaction's counts, and the collection counts inside a tree.
 - SANTA `4ac2286` (function type code `0x70`, an unbound `ValUse`): check what it asks of ergots.
+- The per-reader ValDef type store (residual 10), with SANTA's `Transaction.valdef_scope` vectors.
 - Release per `RELEASING.md`, on the user's go-ahead.
