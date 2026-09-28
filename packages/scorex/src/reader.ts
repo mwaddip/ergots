@@ -80,6 +80,18 @@ export class ByteReader {
     return this._position;
   }
 
+  /**
+   * The JVM `position_=` (`CoreByteReader.scala`, delegating to the buffer): a plain
+   * assignment. ergoscript's tree parse uses it to re-read a degraded tree from its start
+   * (`ErgoTreeSerializer.scala:200-202`).
+   */
+  set position(p: number) {
+    if (!Number.isInteger(p) || p < 0 || p > this.bytes.length) {
+      throw new ReaderError(`position ${p} is outside [0, ${this.bytes.length}]`, 'position-out-of-range');
+    }
+    this._position = p;
+  }
+
   /** Current recursion depth (see {@link _level}). Read-only for callers. */
   get level(): number {
     return this._level;
@@ -220,6 +232,18 @@ export class ByteReader {
   }
 
   /**
+   * The JVM `peekByte` (`CoreByteReader.scala:41`): the next byte without advancing and
+   * WITHOUT the window check. Only the end of input is checked, as a hard 'truncated'
+   * (the JVM throws a raw index exception there).
+   */
+  peekU8(): number {
+    if (this._position >= this.bytes.length) {
+      throw new ReaderError(`peekU8: EOF at ${this._position}`, 'truncated');
+    }
+    return this.bytes[this._position]!;
+  }
+
+  /**
    * Bare byte read carrying ONLY the EOF/'truncated' guard — no window check.
    * Used by {@link readVlqBigInt}'s continuation-byte loop, which must read
    * unchecked after that primitive's single entry check (the JVM getULong
@@ -236,6 +260,9 @@ export class ByteReader {
     // Window entry check ONCE; the n-byte run below may straddle the limit
     // (start <= limit, end past it), like the JVM getBytes.
     this.checkPositionLimit();
+    if (!Number.isInteger(n) || n < 0) {
+      throw new ReaderError(`readBytes(${n}): negative or non-integer length`, 'position-out-of-range');
+    }
     if (this.remaining < n) {
       throw new ReaderError(`readBytes(${n}): only ${this.remaining} available`, 'truncated');
     }
