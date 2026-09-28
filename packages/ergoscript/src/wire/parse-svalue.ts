@@ -724,32 +724,25 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           'sheader-tree-version-too-low'
         )
       }
-      const header = parseHeader(r)
       // id basis: scorex parseHeader derives id from the consumed input slice
-      // (JVM ErgoHeader.scala:167-180), so no local override is needed. The GE
-      // normalization below runs AFTER id derivation, exactly as the JVM (id
-      // precedes normalization).
-      // F5 batch 4 — GE canonical-bytes invariant on the hydration leg. The
-      // JVM parses minerPk + (v1) powOnetimePk through GroupElementSerializer
-      // (AutolykosSolution.sigmaSerializerV1.parse ErgoHeader.scala:72-79,
-      // .sigmaSerializerV2.parse :89-93): 0x00-lead → identity POINT (tail
-      // discarded); invalid non-0x00-lead → throw (surfaced through the
-      // deserializeTo failure wrap on that ingress). scorex readFixed returns
-      // subarray VIEWS into the reader buffer — .slice() detaches the
-      // verbatim (valid-point) path; the normalize path is already fresh.
-      const sol = header.autolykosSolution
-      sol.minerPk = canonicalGePayload(sol.minerPk.slice(), (cause) =>
-        new SValueParseError(
-          `SHeader minerPk is not a valid curve point: ${cause}`,
-          'group-element-invalid-point',
-        ))
-      if (sol.powOnetimePk !== null) {
-        sol.powOnetimePk = canonicalGePayload(sol.powOnetimePk.slice(), (cause) =>
-          new SValueParseError(
-            `SHeader powOnetimePk is not a valid curve point: ${cause}`,
-            'group-element-invalid-point',
-          ))
-      }
+      // (JVM ErgoHeader.scala:167-180), so no local override is needed; that
+      // derivation still runs only after the whole solution is read, same as
+      // before this task — only the GE normalization timing moved.
+      // F5 batch 4 / Task 4D — GE canonical-bytes invariant on the hydration
+      // leg. The `validatePoint` hook below runs INSIDE parseHeader, right
+      // after each point is read, mirroring the JVM: it parses minerPk + (v1)
+      // powOnetimePk through GroupElementSerializer AS EACH IS READ
+      // (AutolykosSolution.sigmaSerializerV1.parse ErgoHeader.scala:73-74,
+      // .sigmaSerializerV2.parse :90): 0x00-lead → identity POINT (tail
+      // discarded); invalid non-0x00-lead → throw, before the next field's
+      // read can trip the enclosing tree's read-window (rule 1014) first.
+      // scorex readFixed returns subarray VIEWS into the reader buffer —
+      // .slice() detaches the verbatim (valid-point) path; the normalize
+      // path is already fresh.
+      const header = parseHeader(r, {
+        validatePoint: (bytes, field) => canonicalGePayload(bytes.slice(), (cause) =>
+          new SValueParseError(`SHeader ${field} is not a valid curve point: ${cause}`, 'group-element-invalid-point')),
+      })
       return { kind: 'Header', value: header }
     }
 

@@ -24,19 +24,37 @@ export interface AutolykosSolution {
 
 const NONCE_LEN = 8;
 
-export function parseAutolykosSolution(reader: ByteReader, version: number): AutolykosSolution {
-  const minerPk = readFixed(reader, EC_POINT_LEN, 'minerPk');
+/**
+ * Hook applied right after each header point (`minerPk`, and v1's
+ * `powOnetimePk`) is read off the wire — before the next field is read. The
+ * JVM decodes each point through `GroupElementSerializer.parse` as it reads
+ * it (`ErgoHeader.scala:73-74` v1 `pk`/`w`, `:90` v2 `pk`): a bad point fails
+ * before the caller can even attempt the next read. Returns the (possibly
+ * normalized) bytes to store on the field.
+ */
+export type ValidatePointFn = (bytes: Uint8Array, field: 'minerPk' | 'powOnetimePk') => Uint8Array;
+
+export function parseAutolykosSolution(
+  reader: ByteReader,
+  version: number,
+  validatePoint?: ValidatePointFn,
+): AutolykosSolution {
+  const minerPkBytes = readFixed(reader, EC_POINT_LEN, 'minerPk');
+  const minerPk = validatePoint ? validatePoint(minerPkBytes, 'minerPk') : minerPkBytes;
   if (version === 1) {
     // Autolykos v1: additional fields
-    const powOnetimePk = readFixed(reader, EC_POINT_LEN, 'powOnetimePk');
+    const powOnetimePkBytes = readFixed(reader, EC_POINT_LEN, 'powOnetimePk');
+    const powOnetimePk = validatePoint ? validatePoint(powOnetimePkBytes, 'powOnetimePk') : powOnetimePkBytes;
     const nonce = readFixed(reader, NONCE_LEN, 'nonce');
     const dLen = reader.readU8();
+    // Always read `d`, even for dLen === 0: JVM ErgoHeader.scala:76-77 calls
+    // `r.getBytes(dBytesLength)` unconditionally, so a 0-length read still
+    // runs the window check (readBytes(0) -> checkPositionLimit()). Skipping
+    // the read for dLen === 0 would silently skip that check.
+    const dBytes = readFixed(reader, dLen, 'powDistance');
     let powDistance = 0n;
-    if (dLen > 0) {
-      const dBytes = readFixed(reader, dLen, 'powDistance');
-      for (const b of dBytes) {
-        powDistance = (powDistance << 8n) | BigInt(b);
-      }
+    for (const b of dBytes) {
+      powDistance = (powDistance << 8n) | BigInt(b);
     }
     // JVM BigIntegers.fromUnsignedByteArray(d).toSignedBigIntValueExact
     // (ErgoHeader.scala:77): fitsIn256Bits = bitLength <= 255, i.e. d < 2^255

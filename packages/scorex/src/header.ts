@@ -25,7 +25,7 @@ import { decodeVlqU, encodeVlqU, readVlqU32 } from './vlq.ts';
 import { blake2b256 } from './crypto/blake2b256.ts';
 import { readFixed, writeFixed, BLOCK_ID_LEN, DIGEST32_LEN, AD_DIGEST_LEN } from './digests.ts';
 import { parseAutolykosSolution, serializeAutolykosSolution } from './autolykos-solution.ts';
-import type { AutolykosSolution } from './autolykos-solution.ts';
+import type { AutolykosSolution, ValidatePointFn } from './autolykos-solution.ts';
 import { ReaderError } from './errors.ts';
 
 const VOTES_LEN = 3;
@@ -65,8 +65,15 @@ export interface Header {
 /**
  * Parse a Header from the reader.
  * The `id` field is derived by hashing all serialized bytes (not read from wire).
+ *
+ * `opts.validatePoint`, when given, is threaded through to
+ * {@link parseAutolykosSolution} and applied right after each header point
+ * (`minerPk`, and v1's `powOnetimePk`) is read — matching the JVM, which
+ * decodes each point through `GroupElementSerializer.parse` as it reads it
+ * (`ErgoHeader.scala:73-74, 90`). Omitted by callers that want the raw wire
+ * bytes unvalidated (e.g. `@ergots/nipopow`).
  */
-export function parseHeader(reader: ByteReader): Header {
+export function parseHeader(reader: ByteReader, opts: { validatePoint?: ValidatePointFn } = {}): Header {
   const start = reader.position;
   const version = reader.readU8();
 
@@ -120,7 +127,7 @@ export function parseHeader(reader: ByteReader): Header {
 
   // AutolykosSolution: pass version so the parser can handle both v1 and v2.
   // v1 has additional pow_onetime_pk and pow_distance fields on the wire.
-  const autolykosSolution = parseAutolykosSolution(reader, version);
+  const autolykosSolution = parseAutolykosSolution(reader, version, opts.validatePoint);
   const end = reader.position;
 
   // Derive ID: blake2b256 of the full serialized bytes

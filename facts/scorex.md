@@ -258,7 +258,13 @@ export interface Header {
 }
 
 // Parse a Header from a ByteReader. Derives id in-process; does NOT read id from wire.
-export function parseHeader(reader: ByteReader): Header
+// `opts.validatePoint`, when given, threads through to `parseAutolykosSolution` and is
+// applied right after each header point (`minerPk`, and v1's `powOnetimePk`) is read —
+// matching the JVM, which decodes each point via `GroupElementSerializer.parse` as it
+// reads it (`ErgoHeader.scala:73-74, 90`), so a bad point fails before the next read
+// instead of after the whole solution is parsed. Omitted by callers that want the raw
+// wire bytes unvalidated (`@ergots/nipopow`, `@ergots/transaction`'s test fixtures).
+export function parseHeader(reader: ByteReader, opts?: { validatePoint?: ValidatePointFn }): Header
 
 // Serialize a Header to its canonical wire representation.
 // The id field is NOT included in the output (it is derived, not stored on wire).
@@ -279,7 +285,13 @@ export function serializeHeaderWithoutPow(header: Header): Uint8Array
 export function deriveHeaderId(header: Header): Uint8Array  // 32 bytes
 
 // Parse / serialize AutolykosSolution (version determines v1 vs v2 wire layout).
-export function parseAutolykosSolution(reader: ByteReader, version: number): AutolykosSolution
+// `validatePoint`, when given, is called with each point's raw 33 bytes right after it is
+// read (`minerPk` always; v1's `powOnetimePk` too) and must return the bytes to store —
+// letting a caller curve-validate/normalize a point before the next field is read (JVM
+// `GroupElementSerializer.parse`, `ErgoHeader.scala:73-74, 90`). Omitted: bytes pass through
+// unvalidated.
+export type ValidatePointFn = (bytes: Uint8Array, field: 'minerPk' | 'powOnetimePk') => Uint8Array
+export function parseAutolykosSolution(reader: ByteReader, version: number, validatePoint?: ValidatePointFn): AutolykosSolution
 export function serializeAutolykosSolution(s: AutolykosSolution, version: number): Uint8Array
 
 // ─── Autolykos v2 PoW verifier ───────────────────────────────────────────────
@@ -350,10 +362,10 @@ Callers may rely on these without re-checking after any value returned from the 
 
 **`AutolykosSolution`:**
 
-- `minerPk` is exactly 33 bytes (compressed secp256k1 point).
+- `minerPk` is exactly 33 bytes (compressed secp256k1 point). `powOnetimePk`, when present (see below), is also exactly 33 bytes. Neither is curve-validated by `parseAutolykosSolution` itself unless the caller passes `validatePoint` — `@ergots/ergoscript`'s SHeader arm does (see `facts/ergoscript-wire.md` "Count bounds inside a tree"); `@ergots/nipopow` and `@ergots/transaction` do not, and receive the raw wire bytes. When `validatePoint` IS given, it runs right after each point is read — before the next field — mirroring the JVM's `GroupElementSerializer.parse` call at each point's read site (`ErgoHeader.scala:73-74, 90`), so a bad point rejects before a subsequent read can trip the enclosing tree's 4096-byte window (rule 1014) first.
 - `powOnetimePk` is `null` for version >= 2 headers; exactly 33 bytes for version 1 headers.
 - `nonce` is exactly 8 bytes.
-- `powDistance` is `null` for version >= 2 headers; a non-negative `bigint` for version 1 headers (minimal big-endian encoding from the `d_len` + `d_bytes` wire representation). `powDistance === 0n` corresponds to `d_len === 1, d_bytes === [0x00]` on the wire (matching sigma-rust's `BigUint::to_bytes_be()` which returns `[0]` for zero). For backwards compatibility the parser also accepts `d_len === 0` and produces `powDistance === 0n`, but the writer always emits the `d_len=1` form. Rejected with `ReaderError('value-out-of-range')` when `≥ 2²⁵⁵` (`bitLength > 255`), mirroring the JVM `BigIntegers.fromUnsignedByteArray(...).toSignedBigIntValueExact` / `fitsIn256Bits` (`ErgoHeader.scala:77`, `Extensions.scala:199-223`). This keeps the value within the signed-256 invariant every other BigInt producer enforces.
+- `powDistance` is `null` for version >= 2 headers; a non-negative `bigint` for version 1 headers (minimal big-endian encoding from the `d_len` + `d_bytes` wire representation). `powDistance === 0n` corresponds to `d_len === 1, d_bytes === [0x00]` on the wire (matching sigma-rust's `BigUint::to_bytes_be()` which returns `[0]` for zero) as well as to `d_len === 0` (empty `d_bytes`), but the writer always emits the `d_len=1` form. The `d_len` byte is followed by an UNCONDITIONAL `readFixed(reader, dLen, 'powDistance')` — even when `dLen === 0` — because the JVM's `sigmaSerializerV1.parse` calls `r.getBytes(dBytesLength)` unconditionally (`ErgoHeader.scala:76-77`); `getBytes`/`readBytes` run the read-window entry check (rule 1014) before looking at the length, so a `dLen === 0` solution sitting exactly at a window boundary still trips the check the way the JVM does — skipping the read for a zero length (the pre-2026-09-28 behaviour) silently skipped that check. Rejected with `ReaderError('value-out-of-range')` when `≥ 2²⁵⁵` (`bitLength > 255`), mirroring the JVM `BigIntegers.fromUnsignedByteArray(...).toSignedBigIntValueExact` / `fitsIn256Bits` (`ErgoHeader.scala:77`, `Extensions.scala:199-223`). This keeps the value within the signed-256 invariant every other BigInt producer enforces.
 
 **VLQ:**
 

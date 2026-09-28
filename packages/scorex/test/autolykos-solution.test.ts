@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -47,4 +47,13 @@ describe('AutolykosSolution', () => {
       expect((e as ReaderError).code).toBe('truncated');
     }
   });
+
+  it('a v1 d length of 0 still runs getBytes (the window check), ErgoHeader.scala:76-77', () => {
+    const bytes = new Uint8Array(33 + 33 + 8 + 1)   // minerPk, powOnetimePk, nonce, dLen = 0
+    const r = new ByteReader(bytes)
+    r.positionLimit = 74                            // after dLen the position is 75
+    let code: string | undefined
+    try { parseAutolykosSolution(r, 1) } catch (e) { code = (e as { code?: string }).code }
+    expect(code).toBe('position-limit-exceeded')
+  })
 });
