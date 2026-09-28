@@ -16,8 +16,8 @@
  * when a soft-forkable failure degrades it to an `UnparsedErgoTree` (see `parseTreeFromReader`).
  * `serializeTree` writes the size of the constants and body it writes.
  *
- * `parseTree` rejects bytes after the tree beyond a size-flagged tree's declared span (the
- * ERG-02 requirement). Reserved/undispatched opcodes parse-reject via `'opcode-reserved'`
+ * `parseTree` rejects any byte after an unsized tree, and any beyond a size-flagged tree's
+ * declared span (the ERG-02 requirement). Reserved/undispatched opcodes parse-reject via `'opcode-reserved'`
  * (mirroring the JVM `CheckValidOpCode` path for most of them; JVM 6.0.6 parses
  * OpTrue/OpFalse/ModQ×3, a known residual), and corpus trees round-trip end-to-end.
  *
@@ -27,7 +27,7 @@
  */
 
 import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
-import { isUnparsedTree } from '../mir/types'
+import { isUnparsedTree, SANY_DECLARED } from '../mir/types'
 import { exprTpe, ExprTpeError } from '../mir/expr-tpe'
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
@@ -59,7 +59,7 @@ const HAS_SIZE_FLAG = 0x08
 const CONSTANT_SEGREGATION_FLAG = 0x10
 const VERSION_MASK = 0x07
 
-/** sigma-rust's cap (`ergo_tree.rs:245`), left only for substituteConstantsBytes' count read, which Task 9 replaces with the JVM's. */
+/** sigma-rust's cap (`ergo_tree.rs:245`). Only substituteConstantsBytes' count block still uses it; the tree parse reads the count as the JVM does. */
 const MAX_CONSTANTS_COUNT = 4096
 
 export class ErgoTreeParseError extends Error {
@@ -171,8 +171,15 @@ function checkRootIsSigmaProp(body: Expr): void {
     }
     throw err
   }
-  // SAny passes: residual 1 (the method catalog), facts/ergoscript-wire.md.
-  if (tpe.tag === 'SSigmaProp' || tpe.tag === 'SAny') return
+  if (tpe.tag === 'SSigmaProp') return
+  // A declared SAny (type code 97, carried through exprTpe as one object) fails, as the JVM fails a
+  // root typed SAny (isSigmaProp is isInstanceOf[SSigmaProp.type], core/.../sigma/ast/package.scala:121).
+  if (tpe === SANY_DECLARED) {
+    throw new ErgoTreeParseError('root types as the declared SAny, not SigmaProp (rule 1001)', 'root-not-sigma-prop')
+  }
+  // ergots' own SAny, for a type it cannot compute, passes: residual 1 (the method catalog),
+  // facts/ergoscript-wire.md.
+  if (tpe.tag === 'SAny') return
   throw new ErgoTreeParseError(`root types as ${tpe.tag}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
 }
 
@@ -231,7 +238,8 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
     return { header, constantTypes, constants, body }
   } catch (err) {
     if (!isSoftForkableParseError(err)) {
-      // A read that ran out inside a nested tree: ambiguous for a standalone re-parse (Task 8).
+      // A read that ran out inside a nested tree: ambiguous for a standalone re-parse, so it is
+      // marked for boxTreeOf's miss rule (spec 2026-09-28 §8).
       if (depth > 1 && err instanceof ReaderError && err.code === 'truncated') {
         throw new ErgoTreeParseError('a nested tree ran out of input', 'nested-tree-truncated', { cause: err })
       }

@@ -121,11 +121,9 @@ describe('ErgoTree envelope', () => {
         throw new Error('expected throw')
       } catch (e) {
         expect(e).toBeInstanceOf(ErgoTreeSerializeError)
-        // 100001 two-byte SBoolean constants stay under MAX_TREE_SIZE, so
-        // 'too-many-constants' fires; either code keeps the serializer from
-        // writing a constants count the parse refuses.
-        const code = (e as ErgoTreeSerializeError).code
-        expect(['oversized', 'too-many-constants']).toContain(code)
+        // 100001 two-byte SBoolean constants (about 200 KB) stay under MAX_TREE_SIZE,
+        // so 'oversized' cannot fire: the constants bound is what rejects.
+        expect((e as ErgoTreeSerializeError).code).toBe('too-many-constants')
       }
     })
 

@@ -63,6 +63,35 @@ describe('the degrade uses the declared size', () => {
   it('a size above u32 is rejected before the body (getUInt)', () => {
     expect(codeOf(() => parseTreeFromReader(new ByteReader(hex('09808080801008d3'))))).toBe('vlq-overflow')
   })
+  it('a span longer than the 4096-byte window is re-read whole (getBytes checks once, on entry)', () => {
+    // 08, declared 5000, body fd (a soft-fork failure), then 4999 more bytes. The span
+    // [0, 3 + 5000) is re-read from the tree's start by one readBytes, whose single window check
+    // (at 0) passes, as the JVM's getBytes checks only on entry (CoreByteReader.scala:85-88).
+    const bytes = Uint8Array.from([0x08, ...vlq(5000), 0xfd, ...new Array(4999).fill(0)])
+    const r = new ByteReader(bytes)
+    r.positionLimit = 777777
+    const t = parseTreeFromReader(r)
+    expect(isUnparsedTree(t)).toBe(true)
+    if (isUnparsedTree(t)) expect(t.unparsedBytes.length).toBe(5003)
+    expect(r.position).toBe(5003)
+    expect(r.positionLimit).toBe(777777)
+  })
+  it('a negative declared size whose span is still >= 0 re-reads that span (ending inside the size VLQ)', () => {
+    // Declared -2 (fe ff ff ff 0f): numBytes = 6 - 2 = 4, the header and three bytes of the size
+    // VLQ. The JVM's getBytes reads them from startPos, and the degraded ErgoTree (DefaultHeader,
+    // no constants) passes its constructor's two requires (ErgoTree.scala:102, 104).
+    const r1 = new ByteReader(hex('09feffffff0ffd0000'))
+    const t1 = parseTreeFromReader(r1)
+    expect(isUnparsedTree(t1)).toBe(true)
+    if (isUnparsedTree(t1)) expect(Array.from(t1.unparsedBytes)).toEqual([0x09, 0xfe, 0xff, 0xff])
+    expect(r1.position).toBe(4)
+    // Declared -6: numBytes = 0, an empty span, and the cursor back at the tree's start.
+    const r2 = new ByteReader(hex('09faffffff0ffd0000'))
+    const t2 = parseTreeFromReader(r2)
+    expect(isUnparsedTree(t2)).toBe(true)
+    if (isUnparsedTree(t2)) expect(t2.unparsedBytes.length).toBe(0)
+    expect(r2.position).toBe(0)
+  })
 })
 
 describe('unsized trees, nested trees, and the degrade set', () => {

@@ -131,14 +131,14 @@ export class ByteReader {
 
   /**
    * Fork a sub-reader over `bytes` that INHERITS this reader's current
-   * recursion depth and cap. Used by parsers that read a size-prefixed inner
-   * region into a bounded buffer (ergots' `hasSize=true` ErgoTree body): the
-   * JVM keeps reading such a region on the SAME reader via `positionLimit`
-   * (`ErgoTreeSerializer.scala:143-211`), so its `level` persists across the
-   * size boundary. A naive `new ByteReader(slice)` would reset level to 0 and
-   * under-count depth. The level flows INTO the fork only: a caller that goes on
-   * reading the parent must carry the fork's final level back (levels a caught
-   * error left inside the region), as ergoscript's `parseTreeFromReader` does.
+   * recursion depth and cap, for a parser that reads an inner region from its
+   * own buffer yet must keep counting depth: a naive `new ByteReader(slice)`
+   * would reset level to 0 and under-count depth. It stays public, but
+   * `@ergots/ergoscript` no longer uses it: it parses a size-flagged ErgoTree
+   * body on the reader the tree arrives on, as the JVM does
+   * (`ErgoTreeSerializer.scala:141-215`). The level flows INTO the fork only: a
+   * caller that goes on reading the parent must carry the fork's final level
+   * back itself (levels a caught error left inside the region).
    *
    * Does NOT inherit `positionLimit`: the fork's buffer is rebased to offset 0,
    * so the parent's absolute-offset limit would be meaningless over it — the

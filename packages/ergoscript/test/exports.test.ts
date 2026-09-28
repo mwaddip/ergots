@@ -60,8 +60,9 @@ describe('@ergots/ergoscript public error-class surface', () => {
     // it with ExprParseError('fun-def-tpe-args-out-of-range'), a hard reject (the JVM's
     // signed getByte into safeNewArray, ValDefSerializer.scala:38-39), so it surfaces
     // unwrapped. (A soft-forkable reject in a tree without the size bit, e.g. the bare
-    // reserved opcode OpTrue, surfaces as ErgoTreeParseError('soft-fork-without-size-bit')
-    // with the ExprParseError as its cause, as the JVM wraps it; ErgoTreeSerializer.scala:204-207.)
+    // opcode 0xfd, CollRotateRight, which fails the JVM's CheckValidOpCode (rule 1002), surfaces
+    // as ErgoTreeParseError('soft-fork-without-size-bit') with the ExprParseError as its cause,
+    // as the JVM wraps it; ErgoTreeSerializer.scala:204-207.)
     let caught: unknown
     try {
       parseTree(new Uint8Array([0x00, 0xd7, 0x01, 0x80]))

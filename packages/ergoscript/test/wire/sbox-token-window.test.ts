@@ -203,7 +203,10 @@ describe('SBox 4096-byte candidate window (parse)', () => {
     // + regCount(1) = 4207 > 4096
     expect(candidateLength).toBe(4207)
 
-    expectPositionLimit(() => parseBox(bytes))
+    // The reject is the creationHeight read at 4204, not a window trip at the re-read.
+    const err = expectPositionLimit(() => parseBox(bytes))
+    expect(err.message).toContain('position limit 4096')
+    expect(err.message).toContain('position 4204')
   })
 
   // (c) Fat-trailing ACCEPT — the lazy pin (SANTA destobox-fat-trailing-accept):

@@ -213,9 +213,11 @@ Rule 1001 uses `exprTpe(root)`, with one JVM-faithful change to its `Apply` arm:
 
 The rule then reads:
 - `SSigmaProp` passes.
-- `SAny` passes (residual 1).
-- Any other type, or `'apply-func-no-type'`, throws `'root-not-sigma-prop'`.
+- ergots' own `SAny`, for a type it cannot compute (an unregistered method's return), passes (residual 1).
+- Any other type, or `'apply-func-no-type'`, throws `'root-not-sigma-prop'`. That includes a declared `SAny` (type code 97), as in the JVM, whose rule requires `isInstanceOf[SSigmaProp.type]` (`core/.../sigma/ast/package.scala:121`).
 - Any other `ExprTpeError` propagates as a hard reject. The JVM throws for those shapes while building the node.
+
+The two `SAny`s are told apart by identity (added after review, 2026-09-28). `parseSType` returns one frozen object, `SANY_DECLARED`, for type code 97; nodes keep the types they parse as received; and `exprTpe` returns an `SAny` input as the same object. ergots' own `SAny` is always a fresh object.
 
 `ExprTpeError` is exported so callers can classify it. The evaluator also calls `exprTpe`, in eight places. For those callers the collection case is also the JVM's type, and a non-function still throws.
 
@@ -368,7 +370,7 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
 
 ## Residuals (documented, not closed)
 
-1. **The method catalog.** `exprTpe` knows the result type of about 76 typeId/methodId pairs (28 explicit, 48 numeric), and the parser accepts any pair (`wire/mir/property-call.ts:59-74`). Rule 1001 therefore passes any root whose type falls back to `SAny`, for example `00 db 65 01 fe`, whose root is `CONTEXT.dataInputs`.
+1. **The method catalog.** `exprTpe` knows the result type of about 76 typeId/methodId pairs (28 explicit, 48 numeric), and the parser accepts any pair (`wire/mir/property-call.ts:59-74`). Rule 1001 therefore passes any root whose type falls back to ergots' own `SAny`, for example `00 db 65 01 fe`, whose root is `CONTEXT.dataInputs`. A declared `SAny` (type code 97) is not covered: it fails the rule, as in the JVM (§4).
    - For an unsized tree, ergots accepts a box the JVM rejects.
    - For a sized tree with a wrong declared size, the two continue the box at different bytes.
 

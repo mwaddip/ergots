@@ -67,9 +67,11 @@ export function exprTpe(e: Expr): SType {
       // JVM Apply.tpe (sigma/ast/values.scala:1247-1251): SFunc → its range; a collection
       // (SCollectionType) → its element type; anything else → NoType. STuple extends the
       // SCollection trait but is not an SCollectionType (SType.scala:838), so it is NoType.
-      // An SAny func cascades to SAny (unresolved method returns; see the ByIndex arm).
+      // An SAny func cascades as the same object (see the ByIndex arm): ergots' own SAny for an
+      // unresolved method return stays itself, and a declared SAny stays SANY_DECLARED
+      // (mir/types.ts), which rule 1001 fails as the JVM fails this Apply's NoType.
       const ft = exprTpe(e.func)
-      if (ft.tag === 'SAny') return { tag: 'SAny' }
+      if (ft.tag === 'SAny') return ft
       if (ft.tag === 'SFunc') return ft.result
       if (ft.tag === 'SColl') return ft.elem
       throw new ExprTpeError(
@@ -88,9 +90,11 @@ export function exprTpe(e: Expr): SType {
       // `INPUTS(0).<property>(<index>)` — the bytes still serialize back
       // identically because the val-def store is consulted only for ValUse
       // and the resulting `SAny` value flows opaquely through the AST.
+      // The SAny is returned as the same object, so a declared SAny stays
+      // SANY_DECLARED (mir/types.ts) for rule 1001; every cascade arm below does the same.
       const it = exprTpe(e.input)
       if (it.tag === 'SAny') {
-        return { tag: 'SAny' }
+        return it
       }
       if (it.tag !== 'SColl') {
         throw new ExprTpeError(
@@ -125,7 +129,7 @@ export function exprTpe(e: Expr): SType {
       // SAny relaxation matches the ByIndex arm above (PropertyCall cascade).
       const it = exprTpe(e.input)
       if (it.tag === 'SAny') {
-        return { tag: 'SAny' }
+        return it
       }
       if (it.tag !== 'SOption') {
         throw new ExprTpeError(
@@ -158,7 +162,7 @@ export function exprTpe(e: Expr): SType {
       // SAny relaxation matches the ByIndex arm (PropertyCall cascade).
       const it = exprTpe(e.input)
       if (it.tag === 'SAny') {
-        return { tag: 'SAny' }
+        return it
       }
       if (it.tag !== 'STuple') {
         throw new ExprTpeError(
@@ -372,7 +376,7 @@ export function exprTpe(e: Expr): SType {
       // the binding.
       const mt = exprTpe(e.mapper)
       if (mt.tag === 'SAny') {
-        return { tag: 'SAny' }
+        return mt
       }
       if (mt.tag !== 'SFunc') {
         throw new ExprTpeError(
@@ -417,7 +421,7 @@ export function exprTpe(e: Expr): SType {
       // relaxation (PropertyCall cascade).
       const it = exprTpe(e.input)
       if (it.tag === 'SAny') {
-        return { tag: 'SAny' }
+        return it
       }
       if (it.tag !== 'SOption') {
         throw new ExprTpeError(

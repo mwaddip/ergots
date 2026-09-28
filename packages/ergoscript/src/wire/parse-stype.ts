@@ -16,6 +16,7 @@
  */
 
 import type { SType, STypeVar } from '../mir/types'
+import { SANY_DECLARED } from '../mir/types'
 import { ByteReader } from '@ergots/scorex'
 import { decodeUtf8Lossy } from './_utf8'
 
@@ -238,7 +239,9 @@ function parseHighTypeCode(r: ByteReader, c: number): SType {
       return { tag: 'STuple', items }
     }
     case TYPE_CODE_SANY:
-      return { tag: 'SAny' }
+      // The one declared-SAny object (JVM TypeSerializer.scala:196): rule 1001 tells it from
+      // ergots' own SAny, for a type it cannot compute, by identity (mir/types.ts).
+      return SANY_DECLARED
     case TYPE_CODE_SUNIT:
       return { tag: 'SUnit' }
     case TYPE_CODE_SBOX:
