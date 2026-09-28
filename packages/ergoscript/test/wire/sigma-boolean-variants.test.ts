@@ -197,3 +197,53 @@ describe('SigmaBoolean leaf EC points — GE canonical-bytes invariant (F5 batch
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// Task 4B (2026-09-28) — CTHRESHOLD's k and n checks move to where the JVM
+// makes them (SigmaBoolean.scala:94-100, the AtLeastCode parse arm; :220-224,
+// the CTHRESHOLD case class's `require`). The JVM reads k, then n, each a
+// getUShort (hard above 0xFFFF as it is read); only THEN does it read the n
+// children; only after that does `CTHRESHOLD(k, children)`'s constructor run
+// its require(k >= 0 && k <= children.length && children.length <= 255).
+// ---------------------------------------------------------------------------
+
+describe('CTHRESHOLD in the JVM order (SigmaBoolean.scala:94-100, :223)', () => {
+  const codeOf = (bytes: number[]) => { try { parseSigmaBoolean(new ByteReader(Uint8Array.from(bytes))); return 'no-throw' } catch (e) { return (e as { code?: string }).code } }
+  const codeOfWindowed = (bytes: number[], positionLimit: number) => {
+    const r = new ByteReader(Uint8Array.from(bytes))
+    r.positionLimit = positionLimit
+    try { parseSigmaBoolean(r); return 'no-throw' } catch (e) { return (e as { code?: string }).code }
+  }
+  it('k above 0xFFFF rejects before n is read', () => {
+    expect(codeOf([0x98, 0x80, 0x80, 0x04])).toBe('cthreshold-k-out-of-range')   // k = 0x10000, nothing after
+  })
+  it('k > n is checked after the children', () => {
+    expect(codeOf([0x98, 0x02, 0x01])).toBe('truncated')   // k=2 n=1, the child read runs out first
+  })
+  it('more than 255 children rejects after the children', () => {
+    expect(codeOf([0x98, 0x01, 0x80, 0x02, ...new Array(256).fill(0xd3)])).toBe('arity-out-of-range')
+  })
+
+  // Ruling (task-4B, "Context the brief cannot know", 2026-09-28): ergots' own
+  // stricter-than-JVM k < 1 check is placed AFTER the children are read, not
+  // before. The JVM's own require (k >= 0 …) already runs only after the
+  // children (the require lives in the CTHRESHOLD constructor, called with the
+  // already-read children array); placing ergots' extra, stricter check any
+  // earlier would let a hard k-reject pre-empt a window error a child read
+  // would otherwise hit first — turning a rule-1014 degrade (that the JVM
+  // takes) into a hard ergots-only reject, which widens the tracked k=0
+  // divergence into sized-tree window cases too. Bytes: opcode(0x98) k=0x00
+  // n=0x01 child-opcode=0xd3, with positionLimit=2 so the child's opcode read
+  // (at position 3) begins past the window.
+  it('k = 0 with a child past the window hits the window error, not the stricter-than-JVM k check', () => {
+    expect(codeOfWindowed([0x98, 0x00, 0x01, 0xd3], 2)).toBe('position-limit-exceeded')
+  })
+
+  // Companion: the same bytes with no window reach ergots' own stricter verdict.
+  // The JVM itself accepts k=0 outright (`require(k >= 0 …)`); this reject is a
+  // tracked follow-up (verifier semantics for empty/trivial conjectures), not a
+  // JVM-mirrored one.
+  it('the same k=0 bytes with no window give the stricter-than-JVM cthreshold-k-out-of-range', () => {
+    expect(codeOf([0x98, 0x00, 0x01, 0xd3])).toBe('cthreshold-k-out-of-range')
+  })
+})
