@@ -8,13 +8,15 @@
 // own SAny, a fresh object its method typing makes (residual 1), keeps passing rule 1001.
 import { describe, it, expect } from 'vitest'
 import { ByteReader } from '@ergots/scorex'
-import { parseTree, parseErgoTreeBytes, parseTreeFromReader } from '../../src/wire/ergo-tree'
+import { parseTree, parseErgoTreeBytes, parseTreeFromReader, serializeTree } from '../../src/wire/ergo-tree'
+import { boxTreeOf } from '../../src/wire/box-tree'
 import { parseSType } from '../../src/wire/parse-stype'
 import { exprTpe } from '../../src/mir/expr-tpe'
 import { isUnparsedTree, SANY_JVM } from '../../src/mir/types'
 import type { Expr } from '../../src/mir/types'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
+const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
 const errOf = (f: () => unknown): unknown => { try { f(); return undefined } catch (e) { return e } }
 
 // OptionGet(GetVar(1, SAny)): e4 OptionGet, e3 GetVar, id 01, type 61 (97, SAny)
@@ -118,5 +120,83 @@ describe("ergots' own SAny still passes rule 1001 (residual 1)", () => {
       expect(tpe).toEqual({ tag: 'SAny' })
       expect(tpe).not.toBe(SANY_JVM)
     }
+  })
+})
+
+// ByIndex over a tuple. STuple extends SCollection[SAny] with elemType = SAny
+// (core/.../sigma/ast/SType.scala:838-841), and ByIndex.tpe = input.tpe.elemType
+// (sigma/ast/transformers.scala:254), so the JVM types the node as its SAny, the same object as
+// type code 97, and rule 1001 fails a root typed through it. Every expectation below is the verdict
+// and the re-encoding of a live sigma-state 6.0.6 probe (deserializeErgoTree under
+// VersionContext(3, 3), then serializeErgoTree).
+// ByIndex(Tuple(Int 0, Int 0), Int 0, None): b2, the tuple 86 02 04 00 04 00, the index 04 00, 00.
+const BY_INDEX_TUPLE = 'b2860204000400040000'
+
+/** The box-rules parse of `h`, on one reader, with the cursor after it. */
+const boxRules = (h: string) => {
+  const r = new ByteReader(hex(h))
+  const tree = parseTreeFromReader(r, { checkType: true })
+  return { tree, position: r.position }
+}
+
+describe("rule 1001 fails a root typed through ByIndex over a tuple, the JVM's SAny", () => {
+  it('exprTpe of ByIndex over a tuple is SANY_JVM', () => {
+    const t = parseTree(hex('00' + BY_INDEX_TUPLE))
+    if (isUnparsedTree(t)) throw new Error('expected a parsed tree')
+    expect(exprTpe(t.body)).toBe(SANY_JVM)
+  })
+  // JVM: Unparsed (rule 1001), re-encoded as received.
+  for (const [name, h] of [
+    ['a sized root ByIndex(tuple)', '080a' + BY_INDEX_TUPLE],
+    ['a sized If(true, ByIndex(tuple), sigmaProp(true))', '080f950101' + BY_INDEX_TUPLE + '08d3'],
+    ['a sized root ByIndex over a tuple constant', '080ab2600204040000040000'],
+    ['a sized root ByIndex(tuple) with a default', '080cb28602040004000400010400'],
+    ['a sized root ValUse of a val bound to ByIndex(tuple)', '0810d801d601' + BY_INDEX_TUPLE + '7201'],
+  ] as const) {
+    it(`${name} degrades under the box rules, to its declared span`, () => {
+      const { tree, position } = boxRules(h)
+      expect(isUnparsedTree(tree)).toBe(true)
+      if (isUnparsedTree(tree)) expect(tree.error).toMatchObject({ code: 'root-not-sigma-prop' })
+      expect(position).toBe(h.length / 2)
+      expect(toHex(serializeTree(tree))).toBe(h)
+    })
+  }
+  it('an unsized root ByIndex(tuple) rejects under the box rules (the JVM SerializerException)', () => {
+    const err = errOf(() => parseErgoTreeBytes(new ByteReader(hex('00' + BY_INDEX_TUPLE))))
+    expect(err).toMatchObject({ code: 'soft-fork-without-size-bit' })
+    expect((err as Error).cause).toMatchObject({ code: 'root-not-sigma-prop' })
+  })
+  it('the lenient parse accepts an unsized root ByIndex(tuple), as the JVM checkType = false', () => {
+    expect(isUnparsedTree(parseTree(hex('00' + BY_INDEX_TUPLE)))).toBe(false)
+  })
+  // JVM: Parsed, re-encoded as received. The ValDef's type is the rhs's, the JVM's SAny
+  // (ValDef.tpe = rhs.tpe), which the result, a SigmaProp constant, does not use.
+  for (const [name, h] of [
+    ['a sized tree with a ValDef whose rhs is ByIndex(tuple)', '0810d801d601' + BY_INDEX_TUPLE + '08d3'],
+    ['an unsized tree with a ValDef whose rhs is ByIndex(tuple)', '00d801d601' + BY_INDEX_TUPLE + '08d3'],
+  ] as const) {
+    it(`${name} parses under the box rules and re-encodes as received`, () => {
+      const { tree, position } = boxRules(h)
+      expect(isUnparsedTree(tree)).toBe(false)
+      expect(position).toBe(h.length / 2)
+      expect(toHex(serializeTree(tree))).toBe(h)
+    })
+  }
+  it("a nested Box's sized tree rooted at ByIndex(tuple) degrades, and the enclosing tree parses", () => {
+    // T: header 0x18 (sized, segregated), one SBox constant whose tree is the sized ByIndex(tuple)
+    // root, then BoolToSigmaProp(GT(ExtractAmount(placeholder 0), Long 0)). JVM: T Parsed, re-encoded
+    // as received (the nested tree re-encodes to its raw bytes).
+    const nestedTree = '080a' + BY_INDEX_TUPLE
+    const box = '01' + nestedTree + '000000' + '11'.repeat(32) + '00'
+    const inner = '0163' + box + 'd191c173000500'
+    const t = '18' + (inner.length / 2).toString(16) + inner
+    const { tree } = boxRules(t)
+    if (isUnparsedTree(tree)) throw new Error('expected the enclosing tree to parse')
+    const nested = tree.constants[0]
+    if (nested?.kind !== 'Box') throw new Error('expected a Box constant')
+    const nestedBoxTree = boxTreeOf(nested.value.ergoTreeBytes)
+    expect(isUnparsedTree(nestedBoxTree)).toBe(true)
+    if (isUnparsedTree(nestedBoxTree)) expect(nestedBoxTree.error).toMatchObject({ code: 'root-not-sigma-prop' })
+    expect(toHex(serializeTree(tree))).toBe(t)
   })
 })

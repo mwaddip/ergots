@@ -187,8 +187,9 @@ function checkRootIsSigmaProp(body: Expr): void {
     throw err
   }
   if (tpe.tag === 'SSigmaProp') return
-  // The JVM's SAny (type code 97; one object, carried through exprTpe) fails, as the JVM fails a
-  // root typed SAny (isSigmaProp is isInstanceOf[SSigmaProp.type], core/.../sigma/ast/package.scala:121).
+  // The JVM's SAny (type code 97, or a tuple's element type; one object, carried through exprTpe)
+  // fails, as the JVM fails a root typed SAny (isSigmaProp is isInstanceOf[SSigmaProp.type],
+  // core/.../sigma/ast/package.scala:121).
   if (tpe === SANY_JVM) {
     throw new ErgoTreeParseError("root types as the JVM's SAny, not SigmaProp (rule 1001)", 'root-not-sigma-prop')
   }

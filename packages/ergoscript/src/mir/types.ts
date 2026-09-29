@@ -58,9 +58,13 @@ export type SType =
   | { tag: 'STypeVar'; name: string }
 
 /**
- * The JVM's `SAny`: an `SAny` the JVM itself computes, which rule 1001 fails. Its origin is type
- * code 97 on the wire (JVM `TypeSerializer.scala:196`), which `parseSType` returns as this object,
- * and `exprTpe` passes it through unchanged.
+ * The JVM's `SAny`: an `SAny` the JVM itself computes, which rule 1001 fails. It has two origins,
+ * and `exprTpe` passes it through unchanged from either:
+ *   - type code 97 on the wire (JVM `TypeSerializer.scala:196`), which `parseSType` returns as this
+ *     object;
+ *   - a tuple's element type: `STuple` extends `SCollection[SAny]` with `elemType = SAny`
+ *     (core/.../sigma/ast/SType.scala:838-841), so `exprTpe` types `ByIndex` over a tuple as this
+ *     object (`ByIndex.tpe = input.tpe.elemType`, sigma/ast/transformers.scala:254).
  * It is told apart by identity from ergots' own `SAny`, a fresh object that ergots' method typing
  * makes (residual 1: an unregistered method's return, a result type variable left unbound, a
  * tuple's element type met by unification). Rule 1001 fails a root typed as this object, as the

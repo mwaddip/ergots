@@ -21,6 +21,7 @@
  */
 
 import type { Expr, SType, STypeVar } from './types'
+import { SANY_JVM } from './types'
 import { methodSignature, resolveReturnTpe } from './method-signatures'
 
 export class ExprTpeError extends Error {
@@ -80,21 +81,22 @@ export function exprTpe(e: Expr): SType {
       )
     }
     case 'ByIndex': {
-      // sigma-rust `mir/coll_by_index.rs::ByIndex::tpe` (line 70-72): the type
-      // is the element type of the input collection. Input must be `SColl(T)`.
+      // JVM ByIndex.tpe = input.tpe.elemType (sigma/ast/transformers.scala:254): the element type
+      // of the input collection. A tuple is one too: STuple extends SCollection[SAny] with
+      // elemType = SAny (core/.../sigma/ast/SType.scala:838-841), so ByIndex over a tuple types as
+      // the JVM's SAny, SANY_JVM (mir/types.ts), which rule 1001 fails.
       //
-      // Phase 2a relaxation: if the input's tpe is `SAny` (which today means
-      // it cascaded from a `PropertyCall` placeholder while the SMethod
-      // resolver is unavailable), return `SAny` as well rather than throwing.
-      // This keeps round-trip parsing working for corpus trees that chain
-      // `INPUTS(0).<property>(<index>)` — the bytes still serialize back
-      // identically because the val-def store is consulted only for ValUse
-      // and the resulting `SAny` value flows opaquely through the AST.
-      // The SAny is returned as the same object, so the JVM's SAny stays
-      // SANY_JVM (mir/types.ts) for rule 1001; every cascade arm below does the same.
+      // An SAny input returns that SAny as well rather than throwing, so a tree that chains
+      // `INPUTS(0).<property>(<index>)` over a method ergots cannot type still parses (residual 1).
+      // The SAny is returned as the same object, so SANY_JVM stays SANY_JVM for rule 1001; every
+      // cascade arm below does the same. (The JVM throws while building ByIndex over an SAny input,
+      // a node-construction check ergots does not make at parse.)
       const it = exprTpe(e.input)
       if (it.tag === 'SAny') {
         return it
+      }
+      if (it.tag === 'STuple') {
+        return SANY_JVM
       }
       if (it.tag !== 'SColl') {
         throw new ExprTpeError(
