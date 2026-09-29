@@ -18,6 +18,7 @@ import { deleteHelper } from './delete.js'
 import { I64_MAX, I64_MIN, type Operation } from './operation.js'
 import { AvlVerifyError } from './errors.js'
 import { compareBytes } from './compare-bytes.js'
+import { neighborLookupOf, type NeighborLookup, type NeighborLookupResult } from './neighbors.js'
 
 // ---------------------------------------------------------------------------
 // Token constants for packed proof format (batch_node.rs:14-16 @568e7c3)
@@ -37,7 +38,7 @@ export type ProverOperationResult =
   | { success: false }
 
 /** The public proof-cycle entry points that honor the fail-stop (P3). */
-type CycleMethod = 'performOneOperation' | 'generateProof' | 'removedNodes'
+type CycleMethod = 'performOneOperation' | 'performLookupWithNeighbors' | 'generateProof' | 'removedNodes'
 
 // ---------------------------------------------------------------------------
 // BatchAVLProver
@@ -95,7 +96,9 @@ export class BatchAVLProver {
   // applyHeightDelta's. Such a throw leaves the aborted operation's direction
   // bits (partial after a mid-descent throw) and, after the modify pass (the
   // delete pass or applyHeightDelta), its recorded visits, which the next
-  // generateProof() would encode. restoreRoot() rebases the whole cycle and
+  // generateProof() would encode. performLookupWithNeighbors also sets it when
+  // a successful run observed other than one leaf, an engine inconsistency
+  // found after the engine returned. restoreRoot() rebases the whole cycle and
   // clears the mark. A flag around the call, not a try/catch: nothing is
   // swallowed; the engine's throw propagates to the caller unchanged.
   private cycleIndeterminate = false
@@ -243,9 +246,12 @@ export class BatchAVLProver {
       },
 
       // Ports batch_avl_prover.rs:486-493 @568e7c3 — key_matches_leaf.
-      // `onLeaf` observes the leaf the operation resolves at: the engine
-      // calls this callback exactly once per descent (modify.ts:149). The
-      // neighbor lookups read their report from it (0.5.0).
+      // `onLeaf` observes the leaf the operation resolves at. The engine calls
+      // this callback at most once per operation (modify.ts:149; deleteHelper
+      // never does), and exactly once for a successful Lookup. The neighbor
+      // lookups read their report from it (0.5.0). An observer only records:
+      // a throw from it would unwind like any engine throw, after the
+      // direction bits were written, and leave the fail-stop mark set (P3).
       keyMatchesLeaf: (_key: Uint8Array, leaf: LeafNode) => {
         const matches = self.found
         self.found = false // reset for next operation
@@ -589,6 +595,86 @@ export class BatchAVLProver {
       return this.lookupFoundWalk(node.left)
     }
     return null
+  }
+
+  // -------------------------------------------------------------------------
+  // Neighbor-reporting lookups (0.5.0; TS-only — no counterpart in either
+  // reference). See facts/avltree.md § Neighbor lookups.
+  // -------------------------------------------------------------------------
+
+  /**
+   * A Lookup that also reports its neighbors: a present key → its value and
+   * the next leaf's key; an absent key → the keys of the leaves either side;
+   * `null` for a sentinel. Runs `{ tag: 'Lookup', key }` through exactly
+   * performOneOperation's path — same key gates and throws, same direction
+   * bits and visits, same `{ success: false }`, same proof-cycle fail-stop —
+   * and reads the report off the leaf the engine's single keyMatchesLeaf call
+   * resolves at.
+   */
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
+    const seen: { leaf: LeafNode | null; matches: boolean; calls: number } = {
+      leaf: null,
+      matches: false,
+      calls: 0,
+    }
+    const result = this.perform(
+      { tag: 'Lookup', key },
+      (leaf, matches) => {
+        seen.leaf = leaf
+        seen.matches = matches
+        seen.calls++
+      },
+      'performLookupWithNeighbors',
+    )
+    if (!result.success) return { success: false }
+    if (seen.calls !== 1 || seen.leaf === null) {
+      // An engine inconsistency: fail stop, as for any engine throw (P3).
+      this.cycleIndeterminate = true
+      throw new Error(
+        `BatchAVLProver.performLookupWithNeighbors: a successful Lookup observed ${seen.calls} leaves, not 1 — the shared engine is in an inconsistent state`,
+      )
+    }
+    return { success: true, ...neighborLookupOf(seen.leaf, seen.matches, this.negInfKey, this.posInfKey) }
+  }
+
+  /**
+   * performLookupWithNeighbors without recording: no directions, no visits,
+   * no proof-cycle effect; reads only the root. Validates the key with
+   * performOneOperation's three gates — unlike unauthenticatedLookup, which
+   * validates nothing and returns null — so a sentinel key throws here as on
+   * the recorded path. Walks the recorded path's descent: compare with the
+   * internal node's key; on equal, right once, then left to the leaf. A label
+   * stub or key-less internal node on the walk is an invariant violation
+   * (reachable only via restoreRoot) and throws rather than guess.
+   */
+  unauthenticatedLookupWithNeighbors(key: Uint8Array): NeighborLookup {
+    this.validateKey(key)
+    let node: AvlNode = this._root
+    let found = false
+    while (node.kind === 'internal') {
+      if (node.key === undefined) {
+        throw new Error(
+          'BatchAVLProver.unauthenticatedLookupWithNeighbors: internal node without key on the lookup path — tree invariant violated (restoreRoot)',
+        )
+      }
+      if (found) {
+        node = node.left
+        continue
+      }
+      const cmp = compareBytes(key, node.key)
+      if (cmp === 0) {
+        found = true
+        node = node.right
+      } else {
+        node = cmp < 0 ? node.left : node.right
+      }
+    }
+    if (node.kind === 'label') {
+      throw new Error(
+        'BatchAVLProver.unauthenticatedLookupWithNeighbors: label stub on the lookup path — tree invariant violated (restoreRoot)',
+      )
+    }
+    return neighborLookupOf(node, found, this.negInfKey, this.posInfKey)
   }
 
   // -------------------------------------------------------------------------
