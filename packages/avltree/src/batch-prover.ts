@@ -286,6 +286,14 @@ export class BatchAVLProver {
     onLeaf?: (leaf: LeafNode, matches: boolean) => void,
   ): ProverOperationResult {
     this.validateShape(op)
+    // Every operation starts its descent with no pending key match (P2,
+    // 0.5.0). The reference clears `found` only inside key_matches_leaf
+    // (batch_avl_prover.rs:486-493 @568e7c3), so an operation that fails or
+    // throws after an equality step — a label stub or key-less internal node
+    // on its found-mode path, reachable only through restoreRoot — leaves it
+    // set, and the next operation descends all-left to the wrong leaf.
+    // Deliberate divergence, observable only on such trees (facts/avltree.md).
+    this.found = false
     return this.runOperation(op, onLeaf)
   }
 
