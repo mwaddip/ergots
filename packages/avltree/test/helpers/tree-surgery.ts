@@ -1,8 +1,9 @@
 /**
  * Test-only surgery producing invariant-violating prover trees (installed via
  * restoreRoot): a label stub, or a key-less internal node, as some internal
- * node's right child. Reached only by `pivot`'s own key, whose lookup finds
- * equality at the pivot and descends into that child in found mode.
+ * node's right child. A lookup whose search reaches the pivot descends into
+ * that child when its key is at least the pivot's: in found mode for the
+ * pivot's own key (after the equality step), in search mode above it.
  */
 import { BatchAVLProver } from '../../src/batch-prover.js'
 import { compareBytes } from '../../src/compare-bytes.js'
@@ -42,14 +43,18 @@ export function pivot(root: AvlNode, above: Uint8Array): InternalNode {
 }
 
 function withRightChild(root: AvlNode, target: InternalNode, replacement: AvlNode): AvlNode {
-  if (root === target) return newInternal(target.left, replacement, target.balance, target.key)
-  if (root.kind !== 'internal') return root
-  return newInternal(
-    withRightChild(root.left, target, replacement),
-    withRightChild(root.right, target, replacement),
-    root.balance,
-    root.key,
-  )
+  let replaced = false
+  const rebuild = (n: AvlNode): AvlNode => {
+    if (n === target) {
+      replaced = true
+      return newInternal(target.left, replacement, target.balance, target.key)
+    }
+    if (n.kind !== 'internal') return n
+    return newInternal(rebuild(n.left), rebuild(n.right), n.balance, n.key)
+  }
+  const out = rebuild(root)
+  if (!replaced) throw new Error('withRightChild: target is not in the tree')
+  return out
 }
 
 /** `target`'s right child replaced by a label stub carrying the same label. */
