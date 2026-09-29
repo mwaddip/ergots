@@ -94,9 +94,10 @@ describe('Global.serialize of a Box with index 0x8000 fails', () => {
     if (r.kind !== 'Coll') throw new Error('expected a Coll[Byte]')
     expect(toHex(new Uint8Array(r.items.map((it) => (it as { value: number }).value & 0xff)))).toBe(boxData(INDEX_7FFF))
   })
-  it("index 0x8000: EvalError('global-serialize-failed')", () => {
+  it("index 0x8000: EvalError('global-serialize-failed'), with the write's error as cause", () => {
     const err = errOf(() => evalMethodCall(serialize(parseBox(boxData(INDEX_8000))), Env.empty(), makeContext({ treeVersion: 3 })))
     expect(err).toBeInstanceOf(EvalError)
     expect(err).toMatchObject({ code: 'global-serialize-failed' })
+    expect((err as Error).cause).toMatchObject({ name: 'SValueSerializeError', code: 'sbox-index-out-of-range' })
   })
 })

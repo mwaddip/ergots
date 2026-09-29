@@ -21,7 +21,8 @@
  *
  * Errors: any failure in serializeCost or serializeSValue (type mismatch, bounds
  * violation, unsupported type, a Box tree that cannot be re-encoded) is wrapped in
- * EvalError 'global-serialize-failed'; an EvalError from the cost walk passes through.
+ * EvalError 'global-serialize-failed', with the failure as its `cause`; an EvalError
+ * from the cost walk passes through.
  */
 
 import { ByteWriter } from '@ergots/scorex'
@@ -72,6 +73,7 @@ export function evalGlobalSerialize(
     throw new EvalError(
       `Global.serialize failed: ${(e as Error).message}`,
       'global-serialize-failed',
+      { cause: e },
     )
   }
 
@@ -83,6 +85,7 @@ export function evalGlobalSerialize(
     throw new EvalError(
       `Global.serialize failed: ${(e as Error).message}`,
       'global-serialize-failed',
+      { cause: e },
     )
   }
 

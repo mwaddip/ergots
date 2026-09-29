@@ -52,11 +52,13 @@ function toContextExtension(input: ContextExtensionInput): ContextExtension {
  *   'unsigned-bigint-not-invertible' — UBI.modInverse with gcd(a, m) != 1 (no multiplicative inverse; P2d-2)
  */
 export class EvalError extends Error {
+  /** `options.cause`, the standard `Error.cause`, carries the error an arm wrapped, where it wraps one. */
   constructor(
     message: string,
-    public readonly code: string
+    public readonly code: string,
+    options?: { cause?: unknown }
   ) {
-    super(message)
+    super(message, options)
     this.name = 'EvalError'
   }
 }

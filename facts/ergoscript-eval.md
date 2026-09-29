@@ -15,7 +15,7 @@ evaluate(tree: ErgoTree, opts?: EvalOpts): SValue
 evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue
 makeContext(opts?: EvalOpts): EvalContext
 
-class EvalError extends Error { code: string }
+class EvalError extends Error { code: string; cause?: unknown }   // cause: the standard Error.cause, set where an arm wraps an error
 ```
 
 Public function signatures are stable from v0.2.0 onward; new arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `makeContext`, or `EvalError`. `Env`, `evalExpr`, and the per-arm functions (`evalConst`, `evalIf`, `evalBlockValue`, …) are intentionally NOT exported — they are internal to the evaluator and may change without notice.
@@ -308,7 +308,7 @@ Separately, when `tree.header.constantSegregation` is true, `dispatchTreeBody` r
 
 ### Global predefs (serialize / nbits / powHit / big-endian)
 
-- **`'global-serialize-failed'`** — `SGlobal.serialize` (106:3): the sigma-serialization of the argument value failed (e.g. a `'Lambda'` or `'Context'` SValue kind, which have no on-wire encoding, a Box whose tree cannot be re-encoded, Round-trip Carve-outs 5 and 6 in [`facts/ergoscript-wire.md`](./ergoscript-wire.md), or a Box whose index is 0x8000 or more, which the JVM holds as a negative Short and its `putUShort` rejects, Carve-out 9). A failure in the cost walk is wrapped the same way as one in the byte emission; an `EvalError` from the walk (the cost limit) passes through unchanged. `T` is derived from the RUNTIME value kind, not `exprTpe`. Source: JVM `methods.scala:1957`.
+- **`'global-serialize-failed'`** — `SGlobal.serialize` (106:3): the sigma-serialization of the argument value failed (e.g. a `'Lambda'` or `'Context'` SValue kind, which have no on-wire encoding, a Box whose tree cannot be re-encoded, Round-trip Carve-outs 5 and 6 in [`facts/ergoscript-wire.md`](./ergoscript-wire.md), or a Box whose index is 0x8000 or more, which the JVM holds as a negative Short and its `putUShort` rejects, Carve-out 9). The wrapped failure is the `cause`. A failure in the cost walk is wrapped the same way as one in the byte emission; an `EvalError` from the walk (the cost limit) passes through unchanged. `T` is derived from the RUNTIME value kind, not `exprTpe`. Source: JVM `methods.scala:1957`.
 - **`'global-deserialize-failed'`** — `SGlobal.deserializeTo[T]` (106:4): the supplied `Coll[Byte]` failed to parse as an SValue of type `T` via the data codec — malformed/truncated bytes, an oversized BigInt/UnsignedBigInt (> 32 bytes), or actual parse recursion deeper than `MaxTreeDepth` (110, data-driven; the shared `@ergots/scorex` `ByteReader` level counter raises `ReaderError('max-tree-depth-exceeded')`, caught and re-coded). No ErgoTree body parse, no `exprTpe` match — `T` drives the parse directly. Source: JVM `methods.scala:1906`.
 - **`'global-from-bigendian-bytes-failed'`** — `SGlobal.fromBigEndianBytes[T]` (106:5): wrong exact length (Byte≠1/Short≠2/Int≠4/Long≠8), oversized BigInt/UnsignedBigInt (>32 bytes), empty bytes for BigInt (JVM `new BigInteger(byte[0])` throws; UBI empty → 0 accepted), or unsupported non-numeric `T`. `FixedCost(10)` charged before the throw. Source: JVM `methods.scala:1925`.
 - **`'global-encode-nbits-failed'`** — `SGlobal.encodeNbits` (106:6): defensive obj-kind/arity guards only — no faithful failure path for a valid ≤256-bit `SBigInt` input (`size ≤ 33` so `size << 24` cannot overflow). `FixedCost(25)` charged before any guard throw. Source: JVM `methods.scala:1939`.

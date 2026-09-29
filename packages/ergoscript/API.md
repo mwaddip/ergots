@@ -465,6 +465,8 @@ interface EvalContext extends EvalOpts {
 ```ts
 class EvalError extends Error {
   readonly code: string;  // one of the 86 codes in facts/ergoscript-eval.md
+  cause?: unknown;        // the standard Error.cause, where an arm wraps an error
+                          // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
