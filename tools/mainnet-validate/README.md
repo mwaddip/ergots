@@ -33,15 +33,35 @@ The harness entry point lands at `tools/mainnet-validate/harness/dist/main.js`. 
 
 ## Run
 
-The harness fetches block data via REST — no local snapshot copy required. Just point it at your local node + indexer:
+The harness fetches block data via REST — no local snapshot copy required. Point it at your local node + indexer, and give each new walk its own checkpoint path:
 
 ```bash
+WALK=tools/mainnet-validate/walks/oracle-2-100   # a fresh directory per walk
+mkdir -p "$WALK"
 node tools/mainnet-validate/harness/dist/main.js \
   --node-url http://localhost:9052 \
   --indexer-url http://localhost:9054 \
+  --checkpoint-path "$WALK/checkpoint.json" \
+  --error-report-path "$WALK/error-report.json" \
   --start-height 2 \
   --max-height 100
 ```
+
+A checkpoint is only ever continued: `--start-height` starts a new walk, and it is refused when a checkpoint already exists at `--checkpoint-path`. The default path, `tools/mainnet-validate/checkpoint.json`, holds an earlier walk, so a new walk passes its own. To continue a walk, run the same command without `--start-height` (see "Resume semantics edge cases").
+
+The ids-and-parse-only mode (`--mode ids`) evaluates no script: it checks each transaction id and each output box against the chain's. It requires a degrade census (`--census`), the output trees expected to degrade, one justified entry each, and starts at h=1:
+
+```bash
+WALK=tools/mainnet-validate/walks/ids-1-tip
+mkdir -p "$WALK"
+printf '%s\n' '[{"height":545684,"txIndex":1,"outputIndex":0,"reason":"burn box: rule 1001"}]' > "$WALK/census-expected.json"
+nice -n 15 node tools/mainnet-validate/harness/dist/main.js \
+  --node-url http://localhost:9052 --indexer-url http://localhost:9054 \
+  --checkpoint-path "$WALK/checkpoint.json" --error-report-path "$WALK/error-report.json" \
+  --mode ids --census "$WALK/census-expected.json" --start-height 1
+```
+
+Only `checkpoint.json` and `error-report.json` are git-ignored: keep a walk's census files out of commits.
 
 Defaults assume invocation from the repo root.
 
