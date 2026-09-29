@@ -27,7 +27,7 @@
  */
 
 import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
-import { isUnparsedTree, SANY_JVM } from '../mir/types'
+import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../mir/types'
 import { exprTpe, ExprTpeError } from '../mir/expr-tpe'
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
@@ -188,10 +188,11 @@ function checkRootIsSigmaProp(body: Expr): void {
   }
   if (tpe.tag === 'SSigmaProp') return
   // The JVM's SAny (type code 97, or a tuple's element type; one object, carried through exprTpe)
-  // fails, as the JVM fails a root typed SAny (isSigmaProp is isInstanceOf[SSigmaProp.type],
-  // core/.../sigma/ast/package.scala:121).
-  if (tpe === SANY_JVM) {
-    throw new ErgoTreeParseError("root types as the JVM's SAny, not SigmaProp (rule 1001)", 'root-not-sigma-prop')
+  // fails, as does its NoType from an Apply of one: the JVM fails a root typed SAny or NoType
+  // (isSigmaProp is isInstanceOf[SSigmaProp.type], core/.../sigma/ast/package.scala:121).
+  if (tpe === SANY_JVM || tpe === NOTYPE_JVM) {
+    const what = tpe === SANY_JVM ? "the JVM's SAny" : "the JVM's NoType"
+    throw new ErgoTreeParseError(`root types as ${what}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
   }
   // ergots' own SAny, a fresh object its method typing makes, passes: residual 1
   // (facts/ergoscript-wire.md).

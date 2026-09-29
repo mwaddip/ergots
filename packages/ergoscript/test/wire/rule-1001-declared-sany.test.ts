@@ -4,16 +4,18 @@
 // GetVar and DeserializeContext are built with no type check (SigmaBuilder.scala:479-480, 607-608);
 // OptionGet.tpe = input.tpe.elemType (sigma/ast/transformers.scala:601); an Apply of an SAny
 // function is NoType (sigma/ast/values.scala:1247-1251). ergots marks the declared SAny at its
-// origin (parseSType returns SANY_JVM, the JVM's SAny) and exprTpe passes it through, while ergots'
-// own SAny, a fresh object its method typing makes (residual 1), keeps passing rule 1001.
+// origin (parseSType returns SANY_JVM, the JVM's SAny). exprTpe mirrors the JVM node's tpe: it passes
+// the JVM's SAny through where the JVM types it, and throws where the JVM's tpe casts it or its
+// constructor requires a numeric type. ergots' own SAny, a fresh object its method typing makes
+// (residual 1), keeps passing, and keeps passing rule 1001.
 import { describe, it, expect } from 'vitest'
 import { ByteReader } from '@ergots/scorex'
 import { parseTree, parseErgoTreeBytes, parseTreeFromReader, serializeTree } from '../../src/wire/ergo-tree'
 import { boxTreeOf } from '../../src/wire/box-tree'
 import { parseSType } from '../../src/wire/parse-stype'
 import { exprTpe } from '../../src/mir/expr-tpe'
-import { isUnparsedTree, SANY_JVM } from '../../src/mir/types'
-import type { Expr } from '../../src/mir/types'
+import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../../src/mir/types'
+import type { Expr, SType } from '../../src/mir/types'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
 const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
@@ -73,9 +75,15 @@ describe('the declared SAny is one object, from parseSType through exprTpe', () 
   })
 })
 
-// An input typed as the declared SAny, and one typed as ergots' own SAny: a PropertyCall with an
-// unregistered (typeId, methodId), whose exprTpe is a fresh { tag: 'SAny' } (the A3 fallback).
+// exprTpe mirrors the JVM node's tpe, including where that tpe throws. Three inputs: the JVM's SAny
+// (a DeserializeContext declared SAny); the JVM's NoType, an Apply of that function
+// (sigma/ast/values.scala:1247-1251), which exprTpe types as NOTYPE_JVM; and ergots' own SAny, a
+// PropertyCall with an unregistered (typeId, methodId), whose exprTpe is a fresh { tag: 'SAny' } (the
+// A3 fallback, residual 1). Every JVM verdict below is a live sigma-state 6.0.6 probe's (see
+// rule-1001-jvm-sany-arms.test.ts for the trees).
 const DECLARED: Expr = { tag: 'DeserializeContext', tpe: SANY_JVM, id: 1 }
+const INT0: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } }
+const NOTYPE: Expr = { tag: 'Apply', func: DECLARED, args: [INT0] }
 const UNRESOLVED: Expr = {
   tag: 'PropertyCall',
   obj: { tag: 'Const', tpe: { tag: 'SGroupElement' }, value: { kind: 'GroupElement', value: new Uint8Array(33) } },
@@ -83,27 +91,143 @@ const UNRESOLVED: Expr = {
   methodId: 999,
   explicitTypeArgs: {},
 }
-const INT0: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } }
-const CASCADES: [string, (x: Expr) => Expr][] = [
-  ['Apply', (x) => ({ tag: 'Apply', func: x, args: [INT0] })],
-  ['ByIndex', (x) => ({ tag: 'ByIndex', input: x, index: INT0, default: null })],
-  ['OptionGet', (x) => ({ tag: 'OptionGet', input: x })],
-  ['SelectField', (x) => ({ tag: 'SelectField', input: x, fieldIndex: 1 })],
-  ['Map', (x) => ({ tag: 'Map', input: x, mapper: x })],
-  ['OptionGetOrElse', (x) => ({ tag: 'OptionGetOrElse', input: x, default: INT0 })],
+const COLL_INT: Expr = { tag: 'Collection', kind: 'Exprs', elemTpe: { tag: 'SInt' }, items: [] }
+const TRUE: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
+const FUNC: Expr = { tag: 'FuncValue', args: [{ id: 1, tpe: { tag: 'SInt' } }], body: TRUE }
+const bitOr = (left: Expr, right: Expr): Expr => ({ tag: 'BinOp', op: { kind: 'Bit', op: 'BitOr' }, left, right })
+// Apply(Int 0, []): the JVM's NoType for a function of a concrete type, which exprTpe throws as
+// 'apply-func-no-type'.
+const CONCRETE_NOTYPE: Expr = { tag: 'Apply', func: INT0, args: [] }
+const codeOf = (f: () => unknown): string | undefined => (errOf(f) as { code?: string } | undefined)?.code
+
+describe('exprTpe types an Apply of the JVM SAny as the JVM NoType', () => {
+  it('the JVM SAny function gives NOTYPE_JVM', () => {
+    expect(exprTpe(NOTYPE)).toBe(NOTYPE_JVM)
+  })
+  it('a NoType function gives NOTYPE_JVM', () => {
+    expect(exprTpe({ tag: 'Apply', func: NOTYPE, args: [INT0] })).toBe(NOTYPE_JVM)
+  })
+  it("ergots' own SAny function stays that object", () => {
+    const t = exprTpe({ tag: 'Apply', func: UNRESOLVED, args: [INT0] })
+    expect(t).toEqual({ tag: 'SAny' })
+    expect(t).not.toBe(SANY_JVM)
+    expect(t).not.toBe(NOTYPE_JVM)
+  })
+})
+
+// The JVM casts the input's type while it builds or types these nodes, a ClassCastException for SAny
+// and NoType alike.
+const CASTS: [string, string, (x: Expr) => Expr][] = [
+  ['ByIndex', 'by-index-input-class-cast', (x) => ({ tag: 'ByIndex', input: x, index: INT0, default: null })],
+  ['OptionGet', 'option-get-input-class-cast', (x) => ({ tag: 'OptionGet', input: x })],
+  ['SelectField', 'select-field-input-class-cast', (x) => ({ tag: 'SelectField', input: x, fieldIndex: 1 })],
+  ['Map (the mapper)', 'map-mapper-class-cast', (x) => ({ tag: 'Map', input: COLL_INT, mapper: x })],
+  ['OptionGetOrElse', 'option-get-or-else-input-class-cast', (x) => ({ tag: 'OptionGetOrElse', input: x, default: INT0 })],
+  ['Filter', 'filter-input-class-cast', (x) => ({ tag: 'Filter', input: x, condition: FUNC })],
+  ['Slice', 'slice-input-class-cast', (x) => ({ tag: 'Slice', input: x, from: INT0, until: INT0 })],
+  ['Append', 'append-input-class-cast', (x) => ({ tag: 'Append', input: x, col2: x })],
 ]
 
-describe('exprTpe passes an SAny input through as the same object', () => {
-  for (const [arm, build] of CASCADES) {
-    it(`${arm}: a declared-SAny input gives SANY_JVM`, () => {
-      expect(exprTpe(build(DECLARED))).toBe(SANY_JVM)
+describe('an arm that casts its input type throws for the JVM SAny and NoType', () => {
+  for (const [arm, code, build] of CASTS) {
+    it(`${arm}: the JVM SAny throws '${code}'`, () => {
+      expect(codeOf(() => exprTpe(build(DECLARED)))).toBe(code)
     })
-    it(`${arm}: an unresolved SAny input stays ergots' own SAny, not SANY_JVM`, () => {
+    it(`${arm}: the JVM NoType throws '${code}'`, () => {
+      expect(codeOf(() => exprTpe(build(NOTYPE)))).toBe(code)
+    })
+    it(`${arm}: ergots' own SAny passes through as itself`, () => {
+      const t = exprTpe(build(UNRESOLVED))
+      expect(t).toEqual({ tag: 'SAny' })
+      expect(t).not.toBe(SANY_JVM)
+      expect(t).not.toBe(NOTYPE_JVM)
+    })
+  }
+})
+
+// The JVM requires a numeric type or NoType while it builds these nodes (isNumTypeOrNoType,
+// core/.../sigma/ast/package.scala:139): SAny fails the require, NoType passes it.
+const REQUIRES: [string, string, (x: Expr) => Expr][] = [
+  ['Negation', 'negation-input-jvm-sany', (x) => ({ tag: 'Negation', input: x })],
+  ['BitInversion', 'bit-inversion-input-jvm-sany', (x) => ({ tag: 'BitInversion', input: x })],
+  ['BitOp (the left operand)', 'bit-op-operand-jvm-sany', (x) => bitOr(x, INT0)],
+]
+
+describe('an arm that requires a numeric input throws for the JVM SAny, not for NoType', () => {
+  for (const [arm, code, build] of REQUIRES) {
+    it(`${arm}: the JVM SAny throws '${code}'`, () => {
+      expect(codeOf(() => exprTpe(build(DECLARED)))).toBe(code)
+    })
+    it(`${arm}: the JVM NoType passes, as NOTYPE_JVM`, () => {
+      expect(exprTpe(build(NOTYPE))).toBe(NOTYPE_JVM)
+    })
+    it(`${arm}: ergots' own SAny passes through as itself`, () => {
       const t = exprTpe(build(UNRESOLVED))
       expect(t).toEqual({ tag: 'SAny' })
       expect(t).not.toBe(SANY_JVM)
     })
   }
+  it("BitOp (the right operand): the JVM SAny throws 'bit-op-operand-jvm-sany'", () => {
+    expect(codeOf(() => exprTpe(bitOr(INT0, DECLARED)))).toBe('bit-op-operand-jvm-sany')
+  })
+  it('BitOp (the right operand): the JVM NoType passes, and the node types as its left operand', () => {
+    expect(exprTpe(bitOr(INT0, NOTYPE))).toEqual({ tag: 'SInt' })
+    expect(exprTpe(bitOr(INT0, CONCRETE_NOTYPE))).toEqual({ tag: 'SInt' })
+  })
+  it('BitOp: a NoType left operand passes, and the JVM then reads the right one', () => {
+    // BitOp's require reads left.tpe, then right.tpe (trees.scala:913).
+    expect(codeOf(() => exprTpe(bitOr(CONCRETE_NOTYPE, DECLARED)))).toBe('bit-op-operand-jvm-sany')
+    expect(codeOf(() => exprTpe(bitOr(CONCRETE_NOTYPE, INT0)))).toBe('apply-func-no-type')
+  })
+})
+
+describe('an arm the JVM types keeps typing the JVM SAny and NoType', () => {
+  const KEEPS: [string, (x: Expr) => Expr, (t: SType) => SType | undefined][] = [
+    ['If (the true branch)', (x) => ({ tag: 'If', condition: TRUE, trueBranch: x, falseBranch: x }), (t) => t],
+    ['BlockValue (the result)', (x) => ({ tag: 'BlockValue', items: [], result: x }), (t) => t],
+    ['Fold (the zero)', (x) => ({ tag: 'Fold', input: COLL_INT, zero: x, foldOp: FUNC }), (t) => t],
+    ['Plus (the left operand)', (x) => ({ tag: 'BinOp', op: { kind: 'Arith', op: 'Plus' }, left: x, right: INT0 }), (t) => t],
+    ['Tuple (an item)', (x) => ({ tag: 'Tuple', items: [x, INT0] }), (t) => (t.tag === 'STuple' ? t.items[0] : undefined)],
+    ['FuncValue (the body)', (x) => ({ tag: 'FuncValue', args: [{ id: 1, tpe: { tag: 'SInt' } }], body: x }), (t) => (t.tag === 'SFunc' ? t.result : undefined)],
+  ]
+  for (const [arm, build, pick] of KEEPS) {
+    it(`${arm}: the JVM SAny stays SANY_JVM`, () => {
+      expect(pick(exprTpe(build(DECLARED)))).toBe(SANY_JVM)
+    })
+    it(`${arm}: the JVM NoType stays NOTYPE_JVM`, () => {
+      expect(pick(exprTpe(build(NOTYPE)))).toBe(NOTYPE_JVM)
+    })
+  }
+  const FIXED: [string, (x: Expr) => Expr, SType][] = [
+    ['SizeOf', (x) => ({ tag: 'SizeOf', input: x }), { tag: 'SInt' }],
+    ['Exists', (x) => ({ tag: 'Exists', input: x, condition: FUNC }), { tag: 'SBoolean' }],
+    ['ForAll', (x) => ({ tag: 'ForAll', input: x, condition: FUNC }), { tag: 'SBoolean' }],
+    ['OptionIsDefined', (x) => ({ tag: 'OptionIsDefined', input: x }), { tag: 'SBoolean' }],
+    ['EQ', (x) => ({ tag: 'BinOp', op: { kind: 'Relation', op: 'Eq' }, left: x, right: x }), { tag: 'SBoolean' }],
+  ]
+  for (const [arm, build, tpe] of FIXED) {
+    it(`${arm}: types as ${tpe.tag} over the JVM SAny and NoType`, () => {
+      expect(exprTpe(build(DECLARED))).toEqual(tpe)
+      expect(exprTpe(build(NOTYPE))).toEqual(tpe)
+    })
+  }
+})
+
+describe("a PropertyCall with explicit type arguments does not type its object, as the JVM's", () => {
+  // Global.none[SigmaProp] (106:10). PropertyCallSerializer specializes the method for obj.tpe only
+  // when it has no explicit type arguments (PropertyCallSerializer.scala:36-50), and Filter reads its
+  // input's type only when its own type is read (def tpe, sigma/ast/transformers.scala:121), so the
+  // JVM parses OptionGet(Global.none[SigmaProp] on Filter(ByIndex(tuple), f)) as a SigmaProp root.
+  it('Global.none[SigmaProp] on a Filter over the JVM SAny types as Option[SigmaProp]', () => {
+    const none: Expr = {
+      tag: 'PropertyCall',
+      obj: { tag: 'Filter', input: DECLARED, condition: FUNC },
+      typeId: 106,
+      methodId: 10,
+      explicitTypeArgs: { T: { tag: 'SSigmaProp' } },
+    }
+    expect(exprTpe(none)).toEqual({ tag: 'SOption', elem: { tag: 'SSigmaProp' } })
+  })
 })
 
 describe("ergots' own SAny still passes rule 1001 (residual 1)", () => {

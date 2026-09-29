@@ -21,7 +21,7 @@
  */
 
 import type { Expr, SType, STypeVar } from './types'
-import { SANY_JVM } from './types'
+import { NOTYPE_JVM, SANY_JVM } from './types'
 import { methodSignature, resolveReturnTpe } from './method-signatures'
 
 export class ExprTpeError extends Error {
@@ -32,6 +32,39 @@ export class ExprTpeError extends Error {
     super(message)
     this.name = 'ExprTpeError'
   }
+}
+
+/**
+ * exprTpe mirrors the JVM node's `tpe`, including where that `tpe` throws. Some nodes cast their
+ * input's type while the JVM builds or types them (`ByIndex`, `OptionGet`, `SelectField`, `Map`'s
+ * mapper, `OptionGetOrElse`, `Filter`, `Slice`, `Append`): the JVM's `SAny` and its `NoType`
+ * (`SANY_JVM`, `NOTYPE_JVM`) fail the cast with a `ClassCastException`, a hard reject. The error for
+ * that, with the arm's own code.
+ */
+function classCast(node: string, t: SType, code: string): ExprTpeError {
+  const what = t === SANY_JVM ? "the JVM's SAny" : "the JVM's NoType"
+  return new ExprTpeError(`${node}: its input types as ${what}, which the JVM cannot cast (ClassCastException)`, code)
+}
+
+/**
+ * The type of an input the JVM requires, while it builds the node, to be numeric or `NoType`
+ * (`isNumTypeOrNoType`, core/.../sigma/ast/package.scala:139; `Negation`, `BitInversion`, `BitOp`).
+ * The JVM's `SAny` fails the require (an `IllegalArgumentException`, a hard reject): throws `code`.
+ * `NoType` passes it: `NOTYPE_JVM` comes back as itself, and the `NoType` that `exprTpe` throws as
+ * `'apply-func-no-type'` comes back as that error, for the caller to rethrow as its own type.
+ */
+function requireNumTypeOrNoType(input: Expr, node: string, code: string): SType | ExprTpeError {
+  let t: SType
+  try {
+    t = exprTpe(input)
+  } catch (err) {
+    if (err instanceof ExprTpeError && err.code === 'apply-func-no-type') return err
+    throw err
+  }
+  if (t === SANY_JVM) {
+    throw new ExprTpeError(`${node}: an input types as the JVM's SAny, which fails require(isNumTypeOrNoType)`, code)
+  }
+  return t
 }
 
 export function exprTpe(e: Expr): SType {
@@ -68,10 +101,11 @@ export function exprTpe(e: Expr): SType {
       // JVM Apply.tpe (sigma/ast/values.scala:1247-1251): SFunc → its range; a collection
       // (SCollectionType) → its element type; anything else → NoType. STuple extends the
       // SCollection trait but is not an SCollectionType (SType.scala:838), so it is NoType.
-      // An SAny func cascades as the same object (see the ByIndex arm): ergots' own SAny for an
-      // unresolved method return stays itself, and the JVM's SAny stays SANY_JVM (mir/types.ts),
-      // which rule 1001 fails as the JVM fails this Apply's NoType.
+      // The JVM's SAny or NoType function gives NoType, NOTYPE_JVM (mir/types.ts), which rule 1001
+      // fails and the numeric requires pass. ergots' own SAny, an unresolved method's result
+      // (residual 1), stays itself. Any other type throws 'apply-func-no-type' (residual 8).
       const ft = exprTpe(e.func)
+      if (ft === SANY_JVM || ft === NOTYPE_JVM) return NOTYPE_JVM
       if (ft.tag === 'SAny') return ft
       if (ft.tag === 'SFunc') return ft.result
       if (ft.tag === 'SColl') return ft.elem
@@ -81,17 +115,19 @@ export function exprTpe(e: Expr): SType {
       )
     }
     case 'ByIndex': {
-      // JVM ByIndex.tpe = input.tpe.elemType (sigma/ast/transformers.scala:254): the element type
-      // of the input collection. A tuple is one too: STuple extends SCollection[SAny] with
-      // elemType = SAny (core/.../sigma/ast/SType.scala:838-841), so ByIndex over a tuple types as
-      // the JVM's SAny, SANY_JVM (mir/types.ts), which rule 1001 fails.
+      // JVM ByIndex.tpe = input.tpe.elemType, a val (sigma/ast/transformers.scala:254): built with
+      // the node, it casts the input's type to SCollection. A tuple is one: STuple extends
+      // SCollection[SAny] with elemType = SAny (core/.../sigma/ast/SType.scala:838-841), so ByIndex
+      // over a tuple types as the JVM's SAny, SANY_JVM (mir/types.ts), which rule 1001 fails. The
+      // JVM's SAny and NoType fail the cast.
       //
-      // An SAny input returns that SAny as well rather than throwing, so a tree that chains
-      // `INPUTS(0).<property>(<index>)` over a method ergots cannot type still parses (residual 1).
-      // The SAny is returned as the same object, so SANY_JVM stays SANY_JVM for rule 1001; every
-      // cascade arm below does the same. (The JVM throws while building ByIndex over an SAny input,
-      // a node-construction check ergots does not make at parse.)
+      // ergots' own SAny, an unresolved method's result, passes through as itself, so a tree that
+      // chains `INPUTS(0).<property>(<index>)` over a method ergots cannot type still parses
+      // (residual 1). Every casting arm below does the same.
       const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) {
+        throw classCast('ByIndex', it, 'by-index-input-class-cast')
+      }
       if (it.tag === 'SAny') {
         return it
       }
@@ -126,10 +162,13 @@ export function exprTpe(e: Expr): SType {
           return { tag: 'SGroupElement' }
       }
     case 'OptionGet': {
-      // sigma-rust `mir/option_get.rs::OptionGet::tpe` (line 23-26): the type
-      // is the element type of the input option. Input must be `SOption(T)`.
-      // SAny relaxation matches the ByIndex arm above (PropertyCall cascade).
+      // JVM OptionGet.tpe = input.tpe.elemType (sigma/ast/transformers.scala:601), read by the val
+      // opType while the node is built (:600): a cast of the input's type to SOption. The JVM's SAny
+      // and NoType fail it; ergots' own SAny passes through (the ByIndex arm).
       const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) {
+        throw classCast('OptionGet', it, 'option-get-input-class-cast')
+      }
       if (it.tag === 'SAny') {
         return it
       }
@@ -156,13 +195,21 @@ export function exprTpe(e: Expr): SType {
       // docs/specs/2026-06-01-ergoscript-a3-method-return-tpe-resolver-design.md.
       const sig = methodSignature(e.typeId, e.methodId)
       if (sig === undefined) return { tag: 'SAny' }
-      return resolveReturnTpe(sig, exprTpe(e.obj), [], e.explicitTypeArgs)
+      // The JVM specializes a property for obj.tpe only when it has no explicit type arguments; with
+      // them it substitutes those alone and never reads obj.tpe (PropertyCallSerializer.scala:36-50).
+      // So the object is left untyped here too, since typing it can throw where the JVM does not (a
+      // Filter over the JVM's SAny). The declared receiver type stands in, and unifies with itself.
+      const receiver = Object.keys(e.explicitTypeArgs).length > 0 ? sig.tDom[0]! : exprTpe(e.obj)
+      return resolveReturnTpe(sig, receiver, [], e.explicitTypeArgs)
     }
     case 'SelectField': {
-      // sigma-rust `mir/select_field.rs::SelectField::tpe` (line 107-109): the
-      // type is `items[fieldIndex - 1]` (1-based index) of the input tuple.
-      // SAny relaxation matches the ByIndex arm (PropertyCall cascade).
+      // JVM SelectField.tpe = input.tpe.items(fieldIndex - 1), a val (sigma/ast/transformers.scala:294):
+      // built with the node, it casts the input's type to STuple (1-based index). The JVM's SAny and
+      // NoType fail the cast; ergots' own SAny passes through (the ByIndex arm).
       const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) {
+        throw classCast('SelectField', it, 'select-field-input-class-cast')
+      }
       if (it.tag === 'SAny') {
         return it
       }
@@ -188,14 +235,23 @@ export function exprTpe(e: Expr): SType {
     case 'BinOp':
       // sigma-rust `mir/bin_op.rs::BinOp::tpe` (line 234-241): Relation and
       // Logical kinds always return SBoolean; Arith and Bit kinds inherit
-      // the type of the left operand.
+      // the type of the left operand. JVM ArithOp.tpe = left.tpe, with no cast and no
+      // require (sigma/ast/trees.scala:707-708), so it passes the JVM's SAny through.
       switch (e.op.kind) {
         case 'Relation':
         case 'Logical':
           return { tag: 'SBoolean' }
         case 'Arith':
-        case 'Bit':
           return exprTpe(e.left)
+        case 'Bit': {
+          // JVM BitOp: require(left.tpe.isNumTypeOrNoType && right.tpe.isNumTypeOrNoType) in the
+          // constructor (sigma/ast/trees.scala:913), which reads the left operand's type and then
+          // the right's; tpe = left.tpe (:915). The JVM's SAny in either fails the require.
+          const lt = requireNumTypeOrNoType(e.left, 'BitOp', 'bit-op-operand-jvm-sany')
+          requireNumTypeOrNoType(e.right, 'BitOp', 'bit-op-operand-jvm-sany')
+          if (lt instanceof ExprTpeError) throw lt
+          return lt
+        }
         default: {
           const _exhaust: never = e.op
           throw new ExprTpeError(
@@ -218,7 +274,12 @@ export function exprTpe(e: Expr): SType {
       // type is `SColl(elem_tpe)` where elem_tpe is the input collection's
       // element type. Equivalent to returning the input's own type (since
       // filtering preserves the collection's shape).
-      return exprTpe(e.input)
+      // JVM Filter.tpe: SCollection[IV] = input.tpe, a def (sigma/ast/transformers.scala:121): it
+      // casts the input's type to SCollection where the node's type is read, not when it is built.
+      // The JVM's SAny and NoType fail the cast.
+      const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) throw classCast('Filter', it, 'filter-input-class-cast')
+      return it
     }
     case 'GetVar':
       // sigma-rust `mir/get_var.rs::GetVar::tpe` (line 24-27): SOption(varTpe).
@@ -256,10 +317,15 @@ export function exprTpe(e: Expr): SType {
     case 'CalcSha256':
       // mir/calc_sha256.rs::CalcSha256::tpe → SColl[SByte] (32-byte digest).
       return { tag: 'SColl', elem: { tag: 'SByte' } }
-    case 'BitInversion':
+    case 'BitInversion': {
       // mir/bit_inversion.rs::BitInversion::tpe → input.post_eval_tpe()
       // (bitwise NOT preserves the numeric operand type).
-      return exprTpe(e.input)
+      // JVM BitInversion: require(input.tpe.isNumTypeOrNoType) in the constructor, tpe = input.tpe
+      // (sigma/ast/trees.scala:900-902). The JVM's SAny fails the require; NoType passes it.
+      const it = requireNumTypeOrNoType(e.input, 'BitInversion', 'bit-inversion-input-jvm-sany')
+      if (it instanceof ExprTpeError) throw it
+      return it
+    }
     case 'CreateAvlTree':
       // mir/create_avl_tree.rs::CreateAvlTree::tpe → SAvlTree.
       return { tag: 'SAvlTree' }
@@ -321,9 +387,14 @@ export function exprTpe(e: Expr): SType {
     case 'SizeOf':
       // sigma-rust `mir/coll_size.rs::SizeOf::tpe`: SInt.
       return { tag: 'SInt' }
-    case 'Slice':
+    case 'Slice': {
       // sigma-rust `mir/coll_slice.rs::Slice::tpe`: inherits from input.
-      return exprTpe(e.input)
+      // JVM Slice.tpe = input.tpe, a val (sigma/ast/transformers.scala:89): built with the node, it
+      // casts the input's type to SCollection. The JVM's SAny and NoType fail the cast.
+      const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) throw classCast('Slice', it, 'slice-input-class-cast')
+      return it
+    }
     case 'Collection':
       // sigma-rust `mir/collection.rs::Collection::tpe` (line 63-72): the
       // element type is SBoolean for BoolConstants, else the stored elem_tpe.
@@ -357,12 +428,17 @@ export function exprTpe(e: Expr): SType {
       // sigma-rust `mir/downcast.rs::Downcast::tpe`: target type stored on
       // the node. Symmetric to Upcast.
       return e.tpe
-    case 'Append':
+    case 'Append': {
       // sigma-rust `mir/coll_append.rs::Append::tpe` (line 55-60): the
       // type of the input collection (Append::new validates input.tpe ===
       // col2.tpe; later modifications are unchecked). Same shape as Filter
       // and Slice.
-      return exprTpe(e.input)
+      // JVM Append.tpe = input.tpe, a val (sigma/ast/transformers.scala:62): built with the node, it
+      // casts the input's type to SCollection. The JVM's SAny and NoType fail the cast.
+      const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) throw classCast('Append', it, 'append-input-class-cast')
+      return it
+    }
     case 'Fold':
       // sigma-rust `mir/coll_fold.rs::Fold::tpe` (line 60-62): the type of
       // the `zero` accumulator. The fold reduces a Coll[T] using a
@@ -372,11 +448,15 @@ export function exprTpe(e: Expr): SType {
     case 'Map': {
       // sigma-rust `mir/coll_map.rs::Map::tpe` (line 53-56): SColl wrapping
       // the mapper function's range. We project mapper.tpe (must be SFunc)
-      // and wrap its result. SAny relaxation matches the ByIndex arm —
-      // when the mapper cascades from a PropertyCall placeholder we return
-      // SAny rather than throwing, so downstream val-def stores accept
-      // the binding.
+      // and wrap its result.
+      // JVM MapCollection.tpe = SCollection(mapper.tpe.tRange), a val (sigma/ast/transformers.scala:38):
+      // built with the node, it casts the mapper's type to SFunc. The JVM's SAny and NoType fail the
+      // cast. ergots' own SAny, a mapper cascading from a PropertyCall placeholder, is returned rather
+      // than thrown (the ByIndex arm), so downstream val-def stores accept the binding.
       const mt = exprTpe(e.mapper)
+      if (mt === SANY_JVM || mt === NOTYPE_JVM) {
+        throw classCast('Map (its mapper)', mt, 'map-mapper-class-cast')
+      }
       if (mt.tag === 'SAny') {
         return mt
       }
@@ -418,10 +498,14 @@ export function exprTpe(e: Expr): SType {
       return { tag: 'SBoolean' }
     case 'OptionGetOrElse': {
       // sigma-rust `mir/option_get_or_else.rs::OptionGetOrElse::tpe` (line
-      // 47-49): the element type of the input SOption. Mirror the OptionGet
-      // arm — derive the elem type from input.tpe and apply the SAny
-      // relaxation (PropertyCall cascade).
+      // 47-49): the element type of the input SOption.
+      // JVM OptionGetOrElse.tpe = input.tpe.elemType (sigma/ast/transformers.scala:626), read by the
+      // val opType while the node is built (:625): a cast of the input's type to SOption. The JVM's
+      // SAny and NoType fail it; ergots' own SAny passes through (the ByIndex arm).
       const it = exprTpe(e.input)
+      if (it === SANY_JVM || it === NOTYPE_JVM) {
+        throw classCast('OptionGetOrElse', it, 'option-get-or-else-input-class-cast')
+      }
       if (it.tag === 'SAny') {
         return it
       }
@@ -433,11 +517,16 @@ export function exprTpe(e: Expr): SType {
       }
       return it.elem
     }
-    case 'Negation':
+    case 'Negation': {
       // sigma-rust `mir/negation.rs::Negation::tpe` (line 20-22): the
       // input's type (negation preserves the numeric type — SByte/SShort/
       // SInt/SLong/SBigInt). Negation::try_build validates is_numeric.
-      return exprTpe(e.input)
+      // JVM Negation: require(input.tpe.isNumTypeOrNoType) in the constructor, tpe = input.tpe
+      // (sigma/ast/trees.scala:882-884). The JVM's SAny fails the require; NoType passes it.
+      const it = requireNumTypeOrNoType(e.input, 'Negation', 'negation-input-jvm-sany')
+      if (it instanceof ExprTpeError) throw it
+      return it
+    }
     case 'ExtractCreationInfo':
       // sigma-rust `mir/extract_creation_info.rs::ExtractCreationInfo::tpe`
       // (line 23-25): STuple(SInt, SColl[SByte]) — the (block_height,
