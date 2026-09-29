@@ -27,7 +27,7 @@
     },
     {
       "name" : "valdef-id-overflow-errored#0",
-      "script" : "{ val x = 7; x }  // ValDef.id = 0x80000000 (Int.MaxValue+1): JVM ValDefSerializer reads id with getUIntExact -> ArithmeticException at DESERIALIZE. ergots reads it with readVlqU and ACCEPTS (binds+evals) — the over-acceptance divergence (REL-WIRE-ID-01). ValUse/FuncValue ids use getUInt.toInt (wrapping) and are deliberately NOT bound by this.",
+      "script" : "{ val x = 7; x }  // ValDef.id = 0x80000000 (Int.MaxValue+1): JVM ValDefSerializer reads id with getUIntExact -> ArithmeticException at DESERIALIZE. ergots once read it with readVlqU and accepted it (REL-WIRE-ID-01); it now rejects it at parse, ExprParseError('val-def-id-out-of-range'). ValUse/FuncValue ids use getUInt.toInt (wrapping) and are deliberately NOT bound by this.",
       "tree_bytes_hex" : "1001040ed801d680808080087300728080808008",
       "input" : {
         "kind" : "Int",

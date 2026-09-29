@@ -294,6 +294,17 @@ describe('mock-REST walk h=2..h=10', () => {
                 expect(JSON.parse(readFileSync(checkpointPath, 'utf8'))).toMatchObject({ lastValidatedHeight: 10, mode: 'ids', census });
             }, 60_000);
 
+            it('resumes with the same census path after its content is edited (the walk keeps the path)', async () => {
+                // The Task 13 protocol: a census-file-only edit, such as listing a degrade the walk
+                // met, may resume the walk; only the census path is part of the walk.
+                const { dir, census } = walkDir();
+                const checkpointPath = join(dir, 'checkpoint.json');
+                expect(await run(dir, ['--start-height', '2', '--max-height', '5', '--mode', 'ids', '--census', census])).toBe(0);
+                writeFileSync(census, JSON.stringify([{ height: 100_000, txIndex: 0, outputIndex: 0, reason: 'listed after the first run' }]));
+                expect(await run(dir, ['--max-height', '10', '--mode', 'ids', '--census', census])).toBe(0);
+                expect(JSON.parse(readFileSync(checkpointPath, 'utf8'))).toMatchObject({ lastValidatedHeight: 10, mode: 'ids', census });
+            }, 60_000);
+
             it('names the census and its size when a walk starts', async () => {
                 const { dir, census } = walkDir([{ height: 100_000, txIndex: 0, outputIndex: 0, reason: 'outside this walk' }]);
                 const written: string[] = [];

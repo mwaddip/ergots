@@ -396,6 +396,14 @@ pub fn generate() -> anyhow::Result<BinOpArithFixtureFile> {
 
     // =========================================================================
     // Non-numeric operand: Boolean Plus Boolean
+    //
+    // ⚠️ HAND-EDITED FIXTURE (2026-09-28): sigma-rust packs a pair of Boolean
+    // constants after EVERY BinOp opcode (`00 9a 85 01`), but the JVM packs only
+    // after its nine Relation2 opcodes (ValueSerializer.scala:48-58); Plus is a
+    // TwoArgumentsSerializer and writes two full values. The committed
+    // `tree_bytes_hex` was re-encoded to the JVM form, `00 9a 01 01 01 00`. A
+    // `cargo run` regeneration shows an EXPECTED diff here, not a determinism
+    // regression: keep the JVM form (fixture-gen is frozen).
     // =========================================================================
     entries.push(error_entry(
         "plus_not_numeric_bool",
