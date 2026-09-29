@@ -78,7 +78,7 @@ The bytes must contain exactly one transaction — trailing bytes throw `TxParse
 
 Each output's ergoTree is parsed under the box rules (`parseErgoTreeBytes` from `@ergots/ergoscript`), on the transaction's reader, as the JVM parses a box's tree: its declared size is used only if it degrades, and rule 1001 applies. Once every output is parsed, `parseTransaction` re-encodes each output tree, as the JVM's eager transaction id does, and rejects the transaction if one cannot be written.
 
-**Returns:** `ErgoLikeTransaction` satisfying all type invariants. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input that is canonically encoded and whose register and context-extension values can all be written; non-canonical encodings re-serialize canonically, and an output tree whose declared size differs from its body re-serializes with its true size. Each output's `ergoTreeBytes` keeps the tree's bytes as received.
+**Returns:** `ErgoLikeTransaction` satisfying all type invariants. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input that is canonically encoded and whose register and context-extension values can all be written. Non-canonical encodings re-serialize canonically, as the JVM's do, and an output tree whose declared size differs from its body re-serializes with its true size. Two encodings keep their received bytes where the JVM would normalize them: a Tuple-expression register and an AvlTree flags byte (`facts/transaction.md`, "Round-trip invariant" and Known residual 3). Each output's `ergoTreeBytes` keeps the tree's bytes as received.
 
 **Throws:**
 - `TxParseError('trailing-bytes')` — bytes remain after a complete transaction was parsed.
