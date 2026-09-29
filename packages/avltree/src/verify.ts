@@ -1,10 +1,10 @@
 /**
  * Public verifier entry points.
  *
- * - `verifyAvlBatch` / `verifyAvlBatchPartial` / `verifyAvlLookup` — whole
- *   operation lists: shape validation (throws `AvlVerifyError` on programmer
- *   errors), then a clean null-on-failure return for every untrusted-input
- *   rejection.
+ * - `verifyAvlBatch` / `verifyAvlBatchPartial` (whole operation lists) and
+ *   `verifyAvlLookup` (one key): shape validation (throws `AvlVerifyError` on
+ *   programmer errors), then a clean null-on-failure return for every
+ *   untrusted-input rejection.
  * - `BatchAVLVerifier` (0.5.0) — the step-by-step verifier over the same
  *   internal `VerifierCore`: operations one at a time, as a state transition
  *   asks for them.
