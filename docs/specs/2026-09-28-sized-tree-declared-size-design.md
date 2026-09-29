@@ -9,6 +9,8 @@ After the first pass the user decided two points: the method catalog becomes a r
 
 **Amended during implementation** (2026-09-28 and 2026-09-29), each change re-verified against source: §4 (the declared `SAny`), §5 (the audited sites), the §2 pseudo-code (a nested degrade past the end), §8 (the miss rule), residuals 1 and 4, two citations under "Register values", and the follow-ups that implementation surfaced. The user decided one more point: `parseTransaction` forces each output tree's re-encoding at parse, as ergo-core's eager transaction id does (§9).
 
+**Amended after the final review** (2026-09-29), each change checked against a live sigma-state 6.0.6 probe: §4 (`ByIndex` over a tuple, the JVM's `SAny`), §6 (a register's lead byte), §7 (the re-encoding follows each node's JVM companion; the Box index is written within a Short), §8 (the miss rule's span check), §12 (the output check against the chain's box bytes), the behavior matrix, residuals 1, 4 and 5, the new residual 11, the follow-ups, and the SANTA requests.
+
 **Scope:**
 - items 1–3 of `HANDOFF.md` "NEXT TASK";
 - the unsized-tree error translation (item 5, third bullet);
@@ -221,11 +223,11 @@ Rule 1001 uses `exprTpe(root)`, with one JVM-faithful change to its `Apply` arm:
 
 The rule then reads:
 - `SSigmaProp` passes.
-- ergots' own `SAny` passes (residual 1). It is the fresh object ergots' method typing returns where it has no result type to give: an unregistered method's return, or `resolveReturnTpe`'s fallback for a type variable left unbound. `unifyTypes` also makes one, for the element of a tuple matched against a collection, where the JVM makes an `SAny` too.
-- Any other type, or `'apply-func-no-type'`, throws `'root-not-sigma-prop'`. That includes a declared `SAny` (type code 97), as in the JVM, whose rule requires `isInstanceOf[SSigmaProp.type]` (`core/.../sigma/ast/package.scala:121`).
-- Any other `ExprTpeError` propagates as a hard reject. The JVM throws for those shapes while building the node.
+- ergots' own `SAny` passes (residual 1). It is the fresh object ergots' method typing makes: an unregistered method's return, or `resolveReturnTpe`'s fallback for a type variable left unbound. `unifyTypes` also makes one, for the element of a tuple matched against a collection, where the JVM makes its `SAny`.
+- Any other type, or `'apply-func-no-type'`, throws `'root-not-sigma-prop'`. That includes the JVM's `SAny`, from type code 97 or a tuple's element type, as in the JVM, whose rule requires `isInstanceOf[SSigmaProp.type]` (`core/.../sigma/ast/package.scala:121`).
+- Any other `ExprTpeError` propagates as a hard reject: each is a shape the JVM throws for while it builds the node (`ByIndex` over a type that is no collection, `OptionGet` over one that is no option, and the like; `sigma/ast/transformers.scala:38, 254, 294, 601, 626`). A shape the JVM types, `exprTpe` must type too, or the rule over-rejects. `ByIndex` over a tuple was one until the final review (2026-09-29): `STuple` extends `SCollection[SAny]` with `elemType = SAny` (`core/.../sigma/ast/SType.scala:838-841`) and `ByIndex.tpe = input.tpe.elemType` (`sigma/ast/transformers.scala:254`), so the JVM types it as its `SAny` and degrades a sized tree rooted there (`08 0a b2 86 02 04 00 04 00 04 00 00`), where `exprTpe` threw `'by-index-input-not-scoll'`. It now returns the JVM's `SAny`, which also lets a ValDef bind it, as the JVM's does (`08 10 d8 01 d6 01 b2 86 02 04 00 04 00 04 00 00 08 d3` parses).
 
-The two `SAny`s are told apart by identity (added after review, 2026-09-28). `parseSType` returns one frozen object, `SANY_DECLARED`, for type code 97; nodes keep the types they parse as received; and `exprTpe` returns an `SAny` input as the same object. ergots' own `SAny` is always a fresh object. So a declared `SAny` fails the rule when it reaches the root through `exprTpe`'s own arms, and passes where the method typing replaces it with one of ergots' own (residual 1).
+The two `SAny`s are told apart by identity (added after review, 2026-09-28). `SANY_JVM` is one frozen object: `parseSType` returns it for type code 97, and `exprTpe` for `ByIndex` over a tuple; nodes keep the types they parse as received; and `exprTpe` returns an `SAny` input as the same object. ergots' own `SAny` is always a fresh object. So the JVM's `SAny` fails the rule when it reaches the root through `exprTpe`'s own arms, and passes where the method typing replaces it with one of ergots' own (residual 1). Telling the two apart cannot itself reject an honest tree, since ergots' own `SAny` keeps passing; the rule over-rejects only where `exprTpe` throws for a shape the JVM types, as it did for `ByIndex` over a tuple.
 
 `ExprTpeError` is exported so callers can classify it. The evaluator also calls `exprTpe`, in eight places. For those callers the collection case is also the JVM's type, and a non-function still throws.
 
@@ -259,6 +261,7 @@ The sites the audit found and excluded are in the follow-ups; none is a bound th
   - Rule 1019 runs once per register, in `parseAdditionalRegisters`, on the complete value. It runs after `parseRegisterExprWithTag` has returned, so a Tuple's items have all been read and the value's level has been lowered, as in the JVM (`ValueSerializer.scala:409`). Checking each item as it is read would let an early item's rule-1019 failure degrade a tree the JVM rejects on a later item's hard error. It would also leak one level more.
   - The count stays a `getUByte`. More than six registers rejects only when the parser reaches the seventh, after R4–R9 have been read.
   - The context extension keeps its check before the value. Outside a tree both orders reject, so no verdict changes.
+  - A register value's lead byte, and a register Tuple item's, that is neither a constant's type code nor `0x86` is classified as `parseExpr` classifies it (final review, 2026-09-29): `r.getValue()` runs rule 1002 `CheckValidOpCode` on it (`ValueSerializer.scala:171-175`), so an opcode with no JVM serializer throws the soft `'opcode-reserved'` / `'unknown-opcode'` and degrades an enclosing sized tree (`18 32 01 63 01 00 08 d3 00 00 01 84 <11×32> 00 d1 91 c1 73 00 05 00`). `parseExpr`'s dispatch becomes `exprParserFor(opcode)`, the JVM's `getSerializer`, which the register parse calls for the classification alone. A known opcode, which the JVM parses and then casts to an evaluated value (`ErgoBoxCandidate.scala:231`), keeps the hard `'sbox-register-unsupported-expr'` without its payload being read (residual 4), and so do the six opcodes of residual 5.
 - **`parseTree(bytes, opts?: { checkType?: boolean })`** is lenient by default.
   - Its envelope checks are unchanged: empty input, the 1 MiB `'oversized'` cap, and trailing bytes.
   - It now tolerates trailing bytes that lie within a size-flagged tree's declared span (`bodyPos + declared`), as the fork did, so `09 03 08 d3 00` still parses. Beyond that span it still throws `'trailing-bytes'` (ERG-02; residual 6).
@@ -269,10 +272,16 @@ The sites the audit found and excluded are in the follow-ups; none is a bound th
 
 `serializeTree` emits `rawHeader` as stored. Its consistency guard compares only bits 0–4 (version, size, segregation) with the derived fields. The postcondition at `facts/ergoscript-wire.md:50` is rewritten to match.
 
+Since re-encoding now carries the transaction id, the writers follow the JVM's in two more places (final review, 2026-09-29):
+- **Each node is written by its JVM companion's serializer**, which can differ from the opcode it was read with. A ConcreteCollection of SBoolean whose items are all constants is written `0x85`, packed (`values.scala:871-875`), and a MethodCall without arguments is written as a PropertyCall, `0xdb` (`values.scala:1351`). `serializeCollection` and `serializeMethodCall` write their own opcode. A Boolean-constant collection holding a constant of another type, which the JVM's parse rejects (residual 9), cannot be written: `'collection-item-not-boolean-constant'`, as the JVM's writer fails there too.
+- **A Box value's index is written within [0, 0x7FFF]**: the JVM stores it as a Short (`getUShort().toShort`, `ErgoBox.scala:56, 218, 224`) and its `putUShort` (`:211`) rejects the negative Short that 0x8000–0xFFFF parse to. The parse bound stays 0xFFFF, so such a box parses but cannot be re-encoded, in a tree, a register, an extension or `Global.serialize` (`'sbox-index-out-of-range'`).
+
+The JVM's pre-v3 builder rewrites arithmetic operands too; ergots does not model that (residual 11).
+
 ### 8. ergoscript: `boxTreeOf`, `reencodeTreeBytes` and `seedBoxTree` (new exports)
 
 **`boxTreeOf(ergoTreeBytes)`** returns the box's tree under the box rules. It reads from a `WeakMap` keyed by the `Uint8Array` instance, which `parseErgoTreeBytes` seeds. On a miss it parses once, standalone, with `checkType: true`:
-- **The tree's own reads run out of input** (`'truncated'`, including from `peekU8`, raised outside any nested tree's constants and body; a nested tree reads its header and size before its `try`, so a run-out there counts as the enclosing tree's): a size-flagged tree becomes `Unparsed` with the raw bytes. In its box, that tree degraded after its reads went past its declared span.
+- **The tree's own reads run out of input** (`'truncated'`, including from `peekU8`, raised outside any nested tree's constants and body; a nested tree reads its header and size before its `try`, so a run-out there counts as the enclosing tree's): a size-flagged tree becomes `Unparsed` with the raw bytes. In its box, that tree degraded after its reads went past its declared span, and box ingest kept exactly that span, `bodyPos + declared` bytes in the JVM's Int arithmetic. Bytes of any other length are no box span, and the run-out propagates (final review, 2026-09-29). A span that ends inside the size VLQ (`09 fe ff ff`, from a declared size that wraps negative) cannot be measured and stays `Unparsed`.
 - **A nested tree runs out of input:** the result is ambiguous. In the box, a nested tree may have degraded after reading past this tree's end, then moved back, leaving this tree parsed. It may also have degraded over a span that ends past this tree's end before this tree itself degraded (added after the task review, 2026-09-29). The miss throws `ErgoTreeParseError('box-context-required')`, and a JVM-faithful result for such bytes needs the ingest seed or `seedBoxTree`. `parseTreeFromReader` marks both nested run-outs, a `'truncated'` raised in a nested tree's constants or body and a nested tree's degrade span past the end of the input, as `'nested-tree-truncated'`, so the miss can tell them from the tree's own.
 - **Any other failure propagates.** It does not depend on the bytes after the tree, so such bytes are not a valid box tree, and `ErgoTree.fromBytes` would throw too.
 - **Trailing bytes** throw `'trailing-bytes'`. Leaving them in place would make R1 and the re-encoding disagree.
@@ -312,7 +321,7 @@ For these, ergoscript exports `boxIdOf` and `boxBytesOf`.
 
 ### 12. The mainnet harness (`tools/mainnet-validate/harness`)
 
-- **The output round-trip check** (`validate-block.ts:338-400`) compares `reencodeTreeBytes(ergoTreeBytes)` with the raw bytes. With the lenient `parseTree` it would stop at the burn box.
+- **The output round-trip check** (`validate-block.ts`) re-serializes each output box as the JVM does, its tree re-encoded under the box rules, and compares the result with the chain's box bytes (final review, 2026-09-29; it first compared `reencodeTreeBytes(ergoTreeBytes)` with the raw tree bytes). The chain's box bytes are the JVM's own serialization of the box: they hash to the box id, which the indexer client checks, so they are a fixed point of the JVM's re-encoding. An honest tree need not be: the JVM rewrites some honest encodings (§7), which the chain's bytes therefore never carry. The box-level comparison also covers the registers and the index. With the lenient `parseTree` it would stop at the burn box.
 - **A degrade census:** every output tree that comes back `Unparsed` is logged.
   - The first run establishes the set, with each entry justified. The burn box is the one known today.
   - Later runs fail on any difference.
@@ -376,10 +385,15 @@ Contracts are written first.
 | constants count that wraps negative | no constants; parses | rejected |
 | spend of a box whose tree rule 1001 degraded | rejected | evaluated (lenient re-parse) |
 | header with bits 5–7 set, parses | re-encodes the header byte as stored | `serializeTree` throws |
+| sized, root `ByIndex` over a tuple, box path (final review) | unparsed, the declared span (the root types `SAny`) | rejected (`'by-index-input-not-scoll'`) |
+| a ValDef bound to `ByIndex` over a tuple (final review) | parsed | rejected (`'val-def-rhs-tpe'`) |
+| nested Box register led by an opcode with no serializer, sized tree (final review) | the outer tree degrades | rejected (`'sbox-register-unsupported-expr'`) |
+| Boolean-constant collection read as `0x83`, or a MethodCall without arguments read as `0xdc` (final review) | re-encoded as `0x85` / `0xdb` | re-encoded as read |
+| Box value with index 0x8000–0xFFFF (final review) | parses; cannot be re-encoded, so the tx rejects | parsed and re-encoded |
 
 ## Scope and consensus
 
-Honest trees declare their true size, have SigmaProp roots and re-encode to themselves. The harness's output round-trip check held for every output tree it compared on the full mainnet walk to the tip (T7, 2026-05-31). That evidence has limits:
+Honest trees declare their true size and have SigmaProp roots, and a tree written as the JVM writes it re-encodes to itself; the chain's served bytes are written that way. The harness's output round-trip check held for every output tree it compared on the full mainnet walk to the tip (T7, 2026-05-31). That evidence has limits:
 - the walk skipped size-flagged trees that failed to parse;
 - its parser still rejected trailing bytes inside a declared size, so it proved nothing about over-declared trees;
 - the harness sees ergo-node-rust's re-serialized transaction bytes, not the raw block bytes;
@@ -395,7 +409,7 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
    - `resolveReturnTpe`'s fallback (`mir/method-signatures.ts:303`) for a result type variable left unbound. The variable may be bound to a wire-declared type variable, as in `0b 0a dc 6a 04 dd 01 0e 00 67 01 58` (`Global.deserializeTo[X]`, which the JVM types `STypeVar(X)`, `sigma/ast/values.scala:1355-1357`), or meet conflicting operand types, as in `0b 09 dc 04 09 d4 61 01 01 04 00` (`Int.bitwiseOr` on a `DeserializeContext(SAny)` receiver, which the JVM specializes to `SInt`, `sigma/ast/methods.scala:235-257`). The catalog follow-up does not close the first case: `106:4`'s signature already matches the JVM's.
    - `unifyTypes`' element type for a tuple matched against a collection, which the JVM makes an `SAny` too (`core/.../sigma/ast/package.scala:46-47`), and fails.
 
-   A declared `SAny` (type code 97) fails the rule, as in the JVM, when it reaches the root through `exprTpe`'s own arms (§4). Where the method typing replaces it with one of ergots' own, it passes: `00 db 24 03 e3 01 61`, `SOption.get` on `GetVar(1, SAny)`, whose pair the catalog lacks, parses under `checkType`.
+   The JVM's `SAny` (`SANY_JVM`: type code 97, or a tuple's element type) fails the rule, as in the JVM, when it reaches the root through `exprTpe`'s own arms (§4). `unifyTypes`' element type for a tuple is that same `SAny` in the JVM; returning `SANY_JVM` there would close the second case above. Where the method typing replaces it with one of ergots' own, it passes: `00 db 24 03 e3 01 61`, `SOption.get` on `GetVar(1, SAny)`, whose pair the catalog lacks, parses under `checkType`.
    - For an unsized tree, ergots accepts a box the JVM rejects.
    - For a sized tree, the JVM degrades it, so its spend rejects, where ergots parses it and evaluates a spend. With a wrong declared size, the two also continue the box at different bytes.
 
@@ -405,9 +419,11 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
 4. **Registers.**
    - Tuple-expression registers keep `opaqueBytes`, and AvlTree flags stay unmasked. The JVM writes the flags back masked (`AvlTreeData.scala:28-34, 74`), so an AvlTree value with flag bits 3–7 set, in an output's registers or tree or in an input's context extension (`ContextExtension.scala:49`), gives ergots another signing message, and so another tx id and other output ids (`facts/transaction.md` Known residual 3).
    - The JVM also accepts ConcreteCollection and GroupGenerator register values (`ValidationRules.scala:188-193`), where ergots accepts only constants and tuples.
-   - A register Tuple's items are held to the same two forms, where the JVM reads each with `r.getValue()` (`TupleSerializer.scala:32-34`). A register Tuple of arity 0 or 1, which the JVM parses, rejects in ergots.
-   - Register values the JVM cannot re-encode, such as an AvlTree register whose `keyLength` is 2^31 or more, or one of a 1-item tuple type, parse in both. The JVM rejects a transaction whose output carries one at parse, since its eager id writes registers from their structure (`ErgoBoxCandidate.scala:175`); ergots rejects it only when it computes the id or re-serializes the box.
-5. **The constant-store leak** after a degrade, and the six opcodes the JVM parses.
+   - A register Tuple's items are held to the same two forms, where the JVM reads each with `r.getValue()` (`TupleSerializer.scala:32-34`) and casts only the Tuple itself: a known opcode as an item parses in the JVM (`86 02 04 00 a3`) and rejects in ergots. A register Tuple of arity 0 or 1, which the JVM parses, rejects in ergots.
+   - A register value, or a Tuple item, led by an opcode with no JVM serializer is soft in both (§6). ergots rejects any other opcode on its lead byte, where the JVM first parses the node's payload: a soft failure in that payload degrades an enclosing sized tree in the JVM and rejects in ergots (`d1 84` as a nested box's R4; sigma-state 6.0.6 probe).
+   - The JVM writes a ConcreteCollection register of Boolean constants back as `0x85` (§7), which ergots, rejecting such registers, never writes.
+   - Register values the JVM cannot re-encode, such as an AvlTree register whose `keyLength` is 2^31 or more, one of a 1-item tuple type, or a Box value whose index is 0x8000 or more, parse in both. The JVM rejects a transaction whose output, or whose context extension, carries one at parse, since its eager id writes them from their structure (`ErgoBoxCandidate.scala:175`, `ContextExtension.scala:49`); ergots rejects it only when it computes the id or re-serializes the box.
+5. **The constant-store leak** after a degrade, and the six opcodes the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable and the three ModQ opcodes). As a register's lead byte they stay hard (§6): the JVM has a serializer for each, so its rule 1002 does not apply. The JVM rejects TaggedVariable and ModQ there at the register's cast, as ergots does, unless their payload holds a soft failure first (`e7 84` degrades in the JVM); it accepts TrueLeaf and FalseLeaf, where ergots rejects. Classifying them as `parseExpr` does would have turned the four JVM rejects into degrades.
 6. **`parseTree`'s envelope, including P2S address decoding:** the 1 MiB `'oversized'` cap, and trailing bytes beyond the declared span (ERG-02). The JVM's lenient parse ignores trailing bytes and degrades a sized tree above 1 MiB. This is ErgoTree-kind and address only; box trees are bounded by the 4096 windows.
 7. **Block context.** For a tree that reads to the end of its transaction, the JVM degrades the tree when another transaction follows in the block, and rejects it on its own. ergots parses each transaction on its own and takes the standalone verdict. SANTA's BlockTransactions kind (`02c60db`) pins the block side.
 8. **A ValDef whose right-hand side is `Apply` of a non-function, non-collection.** The JVM gives it `NoType` and parses on; ergots rejects with `'val-def-rhs-tpe'`. This predates the change; only the collection case is fixed here.
@@ -416,6 +432,14 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
     - The JVM keeps one store per reader (`SigmaByteReader.scala:32`), so the outputs of one transaction share it. A ValDef in output 0's tree resolves a ValUse in output 1's (SANTA `02c60db`, `Transaction.valdef_scope#0`, accepted).
     - ergots starts a fresh map for every tree, so it rejects that transaction.
     - Adopting the reader's store needs its own look: the JVM's store is flat, while ergots may scope ValDefs inside one tree. It goes to a follow-up.
+11. **The pre-v3 builder's arithmetic rewrites** (final review, 2026-09-29). For a tree of version 0–2, the JVM's `DeserializationSigmaBuilder` inserts an `Upcast` for the narrower of two numeric operands of different types (`applyUpcast`, `SigmaBuilder.scala:674-712`; not from v3, `:750-764`), `ByIndexSerializer` upcasts the index to `SInt` (`ByIndexSerializer.scala:29-33`), and the writer drops the `Upcast` of a constant (`serializable`, `ValueSerializer.scala:157-169, 362-373`). The JVM therefore re-encodes these trees differently, where ergots writes them back as read (sigma-state 6.0.6 probe):
+    - `00 d1 91 a3 05 00` → `00 d1 91 7e a3 05 05 00`;
+    - `00 d1 91 7e 04 00 05 05 00` → `00 d1 91 04 00 05 00`;
+    - `10 02 04 00 05 00 d1 91 73 00 73 01` → `10 02 04 00 05 00 d1 91 7e 73 00 05 73 01` (a placeholder is not a constant, so the `Upcast` stays);
+    - `00 d1 91 9a a3 05 02 05 00` → `00 d1 91 9a 7e a3 05 05 02 05 00`;
+    - `00 d1 b2 0d 01 01 7d a3 02 00` → `00 d1 b2 0d 01 01 7e 7d a3 02 04 00`.
+
+    The transaction id, output ids, `Global.serialize` and the serialize cost follow the re-encoding. Modelling it needs `exprTpe` to type arithmetic as the JVM's builder does (the `Plus(Int, Long)` follow-up), a broad change. A JVM-compiled tree, and the chain's served bytes, are already written as the builder leaves them; a tree from another encoder may not be.
 
 ## Tests (TDD, contracts first)
 
@@ -472,6 +496,14 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
 - a `SubstConstants` template whose declared size is above 2^32−1;
 - an eval-tier transaction whose output declares the wrong size, covering its tx id and that output's `propositionBytes` against its `bytes` inside the creating transaction's script.
 
+**Vectors wanted after the final review** (2026-09-29; for the handoff batch, not sent), each shape already checked against a local sigma-state 6.0.6 probe:
+- residual 11: the five pre-v3 re-encodings listed there, as Transaction vectors, whose tx ids the rewrite moves;
+- a nested Box register led by `0x84`, by `0xd3`, and a register Tuple item led by `0x84`, each in a sized tree (degraded and accepted), the same in an unsized tree (rejected), and a register led by `a3` (rejected);
+- the register leads of residual 5 (`7f`, `80`, `e7 06 01 05`, `71 01 04`) and a known lead over a soft payload (`d1 84`, `e7 84`), where ergots still diverges;
+- a Boolean-constant collection read as `0x83`, empty included, and a MethodCall without arguments read as `0xdc`, with their tx ids;
+- a Box value with index 0x8000 in an output tree, an output register and a context extension (rejected), with the 0x7FFF control;
+- a sized tree rooted at `ByIndex` over a tuple (degraded), its unsized twin (rejected), and a ValDef bound to it (parsed).
+
 ## Faithfulness risks
 
 - **Honest roots.** An `exprTpe` mistype of an honest root would degrade or reject an honest box. The degrade census and the mainnet run are the check.
@@ -494,8 +526,11 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
   - a BlockValue item that is not a ValDef, which the JVM rejects at parse (`asInstanceOf[BlockItem]`, `BlockValueSerializer.scala:39`; `ValDef` is the only `BlockItem`, `sigma/ast/values.scala:924, 945-948`), where ergots accepts any Expr;
   - the CAND/COR/CTHRESHOLD `< 1` rejects, which are stricter than the JVM; dropping them needs SANTA vectors and the verifier's handling of empty conjectures first;
   - the transaction's token-table count, which the JVM reads with `getUIntExact` and bounds with `safeNewArray` at 100000 (`ErgoLikeTransaction.scala:162-166`), where ergots accepts up to 65535 × 255 = 16,711,425, sigma-rust's bound (`facts/transaction.md`, "Count bounds").
-- **The JVM's node-construction checks at parse**, one class: a `ClassCastException` for an input typed `SAny` in `ByIndex`, `SelectField`, `MapCollection`, `OptionGet` and `OptionGetOrElse` (`sigma/ast/transformers.scala:254, 294, 38, 600-601, 625-626`); a `NumericCast` to a non-numeric type (`NumericCastSerializer.scala:22-23`); and the Relation `check2`s (`SigmaBuilder.scala:691, 699, 702`). The JVM rejects these shapes while it builds the node. ergots makes none of these checks at parse (the `check2`s run only before evaluation), so it can accept, or degrade, a tree the JVM rejects.
-- **`exprTpe` of `Plus(Int, Long)`** is `SInt`, where the JVM's builder upcasts both operands to `Long` (`SigmaBuilder.scala:674-683, 707-712`). Verdict-neutral for rule 1001, since neither is SigmaProp; `exprTpe`'s other callers need a check for mixed-width arithmetic.
+- **The JVM's node-construction checks at parse**, one class: a `ClassCastException` for an input typed `SAny` in `ByIndex`, `SelectField`, `MapCollection`, `OptionGet` and `OptionGetOrElse` (`sigma/ast/transformers.scala:254, 294, 38, 600-601, 625-626`); a `NumericCast` to a non-numeric type (`NumericCastSerializer.scala:22-23`); the Relation `check2`s (`SigmaBuilder.scala:691, 699, 702`); and a pre-v3 `ByIndex` whose index is wider than an Int, which `upcastTo(SInt)` rejects with an `AssertionError` (`ByIndexSerializer.scala:29-33`; `00 d1 b2 0d 01 01 05 00 00`, final review). The JVM rejects these shapes while it builds the node. ergots makes none of these checks at parse (the `check2`s run only before evaluation), so it can accept, or degrade, a tree the JVM rejects.
+- **`exprTpe` of `Plus(Int, Long)`** is `SInt`, where the JVM's builder upcasts both operands to `Long` (`SigmaBuilder.scala:674-683, 707-712`). Verdict-neutral for rule 1001, since neither is SigmaProp; `exprTpe`'s other callers need a check for mixed-width arithmetic. It is also what modelling residual 11's rewrites needs.
+- **A register's known-opcode lead** (residual 4): the JVM parses the node's payload before its cast rejects it, so a soft failure there degrades an enclosing sized tree, where ergots rejects on the lead byte. Parsing the payload needs the reader's constant and ValDef stores (residuals 5 and 10), and the six opcodes of residual 5 would still need parsers.
+- **`boxTreeOf`'s nested miss rule is conservative** (final review): some nested run-outs are decidable from the bytes alone, for example under an enclosing tree without the size flag, which cannot have degraded; the miss still throws `'box-context-required'`. That is the safe direction, and box ingest seeds every parsed tree.
+- **sigma-rust writes a Boolean-constant collection read as `0x83` back as `0x83`, and a MethodCall without arguments as `0xdc`** (`collection.rs:127`, `method_call.rs:111` on `ergo-node-integration`), where the JVM writes `0x85` and `0xdb` (§7): route to the sigma-rust session at handoff.
 - **The spend of a degraded box.** The JVM reads an `UnparsedErgoTree` as `TrueSigmaProp` when the current validation settings mark its error's rule as soft-forked (`interpreter/.../Interpreter.scala:131-141`); ergots rejects every such spend (`EvalError('unparsed-ergotree')`). This belongs with the B-full `ValidationException` audit.
 - **`parseTransaction`'s `'trailing-bytes'`** is stricter than the JVM's `parseBytes`, which ignores the bytes after a transaction (ergo-core `avldb/.../ErgoSerializer.scala:27-30`).
 - **A parse-time re-encoding check over context-extension and register values.** The JVM's eager id writes the whole signing message from structure; the user's decision (§9) forced output trees only.
