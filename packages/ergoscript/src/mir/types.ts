@@ -58,14 +58,16 @@ export type SType =
   | { tag: 'STypeVar'; name: string }
 
 /**
- * The `SAny` a tree declares on the wire (type code 97, JVM `TypeSerializer.scala:196`): the one
- * object `parseSType` returns for it, and which `exprTpe` passes through unchanged. It is told apart
- * from ergots' own `SAny`, a fresh object standing for a type ergots cannot compute (an
- * unregistered method's return, residual 1), by identity. Rule 1001 fails a root typed as this
- * object, as the JVM fails a root whose type is `SAny` (`isSigmaProp`, core/.../sigma/ast/package.scala:121).
+ * The JVM's `SAny`: an `SAny` the JVM itself computes, which rule 1001 fails. Its origin is type
+ * code 97 on the wire (JVM `TypeSerializer.scala:196`), which `parseSType` returns as this object,
+ * and `exprTpe` passes it through unchanged.
+ * It is told apart by identity from ergots' own `SAny`, a fresh object that ergots' method typing
+ * makes (residual 1: an unregistered method's return, a result type variable left unbound, a
+ * tuple's element type met by unification). Rule 1001 fails a root typed as this object, as the
+ * JVM fails a root whose type is `SAny` (`isSigmaProp`, core/.../sigma/ast/package.scala:121).
  * Structurally it is `{ tag: 'SAny' }`, so equality checks and `serializeSType` treat it as any `SAny`.
  */
-export const SANY_DECLARED: SType = Object.freeze({ tag: 'SAny' })
+export const SANY_JVM: SType = Object.freeze({ tag: 'SAny' })
 
 // ---------------------------------------------------------------------------
 // Composite-type stubs (filled in later phases).

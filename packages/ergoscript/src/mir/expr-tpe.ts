@@ -68,8 +68,8 @@ export function exprTpe(e: Expr): SType {
       // (SCollectionType) → its element type; anything else → NoType. STuple extends the
       // SCollection trait but is not an SCollectionType (SType.scala:838), so it is NoType.
       // An SAny func cascades as the same object (see the ByIndex arm): ergots' own SAny for an
-      // unresolved method return stays itself, and a declared SAny stays SANY_DECLARED
-      // (mir/types.ts), which rule 1001 fails as the JVM fails this Apply's NoType.
+      // unresolved method return stays itself, and the JVM's SAny stays SANY_JVM (mir/types.ts),
+      // which rule 1001 fails as the JVM fails this Apply's NoType.
       const ft = exprTpe(e.func)
       if (ft.tag === 'SAny') return ft
       if (ft.tag === 'SFunc') return ft.result
@@ -90,8 +90,8 @@ export function exprTpe(e: Expr): SType {
       // `INPUTS(0).<property>(<index>)` — the bytes still serialize back
       // identically because the val-def store is consulted only for ValUse
       // and the resulting `SAny` value flows opaquely through the AST.
-      // The SAny is returned as the same object, so a declared SAny stays
-      // SANY_DECLARED (mir/types.ts) for rule 1001; every cascade arm below does the same.
+      // The SAny is returned as the same object, so the JVM's SAny stays
+      // SANY_JVM (mir/types.ts) for rule 1001; every cascade arm below does the same.
       const it = exprTpe(e.input)
       if (it.tag === 'SAny') {
         return it

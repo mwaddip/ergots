@@ -27,7 +27,7 @@
  */
 
 import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
-import { isUnparsedTree, SANY_DECLARED } from '../mir/types'
+import { isUnparsedTree, SANY_JVM } from '../mir/types'
 import { exprTpe, ExprTpeError } from '../mir/expr-tpe'
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
@@ -187,13 +187,13 @@ function checkRootIsSigmaProp(body: Expr): void {
     throw err
   }
   if (tpe.tag === 'SSigmaProp') return
-  // A declared SAny (type code 97, carried through exprTpe as one object) fails, as the JVM fails a
+  // The JVM's SAny (type code 97; one object, carried through exprTpe) fails, as the JVM fails a
   // root typed SAny (isSigmaProp is isInstanceOf[SSigmaProp.type], core/.../sigma/ast/package.scala:121).
-  if (tpe === SANY_DECLARED) {
-    throw new ErgoTreeParseError('root types as the declared SAny, not SigmaProp (rule 1001)', 'root-not-sigma-prop')
+  if (tpe === SANY_JVM) {
+    throw new ErgoTreeParseError("root types as the JVM's SAny, not SigmaProp (rule 1001)", 'root-not-sigma-prop')
   }
-  // ergots' own SAny, for a type it cannot compute, passes: residual 1 (the method catalog),
-  // facts/ergoscript-wire.md.
+  // ergots' own SAny, a fresh object its method typing makes, passes: residual 1
+  // (facts/ergoscript-wire.md).
   if (tpe.tag === 'SAny') return
   throw new ErgoTreeParseError(`root types as ${tpe.tag}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
 }
@@ -471,7 +471,7 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
  *     2^32-1 a hard reject), otherwise unused. It does NOT bound the reader by
  *     that size (`treeBytes = r.getBytes(r.remaining)` reads to end); we mirror
  *     that, so the body is all remaining bytes, not a size-bounded slice.
- *   - The constants count follows `deserializeConstants` (`:245-262`), as in
+ *   - The constants count follows `deserializeConstants` (`:245-266`), as in
  *     the tree parse: `getUInt().toInt`, constants read only when it is `> 0`
  *     (a count that wraps negative as an Int gives none), above the JVM's
  *     `safeNewArray` bound (100000) `'too-many-constants'`.
@@ -533,7 +533,7 @@ export function substituteConstantsBytes(
   const constantTypes: SType[] = []
   const constants: SValue[] = []
   if (seg) {
-    // deserializeConstants (:245-262): getUInt().toInt; read only when > 0;
+    // deserializeConstants (:245-266): getUInt().toInt; read only when > 0;
     // safeNewArray bound (SAFE_NEW_ARRAY_MAX) — same reader as the tree parse's
     // constants count (parseTreeFromReader, above).
     const count = readVlqU32(r, 'SubstConstants constants count') | 0

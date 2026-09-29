@@ -3,15 +3,15 @@
 // (core/.../sigma/ast/package.scala:121). Type code 97 parses as SAny (TypeSerializer.scala:196);
 // GetVar and DeserializeContext are built with no type check (SigmaBuilder.scala:479-480, 607-608);
 // OptionGet.tpe = input.tpe.elemType (sigma/ast/transformers.scala:601); an Apply of an SAny
-// function is NoType (sigma/ast/values.scala:1247-1251). ergots marks the declared SAny at its one
-// origin (parseSType returns SANY_DECLARED) and exprTpe passes it through, while ergots' own SAny,
-// for a type it cannot compute (residual 1), stays a fresh object and keeps passing rule 1001.
+// function is NoType (sigma/ast/values.scala:1247-1251). ergots marks the declared SAny at its
+// origin (parseSType returns SANY_JVM, the JVM's SAny) and exprTpe passes it through, while ergots'
+// own SAny, a fresh object its method typing makes (residual 1), keeps passing rule 1001.
 import { describe, it, expect } from 'vitest'
 import { ByteReader } from '@ergots/scorex'
 import { parseTree, parseErgoTreeBytes, parseTreeFromReader } from '../../src/wire/ergo-tree'
 import { parseSType } from '../../src/wire/parse-stype'
 import { exprTpe } from '../../src/mir/expr-tpe'
-import { isUnparsedTree, SANY_DECLARED } from '../../src/mir/types'
+import { isUnparsedTree, SANY_JVM } from '../../src/mir/types'
 import type { Expr } from '../../src/mir/types'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
@@ -57,23 +57,23 @@ describe('rule 1001 fails a root typed as a declared SAny', () => {
 })
 
 describe('the declared SAny is one object, from parseSType through exprTpe', () => {
-  it('parseSType returns SANY_DECLARED for type code 97, also nested', () => {
-    expect(parseSType(new ByteReader(hex('61')))).toBe(SANY_DECLARED)
+  it('parseSType returns SANY_JVM for type code 97, also nested', () => {
+    expect(parseSType(new ByteReader(hex('61')))).toBe(SANY_JVM)
     // Option[SAny]: 0x24 (Option, recursive) then 0x61.
     const opt = parseSType(new ByteReader(hex('2461')))
-    expect(opt.tag === 'SOption' && opt.elem).toBe(SANY_DECLARED)
-    expect(SANY_DECLARED).toEqual({ tag: 'SAny' })
+    expect(opt.tag === 'SOption' && opt.elem).toBe(SANY_JVM)
+    expect(SANY_JVM).toEqual({ tag: 'SAny' })
   })
-  it('exprTpe of OptionGet(GetVar(1, SAny)) is SANY_DECLARED', () => {
+  it('exprTpe of OptionGet(GetVar(1, SAny)) is SANY_JVM', () => {
     const t = parseTree(hex('00' + OPTION_GET_OF_GETVAR_SANY))
     if (isUnparsedTree(t)) throw new Error('expected a parsed tree')
-    expect(exprTpe(t.body)).toBe(SANY_DECLARED)
+    expect(exprTpe(t.body)).toBe(SANY_JVM)
   })
 })
 
 // An input typed as the declared SAny, and one typed as ergots' own SAny: a PropertyCall with an
 // unregistered (typeId, methodId), whose exprTpe is a fresh { tag: 'SAny' } (the A3 fallback).
-const DECLARED: Expr = { tag: 'DeserializeContext', tpe: SANY_DECLARED, id: 1 }
+const DECLARED: Expr = { tag: 'DeserializeContext', tpe: SANY_JVM, id: 1 }
 const UNRESOLVED: Expr = {
   tag: 'PropertyCall',
   obj: { tag: 'Const', tpe: { tag: 'SGroupElement' }, value: { kind: 'GroupElement', value: new Uint8Array(33) } },
@@ -93,13 +93,13 @@ const CASCADES: [string, (x: Expr) => Expr][] = [
 
 describe('exprTpe passes an SAny input through as the same object', () => {
   for (const [arm, build] of CASCADES) {
-    it(`${arm}: a declared-SAny input gives SANY_DECLARED`, () => {
-      expect(exprTpe(build(DECLARED))).toBe(SANY_DECLARED)
+    it(`${arm}: a declared-SAny input gives SANY_JVM`, () => {
+      expect(exprTpe(build(DECLARED))).toBe(SANY_JVM)
     })
-    it(`${arm}: an unresolved SAny input stays ergots' own SAny, not SANY_DECLARED`, () => {
+    it(`${arm}: an unresolved SAny input stays ergots' own SAny, not SANY_JVM`, () => {
       const t = exprTpe(build(UNRESOLVED))
       expect(t).toEqual({ tag: 'SAny' })
-      expect(t).not.toBe(SANY_DECLARED)
+      expect(t).not.toBe(SANY_JVM)
     })
   }
 })
@@ -116,7 +116,7 @@ describe("ergots' own SAny still passes rule 1001 (residual 1)", () => {
     if (!isUnparsedTree(t)) {
       const tpe = exprTpe(t.body)
       expect(tpe).toEqual({ tag: 'SAny' })
-      expect(tpe).not.toBe(SANY_DECLARED)
+      expect(tpe).not.toBe(SANY_JVM)
     }
   })
 })
