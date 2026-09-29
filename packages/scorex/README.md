@@ -41,6 +41,17 @@ r.positionLimit = r.position + maxSize;
 r.positionLimit = saved;
 ```
 
+Three members mirror the JVM reader for `@ergots/ergoscript`'s tree parse, which reads a tree on the reader it arrives on:
+
+```ts
+const b = r.peekU8();   // the next byte, without advancing and WITHOUT the window check (JVM peekByte);
+                        // at the end of the input it throws ReaderError('truncated')
+r.position = start;     // the JVM position_=: moves only the cursor; throws
+                        // ReaderError('position-out-of-range') unless 0 <= p <= length (an integer)
+r.readBytes(n);         // a negative or non-integer n throws ReaderError('position-out-of-range'),
+                        // after the window check, as the JVM getBytes checks the window first
+```
+
 ### Block Header types and codecs
 
 ```ts
@@ -50,7 +61,12 @@ import type { Header, AutolykosSolution } from '@ergots/scorex';
 const header = parseHeader(reader);   // derives id in-process; not read from wire
 const bytes  = serializeHeader(header);
 const id     = deriveHeaderId(header); // blake2b256(serializeHeader(header)); 32 bytes
+
+// Validate each point as it is read, as the JVM decodes it (GroupElementSerializer):
+const checked = parseHeader(reader, { validatePoint: (bytes, field) => validOrThrow(bytes, field) });
 ```
+
+`parseHeader(reader, { validatePoint })` calls `validatePoint` with each header point's 33 raw bytes (`minerPk`, and a v1 header's `powOnetimePk`) right after that point is read, and stores the bytes it returns. So an invalid point fails before the next field is read, as in the JVM. Without the option the points pass through unvalidated, as `@ergots/nipopow` reads them. A v1 solution's `d` is read even when its length byte is 0, so that read's window check is made.
 
 ### Digest helpers
 
