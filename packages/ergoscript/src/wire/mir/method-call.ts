@@ -20,6 +20,9 @@
  *                                     SMethod — there is NO length prefix
  *                                     on the wire.
  *
+ * A MethodCall without arguments parses from this opcode but is written as a
+ * PropertyCall (0xdb), as the JVM's companion writes it (see `serializeMethodCall`).
+ *
  * Source: sigma-rust `serialization/method_call.rs`. Sigma-rust resolves
  * the SMethod via `SMethod::from_ids(type_id, method_id)?` then reads one
  * SType per entry in `method.method_raw.explicit_type_args`. We mirror this
@@ -38,6 +41,7 @@
 
 import type { Expr, MethodCall, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
+import { OP_METHOD_CALL, OP_PROPERTY_CALL } from '../../mir/opcodes'
 import { ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
@@ -82,16 +86,17 @@ export function parseMethodCall(
 }
 
 /**
- * Serialize a `MethodCall` payload (the dispatcher in `serializeExpr` emits
- * the OP_METHOD_CALL opcode byte).
+ * Serialize a `MethodCall`, opcode included, as the JVM writes it: the node's companion picks the
+ * serializer (`MethodCall.companion = if (args.isEmpty) PropertyCall else MethodCall`,
+ * sigma/ast/values.scala:1351). A call without arguments is written as a PropertyCall, OP_PROPERTY_CALL
+ * with no argument count (PropertyCallSerializer.scala:20-28), whichever opcode it was read with; a
+ * call with arguments is OP_METHOD_CALL (MethodCallSerializer.scala:23-33). sigma-rust writes every
+ * MethodCall as OP_METHOD_CALL: ergots follows the JVM here.
  *
- * Mirrors sigma-rust's `<MethodCall as SigmaSerializable>::sigma_serialize`
- * (`serialization/method_call.rs:20-31`). Order matches the parser exactly.
- *
- * For the explicit-type-args tail: we iterate the names returned by the
- * registry (the wire order), looking up each name in `e.explicitTypeArgs`.
- * If a name is missing we throw — sigma-rust's writer would have panicked
- * on `self.explicit_type_args[type_arg]` against a missing key.
+ * Order matches the parser: typeId, methodId, obj, the arguments (a MethodCall only), then the
+ * explicit-type-args tail, one type per name the registry declares, which both serializers write
+ * the same way. A registry name missing from `e.explicitTypeArgs` throws: the JVM's `typeSubst(a)`
+ * would fail there too (a parsed node always carries every registered name).
  */
 export function serializeMethodCall(e: MethodCall, w: ByteWriter, treeVersion: number): void {
   if (!Number.isInteger(e.typeId) || e.typeId < 0 || e.typeId > 0xff) {
@@ -106,12 +111,16 @@ export function serializeMethodCall(e: MethodCall, w: ByteWriter, treeVersion: n
       'method-call-id-out-of-range'
     )
   }
+  const isProperty = e.args.length === 0
+  w.writeU8(isProperty ? OP_PROPERTY_CALL : OP_METHOD_CALL)
   w.writeU8(e.typeId)
   w.writeU8(e.methodId)
   serializeExpr(e.obj, w, treeVersion)
-  w.writeVlqU(e.args.length)
-  for (const arg of e.args) {
-    serializeExpr(arg, w, treeVersion)
+  if (!isProperty) {
+    w.writeVlqU(e.args.length)
+    for (const arg of e.args) {
+      serializeExpr(arg, w, treeVersion)
+    }
   }
   for (const name of explicitTypeArgNames(e.typeId, e.methodId)) {
     const tpe = e.explicitTypeArgs[name]

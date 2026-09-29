@@ -8,9 +8,9 @@
  *   - `BoolConstants` → `OP_COLL_OF_BOOL_CONST = 0x85` (packed booleans optimisation)
  *
  * The type-level discriminator in this package is `kind: 'Exprs' | 'BoolConstants'`
- * on the shared `Collection` variant (`mir/types.ts:257-259`). On the wire the
- * dispatcher chooses the opcode based on `kind`; this module emits only the
- * payload bytes that follow the opcode.
+ * on the shared `Collection` variant (`mir/types.ts`). The parsers read the payload
+ * after the opcode the dispatcher consumed; `serializeCollection` writes the opcode
+ * too, since it follows the JVM's `companion` rather than `kind` (see below).
  *
  * Exprs wire format (`mir/collection.rs::coll_sigma_serialize` arm 2,
  * `mir/collection.rs::coll_sigma_parse`):
@@ -20,11 +20,13 @@
  *   [elem_tpe: SType]             -- element type encoded via `serializeSType`
  *   [item_0: Expr] ... [item_n-1: Expr]
  *
- * Note: in sigma-rust `coll_sigma_parse` ALWAYS returns `Collection::Exprs`,
- * even when the SType says `SBoolean`. The optimisation lives on the write
- * side — `coll_sigma_serialize` peeks `kind` (which on construction is
- * upgraded to `BoolConstants` only when every item is `Const(SBoolean, ...)`)
- * and emits one opcode or the other. We mirror that asymmetry.
+ * Note: the parse returns `Exprs` for OP_COLL even when the SType says
+ * `SBoolean`, as sigma-rust's `coll_sigma_parse` does. The write follows the
+ * JVM, whose `ConcreteCollection.companion` writes an SBoolean collection of
+ * constants as OP_COLL_OF_BOOL_CONST whichever opcode it was read with
+ * (sigma/ast/values.scala:871-875). sigma-rust upgrades to `BoolConstants`
+ * only in `Collection::new`, not at parse, so it writes such a parsed
+ * collection back as OP_COLL: ergots follows the JVM.
  *
  * BoolConstants wire format (`mir/collection.rs::coll_sigma_serialize` arm 1,
  * `mir/collection.rs::bool_const_coll_sigma_parse`):
@@ -44,6 +46,7 @@
 
 import type { Collection, Expr, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
+import { OP_COLL, OP_COLL_OF_BOOL_CONST } from '../../mir/opcodes'
 import { ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
@@ -102,41 +105,74 @@ export function parseCollectionOfBoolConst(r: ByteReader): Collection {
 }
 
 /**
- * Serialize a `Collection` payload (the dispatcher in {@link serializeExpr}
- * emits OP_COLL or OP_COLL_OF_BOOL_CONST based on `c.kind` before calling
- * this). The two payload shapes are emitted by the helpers below.
+ * Serialize a `Collection`, opcode included, as the JVM writes it: the node's `companion` picks the
+ * serializer (`ConcreteCollection.companion`, sigma/ast/values.scala:871-875). A collection whose
+ * element type is SBoolean and whose items are all constants is a Boolean-constant collection,
+ * written as OP_COLL_OF_BOOL_CONST with packed bits (`ConcreteCollectionBooleanConstantSerializer`),
+ * whichever opcode it was read with, empty included; any other `Exprs` collection is OP_COLL
+ * (`ConcreteCollectionSerializer`). A placeholder is not a constant, so a collection holding one
+ * stays OP_COLL.
  *
- * Mirrors sigma-rust's `coll_sigma_serialize` (`mir/collection.rs:88-99`).
+ * sigma-rust's parse returns an `Exprs` collection for OP_COLL whatever its items, and writes it
+ * back as OP_COLL: ergots follows the JVM here.
  */
 export function serializeCollection(c: Collection, w: ByteWriter, treeVersion: number): void {
-  if (c.kind === 'Exprs') {
-    if (c.items.length > MAX_COLL_ITEMS) {
-      throw new ExprSerializeError(
-        `Collection.Exprs item count ${c.items.length} exceeds u16 max ${MAX_COLL_ITEMS}`,
-        'collection-size-out-of-range'
-      )
-    }
-    w.writeVlqU(c.items.length)
-    serializeSType(c.elemTpe, w)
-    for (const item of c.items) {
-      serializeExpr(item, w, treeVersion)
-    }
+  if (c.kind === 'BoolConstants') {
+    w.writeU8(OP_COLL_OF_BOOL_CONST)
+    writeBoolConstants(c.items, w)
     return
   }
-  // kind === 'BoolConstants'
+  // isBooleanConstants: elementType == SBoolean && items.forall(_.isInstanceOf[Constant[_]]) (:871).
+  if (c.elemTpe.tag === 'SBoolean' && c.items.every((item) => item.tag === 'Const')) {
+    w.writeU8(OP_COLL_OF_BOOL_CONST)
+    writeBoolConstants(c.items.map(booleanConstantValue), w)
+    return
+  }
   if (c.items.length > MAX_COLL_ITEMS) {
     throw new ExprSerializeError(
-      `Collection.BoolConstants item count ${c.items.length} exceeds u16 max ${MAX_COLL_ITEMS}`,
+      `Collection.Exprs item count ${c.items.length} exceeds u16 max ${MAX_COLL_ITEMS}`,
       'collection-size-out-of-range'
     )
   }
+  w.writeU8(OP_COLL)
   w.writeVlqU(c.items.length)
-  // LSB-first bit packing. Matches `BitVec<u8, Lsb0>::from_vec`'s domain
-  // iteration in `put_bits` (`sigma-ser/src/vlq_encode.rs`).
-  const byteCount = (c.items.length + 7) >> 3
-  const packed = new Uint8Array(byteCount)
-  for (let i = 0; i < c.items.length; i++) {
-    if (c.items[i]) {
+  serializeSType(c.elemTpe, w)
+  for (const item of c.items) {
+    serializeExpr(item, w, treeVersion)
+  }
+}
+
+/**
+ * An item of a Boolean-constant collection. The JVM's serializer takes each item's value only from
+ * a BooleanConstant and fails on any other (ConcreteCollectionBooleanConstantSerializer.scala:22-27):
+ * a constant of another type, which the JVM's parse rejects before it gets here (the item-type
+ * assert, ConcreteCollectionSerializer.scala:38) and ergots parses (residual 9).
+ */
+function booleanConstantValue(item: Expr): boolean {
+  if (item.tag === 'Const' && item.tpe.tag === 'SBoolean' && item.value.kind === 'Boolean') {
+    return item.value.value
+  }
+  throw new ExprSerializeError(
+    `a Coll[Boolean] of constants holds a ${item.tag === 'Const' ? item.tpe.tag : item.tag} item, not a Boolean constant`,
+    'collection-item-not-boolean-constant'
+  )
+}
+
+/**
+ * The Boolean-constant payload: the count (putUShort), then the items packed LSB-first
+ * (`putBits`; the same packing as `BitVec<u8, Lsb0>` in sigma-rust's `put_bits`).
+ */
+function writeBoolConstants(items: readonly boolean[], w: ByteWriter): void {
+  if (items.length > MAX_COLL_ITEMS) {
+    throw new ExprSerializeError(
+      `Collection.BoolConstants item count ${items.length} exceeds u16 max ${MAX_COLL_ITEMS}`,
+      'collection-size-out-of-range'
+    )
+  }
+  w.writeVlqU(items.length)
+  const packed = new Uint8Array((items.length + 7) >> 3)
+  for (let i = 0; i < items.length; i++) {
+    if (items[i]) {
       packed[i >> 3]! |= 1 << (i & 7)
     }
   }
