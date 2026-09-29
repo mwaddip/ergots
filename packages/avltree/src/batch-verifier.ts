@@ -53,7 +53,7 @@ const DIGEST_LENGTH = 32
 
 /**
  * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl), the integration
- * layer of the AVL+ verifier. Holds the proof-bytes + config + reconstructed
+ * layer of the AVL+ verifier. Holds the proof bytes and the reconstructed
  * tree state, and exposes `performOneOperation` for the caller.
  *
  * Lifecycle:
@@ -79,8 +79,6 @@ const DIGEST_LENGTH = 32
 export class VerifierCore {
   /** The serialized AD proof (packed post-order tree + directions bit-string). */
   readonly proof: Uint8Array
-  /** Tree config (keyLength, valueLengthOpt, DoS bounds). */
-  readonly config: AvlTreeConfig
   /**
    * The current root node, or `null` after a verification failure (poisoned).
    * Mirrors `self.base.tree.root` in Rust (line 206 @568e7c3: set to None on failure).
@@ -134,7 +132,6 @@ export class VerifierCore {
    */
   constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
     this.proof = proof
-    this.config = config
     this.negInfKey = new Uint8Array(config.keyLength)
     this.posInfKey = new Uint8Array(config.keyLength).fill(0xff)
     // Rust struct init (lines 66-74 @568e7c3): directions_index=0, last_right_step=0,
