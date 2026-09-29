@@ -46,7 +46,7 @@ Inspect the dry-run tarball listing:
 
 The same holds between ergoscript and scorex: ergoscript pins `@ergots/scorex` exactly and imports it at module load. The sized-tree work (spec `docs/specs/2026-09-28-sized-tree-declared-size-design.md`) crosses all three packages, so release it in the order **scorex → ergoscript → transaction**:
 
-1. **scorex.** `ByteReader` gains `peekU8`, the `position` setter and the negative `readBytes` guard, `ReaderError` gains `'position-out-of-range'`, and `parseHeader` takes the `validatePoint` option. The new code makes it a minor bump. Build, test and publish it.
+1. **scorex.** `ByteReader` gains `peekU8`, the `position` setter and the negative `readBytes` guard, `ReaderError` gains `'position-out-of-range'`, `parseHeader` takes the `validatePoint` option, and `parseAutolykosSolution` takes an optional `validatePoint` parameter. The new code makes it a minor bump. Build, test and publish it.
 2. **ergoscript.** Its tree parse calls `peekU8` and the `position` setter, so pin scorex to exactly the version from step 1. It gains exports (`boxTreeOf`, `reencodeTreeBytes`, `seedBoxTree`, `boxBytesOf`, `boxIdOf`, `ExprTpeError`, `MAX_PROPOSITION_SIZE`, the `ParseTreeOptions` type) and error codes, so it is a minor bump. Build, test and publish it.
 3. **transaction.** It imports `boxTreeOf`, `reencodeTreeBytes`, `boxIdOf` and `boxBytesOf` from ergoscript, and its context-extension read calls scorex's `peekU8`, so pin both to exactly the versions from steps 1 and 2. `TxParseError` gains `'output-tree-not-reencodable'`, so it is a minor bump. Then follow step 3 of the list above.
 

@@ -16,7 +16,7 @@ Modeled after [`frots`](https://github.com/mwaddip/frots): every primitive is va
 
 All five packages are published to npm under the `@ergots/*` scope.
 
-Total tests across packages: **7838** (`npm test`), passing under both `node` and `jsdom` (cross-runtime). A bare `npx vitest run` at the repo root also picks up the `tools/mainnet-validate` harness tests: 8026 passed and 1 skipped.
+Total tests across packages: **7838** (`npm test`), passing under both `node` and `jsdom` (cross-runtime). A bare `npx vitest run` at the repo root, which also runs the `tools/mainnet-validate` harness, totals 8026 passed + 1 skipped (7838 package tests + 188 harness tests; the skip is the harness's).
 
 A WebSocket gossip layer (`@ergots/gossip`) was considered and rejected — browsers cannot peer (no inbound, no raw TCP) and existing node REST endpoints cover what's needed. See [`docs/specs/2026-05-13-no-gossip-decision.md`](docs/specs/2026-05-13-no-gossip-decision.md).
 
