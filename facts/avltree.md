@@ -294,6 +294,10 @@ label is reachable from the current root}.
   reference's `contains_recursive` recurses left without touching the key —
   both paths are reachable only through an invariant-violating `restoreRoot`
   tree, and a uniform throw beats a panic-or-recurse lottery there.)
+- **Proof-cycle fail-stop (v0.5.0, P3):** throws a plain `Error` while the
+  proof cycle is indeterminate, that is, after an operation's engine run threw
+  and left the fail-stop mark set. `restoreRoot()` clears the mark. See the
+  `BatchAVLProver` bullet "Proof-cycle fail-stop" above.
 
 ##### removedNodes() divergences from the reference (deliberate)
 
@@ -312,7 +316,7 @@ deleting absent rows.
 
 Root installation is consolidated: `PersistentBatchAVLProver.rollback` (Phase B) and the `generateProofForOperations` clone install route through `restoreRoot`; the constructor deliberately keeps direct assignment (definite-assignment proof for the non-null `root`; no overridable-method-from-constructor; matches Rust's `new()`, which does not call `restore_root`).
 
-`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies; mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) are also safe to mutate — they alias only the verifier's internal reconstruction, which is unreachable after return. One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. This does NOT extend to node *fields* (`node.key` / `node.value` / `LabelNode.label`) reached via the public `root` / `oldTopNode` — those are live buffers; see "Node immutability invariant" below.
+`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies; mutating them cannot affect the tree. The batch functions' returned buffers (`results`, `newDigest`) are also safe to mutate — they alias only the verifier's internal reconstruction, which is unreachable after return. `BatchAVLVerifier` (v0.5.0) cannot rely on that: its tree outlives each call, so it returns fresh copies of values, neighbor keys and digests (see its section). One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. This does NOT extend to node *fields* (`node.key` / `node.value` / `LabelNode.label`) reached via the public `root` / `oldTopNode` — those are live buffers; see "Node immutability invariant" below.
 
 #### `PersistentBatchAVLProver`
 
@@ -374,7 +378,7 @@ The package enforces a strict two-tier failure model:
 
 **Tier 1 — `AvlVerifyError` thrown (8 codes; programmer errors only)**
 
-Checked at the verifier's public entry points before any `VerifierCore` state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's `BatchAVLProver.performOneOperation` — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below. These indicate bugs in calling code, not in the proof data.
+Checked at the verifier's public entry points before any `VerifierCore` state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's operations and neighbor lookups (`BatchAVLProver.performOneOperation`, `performLookupWithNeighbors` and `unauthenticatedLookupWithNeighbors`) — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below (its neighbor lookups take only a key, so they throw only `'operation-key-out-of-bounds'` and `'operation-key-length-mismatch'`). These indicate bugs in calling code, not in the proof data.
 
 ```ts
 export class AvlVerifyError extends Error {
@@ -446,7 +450,7 @@ type AvlVerifyFailReason =               // exported since v0.5.0
 
 ## Test corpus
 
-Four test layers plus cross-runtime, mirroring the proof and ergoscript packages:
+Four test layers plus cross-runtime, mirroring the proof and ergoscript packages, then the suites added in v0.5.0:
 
 1. **Per-component fixture tests** (`verify-batch.test.ts`, `verify-lookup.test.ts`, `operations.test.ts`, `proof-decode.test.ts`): per-Operation-variant coverage with byte-equality on `newDigest` and per-op `results[]`.
 2. **Bulk corpus** (`corpus.test.ts`): 50 fixtures across 8 Operation variants; asserts byte-equality between TS verifier output and `ergo_avltree_rust` verifier output on every fixture. Corpus categories: per-Operation-variant fixtures (8 variants × varied pre-state: empty, single-leaf, balanced-10, balanced-100, balanced-1000, all-left-spine, all-right-spine), multi-op batches (sizes 0, 1, 2, 16, 256, stress-mixed-100), edge cases (all-deletes, boundary keys, single-leaf), config-variance (keyLength 1/8/32, fixed vs variable valueLengthOpt, maxNumOperations bounds), and adverse cases (truncated proof, swapped digest, mismatched config — all must return `null`).
