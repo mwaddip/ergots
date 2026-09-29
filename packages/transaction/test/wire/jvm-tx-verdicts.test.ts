@@ -165,3 +165,44 @@ describe("a nested Box register's lead byte", () => {
     expect(errorOf(() => parseTransaction(tx([{ tree: '0008d3', regs: '0184' }])))).toMatchObject({ code: 'unknown-opcode' })
   })
 })
+
+// exprTpe mirrors the JVM node's tpe, including where that tpe throws. The JVM casts an input's type
+// while it builds or types ByIndex, OptionGet, SelectField, Map (its mapper), OptionGetOrElse, Filter,
+// Slice and Append (a ClassCastException, for its SAny and for NoType), and requires a numeric type or
+// NoType while it builds Negation, BitInversion and BitOp (isNumTypeOrNoType): at an output's root or
+// a ValDef's right-hand side each rejects the transaction at parse. An Apply of the JVM's SAny is
+// NoType, which passes the require. ergots accepted each rejected one at 9c87a5a, as the id given.
+describe("the JVM's SAny through an arm that casts or requires its input's type", () => {
+  const GETVAR_SANY = 'e4e30161' // OptionGet(GetVar(1, SAny)): type code 97
+  const FUNC = 'd9010104' + '0101' // FuncValue((1: Int) => true)
+  const applyOf = (f: string) => 'da' + f + '01' + '0400' // Apply(f, [Int 0]): the JVM's NoType
+  const rejected: [string, string, string][] = [
+    ['a sized root OptionGet(ByIndex(tuple)) (0b3596f4…)', sized('08', 'e4' + BY_INDEX_TUPLE), 'option-get-input-class-cast'],
+    ['a sized root SelectField(ByIndex(tuple), 1) (1de5ba6b…)', sized('08', '8c' + BY_INDEX_TUPLE + '01'), 'select-field-input-class-cast'],
+    ['an unsized tree, a ValDef bound to ByIndex(ByIndex(tuple), 0) (a3e22ff1…)', '00d801d601b2' + BY_INDEX_TUPLE + '04000008d3', 'val-def-rhs-tpe'],
+    ['a sized tree, a ValDef bound to a Map whose mapper is ByIndex(tuple) (38afd0f8…)', sized('08', 'd801d601ad1000' + BY_INDEX_TUPLE + '08d3'), 'val-def-rhs-tpe'],
+    ['a sized root OptionGet(OptionGet(GetVar(1, SAny))) (a56f4793…)', sized('08', 'e4' + GETVAR_SANY), 'option-get-input-class-cast'],
+    ['a sized root Filter(ByIndex(tuple), f) (406c2804…)', sized('08', 'b5' + BY_INDEX_TUPLE + FUNC), 'filter-input-class-cast'],
+    ['a sized tree, a ValDef bound to Slice(OptionGet(GetVar(1, SAny)), 0, 1) (582aa003…)', sized('08', 'd801d601b4' + GETVAR_SANY + '04000402' + '08d3'), 'val-def-rhs-tpe'],
+    ['a sized root Negation(ByIndex(tuple)) (fed18955…)', sized('08', 'f0' + BY_INDEX_TUPLE), 'negation-input-jvm-sany'],
+    ['a sized tree, a ValDef bound to BitOr(0, ByIndex(tuple)) (4bfb20e2…)', sized('08', 'd801d601f20400' + BY_INDEX_TUPLE + '08d3'), 'val-def-rhs-tpe'],
+    ['a sized root ByIndex(Apply(ByIndex(tuple), [0]), 0), the JVM NoType (e9d88fa6…)', sized('08', 'b2' + applyOf(BY_INDEX_TUPLE) + '040000'), 'by-index-input-class-cast'],
+  ]
+  for (const [name, tree, code] of rejected) {
+    it(`${name}: rejected at parse`, () => {
+      expect(errorOf(() => parseTransaction(tx([{ tree }])))).toMatchObject({ code })
+    })
+  }
+  it('a sized root Negation(Apply(ByIndex(tuple), [0])), the JVM NoType: the tree degrades and the transaction is accepted', () => {
+    const tree = sized('08', 'f0' + applyOf(BY_INDEX_TUPLE))
+    expectAccepted(tx([{ tree }]), 'b8579d4ae2564d2b8468814565a5e6c8c1db456add4a42a2219069dc1ce66274', ['U:' + tree])
+  })
+  it('a sized tree, a ValDef bound to BitOr(0, Apply(ByIndex(tuple), [0])): the output tree parses', () => {
+    const tree = sized('08', 'd801d601f20400' + applyOf(BY_INDEX_TUPLE) + '08d3')
+    expectAccepted(tx([{ tree }]), '9d067a5bc5df87cbaaa1ce97f7811c9f7ab2379c621658fc9f398eb594ceabed', ['P:' + tree])
+  })
+  it("a sized v3 root OptionGet(Global.none[SigmaProp] on Filter(ByIndex(tuple), f)): the output tree parses (the JVM never reads the Filter's type)", () => {
+    const tree = sized('0b', 'e4db6a0ab5' + BY_INDEX_TUPLE + FUNC + '08')
+    expectAccepted(tx([{ tree }]), '32de6d25200d66345983f1e81e4485a6a854c931c1a99514b4db156f47089002', ['P:' + tree])
+  })
+})
