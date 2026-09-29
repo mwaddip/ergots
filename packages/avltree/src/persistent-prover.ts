@@ -45,6 +45,7 @@ export class PersistentBatchAVLProver {
     return this.prover.unauthenticatedLookup(key)
   }
 
+  // Neighbor-reporting lookups (0.5.0; TS-only — neither reference has one).
   performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
     return this.prover.performLookupWithNeighbors(key)
   }

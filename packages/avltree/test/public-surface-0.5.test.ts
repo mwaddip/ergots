@@ -55,5 +55,10 @@ describe('0.5.0 public surface', () => {
       prevKey: null,
       nextKey: k(0x20),
     })
+    // The recorded pass-through recorded exactly one Lookup; the unrecorded one left no trace.
+    const fresh = new BatchAVLProver(32, null)
+    fresh.restoreRoot(savedRoot, savedHeight)
+    fresh.performOneOperation({ tag: 'Lookup', key: k(0x10) })
+    expect(persistent.generateProofAndUpdateStorage([])).toEqual(fresh.generateProof())
   })
 })

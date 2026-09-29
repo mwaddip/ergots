@@ -2,7 +2,8 @@
  * Eight-variant string union of programmer-error codes.
  * TS-only: Rust uses anyhow::Result throughout (no typed error codes).
  * Each code corresponds to a shape-validation precondition on a public entry
- * point (the verify functions, BatchAVLVerifier, and BatchAVLProver's operations and neighbor lookups).
+ * point (the verify functions, BatchAVLVerifier, and BatchAVLProver's
+ * operations and neighbor lookups).
  * See facts/avltree.md § Failure model overview.
  */
 export type AvlVerifyErrorCode =
@@ -18,9 +19,10 @@ export type AvlVerifyErrorCode =
 /**
  * Programmer-error rejection class. Thrown (never returned) by the public
  * verify wrappers (verifyAvlBatch* / verifyAvlLookup), by BatchAVLVerifier,
- * and by BatchAVLProver's operations and neighbor lookups, for invalid shapes in calling code:
- * bad config, wrong digest length, or key/value length mismatches. TS-only:
- * Rust uses anyhow::Result.
+ * and by BatchAVLProver's operations and neighbor lookups, for invalid shapes
+ * in calling code: bad config, wrong digest length, key/value length
+ * mismatches, an UpdateLongBy delta outside i64, or (prover only) a key at
+ * or beyond a ±inf sentinel. TS-only: Rust uses anyhow::Result.
  */
 export class AvlVerifyError extends Error {
   constructor(
