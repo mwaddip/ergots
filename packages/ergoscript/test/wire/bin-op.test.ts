@@ -10,15 +10,19 @@ import type { ErgoTree } from '../../src/mir/types'
  * tests cover one fixture per sub-kind plus the bool-pair packing
  * optimization which is unique to this variant.
  *
- * Wire format reminder (verified against sigma-rust source):
- *   - `BinOp` opcode encodes BOTH the AST variant AND the BinOpKind. After
- *     the opcode, the parser PEEKS the next byte:
+ * Wire format reminder (the JVM's, sigma-state 6.0.6):
+ *   - `BinOp` opcode encodes BOTH the AST variant AND the BinOpKind.
+ *   - Only the JVM's nine Relation2 opcodes (the comparisons, BinOr, BinAnd,
+ *     BinXor; `ValueSerializer.scala:48-58`) PEEK the next byte after the
+ *     opcode (`Relation2Serializer.scala:40-52`):
  *       * if `OP_COLL_OF_BOOL_CONST` (0x85) → 2-bit-packed bool pair (LSB
  *         first), used when both operands are `Const(SBoolean)`.
  *       * else → that byte is the first byte of the left operand Expr,
  *         right operand follows.
- *   - Mirrors `serialization/bin_op.rs::bin_op_sigma_parse` and
- *     `bin_op_sigma_serialize`.
+ *   - The arithmetic and bit opcodes read two full values, with no lookahead
+ *     (`TwoArgumentsSerializer`), so a 0x85 there begins a `Coll[Boolean]`
+ *     operand. sigma-rust's `bin_op_sigma_parse` peeks for every kind; ergots
+ *     follows the JVM (`wire/mir/bin-op.ts`).
  *
  * The non-bool tests below use `Const(SInt N)` operands, which serialize as
  * `[0x04 (SInt opcode)][ZigZag-VLQ N]`. The bool-pair tests use the packed

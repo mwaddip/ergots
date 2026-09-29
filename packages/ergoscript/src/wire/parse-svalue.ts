@@ -679,7 +679,9 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       //                     bytes the wire fixed.
       //   keyLength       — VLQ u32 (`r.get_u32()?` → readVlqU32, which
       //                     rejects values above `2^32 - 1`). Stored as JS
-      //                     number; mirrors the serializer's u32 cap.
+      //                     number. The serializer takes less, [0, 2^31): the
+      //                     JVM holds the value as an Int and its putUInt
+      //                     rejects a negative one (Round-trip Carve-out 6).
       //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
       //                     (`serialization/serializable.rs:223-230`; JVM
       //                     `AvlTreeData.scala:85` reads via `r.getOption(...)`

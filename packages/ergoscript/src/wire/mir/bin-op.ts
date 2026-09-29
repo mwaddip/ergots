@@ -23,7 +23,9 @@
  * byte, otherwise it reads two full values. The `Arith` and `Bit` kinds use
  * `TwoArgumentsSerializer` (`TwoArgumentsSerializer.scala:15-25`): no packing
  * and no lookahead, so a 0x85 after one of their opcodes begins a
- * `Coll[Boolean]` operand.
+ * `Coll[Boolean]` operand. sigma-rust packs and peeks for every BinOp kind
+ * (`bin_op_sigma_parse`); ergots follows the JVM, so do not align this with
+ * sigma-rust.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/bin_op.rs
@@ -154,9 +156,11 @@ export function binOpKindToOpcode(k: BinOpKind): number {
  *     lookahead.
  *
  * For a pre-v3 tree the JVM's deserialization builder also inserts `Upcast`
- * nodes when the two operands have different numeric types
- * (`SigmaBuilder.scala:750-764`). The parse does not; the evaluator coerces
- * such operands instead (`eval/bin-op/arith.ts`, `eval/bin-op/relation.ts`).
+ * nodes when the two operands have different numeric types (`applyUpcast`,
+ * `SigmaBuilder.scala:674-683`, applied by the deserialization builder only
+ * below v3, `:750-764`). The parse does not; the evaluator coerces such
+ * operands instead (`eval/bin-op/arith.ts`, `eval/bin-op/relation.ts`), and the
+ * re-encoding does not write the inserted nodes (residual 11).
  */
 export function parseBinOpFromByte(
   opcode: number,

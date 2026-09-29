@@ -450,7 +450,7 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //                     but bounds-checked to `[0, 2^31 - 1]` here (2026-09-28
       //                     controller ruling; was `[0, 2^32 - 1]`). The JVM holds
       //                     `keyLength` as an `Int` and writes it with `putUInt`
-      //                     (`AvlTreeData.scala:73-75`), which rejects a negative
+      //                     (`AvlTreeData.scala:77`), which rejects a negative
       //                     `Int` (`"… is out of unsigned int range"`, pinned by
       //                     `DeserializationResilience.scala:386-395`). A value
       //                     parsed from `[2^31, 2^32)` — the JVM's `getUInt().toInt`
@@ -467,7 +467,7 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //                     and accepts any non-zero tag, but we emit the
       //                     canonical form so round-trips are stable). The
       //                     inner `u32` gets the SAME `[0, 2^31 - 1]` bound as
-      //                     `keyLength`, for the same reason (`AvlTreeData.scala:74-75,85`).
+      //                     `keyLength`, for the same reason (`AvlTreeData.scala:78, 85`).
       assertKind(t, v, 'AvlTree')
       const a = v.value
       if (!Number.isInteger(a.treeFlags) || a.treeFlags < 0 || a.treeFlags > 0xff) {
