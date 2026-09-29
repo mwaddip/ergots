@@ -1,5 +1,5 @@
 /**
- * BatchAvlVerifier — internal orchestrator that ties together proof decoding,
+ * VerifierCore — internal orchestrator that ties together proof decoding,
  * per-operation modification (modify.ts), and structural deletion (delete.ts).
  *
  * Ports ergo_avltree_rust/src/batch_avl_verifier.rs::BatchAVLVerifier:
@@ -57,7 +57,7 @@ const DIGEST_LENGTH = 32
  * tree state, and exposes `performOneOperation` for the caller.
  *
  * Lifecycle:
- *   1. `new BatchAvlVerifier(startingDigest, proof, config)` — runs
+ *   1. `new VerifierCore(startingDigest, proof, config)` — runs
  *      proof-decode to reconstruct the tree. On failure `root === null` and
  *      `lastFailReason` is set; `isValid` returns false.
  *   2. `performOneOperation(op)` — applies one operation:
@@ -76,7 +76,7 @@ const DIGEST_LENGTH = 32
  * aid; the design spec defers exposing it on the v0.1.0 public surface
  * (option-3 decision; see errors.ts § AvlVerifyFailReason).
  */
-export class BatchAvlVerifier {
+export class VerifierCore {
   /** The serialized AD proof (packed post-order tree + directions bit-string). */
   readonly proof: Uint8Array
   /** Tree config (keyLength, valueLengthOpt, DoS bounds). */

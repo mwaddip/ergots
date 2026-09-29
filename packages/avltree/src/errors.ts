@@ -34,7 +34,7 @@ export class AvlVerifyError extends Error {
 
 /**
  * Internal verification-failure reason taxonomy (11 reasons). Tracked by
- * BatchAvlVerifier.lastFailReason but NOT exposed in the public API on v0.4.0.
+ * VerifierCore.lastFailReason but NOT exposed in the public API on v0.4.0.
  * Promoted to a getLastFailReason() method if/when the internal class is
  * promoted to public surface (deferred per design spec's option-3 decision).
  */

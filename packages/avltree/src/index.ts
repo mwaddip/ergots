@@ -35,6 +35,6 @@ export {
 // proof encoding.
 export { serializeNode, deserializeNode } from './serialize.js'
 
-// Internal types (NOT exported): BatchAvlVerifier, modify/delete helpers,
+// Internal types (NOT exported): VerifierCore, modify/delete helpers,
 // rotation primitives, tree-traversal state, compare-bytes.ts's byte comparator.
 // These are implementation detail and may change without notice.

@@ -1,19 +1,19 @@
 /**
  * Public verifier entry point.
  *
- * `verifyAvlBatch` wraps `BatchAvlVerifier` with:
+ * `verifyAvlBatch` wraps `VerifierCore` with:
  *   - shape validation (throws `AvlVerifyError` on programmer errors)
  *   - a clean null-on-failure return for all untrusted-input rejections
  *
  * Per the design spec, this is the primary public surface on v0.1.0.
- * `BatchAvlVerifier` itself is intentionally not exported until the API
+ * `VerifierCore` itself is intentionally not exported until the API
  * is promoted in a later version.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
  * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs
  */
 
-import { BatchAvlVerifier } from './batch-verifier.js'
+import { VerifierCore } from './batch-verifier.js'
 import { AvlVerifyError } from './errors.js'
 import type { AvlTreeConfig } from './types.js'
 import type { Operation } from './operation.js'
@@ -88,7 +88,7 @@ export function verifyAvlBatchPartial(
   for (const op of operations) validateOperationShape(op, config)
 
   // 2. Construct verifier — proof decoding inside the constructor.
-  const v = new BatchAvlVerifier(startingDigest, proof, config)
+  const v = new VerifierCore(startingDigest, proof, config)
   if (!v.isValid) return null
 
   // Initial digest snapshot — the state before any op. Used when op 0 fails
@@ -96,7 +96,7 @@ export function verifyAvlBatchPartial(
   let lastGoodDigest = v.digest()
   // Constructor success implies root !== null, so digest() returns non-null.
   // Guard for the type-checker; promote to a verification failure if ever
-  // hit (would indicate a logic bug in BatchAvlVerifier).
+  // hit (would indicate a logic bug in VerifierCore).
   if (lastGoodDigest === null) return null
 
   // 3. Apply operations one at a time, snapshotting digest BEFORE each op so
