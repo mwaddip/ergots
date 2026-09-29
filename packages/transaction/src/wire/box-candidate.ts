@@ -10,9 +10,10 @@
  * Wire layout (sigma-rust `serialize_box_with_indexed_digests`,
  * `token_ids_in_tx = Some(table)` arm):
  *   value           — VLQ u64 (BoxValue::sigma_serialize; unsigned, NOT ZigZag)
- *   ergoTree        — self-delimiting via the ErgoTree header; parsed under the box
- *                     rules and kept as received (`ergoTreeBytes`), written re-encoded
- *                     (`reencodeTreeBytes`, the JVM's serializeErgoTree)
+ *   ergoTree        — parsed under the box rules on the transaction's reader, which
+ *                     the body parse delimits; a declared size is used only if the
+ *                     tree degrades. Kept as received (`ergoTreeBytes`), written
+ *                     re-encoded (`reencodeTreeBytes`, the JVM's serializeErgoTree)
  *   creation_height — VLQ uint (`put_u32`; JVM reader is `getUIntExact`, i32 ceil)
  *   tokens_count    — raw u8 (`put_u8`, NOT VLQ)
  *   per-token       — token-table INDEX as VLQ uint (`put_u32`/`get_u32`) +
@@ -81,8 +82,10 @@ export function parseBoxCandidate(r: ByteReader, tokenTable: Uint8Array[]): Ergo
   // value — VLQ u64 (BoxValue::sigma_serialize), unsigned, NOT ZigZag.
   const value = r.readVlqBigInt();
 
-  // ergoTree bytes — self-delimiting via header; captured verbatim by the
-  // shared reader (ergoscript SBox path uses the same call).
+  // ergoTree — parsed under the box rules on this reader, so the body parse
+  // delimits it; a declared size is used only if the tree degrades
+  // (ErgoTreeSerializer.scala:141-215). The span as received is kept (the
+  // ergoscript SBox arm makes the same call).
   const ergoTreeBytes = parseErgoTreeBytes(r);
 
   // creation_height — VLQ (`get_u32`). The JVM consensus reader is

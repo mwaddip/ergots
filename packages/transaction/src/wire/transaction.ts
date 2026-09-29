@@ -114,6 +114,9 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   // ergo-core ErgoTransaction.serializedId is eager (ErgoTransaction.scala:68): constructing the parsed
   // transaction re-encodes every output tree (bytesToSign), so one that parses but cannot be written
   // fails the JVM's parse. The re-encoding is cached and reused by the id and serialization.
+  // Output trees only: bytesToSign also writes register and context-extension values from their
+  // structure, and one of those that cannot be written is caught later, at the id and write sites
+  // (a parse-time check over them is a recorded follow-up).
   // Order: ErgoTransactionSerializer.parse constructs the transaction once its last output is read
   // (:497-502), and nothing is checked after that: ErgoSerializer.parseBytes ignores trailing bytes
   // (avldb ErgoSerializer.scala:27-30). So the re-encoding runs here, after every output is parsed and

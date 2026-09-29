@@ -56,10 +56,7 @@ describe('Review Focus 4: an input box id is over its bytes as received', () => 
   it('computeBoxId of an over-declared box hashes the raw box bytes', () => {
     expect(computeBoxId(overBox())).toEqual(blake2b256(hex(OVER_BOX_HEX)))
   })
-  it('the rent fee basis is the bytes as received', () => {
-    expect(boxBytesOf(overBox()).length).toBe(hex(OVER_BOX_HEX).length)
-  })
-  it('checkExpiredBox charges the fee on the bytes as received (ErgoInterpreter.scala:43)', () => {
+  it('the rent fee basis is the bytes as received: checkExpiredBox charges the fee on them (ErgoInterpreter.scala:43)', () => {
     // The tree declares 200 bytes (`c8 01`) over the 2-byte body `08 d3`, so the box as received is one
     // byte longer than its re-encoding. Its value is the fee on the 45 received bytes: the fee is not
     // covered and the verdict is true whatever the output. On the 44 re-encoded bytes the value would
