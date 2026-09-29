@@ -52,6 +52,45 @@ describe('reencodeTreeBytes', () => {
       expect(codeOf(() => boxTreeOf(hex(h)))).toBe('truncated')
     }
   })
+  it('a miss on bytes that end inside the size VLQ: Unparsed exactly when a JVM degrade keeps them', () => {
+    // A degrade keeps [0, bodyPos - start + toInt(size)) (ErgoTreeSerializer.scala:198-201, 220),
+    // which ends inside the size VLQ when toInt(size) < 0: bytes of length n are such a span iff some
+    // VLQ length L in [max(n, 5), 10] writes v = 2^32 + (n - 1 - L) with the bytes after the header
+    // as its first n - 1 bytes (scorex-util 0.2.1 VLQReader.scala:54-58, 75-89). A sigma-state 6.0.6
+    // probe kept each span below: 09, then the size v written in L bytes, then an Int root, which
+    // degrades (m = n - 1 of the size bytes kept, for every L).
+    const spans = [
+      '09',                                                                  // m = 0, L = 5..10
+      '09fc', '09fb', '09fa', '09f9', '09f8', '09f7',                        // m = 1, L = 5..10
+      '09fdff', '09fcff', '09fbff', '09faff', '09f9ff', '09f8ff',            // m = 2
+      '09feffff', '09fdffff', '09fcffff', '09fbffff', '09faffff', '09f9ffff', // m = 3
+      '09ffffffff', '09feffffff', '09fdffffff', '09fcffffff', '09fbffffff', '09faffffff',
+      '09ffffffff8f', '09feffffff8f', '09fdffffff8f', '09fcffffff8f', '09fbffffff8f',
+      '09ffffffff8f80', '09feffffff8f80', '09fdffffff8f80', '09fcffffff8f80',
+      '09ffffffff8f8080', '09feffffff8f8080', '09fdffffff8f8080',
+      '09ffffffff8f808080', '09feffffff8f808080',
+      '09ffffffff8f80808080',                                                // m = 9, L = 10
+    ]
+    for (const h of spans) {
+      const t = boxTreeOf(hex(h))
+      expect(isUnparsedTree(t), h).toBe(true)
+      if (isUnparsedTree(t)) expect(Array.from(t.unparsedBytes)).toEqual(Array.from(hex(h)))
+    }
+    // No size of any admissible length begins with these bytes: the run-out propagates.
+    for (const h of [
+      '09fe',                   // v = 2^32 - 2 would need L = 3
+      '0980',                   // v's low group would be 0
+      '09ffff',                 // v = 2^32 - 1 would need L = 3
+      '09fd', '09ff',           // L = 4 and L = 2
+      '09f6', '09f7ff',         // L = 11 and L = 11
+      '09fcfe',                 // a size's second group is 0x7f
+      '09ffffffff8e',           // a size's fifth group is 0x0f
+      '09ffffffff8f81',         // a size's sixth group is 0
+      '09feffffff8f80808080',   // L = 11
+    ]) {
+      expect(codeOf(() => boxTreeOf(hex(h))), h).toBe('truncated')
+    }
+  })
   it('a miss whose nested tree runs out needs box context', () => {
     // sized outer, nested Box whose sized tree reads past the outer end
     expect(codeOf(() => boxTreeOf(hex('0b08' + '63c0843d' + '097f' + 'd1')))).toBe('box-context-required')

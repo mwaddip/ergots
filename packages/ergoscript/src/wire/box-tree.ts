@@ -72,8 +72,8 @@ function parseStandalone(bytes: Uint8Array): ErgoTree {
 /**
  * Whether the bytes of a sized tree are the span its degrade reads: `[0, bodyPos + declared)`, in
  * the JVM's Int arithmetic (ErgoTreeSerializer.scala:200). A declared size that wraps negative can
- * end that span inside the size VLQ itself (`09 fe ff ff`, from a size of toInt -2), so a size read
- * that runs out also marks a span.
+ * end that span inside the size VLQ itself (`09 fe ff ff`, from a size of toInt -2): for bytes whose
+ * size read runs out, see `isSpanInsideSize`.
  */
 function isDeclaredSpan(bytes: Uint8Array): boolean {
   const r = new ByteReader(bytes)
@@ -82,8 +82,34 @@ function isDeclaredSpan(bytes: Uint8Array): boolean {
   try {
     declared = readVlqU32(r, 'ErgoTree size') | 0
   } catch (err) {
-    if (err instanceof ReaderError && err.code === 'truncated') return true
+    if (err instanceof ReaderError && err.code === 'truncated') return isSpanInsideSize(bytes)
     throw err
   }
   return ((r.position + declared) | 0) === bytes.length
+}
+
+/**
+ * Whether bytes that end inside their size VLQ (every byte after the header continues it) are a
+ * degrade's span. The span `[0, numBytes)` ends there only when the size is negative as an Int:
+ * `numBytes = 1 + L + toInt(v)`, with L the size VLQ's length on the wire (ErgoTreeSerializer.scala:
+ * 198-201; the size is `getUInt().toInt`, :220). The JVM reads the size with `getULong` under
+ * `getUInt` (scorex-util 0.2.1 VLQReader.scala:54-58, 75-89): at most 10 bytes, 7-bit groups low
+ * first, a value of at most 2^32 − 1. A value of 2^31 or more (a negative Int) takes at least 5
+ * groups, any groups after those are zero (a tenth counts only its low bit, bit 63, which must be
+ * clear), and the last byte of the size, the only one a tenth group can vary, lies outside every
+ * such span. So bytes of length n are a span iff some L in [max(n, 5), 10] writes
+ * v = 2^32 + (n − 1 − L) with the bytes after the header as its first n − 1 bytes. A sigma-state
+ * 6.0.6 probe keeps each such span (`test/wire/box-tree-reencode.test.ts`).
+ */
+function isSpanInsideSize(bytes: Uint8Array): boolean {
+  const m = bytes.length - 1 // the size bytes present, each with the continuation bit set
+  for (let L = Math.max(m + 1, 5); L <= 10; L++) {
+    const v = 2 ** 32 - (L - m) // toInt(v) = m − L, so numBytes = 1 + L + (m − L) = n
+    let begins = true
+    for (let i = 0; i < m && begins; i++) {
+      begins = bytes[1 + i] === ((Math.floor(v / 2 ** (7 * i)) % 128) | 0x80)
+    }
+    if (begins) return true
+  }
+  return false
 }
