@@ -259,8 +259,8 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
 **Example:**
 
 ```ts
-// Every key with tag 0x07, walked on a BatchAVLVerifier (or a prover — same calls).
-const lower = new Uint8Array(65); lower[0] = 0x07        // 0x07 00…00 (≥ 0x00…01)
+// Every key with tag 0x07, walked on a BatchAVLVerifier. A prover's performLookupWithNeighbors walks the same way, but it reports no fail reason.
+const lower = new Uint8Array(65); lower[0] = 0x07        // keyLength 65; 0x07 00…00 (≥ 0x00…01)
 const entries: [Uint8Array, Uint8Array][] = []
 let r = v.performLookupWithNeighbors(lower)
 if (!r.success) reject(v.getLastFailReason())
@@ -268,7 +268,8 @@ if (r.found) entries.push([lower, r.value])
 let next = r.nextKey
 while (next !== null && next[0] === 0x07) {
   const step = v.performLookupWithNeighbors(next)
-  if (!step.success || !step.found) reject(v.getLastFailReason())
+  if (!step.success) reject(v.getLastFailReason())
+  if (!step.found) reject('a key reported as next is absent') // cannot happen on one tree
   entries.push([next, step.value])
   next = step.nextKey
 }
@@ -380,7 +381,7 @@ The package enforces a two-tier failure model.
 
 ### Tier 1 — `AvlVerifyError` thrown (programmer errors)
 
-Checked at the verifier's public entry points before any `VerifierCore` state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's operations and neighbor lookups (`BatchAVLProver.performOneOperation`, `performLookupWithNeighbors` and `unauthenticatedLookupWithNeighbors`) — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below (its neighbor lookups take only a key, so they throw only `'operation-key-out-of-bounds'` and `'operation-key-length-mismatch'`). These errors indicate bugs in calling code, not malformed proof data.
+Checked at the verifier's public entry points before any `VerifierCore` (internal; not exported) state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's operations and neighbor lookups (`BatchAVLProver.performOneOperation`, `performLookupWithNeighbors` and `unauthenticatedLookupWithNeighbors`) — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below (its neighbor lookups take only a key, so they throw only `'operation-key-out-of-bounds'` and `'operation-key-length-mismatch'`). These errors indicate bugs in calling code, not malformed proof data.
 
 ```ts
 export class AvlVerifyError extends Error {
@@ -558,6 +559,10 @@ All three are unreachable through this API's own operations alone. The height an
 - **Live nodes — do not mutate:** the returned nodes are the prover's own tree objects, not copies. Derive storage keys via the exported `label()` function rather than reading a node field directly.
 - **First-cycle sentinel:** the never-persisted sentinel leaf of a freshly constructed prover is reported as removed on the first mutating cycle (reference parity). Storage backends must tolerate deleting rows that were never written.
 - **Throws:** a plain `Error` (not `AvlVerifyError`) on a key-less candidate or descent node — reachable only via an invariant-violating `restoreRoot` tree; see `facts/avltree.md`'s invariant-throws bullet.
+- **Proof-cycle fail-stop (v0.5.0, P3):** throws a plain `Error` while the
+  proof cycle is indeterminate, that is, after an operation's engine run threw
+  and left the fail-stop mark set. `restoreRoot()` clears the mark. See the
+  `BatchAVLProver` bullet "Proof-cycle fail-stop" above.
 
 See `facts/avltree.md`'s `removedNodes()` divergence table for the deliberate differences from `ergo_avltree_rust`'s `removed_nodes`.
 
@@ -701,7 +706,7 @@ A discriminated union on `kind`. `LeafNode` holds a real key/value/next-leaf-key
 
 ### `Balance`
 
-The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in the Storage codec section below for why the TS type is narrower and why both encode and decode check it (encode additionally requires an integer, since a hand-built value can be `NaN` or fractional in a way an `i8` cannot).
+The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in `facts/avltree.md`'s Storage codec section for why the TS type is narrower and why both encode and decode check it (encode additionally requires an integer, since a hand-built value can be `NaN` or fractional in a way an `i8` cannot).
 
 ### `newLeaf(key, value, nextLeafKey)`
 
