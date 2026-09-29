@@ -181,7 +181,10 @@ export class BatchAVLProver {
    * Build prover-specific callbacks for the shared mutation engine.
    * Closes over mutable prover state (directions, found, replayIndex, etc.).
    */
-  private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
+  private buildCallbacks(
+    _op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): AvlTreeOpsCallbacks {
     const self = this
     return {
       // Ports batch_avl_prover.rs:440-477 @568e7c3 — next_direction_is_left
@@ -218,10 +221,14 @@ export class BatchAVLProver {
         return ret
       },
 
-      // Ports batch_avl_prover.rs:486-493 @568e7c3 — key_matches_leaf
-      keyMatchesLeaf: (_key: Uint8Array, _leaf: LeafNode) => {
+      // Ports batch_avl_prover.rs:486-493 @568e7c3 — key_matches_leaf.
+      // `onLeaf` observes the leaf the operation resolves at: the engine
+      // calls this callback exactly once per descent (modify.ts:149). The
+      // neighbor lookups read their report from it (0.5.0).
+      keyMatchesLeaf: (_key: Uint8Array, leaf: LeafNode) => {
         const matches = self.found
         self.found = false // reset for next operation
+        onLeaf?.(leaf, matches)
         return { ok: true, matches }
       },
 
@@ -266,31 +273,28 @@ export class BatchAVLProver {
    *   `{ success: false }` on engine-level operation failure.
    */
   performOneOperation(op: Operation): ProverOperationResult {
-    const key = op.key
+    return this.perform(op)
+  }
 
-    // Precondition checks (authenticated_tree_ops.rs:267-269 @568e7c3)
-    // Reference check order: −inf, +inf, then length (authenticated_tree_ops.rs
-    // entry requires). compareBytes length-tiebreaks, so a SHORT all-zero key
-    // is < −inf and fires here — same caller mistake, different code than the
-    // length gate below. Faithful to both references; do not reorder.
-    if (compareBytes(key, this.negInfKey) <= 0) {
-      throw new AvlVerifyError(
-        'Key is less than or equal to negative infinity',
-        'operation-key-out-of-bounds',
-      )
-    }
-    if (compareBytes(key, this.posInfKey) >= 0) {
-      throw new AvlVerifyError(
-        'Key is greater than or equal to positive infinity',
-        'operation-key-out-of-bounds',
-      )
-    }
-    if (key.length !== this.keyLength) {
-      throw new AvlVerifyError(
-        'Key length does not match tree key length',
-        'operation-key-length-mismatch',
-      )
-    }
+  /**
+   * performOneOperation's body, shared with the recorded neighbor lookup
+   * (0.5.0). `onLeaf` observes the leaf the operation resolves at; it never
+   * alters the operation.
+   */
+  private perform(
+    op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): ProverOperationResult {
+    this.validateShape(op)
+    return this.runOperation(op, onLeaf)
+  }
+
+  /**
+   * The thrown shape gates (AvlVerifyError), checked before any state
+   * changes: the key gates, then value length, then delta range.
+   */
+  private validateShape(op: Operation): void {
+    this.validateKey(op.key)
     // Value length check
     if (
       this.valueLengthOpt !== null &&
@@ -313,12 +317,51 @@ export class BatchAVLProver {
         'operation-delta-out-of-range',
       )
     }
+  }
 
+  /**
+   * Precondition checks (authenticated_tree_ops.rs:267-269 @568e7c3).
+   * Reference check order: −inf, +inf, then length (authenticated_tree_ops.rs
+   * entry requires). compareBytes length-tiebreaks, so a SHORT all-zero key
+   * is < −inf and fires here — same caller mistake, different code than the
+   * length gate below. Faithful to both references; do not reorder.
+   */
+  private validateKey(key: Uint8Array): void {
+    if (compareBytes(key, this.negInfKey) <= 0) {
+      throw new AvlVerifyError(
+        'Key is less than or equal to negative infinity',
+        'operation-key-out-of-bounds',
+      )
+    }
+    if (compareBytes(key, this.posInfKey) >= 0) {
+      throw new AvlVerifyError(
+        'Key is greater than or equal to positive infinity',
+        'operation-key-out-of-bounds',
+      )
+    }
+    if (key.length !== this.keyLength) {
+      throw new AvlVerifyError(
+        'Key length does not match tree key length',
+        'operation-key-length-mismatch',
+      )
+    }
+  }
+
+  /**
+   * The engine half of an operation: modify pass, optional delete pass,
+   * direction rollback on failure, height bookkeeping. Ports
+   * batch_avl_prover.rs::perform_one_operation (120-141 @568e7c3) +
+   * authenticated_tree_ops.rs::return_result_of_one_operation (261-288 @568e7c3).
+   */
+  private runOperation(
+    op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): ProverOperationResult {
     // Snapshot replay index (batch_avl_prover.rs:125 @568e7c3)
     this.replayIndex = this.directionsBitLength
 
     // Phase 1: modifyHelper (authenticated_tree_ops.rs:272-273 @568e7c3)
-    const callbacks = this.buildCallbacks(op)
+    const callbacks = this.buildCallbacks(op, onLeaf)
     const modifyResult = modifyHelper(this._root, op, callbacks)
     if (!modifyResult.ok) {
       // Rollback directions (batch_avl_prover.rs:127-139 @568e7c3)
