@@ -126,6 +126,7 @@ The step-by-step verifier. It is the public face of `batch_avl_verifier.rs::Batc
   - `null` while healthy.
   - Once poisoned, the FIRST failure's reason; later operations do not overwrite it.
   - `AvlVerifyError` throws set no reason.
+  - It is not covered by the fail-stop below: it keeps answering on an indeterminate instance, and a `null` there does not mean the instance is usable, because after an engine throw the instance is indeterminate regardless.
 - **Fail-stop after an engine throw.** A throw that is not an `AvlVerifyError` can escape mid-operation: the recursion residual's `RangeError` (see "No throws on verification failures"), or an internal invariant `Error`. It leaves the core's traversal cursors advanced with the root intact. So the verifier sets a mark around each call. After such a throw, every later `performOneOperation`, `performLookupWithNeighbors` and `digest()` throws a plain `Error` saying the instance is indeterminate and must be discarded. It never returns `{ success: false }` for this, because an engine throw is not a rejection.
 - **One interface, two asymmetries.** `performOneOperation` returns the prover's `ProverOperationResult`, so one interface can drive either side: a producer's prover or a consumer's verifier. The two agree step for step only while every operation succeeds.
   1. The prover rolls a failed operation back, omits it from the proof, and carries on. The verifier fails and poisons on the same operation. A `{ success: false }` must therefore be fatal to the enclosing batch or block on both sides.
@@ -235,11 +236,11 @@ type ProverOperationResult =
   - A label stub, or an internal node without a key, on its walk throws a plain `Error`. Either is an invariant violation, reachable only via `restoreRoot`.
 - **No inherited `found` (v0.5.0, P2).**
   - Each operation starts its descent with the prover's `found` flag cleared. The reference clears it only inside `key_matches_leaf` (`batch_avl_prover.rs:486-493` @568e7c3).
-  - Otherwise an operation that fails or throws after an equality step leaves the flag set, and the next operation descends all-left to the wrong leaf. Such a failure needs a label stub or a key-less internal node on its found-mode path.
-  - A deliberate divergence, observable only on stub-bearing trees installed with `restoreRoot`.
+  - Otherwise an operation that fails or throws after an equality step leaves the flag set, and the next operation descends all-left to the wrong leaf. The triggers are a label stub or a key-less internal node on its found-mode path, or a `RangeError` after the equality step.
+  - A deliberate divergence, observable only on invariant-violating trees installed with `restoreRoot`.
 - **Proof-cycle fail-stop (v0.5.0, P3).**
   - A mark is set around each operation's engine run, after the shape gates; an `AvlVerifyError` never sets it. Both normal returns clear it, success and `{ success: false }`.
-  - An engine throw leaves it set: a key-less internal node, a `RangeError`, or the delete-pass invariant throw. Such a throw leaves partial direction bits, and for a delete-pass throw recorded visits too, that the next proof would encode.
+  - Any engine throw leaves it set, for example a key-less internal node, a `RangeError`, the delete-pass invariant throw, or `applyHeightDelta`'s engine-inconsistency throw. Such a throw leaves the aborted operation's direction bits (partial after a mid-descent throw) and, for a throw after the modify pass (the delete pass, or `applyHeightDelta`), its recorded visits too, that the next proof would encode.
   - While the mark is set, `performOneOperation`, `performLookupWithNeighbors`, `generateProof()` and `removedNodes()` throw a plain `Error`: the proof cycle is indeterminate; call `restoreRoot()` or discard the prover.
   - `restoreRoot()` clears the mark.
   - The engine run assigns root and height only after computing the new height. `applyHeightDelta` can throw on an engine inconsistency, and an engine throw must never half-commit an operation.
@@ -320,7 +321,7 @@ Root installation is consolidated: `PersistentBatchAVLProver.rollback` (Phase B)
 
 #### `PersistentBatchAVLProver`
 
-Wraps a `BatchAVLProver` with a `VersionedAVLStorage` implementation. On construction, it either rolls back to the stored version (if one exists) or generates an initial proof and writes the new version to storage. All tree-modifying operations are delegated to the inner `BatchAVLProver`; the storage layer is updated on each `generateProofAndUpdateStorage` call. It mirrors both neighbor lookups (v0.5.0). `rollback` routes through `restoreRoot`, so it also clears the proof-cycle fail-stop.
+Wraps a `BatchAVLProver` with a `VersionedAVLStorage` implementation. On construction, it either rolls back to the stored version (if one exists) or generates an initial proof and writes the new version to storage. All tree-modifying operations are delegated to the inner `BatchAVLProver`; the storage layer is updated on each `generateProofAndUpdateStorage` call. It mirrors both neighbor lookups (v0.5.0). `rollback` routes through `restoreRoot`, so it also clears the proof-cycle fail-stop. While the fail-stop mark is set, `generateProofAndUpdateStorage` throws, but it runs `storage.update` first and the inner `generateProof()` second, so whether the exception arrives before the backend writes depends on the backend: an `update` that calls `removedNodes()` before writing throws first, while one that does not completes and writes, and only then does `generateProof()` throw. After such a throw, call `rollback(version)` to a known-good version rather than trust storage.
 
 #### `VersionedAVLStorage`
 
@@ -348,7 +349,7 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
   - Recorded, proof-consuming: `performLookupWithNeighbors(key)` on `BatchAVLVerifier`, `BatchAVLProver` and `PersistentBatchAVLProver`.
   - Unrecorded: `unauthenticatedLookupWithNeighbors(key)` on the two provers.
 - **A `Lookup` by construction.**
-  - Both classes run the neighbor method through the same private path as `performOneOperation({ tag: 'Lookup', key })`. They observe the leaf through the engine's single `keyMatchesLeaf` call (`modify.ts:149`), invoked once per descent; `deleteHelper` never calls it.
+  - `BatchAVLProver` and `VerifierCore` (behind `BatchAVLVerifier`) run the recorded neighbor lookup (`performLookupWithNeighbors`) through the same private path as `performOneOperation({ tag: 'Lookup', key })`, and observe the leaf through the engine's single `keyMatchesLeaf` call (`modify.ts:149`), invoked once per descent; `deleteHelper` never calls it. `PersistentBatchAVLProver` delegates to `BatchAVLProver`.
   - A recorded neighbor lookup therefore consumes or records exactly a `Lookup`'s direction bits and visits, with the same gates, failures and poisoning.
   - Its proof bytes are byte-identical to a plain `Lookup`'s, and `generateProofForOperations` over plain `Lookup`s yields the same bytes.
   - The shared engine's code is unchanged.
@@ -374,7 +375,7 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
 
 ## Failure model overview
 
-The package enforces a strict two-tier failure model:
+The package enforces a strict two-tier failure model for verification outcomes. Separately, a plain `Error` means an indeterminate instance or an invariant-violating tree, never a rejection; see "Fail-stop after an engine throw" under `BatchAVLVerifier`, "Proof-cycle fail-stop" under `BatchAVLProver`, and the invariant throws under `removedNodes()` and "Neighbor lookups".
 
 **Tier 1 — `AvlVerifyError` thrown (8 codes; programmer errors only)**
 
@@ -412,7 +413,7 @@ the references' own asymmetry).
 Tracked by `VerifierCore.lastFailReason` and exposed through `BatchAVLVerifier.getLastFailReason()` (v0.5.0); the type is exported. The batch functions still return a bare `null`.
 
 Eight reasons are produced somewhere. Three are never produced and stay in the union for stability:
-- `'tree-poisoned'`: it is assigned only through `??=`, and every `root = null` site sets its own reason first, so a poisoned verifier keeps its first reason.
+- `'tree-poisoned'`: it is assigned only through `??=`, and every `root = null` site also sets its own reason, so the `??=` never assigns and a poisoned verifier keeps its first reason.
 - `'empty-tree'`: it has no assignment site.
 - `'operation-required-but-not-allowed'`: reserved.
 
@@ -433,7 +434,7 @@ type AvlVerifyFailReason =               // exported since v0.5.0
 
 **Invariants on the boundary:**
 
-1. Shape validation is sole and comprehensive at the public entry point. After construction, `VerifierCore` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @568e7c3; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw — deliberately: converting the published `'operation-key-length-mismatch'` throw into a per-op failure would be a breaking change on a shipped package (observable as `opsCompleted` for `[goodOp, wrongLengthOp]`: references apply then fail at index 1; ergots throws before applying anything), and the consensus path is unaffected either way — `@ergots/ergoscript`'s `savltree` pre-scans op shapes (`keyShapeBad`/`firstShapeBadOpIndex`) and reproduces the JVM's per-op failure index and charging exactly.
+1. Shape validation is sole and comprehensive at the public entry points (the batch functions, `BatchAVLVerifier`'s constructor, and each `BatchAVLVerifier` operation). After construction, `VerifierCore` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @568e7c3; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw — deliberately: converting the published `'operation-key-length-mismatch'` throw into a per-op failure would be a breaking change on a shipped package (observable as `opsCompleted` for `[goodOp, wrongLengthOp]`: references apply then fail at index 1; ergots throws before applying anything), and the consensus path is unaffected either way — `@ergots/ergoscript`'s `savltree` pre-scans op shapes (`keyShapeBad`/`firstShapeBadOpIndex`) and reproduces the JVM's per-op failure index and charging exactly.
 2. No throws from inside `VerifierCore` to the consumer. Verification failures set `root = null` (tree poisoned) and `performOneOperation` returns `{ failed: true }` on this and every subsequent call. One engine-level exception — stack exhaustion on a pathologically deep proof — is carved out under "No throws on verification failures" below.
 3. Internal panics from `@noble/hashes` bubble as plain `Error` — those are contract violations inside a dependency, not consumer-input issues.
 
