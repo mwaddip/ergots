@@ -14,7 +14,13 @@
  *                                            for ABI stability with prior callers.
  *   - 'empty-signature'                   — signature byte sequence is empty
  *   - 'truncated-signature'               — signature ran out of bytes before tree walk completed
- *   - 'point-not-on-curve'                — SEC1 decode rejected a leaf's pubkey/component
+ *   - 'point-not-on-curve'                — RESERVED. Declared for a leaf point that fails
+ *                                            SEC1 decompression, but the verifier calls
+ *                                            `decodePoint` unwrapped, so a hand-built invalid
+ *                                            point throws the curve library's plain Error; a
+ *                                            parsed SigmaBoolean cannot carry one (the wire
+ *                                            parse rejects it as 'ec-point-invalid'). Never
+ *                                            thrown today.
  *   - 'scalar-out-of-range'               — z scalar read from signature is >= group order n
  *   - 'cthreshold-polynomial-bytes-mismatch' — Cthreshold polynomial bytes wrong size for tree shape
  *   - 'cor-derived-challenge-mismatch'    — RESERVED for a future strict-check pass that
@@ -47,6 +53,7 @@ export type VerifyErrorCode =
   | 'conjecture-not-implemented'
   | 'empty-signature'
   | 'truncated-signature'
+  // RESERVED — not thrown: see the 'point-not-on-curve' entry above.
   | 'point-not-on-curve'
   // 'scalar-out-of-range' is declared but currently not thrown — `scalarFromBytes`
   // reduces mod n silently (matching sigma-rust's `Scalar::reduce_bytes` posture

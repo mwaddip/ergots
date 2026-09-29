@@ -38,6 +38,7 @@ import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { blake2b256 } from '../../src/crypto/hashes'
 import { hexToBytes, captureEvalError, synthesizeStubBox, parseParsedTree as parseTree } from '../_helpers'
+import { seedBoxTree } from '../../src/wire/box-tree'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
@@ -106,6 +107,8 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const treeBytesHex = '1b0a00dc6307a701e4e30104'
     const treeBytes = hexToBytes(treeBytesHex)
     const tree = parseTree(treeBytes)
+    // SELF is built from this lenient parse, as the blesser builds it (_santa.ts): seed it.
+    seedBoxTree(treeBytes, tree)
     const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: treeBytes }
     const ctx = makeContext({
       treeVersion: 3,
@@ -124,6 +127,8 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const treeBytesHex = '1a0b00dc6313a701e4e3010405'
     const treeBytes = hexToBytes(treeBytesHex)
     const tree = parseTree(treeBytes)
+    // SELF is built from this lenient parse, as the blesser builds it (_santa.ts): seed it.
+    seedBoxTree(treeBytes, tree)
     const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: treeBytes }
     const ctx = makeContext({
       treeVersion: 2,
