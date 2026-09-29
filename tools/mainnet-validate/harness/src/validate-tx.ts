@@ -4,7 +4,8 @@
  *
  * For each tx input the harness:
  *   1. Parses the spent box bytes via `parseSValue({tag:'SBox'}, ...)`.
- *   2. Pulls the ErgoTree out of the parsed box and runs `parseTree`.
+ *   2. Takes the spent box's tree under the box rules (`boxTreeOf`): the
+ *      tree its ingest parsed, as the JVM spend evaluates `box.ergoTree`.
  *   3. Decodes the per-input `ContextExtension` Constant blobs into
  *      `{tpe, value}` map entries (each blob is `SType || SValue`).
  *   4. Builds an `EvalContext` carrying chain state (height, self-box,
@@ -85,12 +86,15 @@
  *
  * # `treeVersion` per input
  *
- * Each spent box carries its OWN ergoTree, and the relevant treeVersion
- * for parsing its registers (SHeader register edge-case) and for
- * SValue-decoding the corresponding ContextExtension Constants is the
- * SPENT BOX's own ergoTree-version (`ergoTreeBytes[0] & 0x07`). We
- * derive it inline per-input from the first byte of the parsed box's
- * `ergoTreeBytes`.
+ * Each input is evaluated under its spent box's own tree version
+ * (`ergoTreeBytes[0] & 0x07`), which `makeContext` receives. The harness
+ * also decodes the input's ContextExtension Constants under that version.
+ * The JVM reads them at transaction parse instead, under the enclosing
+ * context, and rejects any v6-typed value there through rule 1019
+ * (`ContextExtension.scala:62`); the version gates only SHeader and SOption
+ * data, so for the chain-accepted transactions the harness walks the choice
+ * cannot matter. The spent box's registers are parsed at version 0, which is
+ * verdict-neutral too (see `parseSpentBox`).
  *
  * # `jitCostLimit`
  *
@@ -117,7 +121,9 @@ import { ByteWriter } from '@ergots/scorex';
 import {
     parseSValue,
     parseSType,
-    parseTree,
+    boxTreeOf,
+    boxBytesOf,
+    isUnparsedTree,
     serializeSType,
     serializeSValue,
     evaluateWith,
@@ -194,14 +200,6 @@ function registerEntryBytes(
     return w.toBytes();
 }
 
-/** Serialized byte length of a box == its canonical on-wire length
- *  (parse↔serialize is byte-identical for every box the harness handles). */
-function serializedBoxLen(box: ErgoBox, treeVersion: number): number {
-    const w = new ByteWriter();
-    serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: box }, treeVersion, w);
-    return w.toBytes().length;
-}
-
 /**
  * Storage-rent spend check — mirrors sigma-rust
  * `storage_rent.rs::check_storage_rent_conditions`. The caller must have
@@ -226,8 +224,11 @@ export function checkStorageRent(
     const outputIdx = idxVal.value;
     if (outputIdx < 0 || outputIdx >= outputBoxes.length) return false;
     const out = outputBoxes[outputIdx]!;
+    // The JVM's fee basis is `box.bytes` (ErgoInterpreter.scala:43): for a box that
+    // came off the wire, the bytes as received (ErgoBox.scala:214-226), not a
+    // re-serialization, which writes the tree re-encoded (ErgoBoxCandidate.scala:142).
     const storageFee =
-        BigInt(serializedBoxLen(selfBox, treeVersion)) * BigInt(storageFeeFactor);
+        BigInt(boxBytesOf(selfBox).length) * BigInt(storageFeeFactor);
     // Dust: box value ≤ storage fee → spendable with no further restrictions.
     if (selfBox.value <= storageFee) return true;
     // Else the output at the named index must recreate the box: same creation
@@ -384,24 +385,16 @@ function parseSpentBox(
     txIndex: number,
     inputIndex: number,
 ): { box: ErgoBox; ergoTreeBytes: Uint8Array; treeVersion: number } {
-    // Derive treeVersion from the BOX's ergoTree (must come from inside
-    // the box, but SBox is `<value VLQ><ergoTree...>`). Sigma-rust's
-    // SBox parser ignores treeVersion for primitive registers; the
-    // treeVersion only matters for SHeader-typed register values. For
-    // robustness we read it from the box's own ergoTree header byte
-    // after a two-step parse — first parse with version 0 (safe default
-    // for non-SHeader registers), then re-extract from the parsed
-    // box's ergoTreeBytes if needed.
-    //
-    // Practical optimization: we parse once with treeVersion = 0 and
-    // then read the real treeVersion off the resulting
-    // `box.ergoTreeBytes[0] & 0x07`. If the box contains SHeader
-    // registers gated on V3 semantics this could matter; in practice
-    // no mainnet output box uses SHeader registers (T9 stub used 0
-    // throughout and 39M-block validation has not encountered an
-    // SHeader register). We pass 0 here; the post-parse treeVersion is
-    // used downstream for ContextExtension Constant parsing and
-    // `evaluate(tree, ...)` auto-derives its own.
+    // The box is parsed at treeVersion 0, which only its register data
+    // (SHeader, SOption) sees. That is verdict-neutral: the JVM reads a
+    // box's registers under the enclosing context, not the box tree's own
+    // version (VersionContext.withVersions scopes only the tree's parse,
+    // ErgoTreeSerializer.scala:154; the registers are read after it,
+    // ErgoBoxCandidate.scala:226-234), and at top level any v6-typed
+    // register rejects, through its data gate or through rule 1019
+    // (CheckV6Type, ErgoBoxCandidate.scala:232, in both rule sets), at every
+    // version. The box's own tree version, read off the parsed
+    // `ergoTreeBytes[0] & 0x07`, is what the spend evaluates under.
     let parsed: SValue;
     const reader = new ByteReader(spentBoxBytes);
     try {
@@ -450,9 +443,9 @@ function parseSpentBox(
  * future caller that needs the same boxes. Throws `HarnessError` with
  * a precise location on first failure.
  *
- * Inputs use the box's own treeVersion derived per-box; outputs and
- * data-inputs are parsed with treeVersion=0 (same justification as
- * the T9 output round-trip pass: no SHeader registers in practice).
+ * Every box is parsed at treeVersion 0, which is verdict-neutral for a
+ * top-level box (see `parseSpentBox`); each input also returns its tree's
+ * own version, which its spend evaluates under.
  */
 function parseTxBoxes(tx: TxBundle, txIndex: number): {
     inputBoxes: ErgoBox[];
@@ -707,23 +700,30 @@ export function validateTx(
             }
         }
 
-        // 5b-ter — parse ErgoTree. Reached only for NON-storage-rent spends:
-        // a storage-rent spend (5b-bis above) is consensus-valid WITHOUT
-        // deserializing the proposition (it keys off creationHeight expiry +
-        // recreation rules over the raw ergoTreeBytes), so neither the JVM nor
-        // sigma-rust parse the tree for it — and neither must we. iter-31:
-        // box 551242f6… (h=1,596,890) had a version>activated junk tree
-        // (cd07021a8e6f59fd4a) swept via storage rent; parsing it before the
-        // storage-rent check wrongly halted the walker.
+        // 5b-ter — the tree to evaluate. Reached only for NON-storage-rent
+        // spends: a storage-rent spend (5b-bis above) is consensus-valid
+        // without evaluating the proposition (it keys off creationHeight
+        // expiry + recreation rules over the raw ergoTreeBytes). iter-31: box
+        // 551242f6… (h=1,596,890), whose junk tree cd07021a8e6f59fd4a has a
+        // version above the activated one and a root rule 1001 degrades, was
+        // swept via storage rent.
+        //
+        // The JVM spend evaluates `box.ergoTree`, the tree its box ingest
+        // parsed under the box rules (ergo-core ErgoTransaction.scala:138).
+        // `ergoTreeBytes` is the instance parseSpentBox's ingest seeded, so
+        // boxTreeOf returns that tree without parsing again. A tree that
+        // degraded stays Unparsed, and evaluateWith rejects its spend
+        // ('unparsed-ergotree'), as the JVM's interpreter does for a
+        // non-soft-fork degrade (Interpreter.scala:131-141).
         let tree;
         try {
-            tree = parseTree(ergoTreeBytes);
+            tree = boxTreeOf(ergoTreeBytes);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
                 'evaluate',
                 'tree-parse-failed',
-                `parseTree failed at tx ${txIndex}, input ${inputIndex}: ${message}`,
+                `boxTreeOf failed at tx ${txIndex}, input ${inputIndex}: ${message}`,
                 location,
             );
         }
@@ -775,7 +775,9 @@ export function validateTx(
             extension,
             jitCostLimit,
             treeVersion,
-            constants: tree.constants,
+            // An unparsed tree has no constants; evaluateWith rejects it
+            // before reading any.
+            constants: isUnparsedTree(tree) ? [] : tree.constants,
         });
         let result: SValue;
         try {

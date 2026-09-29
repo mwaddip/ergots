@@ -184,22 +184,32 @@ describe('SAvlTree wire — JVM serializer asymmetry (non-33 digest, F4 epilogue
 })
 
 // ---------------------------------------------------------------------------
-// Wrapped-keyLength round-trip stability (Task-3 review item h, F4 epilogue)
+// Wrapped-keyLength: parses, but no longer re-encodes (Task-3 review item h,
+// F4 epilogue; REVISED 2026-09-28 — Task 4C controller ruling).
 //
 // The i32 view is eval-layer only: `keyLength | 0` is applied at the accessor
-// (evalSAvlTreeKeyLength) but NOT at parse or serialize. Storage stays u32.
+// (evalSAvlTreeKeyLength) but NOT at parse. Storage stays u32 on the parse
+// side, so a tree with keyLength 0x80000001 (VLQ-encoded wire bytes) still
+// PARSES — the JVM's own `getUInt().toInt` (AvlTreeData.scala:84) reads it
+// the same way, wrapping it negative as an Int.
 //
-// Consequence: a tree with keyLength 0x80000001 (VLQ-encoded wire bytes)
-// serializes back to the SAME VLQ bytes — parse reads the raw u32, stores it,
-// serialize writes the raw u32 back. The JVM serializer writes putUInt
-// (unsigned range), matching this behaviour. The round-trip is byte-stable.
+// But it no longer SERIALIZES. The JVM writer's `putUInt`
+// (AvlTreeData.scala:73-75) rejects a negative Int ("… is out of unsigned
+// int range", pinned by DeserializationResilience.scala:386-395) — so the
+// JVM itself cannot re-encode a keyLength that parsed from [2^31, 2^32).
+// ergots' serializeSValue SAvlTree arm now bounds keyLength / valueLengthOpt
+// to [0, 2^31) for the same reason (facts/ergoscript-wire.md Round-trip
+// Carve-out 6): a tree carrying such a value parses but cannot be
+// re-encoded, matching the JVM's own asymmetry — was previously described
+// as "byte-stable" under the pre-2026-09-28 [0, 2^32) bound, which this
+// test now corrects.
 //
 // Pinned against the SANTA-blessed conformance vector tree bytes from
 // AvlTree.keyLength_wrapped_negative.json entry#0.
 // ---------------------------------------------------------------------------
 
-describe('SAvlTree wire — wrapped-keyLength round-trip (F4 epilogue)', () => {
-  it('keyLength 0x80000001 tree round-trips byte-identically (storage stays u32)', () => {
+describe('SAvlTree wire — wrapped-keyLength no longer re-encodes (F4 epilogue, revised 2026-09-28)', () => {
+  it('keyLength 0x80000001 tree parses, but serializeTree rejects the re-encode', () => {
     // Tree bytes from AvlTree.keyLength_wrapped_negative.json#0 (SANTA-blessed).
     // The ErgoTree contains a Const(SAvlTree, {digest=32-byte, treeFlags=0x07,
     // keyLength=0x80000001 VLQ-encoded as 0x8180808008, valueLengthOpt=Some(8)}).
@@ -207,10 +217,9 @@ describe('SAvlTree wire — wrapped-keyLength round-trip (F4 epilogue)', () => {
       '1a300164fb2b77372d81da43ce2d72714aec79ae5fcac20a9aff426fe6afb476a6fbc02c040781808080080108db64037300'
     const treeBytes = hexToBytes(treeBytesHex)
     const parsed = parseTree(treeBytes)
-    const reserialized = serializeTree(parsed)
-    expect(
-      bytesEqual(reserialized, treeBytes),
-      `wrapped-keyLength round-trip failed: reserialized=${bytesToHex(reserialized)} original=${treeBytesHex}`
-    ).toBe(true)
+    expect(parsed).toBeDefined()
+    expect(() => serializeTree(parsed)).toThrow(
+      expect.objectContaining({ code: 'savltree-key-length-out-of-range' })
+    )
   })
 })

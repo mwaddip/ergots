@@ -23,6 +23,9 @@
  * (rule-1019 blocks v6 register values at ingress); the JVM writer gates by
  * the ACTIVATED VersionContext (not pinned v0), so under v6 activation it
  * would succeed where our fallback throws — but that path is unreachable.
+ * It also throws for a constructed box whose tree the re-encoding refuses
+ * (`reencodeTreeBytes`): bytes the box rules reject on a cache miss, or a tree
+ * the JVM's serializeErgoTree cannot write either (ErgoBoxCandidate.scala:142).
  * The throw propagates as an equality evaluation error rather than being
  * swallowed.
  */

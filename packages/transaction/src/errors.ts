@@ -3,11 +3,14 @@ export type TxParseErrorCode =
   | 'token-table-index-out-of-range'
   | 'count-out-of-range'
   | 'extension-id-out-of-range'
-  | 'extension-v6-type';
+  | 'extension-v6-type'
+  | 'output-tree-not-reencodable';
 export class TxParseError extends Error {
   readonly code: TxParseErrorCode;
-  constructor(message: string, code: TxParseErrorCode) {
-    super(message);
+  /** `options.cause` is the standard `Error.cause`: for 'output-tree-not-reencodable', the error the
+   *  forced re-encoding threw. */
+  constructor(message: string, code: TxParseErrorCode, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = 'TxParseError';
     this.code = code;
   }

@@ -141,7 +141,7 @@ describe('MethodCall variant', () => {
     )
   })
 
-  it('round-trips a zero-arg method without explicit type args (typeId=99, methodId=8 / Box.tokens)', () => {
+  it('parses a zero-arg method without explicit type args (typeId=99, methodId=8 / Box.tokens) and writes it as a PropertyCall', () => {
     // AST: MethodCall(
     //        obj=GlobalVars(SelfBox),
     //        typeId=99, methodId=8,
@@ -149,8 +149,7 @@ describe('MethodCall variant', () => {
     //        explicitTypeArgs={}
     //      )
     //
-    // Box.tokens (methodId=8) has NO explicit_type_args in sigma-rust
-    // (`types/sbox.rs::TOKENS_METHOD_DESC`), so no SType bytes follow the
+    // Box.tokens (methodId=8) has no explicit type args, so no SType bytes follow the
     // args vector. Useful to confirm the registry returns an empty list
     // for unknown-to-the-registry methods.
     //
@@ -161,6 +160,10 @@ describe('MethodCall variant', () => {
     //   0x08       methodId = 8 (Box.tokens)
     //   0xa7       obj = OP_SELF_BOX
     //   0x00       args_count = 0 (VLQ-u32)
+    //
+    // The JVM writes a MethodCall without arguments as a PropertyCall (`companion`,
+    // sigma/ast/values.scala:1351): 0xdb, then typeId, methodId and obj, with no argument count
+    // (sigma-state 6.0.6 probe: `00 d1 91 dc 63 01 a7 00 05 00` re-encodes as `00 d1 91 db 63 01 a7 05 00`).
     const bytes = new Uint8Array([0x00, 0xdc, 0x63, 0x08, 0xa7, 0x00])
 
     const tree = parseTree(bytes)
@@ -171,6 +174,6 @@ describe('MethodCall variant', () => {
     expect(tree.body.explicitTypeArgs).toEqual({})
 
     const out = serializeTree(tree)
-    expect(Array.from(out)).toEqual(Array.from(bytes))
+    expect(Array.from(out)).toEqual([0x00, 0xdb, 0x63, 0x08, 0xa7])
   })
 })

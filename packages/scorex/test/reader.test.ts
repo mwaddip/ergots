@@ -169,3 +169,66 @@ describe('ByteReader positionLimit (lazy read window)', () => {
     expectPositionLimitThrow(() => r.readU8()); // 2 > 1
   });
 });
+
+describe('ByteReader — position setter, peekU8, negative readBytes', () => {
+  it('set position moves the cursor back and forward', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3]));
+    r.readU8(); r.readU8();
+    r.position = 0;
+    expect(r.readU8()).toBe(1);
+    r.position = 3;
+    expect(r.isExhausted).toBe(true);
+  });
+
+  it('set position rejects a value outside [0, length], and one that is no integer', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3]));
+    for (const p of [-1, 4, 1.5, NaN]) {
+      let err: unknown;
+      try { r.position = p; } catch (e) { err = e; }
+      expect(err).toBeInstanceOf(ReaderError);
+      expect((err as ReaderError).code).toBe('position-out-of-range');
+    }
+    expect(r.position).toBe(0);
+  });
+
+  it('peekU8 returns the next byte without advancing', () => {
+    const r = new ByteReader(new Uint8Array([7, 8]));
+    expect(r.peekU8()).toBe(7);
+    expect(r.position).toBe(0);
+  });
+
+  it('peekU8 at end of input throws truncated', () => {
+    const r = new ByteReader(new Uint8Array([7]));
+    r.readU8();
+    let err: unknown;
+    try { r.peekU8(); } catch (e) { err = e; }
+    expect((err as ReaderError).code).toBe('truncated');
+  });
+
+  it('peekU8 ignores the window (JVM peekByte has no position check)', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3]));
+    r.positionLimit = 0;
+    r.readU8();                    // entry at 0 is not past 0
+    expect(r.peekU8()).toBe(2);    // position 1 > limit 0, still no throw
+    expect(() => r.readU8()).toThrow(ReaderError); // the checked read trips
+  });
+
+  it('readBytes rejects a negative length after the window check', () => {
+    const r = new ByteReader(new Uint8Array([1, 2, 3]));
+    let err: unknown;
+    try { r.readBytes(-1); } catch (e) { err = e; }
+    expect((err as ReaderError).code).toBe('position-out-of-range');
+    expect(r.position).toBe(0);
+    let errNaN: unknown;
+    try { r.readBytes(NaN); } catch (e) { errNaN = e; }
+    expect((errNaN as ReaderError).code).toBe('position-out-of-range');
+    expect(r.position).toBe(0);
+
+    const w = new ByteReader(new Uint8Array([1, 2, 3]));
+    w.positionLimit = 0;
+    w.readU8();
+    let err2: unknown;
+    try { w.readBytes(-1); } catch (e) { err2 = e; }
+    expect((err2 as ReaderError).code).toBe('position-limit-exceeded');
+  });
+});

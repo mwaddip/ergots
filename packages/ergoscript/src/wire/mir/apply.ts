@@ -36,19 +36,10 @@
 
 import type { Apply, Expr, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError } from '../errors'
 // Forward import for recursive descent — see comment in val-def.ts.
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
-
-// Defensive cap on the args array length. Real Apply nodes invoke
-// functions with at most a handful of arguments (matching the callee's
-// FuncValue arg count). A count beyond this is almost certainly a
-// malicious/corrupt encoding aimed at allocating a huge array before the
-// reader hits truncation. Sigma-rust caps Vec deserialization indirectly
-// via the surrounding ErgoTree size limit; we add an explicit bound here
-// because each arg Expr is non-trivial to allocate.
-const MAX_APPLY_ARGS = 1 << 16 // 65536, well above any plausible call
+import { readArrayCount } from './_jvm-counts'
 
 /**
  * Parse an `Apply` payload (the OP_APPLY opcode byte was consumed by the
@@ -67,13 +58,8 @@ export function parseApply(
   treeVersion: number
 ): Apply {
   const func = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
-  const count = r.readVlqU()
-  if (count > MAX_APPLY_ARGS) {
-    throw new ExprParseError(
-      `Apply args count ${count} exceeds ${MAX_APPLY_ARGS}`,
-      'apply-too-many-args'
-    )
-  }
+  // JVM ApplySerializer.scala:24 → getValues (SigmaByteReader.scala:53-61): getUIntExact, safeNewArray.
+  const count = readArrayCount(r, 'Apply args count', 'apply-too-many-args')
   const args: Expr[] = []
   for (let i = 0; i < count; i++) {
     args.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))

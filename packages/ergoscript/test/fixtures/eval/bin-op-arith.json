@@ -325,7 +325,7 @@
     },
     {
       "name": "plus_not_numeric_bool",
-      "tree_bytes_hex": "009a8501",
+      "tree_bytes_hex": "009a01010100",
       "opts_json": {},
       "expected_value_json": null,
       "expected_cost": 0,

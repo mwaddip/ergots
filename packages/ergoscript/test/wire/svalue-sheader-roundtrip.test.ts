@@ -24,12 +24,15 @@
  *   TS `packages/ergoscript/src/wire/parse-svalue.ts` (sheader arm, line ~385)
  */
 
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
-import { SValueParseError } from '../../src/wire/parse-svalue'
+import { parseSValue, SValueParseError } from '../../src/wire/parse-svalue'
+import { serializeSValue } from '../../src/wire/serialize-svalue'
+import type { ParsedErgoTree } from '../../src/mir/types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -70,4 +73,33 @@ describe('SHeader SValue wire — V<3 rejection (NOT soft-fork-degradable)', () 
     )
     expect(() => parseTree(bytes)).toThrow(SValueParseError)
   })
+})
+
+it('an invalid minerPk rejects as it is read, before the next read trips the window', () => {
+  // A valid v2 header's SValue bytes, taken from the file's existing fixture.
+  const tree = parseTree(loadFixture('sheader-constants-v3-single-header')) as ParsedErgoTree
+  const hdr = tree.constants[0]!
+  const w = new ByteWriter(); serializeSValue({ tag: 'SHeader' }, hdr, 3, w)
+  const good = w.toBytes()
+  const pk = (hdr as unknown as { value: { autolykosSolution: { minerPk: Uint8Array } } }).value.autolykosSolution.minerPk
+  // Structural offset, not a byte search: a v2 AutolykosSolution is exactly
+  // [minerPk: 33][nonce: 8] with nothing after, so minerPk's lead byte sits
+  // `NONCE_LEN + minerPk.length` before the end. A byte-pattern search for
+  // `pk` (33 zero bytes — this fixture's minerPk is the canonical identity)
+  // is NOT reliable here: several PRECEDING header fields (parentId,
+  // adProofsRoot, ...) are also zero-filled placeholders in this fixture, so
+  // a forward search matches inside one of those, and a backward search
+  // matches 3 bytes late by borrowing nonce's own leading zero bytes —
+  // either way landing away from offset 0 of minerPk, the one byte
+  // `canonicalGePayload` actually inspects for a 0x00-lead point (bytes
+  // 1..32 are never inspected), so the mutation below would silently land on
+  // an ignored byte and the point would still parse as identity.
+  const NONCE_LEN = 8
+  const at = good.length - NONCE_LEN - pk.length
+  expect(good.slice(at, at + pk.length)).toEqual(pk) // sanity: offset lands exactly on minerPk
+  const bad = good.slice(); bad[at] = 0x05        // not a valid compressed-point prefix
+  const r = new ByteReader(bad); r.positionLimit = at + 32   // the next read (the nonce) is past the window
+  let code: string | undefined
+  try { parseSValue({ tag: 'SHeader' }, 3, r) } catch (e) { code = (e as { code?: string }).code }
+  expect(code).toBe('group-element-invalid-point')
 })

@@ -1,38 +1,54 @@
 /**
  * Unit tests for `validate-block.ts` output round-trip pass (PLAN.md T9).
+ * Since spec 2026-09-28 §12 the check is the JVM's box serialization: the box,
+ * re-serialized with its tree re-encoded under the box rules, must equal the
+ * chain's box bytes, which are the JVM's own serialization of it.
  *
  * Covers the four PLAN-required cases plus a few defensive checks:
  *
  *   1. Happy path: known-good output bytes across multiple txs → no throw.
  *   2. Empty bundle: zero txs / zero outputs → no throw, returns void.
- *   3. Tampered output: one byte flipped inside the ErgoTree body section
+ *   3. Tampered output: a box whose re-serialization differs from its bytes
  *      → throws `byte-roundtrip-mismatch` with `location.{txIndex, outputIndex}`.
  *   4. First-failure halt: tampered output AFTER a good one → reports the
  *      tampered location only (does not iterate past the first failure).
  *   5. Tree-version-fn errors: thrown / out-of-range value → distinct code.
  *   6. Box-parse failure: unparseable box bytes → `sbox-parse-failed`.
+ *   7. Box rules: the mainnet burn box's tree degrades (rule 1001) and
+ *      re-encodes to itself, and every output tree reaches the degrade census,
+ *      through `validateBlock` too.
+ *   8. The chain's box bytes: a register or an index the JVM writes back
+ *      differently halts, and so do honest encodings the JVM rewrites (a
+ *      Boolean-constant collection read as 0x83, a method call without
+ *      arguments read as 0xdc), whose canonical twins pass.
  *
  * # Fixture sourcing
  *
- * Known-good SBox bytes are reused from `packages/ergoscript/test/fixtures/
- * wire/sbox-roundtrip.json` (the `sbox_minimal` entry). Inlined as hex here
- * so this test does not reach into another package's test fixtures (the
- * cross-package import-by-test-file pattern is rejected by the project's
+ * The SBox bytes are hand-built and inlined as hex, so this test does not
+ * reach into another package's test fixtures (the cross-package
+ * import-by-test-file pattern is rejected by the project's
  * "no cross-package relative paths" rule from CLAUDE.md).
  *
  * For the "tree-version-derivation" inline closure: the SBox wire layout is
  * `<value VLQ> <ergoTree header byte> <...>`. After consuming the VLQ value
  * prefix, the next byte's low 3 bits give the tree version. The test uses
- * an even simpler stub that always returns 0 — the fixtures' ergoTrees are
- * version 1, and parseSValue(SBox) ignores treeVersion until it encounters
- * SHeader register values (none here), so 0 is safe for the fixtures.
+ * an even simpler stub that always returns 0 — parseSValue(SBox)'s
+ * treeVersion gates only register data (SHeader, SOption), and the fixtures
+ * carry no registers, so 0 is safe for them.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
+    validateBlock,
     validateOutputRoundtrips,
+    V2_ACTIVATION_HEIGHT_MAINNET,
+    type WalkerState,
 } from '../src/validate-block.js';
+import { DegradeCensus } from '../src/degrade-census.js';
 import { HarnessError } from '../src/errors.js';
 import type { BlockBundle, TxBundle } from '../src/bundle-types.js';
 
@@ -50,24 +66,23 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 /**
- * Known-good SBox bytes — taken from `packages/ergoscript/test/fixtures/
- * wire/sbox-roundtrip.json` entry `sbox_minimal`. Decoded:
+ * Known-good SBox bytes. Decoded:
  *   - value           = VLQ 1_000_000   (`c0 84 3d`)
- *   - ergoTreeBytes   = header 0x09 (v1 + hasSize), bodySize 2, body 0x0101
- *                       (inline Const(SBoolean, true))
+ *   - ergoTreeBytes   = header 0x09 (v1 + hasSize), bodySize 2, body 0x08d3
+ *                       (inline Const(SSigmaProp, sigmaProp(true)))
  *   - creationHeight  = 0       (`00`)
  *   - tokensCount     = 0       (`00`)
  *   - registersCount  = 0       (`00`)
  *   - txId            = 32 zero bytes
  *   - index           = VLQ 0   (`00`)
  *
- * Parses cleanly through `parseSValue(SBox, 0, reader)` and the inner
- * ergoTreeBytes (`09020101`) round-trip cleanly through `parseTree` +
- * `serializeTree` — verified by the existing ergoscript SBox round-trip
- * test suite.
+ * An honest tree: its root types as SigmaProp, so it parses under the box
+ * rules, and it declares its true size, so it re-encodes to itself. (The
+ * `sbox_minimal` tree this fixture once used, `09 02 01 01`, has a Boolean
+ * root, which rule 1001 now degrades.)
  */
 const SBOX_MINIMAL_HEX =
-    'c0843d09020101000000000000000000000000000000000000000000000000000000000000000000000000';
+    'c0843d090208d3000000000000000000000000000000000000000000000000000000000000000000000000';
 
 const SBOX_MINIMAL_BYTES = hexToBytes(SBOX_MINIMAL_HEX);
 
@@ -138,40 +153,41 @@ describe('validateOutputRoundtrips: happy path', () => {
 
 describe('validateOutputRoundtrips: byte-roundtrip-mismatch', () => {
     /**
-     * Construct a tampered SBox whose ergoTreeBytes parse-then-serialize
-     * round-trip is NOT byte-identical. The trick: VLQ encodings can be
-     * "non-canonical" — `2` can be encoded as `0x02` (canonical, 1 byte) or
-     * `0x82 0x00` (non-canonical, 2 bytes). `readVlqBigInt` in
-     * `@ergots/scorex` accepts both forms; `parseTree` happily consumes the
-     * 2-byte form for the ErgoTree body-size VLQ, but `serializeTree` emits
-     * the canonical 1-byte form. So a tree whose on-wire body-size is
-     * encoded non-canonically will round-trip to fewer bytes — exactly the
-     * `byte-roundtrip-mismatch` path we need to exercise.
+     * Construct a tampered SBox whose tree re-encodes to other bytes than it
+     * arrived as. The trick: VLQ encodings can be "non-canonical" — `2` can
+     * be encoded as `0x02` (canonical, 1 byte) or `0x82 0x00` (non-canonical,
+     * 2 bytes). The size read accepts both forms, as the JVM's `getUInt`
+     * does, but the re-encoding writes the canonical 1-byte form. So a tree
+     * whose on-wire body-size is encoded non-canonically re-encodes to fewer
+     * bytes — exactly the `byte-roundtrip-mismatch` path we need to exercise.
      *
      * The SBox bytes:
      *   Original (43 bytes):
      *     c0 84 3d         value VLQ = 1_000_000
-     *     09 02 01 01      ergoTree: header(v1+hasSize) + size(2) + body(01 01)
+     *     09 02 08 d3      ergoTree: header(v1+hasSize) + size(2) + body(08 d3)
      *     00 00 00         creationHeight=0, tokens=0, regs=0
      *     [32x 00]         txId = all zeros
      *     00               index VLQ = 0
      *
      *   Tampered (44 bytes):
      *     c0 84 3d         value VLQ = 1_000_000
-     *     09 82 00 01 01   ergoTree: header + NON-CANONICAL size(2 as 82 00) + body
+     *     09 82 00 08 d3   ergoTree: header + NON-CANONICAL size(2 as 82 00) + body
      *     00 00 00         creationHeight=0, tokens=0, regs=0
      *     [32x 00]         txId
      *     00               index VLQ = 0
      *
-     * SBox parser extracts ergoTreeBytes = `09 82 00 01 01` (5 bytes).
-     * parseTree accepts it (non-canonical VLQ tolerated). serializeTree
-     * re-emits `09 02 01 01` (4 bytes). 5 != 4 → byte-roundtrip-mismatch.
+     * SBox parser extracts ergoTreeBytes = `09 82 00 08 d3` (5 bytes). The
+     * root types as SigmaProp, so the tree parses under the box rules, and
+     * reencodeTreeBytes re-emits `09 02 08 d3` (4 bytes). 5 != 4 →
+     * byte-roundtrip-mismatch. (With a non-SigmaProp body, such as
+     * `01 01`, rule 1001 would degrade the tree and it would re-encode as
+     * received.)
      */
     const TAMPERED_SBOX_HEX =
         // value VLQ 1M
         'c0843d' +
         // ergoTree: header 0x09 + non-canonical size VLQ for 2 (`82 00`) + body
-        '09' + '8200' + '0101' +
+        '09' + '8200' + '08d3' +
         // creationHeight=0, tokensCount=0, regsCount=0
         '000000' +
         // txId (32 zero bytes)
@@ -329,5 +345,166 @@ describe('validateOutputRoundtrips: sbox-parse-failed', () => {
             expect(he.code).toBe('sbox-parse-failed');
             expect(he.message).toMatch(/trailing bytes/);
         }
+    });
+});
+
+// ─── Box rules and the degrade census (spec 2026-09-28 §12) ──────────────
+
+/** The HarnessError `fn` throws, or a failure if it throws nothing or something else. */
+function harnessErrorOf(fn: () => void): HarnessError {
+    try {
+        fn();
+    } catch (e) {
+        expect(e).toBeInstanceOf(HarnessError);
+        return e as HarnessError;
+    }
+    throw new Error('expected a HarnessError, got no throw');
+}
+
+/** A box around `treeHex`: value 1, creation height 0, no tokens or registers, zero txId, index 0. */
+function boxAround(treeHex: string): Uint8Array {
+    return hexToBytes(`01${treeHex}000000${'00'.repeat(32)}00`);
+}
+
+/**
+ * The mainnet burn box's tree (h=545,684, tx 1, output 0): header 0xcd (v5, the size flag,
+ * bits 6-7 set), declared size 7, a Byte-constant body `02 1a` and five trailing bytes. Rule 1001
+ * degrades it to its declared span, the whole 9 bytes, which re-encode as received.
+ */
+const BURN_TREE_HEX = 'cd07021a8e6f59fd4a';
+const BURN_BOX_BYTES = boxAround(BURN_TREE_HEX);
+
+/**
+ * Mainnet V2 header at height 420000 — known-valid PoW, so `validateBlock`'s header pass
+ * succeeds. Source: `packages/scorex/test/fixtures/autolykos_v2.json` ("mainnet-h420000"), as
+ * inlined by `validate-block.header.test.ts`.
+ */
+const MAINNET_H420000_BYTES = hexToBytes(
+    '0269f4bb5aec68c7d4d501841f1ecea52dad4fed49e033e35da7003324bc81eec3' +
+    '546a9808dd302f55b23b6948d0c71aea7d0cef0fdb24b5f7130490419fa937a9d' +
+    '1911820795bae5b836fd244e5fed04d1ba47af9da505d2e539b332c05dc1607cb' +
+    '12765b168406222b13117434128c8fd1b83cdbd84a9fd08261d03c267c7e27139' +
+    '9adedf6f92ee640a5da07e72c2abbd9b94c71b3d55695e2f9bab9413ab3642cf0' +
+    '3dfcfecd8406011765a0d1190000000002ebaaeb381c9d855af1807781fa20ef6' +
+    'c0c34833275ce7913a9e4469f7bcb3bec02e634b8da8e9f60',
+);
+
+describe('validateOutputRoundtrips: box-rules re-encoding', () => {
+    it('passes the burn box: rule 1001 degrades its tree, which re-encodes as received', () => {
+        const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([BURN_BOX_BYTES])]);
+        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0)).not.toThrow();
+    });
+
+    it('fails a tree that declares 3 bytes for its 2-byte body: it re-encodes with size 2', () => {
+        const bundle = makeBundle([makeTx([boxAround('090308d3')])]);
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0));
+        expect(he.phase).toBe('output-roundtrip');
+        expect(he.code).toBe('byte-roundtrip-mismatch');
+        expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
+    });
+});
+
+// ─── The chain's box bytes (spec 2026-09-28 §12, final review I1) ────────
+
+/** A box around `treeHex` with the given registers and index: value 1, creation height 0, no tokens, zero txId. */
+function boxWith(treeHex: string, regsHex: string, indexHex: string): Uint8Array {
+    return hexToBytes(`01${treeHex}0000${regsHex}${'00'.repeat(32)}${indexHex}`);
+}
+
+describe('validateOutputRoundtrips: the re-serialized box must equal the chain\'s box bytes', () => {
+    // The chain's box bytes are the JVM's own serialization of the box: they hash to the box id,
+    // which the indexer client checks. So they are a fixed point of the JVM's re-encoding, and
+    // ergots, which re-serializes the box it parsed from them as the JVM does, must reproduce them.
+    it('a register the JVM writes back differently halts: an identity GroupElement with a non-zero tail', () => {
+        // R4: SGroupElement (07), a 0x00-lead point with a 0x11 tail. The JVM, and ergots, read any
+        // 0x00-lead point as the identity and write it as 33 zeros (GroupElementSerializer.scala:20-42),
+        // so no chain box carries this encoding. The tree alone re-encodes to itself.
+        const box = boxWith('0008d3', `0107` + '00' + '11'.repeat(32), '00');
+        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), alwaysVersion0));
+        expect(he.phase).toBe('output-roundtrip');
+        expect(he.code).toBe('byte-roundtrip-mismatch');
+        expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
+    });
+
+    it('an index the JVM cannot write halts: 0x8000, a negative Short', () => {
+        // ErgoBox.scala:211, 218, 224: parsed as getUShort().toShort, written with putUShort.
+        const box = boxWith('0008d3', '00', '808002');
+        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), alwaysVersion0));
+        expect(he.phase).toBe('output-roundtrip');
+        expect(he.code).toBe('box-serialize-failed');
+        expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
+    });
+
+    for (const [name, wire, canonical] of [
+        // The JVM writes a ConcreteCollection of Boolean constants as 0x85 (values.scala:871-875).
+        ['a Boolean-constant collection read as 0x83', '00d19683020101010100', '00d196850201'],
+        // The JVM writes a MethodCall without arguments as a PropertyCall, 0xdb (values.scala:1351).
+        ['a MethodCall without arguments read as 0xdc', '00d191dc6301a7000500', '00d191db6301a70500'],
+    ] as const) {
+        it(`${name} halts: the JVM's box bytes carry the canonical form, which passes`, () => {
+            const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(wire)])]), alwaysVersion0));
+            expect(he.code).toBe('byte-roundtrip-mismatch');
+            expect(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(canonical)])]), alwaysVersion0)).not.toThrow();
+        });
+    }
+});
+
+describe('validateOutputRoundtrips: degrade census', () => {
+    let dir: string;
+    let censusPath: string;
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), 'ergots-census-'));
+        censusPath = join(dir, 'census-expected.json');
+    });
+
+    afterEach(() => {
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('sends every output tree to the census: the burn box halts when unlisted', () => {
+        const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([BURN_BOX_BYTES])]);
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath)));
+        expect(he.phase).toBe('census');
+        expect(he.code).toBe('census-unexpected-degrade');
+        expect(he.location).toEqual({ txIndex: 1, outputIndex: 0, ergoTreeHex: BURN_TREE_HEX });
+    });
+
+    it('passes the burn box when the census lists it', () => {
+        writeFileSync(censusPath, JSON.stringify([
+            { height: 100_000, txIndex: 1, outputIndex: 0, reason: 'burn box: rule 1001' },
+        ]));
+        const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([BURN_BOX_BYTES])]);
+        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath))).not.toThrow();
+    });
+
+    it('halts after the output pass when a census entry names an output the block lacks', () => {
+        writeFileSync(censusPath, JSON.stringify([
+            { height: 100_000, txIndex: 2, outputIndex: 0, reason: 'no such transaction in this block' },
+        ]));
+        const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([SBOX_MINIMAL_BYTES])]);
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath)));
+        expect(he.phase).toBe('census');
+        expect(he.code).toBe('census-expected-position-missing');
+        expect(he.location).toEqual({ txIndex: 2, outputIndex: 0 });
+    });
+
+    it('validateBlock threads the census to the output pass', () => {
+        const bundle: BlockBundle = {
+            ...makeBundle([makeTx([BURN_BOX_BYTES])]),
+            height: 420000,
+            headerBytes: MAINNET_H420000_BYTES,
+        };
+        const state: WalkerState = {
+            lastHeader: null,
+            rollingHeaders: [],
+            network: 'mainnet',
+            v2ActivationHeight: V2_ACTIVATION_HEIGHT_MAINNET,
+        };
+        const noTxValidation = (): void => {};
+        const he = harnessErrorOf(() =>
+            validateBlock(bundle, state, alwaysVersion0, noTxValidation, new DegradeCensus(censusPath)),
+        );
+        expect(he.code).toBe('census-unexpected-degrade');
     });
 });

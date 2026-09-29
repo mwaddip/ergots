@@ -40,7 +40,9 @@ export type ErrorPhase =
     | 'wasm-oracle'    // replaces 'shim' for WASM oracle errors
     | 'evaluate-cost'
     | 'evaluate-oracle-mismatch'
-    | 'lib-validate';   // lib-mode false-reject walk (capstone)
+    | 'lib-validate'    // lib-mode false-reject walk (capstone)
+    | 'ids'             // ids-and-parse-only mode (validate-tx-ids.ts)
+    | 'census';         // output-tree degrade census (degrade-census.ts)
 
 /**
  * Payload for phase `'evaluate-cost'` (both oracle and our TS evaluator

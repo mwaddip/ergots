@@ -255,12 +255,12 @@ describe('MaxTreeDepth — box internals (register / nested ergoTree)', () => {
     const w = new ByteWriter()
     // value
     w.writeVlqU(1)
-    // ergoTree: minimal hasSize=false tree = header 0x00 + body.
-    // Use a trivial Const(SBoolean) body so the tree self-delimits cleanly.
-    const tw = new ByteWriter()
-    tw.writeU8(0x00)
-    serializeExpr(BOOL_LEAF, tw, 0)
-    w.writeBytes(tw.toBytes())
+    // ergoTree: minimal hasSize=false tree = header 0x00 + body sigmaProp(true) (`08 d3`),
+    // which self-delimits. The root must type as SigmaProp: box ingest applies rule 1001
+    // (ErgoBoxCandidate.scala:194, checkType = true), so a Boolean root would reject the
+    // box at its tree, before the register this test is about. The tree's levels are all
+    // released before the registers are read, so the register chain's depth is unaffected.
+    w.writeBytes(new Uint8Array([0x00, 0x08, 0xd3]))
     // creationHeight
     w.writeVlqU(0)
     // tokens count
@@ -287,7 +287,7 @@ describe('MaxTreeDepth — box internals (register / nested ergoTree)', () => {
 
   it('box register data recursing to exactly depth 110 is ACCEPTED', () => {
     // Depth chain (shared reader level): parseSValue(SBox)=L1, then the register
-    // is read as an Expr via parseRegisterExprWithTag (≡ JVM r.getValue() /
+    // is read as an Expr via parseRegisterExpr (≡ JVM r.getValue() /
     // ValueSerializer.deserialize) = L2, then the register's Coll-chain:
     // reg Coll#1=L3 ... reg Coll#108=L110. So a 108-deep register Coll-chain lands
     // the innermost value at level 110 (accepted). Markers: 107 present (len 1)

@@ -80,6 +80,18 @@ export class ByteReader {
     return this._position;
   }
 
+  /**
+   * The JVM `position_=` (`CoreByteReader.scala:114`, delegating to the buffer): a plain
+   * assignment. ergoscript's tree parse uses it to re-read a degraded tree from its start
+   * (`ErgoTreeSerializer.scala:200-202`).
+   */
+  set position(p: number) {
+    if (!Number.isInteger(p) || p < 0 || p > this.bytes.length) {
+      throw new ReaderError(`position ${p} is outside [0, ${this.bytes.length}]`, 'position-out-of-range');
+    }
+    this._position = p;
+  }
+
   /** Current recursion depth (see {@link _level}). Read-only for callers. */
   get level(): number {
     return this._level;
@@ -119,14 +131,13 @@ export class ByteReader {
 
   /**
    * Fork a sub-reader over `bytes` that INHERITS this reader's current
-   * recursion depth and cap. Used by parsers that read a size-prefixed inner
-   * region into a bounded buffer (ergots' `hasSize=true` ErgoTree body): the
-   * JVM keeps reading such a region on the SAME reader via `positionLimit`
-   * (`ErgoTreeSerializer.scala:143-211`), so its `level` persists across the
-   * size boundary. A naive `new ByteReader(slice)` would reset level to 0 and
-   * under-count depth. The level flows INTO the fork only: a caller that goes on
-   * reading the parent must carry the fork's final level back (levels a caught
-   * error left inside the region), as ergoscript's `parseTreeFromReader` does.
+   * recursion depth and cap, for a parser that reads an inner region from its
+   * own buffer yet must keep counting depth: a naive `new ByteReader(slice)`
+   * would reset level to 0 and under-count depth. It is not how the JVM reads a
+   * size-flagged ErgoTree body, which it parses on the reader the tree arrives on
+   * (`ErgoTreeSerializer.scala:141-215`). The level flows INTO the fork only: a
+   * caller that goes on reading the parent must carry the fork's final level
+   * back itself (levels a caught error left inside the region).
    *
    * Does NOT inherit `positionLimit`: the fork's buffer is rebased to offset 0,
    * so the parent's absolute-offset limit would be meaningless over it — the
@@ -220,6 +231,18 @@ export class ByteReader {
   }
 
   /**
+   * The JVM `peekByte` (`CoreByteReader.scala:41`): the next byte without advancing and
+   * WITHOUT the window check. Only the end of input is checked, as a hard 'truncated'
+   * (the JVM throws a raw index exception there).
+   */
+  peekU8(): number {
+    if (this._position >= this.bytes.length) {
+      throw new ReaderError(`peekU8: EOF at ${this._position}`, 'truncated');
+    }
+    return this.bytes[this._position]!;
+  }
+
+  /**
    * Bare byte read carrying ONLY the EOF/'truncated' guard — no window check.
    * Used by {@link readVlqBigInt}'s continuation-byte loop, which must read
    * unchecked after that primitive's single entry check (the JVM getULong
@@ -236,6 +259,9 @@ export class ByteReader {
     // Window entry check ONCE; the n-byte run below may straddle the limit
     // (start <= limit, end past it), like the JVM getBytes.
     this.checkPositionLimit();
+    if (!Number.isInteger(n) || n < 0) {
+      throw new ReaderError(`readBytes(${n}): negative or non-integer length`, 'position-out-of-range');
+    }
     if (this.remaining < n) {
       throw new ReaderError(`readBytes(${n}): only ${this.remaining} available`, 'truncated');
     }

@@ -21,8 +21,10 @@ import { parseTree, ExprParseError } from '../src'
  * was therefore uncatchable by type downstream. This pins the full wire
  * parse/serialize error surface to the facts taxonomy.
  *
- * NOTE: the mir-layer type-inference error `ExprTpeError` and scorex's
- * `ReaderError` are deliberately NOT part of this guarantee — different layers.
+ * The mir-layer type-inference error `ExprTpeError` is root-exported too, since
+ * 2026-09-28: rule 1001 lets it escape a box-rules parse as a hard reject
+ * (facts/ergoscript-wire.md, "Rule 1001 on the box paths"). scorex's
+ * `ReaderError` is deliberately NOT part of this guarantee — a different package.
  */
 describe('@ergots/ergoscript public error-class surface', () => {
   it('root-exports every wire parse/serialize error class in the facts taxonomy', () => {
@@ -45,6 +47,16 @@ describe('@ergots/ergoscript public error-class surface', () => {
     }
   })
 
+  it('root-exports ExprTpeError, which rule 1001 lets escape a box-rules parse', () => {
+    expect((pkg as Record<string, unknown>).ExprTpeError).toBeTypeOf('function')
+  })
+
+  it('root-exports the box-tree and box-bytes surface (facts/ergoscript-wire.md, "Box trees")', () => {
+    for (const name of ['boxTreeOf', 'reencodeTreeBytes', 'seedBoxTree', 'boxIdOf', 'boxBytesOf']) {
+      expect((pkg as Record<string, unknown>)[name], `${name} must be root-exported`).toBeTypeOf('function')
+    }
+  })
+
   it('root-exports the JVM rules @ergots/transaction applies from here', () => {
     // facts/ergoscript-wire.md "Shared rules for @ergots/transaction": the context-extension leg
     // of rule-1019 CheckV6Type, and storage-rent register equality.
@@ -54,16 +66,22 @@ describe('@ergots/ergoscript public error-class surface', () => {
   })
 
   it('a body-parse reject from parseTree is catchable as the root-exported ExprParseError', () => {
-    // [0x00, 0x7f] = ErgoTree header V0 (no hasSize, no segregation) + the bare
-    // reserved opcode OpTrue (0x7f). parseTree's body parser rejects it with
-    // ExprParseError('opcode-reserved') — the same typed surface as the FunDef
-    // nTpeArgs-128 reject SANTA's runner must classify as `errored`, not panicked.
+    // [0x00, 0xd7, 0x01, 0x80] = ErgoTree header V0 (no hasSize, no segregation) +
+    // FunDef (0xd7), id 1, type-arg count 0x80: the FunDef nTpeArgs-128 reject SANTA's
+    // runner must classify as `errored`, not panicked. parseTree's body parser rejects
+    // it with ExprParseError('fun-def-tpe-args-out-of-range'), a hard reject (the JVM's
+    // signed getByte into safeNewArray, ValDefSerializer.scala:38-39), so it surfaces
+    // unwrapped. (A soft-forkable reject in a tree without the size bit, e.g. the bare
+    // opcode 0xfd, CollRotateRight, which fails the JVM's CheckValidOpCode (rule 1002), surfaces
+    // as ErgoTreeParseError('soft-fork-without-size-bit') with the ExprParseError as its cause,
+    // as the JVM wraps it; ErgoTreeSerializer.scala:204-207.)
     let caught: unknown
     try {
-      parseTree(new Uint8Array([0x00, 0x7f]))
+      parseTree(new Uint8Array([0x00, 0xd7, 0x01, 0x80]))
     } catch (e) {
       caught = e
     }
     expect(caught).toBeInstanceOf(ExprParseError)
+    expect((caught as ExprParseError).code).toBe('fun-def-tpe-args-out-of-range')
   })
 })

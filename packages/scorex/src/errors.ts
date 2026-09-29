@@ -28,9 +28,12 @@
  *                           or v1 powDistance >= 2^255 (toSignedBigIntValueExact,
  *                           fitsIn256Bits). Distinct from 'vlq-overflow' (malformed/
  *                           over-long VLQ encoding).
+ *   'position-out-of-range' -- set position / readBytes given a position or length
+ *                           outside the buffer (JVM position_= / getBytes with a
+ *                           negative size).
  */
 export class ReaderError extends Error {
-  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded' | 'value-out-of-range') {
+  constructor(message: string, public readonly code: 'truncated' | 'vlq-overflow' | 'slice-out-of-bounds' | 'array-too-large' | 'max-tree-depth-exceeded' | 'position-limit-exceeded' | 'value-out-of-range' | 'position-out-of-range') {
     super(message);
     this.name = 'ReaderError';
   }

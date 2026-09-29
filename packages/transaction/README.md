@@ -29,7 +29,7 @@ const idBytes = transactionId(tx);
 const idHex = Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 console.log('txId:', idHex);
 
-// Re-serialize — byte-identical to txBytes.
+// Re-serialize — byte-identical to txBytes when they are canonically encoded.
 const reBytes = serializeTransaction(tx);
 ```
 
@@ -39,11 +39,11 @@ The wire codec is four functions and one error class, below. The validators, `va
 
 ### `parseTransaction(bytes: Uint8Array): ErgoLikeTransaction`
 
-Parse a complete transaction from wire bytes. Rejects trailing bytes (`TxParseError('trailing-bytes')`). This is intentionally stricter than sigma-rust's `sigma_parse_bytes`, matching the JVM modifier-parse path.
+Parse a complete transaction from wire bytes. Rejects trailing bytes (`TxParseError('trailing-bytes')`), an envelope check of ergots' own: sigma-rust's `sigma_parse_bytes` and the JVM's `parseBytes` both ignore them. Each output's tree is parsed as the JVM parses a box's tree (its declared size used only if it degrades; rule 1001 applies), and each output tree must re-encode, as the JVM's eager transaction id requires (`TxParseError('output-tree-not-reencodable')`). An output's `ergoTreeBytes` keeps the tree's bytes as received.
 
 ### `serializeTransaction(tx: ErgoLikeTransaction): Uint8Array`
 
-Serialize to wire bytes. Enforces io-count bounds on serialize as well as parse.
+Serialize to wire bytes. Enforces io-count bounds on serialize as well as parse. Writes each output's tree re-encoded, as the JVM does, so a tree whose declared size differs from its body is written with its true size.
 
 ### `signingMessage(tx: ErgoLikeTransaction): Uint8Array`
 
@@ -57,11 +57,11 @@ Full transaction envelope with each input's proof replaced by an empty proof (VL
 
 ```ts
 class TxParseError extends Error {
-  readonly code: 'trailing-bytes' | 'token-table-index-out-of-range' | 'count-out-of-range' | 'extension-id-out-of-range' | 'extension-v6-type';
+  readonly code: 'trailing-bytes' | 'token-table-index-out-of-range' | 'count-out-of-range' | 'extension-id-out-of-range' | 'extension-v6-type' | 'output-tree-not-reencodable';
 }
 ```
 
-Thrown by `parseTransaction` and `serializeTransaction`. `count-out-of-range` covers inputs/outputs outside `[1, 32767]`, data-inputs outside `{0}∪[1, 32767]`, and a context extension with more than 127 entries. `extension-id-out-of-range` fires when a context-extension variable id is ≥ `0x80`: the JVM reads the id as a signed byte and rejects a negative one. `extension-v6-type` fires when a context-extension value's type contains `Option`, `Header` or `UnsignedBigInt` (the JVM's rule 1019). `token-table-index-out-of-range` fires when an output candidate references a token id not in the transaction's distinct-token table.
+Thrown by `parseTransaction` and `serializeTransaction`. `count-out-of-range` covers inputs/outputs outside `[1, 32767]`, data-inputs outside `{0}∪[1, 32767]`, a proof longer than `0xFFFF` bytes, and a context extension with more than 127 entries. `output-tree-not-reencodable` fires when an output tree parses but cannot be written back (the JVM rejects such a transaction at parse); its `cause` is the write error. `extension-id-out-of-range` fires when a context-extension variable id is ≥ `0x80`: the JVM reads the id as a signed byte and rejects a negative one. `extension-v6-type` fires when a context-extension value's type contains `Option`, `Header` or `UnsignedBigInt` (the JVM's rule 1019). `token-table-index-out-of-range` fires when an output candidate references a token id not in the transaction's distinct-token table.
 
 ## Browser compatibility
 

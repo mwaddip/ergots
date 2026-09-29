@@ -28,7 +28,9 @@
  *     + v6 batch-6 Ask 20 (+'context-extension-key-out-of-range': self context-extension
  *       key outside [0,127] — the JVM keys the extension by signed Byte, so
  *       toSigmaContext crashes on a negative key (wire >= 0x80); net 84 → 85)
- *       — current total: 85
+ *     + B-core soft-fork preservation (+'unparsed-ergotree', 2026-06-17: an
+ *       UnparsedErgoTree handed to evaluate; net 85 → 86) — current total: 86,
+ *       as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for

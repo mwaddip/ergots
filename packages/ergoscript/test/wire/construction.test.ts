@@ -27,12 +27,12 @@ import type { ErgoTree } from '../../src/mir/types'
  *                                         `BitVec<u8, Lsb0>` in
  *                                         `sigma-ser::put_bits`.
  *
- * Asymmetry note: sigma-rust's `coll_sigma_parse` ALWAYS returns the `Exprs`
- * arm even when `elem_tpe == SBoolean`; the `BoolConstants` arm is only
- * produced by the dedicated `bool_const_coll_sigma_parse` (driven by the
- * separate `OP_COLL_OF_BOOL_CONST` opcode). On the write side the same
- * `coll_sigma_serialize` peeks `kind` and emits one or the other. We mirror
- * both directions.
+ * Asymmetry note: the parse returns the `Exprs` arm for OP_COLL even when
+ * `elem_tpe == SBoolean`; the `BoolConstants` arm is only produced by the
+ * separate `OP_COLL_OF_BOOL_CONST` opcode. The write side follows the JVM's
+ * `companion` (sigma/ast/values.scala:871-875): an `Exprs` collection of
+ * SBoolean whose items are all constants is written as OP_COLL_OF_BOOL_CONST,
+ * so it does not round-trip byte-for-byte (sigma-rust writes it back as OP_COLL).
  *
  * Cross-reference (JVM canonical):
  *   ~/projects/sigmastate-interpreter/data/shared/src/main/scala/sigma/serialization/
@@ -275,13 +275,11 @@ describe('Collection variant', () => {
     expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
   })
 
-  it('builds and serializes Collection.Exprs[SBoolean] programmatically (Exprs path, not bool optimization)', () => {
-    // The two arms are independent on the write side: a `kind: 'Exprs'`
-    // Collection with `elemTpe = SBoolean` emits via OP_COLL (0x83), not
-    // OP_COLL_OF_BOOL_CONST (0x85). This mirrors sigma-rust where the
-    // optimization is decided at construction (`Collection::new`) by trying
-    // to extract bools from each item; if any non-Const item is present the
-    // collection stays as `Exprs`.
+  it('writes a Collection.Exprs[SBoolean] of Boolean constants as OP_COLL_OF_BOOL_CONST, as the JVM does', () => {
+    // The JVM's ConcreteCollection.companion is ConcreteCollectionBooleanConstant when the element
+    // type is SBoolean and every item is a constant (sigma/ast/values.scala:871-875), so a built or
+    // parsed `kind: 'Exprs'` collection of Boolean constants is written 0x85 with packed bits
+    // (sigma-state 6.0.6 probe: `00 d1 96 83 02 01 01 01 01 00` re-encodes as `00 d1 96 85 02 01`).
     const tree: ErgoTree = {
       header: {
         version: 0,
@@ -302,7 +300,26 @@ describe('Collection variant', () => {
       },
     }
     const out = serializeTree(tree)
-    // header + OP_COLL + count=2 + SBoolean(0x01) + Const(0x01)0x01 + Const(0x01)0x00
-    expect(Array.from(out)).toEqual([0x00, 0x83, 0x02, 0x01, 0x01, 0x01, 0x01, 0x00])
+    // header + OP_COLL_OF_BOOL_CONST + count=2 + packed bits 0b01 (true, false)
+    expect(Array.from(out)).toEqual([0x00, 0x85, 0x02, 0x01])
+  })
+
+  it('writes a Collection.Exprs[SBoolean] with an item that is not a constant as OP_COLL', () => {
+    const tree: ErgoTree = {
+      header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'Collection',
+        kind: 'Exprs',
+        elemTpe: { tag: 'SBoolean' },
+        items: [
+          { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } },
+          { tag: 'LogicalNot', input: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: false } } },
+        ],
+      },
+    }
+    // header + OP_COLL + count=2 + SBoolean(0x01) + Const(0x01)0x01 + LogicalNot(0xef) Const(0x01)0x00
+    expect(Array.from(serializeTree(tree))).toEqual([0x00, 0x83, 0x02, 0x01, 0x01, 0x01, 0xef, 0x01, 0x00])
   })
 })

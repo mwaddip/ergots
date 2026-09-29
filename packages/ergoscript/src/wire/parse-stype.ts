@@ -16,6 +16,7 @@
  */
 
 import type { SType, STypeVar } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 import { ByteReader } from '@ergots/scorex'
 import { decodeUtf8Lossy } from './_utf8'
 
@@ -115,6 +116,10 @@ export function parseSType(r: ByteReader): SType {
  */
 export function parseSTypeWithFirstByte(c: number, r: ByteReader): SType {
   if (c === 0) {
+    // TypeSerializer.deserialize (:133-135): the InvalidTypePrefix message evaluates
+    // r.getBytes(r.remaining), a checked read — so past the window the window error
+    // (rule 1014) wins over 'invalid-type-code'.
+    r.readBytes(0)
     throw new STypeParseError(`invalid type code 0`, 'invalid-type-code')
   }
   if (c < TUPLE_TYPECODE) {
@@ -234,7 +239,9 @@ function parseHighTypeCode(r: ByteReader, c: number): SType {
       return { tag: 'STuple', items }
     }
     case TYPE_CODE_SANY:
-      return { tag: 'SAny' }
+      // The JVM's SAny object (TypeSerializer.scala:196): rule 1001 tells it by identity from
+      // ergots' own SAny, a fresh object its method typing makes (mir/types.ts).
+      return SANY_JVM
     case TYPE_CODE_SUNIT:
       return { tag: 'SUnit' }
     case TYPE_CODE_SBOX:

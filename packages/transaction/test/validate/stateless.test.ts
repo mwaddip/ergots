@@ -4,7 +4,8 @@ import { TxValidationError } from '../../src/errors';
 import { parseTransaction } from '../../src';
 import { listFixtures, loadFixture } from '../_helpers';
 
-const out = (value: bigint) => ({ value, ergoTreeBytes: new Uint8Array([0,8]), creationHeight: 1, tokens: [], registers: {} });
+// A tree a JVM box could hold: `00 08 d3`, sigmaProp(true).
+const out = (value: bigint) => ({ value, ergoTreeBytes: new Uint8Array([0, 8, 0xd3]), creationHeight: 1, tokens: [], registers: {} });
 const inp = (id: number) => ({ boxId: new Uint8Array(32).fill(id), spendingProof: { proofBytes: new Uint8Array(), contextExtension: { values: new Map() } } });
 
 describe('validateStateless', () => {

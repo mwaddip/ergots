@@ -17,8 +17,6 @@ import * as OP from '../mir/opcodes'
 // Per-variant serializers live in `wire/mir/<variant>.ts`. The centralized
 // error type lives in `./errors` (a leaf module) so variant serializers can
 // import it without creating a circular import back into this dispatcher.
-// Re-exported below for backward compatibility with consumers that imported
-// it from `wire/serialize`.
 import { ExprSerializeError } from './errors'
 import { serializeConst } from './mir/const'
 import { serializeConstantPlaceholder } from './mir/constant-placeholder'
@@ -86,8 +84,6 @@ import { serializeOptionGet } from './mir/option-get'
 import { serializeOptionGetOrElse } from './mir/option-get-or-else'
 import { serializeOptionIsDefined } from './mir/option-is-defined'
 
-export { ExprSerializeError } from './errors'
-
 export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void {
   switch (e.tag) {
     case 'Append':
@@ -120,7 +116,8 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void
       serializeLongToByteArray(e, w, treeVersion)
       return
     case 'Collection':
-      w.writeU8(e.kind === 'Exprs' ? OP.OP_COLL : OP.OP_COLL_OF_BOOL_CONST)
+      // Emits its own opcode: the JVM's companion writes a collection of Boolean constants as
+      // OP_COLL_OF_BOOL_CONST whichever opcode it was read with (wire/mir/collection.ts).
       serializeCollection(e, w, treeVersion)
       return
     case 'Tuple':
@@ -168,7 +165,8 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void
       serializeApply(e, w, treeVersion)
       return
     case 'MethodCall':
-      w.writeU8(OP.OP_METHOD_CALL)
+      // Emits its own opcode: the JVM's companion writes a call without arguments as a
+      // PropertyCall (wire/mir/method-call.ts).
       serializeMethodCall(e, w, treeVersion)
       return
     case 'PropertyCall':

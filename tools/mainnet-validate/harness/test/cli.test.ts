@@ -9,11 +9,12 @@
  *   6. `--network` accepts the documented variants and rejects others.
  *   7. Numeric flags reject non-integer / negative values.
  *   8. A flag at end-of-argv without a value throws.
+ *   9. `--mode` accepts oracle, lib and ids; `--census PATH` is carried through.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { parseCliArgs, CLI_DEFAULTS } from '../src/cli.js';
+import { parseCliArgs, CLI_DEFAULTS, defaultStartHeight } from '../src/cli.js';
 
 describe('parseCliArgs', () => {
     it('applies REST URL defaults when neither flag provided', () => {
@@ -33,6 +34,7 @@ describe('parseCliArgs', () => {
         expect(args.mode).toBe('oracle');
         expect(args.startHeight).toBeUndefined();
         expect(args.maxHeight).toBeUndefined();
+        expect(args.census).toBeUndefined();
     });
 
     it('parses --node-url + --indexer-url', () => {
@@ -137,9 +139,34 @@ describe('parseCliArgs', () => {
         expect(args.mode).toBe('oracle');
     });
 
+    it('parses --mode ids', () => {
+        const args = parseCliArgs(['--mode', 'ids', '--census', '/tmp/x.json']);
+        expect(args.mode).toBe('ids');
+    });
+
+    it('refuses --mode ids without --census: the census is its only degrade detector', () => {
+        expect(() => parseCliArgs(['--mode', 'ids'])).toThrow(/--mode ids requires --census/);
+    });
+
+    it('starts a new walk at h=1 in ids mode and at h=2 otherwise', () => {
+        expect(defaultStartHeight('ids')).toBe(1);
+        expect(defaultStartHeight('oracle')).toBe(2);
+        expect(defaultStartHeight('lib')).toBe(2);
+    });
+
     it('rejects an invalid --mode value', () => {
         expect(() =>
             parseCliArgs(['--mode', 'bogus']),
-        ).toThrow(/flag --mode requires "oracle" or "lib", got "bogus"/);
+        ).toThrow(/flag --mode requires "oracle", "lib" or "ids", got "bogus"/);
+    });
+
+    it('carries --census PATH into CliArgs', () => {
+        const args = parseCliArgs(['--mode', 'ids', '--census', '/tmp/x.json']);
+        expect(args.census).toBe('/tmp/x.json');
+        expect(args.mode).toBe('ids');
+    });
+
+    it('throws on --census at end of argv with no value', () => {
+        expect(() => parseCliArgs(['--census'])).toThrow(/requires a value/);
     });
 });

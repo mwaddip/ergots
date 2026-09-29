@@ -36,7 +36,9 @@ import { fileURLToPath } from 'node:url'
 import { evalSantaEntry, svalueToSantaJson, type SantaVector, type SantaEntry } from './_santa'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
+import { blake2b256 } from '../../src/crypto/hashes'
 import { hexToBytes, captureEvalError, synthesizeStubBox, parseParsedTree as parseTree } from '../_helpers'
+import { seedBoxTree } from '../../src/wire/box-tree'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v6')
@@ -105,6 +107,8 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const treeBytesHex = '1b0a00dc6307a701e4e30104'
     const treeBytes = hexToBytes(treeBytesHex)
     const tree = parseTree(treeBytes)
+    // SELF is built from this lenient parse, as the blesser builds it (_santa.ts): seed it.
+    seedBoxTree(treeBytes, tree)
     const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: treeBytes }
     const ctx = makeContext({
       treeVersion: 3,
@@ -123,6 +127,8 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
     const treeBytesHex = '1a0b00dc6313a701e4e3010405'
     const treeBytes = hexToBytes(treeBytesHex)
     const tree = parseTree(treeBytes)
+    // SELF is built from this lenient parse, as the blesser builds it (_santa.ts): seed it.
+    seedBoxTree(treeBytes, tree)
     const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: treeBytes }
     const ctx = makeContext({
       treeVersion: 2,
@@ -142,5 +148,27 @@ describe('svalueToSantaJson — SigmaProp arm', () => {
       .toEqual({ kind: 'SigmaProp', raw_hex: 'd3' })
     expect(svalueToSantaJson({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: false } }))
       .toEqual({ kind: 'SigmaProp', raw_hex: 'd2' })
+  })
+})
+
+// The blesser builds SELF from the tree under evaluation parsed leniently (checkType = false,
+// LenientErgoTree.scala:22), so SELF carries that tree, and its bytes re-encode it
+// (ErgoBoxCandidate.scala:142). The harness seeds the same tree on SELF's bytes (seedBoxTree);
+// unseeded, a root that fails rule 1001 would make the re-encoding's box-rules parse reject.
+describe('evalSantaEntry — SELF carries the leniently parsed tree (seedBoxTree)', () => {
+  it('ExtractId(SELF) on the unsized tree 00 c5 a7 (a Coll[Byte] root) returns the id', () => {
+    const e: SantaEntry = {
+      name: 'extract-id-of-self',
+      tree_bytes_hex: '00c5a7',
+      version: { activated: 3, ergoTree: 0 },
+      expected: { value: null, cost: null, error: null },
+    }
+    const actual = evalSantaEntry(e)
+    expect(actual.error).toBeNull()
+    // SELF (the blesser's EvalCore.scala:505-511): value 1_000_000, the tree 00 c5 a7, height 0,
+    // no tokens, no registers, txId 32 x 00, index 0. Its id is blake2b256 over those bytes.
+    const selfBytes = hexToBytes('c0843d' + '00c5a7' + '00' + '00' + '00' + '00'.repeat(32) + '00')
+    const items = (actual.value as { items: { value: number }[] }).items
+    expect(items.map((i) => i.value & 0xff)).toEqual(Array.from(blake2b256(selfBytes)))
   })
 })

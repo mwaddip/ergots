@@ -34,9 +34,11 @@
 import { describe, expect, it } from 'vitest'
 import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
-import { makeContext } from '../../src/eval/eval-context'
+import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { parseSValue } from '../../src/wire/parse-svalue'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { seedBoxTree } from '../../src/wire/box-tree'
 import { ByteWriter, ByteReader, deriveHeaderId } from '@ergots/scorex'
 import type { MethodCall, SType, SValue, ErgoBox } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
@@ -132,8 +134,13 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
   //
   // Minimal box: ergoTreeBytes = [0x00,0xa3] (len 2, header v0 no-size, Height body), no tokens, no regs.
   //   walk = 3 + (3+2) + 0 + 1 + 0 + 1 + 35 + 3 = 48 ; total = 14 + 10 + 48 = 72.
+  // The serializer writes the box's tree re-encoded, serializeErgoTree(box.ergoTree)
+  // (ErgoBoxCandidate.scala:142), and a JVM box carries its ErgoTree object. [0x00,0xa3] is no
+  // box tree (rule 1001 rejects an unsized Int root), so makeBox seeds its lenient parse, as an
+  // embedder holding a tree does (seedBoxTree; SANTA builds SELF that way): it re-encodes to the
+  // same 2 bytes.
   function makeBox(overrides: Partial<ErgoBox> = {}): ErgoBox {
-    return {
+    const box: ErgoBox = {
       value: 1000000n,
       ergoTreeBytes: new Uint8Array([0x00, 0xa3]),
       registers: {},
@@ -143,7 +150,15 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
       index: 0,
       ...overrides,
     }
+    seedBoxTree(box.ergoTreeBytes, parseTree(box.ergoTreeBytes))
+    return box
   }
+
+  // A box that is PARSED back needs a tree the box rules accept: box ingest applies rule
+  // 1001 (ErgoBoxCandidate.scala:194, checkType = true), which rejects an unsized tree whose
+  // root types as Int, like [0x00,0xa3] above. The parsing tests use sigmaProp(true) instead:
+  // len 3, so putBytes(ergoTree) costs 3 + 3, one more than the len-2 tree.
+  const SIGMA_PROP_TREE = new Uint8Array([0x00, 0x08, 0xd3])
 
   it('serialize[Box] (no tokens, no registers) → cost 72', () => {
     const box: SValue = { kind: 'Box', value: makeBox() }
@@ -151,6 +166,32 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     expect(cost).toBe(FRAMEWORK + START_WRITER + 48)
     expect(cost).toBe(72)
     expect(bytes).toEqual(wireBytes({ tag: 'SBox' }, box))
+  })
+
+  it('serialize[Box] whose tree cannot be re-encoded → EvalError global-serialize-failed', () => {
+    // A parsed box whose tree is Apply(FuncValue([(2^31, SInt)], SigmaProp(true)), [Int 1]): the id
+    // reads as toInt -2^31 and the tree parses, but putUInt rejects it when the box is serialized
+    // (FuncValueSerializer.scala:23; facts/ergoscript-wire.md Round-trip Carve-out 5). The JVM's
+    // serialize fails there (methods.scala:1982); the cost walk meets it first here.
+    const tree = [0x00, 0xda, 0xd9, 0x01, 0x80, 0x80, 0x80, 0x80, 0x08, 0x04, 0x08, 0xd3, 0x01, 0x04, 0x02]
+    const wire = new Uint8Array([0xc0, 0x84, 0x3d, ...tree, 0x00, 0x00, 0x00, ...new Uint8Array(32), 0x00])
+    const box = parseSValue({ tag: 'SBox' }, 3, new ByteReader(wire))
+    let err: unknown
+    try { evalSer({ tag: 'SBox' }, box) } catch (e) { err = e }
+    expect(err).toBeInstanceOf(EvalError)
+    expect((err as EvalError).code).toBe('global-serialize-failed')
+  })
+
+  it('serialize[Box]: a cost-limit EvalError inside the walk passes through unwrapped', () => {
+    // At most 14 + 10 = 24 is charged before the walk; its first writes (putULong 3, putBytes of
+    // the tree 3 + 2) cross the limit of 25 inside serializeCost.
+    const ctx = makeContext({ treeVersion: 3, jitCostLimit: 25 })
+    let err: unknown
+    try {
+      evalMethodCall(serExpr({ tag: 'SBox' }, { kind: 'Box', value: makeBox() }), Env.empty(), ctx)
+    } catch (e) { err = e }
+    expect(err).toBeInstanceOf(EvalError)
+    expect((err as EvalError).code).toBe('cost-limit-exceeded')
   })
 
   it('serialize[Box] with one Int register (R4) → cost 72 + putType(SInt=1) + walk(SInt=3)', () => {
@@ -319,7 +360,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     SBYTE_TYPE_CODE,
     99,
   ])
-  // Matching parsed view (STuple of two SByte; what parseRegisterExprWithTag yields).
+  // Matching parsed view (STuple of two SByte; what parseRegisterExpr yields).
   const tupleRegTpe: SType = { tag: 'STuple', items: [{ tag: 'SByte' }, { tag: 'SByte' }] }
   const tupleRegValue: SValue = {
     kind: 'Tuple',
@@ -354,6 +395,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     const seed: SValue = {
       kind: 'Box',
       value: makeBox({
+        ergoTreeBytes: SIGMA_PROP_TREE,
         registers: {
           4: { tpe: tupleRegTpe, value: tupleRegValue, opaqueBytes: tupleRegOpaque },
         },
@@ -367,7 +409,9 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     expect(parsed.value.registers[4]?.opaqueBytes).toEqual(tupleRegOpaque)
     const reparsedBox: SValue = { kind: 'Box', value: parsed.value }
     const { cost } = evalSer({ tag: 'SBox' }, reparsedBox)
-    expect(cost).toBe(78)
+    // The seed's own cost, and the 78 above plus one for the len-3 tree.
+    expect(cost).toBe(evalSer({ tag: 'SBox' }, seed).cost)
+    expect(cost).toBe(79)
   })
 
   // ── SHeader ──────────────────────────────────────────────────────────────────
@@ -522,6 +566,7 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
 
   it('round-trip[Box] (one Int register)', () => {
     const inner = makeBox({
+      ergoTreeBytes: SIGMA_PROP_TREE,
       registers: { 4: { tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 7 } } },
     })
     const box: SValue = { kind: 'Box', value: inner }

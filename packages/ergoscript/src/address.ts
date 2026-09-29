@@ -186,8 +186,10 @@ export function addressFromErgoTree(tree: ErgoTree, network: Network): string {
  *   `header_byte(0x00) + Const(SSigmaProp, ProveDlog(EcPoint))` =
  *   `0x00 0x08 0xcd <33 bytes>`. Mirrors sigma-rust's
  *   `Address::P2Pk(prove_dlog).script()` (`address.rs:208-218`).
- * - P2S content is the full ErgoTree bytes — parsed directly via
- *   `parseTree`.
+ * - P2S content is the full ErgoTree bytes — parsed via `parseTree` under
+ *   the box rules (`checkType: true`, rule 1001), as the JVM's decoder
+ *   parses them (`ErgoAddress.scala:322`), so a root that is not a
+ *   SigmaProp rejects a tree without the size flag and degrades a sized one.
  *
  * Throws `AddressDecodeError` on bad base58, short input, unsupported
  * address type, or checksum mismatch. Throws `ErgoTreeParseError` if
@@ -244,7 +246,10 @@ export function ergoTreeFromAddress(address: string): ErgoTree {
     )
   }
   if (typeNibble === 0x03) {
-    return parseTree(contentBytes)
+    // The box rules: the JVM decodes a P2S address with the one-argument
+    // deserializeErgoTree (ErgoAddress.scala:322), which sets checkType
+    // (ErgoTreeSerializer.scala:132-139), so rule 1001 applies.
+    return parseTree(contentBytes, { checkType: true })
   }
   throw new AddressDecodeError(
     `unknown address type nibble 0x${typeNibble.toString(16).padStart(2, '0')}`,

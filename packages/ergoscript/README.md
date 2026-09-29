@@ -14,20 +14,22 @@ npm install @ergots/ergoscript
 import {
   parseTree,
   serializeTree,
+  isUnparsedTree,
   isP2PK,
   p2pkPublicKey,
   addressFromErgoTree,
   ergoTreeFromAddress
 } from '@ergots/ergoscript';
 
-// Parse a serialized ErgoTree:
+// Parse a serialized ErgoTree (lenient: any root type). Pass { checkType: true } to
+// parse it as the JVM parses a box's tree (rule 1001: the root must be a SigmaProp).
 const treeBytes: Uint8Array = /* on-wire ErgoTree bytes (e.g. from a box.ergoTree field) */;
 const tree = parseTree(treeBytes);
-console.log(tree.header.version, tree.constants.length, tree.body.tag);
+if (!isUnparsedTree(tree)) console.log(tree.header.version, tree.constants.length, tree.body.tag);
 
-// Re-serialize — byte-identical to the input:
+// Re-serialize — byte-identical to a canonically encoded input:
 const roundTripped = serializeTree(tree);
-// roundTripped equals treeBytes
+// roundTripped equals treeBytes (a tree whose declared size is wrong is written with its true size)
 
 // Recognize a P2PK guarding script and extract its public key:
 if (isP2PK(tree)) {
@@ -54,9 +56,11 @@ const ctx = makeContext({ /* EvalOpts */ });
 const result2 = evaluateWith(tree, ctx);
 ```
 
-`evaluate` returns an `SValue` (discriminated union keyed on `.kind`). 68 of 68 implementable `Expr` arms are wired (F5 batch 4 added the 68th, `LastBlockUtxoRootHash`; 21 wire opcodes are reserved in sigma-rust and parse-reject via `'opcode-reserved'`, mirroring the JVM's `CheckValidOpCode` path for most of them (JVM 6.0.6 parses `OpTrue`, `OpFalse` and the ModQ family: a known residual, see `facts/ergoscript-wire.md`) — `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6, while `FlatMap`/`TrivialPropFalse`/`TrivialPropTrue` joined it (the bare opcodes have no Expr-layer serializer; `flatMap` dispatches as a method and the TrivialProp pair also has a separate SigmaBoolean-leaf form)). The **128-entry method-handler registry** covers the full v5 surface plus the V3-gated v6 P0–P7a methods (numeric V3 bitwise/shifts/toBits/toBytes, `SUnsignedBigInt` methods/casts/arith/modular, Coll V3 `reverse`/`startsWith`/`endsWith`/`get`, `Global.some`/`none`/`serialize`/`deserializeTo`/`fromBigEndianBytes`/`encodeNbits`/`decodeNbits`/`powHit`, `Box.getReg` 99:19, `Context.getVarFromInput` 101:12, `GroupElement.expUnsigned` 7:6, the full `SHeader`/`SPreHeader`/`SContext` accessor surface). **First-class functions** (lambdas in tuples/colls/applied via `Apply`/`ByIndex`/`SelectField`; lexical closures capturing their definition-site env; `FunDef` `0xd7` parsed and evaluated as a `ValDef`; new `EvalError 'apply-unresolved-type-var'` for type-var-arg lambda apply). **84 `EvalError` codes.** Cost values are JVM-accurate per arm.
+`evaluate` returns an `SValue` (discriminated union keyed on `.kind`). 68 of 68 implementable `Expr` arms are wired (F5 batch 4 added the 68th, `LastBlockUtxoRootHash`; 21 wire opcodes are reserved in sigma-rust and parse-reject via `'opcode-reserved'`, mirroring the JVM's `CheckValidOpCode` path for most of them (JVM 6.0.6 parses `OpTrue`, `OpFalse` and the ModQ family: a known residual, see `facts/ergoscript-wire.md`) — `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6, while `FlatMap`/`TrivialPropFalse`/`TrivialPropTrue` joined it (the bare opcodes have no Expr-layer serializer; `flatMap` dispatches as a method and the TrivialProp pair also has a separate SigmaBoolean-leaf form)). The **134-entry method-handler registry** (86 handlers registered one by one, plus the 8 numeric methods for each of the 6 numeric types) covers the full v5 surface plus the V3-gated v6 P0–P7a methods (numeric V3 bitwise/shifts/toBits/toBytes, `SUnsignedBigInt` methods/casts/arith/modular, Coll V3 `reverse`/`startsWith`/`endsWith`/`get`, `Global.some`/`none`/`serialize`/`deserializeTo`/`fromBigEndianBytes`/`encodeNbits`/`decodeNbits`/`powHit`, `Box.getReg` 99:19, `Context.getVarFromInput` 101:12, `GroupElement.expUnsigned` 7:6, the full `SHeader`/`SPreHeader`/`SContext` accessor surface). **First-class functions** (lambdas in tuples/colls/applied via `Apply`/`ByIndex`/`SelectField`; lexical closures capturing their definition-site env; `FunDef` `0xd7` parsed and evaluated as a `ValDef`; new `EvalError 'apply-unresolved-type-var'` for type-var-arg lambda apply). **86 `EvalError` codes.** Cost values are JVM-accurate per arm.
 
 **Adversarial consensus faithfulness (conformance run F1–F5, validated against JVM-blessed SANTA vectors):** ergots accepts exactly what the JVM `sigma-state` reference accepts and rejects exactly what it rejects, for hand-crafted as well as compiler-produced trees. Closed over the run: `SHeader.stateRoot`→`AvlTree` and `powOnetimePk`→generator (ergots leads sigma-rust toward the JVM), the independent `SContext.lastBlockUtxoRootHash` context field, and a family of adversarial over-accept gates the JVM rejects — non-pair-`STuple`/non-unary-`SFunc` value types (`'unsupported-value-type'`), `SelectField` on a non-pair (`'select-field-non-pair'`), rule-1012 header size-bit (`'header-version-requires-size'`, all three ErgoTree ingresses), and rule-1019 v6-typed box registers (`'register-v6-type'`).
+
+**Size-flagged trees and box trees, as the JVM reads and writes them (2026-09-28):** a tree is parsed on the reader it arrives on, under a 4096-byte window, and its declared size is used only if it degrades; every count inside a tree has the JVM's reader and bound; and each value is read in the JVM's order. A box's tree is parsed under the box rules (rule 1001, the root must be a SigmaProp), and wherever the JVM re-serializes a box, ergots writes the tree re-encoded (`reencodeTreeBytes`) while R1 and `propositionBytes` keep the bytes as received. An unsized tree that fails soft-forkably now throws `ErgoTreeParseError('soft-fork-without-size-bit')`, with the original error as `cause`. Re-encoding writes each node as the JVM's companion writes it (a Boolean-constant collection read as `0x83` becomes `0x85`, a method call without arguments read as `0xdc` becomes `0xdb`), and a Box value's index only within a Short, since those bytes now carry transaction ids (2026-09-29).
 
 ### Sigma-protocol verifier
 
@@ -75,12 +79,13 @@ See [API.md](./API.md) for the full reference (every export, its signature, erro
 
 The package exports a small consumer-facing API:
 
-- **Wire format**: `parseTree`, `serializeTree`, `MAX_TREE_SIZE`
+- **Wire format**: `parseTree` (with the `checkType` option), `serializeTree`, `isUnparsedTree`, `MAX_TREE_SIZE`, `MAX_PROPOSITION_SIZE`
+- **Box trees and box bytes**: `boxTreeOf`, `reencodeTreeBytes`, `seedBoxTree`, `boxBytesOf`, `boxIdOf`
 - **Addresses**: `isP2PK`, `p2pkPublicKey`, `addressFromErgoTree`, `ergoTreeFromAddress`, `base58Encode`, `base58Decode`
 - **Evaluator**: `evaluate`, `evaluateWith`, `makeContext`
 - **Sigma-protocol verifier**: `verifySignature`
-- **Types**: `ErgoTree`, `TreeHeader`, `SType`, `SValue`, `Expr`, `SigmaBoolean`, `Network`, `AddressType`, `EvalContext`, `EvalOpts`
-- **Errors**: `ErgoTreeParseError`, `ErgoTreeSerializeError`, `AddressDecodeError`, `EvalError`, `VerifyError`
+- **Types**: `ErgoTree` (`ParsedErgoTree` | `UnparsedErgoTree`), `ParseTreeOptions`, `TreeHeader`, `SType`, `SValue`, `Expr`, `SigmaBoolean`, `Network`, `AddressType`, `EvalContext`, `EvalOpts`
+- **Errors**: `ErgoTreeParseError`, `ErgoTreeSerializeError`, `AddressDecodeError`, `ExprTpeError`, `EvalError`, `VerifyError`, and the wire codecs' parse and serialize error classes (see [API.md](./API.md))
 
 The boundary contract — what other packages may rely on, with preconditions, postconditions, invariants, and the full error taxonomy — is documented in [`facts/ergoscript.md`](../../facts/ergoscript.md) at the repo root.
 

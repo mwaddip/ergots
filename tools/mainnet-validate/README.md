@@ -33,15 +33,35 @@ The harness entry point lands at `tools/mainnet-validate/harness/dist/main.js`. 
 
 ## Run
 
-The harness fetches block data via REST — no local snapshot copy required. Just point it at your local node + indexer:
+The harness fetches block data via REST — no local snapshot copy required. Point it at your local node + indexer, and give each new walk its own checkpoint path:
 
 ```bash
+WALK=tools/mainnet-validate/walks/oracle-2-100   # a fresh directory per walk
+mkdir -p "$WALK"
 node tools/mainnet-validate/harness/dist/main.js \
   --node-url http://localhost:9052 \
   --indexer-url http://localhost:9054 \
+  --checkpoint-path "$WALK/checkpoint.json" \
+  --error-report-path "$WALK/error-report.json" \
   --start-height 2 \
   --max-height 100
 ```
+
+A checkpoint is only ever continued: `--start-height` starts a new walk, and it is refused when a checkpoint already exists at `--checkpoint-path`. The default path, `tools/mainnet-validate/checkpoint.json`, holds an earlier walk, so a new walk passes its own. To continue a walk, run the same command without `--start-height` (see "Resume semantics edge cases").
+
+The ids-and-parse-only mode (`--mode ids`) evaluates no script: it checks each transaction id and each output box against the chain's. It requires a degrade census (`--census`), the output trees expected to degrade, one justified entry each, and starts at h=1:
+
+```bash
+WALK=tools/mainnet-validate/walks/ids-1-tip
+mkdir -p "$WALK"
+printf '%s\n' '[{"height":545684,"txIndex":1,"outputIndex":0,"reason":"burn box: rule 1001"}]' > "$WALK/census-expected.json"
+nice -n 15 node tools/mainnet-validate/harness/dist/main.js \
+  --node-url http://localhost:9052 --indexer-url http://localhost:9054 \
+  --checkpoint-path "$WALK/checkpoint.json" --error-report-path "$WALK/error-report.json" \
+  --mode ids --census "$WALK/census-expected.json" --start-height 1
+```
+
+Only `checkpoint.json` and `error-report.json` are git-ignored: keep a walk's census files out of commits.
 
 Defaults assume invocation from the repo root.
 
@@ -49,10 +69,12 @@ Defaults assume invocation from the repo root.
 |---|---|---|---|
 | `--node-url URL` | no | `http://localhost:9052` | ergo-node REST surface |
 | `--indexer-url URL` | no | `http://localhost:9054` | indexer addon REST surface |
-| `--checkpoint-path PATH` | no | `./tools/mainnet-validate/checkpoint.json` | resume state |
+| `--checkpoint-path PATH` | no | `./tools/mainnet-validate/checkpoint.json` | one walk's resume state, with its `--mode` and `--census`; a checkpoint is only ever continued, never replaced (see "Resume semantics") |
 | `--error-report-path PATH` | no | `./tools/mainnet-validate/error-report.json` | structured halt report |
 | `--network mainnet\|testnet` | no | `mainnet` | network identifier |
-| `--start-height N` | no | resume from checkpoint or 2 | override resume; **minimum h=2 for v1** (genesis-state-box validation is deferred follow-up per spec §11) |
+| `--mode oracle\|lib\|ids` | no | `oracle` | per-tx validator: `oracle` evaluates each input and compares its cost with the WASM oracle's; `lib` runs `@ergots/transaction`'s `validateStateful`; `ids` evaluates no script and checks each transaction id and output box against the chain's (spec 2026-09-28 §12) |
+| `--census PATH` | with `--mode ids` | none | degrade census: a JSON array of `{height, txIndex, outputIndex, reason}`, one per output tree expected to degrade to an unparsed tree; halts on a degrade it does not list, on a listed degrade that does not happen, and on a listed position the block at that height does not have; every observed degrade is appended once to `PATH.observed.jsonl`. The only degrade detector in ids mode, so that mode requires it |
+| `--start-height N` | no | resume from the checkpoint; with none, h=1 (`--mode ids`) or h=2 (oracle, lib) | start a new walk at N. Refused when a checkpoint already exists at `--checkpoint-path`: pass a fresh path. The ids mode runs from h=1 (the indexer client serves the genesis-state boxes) |
 | `--max-height M` | no | tip | end-of-walk cap |
 | `--sleep-ms N` | no | `0` | rate-limit pause between blocks |
 
@@ -100,7 +122,10 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 | `phase` | Source | Typical `errorCode` values |
 |---|---|---|
 | `header` | `validate-block.ts` header pass | `byte-roundtrip-mismatch`, `autolykos-v2-verify-false`, `v1-header-after-v2-activation`, `parent-link-mismatch` |
-| `output-roundtrip` | `validate-block.ts` per-output pass | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-parse-failed`, `tree-serialize-failed` |
+| `output-roundtrip` | `validate-block.ts` per-output pass (the box re-serialized as the JVM does, its tree re-encoded under the box rules, against the chain's box bytes, which hash to the box id) | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `box-serialize-failed` |
+| `census` | `degrade-census.ts`, from the per-output pass (`--census`) | `census-unexpected-degrade`, `census-expected-degrade-missing`, `census-expected-position-missing`, `census-log-write-failed` (at startup, stderr only: `census-dir-unwritable`, `census-file-unreadable`, `census-file-malformed`) |
+| `ids` | `validate-tx-ids.ts` (`--mode ids`) | `tx-id-mismatch`, `output-count-mismatch`, `output-bytes-mismatch`, `ids-tx-bytes-missing`, `ids-parse-failed`, `ids-tx-id-failed`, `ids-output-serialize-failed` |
+| `lib-validate` | `validate-tx-lib.ts` (`--mode lib`) | `lib-tx-bytes-missing`, `lib-parse-failed`, `lib-deps-failed`, `lib-validate-rejected` |
 | `evaluate` | `validate-tx.ts` evaluate pass | per-`EvalError` code (see `facts/ergoscript-eval.md`) |
 | `evaluate-cost` | `validate-tx.ts` cost-equivalence sub-step | `cost-drift`, `cost-overflow` |
 | `evaluate-oracle-mismatch` | `validate-tx.ts` cost-equivalence | `ours-succeeded-oracle-errored`, `ours-errored-oracle-succeeded` |
@@ -112,7 +137,7 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 ### Two halt-vs-error distinctions
 
 - **Validation halts write `error-report.json`.** Caught around `NodeClient.getBlock` and `validateBlock` in the per-block try blocks; the report's `phase` field tells you which side surfaced the divergence.
-- **Startup halts write stderr only — no sidecar.** Failures BEFORE the per-block walk loop (WASM load failure, `getTipHeight` failure, `readCheckpoint` parse error, rejected pre-REST checkpoint) are operational and surface to stderr without a structured report. If you don't see an `error-report.json` after a halt, check stderr.
+- **Startup halts write stderr only — no sidecar.** Failures BEFORE the per-block walk loop (WASM load failure, `getTipHeight` failure, `readCheckpoint` parse error, rejected pre-REST checkpoint, malformed `--census` file) are operational and surface to stderr without a structured report. If you don't see an `error-report.json` after a halt, check stderr.
 
 ### Triage flow
 
@@ -124,11 +149,19 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 6. If `phase: evaluate-cost` with `errorCode: cost-overflow`: oracle cost exceeded `Number.MAX_SAFE_INTEGER` (defensive guard; not expected on mainnet). Indicates an integration bug, not a chain divergence.
 7. If `phase: evaluate-oracle-mismatch`: our eval and sigma-rust disagree on success/failure. `errorCode: ours-succeeded-oracle-errored` means we accept a tree sigma-rust rejects; `errorCode: ours-errored-oracle-succeeded` means we reject a tree sigma-rust accepts. The `oracleError` / `ourError` / `ourEvaluateCost` fields tell you what each side did. Both directions are bugs in the library; reproduce as in step 5.
 8. If `phase: wasm-oracle` with `errorCode: wasm-call-threw`: the WASM oracle threw during cost evaluation. Usually WASM heap exhaustion (`memory access out of bounds`) — see Known limits; restart the process (checkpoint resumes) and re-run. The chunked restart loop absorbs this automatically.
-9. Resume by re-running the same `node dist/main.js ...` invocation **after fixing the library bug** (or deciding the divergence is expected and adjusting test expectations). The harness reads the checkpoint and starts at `lastValidatedHeight + 1`. If you want to re-validate from a specific height instead, pass `--start-height N` — this treats the run as fresh and zeroes the in-memory stats counter (but the checkpoint file on disk is overwritten on the next successful block).
+9. Resume by re-running the same `node dist/main.js ...` invocation, without `--start-height`, **after fixing the library bug** (or deciding the divergence is expected and adjusting test expectations). The harness reads the checkpoint and starts at `lastValidatedHeight + 1`, which re-validates the block that halted. To re-validate from a specific height instead, start a new walk: `--start-height N` with a fresh `--checkpoint-path`.
 
 ### Resume semantics edge cases
 
-- `--start-height` overrides the checkpoint AND resets the in-memory stats. A subsequent run without `--start-height` will resume from the new `lastValidatedHeight`.
+- A checkpoint belongs to one walk: it records the walk's `--mode` and `--census` (as an absolute path), and it is only ever continued. A resume (no `--start-height`) must pass the same mode and census, or the harness refuses to start: a walk's checks are the same from its first block to its last. `--start-height` starts a new walk and is refused when a checkpoint already exists at `--checkpoint-path`, so a checkpoint is never overwritten; pass a fresh path (or remove the old file by hand). A checkpoint written before these fields existed counts as an oracle walk with no census. Refusals are startup failures (stderr, exit 1).
+- An ids walk with its census, from h=1 on its own checkpoint, then its resume:
+
+  ```bash
+  node tools/mainnet-validate/harness/dist/main.js --node-url URL --indexer-url URL \
+    --checkpoint-path WALK/checkpoint.json --error-report-path WALK/error-report.json \
+    --mode ids --census WALK/census-expected.json --start-height 1
+  # after a halt and a fix (or a new census entry), the same command without --start-height 1
+  ```
 - If the four `@ergots/*` `libraryVersions` strings have changed since the checkpoint was written, the harness emits a warning to stderr and continues. Bumping a package version mid-walk is intentional during 2j proper iteration.
 - `--max-height M` past the node's reported tip at startup clamps to the tip — the harness will not wait for new blocks to be mined.
 
@@ -178,11 +211,11 @@ Per-block flow:
 ## Known limits
 
 - **WASM memory growth.** `compute_tx_oracle_costs` eventually hits `memory access out of bounds` from WASM heap fragmentation. The ceiling is **depth-dependent** — thousands of blocks on the sparse early chain, but only ~600–1,500 on dense later blocks (allocator state, not raw budget). Fresh process restart resolves it; checkpoint resume continues from the next height. The standard operating mode wraps the harness in a chunked restart loop (~125-block chunks) that respawns on OOM — the checkpoint persists progress across restarts. Not a consensus bug; pure WASM heap exhaustion.
-- **h=1 deferred.** Smoke walks start at h=2 by default. h=1 validation requires special-casing the 3 genesis-state boxes' creation context (they have no creating tx); see spec §11 for the follow-up.
+- **h=1 deferred in the oracle and lib modes.** Their walks start at h=2 by default. h=1 validation requires special-casing the 3 genesis-state boxes' creation context (they have no creating tx); see spec §11 for the follow-up. The ids mode starts at h=1: it evaluates no script, and the indexer client serves the three genesis-state boxes (walked live from h=1).
 - **No continuous mode.** The harness exits when it reaches `--max-height` (or the node's reported tip at startup). It does NOT poll for new blocks. Re-running picks up from the checkpoint.
 - **No retries beyond the REST client's per-call retry policy** (3 attempts with 250/500/1000ms backoff, 30s timeout per call). A persistent REST failure halts the walk.
 - **No per-block parallelism.** Sequential block walk; cleaner halt semantics. The within-block parallelism is bounded to 64 concurrent indexer box fetches.
-- **Pre-REST checkpoints rejected.** Any `checkpoint.json` with `shimPath`/`storePath` fields fails loudly on startup; delete the file or pass `--start-height` to override.
+- **Pre-REST checkpoints rejected.** Any `checkpoint.json` with `shimPath`/`storePath` fields fails loudly on startup; delete the file, or pass a fresh `--checkpoint-path`.
 
 ## References
 

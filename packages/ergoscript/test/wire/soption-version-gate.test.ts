@@ -65,9 +65,13 @@ describe('SOption DATA tree-version gate (CoreDataSerializer:140)', () => {
     // Body = inline Const(SOption[SInt], Some(5)):
     //   0x28 is in inline-constant range (≤ LAST_CONSTANT_CODE=0x70);
     //   type = SOption[SInt], value bytes = 01 0a (Some tag + ZigZag 5).
-    expect(() => parseTree(hexToBytes('0028010a'))).toThrow(
-      expect.objectContaining({ code: 'soption-tree-version-too-low' })
-    )
+    // No size bit, so the rule-1009 reject is wrapped as 'soft-fork-without-size-bit'
+    // (the JVM's SerializerException, ErgoTreeSerializer.scala:204-207), its cause the
+    // 'soption-tree-version-too-low' SValueParseError.
+    let err: unknown
+    try { parseTree(hexToBytes('0028010a')) } catch (e) { err = e }
+    expect(err).toMatchObject({ code: 'soft-fork-without-size-bit' })
+    expect((err as Error).cause).toMatchObject({ code: 'soption-tree-version-too-low' })
   })
 
   it('v3 sibling tree parses (the gate is version-keyed, not type-keyed)', () => {

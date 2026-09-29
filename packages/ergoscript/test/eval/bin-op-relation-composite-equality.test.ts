@@ -25,10 +25,14 @@ import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { SValue, ErgoBox, AvlTreeData, PreHeader } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
 
+// Box equality compares ids over the box's bytes, and a constructed box's bytes carry its tree
+// re-encoded (ErgoBox.scala:87-97; ErgoBoxCandidate.scala:142), so the tree must be one a box can
+// hold: SigmaProp(true). (A ProveDlog without its point, 00 08 cd, is none; ErgoTree.fromBytes
+// fails reading the point.)
 function syntheticBox(opts?: Partial<ErgoBox>): ErgoBox {
   return {
     value: 1000n,
-    ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xcd]),
+    ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xd3]),
     registers: {},
     tokens: [],
     creationHeight: 100,
@@ -105,7 +109,8 @@ describe('sValueEquals — Box', () => {
   })
   it('returns false when ergoTreeBytes differs', () => {
     const ctx = makeContext({})
-    expect(sValueEquals(vBox(syntheticBox()), vBox(syntheticBox({ ergoTreeBytes: new Uint8Array([0xff]) })), ctx)).toBe(false)
+    // Another tree a box can hold: SigmaProp(false).
+    expect(sValueEquals(vBox(syntheticBox()), vBox(syntheticBox({ ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xd2]) })), ctx)).toBe(false)
   })
   it('returns false when creationHeight differs', () => {
     expect(sValueEquals(vBox(syntheticBox()), vBox(syntheticBox({ creationHeight: 999 })), makeContext({}))).toBe(false)

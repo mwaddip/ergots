@@ -30,6 +30,7 @@
 import type { ContextExtension, ErgoBox, SType, SValue } from '../../src/mir/types'
 import { isUnparsedTree } from '../../src/mir/types'
 import { parseTree, ErgoTreeParseError } from '../../src/wire/ergo-tree'
+import { seedBoxTree } from '../../src/wire/box-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
@@ -218,6 +219,10 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
     if (isWireParseError(err)) return { value: null, cost: null, error: 'errored' }
     throw err
   }
+  // SELF's bytes are these tree bytes, and the blesser builds SELF from this lenient parse
+  // (LenientErgoTree.scala:22): seed it, so SELF's re-encoding writes this tree
+  // (ErgoBoxCandidate.scala:142) rather than re-parsing the bytes under the box rules.
+  seedBoxTree(treeBytes, tree)
   // An unparsed (soft-fork) tree is unevaluable — the JVM blesser grades it errored.
   if (isUnparsedTree(tree)) return { value: null, cost: null, error: 'errored' }
   const treeVersion = e.version.ergoTree

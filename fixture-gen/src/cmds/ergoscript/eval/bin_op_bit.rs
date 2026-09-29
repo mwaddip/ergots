@@ -256,6 +256,14 @@ pub fn generate() -> anyhow::Result<BinOpBitFixtureFile> {
     // Error: non-numeric operand — Boolean + Boolean for BitAnd.
     // Sigma-rust falls through to the `_ => EvalError::UnexpectedValue` arm.
     // TS maps this to 'bin-op-not-numeric'.
+    //
+    // ⚠️ HAND-EDITED FIXTURE (2026-09-28): sigma-rust packs a pair of Boolean
+    // constants after EVERY BinOp opcode (`00 f3 85 03`), but the JVM packs only
+    // after its nine Relation2 opcodes (ValueSerializer.scala:48-58); BitAnd is a
+    // TwoArgumentsSerializer and writes two full values. The committed
+    // `tree_bytes_hex` was re-encoded to the JVM form, `00 f3 01 01 01 01`. A
+    // `cargo run` regeneration shows an EXPECTED diff here, not a determinism
+    // regression: keep the JVM form (fixture-gen is frozen).
     // -------------------------------------------------------------------------
     entries.push(error_entry(
         "bitand_not_numeric_bool",

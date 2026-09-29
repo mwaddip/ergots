@@ -1,7 +1,7 @@
 /**
  * CLI argument parser for the mainnet-validate harness.
  *
- * Hand-rolled flag parser — the harness has 8 flags total, no positional
+ * Hand-rolled flag parser — the harness has 10 flags total, no positional
  * args, no sub-commands; pulling in `commander`/`yargs` for that surface
  * is unjustified weight and a transitive-WASM-audit liability.
  *
@@ -21,6 +21,15 @@
  * Documented in the T14 README.
  */
 
+/**
+ * Per-tx validator mode:
+ *   - 'oracle' evaluates each input and compares its cost with the WASM cost oracle's;
+ *   - 'lib' routes each transaction through `@ergots/transaction`'s `validateStateful`;
+ *   - 'ids' evaluates no script: it checks each transaction id and output box against the
+ *     chain's (spec 2026-09-28 §12).
+ */
+export type HarnessMode = 'oracle' | 'lib' | 'ids';
+
 /** Parsed CLI flags. See class-doc above for default semantics. */
 export interface CliArgs {
     /** ergo-node REST base URL (e.g. http://localhost:9052). */
@@ -33,14 +42,22 @@ export interface CliArgs {
     errorReportPath: string;
     /** Which Ergo network the node represents. */
     network: 'mainnet' | 'testnet';
-    /** Override checkpoint's resume height. Unset = resume from checkpoint or start at 1. */
+    /**
+     * Start a new walk at this height; refused where a checkpoint exists (`assertCheckpointUsable`).
+     * Unset = resume the checkpoint's walk, or start a new one at `defaultStartHeight(mode)`.
+     */
     startHeight?: number;
     /** Cap on the walk's end height. Unset = walk to the node's reported tip. */
     maxHeight?: number;
     /** Sleep between blocks in ms. 0 = no rate limit. */
     sleepMs: number;
-    /** Per-tx validator mode: 'oracle' uses the WASM cost oracle path; 'lib' routes through validateStateful. */
-    mode: 'oracle' | 'lib';
+    /** Per-tx validator mode; see `HarnessMode`. */
+    mode: HarnessMode;
+    /**
+     * Degrade-census expected file (`degrade-census.ts`). Unset = no census. Observed degrades
+     * are appended to `<census>.observed.jsonl`.
+     */
+    census?: string;
 }
 
 /**
@@ -58,6 +75,16 @@ export const CLI_DEFAULTS = {
 };
 
 /**
+ * Where a new walk starts when `--start-height` is absent and no checkpoint exists. The ids
+ * mode starts at h=1, the spec's merge gate (2026-09-28 Tests §4): it evaluates no script, and
+ * the indexer client serves the three genesis-state boxes h=1 spends (checked live over
+ * h=1..20). The oracle and lib modes keep h=2, the v1 default.
+ */
+export function defaultStartHeight(mode: HarnessMode): number {
+    return mode === 'ids' ? 1 : 2;
+}
+
+/**
  * Parse the harness's CLI argv (sliced — caller passes `process.argv.slice(2)`).
  *
  * Throws `Error` on:
@@ -66,6 +93,7 @@ export const CLI_DEFAULTS = {
  *   - Non-integer / out-of-range numeric value (`--start-height abc`,
  *     `--sleep-ms -1`).
  *   - Invalid network value (`--network foobar`).
+ *   - `--mode ids` without `--census`.
  *
  * Returns a fully-populated `CliArgs` (defaults applied) on success.
  */
@@ -75,7 +103,8 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     let checkpointPath: string | undefined;
     let errorReportPath: string | undefined;
     let network: 'mainnet' | 'testnet' | undefined;
-    let mode: 'oracle' | 'lib' | undefined;
+    let mode: HarnessMode | undefined;
+    let census: string | undefined;
     let startHeight: number | undefined;
     let maxHeight: number | undefined;
     let sleepMs: number | undefined;
@@ -130,15 +159,19 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
             }
             case '--mode': {
                 const v = requireValue();
-                if (v !== 'oracle' && v !== 'lib') {
+                if (v !== 'oracle' && v !== 'lib' && v !== 'ids') {
                     throw new Error(
-                        `flag --mode requires "oracle" or "lib", got "${v}"`,
+                        `flag --mode requires "oracle", "lib" or "ids", got "${v}"`,
                     );
                 }
                 mode = v;
                 i++;
                 break;
             }
+            case '--census':
+                census = requireValue();
+                i++;
+                break;
             case '--start-height':
                 startHeight = requireNonNegInt();
                 i++;
@@ -171,6 +204,14 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     if (maxHeight !== undefined) {
         out.maxHeight = maxHeight;
     }
+    if (census !== undefined) {
+        out.census = census;
+    }
+    if (out.mode === 'ids' && out.census === undefined) {
+        // A degraded tree re-encodes to its bytes as received, so the id and byte checks
+        // cannot see it: the census is the only degrade detector in ids mode.
+        throw new Error('flag --mode ids requires --census PATH: the degrade census is the only check that sees a tree degrade in ids mode');
+    }
     return out;
 }
 
@@ -183,8 +224,15 @@ options:
   --checkpoint-path PATH        checkpoint JSON (default: ${CLI_DEFAULTS.checkpointPath})
   --error-report-path PATH      error report JSON (default: ${CLI_DEFAULTS.errorReportPath})
   --network mainnet|testnet     network identifier (default: ${CLI_DEFAULTS.network})
-  --mode oracle|lib             validator mode (default: ${CLI_DEFAULTS.mode})
-  --start-height N              override checkpoint's resume height (min 2 for v1)
+  --mode oracle|lib|ids         validator mode (default: ${CLI_DEFAULTS.mode}); ids checks
+                                tx ids and output boxes only, with no script evaluation
+  --census PATH                 degrade-census expected file (JSON array), required with
+                                --mode ids; halts on any difference, logs observed degrades
+                                to PATH.observed.jsonl
+  --start-height N              start a new walk at N, on a checkpoint path with no
+                                checkpoint (one is never overwritten); without it, the
+                                checkpoint's walk resumes (same --mode and --census), or a
+                                new walk starts at h=1 (ids) or h=2 (oracle, lib)
   --max-height M                cap on end height (default: tip)
   --sleep-ms N                  ms to sleep between blocks (default: ${CLI_DEFAULTS.sleepMs})
 `;

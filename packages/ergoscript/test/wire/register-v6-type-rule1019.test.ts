@@ -17,19 +17,25 @@
  * step(elemType) (matched AFTER STuple, since STuple <: SCollection); leaf →
  * v6TypeCheck.
  *
- * ergots gates this at `parseRegisterExprWithTag` (parse-svalue.ts) right after
- * the register TYPE is parsed and BEFORE the value parse — so the throw happens
- * in `parseTree` / `parseSValue(SBox)` at deserialize, not at eval. Throws
- * `SValueParseError` code `'register-v6-type'`.
+ * ergots checks this in `parseAdditionalRegisters` (parse-svalue.ts) once each
+ * register's value has been read whole, as the JVM runs `CheckV6Type(v)` after
+ * `r.getValue()` (`ErgoBoxCandidate.scala:231-232`): a hard error in the value's
+ * data comes first. Throws `SValueParseError` code `'register-v6-type'`, at
+ * deserialize, not at eval.
  *
- * JVM-blessed witness W7 (full tree carrying a `Const(SBox)` whose R4 register
- * is `Option[Int]`-typed): JVM rejects at box deserialize; ergots used to parse.
+ * JVM-blessed witness W7 (a sized v3 tree carrying a `Const(SBox)` whose R4
+ * register is `Option[Int]`-typed; SANTA `Rule1019_check_v6_type`, graded
+ * errored): rule 1019 is a `ValidationException`, so the enclosing sized tree
+ * degrades to an `UnparsedErgoTree` (`ErgoTreeSerializer.scala:196-203`), which
+ * then fails to evaluate.
  */
 
 import { describe, it, expect } from 'vitest'
 import { parseSValue, SValueParseError } from '../../src/wire/parse-svalue'
 import { parseTree } from '../../src/wire/ergo-tree'
+import { isUnparsedTree } from '../../src/mir/types'
 import { ByteReader } from '@ergots/scorex'
+import { validHeaderData } from './_helpers'
 
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.replace(/\s+/g, '')
@@ -78,21 +84,16 @@ const T_INT = 0x04
 
 describe('rule-1019 CheckV6Type — box register type contains v6-only type', () => {
   // --- W7: full tree, Const(SBox) segregated constant, R4 = Option[Int] ---
-  it('W7: parseTree rejects a v3 tree whose SBox-constant R4 is Option[Int]', () => {
+  it('W7: a sized v3 tree whose SBox-constant R4 is Option[Int] degrades to Unparsed', () => {
     const W7 =
       '1b330163c0843d0b0208d300000128010a000000000000000000000000000000000000000000000000000000000000000000c17300'
-    let thrown: unknown
-    try {
-      parseTree(hexToBytes(W7))
-    } catch (e) {
-      thrown = e
-    }
-    expect(thrown).toBeInstanceOf(SValueParseError)
-    expect((thrown as SValueParseError).code).toBe('register-v6-type')
+    const tree = parseTree(hexToBytes(W7))
+    expect(isUnparsedTree(tree)).toBe(true)
+    expect(isUnparsedTree(tree) && (tree.error as SValueParseError).code).toBe('register-v6-type')
   })
 
   // --- Type-set coverage (parse the SBox directly) ---
-  function expectRegisterReject(regBytes: number[], treeVersion = 3): void {
+  function expectRegisterReject(regBytes: number[], treeVersion = 3, code = 'register-v6-type'): void {
     let thrown: unknown
     try {
       parseSValue({ tag: 'SBox' }, treeVersion, new ByteReader(sboxWithRegister(regBytes)))
@@ -100,12 +101,12 @@ describe('rule-1019 CheckV6Type — box register type contains v6-only type', ()
       thrown = e
     }
     expect(thrown).toBeInstanceOf(SValueParseError)
-    expect((thrown as SValueParseError).code).toBe('register-v6-type')
+    expect((thrown as SValueParseError).code).toBe(code)
   }
 
   it('rejects an Option[Int]-typed register', () => {
-    // Some(Int 5): tag 0x01, ZigZag VLQ 0x0a. Value bytes are never reached (gate
-    // fires after the type parse) but kept valid for completeness.
+    // Some(Int 5): tag 0x01, ZigZag VLQ 0x0a. The value is read whole before the
+    // check (ErgoBoxCandidate.scala:231-232), so it must be valid data.
     expectRegisterReject([T_OPTION_INT, 0x01, 0x0a])
   })
 
@@ -120,7 +121,21 @@ describe('rule-1019 CheckV6Type — box register type contains v6-only type', ()
   })
 
   it('rejects an SHeader-typed register', () => {
-    expectRegisterReject([T_SHEADER])
+    expectRegisterReject([T_SHEADER, ...validHeaderData()])
+  })
+
+  it('an SHeader-typed register whose data is cut short rejects on the data, before rule 1019', () => {
+    // The box ends 40 bytes into R4's header: after the version and parentId, the
+    // adProofsRoot read runs out. The value read (ErgoBoxCandidate.scala:231) fails
+    // before CheckV6Type (:232) can run.
+    const box = new Uint8Array([0x80, 0x01, ...P2PK_TREE, 0x00, 0x00, 0x01, T_SHEADER, ...validHeaderData().slice(0, 40)])
+    let code: string | undefined
+    try {
+      parseSValue({ tag: 'SBox' }, 3, new ByteReader(box))
+    } catch (e) {
+      code = (e as { code?: string }).code
+    }
+    expect(code).toBe('truncated')
   })
 
   it('rejects an SUnsignedBigInt-typed register', () => {
@@ -146,12 +161,15 @@ describe('rule-1019 CheckV6Type — box register type contains v6-only type', ()
   })
 
   // --- All-versions: the gate is UNCONDITIONAL (rule in ruleSpecsV5 + V6) ---
-  it('rejects an Option[Int] register at tree-version 0 (unconditional)', () => {
-    expectRegisterReject([T_OPTION_INT, 0x01, 0x0a], 0)
+  // Below v3 an Option register fails first in its data read: Option data is rule
+  // 1009 there (CoreDataSerializer.scala:140-145, ValidationRules.scala:135), and
+  // the value is read before CheckV6Type runs (ErgoBoxCandidate.scala:231-232).
+  it('rejects an Option[Int] register at tree-version 0 on its data (rule 1009)', () => {
+    expectRegisterReject([T_OPTION_INT, 0x01, 0x0a], 0, 'soption-tree-version-too-low')
   })
 
-  it('rejects an Option[Int] register at tree-version 2 (unconditional)', () => {
-    expectRegisterReject([T_OPTION_INT, 0x01, 0x0a], 2)
+  it('rejects an Option[Int] register at tree-version 2 on its data (rule 1009)', () => {
+    expectRegisterReject([T_OPTION_INT, 0x01, 0x0a], 2, 'soption-tree-version-too-low')
   })
 
   it('rejects an SUnsignedBigInt register at tree-version 0 (unconditional)', () => {

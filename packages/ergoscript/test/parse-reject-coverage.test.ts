@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseTree } from '../src/wire/ergo-tree'
+import { parseTree, ErgoTreeParseError } from '../src/wire/ergo-tree'
 import { ExprParseError } from '../src/wire/parse'
 
 /**
@@ -30,6 +30,9 @@ import { ExprParseError } from '../src/wire/parse'
  * values are ≥ 127, well above LAST_CONSTANT_CODE (112), so the inline-
  * constant early-return in parseExpr does not intercept; dispatch fires
  * on the bare opcode. Matches the convention used by ergo-tree.test.ts:180.
+ * Without the size bit, the tree parse wraps the soft-forkable reject as
+ * `ErgoTreeParseError('soft-fork-without-size-bit')` with the `ExprParseError`
+ * as its `cause` (the JVM's SerializerException, ErgoTreeSerializer.scala:204-207).
  *
  * NOT in scope: LastBlockUtxoRootHash (0xa6) left this group in F5 batch 4 —
  * the JVM dispatches it as its own case object, so ergots now parses it; see
@@ -78,15 +81,21 @@ describe("parse-reject completeness — 21 'opcode-reserved' wire sites", () => 
   describe.each(opcodes)(
     '$name (0x$opcode)',
     ({ name, opcode }) => {
-      it("throws ExprParseError with code 'opcode-reserved'", () => {
+      it("rejects with ExprParseError 'opcode-reserved' (the cause of the unsized wrap)", () => {
         const bytes = new Uint8Array([0x00, opcode])
         try {
           parseTree(bytes)
           throw new Error(`parseTree(${name}) should have thrown`)
         } catch (e) {
-          expect(e).toBeInstanceOf(ExprParseError)
-          expect((e as ExprParseError).code).toBe('opcode-reserved')
-          expect((e as Error).message).toContain(name)
+          // The tree has no size bit, so the soft-forkable reject is wrapped, as the JVM
+          // wraps its ValidationException in a SerializerException
+          // (ErgoTreeSerializer.scala:204-207); the body's reject is the cause.
+          expect(e).toBeInstanceOf(ErgoTreeParseError)
+          expect((e as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+          const cause = (e as Error).cause
+          expect(cause).toBeInstanceOf(ExprParseError)
+          expect((cause as ExprParseError).code).toBe('opcode-reserved')
+          expect((cause as Error).message).toContain(name)
         }
       })
     },

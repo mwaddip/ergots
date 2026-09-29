@@ -182,10 +182,11 @@ export class BundleAssembler {
             const spentBoxesBytes = tx.inputs.map((i) => boxBytesById.get(i.boxId)!);
             const dataInputBoxesBytes = tx.dataInputs.map((d) => boxBytesById.get(d.boxId)!);
             const outputBoxesBytes = tx.outputs.map((o) => boxBytesById.get(o.boxId)!);
-            // lib-mode (capstone false-reject walk): the WASM cost oracle is NOT
-            // invoked (spec decision 3) and the tx bytes come from the node's
-            // validation-fragments (CAP-A, below), so ergo-lib-wasm is not used at
-            // all. validate-tx-lib ignores the per-input oracle fields, so stub them.
+            // lib and ids modes (the capstone false-reject walk, and the
+            // ids-and-parse-only walk): the WASM cost oracle is NOT invoked (spec
+            // decision 3) and the tx bytes come from the node's validation-fragments
+            // (CAP-A, below), so ergo-lib-wasm is not used at all. validate-tx-lib
+            // and validate-tx-ids ignore the per-input oracle fields, so stub them.
             const oracleResults: OracleInputResult[] = this.attachTxBytes
                 ? tx.inputs.map(() => ({ oracleCost: 0n, oracleSucceeded: true, oracleError: null }))
                 : this.oracle.computeTxOracleCosts({
@@ -213,7 +214,7 @@ export class BundleAssembler {
                     oracleError: oracleResults[ii]!.oracleError,
                 };
             });
-            // CAP-A: in lib-mode feed parseTransaction the node's TRUE on-chain
+            // CAP-A: in the lib and ids modes feed parseTransaction the node's TRUE on-chain
             // bytes (validation-fragments `bytes` — full sigma_serialize with
             // ContextExtensions in wire order). The previous serializeTx(from_json)
             // path re-sorted non-ascending extension keys ascending, producing a
@@ -226,7 +227,7 @@ export class BundleAssembler {
                 if (fb === undefined) {
                     throw new Error(
                         `validation-fragments transactions[${txi}] missing 'bytes' — ` +
-                        `lib-mode needs the true on-chain tx bytes (node must serve it)`,
+                        `the lib and ids modes need the true on-chain tx bytes (node must serve it)`,
                     );
                 }
                 txBytes = hexDecode(fb);

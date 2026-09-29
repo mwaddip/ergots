@@ -1,9 +1,7 @@
 /**
  * ErgoTree outer envelope — parser and serializer.
  *
- * Byte-for-byte compatible with sigma-rust's `ergotree-ir/src/ergo_tree.rs`
- * `impl SigmaSerializable for ErgoTree` (lines 372-453). The envelope wraps
- * an `Expr` body with:
+ * The envelope wraps an `Expr` body with:
  *
  *   1. one header byte (see `TreeHeader` in `mir/types.ts` for bit layout)
  *   2. if `hasSize` (bit 3): VLQ-u32 size of (constants section + body)
@@ -12,38 +10,26 @@
  *      the value parser is type-aware.
  *   4. body: an Expr (root expression)
  *
- * The `hasSize` length covers both the constants section AND the body —
- * confirmed in sigma-rust's serializer (`ergo_tree.rs:380-404`) where
- * `data` is built up with constants-then-root and `bytes.len()` is the
- * emitted size. When parsing with `hasSize` set, sigma-rust reads exactly
- * `tree_size_bytes` into an intermediate buffer and parses constants +
- * body from that bounded buffer — bounding the inner reader is a
- * security-relevant choice (an oversized inner stream cannot escape
- * the outer reader's position).
+ * The parse mirrors the JVM's `ErgoTreeSerializer.deserializeErgoTree` (sigma-state 6.0.6,
+ * `ErgoTreeSerializer.scala:141-215`), not sigma-rust's bounded sub-reader: the tree is read
+ * on the reader it arrives on, under a 4096-byte window, and its declared size is used only
+ * when a soft-forkable failure degrades it to an `UnparsedErgoTree` (see `parseTreeFromReader`).
+ * `serializeTree` writes the size of the constants and body it writes.
  *
- * We mirror that bounded-inner-reader semantics by allocating a sliced
- * sub-buffer and constructing a fresh `ByteReader` from it for the
- * (constants + body) section.
- *
- * Trailing bytes after the body but within the declared size are tolerated (the
- * body parser just stops) — matching sigma-rust and the JVM. `parseTree` rejects
- * trailing AFTER the whole tree (outer-exhaustion); that is the ERG-02 requirement.
- *
- * Task 8 wired the envelope around `parseExpr` / `serializeExpr`; Task 9+
- * fleshed out the body parser one opcode at a time. The body parser is now
- * fully built — reserved/undispatched opcodes parse-reject via
- * `'opcode-reserved'` (mirroring the JVM `CheckValidOpCode` path for most of them;
- * JVM 6.0.6 parses OpTrue/OpFalse/ModQ×3, a known residual), and corpus
- * trees round-trip end-to-end.
+ * `parseTree` rejects any byte after an unsized tree, and any beyond a size-flagged tree's
+ * declared span (the ERG-02 requirement). Reserved/undispatched opcodes parse-reject via `'opcode-reserved'`
+ * (mirroring the JVM `CheckValidOpCode` path for most of them; JVM 6.0.6 parses
+ * OpTrue/OpFalse/ModQ×3, a known residual), and corpus trees round-trip end-to-end.
  *
  * Cross-reference:
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree.rs
- *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree/tree_header.rs
+ *   sigma-state v6.0.6 data/shared/src/main/scala/sigma/serialization/ErgoTreeSerializer.scala
+ *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree.rs (byte layout)
  */
 
 import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
-import { isUnparsedTree } from '../mir/types'
-import { ByteReader, ByteWriter } from '@ergots/scorex'
+import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../mir/types'
+import { exprTpe, ExprTpeError } from '../mir/expr-tpe'
+import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
 import { serializeSType } from './serialize-stype'
 import { parseSValue, SValueParseError } from './parse-svalue'
@@ -51,7 +37,9 @@ import { serializeSValue } from './serialize-svalue'
 import { parseExpr } from './parse'
 import { serializeExpr } from './serialize'
 import { ExprParseError } from './errors'
+import { SAFE_NEW_ARRAY_MAX } from './mir/_jvm-counts'
 import { sTypeEquals } from '../mir/stype-helpers'
+import { seedBoxTree } from './box-tree-cache'
 
 /**
  * Defensive cap on input length. Sigma-rust reads `tree_size_bytes` as a
@@ -65,22 +53,29 @@ import { sTypeEquals } from '../mir/stype-helpers'
  */
 export const MAX_TREE_SIZE = 1024 * 1024
 
+/** SigmaConstants.MaxPropositionBytes (core/.../sigma/data/SigmaConstants.scala:40): the tree window. */
+export const MAX_PROPOSITION_SIZE = 4096
+
 const HAS_SIZE_FLAG = 0x08
 const CONSTANT_SEGREGATION_FLAG = 0x10
 const VERSION_MASK = 0x07
 
 /**
- * Maximum number of segregated constants in a single ErgoTree. Mirrors
- * sigma-rust's `ErgoTree::MAX_CONSTANTS_COUNT` (`ergo_tree.rs:245`).
+ * The fields of a tree's header byte: bits 0–4. Bits 5–7 stay in `rawHeader` only; the JVM never
+ * reads them (getVersion / hasSize / isConstantSegregation, sigma/ast/ErgoTree.scala:237-261).
  */
-const MAX_CONSTANTS_COUNT = 4096
+export function decodeTreeHeader(rawHeader: number): TreeHeader {
+  return {
+    version: (rawHeader & VERSION_MASK) as TreeHeader['version'],
+    hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
+    constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
+    rawHeader,
+  }
+}
 
 export class ErgoTreeParseError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string
-  ) {
-    super(message)
+  constructor(message: string, public readonly code: string, options?: { cause?: unknown }) {
+    super(message, options)
     this.name = 'ErgoTreeParseError'
   }
 }
@@ -96,20 +91,29 @@ export class ErgoTreeSerializeError extends Error {
 }
 
 /**
- * Soft-fork degrade-set (B-core). A size-flagged (`hasSize`) tree whose body fails
- * to parse is preserved verbatim as `UnparsedErgoTree` ONLY when the failure is a
+ * The soft-fork degrade set. A size-flagged (`hasSize`) tree whose constants, body or root
+ * check fails is preserved verbatim as `UnparsedErgoTree` ONLY when the failure is a
  * JVM-`ValidationException`-equivalent — an UNKNOWN or version-gated construct that a
  * future soft-fork could add. The JVM's `UnparsedErgoTree` fallback catches exactly
- * `ValidationException` (`ErgoTreeSerializer.scala:197`); a malformed-data
+ * `ValidationException` (`ErgoTreeSerializer.scala:196-209`); a malformed-data
  * `SerializerException` / reader-underflow escapes it and REJECTS even for a sized tree.
  *
- * This set is the VERIFIED pure-`ValidationRule` equivalents (each → ValidationException
+ * This set is the VERIFIED `ValidationRule` equivalents (each → ValidationException
  * → caught, confirmed against JVM source):
  *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002); except six
  *     opcodes the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable, ModQ×3), which ergots
  *     degrades as a known residual (facts/ergoscript-wire.md 'opcode-reserved' entry)
  *   - `soption-tree-version-too-low`         ← `CheckSerializableTypeCode` (rule 1009 — the
  *     `typeCode == OptionTypeCode` SPECIAL-CASE at `ValidationRules.scala:135`)
+ *   - `register-v6-type`                     ← `CheckV6Type` (rule 1019,
+ *     `org/ergoplatform/validation/ValidationRules.scala:165-205`), raised by a nested Box's
+ *     registers once each register's value is read (`ErgoBoxCandidate.scala:231-232`)
+ *   - `root-not-sigma-prop`                  ← `CheckDeserializedScriptIsSigmaProp` (rule 1001,
+ *     `org/ergoplatform/validation/ValidationRules.scala:39-52`), raised with `checkType` only
+ *   - `header-version-requires-size`         ← `CheckHeaderSizeBit` (rule 1012, `:138-151`). A
+ *     tree reads its own header outside its try, so only a nested tree's header reaches this set
+ *   - scorex `position-limit-exceeded`       ← `CheckPositionLimit` (rule 1014,
+ *     `core/.../sigma/validation/ValidationRules.scala:186-189`), thrown by the JVM reader itself
  *
  * `sheader-tree-version-too-low` is NOT here → it REJECTS. SHeader (typeCode 104) is neither
  * `== OptionTypeCode` nor `> LastDataType` (111), so rule 1009 does NOT throw for it; the JVM
@@ -117,28 +121,28 @@ export class ErgoTreeSerializeError extends Error {
  * the `UnparsedErgoTree` fallback → reject. SOption is special-cased in rule 1009; SHeader is not
  * (verified vs JVM source — an early "by analogy to SOption" inclusion, caught in adversarial review).
  * Everything else REJECTS too: malformed VLQ, truncation, value overflow, type-code 0 / invalid
- * prefix, structural arity counts.
+ * prefix, a count above its JVM bound, and this parse's own wrappers
+ * (`'soft-fork-without-size-bit'`, `'nested-tree-truncated'`), so no enclosing tree degrades on them.
  *
  * TRACKED RESIDUAL (B-full, adversarial-only): the JVM ALSO degrades unknown *type* codes
- * (`CheckTypeCode`/`CheckPrimitiveTypeCode`), method gates (`CheckTypeWithMethods`/
- * `CheckAndGetMethod`), and the position limit (`CheckPositionLimit`). ergots conflates
+ * (`CheckTypeCode`/`CheckPrimitiveTypeCode`) and method gates (`CheckTypeWithMethods`/
+ * `CheckAndGetMethod`). ergots conflates
  * some of these with reject cases (e.g. `'invalid-type-code'` spans type-code-0 [reject,
  * JVM `InvalidTypePrefix`] AND unknown-code [degrade, JVM `CheckTypeCode`]), so closing it
  * needs a per-site audit + code split. See
  * `docs/specs/2026-06-17-ergotree-unparsed-soft-fork-preservation.md` §"B-full residual".
  */
 const SOFT_FORKABLE_PARSE_CODES: ReadonlySet<string> = new Set([
-  'opcode-reserved',
-  'unknown-opcode',
-  'soption-tree-version-too-low',
+  'opcode-reserved', 'unknown-opcode', 'soption-tree-version-too-low',
+  'register-v6-type', // rule 1019 CheckV6Type (a nested Box's register), ErgoBoxCandidate.scala:232
 ])
-
-/** Whether a constants/body parse failure is in the verified soft-fork degrade-set. */
+/** Tree-level JVM ValidationExceptions: rule 1001 (root type), rule 1012 (reachable only from a nested tree). */
+const SOFT_FORKABLE_TREE_CODES: ReadonlySet<string> = new Set(['root-not-sigma-prop', 'header-version-requires-size'])
 function isSoftForkableParseError(err: unknown): boolean {
-  return (
-    (err instanceof ExprParseError || err instanceof SValueParseError) &&
-    SOFT_FORKABLE_PARSE_CODES.has(err.code)
-  )
+  if ((err instanceof ExprParseError || err instanceof SValueParseError) && SOFT_FORKABLE_PARSE_CODES.has(err.code)) return true
+  if (err instanceof ErgoTreeParseError && SOFT_FORKABLE_TREE_CODES.has(err.code)) return true
+  // Rule 1014 CheckPositionLimit (core/.../sigma/validation/ValidationRules.scala:186-189) is a ValidationException.
+  return err instanceof ReaderError && err.code === 'position-limit-exceeded'
 }
 
 /**
@@ -168,204 +172,159 @@ function assertHeaderSizeBit(version: number, hasSize: boolean): void {
   }
 }
 
-/**
- * Parse an ErgoTree's header + body from the current cursor position of the
- * provided reader. Leaves the cursor at the byte AFTER the body. Does NOT
- * enforce trailing-byte exhaustion on the outer reader — that's the caller's
- * job (`parseTree(bytes)` requires zero outer-trailing; `parseSValue(SBox)`
- * expects the cursor to land on `creation_height` next).
- *
- * Mirrors sigma-rust's `ErgoTree::sigma_parse` at `ergo_tree.rs:410-453`:
- * the non-hasSize branch reads constants (if segregated) + body Expr from
- * the SHARED reader. Body Expr is self-delimiting via the opcode grammar.
- * For the hasSize branch we still allocate a bounded inner buffer (mirroring
- * sigma-rust's `Cursor::new(&mut buf[..])` pattern) so the body parser
- * cannot escape the declared size.
- *
- * Used by:
- *   - `parseTree(bytes)`, which wraps with size cap + outer-exhaustion check.
- *   - `parseSValue(SBox)` (`parse-svalue.ts`), which captures the consumed
- *     byte range as the box's `ergoTreeBytes` field.
- */
-export function parseTreeFromReader(outer: ByteReader): ErgoTree {
-  // Position of the header byte — captured so a size-flagged body that fails to
-  // parse can be preserved verbatim from here onward (UnparsedErgoTree).
-  const treeStart = outer.position
-  const rawHeader = outer.readU8()
-  const header: TreeHeader = {
-    // `rawHeader & 0x07` always yields 0..7, so the narrow type is safe.
-    version: (rawHeader & VERSION_MASK) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
-    hasSize: (rawHeader & HAS_SIZE_FLAG) !== 0,
-    constantSegregation: (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0,
-    rawHeader,
-  }
+/** Trees currently open on a reader (1 = top level). ergots-only bookkeeping for boxTreeOf's miss rule. */
+const openTrees = new WeakMap<ByteReader, number>()
 
-  // rule-1012 CheckHeaderSizeBit: a header with version > 0 AND the size bit
-  // (0x08) clear is rejected at parse, BEFORE the size/constants/body. The JVM
-  // enforces this in `deserializeHeaderAndSize` immediately after reading the
-  // header byte (`ErgoTreeSerializer.scala:219` → `ValidationRules.scala:138-151`):
-  //   val version = ErgoTree.getVersion(header)
-  //   if (version != 0 && !ErgoTree.hasSize(header)) throw
-  // Unconditional (the rule is `SoftForkWhenReplaced` and in mainnet's rule
-  // list, always active). Adversarial-only — every mainnet v>0 tree carries the
-  // size bit, so this never rejects an honest tree.
-  assertHeaderSizeBit(header.version, header.hasSize)
-
-  // When `hasSize` is set, sigma-rust reads exactly `tree_size_bytes` into
-  // an intermediate buffer and parses constants + body from that bounded
-  // inner reader. We mirror that to (a) match the wire semantics
-  // byte-for-byte and (b) bound memory against an adversarial size field.
-  //
-  // When `hasSize` is clear, we share the outer reader directly — sigma-rust
-  // does the same at `ergo_tree.rs:436-451`. The body Expr grammar is
-  // self-delimiting, so the cursor lands at the body's end after parseExpr
-  // returns.
-  let inner: ByteReader
-  if (header.hasSize) {
-    const bodyByteLength = outer.readVlqU()
-    if (bodyByteLength > outer.remaining) {
-      throw new ErgoTreeParseError(
-        `declared body size ${bodyByteLength} exceeds remaining bytes ${outer.remaining}`,
-        'body-size-overflow',
-      )
-    }
-    // Fork a sub-reader that INHERITS the outer reader's recursion depth + cap.
-    // The JVM reads a size-prefixed body on the SAME reader via `positionLimit`
-    // (`ErgoTreeSerializer.scala:143-211`), so `r.level` persists across the
-    // size boundary; a plain `new ByteReader(slice)` would reset level to 0 and
-    // under-count the MaxTreeDepth budget. See ByteReader.forkSubReader.
-    inner = outer.forkSubReader(outer.readBytes(bodyByteLength))
-  } else {
-    inner = outer
-  }
-
-  // Soft-fork tolerance (sized trees ONLY): if the constants/body region fails
-  // to parse — e.g. a reserved opcode such as 0xfd (CollRotateRight) — the size
-  // prefix lets us skip it, so the whole tree is preserved verbatim as an
-  // UnparsedErgoTree rather than throwing. Mirrors sigma-rust `ErgoTree::parse_with`
-  // (`ergo_tree.rs:205-219`, `Err(error) => ErgoTree::Unparsed { tree_bytes, error }`)
-  // and JVM `ErgoTreeSerializer.deserializeErgoTree` (`:196-208`, `ValidationException`
-  // + `sizeOpt = Some` → `Left(UnparsedErgoTree(bytes, ve))`). Gated on `hasSize`
-  // exactly as both references are: a non-sized tree cannot be skipped, so its body
-  // failure propagates (reject). `outer` has already consumed header+size+body (the
-  // `readBytes(bodyByteLength)` above), so `[treeStart, outer.position)` is the
-  // verbatim tree span.
-  const constantTypes: SType[] = []
-  const constants: SValue[] = []
-  let body: Expr
+/** Rule 1001 CheckDeserializedScriptIsSigmaProp (org/ergoplatform/validation/ValidationRules.scala:39-52). */
+function checkRootIsSigmaProp(body: Expr): void {
+  let tpe: SType
   try {
-    if (header.constantSegregation) {
-      const count = inner.readVlqU()
-      if (count > MAX_CONSTANTS_COUNT) {
-        throw new ErgoTreeParseError(
-          `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
-          'too-many-constants',
-        )
-      }
-      for (let i = 0; i < count; i++) {
-        const tpe = parseSType(inner)
-        constantTypes.push(tpe)
-        constants.push(parseSValue(tpe, header.version, inner))
-      }
-    }
-    body = parseExpr(inner, constantTypes, constants, new Map(), header.version)
+    tpe = exprTpe(body)
   } catch (err) {
-    // Degrade to UnparsedErgoTree ONLY when (a) the tree is size-flagged AND (b) the
-    // failure is a JVM-`ValidationException`-equivalent soft-fork condition
-    // (isSoftForkableParseError) — an unknown/version-gated construct a future soft-fork
-    // could add. A malformed-data failure rejects even for a sized tree, mirroring the
-    // JVM (a `SerializerException` escapes the `UnparsedErgoTree` fallback). B-core
-    // degrade-set; the broader `ValidationException` audit is a tracked residual.
-    if (header.hasSize && isSoftForkableParseError(err)) {
-      // The frames that were open when the failing node threw never lowered their levels, and
-      // the degrade's `finally` restores only the position limit (ErgoTreeSerializer.scala:196-211).
-      carryLeakedLevels(outer, inner)
-      return {
-        header,
-        unparsedBytes: outer.slice(treeStart, outer.position).slice(),
-        error: err instanceof Error ? err : new Error(String(err)),
-      }
+    if (err instanceof ExprTpeError && err.code === 'apply-func-no-type') {
+      throw new ErgoTreeParseError('root types as NoType, not SigmaProp (rule 1001)', 'root-not-sigma-prop')
     }
     throw err
   }
+  if (tpe.tag === 'SSigmaProp') return
+  // The JVM's SAny (type code 97, or a tuple's element type; one object, carried through exprTpe)
+  // fails, as does its NoType from an Apply of one: the JVM fails a root typed SAny or NoType
+  // (isSigmaProp is isInstanceOf[SSigmaProp.type], core/.../sigma/ast/package.scala:121).
+  if (tpe === SANY_JVM || tpe === NOTYPE_JVM) {
+    const what = tpe === SANY_JVM ? "the JVM's SAny" : "the JVM's NoType"
+    throw new ErgoTreeParseError(`root types as ${what}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
+  }
+  // ergots' own SAny, a fresh object its method typing makes, passes: residual 1
+  // (facts/ergoscript-wire.md).
+  if (tpe.tag === 'SAny') return
+  throw new ErgoTreeParseError(`root types as ${tpe.tag}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
+}
 
-  // No inner-trailing reject: a hasSize body that parses but leaves trailing inside
-  // the declared size is tolerated, matching the JVM (parse-determined end) and
-  // sigma-rust (sized-buffer leftover ignored). `parseTree` still rejects OUTER
-  // trailing via its outer-exhaustion check; that is ERG-02's actual requirement.
+export interface ParseTreeOptions {
+  /** Rule 1001: the root must type as SigmaProp. The JVM's box, address and fromBytes paths set it. */
+  checkType?: boolean
+}
 
-  // A degrade nested in the body (a Box constant's own sized tree) left levels on the fork.
-  carryLeakedLevels(outer, inner)
-  return {
-    header,
-    constantTypes,
-    constants,
-    body,
+/**
+ * JVM ErgoTreeSerializer.deserializeErgoTree (sigma-state 6.0.6, :141-215). The tree is read on
+ * the arriving reader under the JVM window (start + 4096, :142-144); the header and size come
+ * before the try, so their errors skip the finally (:145-146); the declared size is used only
+ * on a soft-fork degrade (:196-209). A degrade's frames keep their levels on this one reader,
+ * as the JVM's do (facts/ergoscript-wire.md, "Reader depth after a degrade").
+ *
+ * The cursor is left at the parse end for a tree that parses, and at `bodyPos + declared` for
+ * one that degrades. Callers own any trailing-byte check: `parseTree` (the envelope) and
+ * `parseErgoTreeBytes` (box ingest, `checkType: true`).
+ */
+export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}): ErgoTree {
+  const start = r.position
+  const savedLimit = r.positionLimit
+  r.positionLimit = start + MAX_PROPOSITION_SIZE
+  const header = decodeTreeHeader(r.readU8())
+  assertHeaderSizeBit(header.version, header.hasSize)
+  // getUInt().toInt (:217-237): a u32, wrapped to Int, never checked on a normal pass.
+  const declared = header.hasSize ? readVlqU32(r, 'ErgoTree size') | 0 : undefined
+  const bodyPos = r.position
+  const depth = (openTrees.get(r) ?? 0) + 1
+  openTrees.set(r, depth)
+  try {
+    const constantTypes: SType[] = []
+    const constants: SValue[] = []
+    if (header.constantSegregation) {
+      // deserializeConstants (:245-266): getUInt().toInt; read only when > 0; safeNewArray bound.
+      const n = readVlqU32(r, 'ErgoTree constants count') | 0
+      if (n > 0) {
+        if (n > SAFE_NEW_ARRAY_MAX) {
+          throw new ErgoTreeParseError(`constant count ${n} exceeds ${SAFE_NEW_ARRAY_MAX}`, 'too-many-constants')
+        }
+        for (let i = 0; i < n; i++) {
+          const tpe = parseSType(r)
+          constantTypes.push(tpe)
+          constants.push(parseSValue(tpe, header.version, r))
+        }
+      }
+    }
+    const body = parseExpr(r, constantTypes, constants, new Map(), header.version)
+    if (opts.checkType) checkRootIsSigmaProp(body)
+    return { header, constantTypes, constants, body }
+  } catch (err) {
+    if (!isSoftForkableParseError(err)) {
+      // A read that ran out inside a nested tree: ambiguous for a standalone re-parse, so it is
+      // marked for boxTreeOf's miss rule (spec 2026-09-28 §8).
+      if (depth > 1 && err instanceof ReaderError && err.code === 'truncated') {
+        throw new ErgoTreeParseError('a nested tree ran out of input', 'nested-tree-truncated', { cause: err })
+      }
+      throw err
+    }
+    if (declared === undefined) {
+      throw new ErgoTreeParseError(
+        'soft-fork failure in a tree without the size bit (JVM SerializerException, ErgoTreeSerializer.scala:204-207)',
+        'soft-fork-without-size-bit', { cause: err })
+    }
+    const numBytes = (bodyPos - start + declared) | 0
+    if (numBytes < 0) {
+      throw new ErgoTreeParseError(`degrade span ${numBytes} is negative`, 'body-size-overflow', { cause: err })
+    }
+    r.position = start
+    if (numBytes > r.remaining) {
+      // A hard reject, as the JVM's getBytes fails there (:202). In a nested tree it is marked
+      // like a nested run-out: for a standalone re-parse, the bytes after this tree in its box
+      // may have held the span (boxTreeOf's miss rule, spec 2026-09-28 §8).
+      if (depth > 1) {
+        throw new ErgoTreeParseError(
+          `a nested tree's degrade span runs past the end (${numBytes} > ${r.remaining})`,
+          'nested-tree-truncated', { cause: err })
+      }
+      throw new ErgoTreeParseError(`declared size runs past the end (${numBytes} > ${r.remaining})`, 'body-size-overflow', { cause: err })
+    }
+    const unparsedBytes = r.readBytes(numBytes).slice()
+    return { header, unparsedBytes, error: err instanceof Error ? err : new Error(String(err)) }
+  } finally {
+    openTrees.set(r, depth - 1)
+    r.positionLimit = savedLimit
   }
 }
 
 /**
- * The JVM parses a size-flagged body on the SAME reader, and its frames lower `r.level` only on
- * a normal return (`r.level - 1`, no finally, ValueSerializer.scala:396-412), so levels left by a
- * caught degrade anywhere in the body stay on that reader. ergots parses the body on a fork, which
- * inherits the level but cannot hand it back: re-enter on `outer` whatever the fork still holds.
- * A no-op when `inner === outer` (no size flag) or nothing leaked; it cannot exceed the cap, which
- * the fork shares (facts/ergoscript-wire.md, "Reader depth after a degrade").
- */
-function carryLeakedLevels(outer: ByteReader, inner: ByteReader): void {
-  while (outer.level < inner.level) outer.enterDepth()
-}
-
-/**
- * Consume exactly one ErgoTree from the reader's current position and return
- * its verbatim wire bytes (header + optional size VLQ + constants + body),
- * leaving the cursor at the byte AFTER the tree.
+ * Consume exactly one ErgoTree under the box rules and return its span `[start, end)` as a
+ * DETACHED copy (it survives the reader's backing buffer): `parseTreeFromReader(r,
+ * { checkType: true })`, the JVM box parser's call (`ErgoBoxCandidate.scala:194`; the
+ * two-argument `deserializeErgoTree` sets `checkType`, `ErgoTreeSerializer.scala:137-139`), so
+ * rule 1001 applies. The span is the bytes as received, declared size included: a box's R1 and
+ * `propositionBytes`, as the JVM's are the parser's re-read `[startPos, r.position)`
+ * (`ErgoTreeSerializer.scala:179-181`). The cursor is left where the JVM continues reading the
+ * box: the parse end for a tree that parses, whatever its declared size says, and
+ * `bodyPos + declared` for a tree that degrades. The parsed tree seeds the box-tree cache, keyed
+ * by the returned span, so `boxTreeOf` / `reencodeTreeBytes` on it reuse this parse: the tree a
+ * JVM box carries with it (`ErgoBoxCandidate.scala:194`; spec 2026-09-28 §8).
  *
- * Structurally parses the tree for validation — degrading soft-forkable failures
- * to `UnparsedErgoTree` and REJECTING the non-soft-forkable class (e.g. an SHeader
- * constant whose `SerializerException` escapes the `UnparsedErgoTree` fallback).
- * This is the SAME deserialize as the bare `parseTree`, so a box's propBytes
- * reject exactly what a bare tree rejects (JVM single `deserializeErgoTree`,
- * `ErgoBoxCandidate.scala:194`; sigma-rust `ErgoTree::sigma_parse` → `parse_with`,
- * `ergo_tree.rs:181-239`). The structured result is discarded — the SBox /
- * ErgoBoxCandidate codecs only need the verbatim span.
- *
- * For hasSize trees the outer cursor advances the full declared size
- * (`parseTreeFromReader`'s `readBytes(bodyByteLength)`), so the captured span is
- * correct whether or not the body is smaller than the declared size.
- *
- * The returned slice is DETACHED (`.slice()`) so it survives the reader's backing
- * buffer. Does NOT enforce outer-trailing exhaustion — the caller continues reading
- * the next field (e.g. `creation_height`) on the same reader.
+ * Rejects what the JVM box parser rejects: a non-soft-forkable failure (e.g. an SHeader
+ * constant, whose `SerializerException` escapes the `UnparsedErgoTree` fallback), and a
+ * soft-forkable one in a tree without the size flag (e.g. a non-SigmaProp root). Does NOT
+ * enforce outer-trailing exhaustion — the caller continues reading the next field (e.g.
+ * `creation_height`) on the same reader.
  */
 export function parseErgoTreeBytes(r: ByteReader): Uint8Array {
   const treeStart = r.position
-  // Parse the tree for validation — degrade soft-forkable failures to Unparsed,
-  // REJECT the non-soft-forkable class (e.g. an SHeader constant) — and discard the
-  // structured result. The SBox / ErgoBoxCandidate codecs only need the verbatim span.
-  // This is the SAME deserialize as the bare `parseTree`, so a box's propBytes reject
-  // exactly what a bare tree rejects (JVM single `deserializeErgoTree`, ErgoBoxCandidate
-  // .scala:194; sigma-rust `ErgoTree::sigma_parse` → `parse_with`, ergo_tree.rs:181-239).
-  // For hasSize the outer cursor advances the full declared size (parseTreeFromReader's
-  // `readBytes(bodyByteLength)`), so the captured span is identical to the old skip path.
-  parseTreeFromReader(r)
-  return r.slice(treeStart, r.position).slice()
+  const tree = parseTreeFromReader(r, { checkType: true })   // JVM ErgoBoxCandidate.scala:194 (checkType = true)
+  const span = r.slice(treeStart, r.position).slice()
+  seedBoxTree(span, tree)
+  return span
 }
 
-
 /**
- * Parse an ErgoTree from a byte slice. Throws {@link ErgoTreeParseError} on
- * envelope-level malformations (empty input, oversized input, malformed
- * header, constant-count overflow, trailing bytes). Body-parse failures
- * surface as `ExprParseError` from the body parser; the envelope does not
- * wrap them.
+ * Parse an ErgoTree from a byte slice. Lenient by default (no rule 1001: the JVM's
+ * `checkType = false` form, which SANTA's blesser uses for the ErgoTree wire kind);
+ * `{ checkType: true }` is the JVM's `ErgoTree.fromBytes`. Throws {@link ErgoTreeParseError}
+ * on envelope-level malformations (empty input, oversized input, trailing bytes), and
+ * whatever {@link parseTreeFromReader} throws.
  *
  * Thin wrapper over {@link parseTreeFromReader}: this entry point adds the
- * empty/size-cap envelope check and enforces that no bytes remain after
- * the parsed body. Callers operating on a shared reader (e.g.
- * `parseSValue(SBox)`) should use `parseTreeFromReader` directly.
+ * empty/size-cap envelope check and rejects bytes left after the tree, except those that
+ * lie within a size-flagged tree's declared span. Callers operating on a shared reader
+ * (e.g. `parseSValue(SBox)`) use {@link parseErgoTreeBytes} instead.
  */
-export function parseTree(bytes: Uint8Array): ErgoTree {
+export function parseTree(bytes: Uint8Array, opts: ParseTreeOptions = {}): ErgoTree {
   if (bytes.length === 0) {
     throw new ErgoTreeParseError('empty ErgoTree bytes', 'empty')
   }
@@ -376,14 +335,19 @@ export function parseTree(bytes: Uint8Array): ErgoTree {
     )
   }
   const outer = new ByteReader(bytes)
-  const tree = parseTreeFromReader(outer)
-  if (!outer.isExhausted) {
-    throw new ErgoTreeParseError(
-      `${outer.remaining} trailing bytes after ErgoTree envelope`,
-      'trailing-bytes',
-    )
+  const tree = parseTreeFromReader(outer, opts)
+  if (!outer.isExhausted && !(tree.header.hasSize && bytes.length <= declaredSpanEnd(bytes))) {
+    throw new ErgoTreeParseError(`${outer.remaining} trailing bytes after ErgoTree envelope`, 'trailing-bytes')
   }
   return tree
+}
+
+/** header + size slot + declared size: where the (old) fork ended. Only used to keep tolerating those bytes. */
+function declaredSpanEnd(bytes: Uint8Array): number {
+  const r = new ByteReader(bytes)
+  r.readU8()
+  const declared = readVlqU32(r, 'ErgoTree size') | 0
+  return r.position + declared
 }
 
 /**
@@ -407,20 +371,21 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
     return tree.unparsedBytes
   }
 
-  // Defensive: verify rawHeader matches the projected boolean/number fields.
-  // Without this, a hand-constructed ErgoTree with inconsistent fields
+  // Defensive: verify bits 0–4 of rawHeader (version, size flag, segregation flag) match the
+  // projected fields. Without this, a hand-constructed ErgoTree with inconsistent fields
   // (e.g. rawHeader=0x00 but hasSize=true) would emit non-round-trippable
   // bytes — the header byte would say "no size prefix" while the writer
   // still emitted one. Parsing the result would either fail or, worse,
   // succeed with a misaligned cursor.
+  // The JVM writes ergoTree.header as stored (serializeHeader, :79-91) and never inspects bits 5–7.
   const expectedRaw =
     tree.header.version |
     (tree.header.hasSize ? HAS_SIZE_FLAG : 0) |
     (tree.header.constantSegregation ? CONSTANT_SEGREGATION_FLAG : 0)
-  if (tree.header.rawHeader !== expectedRaw) {
+  if ((tree.header.rawHeader & (VERSION_MASK | HAS_SIZE_FLAG | CONSTANT_SEGREGATION_FLAG)) !== expectedRaw) {
     throw new ErgoTreeSerializeError(
-      `rawHeader 0x${tree.header.rawHeader.toString(16).padStart(2, '0')} ` +
-        `does not match derived 0x${expectedRaw.toString(16).padStart(2, '0')} ` +
+      `bits 0–4 of rawHeader 0x${tree.header.rawHeader.toString(16).padStart(2, '0')} ` +
+        `do not match derived 0x${expectedRaw.toString(16).padStart(2, '0')} ` +
         `from version=${tree.header.version}, hasSize=${tree.header.hasSize}, segregation=${tree.header.constantSegregation}`,
       'header-inconsistent'
     )
@@ -456,18 +421,18 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
   outer.writeBytes(innerBytes)
   const bytes = outer.toBytes()
 
-  // Audit ERG-04 / ERG-05: serializer must not emit bytes that parseTree
-  // would refuse. parseTree rejects > MAX_TREE_SIZE and > MAX_CONSTANTS_COUNT;
-  // we check both here so the round-trip invariant holds for hand-built trees.
+  // Audit ERG-04 / ERG-05: the serializer must not emit a size or a constants count that
+  // parseTree refuses outright: its MAX_TREE_SIZE envelope cap, and the constants count's
+  // SAFE_NEW_ARRAY_MAX (the JVM's safeNewArray, core/.../sigma/util/package.scala:7-18).
   if (bytes.length > MAX_TREE_SIZE) {
     throw new ErgoTreeSerializeError(
       `serialized tree size ${bytes.length} exceeds MAX_TREE_SIZE ${MAX_TREE_SIZE}`,
       'oversized',
     )
   }
-  if (tree.constants.length > MAX_CONSTANTS_COUNT) {
+  if (tree.constants.length > SAFE_NEW_ARRAY_MAX) {
     throw new ErgoTreeSerializeError(
-      `constants count ${tree.constants.length} exceeds MAX_CONSTANTS_COUNT ${MAX_CONSTANTS_COUNT}`,
+      `constants count ${tree.constants.length} exceeds ${SAFE_NEW_ARRAY_MAX} (the parse bound, JVM safeNewArray)`,
       'too-many-constants',
     )
   }
@@ -501,9 +466,17 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
  *     is DROPPED, so a `hasSize` template's output omits the size slot exactly as
  *     JVM does. `treeVersion` is the EVALUATION's ErgoTree version
  *     (`ctx.treeVersion`), NOT the template header's version.
- *   - `deserializeHeaderWithTreeBytes` does NOT bound the reader by the size
- *     field (`treeBytes = r.getBytes(r.remaining)` reads to end); we mirror that,
- *     so the body is all remaining bytes, not a size-bounded slice.
+ *   - The template's header and size are read as `deserializeHeaderWithTreeBytes`
+ *     reads them (`ErgoTreeSerializer.scala:269-274`, through
+ *     `deserializeHeaderAndSize`, `:217-238`): rule 1012, then, for a
+ *     size-flagged header, the declared size with `getUInt().toInt` (above
+ *     2^32-1 a hard reject), otherwise unused. It does NOT bound the reader by
+ *     that size (`treeBytes = r.getBytes(r.remaining)` reads to end); we mirror
+ *     that, so the body is all remaining bytes, not a size-bounded slice.
+ *   - The constants count follows `deserializeConstants` (`:245-266`), as in
+ *     the tree parse: `getUInt().toInt`, constants read only when it is `> 0`
+ *     (a count that wraps negative as an Int gives none), above the JVM's
+ *     `safeNewArray` bound (100000) `'too-many-constants'`.
  *
  * @param scriptBytes   serialized template ErgoTree
  * @param positions     constant indices to replace (`newValues[i]` ↔ `positions[i]`)
@@ -548,12 +521,13 @@ export function substituteConstantsBytes(
   // (CheckHeaderSizeBit reads ErgoTree.getVersion(header) off the parsed header).
   assertHeaderSizeBit(templateVersion, hasSize)
 
-  // hasSize: read+discard the declared size. JVM does NOT bound the reader here
-  // (deserializeHeaderWithTreeBytes → treeBytes = r.getBytes(r.remaining)), so
-  // the body is everything remaining after the constants, not a size-bounded
-  // slice. Mirror that exactly.
+  // deserializeHeaderAndSize (:217-238, via deserializeHeaderWithTreeBytes
+  // :269-274): a size-flagged header's declared size is a u32 (getUInt().toInt),
+  // read+discarded here — it does not bound the reader (JVM does NOT bound it
+  // either: treeBytes = r.getBytes(r.remaining) reads to end), so the body is
+  // everything remaining after the constants, not a size-bounded slice.
   if (hasSize) {
-    r.readVlqU()
+    readVlqU32(r, 'SubstConstants template size')
   }
 
   // Constants segment. Parsed so we know where the body begins, and held as
@@ -561,22 +535,27 @@ export function substituteConstantsBytes(
   const constantTypes: SType[] = []
   const constants: SValue[] = []
   if (seg) {
-    const count = r.readVlqU()
-    if (count > MAX_CONSTANTS_COUNT) {
-      throw new ErgoTreeParseError(
-        `constant count ${count} exceeds ${MAX_CONSTANTS_COUNT}`,
-        'too-many-constants',
-      )
-    }
-    for (let i = 0; i < count; i++) {
-      const tpe = parseSType(r)
-      constantTypes.push(tpe)
-      // Constants in the template parse/serialize under the EVAL-AMBIENT tree
-      // version (the JVM's substituteConstants chain installs no VersionContext
-      // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
-      // is ambient, trees.scala:673-676). The template's own header version byte
-      // governs only its structure flags, NOT the DATA-layer version gates.
-      constants.push(parseSValue(tpe, treeVersion, r))
+    // deserializeConstants (:245-266): getUInt().toInt; read only when > 0;
+    // safeNewArray bound (SAFE_NEW_ARRAY_MAX) — same reader as the tree parse's
+    // constants count (parseTreeFromReader, above).
+    const count = readVlqU32(r, 'SubstConstants constants count') | 0
+    if (count > 0) {
+      if (count > SAFE_NEW_ARRAY_MAX) {
+        throw new ErgoTreeParseError(
+          `constant count ${count} exceeds ${SAFE_NEW_ARRAY_MAX}`,
+          'too-many-constants',
+        )
+      }
+      for (let i = 0; i < count; i++) {
+        const tpe = parseSType(r)
+        constantTypes.push(tpe)
+        // Constants in the template parse/serialize under the EVAL-AMBIENT tree
+        // version (the JVM's substituteConstants chain installs no VersionContext
+        // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
+        // is ambient, trees.scala:673-676). The template's own header version byte
+        // governs only its structure flags, NOT the DATA-layer version gates.
+        constants.push(parseSValue(tpe, treeVersion, r))
+      }
     }
   }
   const numConstants = constants.length

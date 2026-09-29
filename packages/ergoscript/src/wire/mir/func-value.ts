@@ -48,22 +48,14 @@
  */
 
 import type { FuncArg, FuncValue, SType, SValue } from '../../mir/types'
-import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError } from '../errors'
+import { ByteReader, ByteWriter, readVlqU32 } from '@ergots/scorex'
+import { ExprSerializeError } from '../errors'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
 // Forward import for recursive descent — see comment in val-def.ts.
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
-
-// Defensive cap on the args array length. Real FuncValues take at most a
-// handful of arguments (the compiler typically emits 1-3). A larger count
-// is almost certainly a corrupt or adversarial encoding aimed at triggering
-// large allocation before the reader hits truncation. Sigma-rust caps Vec
-// deserialization indirectly via the surrounding ErgoTree size limit; we
-// add an explicit bound here because each FuncArg carries an SType (which
-// itself may recurse).
-const MAX_FUNC_VALUE_ARGS = 1 << 16 // 65536, well above any plausible script
+import { readArrayCount } from './_jvm-counts'
 
 /**
  * Parse a `FuncValue` payload (the OP_FUNC_VALUE opcode byte was consumed
@@ -80,16 +72,12 @@ export function parseFuncValue(
   valDefTypes: Map<number, SType>,
   treeVersion: number
 ): FuncValue {
-  const count = r.readVlqU()
-  if (count > MAX_FUNC_VALUE_ARGS) {
-    throw new ExprParseError(
-      `FuncValue args count ${count} exceeds ${MAX_FUNC_VALUE_ARGS}`,
-      'func-value-too-many-args'
-    )
-  }
+  // JVM FuncValueSerializer.scala:30-34: getUIntExact, then safeNewArray.
+  const count = readArrayCount(r, 'FuncValue args count', 'func-value-too-many-args')
   const args: FuncArg[] = []
   for (let i = 0; i < count; i++) {
-    const id = r.readVlqU()
+    // JVM FuncValueSerializer.scala:36: getUInt().toInt — a u32, wrapped to an Int.
+    const id = readVlqU32(r, 'FuncValue arg id') | 0
     const tpe = parseSType(r)
     args.push({ id, tpe })
   }
@@ -110,6 +98,18 @@ export function parseFuncValue(
  * then each arg as `(VLQ-u32 id, SType tpe)`, then the body Expr.
  */
 export function serializeFuncValue(f: FuncValue, w: ByteWriter, treeVersion: number): void {
+  // JVM FuncValueSerializer.scala:23 writes each id, an Int, with putUInt, which rejects a negative
+  // Int (scorex-util 0.2.1 VLQWriter.scala:64-67): so only [0, 2^31) is writable. A parsed id wraps
+  // negative from 2^31 up; an id at or above 2^31, or a non-integer, is hand-built MIR (as
+  // serializeValDef's bound, val-def.ts).
+  for (const a of f.args) {
+    if (!Number.isInteger(a.id) || a.id < 0 || a.id > 0x7fffffff) {
+      throw new ExprSerializeError(
+        `FuncValue arg id ${a.id} is outside [0, 2^31) (JVM Int written with putUInt)`,
+        'func-value-arg-id-out-of-range'
+      )
+    }
+  }
   w.writeVlqU(f.args.length)
   for (const a of f.args) {
     w.writeVlqU(a.id)

@@ -40,19 +40,20 @@
 import type { Header } from '@ergots/scorex';
 import {
     ByteReader,
+    ByteWriter,
     parseHeader,
     serializeHeader,
     verifyAutolykosV2,
     AutolykosV1NotSupportedError,
 } from '@ergots/scorex';
 import {
-    parseTree,
-    serializeTree,
     parseSValue,
+    serializeSValue,
     type SValue,
 } from '@ergots/ergoscript';
 
 import type { BlockBundle, TxBundle } from './bundle-types.js';
+import type { DegradeCensus } from './degrade-census.js';
 import { HarnessError } from './errors.js';
 import { validateTx } from './validate-tx.js';
 
@@ -217,26 +218,50 @@ export function validateHeader(bundle: BlockBundle, state: WalkerState): void {
 }
 
 /**
- * Output round-trip validation pass (PLAN.md T9).
+ * Output round-trip validation pass (PLAN.md T9; the box rules since spec
+ * 2026-09-28 §12).
  *
  * For every output box across every transaction in the block:
  *   1. `parseSValue({tag:'SBox'}, treeVersion, reader)` against the canonical
- *      box bytes (the shim emits these via `ErgoBox::sigma_serialize`).
- *   2. Extract `.ergoTreeBytes` from the parsed `ErgoBox`.
- *   3. `parseTree(ergoTreeBytes)` → `ErgoTree`.
- *   4. `serializeTree(tree)` must be byte-identical to the extracted bytes.
+ *      box bytes the indexer serves. Box ingest parses the tree under the box
+ *      rules and seeds the box-tree cache with it, keyed by the span it returns.
+ *   2. Extract `.ergoTreeBytes` from the parsed `ErgoBox`: the tree's bytes as
+ *      received, the instance the cache holds.
+ *   3. Re-serialize the box as the JVM does (`serializeSValue(SBox)`, the JVM's
+ *      `ErgoBox.sigmaSerializer`), which writes the tree re-encoded
+ *      (`ErgoBoxCandidate.scala:142`) and every register from its value.
+ *   4. With a `census`, the tree is checked against the degrade census
+ *      (`degrade-census.ts`), which halts on any difference from the expected set.
+ *   5. The re-serialized box must equal the chain's box bytes. Those bytes are
+ *      the JVM's own serialization of the box: they hash to the box id, which
+ *      the indexer client checks against the block. So they are a fixed point of
+ *      the JVM's re-encoding, and ergots must reproduce them. The premise is the
+ *      JVM's, not that a tree re-encodes to itself: the JVM rewrites some honest
+ *      encodings (a Boolean-constant collection read as 0x83 is written 0x85, a
+ *      method call without arguments read as 0xdc is written 0xdb), which the
+ *      chain's bytes therefore never carry. A tree that degraded re-encodes as
+ *      received (`ErgoTreeSerializer.scala:112`), as the burn box at mainnet
+ *      h=545,684 does.
+ *
+ * After the block's outputs, a census also checks that each of its entries at
+ * this height names an output the block has.
  *
  * On the first failure the function throws a `HarnessError` carrying
- * `phase: 'output-roundtrip'`, code = the specific structural reason, and
+ * `phase: 'output-roundtrip'` (or `'census'`), code = the specific reason, and
  * `location = { txIndex, outputIndex }`. The walk loop (T11) catches and
  * writes the error-report sidecar.
  *
  * # `treeVersionFn` injection
  *
- * `parseSValue` takes a `treeVersion` parameter (added in phase 2h-c.1 for
- * SHeader V3-gating; threads through every nested SValue parser, including
- * SBox register-value parsing). For an output box, the relevant tree-version
- * is the box's *own* ErgoTree's version (bits 0..2 of its header byte).
+ * `parseSValue` takes a `treeVersion` parameter, which gates only register
+ * data (SHeader, SOption). The value passed is verdict-neutral here. The JVM
+ * reads a box's registers under the enclosing context, not the box tree's own
+ * version: `VersionContext.withVersions` scopes only the tree's parse
+ * (`ErgoTreeSerializer.scala:154`), and the registers are read after it
+ * (`ErgoBoxCandidate.scala:226-234`). At top level any v6-typed register
+ * rejects, through its data gate or through rule 1019 (`CheckV6Type`,
+ * `ValidationRules.scala:165-205`, in both rule sets), at every version.
+ * `main.ts` passes the box tree's own version (bits 0..2 of its header byte).
  *
  * The PLAN signature accepts a function rather than inlining the lookup so
  * that callers can swap the strategy: T11's `main.ts` passes a function
@@ -248,12 +273,13 @@ export function validateHeader(bundle: BlockBundle, state: WalkerState): void {
  * as a `HarnessError` with code `'tree-version-derivation-failed'`.
  *
  * Halt-on-first-failure: the loop exits on the first byte-roundtrip
- * mismatch. No state mutation occurs in this pass — output round-trip is
- * a pure validation of the bundle's wire shape.
+ * mismatch. The pass mutates no walker state; its only side effect is the
+ * census's log of observed degrades, when a census is given.
  */
 export function validateOutputRoundtrips(
     bundle: BlockBundle,
     treeVersionFn: (boxBytes: Uint8Array) => number,
+    census?: DegradeCensus,
 ): void {
     for (let txIndex = 0; txIndex < bundle.transactions.length; txIndex++) {
         const tx = bundle.transactions[txIndex]!;
@@ -335,77 +361,64 @@ export function validateOutputRoundtrips(
                 );
             }
 
-            // Step 2: extract the box's internal ErgoTree bytes.
+            // Step 2: extract the box's internal ErgoTree bytes, as received.
+            // Pass this instance on, never a copy: box ingest seeded the
+            // box-tree cache under it, and a copy would be parsed again,
+            // standalone, without the bytes after the tree in its box.
             const ergoTreeBytes = sbox.value.ergoTreeBytes;
 
-            // Step 3: parse the ErgoTree. Failures here indicate either a
-            // malformed tree on-chain (shouldn't happen — the node accepted
-            // it) or a parser bug; either way it's worth surfacing.
-            //
-            // Exception: sigma-rust wraps `hasSize=true` trees whose body
-            // fails strict parse as `ErgoTree::Unparsed { tree_bytes,
-            // error }` (ergo_tree.rs:425-433). The box is still byte-valid
-            // — sigma-rust just stores the opaque bytes and the script is
-            // permanently unevaluable (a "burn" box). For such trees, our
-            // structural parseTree throws, but the round-trip semantics
-            // become trivial identity (we never re-encode structurally;
-            // the stored bytes ARE the canonical form). Detect the case
-            // via the header byte's hasSize flag and skip the
-            // serialize-check; the indexer's hash-verify already
-            // guaranteed `ergoTreeBytes` matches the canonical box bytes.
-            // First surfaced: mainnet h=545,684 tx 1 output 0.
-            let tree;
+            // Step 3: re-serialize the box as the JVM does: the tree re-encoded
+            // under the box rules (ErgoBoxCandidate.scala:142; a degraded tree, such
+            // as the burn box at mainnet h=545,684 tx 1 output 0, as received,
+            // ErgoTreeSerializer.scala:112), and every register from its value. The
+            // tree is the ingest parse (a cache hit), so only the writes can throw,
+            // where the JVM's would too (e.g. an index it holds as a negative Short).
+            let reserialized: Uint8Array;
             try {
-                tree = parseTree(ergoTreeBytes);
+                const w = new ByteWriter();
+                serializeSValue({ tag: 'SBox' }, sbox, treeVersion, w);
+                reserialized = w.toBytes();
             } catch (err) {
-                if (
-                    ergoTreeBytes.length > 0 &&
-                    (ergoTreeBytes[0]! & 0x08) !== 0
-                ) {
-                    // hasSize=true: sigma-rust-Unparsed-equivalent. Bytes are
-                    // canonical (indexer-hash-verified); round-trip is identity.
-                    continue;
-                }
                 const message = err instanceof Error ? err.message : String(err);
                 throw new HarnessError(
                     'output-roundtrip',
-                    'tree-parse-failed',
-                    `parseTree failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
+                    'box-serialize-failed',
+                    `re-serializing the box failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
                     { txIndex, outputIndex },
                 );
             }
 
-            // Step 4: serialize and byte-compare. The headline check — any
-            // disagreement here is a real validation finding (parser drops
-            // info, serializer reorders, version-gating mishandles a flag).
-            let reSerialized: Uint8Array;
-            try {
-                reSerialized = serializeTree(tree);
-            } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                throw new HarnessError(
-                    'output-roundtrip',
-                    'tree-serialize-failed',
-                    `serializeTree failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
-                    { txIndex, outputIndex },
-                );
-            }
-            if (!bytesEqual(reSerialized, ergoTreeBytes)) {
+            // Step 4: the degrade census, when one is kept.
+            census?.record(bundle.height, txIndex, outputIndex, ergoTreeBytes);
+
+            // Step 5: byte-compare against the chain's box bytes. The headline
+            // check: any disagreement is a real validation finding (the parser
+            // drops information, or the writer departs from the JVM's).
+            if (!bytesEqual(reserialized, boxBytes)) {
                 throw new HarnessError(
                     'output-roundtrip',
                     'byte-roundtrip-mismatch',
-                    `serializeTree(parseTree(ergoTreeBytes)) !== ergoTreeBytes at tx ${txIndex}, output ${outputIndex}`,
+                    `the re-serialized box differs from the chain's box bytes at tx ${txIndex}, output ${outputIndex} ` +
+                        `(first difference at byte ${firstDifference(reserialized, boxBytes)}; ` +
+                        `${reserialized.length} bytes against ${boxBytes.length})`,
                     { txIndex, outputIndex },
                 );
             }
         }
     }
+
+    // Every census entry at this height must name an output the block has:
+    // the per-output check above sees only outputs that exist.
+    census?.checkExpectedPositions(
+        bundle.height,
+        bundle.transactions.map((tx) => tx.outputs.length),
+    );
 }
 
 /**
  * Injectable per-tx validator. Matches the call signature of `validateTx`
- * (oracle mode) and `validateTxLib` (lib mode) so either can be passed in
- * without an adapter.
+ * (oracle mode), `validateTxLib` (lib mode) and `validateTxIds` (ids mode) so
+ * any of them can be passed in without an adapter.
  */
 export type TxValidator = (
     tx: TxBundle,
@@ -429,19 +442,35 @@ export type TxValidator = (
  * can inject a stub.
  *
  * `txValidator` defaults to `validateTx` (oracle mode). Pass
- * `validateTxLib` to route the per-tx step through `validateStateful`.
+ * `validateTxLib` to route the per-tx step through `validateStateful`, or
+ * `validateTxIds` to check only the transaction and output box ids.
+ *
+ * `census`, when given, is passed to `validateOutputRoundtrips`, which checks
+ * every output tree against it.
  */
 export function validateBlock(
     bundle: BlockBundle,
     state: WalkerState,
     treeVersionFn: (boxBytes: Uint8Array) => number,
     txValidator: TxValidator = validateTx,
+    census?: DegradeCensus,
 ): void {
     validateHeader(bundle, state);
-    validateOutputRoundtrips(bundle, treeVersionFn);
+    validateOutputRoundtrips(bundle, treeVersionFn, census);
     for (let txIndex = 0; txIndex < bundle.transactions.length; txIndex++) {
         txValidator(bundle.transactions[txIndex]!, bundle, state, txIndex);
     }
+}
+
+/** The offset of the first byte at which `a` and `b` differ (the shorter length if one is a prefix). */
+function firstDifference(a: Uint8Array, b: Uint8Array): number {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+        if (a[i] !== b[i]) {
+            return i;
+        }
+    }
+    return n;
 }
 
 /**

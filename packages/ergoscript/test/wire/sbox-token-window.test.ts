@@ -37,9 +37,12 @@ import type { ErgoBox, SValue } from '../../src/mir/types'
 // Byte builders
 // ---------------------------------------------------------------------------
 
-// Minimal parse-valid ErgoTree: header=0x00 (hasSize=false, no segregation),
-// body = Height global (0xa3) — a minimal valid root Expr (2 bytes total).
-const MINIMAL_TREE = [0x00, 0xa3]
+// Minimal box ErgoTree: header=0x00 (hasSize=false, no segregation), body =
+// sigmaProp(true) (`08 d3`), 3 bytes total. The root must type as SigmaProp:
+// box ingest applies rule 1001 (ErgoBoxCandidate.scala:194, checkType = true),
+// so an unsized tree with a non-SigmaProp root (e.g. HEIGHT, `00 a3`) rejects
+// the box at its tree.
+const MINIMAL_TREE = [0x00, 0x08, 0xd3]
 
 /** Unsigned VLQ encoding (LSB-first 7-bit groups). */
 function vlq(n: number): number[] {
@@ -136,13 +139,13 @@ function expectPositionLimit(fn: () => unknown): ReaderError {
 
 describe('SBox 4096-byte candidate window (parse)', () => {
   // (a) The old >122 count gate is GONE: 123 tokens fit the window and parse.
-  // Candidate = value(1) + tree(2) + height(1) + tokenCount(1) + 123*33(4059)
-  // + regCount(1) = 4065 <= 4096. (SANTA measured boundary: 123 tokens fits;
+  // Candidate = value(1) + tree(3) + height(1) + tokenCount(1) + 123*33(4059)
+  // + regCount(1) = 4066 <= 4096. (SANTA measured boundary: 123 tokens fits;
   // the old 122 cap was not even the right count approximation.)
-  it('parses a 123-token minimal box (count gate removed; candidate 4065 <= 4096)', () => {
+  it('parses a 123-token minimal box (count gate removed; candidate 4066 <= 4096)', () => {
     const tokens = Array.from({ length: 123 }, (_, i) => token(i))
     const { bytes, candidateLength } = buildBox({ tokens })
-    expect(candidateLength).toBe(4065)
+    expect(candidateLength).toBe(4066)
 
     // Must not throw — specifically not SValueParseError
     // 'sbox-tokens-out-of-range' (the pre-F5-batch-5 count gate).
@@ -171,27 +174,28 @@ describe('SBox 4096-byte candidate window (parse)', () => {
     expect(boxIdOf(box)).toEqual(blake2b256(bytes))
   })
 
-  // (b) 124 tokens cannot fit: candidate = 5 + 124*33 + 1 = 4098 > 4096.
-  // Walk: token #123's id read begins at 4064 <= 4096 (ends 4096), its amount
-  // read begins exactly AT 4096 (strict `>` passes), then the regCount read
-  // begins at 4097 > 4096 -> rule-1014 reject.
-  it("rejects a 124-token minimal box with 'position-limit-exceeded' (candidate 4098 > 4096)", () => {
+  // (b) 124 tokens cannot fit: candidate = 6 + 124*33 + 1 = 4099 > 4096.
+  // Walk: token #124's id read begins at 4065 <= 4096 (ends 4097), then its
+  // amount read begins at 4097 > 4096 -> rule-1014 reject. (The strict-`>`
+  // read exactly AT the limit is pinned by (g) and (f2).)
+  it("rejects a 124-token minimal box with 'position-limit-exceeded' (candidate 4099 > 4096)", () => {
     const tokens = Array.from({ length: 124 }, (_, i) => token(i))
     const { bytes, candidateLength } = buildBox({ tokens })
-    expect(candidateLength).toBe(4098)
+    expect(candidateLength).toBe(4099)
 
     expectPositionLimit(() => parseBox(bytes))
   })
 
-  // (i) Sized-tree skip straddling the window (T3 review rider): the box's
+  // (i) Sized-tree span straddling the window (T3 review rider): the box's
   // ErgoTree field is a SIZED tree — header 0x08 (v0 + hasSize), VLQ size
-  // 4200 — whose body the lenient consumer SKIPS via one readBytes(4200) on
-  // the shared (windowed) reader. Walk: the skip BEGINS at 4 <= 4096 (entry
-  // check passes) and ENDS at 4204 — a straddle, tolerated like any logical
-  // read — then the creationHeight read begins at 4204 > 4096 -> rule-1014
-  // reject. Pins the sized-body readBytes inside `parseErgoTreeBytes` to
-  // the candidate window (a refactor that consumed the sized body off-window
-  // — e.g. via a forked sub-reader — would accept this box).
+  // 4200 — whose body fails soft-forkably at its first byte (0x77, an unknown
+  // opcode), so the tree degrades and re-reads its declared span with one
+  // readBytes(4203) from the tree's start, on the shared (windowed) reader
+  // (ErgoTreeSerializer.scala:199-202). Walk: the re-read BEGINS at 1 <= 4096
+  // (entry check passes) and ENDS at 4204 — a straddle, tolerated like any
+  // logical read — then the creationHeight read begins at 4204 > 4096 ->
+  // rule-1014 reject. Pins the degrade's re-read to the shared reader and the
+  // candidate window.
   it("rejects a sized-tree skip crossing the window with 'position-limit-exceeded' (reject at the creationHeight read)", () => {
     const sizedTree = [0x08, ...vlq(4200), ...(Array(4200).fill(0x77) as number[])]
     const { bytes, candidateLength } = buildBox({ tree: sizedTree })
@@ -199,22 +203,25 @@ describe('SBox 4096-byte candidate window (parse)', () => {
     // + regCount(1) = 4207 > 4096
     expect(candidateLength).toBe(4207)
 
-    expectPositionLimit(() => parseBox(bytes))
+    // The reject is the creationHeight read at 4204, not a window trip at the re-read.
+    const err = expectPositionLimit(() => parseBox(bytes))
+    expect(err.message).toContain('position limit 4096')
+    expect(err.message).toContain('position 4204')
   })
 
   // (c) Fat-trailing ACCEPT — the lazy pin (SANTA destobox-fat-trailing-accept):
   // 2 tokens + a LAST register that is a fat Coll[Byte] (4200-byte payload).
-  // Layout: head 5 + 2*33 = 71 -> regCount at 71; R4 type 0x0e at 72, VLQ
-  // len at 73-74, payload readBytes(4200) BEGINS at 75 <= 4096 and ENDS at
-  // 4275 — the candidate's FINAL read straddles the limit and ESCAPES
+  // Layout: head 6 + 2*33 = 72 -> regCount at 72; R4 type 0x0e at 73, VLQ
+  // len at 74-75, payload readBytes(4200) BEGINS at 76 <= 4096 and ENDS at
+  // 4276 — the candidate's FINAL read straddles the limit and ESCAPES
   // entirely (one entry check, then the byte run is unchecked). Candidate
-  // 4275 > 4096 yet the box ACCEPTS. An eager/per-byte window would reject.
+  // 4276 > 4096 yet the box ACCEPTS. An eager/per-byte window would reject.
   it('accepts a >4096 candidate whose overrun is the FINAL read (fat trailing register escapes)', () => {
     const { bytes, candidateLength } = buildBox({
       tokens: [token(0xaa), token(0xab)],
       registers: [collByteRegister(4200)],
     })
-    expect(candidateLength).toBe(4275)
+    expect(candidateLength).toBe(4276)
 
     const { v, r } = parseBox(bytes)
     const box = asBox(v)
@@ -225,7 +232,7 @@ describe('SBox 4096-byte candidate window (parse)', () => {
   })
 
   // (d) fat-then-reg: same fat R4 as the fat-trailing pin but with a small R5
-  // AFTER it — R5's lead-byte read begins at 4275 > 4096 -> reject. (SANTA
+  // AFTER it — R5's lead-byte read begins at 4276 > 4096 -> reject. (SANTA
   // fat-then-reg twin: the JVM errors at R5's read.)
   it("rejects fat R4 followed by R5 with 'position-limit-exceeded' (non-final read past limit)", () => {
     const fatR4 = collByteRegister(4200)
@@ -244,9 +251,9 @@ describe('SBox 4096-byte candidate window (parse)', () => {
   // txId read (ErgoBoxCandidate.scala:235 before ErgoBox.scala:214-225).
   // Without the restore, the index read at 4122 > 4096 would reject.
   it('parses a box whose txId/index push the TOTAL past 4096 (restore precedes those reads)', () => {
-    // candidate = 5(head) + 1(regCount) + 1(type) + 2(len VLQ) + 4081 = 4090
+    // candidate = 6(head) + 1(regCount) + 1(type) + 2(len VLQ) + 4080 = 4090
     const { bytes, candidateLength } = buildBox({
-      registers: [collByteRegister(4081)],
+      registers: [collByteRegister(4080)],
       index: [0x2a], // 42
     })
     expect(candidateLength).toBe(4090)
@@ -262,7 +269,7 @@ describe('SBox 4096-byte candidate window (parse)', () => {
   // tier: the LAST register is an SAvlTree whose valueLengthOpt VLQ BEGINS
   // exactly AT the limit (strict `>` passes) and continues past it (the
   // continuation byte is read unchecked — one window check per LOGICAL read;
-  // a per-byte readU8 loop would reject). Layout: R4 = Coll[Byte](4050) pads
+  // a per-byte readU8 loop would reject). Layout: R4 = Coll[Byte](4049) pads
   // so R5 (SAvlTree 0x64) starts at 4059: digest 33B at 4060..4093, flags at
   // 4093, keyLength VLQ at 4094, option tag at 4095, valueLengthOpt VLQ at
   // 4096 == limit, bytes [0xac, 0x02] = 300 ending at 4098.
@@ -276,7 +283,7 @@ describe('SBox 4096-byte candidate window (parse)', () => {
       0xac, 0x02, // VLQ 300 — begins at 4096 == limit, continuation byte past it
     ]
     const { bytes, candidateLength } = buildBox({
-      registers: [collByteRegister(4050), avlR5],
+      registers: [collByteRegister(4049), avlR5],
     })
     expect(candidateLength).toBe(4098)
 
@@ -325,19 +332,19 @@ describe('SBox nested box-in-register windows', () => {
   }
 
   // (f1) Inner candidate crossing the outer limit: REJECTED at the inner
-  // txId read — at position 4105, NOT at the first inner read past the outer
-  // limit (4103). The error position proves both halves of the JVM mechanism:
+  // txId read — at position 4107, NOT at the first inner read past the outer
+  // limit (4105). The error position proves both halves of the JVM mechanism:
   //   - the inner window WIDENED past the outer limit (no clamp): the inner
-  //     token-amount read beginning at 4103 > 4096 PASSED under the inner
-  //     limit 4136 (a clamped reader would have rejected right there), and
+  //     token-amount read beginning at 4105 > 4096 PASSED under the inner
+  //     limit 4137 (a clamped reader would have rejected right there), and
   //   - the inner restore reinstates the OUTER limit (not the buffer end,
   //     not the inner limit — either of those would ACCEPT this box): the
-  //     inner txId read at 4105 > 4096 is what fires.
-  // Layout: outer head 5 + 1 token (33) -> regCount at 38, R4 lead 0x63 at
-  // 39, inner box at 40. Inner: head 5 + 123*33 = 4059 tokens ending 4104 +
-  // regCount at 4104 -> inner candidate [40, 4105) crossing outer limit
-  // 4096, inside inner limit 40 + 4096 = 4136.
-  it("rejects an inner candidate crossing the outer limit at the inner txId read ('position-limit-exceeded' at 4105)", () => {
+  //     inner txId read at 4107 > 4096 is what fires.
+  // Layout: outer head 6 + 1 token (33) -> regCount at 39, R4 lead 0x63 at
+  // 40, inner box at 41. Inner: head 6 + 123*33 = 4059 tokens ending 4106 +
+  // regCount at 4106 -> inner candidate [41, 4107) crossing outer limit
+  // 4096, inside inner limit 41 + 4096 = 4137.
+  it("rejects an inner candidate crossing the outer limit at the inner txId read ('position-limit-exceeded' at 4107)", () => {
     const inner = innerBoxBytes({
       tokens: Array.from({ length: 123 }, (_, i) => token(i)),
     })
@@ -348,7 +355,7 @@ describe('SBox nested box-in-register windows', () => {
 
     const err = expectPositionLimit(() => parseBox(bytes))
     expect(err.message).toContain('position limit 4096')
-    expect(err.message).toContain('position 4105')
+    expect(err.message).toContain('position 4107')
   })
 
   // (f2) The constructible ACCEPT neighbor: the inner box IS accepted with
@@ -361,10 +368,10 @@ describe('SBox nested box-in-register windows', () => {
   // index = 300, ACCEPT. Also proves the inner arm/restore cycle leaves the
   // outer window intact for the outer txId/index that follow.
   it('accepts an inner box whose index VLQ begins AT the outer limit and straddles past it', () => {
-    // inner candidate = 5(head) + 1(regCount) + 3(Coll[Byte] type+len) +
-    // 4015(payload) = 4024; inner box at 40 -> candidate ends 40 + 4024 = 4064
+    // inner candidate = 6(head) + 1(regCount) + 3(Coll[Byte] type+len) +
+    // 4013(payload) = 4023; inner box at 41 -> candidate ends 41 + 4023 = 4064
     const inner = innerBoxBytes({
-      registers: [collByteRegister(4015)],
+      registers: [collByteRegister(4013)],
       txId: Array(32).fill(0x99) as number[],
       index: [0xac, 0x02], // VLQ 300, begins exactly at outer limit 4096
     })
@@ -373,7 +380,7 @@ describe('SBox nested box-in-register windows', () => {
       registers: [[0x63, ...inner]],
       index: [0x07],
     })
-    // outer candidate = 39(pre-register) + 1(lead) + inner(4024 + 32 + 2) = 4098
+    // outer candidate = 40(pre-register) + 1(lead) + inner(4023 + 32 + 2) = 4098
     expect(candidateLength).toBe(4098)
 
     const { v, r } = parseBox(bytes)

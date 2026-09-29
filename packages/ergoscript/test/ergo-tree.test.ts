@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ReaderError } from '@ergots/scorex'
 import {
   parseTree,
   serializeTree,
@@ -58,7 +59,8 @@ describe('ErgoTree envelope', () => {
     // ERG-04 regression — serializeTree must reject trees whose serialized
     // bytes exceed MAX_TREE_SIZE. Pre-fix, serializeTree emitted oversized
     // bytes that parseTree then refused — breaking self-round-trip.
-    // ERG-05 regression — serializeTree must reject constants.length > MAX_CONSTANTS_COUNT.
+    // ERG-05 regression — serializeTree must reject constants.length above the
+    // parse bound (100000, the JVM's safeNewArray; core/.../sigma/util/package.scala:7-18).
     it('ERG-04: throws oversized when serialized tree exceeds MAX_TREE_SIZE', () => {
       // Build a tree with many large SColl[Byte] constants to push past 1 MB.
       // Each ~2KB Coll[Byte] × 600 constants ≈ 1.2 MB total.
@@ -92,15 +94,15 @@ describe('ErgoTree envelope', () => {
       }
     })
 
-    it('ERG-05: throws too-many-constants when constants.length > MAX_CONSTANTS_COUNT', () => {
-      const count = 4097 // one above MAX_CONSTANTS_COUNT
+    // A segregated tree of `count` SBoolean constants (two bytes each on the wire).
+    function booleanConstantsTree(count: number): ErgoTree {
       const constants: any[] = []
       const constantTypes: any[] = []
       for (let i = 0; i < count; i++) {
         constantTypes.push({ tag: 'SBoolean' })
         constants.push({ kind: 'Boolean', value: true })
       }
-      const tree: ErgoTree = {
+      return {
         header: {
           version: 0,
           hasSize: false,
@@ -111,17 +113,22 @@ describe('ErgoTree envelope', () => {
         constants,
         body: { tag: 'ConstPlaceholder', id: 0, tpe: { tag: 'SBoolean' } },
       }
+    }
+
+    it('ERG-05: throws too-many-constants when constants.length > 100000 (the parse bound)', () => {
       try {
-        serializeTree(tree)
+        serializeTree(booleanConstantsTree(100001))
         throw new Error('expected throw')
       } catch (e) {
         expect(e).toBeInstanceOf(ErgoTreeSerializeError)
-        // 4097 constants will also push the serialized tree past MAX_TREE_SIZE
-        // (very small SBoolean constants but still ≥ MAX_CONSTANTS_COUNT * 2 bytes);
-        // depending on order, either 'oversized' or 'too-many-constants' fires.
-        const code = (e as ErgoTreeSerializeError).code
-        expect(['oversized', 'too-many-constants']).toContain(code)
+        // 100001 two-byte SBoolean constants (about 200 KB) stay under MAX_TREE_SIZE,
+        // so 'oversized' cannot fire: the constants bound is what rejects.
+        expect((e as ErgoTreeSerializeError).code).toBe('too-many-constants')
       }
+    })
+
+    it('ERG-05: 100000 constants, the parse bound itself, serialize', () => {
+      expect(() => serializeTree(booleanConstantsTree(100000))).not.toThrow()
     })
 
     // ERG-02 regression — parseTree must reject trailing bytes after the
@@ -184,11 +191,17 @@ describe('ErgoTree envelope', () => {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(ExprParseError)
-        expect((e as ExprParseError).code).toBe('opcode-reserved')
+        // The tree has no size bit, so the soft-forkable body failure is wrapped, as the
+        // JVM wraps its ValidationException in a SerializerException
+        // (ErgoTreeSerializer.scala:204-207); the body's error is the cause.
+        expect(e).toBeInstanceOf(ErgoTreeParseError)
+        expect((e as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+        const cause = (e as Error).cause
+        expect(cause).toBeInstanceOf(ExprParseError)
+        expect((cause as ExprParseError).code).toBe('opcode-reserved')
         // Assert on the variant name rather than the raw byte — the dispatch
         // table identifies opcodes by name in its messages.
-        expect((e as Error).message).toContain('FlatMap')
+        expect((cause as Error).message).toContain('FlatMap')
       }
     })
 
@@ -197,12 +210,13 @@ describe('ErgoTree envelope', () => {
       // (bit 4). Body size = 3 bytes (constants_count=0 byte + opcode + 1
       // arbitrary byte), constants_count = 0 (VLQ), then opcode 0xb8
       // (FLAT_MAP — see marker note above) and an arbitrary filler byte
-      // 0xCD. The envelope-only path is: read header, read size=3, slice
-      // inner buffer of 3 bytes, read constants_count=0, then dispatch to
-      // body which throws opcode-reserved on opcode 0xb8.
+      // 0xCD. The envelope-only path is: read header, read size=3, read
+      // constants_count=0 on the same reader, then dispatch to body which
+      // throws opcode-reserved on opcode 0xb8.
       // The reserved opcode 0xb8 (FlatMap) in a SIZE-FLAGGED tree is a soft-fork
       // condition → preserved verbatim as UnparsedErgoTree (the coal mechanism),
-      // not thrown. The header bits are still decoded and exposed on the tree.
+      // its declared span [0, 2 + 3), not thrown. The header bits are still
+      // decoded and exposed on the tree.
       const bytes = new Uint8Array([0x19, 0x03, 0x00, 0xb8, 0xcd])
       const tree = parseTree(bytes)
       expect(isUnparsedTree(tree)).toBe(true)
@@ -218,16 +232,18 @@ describe('ErgoTree envelope', () => {
       }
     })
 
-    it('rejects when declared body size exceeds remaining bytes', () => {
-      // hasSize set (bit 3), version 0. Declared size = 10 but only 0 bytes
-      // remain after the size VLQ.
+    it('a size-flagged tree with no body bytes fails the first peek', () => {
+      // hasSize set (bit 3), version 0, declared size 10, and no byte after the size VLQ.
+      // The declared size does not bound the parse (ErgoTreeSerializer.scala:141-215): the
+      // body's first value read peeks past the end, the JVM's raw index exception
+      // (ValueSerializer.scala:396-399, CoreByteReader.scala:41), a hard reject.
       const bytes = new Uint8Array([0x08, 0x0a])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(ErgoTreeParseError)
-        expect((e as ErgoTreeParseError).code).toBe('body-size-overflow')
+        expect(e).toBeInstanceOf(ReaderError)
+        expect((e as ReaderError).code).toBe('truncated')
       }
     })
   })
@@ -249,24 +265,31 @@ describe('ErgoTree envelope', () => {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(ExprParseError)
-        expect((e as ExprParseError).code).toBe('opcode-reserved')
-        expect((e as Error).message).toContain('FlatMap')
+        // No size bit: the soft-forkable body failure is wrapped, its error the cause
+        // (the JVM's SerializerException, ErgoTreeSerializer.scala:204-207).
+        expect(e).toBeInstanceOf(ErgoTreeParseError)
+        expect((e as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+        const cause = (e as Error).cause
+        expect(cause).toBeInstanceOf(ExprParseError)
+        expect((cause as ExprParseError).code).toBe('opcode-reserved')
+        expect((cause as Error).message).toContain('FlatMap')
       }
     })
 
-    it('rejects when constant count exceeds MAX_CONSTANTS_COUNT', () => {
-      // Constant count = 4097 (> MAX_CONSTANTS_COUNT = 4096). VLQ
-      // encoding of 4097 = [0x81, 0x20] (0x81 has continuation + low 7
+    it('a constants count within the bound runs out of input', () => {
+      // Constant count = 4097: VLQ [0x81, 0x20] (0x81 has continuation + low 7
       // bits 0x01; 0x20 = 0x20 shifted by 7 = 0x1000; total =
-      // 0x01 + 0x1000 = 0x1001 = 4097).
+      // 0x01 + 0x1000 = 0x1001 = 4097). That is within the JVM's bound
+      // (getUInt().toInt, then safeNewArray's 100000; ErgoTreeSerializer.scala:245-266),
+      // so the parse reads on and the first constant's type read hits the end of the
+      // input. Above 100000 it is 'too-many-constants' (test/wire/sized-tree-parse.test.ts).
       const bytes = new Uint8Array([0x10, 0x81, 0x20])
       try {
         parseTree(bytes)
         throw new Error('parseTree should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(ErgoTreeParseError)
-        expect((e as ErgoTreeParseError).code).toBe('too-many-constants')
+        expect(e).toBeInstanceOf(ReaderError)
+        expect((e as ReaderError).code).toBe('truncated')
       }
     })
   })

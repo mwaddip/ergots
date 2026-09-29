@@ -27,7 +27,7 @@
  */
 
 import type { SigmaBoolean } from '../mir/types'
-import { ByteReader, ReaderError, ByteWriter } from '@ergots/scorex'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { canonicalGePayload } from './_ge-canonical'
 
 // Sigma-protocol opcodes (single byte). Same value space as the top-level
@@ -55,7 +55,9 @@ export class SigmaBooleanParseError extends Error {
  *
  * Error codes:
  *  - 'ec-point-length'            — ProveDlog.h or ProveDhTuple.{g,h,u,v} length ≠ 33 bytes
- *  - 'arity-out-of-range'         — Cand/Cor/Cthreshold items.length out of [1, 0xffff]
+ *  - 'arity-out-of-range'         — Cand/Cor/Cthreshold items.length out of [1, 0xffff], or a
+ *                                   Cthreshold's above 255 (the JVM's CTHRESHOLD require,
+ *                                   SigmaBoolean.scala:223, which a JVM node always passes)
  *  - 'cthreshold-k-out-of-range'  — Cthreshold k out of [1, items.length] or > 0xff
  *  - 'unreachable'                — exhaustiveness guard fired (should never happen in practice)
  */
@@ -75,7 +77,9 @@ export class SigmaBooleanSerializeError extends Error {
  *
  * Error codes:
  *  - 'unknown-opcode'                — opcode byte not in the sigma table
- *  - 'arity-out-of-range'            — items_count > u16 max
+ *  - 'arity-out-of-range'            — items_count > u16 max, checked as it is read; or a
+ *                                      Cthreshold with more than 255 children, checked after
+ *                                      them (the JVM's CTHRESHOLD require, SigmaBoolean.scala:223)
  *  - 'cthreshold-k-out-of-range'     — k outside [1, items.length]
  *  - 'sigma-conjecture-empty-items'  — items.length < 1 (BoundedVec lower bound)
  *  - 'ec-point-invalid'              — ProveDlog.h or ProveDhTuple.{g,h,u,v} is not a
@@ -162,9 +166,15 @@ function parseSigmaBooleanBody(r: ByteReader): SigmaBoolean {
       return { tag: op === OP_AND ? 'Cand' : 'Cor', items }
     }
     case OP_ATLEAST: {
-      // sigma-rust cthreshold.rs:108-111: k written as put_u16(k as u16), VLQ on wire.
-      // items_count also written as put_u16, VLQ on wire.
+      // JVM SigmaBoolean.serializer.parse (core/.../sigma/data/SigmaBoolean.scala:94-100): k, then
+      // n, each a getUShort (hard above 0xFFFF, as it is read) — sigma-rust cthreshold.rs:108-111
+      // writes the same pair as put_u16, VLQ on wire. Only then does the JVM read the n children;
+      // only after that does CTHRESHOLD(k, children)'s constructor run its require (:223),
+      // `k >= 0 && k <= children.length && children.length <= 255`.
       const k = r.readVlqU()
+      if (k > 0xffff) {
+        throw new SigmaBooleanParseError(`Cthreshold k=${k} exceeds u16 bound`, 'cthreshold-k-out-of-range')
+      }
       const count = r.readVlqU()
       if (count > 0xffff) {
         throw new SigmaBooleanParseError(
@@ -172,26 +182,32 @@ function parseSigmaBooleanBody(r: ByteReader): SigmaBoolean {
           'arity-out-of-range'
         )
       }
+      // Stricter than the JVM (which accepts n = 0): items.length < 1 has no JVM analogue in the
+      // require — it's ergots' own BoundedVec-style lower bound. It stays here, before the children,
+      // because with n = 0 there are no children to read, so its position makes no difference.
       if (count < 1) {
         throw new SigmaBooleanParseError(
           `Cthreshold must have at least 1 item, got ${count}`,
           'sigma-conjecture-empty-items'
         )
       }
-      if (k < 1 || k > count) {
-        throw new SigmaBooleanParseError(
-          `Cthreshold k=${k} out of range [1, ${count}]`,
-          'cthreshold-k-out-of-range'
-        )
-      }
-      if (k > 0xff) {
-        throw new SigmaBooleanParseError(
-          `Cthreshold k=${k} exceeds u8 bound`,
-          'cthreshold-k-out-of-range'
-        )
-      }
       const items: SigmaBoolean[] = []
       for (let i = 0; i < count; i++) items.push(parseSigmaBoolean(r))
+      // Stricter than the JVM (which accepts k = 0, `require(k >= 0 …)`); a tracked follow-up
+      // (verifier semantics for empty/trivial conjectures). Checked AFTER the children, not before:
+      // an early ergots-only reject here would pre-empt a window error a child read would otherwise
+      // hit first, widening this divergence into a sized tree's window cases too — the JVM's own
+      // require runs only after the children (the CTHRESHOLD constructor is called with the
+      // already-read children array), so this ordering meets the same reader state the JVM does.
+      if (k < 1) {
+        throw new SigmaBooleanParseError(`Cthreshold k=${k} below 1`, 'cthreshold-k-out-of-range')
+      }
+      if (k > count) {
+        throw new SigmaBooleanParseError(`Cthreshold k=${k} exceeds n=${count}`, 'cthreshold-k-out-of-range')
+      }
+      if (count > 255) {
+        throw new SigmaBooleanParseError(`Cthreshold has ${count} children, more than 255`, 'arity-out-of-range')
+      }
       return { tag: 'Cthreshold', k, items }
     }
     default:
@@ -251,7 +267,9 @@ export function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void {
       for (const item of sb.items) serializeSigmaBoolean(item, w)
       return
     case 'Cthreshold':
-      if (sb.items.length < 1 || sb.items.length > 0xffff) {
+      // CTHRESHOLD's require(children.length <= 255) (SigmaBoolean.scala:223): no JVM node has
+      // more, and the parse rejects more.
+      if (sb.items.length < 1 || sb.items.length > 255) {
         throw new SigmaBooleanSerializeError(
           `Cthreshold items.length=${sb.items.length} out of range`,
           'arity-out-of-range'
@@ -285,16 +303,3 @@ export function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void {
 export function proveDlogPublicKey(sb: SigmaBoolean): Uint8Array | null {
   return sb.tag === 'ProveDlog' ? sb.h.slice() : null
 }
-
-export {
-  OP_PROVE_DLOG as SIGMA_OP_PROVE_DLOG,
-  OP_PROVE_DH_TUPLE as SIGMA_OP_PROVE_DH_TUPLE,
-  OP_TRIVIAL_PROP_FALSE as SIGMA_OP_TRIVIAL_PROP_FALSE,
-  OP_TRIVIAL_PROP_TRUE as SIGMA_OP_TRIVIAL_PROP_TRUE,
-  OP_AND as SIGMA_OP_AND,
-  OP_OR as SIGMA_OP_OR,
-  OP_ATLEAST as SIGMA_OP_ATLEAST,
-}
-
-// Re-export ReaderError so callers that need to discriminate errors can.
-export { ReaderError }

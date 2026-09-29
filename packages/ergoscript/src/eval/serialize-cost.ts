@@ -33,6 +33,7 @@ import type { EvalContext } from './eval-context'
 import type { ErgoBox, SigmaBoolean, SType, SValue } from '../mir/types'
 import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
 import { parseSValue } from '../wire/parse-svalue'
+import { reencodeTreeBytes } from '../wire/box-tree'
 import { parseSTypeWithFirstByte } from '../wire/parse-stype'
 import { ByteReader } from '@ergots/scorex'
 import type { Header } from '@ergots/scorex'
@@ -439,10 +440,14 @@ function sameEmbeddable(a: SType, b: SType): boolean {
  * SigmaByteWriter. Source: ErgoBox.scala:204-212 + ErgoBoxCandidate.scala:138-181.
  *
  *   putULong(value)              = 3
- *   putBytes(ergoTree)           = 3 + treeLen   (the JVM re-serializes the tree
- *                                                 and putBytes the blob; ergots
- *                                                 stores it pre-serialized — same
- *                                                 length, same single putBytes)
+ *   putBytes(ergoTree)           = 3 + treeLen   (the JVM writes putBytes(
+ *                                                 serializeErgoTree(box.ergoTree)),
+ *                                                 ErgoBoxCandidate.scala:142: treeLen is
+ *                                                 the re-encoded tree's length,
+ *                                                 reencodeTreeBytes, which differs from
+ *                                                 ergoTreeBytes' when the tree declares a
+ *                                                 wrong size or carries a non-canonical
+ *                                                 encoding)
  *   putUInt(creationHeight) [no-arg] = 0   (putUInt(x:Long):105-107 — genuinely 0)
  *   putUByte(nTokens)            = 1   (F2 #5; ErgoBoxCandidate.scala:144)
  *   per token: putBytes(id 32)=35 + putULong(amount)=3   → 38
@@ -458,7 +463,7 @@ function sameEmbeddable(a: SType, b: SType): boolean {
  */
 function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
   ctx.addCost(PUT_NUM3) // putULong(value)
-  ctx.addCost(3 + box.ergoTreeBytes.length) // putBytes(ergoTree)
+  ctx.addCost(3 + reencodeTreeBytes(box.ergoTreeBytes).length) // putBytes(serializeErgoTree(tree))
   // putUInt(creationHeight) = 0 (no-DataInfo putUInt(x:Long) overload — genuinely 0)
   ctx.addCost(PUT_BYTE) // putUByte(nTokens) = 1 (ErgoBoxCandidate.scala:144; F2 #5)
   for (const _token of box.tokens) {
@@ -484,7 +489,7 @@ function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
       // wire FORM (a tuple item may be a Const(STuple) data form OR a nested Tuple
       // Expr opcode form — both yield a kind:'Tuple' value but cost differently),
       // so we cost-walk the register's RAW bytes (their lead bytes preserve the
-      // form), mirroring parseRegisterExprWithTag. This re-parse is COST-ONLY; the
+      // form), mirroring parseRegisterExpr. This re-parse is COST-ONLY; the
       // depth bound was already enforced at the original box parse, so a plain
       // reader over opaqueBytes (no depth re-check / double-count) suffices.
       addRegisterExprCost(new ByteReader(entry.opaqueBytes), ctx)
@@ -500,7 +505,7 @@ function addBoxCost(box: ErgoBox, ctx: EvalContext): void {
 /**
  * Cost of serializing ONE box-register Expr blob (its raw `opaqueBytes` wire),
  * as accrued by SigmaByteWriter when the JVM does `w.putValue(reg)`. Faithful
- * cost-counterpart of `parseRegisterExprWithTag` (parse-svalue.ts:93): it reads
+ * cost-counterpart of `parseRegisterExpr` (parse-svalue.ts): it reads
  * the same wire form (lead byte, then Const data OR Tuple items) but charges the
  * matching SigmaByteWriter primitive costs instead of building values.
  *
@@ -533,13 +538,13 @@ function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
     const tpe = parseSTypeWithFirstByte(lead, r)
     const value = parseSValue(tpe, 0, r)
     // treeVersion at the register-data walk: TWO version-gated DATA kinds exist
-    // (SHeader since 2h-c.1, SOption since F5 batch 1). Neither can legally
-    // ENTER a register on the JVM (rule 1019 CheckV6Type rejects Option/Header/
-    // UBI-typed register values at box ingress — ergots' 1019 mirror is a
-    // tracked F5 item); until that mirror lands, an Option-carrying register
-    // walked here would throw SValueParseError from the v0 re-parse — outside
-    // the EvalError envelope (global-serialize.ts wraps only its own try block).
-    // See the rule-1019 ledger item.
+    // (SHeader since 2h-c.1, SOption since F5 batch 1). Neither can ENTER a
+    // register: rule 1019 CheckV6Type rejects an Option/Header/UBI-typed register
+    // value once it is read (ErgoBoxCandidate.scala:231-232), which ergots mirrors
+    // in parseAdditionalRegisters ('register-v6-type'), so the v0 re-parse here
+    // never meets one in a box that was parsed. Only a hand-built box could carry
+    // one; its SValueParseError is then wrapped by global-serialize.ts as
+    // EvalError('global-serialize-failed').
     ctx.addCost(putTypeCost(tpe)) // putType(tpe)
     serializeCost(tpe, value, ctx) // DataSerializer.serialize(value)
     return

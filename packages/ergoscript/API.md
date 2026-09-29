@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **85 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **86 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -39,35 +39,43 @@ import {
   parseSValue, serializeSValue,
   parseSType, serializeSType,
   parseErgoTreeBytes, parseAdditionalRegisters,
+  boxTreeOf, reencodeTreeBytes, seedBoxTree, boxBytesOf, boxIdOf,
   violatesCheckV6Type, sValueStructuralEq,
   parseSigmaBoolean, serializeSigmaBoolean,
-  MAX_TREE_SIZE, VERSION,
-  type ErgoTree, type TreeHeader, type SType, type SValue, type Expr,
+  isUnparsedTree,
+  MAX_TREE_SIZE, MAX_PROPOSITION_SIZE, VERSION,
+  type ErgoTree, type ParsedErgoTree, type UnparsedErgoTree, type TreeHeader,
+  type ParseTreeOptions, type SType, type SValue, type Expr, type ErgoBox,
   type AdditionalRegisters,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
-  ExprParseError, ExprSerializeError,
+  ExprParseError, ExprSerializeError, ExprTpeError,
   STypeParseError, STypeSerializeError,
   SValueParseError, SValueSerializeError,
   SigmaBooleanParseError, SigmaBooleanSerializeError,
 } from '@ergots/ergoscript';
 ```
 
-### `parseTree(bytes)`
+### `parseTree(bytes, opts?)`
 
 ```ts
-function parseTree(bytes: Uint8Array): ErgoTree;
+function parseTree(bytes: Uint8Array, opts?: ParseTreeOptions): ErgoTree;
+interface ParseTreeOptions {
+  checkType?: boolean;   // rule 1001: the root must type as SigmaProp; default false (lenient)
+}
 ```
 
-Parse the canonical ErgoTree wire format — header byte, optional VLQ-u32 body size, optional segregated constants section, body Expr — into an `ErgoTree` struct.
+Parse the ErgoTree wire format — header byte, optional VLQ-u32 body size, optional segregated constants section, body Expr — into an `ErgoTree`. It mirrors the JVM's `deserializeErgoTree`: the tree is read under a 4096-byte window (`MAX_PROPOSITION_SIZE`), and a size-flagged tree's declared size is used only if the tree degrades.
 
 - **Precondition:** `1 ≤ bytes.length ≤ MAX_TREE_SIZE` (1 MB).
-- **Returns:** An `ErgoTree` whose `serializeTree` output is byte-identical to the input. See `Round-trip invariant` below.
-- **Throws:** `ErgoTreeParseError` for envelope-level malformations (`'empty'`, `'oversized'`, `'body-size-overflow'`, `'too-many-constants'`, `'header-inconsistent'`). Body-parse failures surface as `ExprParseError` from the inner parser; type / value parse failures surface as `STypeParseError`, `SValueParseError`, or `SigmaBooleanParseError`. The envelope does NOT wrap them — callers see the typed failure surface from the innermost layer that rejected the bytes. `ReaderError` from the underlying cursor (`'truncated'`, `'vlq-overflow'`, `'slice-out-of-bounds'`, and — F5 batch 5 — `'position-limit-exceeded'` when an `SBox` payload's candidate span overruns its 4096-byte lazy window: JVM `ErgoBox.MaxBoxSize`, validation rule 1014 `CheckPositionLimit`) may also surface.
+- **Options:** `checkType` applies rule 1001 (the JVM's `CheckDeserializedScriptIsSigmaProp`). It is off by default, as in the JVM's lenient parse, which reads arbitrary-root trees; `{ checkType: true }` is the JVM's `ErgoTree.fromBytes`. Box ingest and address decoding set it.
+- **Returns:** A `ParsedErgoTree`, or, for a size-flagged tree whose constants, body or root check fails soft-forkably (the JVM's `ValidationException`, for example a reserved or unknown opcode, an Option in a pre-v3 tree, a read past the window, or rule 1001 with `checkType`), an `UnparsedErgoTree` holding the tree's declared span as received. Narrow with `isUnparsedTree`. For a canonically encoded tree, `serializeTree` gives the input back (see "Round-trip invariant" below). A tree whose declared size differs from its body parses its whole body and re-serializes with its true size. Bytes after the parse end are tolerated only within a size-flagged tree's declared span.
+- **Throws:** `ErgoTreeParseError` for the envelope (`'empty'`, `'oversized'`, `'trailing-bytes'`) and the tree parse (`'header-version-requires-size'`, `'body-size-overflow'`, `'too-many-constants'`, `'soft-fork-without-size-bit'`, `'nested-tree-truncated'`). Two of those wrap an earlier error, kept as `cause`: a soft-forkable failure in a tree without the size flag throws `'soft-fork-without-size-bit'` (it once surfaced as, for example, `ExprParseError('opcode-reserved')`), and a nested tree (a Box constant's tree) that runs out of input while reading its constants or body, or whose degrade span runs past the end, throws `'nested-tree-truncated'`. A nested tree reads its header and size before that, so a run-out there counts as a run-out of the enclosing tree, not of the nested one. Every other failure surfaces unwrapped from the layer that rejected the bytes: `ExprParseError`, `STypeParseError`, `SValueParseError`, `SigmaBooleanParseError`, `ExprTpeError` (a root type the JVM cannot build, with `checkType` only), or scorex's `ReaderError` (`'truncated'`, `'vlq-overflow'`, `'max-tree-depth-exceeded'`). A read past the 4096-byte window, or past a Box constant's candidate window (rule 1014, `'position-limit-exceeded'`), degrades a sized tree and is wrapped for an unsized one, so it never surfaces on its own. Full taxonomy: `facts/ergoscript-wire.md`.
 
 ```ts
 const tree = parseTree(treeBytes);
-console.log(tree.header.version, tree.constants.length, tree.body.tag);
+if (!isUnparsedTree(tree)) console.log(tree.header.version, tree.constants.length, tree.body.tag);
+const boxRules = parseTree(treeBytes, { checkType: true }); // as the JVM parses a box's tree
 ```
 
 ### `serializeTree(tree)`
@@ -76,11 +84,11 @@ console.log(tree.header.version, tree.constants.length, tree.body.tag);
 function serializeTree(tree: ErgoTree): Uint8Array;
 ```
 
-Inverse of `parseTree`. For any well-formed tree bytes `b`, `serializeTree(parseTree(b))` equals `b` byte-for-byte.
+Inverse of `parseTree`, written as the JVM's `serializeErgoTree` writes a tree: an `UnparsedErgoTree` as its bytes, a parsed tree from its structure, with the header byte as stored and, for a size-flagged tree, the size of the constants and body actually written. For a canonically encoded `b`, `serializeTree(parseTree(b))` equals `b` byte-for-byte (see "Round-trip invariant" below).
 
-- **Precondition:** `tree` was either returned from `parseTree` or constructed satisfying the type invariants below. The `header.rawHeader` byte MUST be derivable from `header.version`, `header.hasSize`, and `header.constantSegregation` (the projection is round-trip-checked at serialize time). `constantTypes.length === constants.length` is required.
+- **Precondition:** `tree` was either returned from `parseTree` or constructed satisfying the type invariants below. Bits 0–4 of `header.rawHeader` (version, size flag, segregation flag) MUST match `header.version`, `header.hasSize` and `header.constantSegregation` (checked at serialize time); bits 5–7 are free and written as stored. `constantTypes.length === constants.length` is required.
 - **Returns:** `Uint8Array` of length ≤ `MAX_TREE_SIZE`.
-- **Throws:** `ErgoTreeSerializeError` with `code` `'header-inconsistent'` (rawHeader does not match the derived `(version, hasSize, segregation)` triple) or `'constants-arity-mismatch'`. Body-serialize failures surface as `ExprSerializeError` (notably `'not-supported'` for the un-encodable `ZkProofBlock` variant).
+- **Throws:** `ErgoTreeSerializeError` with `code` `'header-inconsistent'` (bits 0–4 of rawHeader do not match the derived `(version, hasSize, segregation)` triple), `'constants-arity-mismatch'`, `'oversized'` (the result would exceed `MAX_TREE_SIZE`) or `'too-many-constants'` (more than 100000 constants, the parse bound). Body-serialize failures surface unwrapped as `ExprSerializeError` (notably `'not-supported'` for the un-encodable `ZkProofBlock` variant), `STypeSerializeError`, `SValueSerializeError` or `SigmaBooleanSerializeError`. Some trees parse but cannot be written, in ergots as in the JVM, so `serializeTree` throws for them: an arity-0/1 tuple type (`'tuple-too-short'`), a FuncValue argument id or ValUse id of 2^31 or more (`'func-value-arg-id-out-of-range'`, `'val-use-id-out-of-range'`), an AvlTree constant's `keyLength` or `valueLengthOpt` of 2^31 or more (`'savltree-key-length-out-of-range'`, `'savltree-value-length-out-of-range'`), an `STypeVar` name whose re-encoding exceeds 255 bytes (`'stypevar-name-length'`), a Box constant whose index is 0x8000 or more (`'sbox-index-out-of-range'`: the JVM holds the index as a Short), and a Boolean-constant collection holding a constant of another type (`'collection-item-not-boolean-constant'`, a tree the JVM already rejects at parse).
 
 ### `isP2PK(tree)` / `p2pkPublicKey(tree)`
 
@@ -107,11 +115,12 @@ Convert between an `ErgoTree` and a base58check Ergo address.
 - **`addressFromErgoTree`:**
   - **Precondition:** `tree` is a valid `ErgoTree`; `network` is `'mainnet'` or `'testnet'`.
   - **Returns:** Base58check Ergo address. If `isP2PK(tree)`, the address is P2PK (content bytes are the 33-byte EcPoint only, NOT the serialized tree); otherwise the address is P2S (content bytes are the full serialized ErgoTree).
+  - **Throws:** `AddressDecodeError('unknown-network')` for a `network` other than `'mainnet'` / `'testnet'`.
 - **`ergoTreeFromAddress`:**
   - **Precondition:** `address` is a base58check Ergo address with valid checksum and a supported address type.
-  - **Returns:** The `ErgoTree` encoded by the address. P2PK addresses are reconstructed by synthesizing canonical bytes (`0x00 0x08 0xcd <33 bytes pubkey>`) and parsing them through `parseTree`, so every returned tree satisfies the same type invariants as a directly parsed one.
-  - **Throws:** `AddressDecodeError` with `.code` in `'bad-base58' | 'too-short' | 'checksum-mismatch' | 'invalid-p2pk-length' | 'p2sh-unsupported' | 'unknown-type'`. A P2S address carrying malformed tree bytes throws `ErgoTreeParseError` (or a downstream parser error) — those bubble up unwrapped.
-- **Round-trip invariant:** For any tree `t` and matching network `n`, `ergoTreeFromAddress(addressFromErgoTree(t, n))` parses to a structurally equivalent `ErgoTree`. P2SH addresses are NOT round-trippable through this function (they are derived from a 24-byte hash, not a serialized tree) and decoding one throws `'p2sh-unsupported'`.
+  - **Returns:** The `ErgoTree` encoded by the address. P2PK addresses are reconstructed by synthesizing canonical bytes (`0x00 0x08 0xcd <33 bytes pubkey>`) and parsing them through `parseTree`, so every returned tree satisfies the same type invariants as a directly parsed one. A P2S address's tree is parsed under the box rules, `parseTree(bytes, { checkType: true })`, as the JVM's address decoder parses it: a root that is not SigmaProp rejects a tree without the size flag (`'soft-fork-without-size-bit'`) and degrades a sized one, so a P2S address can decode to an `UnparsedErgoTree`.
+  - **Throws:** `AddressDecodeError` with `.code` in `'bad-base58' | 'too-short' | 'too-long' | 'checksum-mismatch' | 'invalid-p2pk-length' | 'p2sh-unsupported' | 'unknown-type'`. A P2S address carrying malformed tree bytes throws what `parseTree` throws, unwrapped.
+- **Round-trip invariant:** For any tree `t` that passes rule 1001 and whose re-parse stays inside the 4096-byte window, and matching network `n`, `ergoTreeFromAddress(addressFromErgoTree(t, n))` parses to a structurally equivalent `ErgoTree`. P2SH addresses are NOT round-trippable through this function (they are derived from a 24-byte hash, not a serialized tree) and decoding one throws `'p2sh-unsupported'`.
 
 ### `base58Encode(bytes)` / `base58Decode(s)`
 
@@ -134,7 +143,7 @@ function parseSType(r: ByteReader): SType;
 function serializeSType(tpe: SType, w: ByteWriter): void;
 ```
 
-Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Notably, `SValueParseError 'group-element-invalid-point'` (F5 batch 4): a `GroupElement` payload whose lead byte is non-`0x00` must curve-decode (SEC1 compressed secp256k1) or the parse throws — applies wherever GE data parses (body/segregated constants, box registers, `deserializeTo[GroupElement]`, and the `deserializeTo[Header]` hydration leg's minerPk/powOnetimePk); `0x00`-lead payloads normalize to the canonical 33-zero identity instead. Notably also (F5 batch 5): `SBox` payloads parse under a **4096-byte lazy candidate window** — the candidate span (value → registers; `txId`/`index` outside) arms `positionLimit = position + 4096` (JVM `ErgoBox.MaxBoxSize`; `ErgoBoxCandidate.scala:191-192`/`:235`; rule 1014 `CheckPositionLimit`), and a read beginning past the window surfaces scorex `ReaderError('position-limit-exceeded')` from `parseSValue` / `parseTree`. There is NO token-count parse rule — the raw-u8 count's natural ceiling (255) is the only count bound (the former >122 gate, mirroring sigma-rust's `BoundedVec` cap, is removed); serialize-side, `SValueSerializeError 'sbox-tokens-out-of-range'` is re-scoped to >255 (the u8 wire ceiling; JVM `putUByte`). Full taxonomy in `facts/ergoscript-wire.md`.
+Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Notably, `SValueParseError 'group-element-invalid-point'` (F5 batch 4): a `GroupElement` payload whose lead byte is non-`0x00` must curve-decode (SEC1 compressed secp256k1) or the parse throws — applies wherever GE data parses (body/segregated constants, box registers, `deserializeTo[GroupElement]`, and the `deserializeTo[Header]` hydration leg's minerPk/powOnetimePk); `0x00`-lead payloads normalize to the canonical 33-zero identity instead. Notably also (F5 batch 5): `SBox` payloads parse under a **4096-byte lazy candidate window** — the candidate span (value → registers; `txId`/`index` outside) arms `positionLimit = position + 4096` (JVM `ErgoBox.MaxBoxSize`; `ErgoBoxCandidate.scala:191-192`/`:235`; rule 1014 `CheckPositionLimit`), and a read beginning past the window surfaces as scorex `ReaderError('position-limit-exceeded')` from `parseSValue`; inside a tree (a Box constant) that is rule 1014, which degrades a sized tree and is wrapped as `'soft-fork-without-size-bit'` by an unsized one. An `SBox`'s tree is parsed under the box rules and its registers in the JVM's order (see `parseErgoTreeBytes` / `parseAdditionalRegisters` below), so their errors surface too, unwrapped: `ErgoTreeParseError`, `ExprParseError`, `ExprTpeError` and scorex `ReaderError` among them. A register whose data is malformed rejects with its data's error (for example `ReaderError('truncated')`), before rule 1019 (`'register-v6-type'`) runs on the complete value. There is NO token-count parse rule — the raw-u8 count's natural ceiling (255) is the only count bound (the former >122 gate, mirroring sigma-rust's `BoundedVec` cap, is removed); serialize-side, `SValueSerializeError 'sbox-tokens-out-of-range'` is re-scoped to >255 (the u8 wire ceiling; JVM `putUByte`). Full taxonomy in `facts/ergoscript-wire.md`.
 
 ### `parseErgoTreeBytes` / `parseAdditionalRegisters`
 
@@ -144,7 +153,31 @@ function parseAdditionalRegisters(r: ByteReader, treeVersion: number): Additiona
 type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } | undefined>;
 ```
 
-Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. `parseErgoTreeBytes` consumes exactly one self-delimiting ergoTree from the cursor and returns its verbatim span (header + optional size VLQ + constants + body). As of 2026-06-17 it routes through the SAME deserialize as the bare `parseTree` (`parseTreeFromReader`): the tree is structurally parsed, a `hasSize` soft-forkable failure degrades to `UnparsedErgoTree`, and the non-soft-forkable class (e.g. an SHeader constant, a truncated/empty body) REJECTS — so a box's propBytes reject exactly what a bare tree rejects (the old box-only skip-the-body path is gone). `parseAdditionalRegisters` reads the additional-registers section (raw `u8` count, `>6` rejected, per-register `Const`/`Tuple` Expr keyed R4.., Tuple-Expr `opaqueBytes` capture + rule-1019 `CheckV6Type` gate). Both advance the shared `ByteReader` in place. Full shape + failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
+Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. Both advance the shared `ByteReader` in place.
+
+- **`parseErgoTreeBytes`** parses one ergoTree on the reader it arrives on, under the box rules: the parse of `parseTree(…, { checkType: true })`, as the JVM's box parser parses a box's tree, so rule 1001 applies here where the bare `parseTree` is lenient. It returns the tree's span as received, a detached copy, declared size included: a box's R1 and `propositionBytes`. It leaves the cursor where the JVM continues reading the box: the parse end for a tree that parses, whatever its declared size says, and the end of the declared span for a tree that degrades. It seeds the box-tree cache with the tree it parsed, so `boxTreeOf` and `reencodeTreeBytes` on the returned bytes reuse this parse. It throws what the tree parse throws, including `ExprTpeError`; an unsized tree whose root is not SigmaProp rejects with `ErgoTreeParseError('soft-fork-without-size-bit')`.
+- **`parseAdditionalRegisters`** reads the additional-registers section in the JVM's order: a raw `u8` count, then for each register R4.. its value read whole (a `Const` or `Tuple` Expr; the Tuple-Expr form keeps its bytes in `opaqueBytes`), then rule 1019 `CheckV6Type` on the complete value (`'register-v6-type'`). A seventh register rejects (`'sbox-registers-out-of-range'`) only when the loop reaches it, after R4–R9 were read, and a register Tuple's arity is read as a signed byte, so 128 or more rejects before any item (`'sbox-register-tuple-arity'`).
+
+Full shape and failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
+
+### `boxTreeOf` / `reencodeTreeBytes` / `seedBoxTree` / `boxBytesOf` / `boxIdOf`
+
+```ts
+function boxTreeOf(ergoTreeBytes: Uint8Array): ErgoTree;
+function reencodeTreeBytes(ergoTreeBytes: Uint8Array): Uint8Array;
+function seedBoxTree(ergoTreeBytes: Uint8Array, tree: ErgoTree): void;
+function boxBytesOf(box: ErgoBox): Uint8Array;
+function boxIdOf(box: ErgoBox): Uint8Array;
+```
+
+The JVM keeps a box's tree bytes as received for R1 and `propositionBytes`, and writes the tree re-encoded from its parsed structure wherever it re-serializes the box. `ErgoBox` carries only the bytes (`ergoTreeBytes`), so the parsed tree lives in a cache beside them, keyed by the `Uint8Array` instance.
+
+- **`boxTreeOf(ergoTreeBytes)`** returns the box's tree under the box rules: the tree box ingest (`parseErgoTreeBytes`) parsed for these bytes, or, for bytes that did not come through box ingest, one standalone parse with `checkType: true`. On such a miss, a size-flagged tree whose own reads run out of input (a nested tree's header and size reads count as its own) is an `UnparsedErgoTree` over the bytes when they are its declared span (`bodyPos + declared` bytes; with a size that is negative as an Int, that span can end inside the size field, and bytes that end there are a span only when some size the JVM reads begins with them: `09 fe ff ff`, not `09 fe`), and otherwise the run-out propagates; a nested tree that runs out of input while reading its constants or body, or whose degrade span runs past the end, throws `ErgoTreeParseError('box-context-required')`, since the result depends on the bytes after this tree in its box; bytes after the parse end throw `'trailing-bytes'`; any other failure propagates. The result is shared by every caller and must not be mutated.
+- **`reencodeTreeBytes(ergoTreeBytes)`** is `serializeTree(boxTreeOf(ergoTreeBytes))`, cached: the bytes the JVM writes for the tree when it re-serializes the box. A parsed tree is written with its true size, an unparsed one as received. It throws what `boxTreeOf` and `serializeTree` throw; a failure is not cached. The result must not be mutated.
+- **`seedBoxTree(ergoTreeBytes, tree)`** attaches a tree you parsed yourself to those bytes, as a JVM box built from an `ErgoTree` object carries its tree.
+- **`boxBytesOf(box)` / `boxIdOf(box)`** are the JVM's `ErgoBox.bytes` and `ErgoBox.id`: for a box that came off the wire, the bytes the parser retained, as received; otherwise the box re-serialized, with its tree re-encoded. The id is `blake2b256` of those bytes, memoized per box.
+
+Every box serialization in this package (`serializeSValue` of an `SBox`, and a constructed box's bytes and id) writes `reencodeTreeBytes(box.ergoTreeBytes)`; `ergoTreeBytes`, R1, `propositionBytes` and a parsed box's bytes and id stay as received. Keep the bytes a box was parsed with: a copy (for example from `slice()`) misses the cache, and although a miss re-parses most spans to the same tree, it throws for an empty span and for one whose nested tree read past its end. To copy, seed the copy: `seedBoxTree(copy, boxTreeOf(original))`. Never mutate `ergoTreeBytes` after first use. See `facts/ergoscript-wire.md` § "Box trees".
 
 ### `violatesCheckV6Type` / `sValueStructuralEq`
 
@@ -162,20 +195,21 @@ function parseSigmaBoolean(r: ByteReader): SigmaBoolean;
 function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void;
 ```
 
-Bare `SigmaBoolean` wire round-trip (opcode + payload — the inner proposition tree, NOT an `SSigmaProp` SValue). Exposed for wire-conformance consumers that round-trip canonical `SigmaBoolean` bytes directly. Throws `SigmaBooleanParseError` / `SigmaBooleanSerializeError` on failure. Notably, `SigmaBooleanParseError 'ec-point-invalid'` (F5 batch 4): `ProveDlog.h` and `ProveDhTuple` `g`/`h`/`u`/`v` leaf points get the same validate+normalize as the SValue GE arm — `0x00`-lead → canonical identity, non-`0x00`-lead must curve-decode or the parse throws (sibling of the pre-existing `'ec-point-length'`).
+Bare `SigmaBoolean` wire round-trip (opcode + payload — the inner proposition tree, NOT an `SSigmaProp` SValue). Exposed for wire-conformance consumers that round-trip canonical `SigmaBoolean` bytes directly. Throws `SigmaBooleanParseError` / `SigmaBooleanSerializeError` on failure. Notably, `SigmaBooleanParseError 'ec-point-invalid'` (F5 batch 4): `ProveDlog.h` and `ProveDhTuple` `g`/`h`/`u`/`v` leaf points get the same validate+normalize as the SValue GE arm — `0x00`-lead → canonical identity, non-`0x00`-lead must curve-decode or the parse throws (the serializer checks the 33-byte length, `SigmaBooleanSerializeError('ec-point-length')`). A CTHRESHOLD's `k` and child count are checked where the JVM checks them: each above 0xFFFF as it is read, and `k` against the count, and the count against 255, after the children.
 
 ### Constants
 
 | Name | Value | Meaning |
 |---|---|---|
 | `MAX_TREE_SIZE` | `1_048_576` | Max input bytes for `parseTree` (1 MB; defensive cap against adversarial input) |
+| `MAX_PROPOSITION_SIZE` | `4096` | The tree's read window (JVM `SigmaConstants.MaxPropositionBytes`): a read that begins past `start + 4096` degrades a size-flagged tree and rejects an unsized one |
 | `VERSION` | `'0.3.0'` | Package version string |
 
 ---
 
 ## Round-trip invariant
 
-For any byte sequence `b` accepted by `parseTree`:
+For any canonically encoded byte sequence `b` accepted by `parseTree`:
 
 ```
 serializeTree(parseTree(b)) === b   (byte-equal)
@@ -183,7 +217,11 @@ serializeTree(parseTree(b)) === b   (byte-equal)
 
 This holds for every ErgoTree variant the package ships. The corpus test asserts this on 255 passing fixtures plus 1 mainnet-fixture stub plus 6 fixtures flagged `known_unstable` (sigma-rust itself does not round-trip them; tracked inline in the fixture JSON).
 
-**Carve-out (2026-06-17):** a `hasSize` tree whose body parses cleanly but leaves trailing bytes inside the declared size now *parses* (the inner-trailing reject was retired — it matched neither the JVM nor sigma-rust). Such a `ParsedErgoTree` re-serializes without the trailing, so `serializeTree(parseTree(b)) ≠ b` for it. This is adversarial-only (an honest tree's declared size equals its body) and not reference-guaranteed; on the consensus box path the verbatim span is retained on `ErgoBox.ergoTreeBytes`, so boxes still round-trip. `parseTree` still rejects trailing *after* the whole tree (`'trailing-bytes'`). See `facts/ergoscript-wire.md` Round-trip Carve-out 4.
+The exceptions, all adversarial-only, are in `facts/ergoscript-wire.md` § "Round-trip invariant":
+- **Non-canonical encodings** re-serialize canonically, as the JVM's writer does: an Option tag above `0x01`, an identity GroupElement with a non-zero tail, a declared size that differs from the body, and a node read under another opcode than the one its JVM companion writes (a Boolean-constant collection read as `0x83` is written `0x85`, a method call without arguments read as `0xdc` is written `0xdb`). The JVM's pre-v3 builder also rewrites arithmetic operands (inserting and dropping `Upcast`s), which ergots does not model (residual 11). One does not: an AvlTree value's flags byte is written as received, where the JVM keeps only bits 0–2 (`facts/transaction.md` Known residual 3). The declared size does not bound the parse: a tree declaring more ("over") or fewer ("under") bytes than its body parses the whole body and re-serializes with its true size, so `09 03 08 d3` and `09 01 08 d3` both give `09 02 08 d3`. `parseTree` tolerates bytes after the parse end that lie within a size-flagged tree's declared span; a byte beyond it throws `'trailing-bytes'`.
+- **Trees that parse but cannot be written** throw from `serializeTree`, as the JVM's writer does (see `serializeTree` above).
+
+A box keeps its tree's bytes as received on `ErgoBox.ergoTreeBytes`, and every box re-serialization writes the tree re-encoded (see `boxTreeOf` / `reencodeTreeBytes` above).
 
 ---
 
@@ -192,13 +230,23 @@ This holds for every ErgoTree variant the package ships. The corpus test asserts
 ### `ErgoTree`
 
 ```ts
-interface ErgoTree {
+type ErgoTree = ParsedErgoTree | UnparsedErgoTree;   // narrow with isUnparsedTree(tree)
+
+interface ParsedErgoTree {
   header: TreeHeader;
   constantTypes: SType[];   // parallel to `constants`; required for byte-exact re-serialize
   constants: SValue[];      // empty when header.constantSegregation === false
   body: Expr;               // root expression
 }
+
+interface UnparsedErgoTree {  // a size-flagged tree that failed soft-forkably: kept, not parsed
+  header: TreeHeader;
+  unparsedBytes: Uint8Array;  // the tree's declared span as received; serializeTree writes it back
+  error: Error;               // the failure that degraded it (diagnostic only)
+}
 ```
+
+An `UnparsedErgoTree` cannot be evaluated: `evaluate` / `evaluateWith` throw `EvalError('unparsed-ergotree')`, so a box locked by one cannot be spent.
 
 ### `TreeHeader`
 
@@ -207,11 +255,11 @@ interface TreeHeader {
   version: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // bits 0..2 of rawHeader
   hasSize: boolean;                        // bit 3: VLQ-u32 body size follows
   constantSegregation: boolean;            // bit 4: segregated constants section
-  rawHeader: number;                       // original byte; derivable from the three fields above
+  rawHeader: number;                       // original byte; bits 0–4 match the fields above, bits 5–7 are free
 }
 ```
 
-`rawHeader` is the on-wire byte. The `version`, `hasSize`, `constantSegregation` fields are derived projections kept on the struct so callers don't need to re-decode bits. `serializeTree` writes `rawHeader` directly but validates that it matches the derived fields — a hand-constructed `ErgoTree` with inconsistent fields is rejected at serialize time with `'header-inconsistent'`.
+`rawHeader` is the on-wire byte. The `version`, `hasSize`, `constantSegregation` fields are derived projections kept on the struct so callers don't need to re-decode bits. `serializeTree` writes `rawHeader` as stored, bits 5–7 included (the JVM writes the header byte as stored and never inspects them), but validates that its bits 0–4 match the derived fields — a hand-constructed `ErgoTree` with inconsistent fields is rejected at serialize time with `'header-inconsistent'`.
 
 ### `SType`
 
@@ -285,7 +333,7 @@ P2SH addresses can be decoded for prefix inspection but are NOT representable as
 Every exported error class extends `Error` and carries a `.code: string` for programmatic dispatch.
 
 ```ts
-class ErgoTreeParseError        extends Error { readonly code: string }
+class ErgoTreeParseError        extends Error { readonly code: string; cause?: unknown }  // cause: the standard Error.cause
 class ErgoTreeSerializeError    extends Error { readonly code: string }
 class ExprParseError            extends Error { readonly code: string }
 class ExprSerializeError        extends Error { readonly code: string }
@@ -296,9 +344,10 @@ class SValueSerializeError      extends Error { readonly code: string }
 class SigmaBooleanParseError    extends Error { readonly code: string }
 class SigmaBooleanSerializeError extends Error { readonly code: string }
 class AddressDecodeError        extends Error { readonly code: string }
+class ExprTpeError              extends Error { readonly code: string }
 ```
 
-These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. Two typed errors that can escape are NOT root-exported: the mir-layer type-inference error `ExprTpeError` (it can still surface from `parseTree` via the inner `exprTpe` pass) and scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
+These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. The tree parse wraps two failures in an `ErgoTreeParseError` whose `cause` is the original error: a soft-forkable failure in a tree without the size flag (`'soft-fork-without-size-bit'`) and a nested tree that runs out of input while reading its constants or body, or whose degrade span runs past the end (`'nested-tree-truncated'`). The mir-layer type-inference error `ExprTpeError` is root-exported since 2026-09-28: rule 1001 lets it escape a box-rules parse (`parseErgoTreeBytes`, `parseTree(bytes, { checkType: true })`) as a hard reject. One typed error that can escape is NOT root-exported: scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
 
 ### `ErgoTreeParseError` codes
 
@@ -306,17 +355,24 @@ These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serial
 |---|---|
 | `'empty'` | Input bytes have length 0 |
 | `'oversized'` | Input bytes exceed `MAX_TREE_SIZE` |
-| `'body-size-overflow'` | Declared body size (from the `hasSize` field) exceeds remaining bytes |
-| `'too-many-constants'` | Segregated-constant count exceeds 4096 |
-| `'header-inconsistent'` | (reserved for future header-validation checks) |
+| `'trailing-bytes'` | Bytes after the parse end: after an unsized tree, or beyond a size-flagged tree's declared span (bytes within the span are tolerated). `boxTreeOf` rejects any |
+| `'body-size-overflow'` | A size-flagged tree degrades, and its declared span (`bodyPos − start + declared`, as an Int) is negative or runs past the end of the input (for a nested tree, past the end is `'nested-tree-truncated'`). A declared size is otherwise ignored |
+| `'too-many-constants'` | Segregated-constant count above 100000 (the JVM's `safeNewArray` bound); a count that wraps negative as an Int reads no constants |
 | `'header-version-requires-size'` | Tree header with version > 0 and the size bit (0x08) clear (rule-1012 `CheckHeaderSizeBit`; all 3 ingresses: main, substConstants template, box-carried script) |
+| `'soft-fork-without-size-bit'` | A tree without the size flag failed soft-forkably (for example a reserved opcode, or with `checkType` a root that is not SigmaProp); `cause` is the original error. The JVM's `SerializerException` for this case |
+| `'nested-tree-truncated'` | A nested tree (a Box constant's tree) ran out of input while reading its constants or body, or its degrade span ran past the end; `cause` is the original error. A run-out in the nested tree's header or size read is not marked |
+| `'box-context-required'` | `boxTreeOf` / `reencodeTreeBytes` on bytes that did not come through box ingest, whose nested tree ran out of input while reading its constants or body, or whose nested degrade span ran past the end: the result depends on the bytes after this tree in its box. Seed the tree, or parse the box |
+
+`'root-not-sigma-prop'` (rule 1001) never escapes on its own: it degrades a sized tree (as `UnparsedErgoTree.error`) and is the `cause` of `'soft-fork-without-size-bit'` for an unsized one.
 
 ### `ErgoTreeSerializeError` codes
 
 | Code | Meaning |
 |---|---|
-| `'header-inconsistent'` | `rawHeader` byte does not match the derived `(version, hasSize, segregation)` triple |
+| `'header-inconsistent'` | Bits 0–4 of `rawHeader` do not match the derived `(version, hasSize, segregation)` triple (bits 5–7 are written as stored, as the JVM writes them) |
 | `'constants-arity-mismatch'` | `constantTypes.length !== constants.length` |
+| `'oversized'` | The serialized tree would exceed `MAX_TREE_SIZE` |
+| `'too-many-constants'` | More than 100000 constants, the parse bound |
 
 ### `AddressDecodeError` codes
 
@@ -324,10 +380,12 @@ These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serial
 |---|---|
 | `'bad-base58'` | Input contains a non-alphabet character |
 | `'too-short'` | Decoded bytes shorter than (1-byte prefix + 4-byte checksum) minimum |
+| `'too-long'` | The address string is longer than the longest address a `MAX_TREE_SIZE` tree can make (a bound for the base58 decoder) |
 | `'checksum-mismatch'` | blake2b256-derived checksum disagrees with the trailing 4 bytes |
 | `'invalid-p2pk-length'` | P2PK content is not exactly 33 bytes |
 | `'p2sh-unsupported'` | Address type is P2SH (not representable as a parsable ErgoTree) |
 | `'unknown-type'` | Address type nibble is not P2PK (0x01), P2SH (0x02), or P2S (0x03) |
+| `'unknown-network'` | `addressFromErgoTree` was given a `network` other than `'mainnet'` / `'testnet'` |
 
 ---
 
@@ -351,7 +409,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 85 codes enumerated in `facts/ergoscript-eval.md`. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Postcondition (failure):** Throws `EvalError` with one of the 86 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped.
 - **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added `LastBlockUtxoRootHash` — the bare `0xa6` op-form parses and evaluates; cost 15 vs the PropertyCall form's 20). 21 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject (no registered serializer) for most of them. JVM 6.0.6 does parse `OpTrue`, `OpFalse` and the ModQ family (and `TaggedVariable` `0x71`); ergots rejecting them is a known residual (`facts/ergoscript-wire.md`, `'opcode-reserved'` entry). `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6. The bare `FlatMap`/`TrivialProp` opcodes joined the reserved set; their non-bare forms reach us elsewhere (`flatMap` as a method-call; the `TrivialProp` pair as a SigmaBoolean leaf inside a SigmaProp constant). Trees whose body reaches a not-yet-implemented method-call handler or one of 3 defensive `EvalError 'not-implemented-yet'` sites (`eval.ts:232`, `global-vars.ts:136`, `bin-op/bit.ts:58`) still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
@@ -406,16 +464,19 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 85 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 86 codes in facts/ergoscript-eval.md
+  cause?: unknown;        // the standard Error.cause, where an arm wraps an error
+                          // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 85 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 86 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|
 | `'not-implemented-yet'` | An `Expr` variant with no arm, or a defensive site in an arm |
 | `'cost-limit-exceeded'` | `ctx.jitCost` exceeded `jitCostLimit` after a charge |
+| `'unparsed-ergotree'` | The tree is an `UnparsedErgoTree` (a size-flagged tree that degraded, for example a box tree whose root failed rule 1001). Thrown before any work; nothing charged |
 | `'arith-overflow'` | `BinOp.Arith` result outside signed range |
 | `'arith-divide-by-zero'` | `BinOp.Arith` divide or modulo by zero |
 | `'method-not-implemented'` | `MethodCall`/`PropertyCall` hit an unregistered `(typeId, methodId)` |
@@ -523,7 +584,7 @@ function verifySignature(
 Verify a Schnorr/DH-tuple sigma-protocol proof against `message` and the proposition described by `sigmaBoolean`. Returns `true` on success, `false` on a valid rejection (invalid signature). Throws `VerifyError` on malformed proof bytes or unsupported proof structure.
 
 - **Covers:** `TrivialProp` (true/false direct), `ProveDlog` (Schnorr), `ProveDhTuple`, and compound `Cand`/`Cor`/`Cthreshold` conjecture walk via Fiat-Shamir challenge distribution.
-- **Throws:** `VerifyError` with one of 8 codes — see `facts/ergoscript-sigma.md` for the full taxonomy.
+- **Throws:** `VerifyError` with one of its 9 declared codes, 4 of which the verifier throws today (`'empty-signature'`, `'truncated-signature'`, `'cthreshold-polynomial-bytes-mismatch'`, `'invalid-sigma-tree'`) — see `facts/ergoscript-sigma.md` for the full taxonomy. A leaf point that fails decompression in a hand-built `SigmaBoolean` throws `@noble/curves`' plain `Error`.
 
 ---
 

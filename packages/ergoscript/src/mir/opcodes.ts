@@ -56,6 +56,12 @@ export const OP_CONSTANT = 0x00
 // constants for cross-referencing.
 // ---------------------------------------------------------------------------
 
+// shift 1:  TAGGED_VARIABLE. Not in sigma-rust's table and not dispatched here (an
+// 'unknown-opcode'), but the JVM still registers a serializer for it
+// (TaggedVariableSerializer, ValueSerializer.scala:94-97): one of the six opcodes of
+// residual 5 (wire/parse.ts `OPCODES_THE_JVM_PARSES`).
+export const OP_TAGGED_VARIABLE = 0x71 // 113
+
 // shift 2:  VAL_USE
 export const OP_VAL_USE = 0x72 // 114
 

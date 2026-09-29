@@ -20,6 +20,7 @@ import type { ErgoBox, SType, SValue } from '../mir/types'
 import { ByteWriter, serializeHeader } from '@ergots/scorex'
 import { serializeSType } from './serialize-stype'
 import { serializeSigmaBoolean } from './sigma-boolean'
+import { reencodeTreeBytes } from './box-tree'
 
 export class SValueSerializeError extends Error {
   constructor(
@@ -38,7 +39,9 @@ export class SValueSerializeError extends Error {
  * Fields written (sigma-rust `serialize_box_with_indexed_digests`,
  * `chain/ergo_box.rs:302-344`):
  *   value           — VLQ u64 (BoxValue, unsigned — NOT ZigZag)
- *   ergo_tree_bytes — raw bytes verbatim (self-delimiting via ErgoTree header)
+ *   ergo_tree       — the tree re-encoded, `reencodeTreeBytes(box.ergoTreeBytes)`: the JVM
+ *                     writes `serializeErgoTree(box.ergoTree)` (ErgoBoxCandidate.scala:142);
+ *                     `ergoTreeBytes` itself (R1, `propositionBytes`) stays as received
  *   creation_height — VLQ; JVM reads via `getUIntExact` (i32 ceiling, 2^31-1)
  *   tokens_count    — raw u8 (NOT VLQ), max 255 (the u8 wire ceiling; JVM
  *                     putUByte 0..255 assert, ErgoBoxCandidate.scala:144)
@@ -54,15 +57,15 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   // value (unsigned VLQ u64 — NOT ZigZag)
   w.writeVlqBigInt(box.value)
 
-  // ergoTreeBytes written verbatim (self-delimiting via ErgoTree header)
-  w.writeBytes(box.ergoTreeBytes)
+  // The JVM writes serializeErgoTree(box.ergoTree): a parsed tree re-encoded from structure
+  // (ErgoBoxCandidate.scala:142). ergoTreeBytes (R1, propositionBytes) stay as received.
+  w.writeBytes(reencodeTreeBytes(box.ergoTreeBytes))
 
   // creation_height (VLQ). Reject > Int.MaxValue (2^31-1), mirroring the parse
   // bound. The JVM SERIALIZER writes via `putUInt` (accepts full u32; only the
   // READER `getUIntExact` throws on > 0x7fffffff), but a box can never arrive
   // from a JVM-faithful parse with a height > 2^31-1, and we keep the
-  // parse/serialize bounds identical so round-trips stay stable — same
-  // serialize-symmetry rationale as the `index`/u16 cap below. (Prior bound was
+  // parse/serialize bounds identical so round-trips stay stable. (Prior bound was
   // u32, mirroring non-canonical sigma-rust `get_u32`; re-anchored to the JVM
   // `getUIntExact`, ErgoBoxCandidate.scala:195.)
   if (
@@ -134,6 +137,34 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
       serializeSValue(entry.tpe, entry.value, treeVersion, w)
     }
   }
+}
+
+/**
+ * Write the box reference that follows the body in the full `ErgoBox` format: the transaction id
+ * (32 raw bytes), then the index (`ErgoBox.sigmaSerializer.serialize`, ErgoBox.scala:204-212).
+ *
+ * The index is a JVM Short: the parser reads `getUShort()` and stores `index.toShort`
+ * (ErgoBox.scala:218, 224; `index: Short`, :56), so 0x8000-0xFFFF parse to a negative Short, and
+ * the write, `putUShort(obj.index)` (:211), rejects a negative value (scorex-util 0.2.1
+ * VLQWriter.scala:36-39). The write therefore takes [0, 0x7FFF], where the parse takes [0, 0xFFFF]:
+ * a box whose index parsed from 0x8000-0xFFFF keeps its bytes as received (`boxBytesOf`) but
+ * cannot be re-encoded. Shared by the SBox arm below and `serializeBoxBytes`.
+ */
+export function writeBoxRef(box: ErgoBox, w: ByteWriter): void {
+  if (box.txId.length !== 32) {
+    throw new SValueSerializeError(
+      `SBox txId length ${box.txId.length} must be 32`,
+      'txid-length'
+    )
+  }
+  w.writeBytes(box.txId)
+  if (!Number.isInteger(box.index) || box.index < 0 || box.index > 0x7fff) {
+    throw new SValueSerializeError(
+      `SBox index ${box.index} is outside [0, 0x7FFF], the JVM Short that putUShort writes`,
+      'sbox-index-out-of-range'
+    )
+  }
+  w.writeVlqU(box.index)
 }
 
 /**
@@ -377,39 +408,22 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //
       // Write sequence:
       //   value           — VLQ u64 (BoxValue, unsigned)
-      //   ergo_tree_bytes — raw bytes written verbatim (`write_all`)
+      //   ergo_tree       — the tree re-encoded (ErgoBoxCandidate.scala:142; see
+      //                     `writeBoxBodyWithoutRef`)
       //   creation_height — VLQ u32
       //   tokens_count    — raw u8 (NOT VLQ)
       //   per-token       — 32-byte id (raw) + VLQ u64 amount
       //   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
       //   transaction_id  — 32 raw bytes
-      //   index           — VLQ u16 (sigma-ser `put_u16` = VLQ, NOT raw BE)
+      //   index           — VLQ, the JVM's putUShort of a Short: [0, 0x7FFF] (see `writeBoxRef`)
       //
       // The first 5 fields are shared with `serializeBoxBytesWithoutRef`
-      // (used by ExtractBytesWithNoRef) via `writeBoxBodyWithoutRef`.
+      // (used by ExtractBytesWithNoRef) via `writeBoxBodyWithoutRef`, and the last two with
+      // `serializeBoxBytes` via `writeBoxRef`.
       assertKind(t, v, 'Box')
       const box = v.value
-
-      // Body fields (value + ergoTree + creation_height + tokens + registers)
       writeBoxBodyWithoutRef(box, w, treeVersion)
-
-      // transaction_id (32 raw bytes)
-      if (box.txId.length !== 32) {
-        throw new SValueSerializeError(
-          `SBox txId length ${box.txId.length} must be 32`,
-          'txid-length'
-        )
-      }
-      w.writeBytes(box.txId)
-
-      // index (VLQ u16 — sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE)
-      if (box.index < 0 || box.index > 0xffff) {
-        throw new SValueSerializeError(
-          `SBox index ${box.index} out of u16 range`,
-          'sbox-index-out-of-range'
-        )
-      }
-      w.writeVlqU(box.index)
+      writeBoxRef(box, w)
       return
     }
 
@@ -432,8 +446,18 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //   treeFlags       — single u8 (`put_u8`). Caller-supplied byte
       //                     written verbatim, including any high reserved
       //                     bits that the parser tolerated.
-      //   keyLength       — VLQ u32 (`put_u32` → `put_u64(v as u64)`).
-      //                     Bounds-checked to `[0, 2^32 - 1]`.
+      //   keyLength       — VLQ u32 on the wire (`put_u32` → `put_u64(v as u64)`),
+      //                     but bounds-checked to `[0, 2^31 - 1]` here (2026-09-28
+      //                     controller ruling; was `[0, 2^32 - 1]`). The JVM holds
+      //                     `keyLength` as an `Int` and writes it with `putUInt`
+      //                     (`AvlTreeData.scala:77`), which rejects a negative
+      //                     `Int` (`"… is out of unsigned int range"`, pinned by
+      //                     `DeserializationResilience.scala:386-395`). A value
+      //                     parsed from `[2^31, 2^32)` — the JVM's `getUInt().toInt`
+      //                     wraps it negative (`AvlTreeData.scala:84`) — can
+      //                     therefore be PARSED but not RE-ENCODED by the JVM, so
+      //                     ergots rejects it here too. See `facts/ergoscript-wire.md`
+      //                     Round-trip Carve-out 6.
       //   valueLengthOpt  — Option<Box<u32>> SigmaSerializable
       //                     (`serialization/serializable.rs:213-221`):
       //                       Some(v) → 0x01 + sigma_serialize(v as u32)
@@ -441,7 +465,9 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //                     The serializer always writes the canonical
       //                     `0x01` tag for Some (the parser is permissive
       //                     and accepts any non-zero tag, but we emit the
-      //                     canonical form so round-trips are stable).
+      //                     canonical form so round-trips are stable). The
+      //                     inner `u32` gets the SAME `[0, 2^31 - 1]` bound as
+      //                     `keyLength`, for the same reason (`AvlTreeData.scala:78, 85`).
       assertKind(t, v, 'AvlTree')
       const a = v.value
       if (!Number.isInteger(a.treeFlags) || a.treeFlags < 0 || a.treeFlags > 0xff) {
@@ -450,9 +476,9 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
           'savltree-tree-flags-out-of-range'
         )
       }
-      if (!Number.isInteger(a.keyLength) || a.keyLength < 0 || a.keyLength > 0xffffffff) {
+      if (!Number.isInteger(a.keyLength) || a.keyLength < 0 || a.keyLength > 0x7fffffff) {
         throw new SValueSerializeError(
-          `SAvlTree keyLength ${a.keyLength} out of u32 range`,
+          `SAvlTree keyLength ${a.keyLength} out of [0, 2^31) range`,
           'savltree-key-length-out-of-range'
         )
       }
@@ -465,10 +491,10 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
         if (
           !Number.isInteger(a.valueLengthOpt) ||
           a.valueLengthOpt < 0 ||
-          a.valueLengthOpt > 0xffffffff
+          a.valueLengthOpt > 0x7fffffff
         ) {
           throw new SValueSerializeError(
-            `SAvlTree valueLengthOpt ${a.valueLengthOpt} out of u32 range`,
+            `SAvlTree valueLengthOpt ${a.valueLengthOpt} out of [0, 2^31) range`,
             'savltree-value-length-out-of-range'
           )
         }

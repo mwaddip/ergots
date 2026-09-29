@@ -48,7 +48,7 @@ import {
 | `validateStateless` | function | Stateless checks (non-empty, no dup inputs, output sum no overflow) |
 | `validateStateful` | function | Full structural + per-input verify; requires `StatefulDeps` |
 | `TxParseError` | class | Typed parse / serialize error; `.code: TxParseErrorCode` |
-| `TxParseErrorCode` | type | `'trailing-bytes' \| 'token-table-index-out-of-range' \| 'count-out-of-range' \| 'extension-id-out-of-range' \| 'extension-v6-type'` |
+| `TxParseErrorCode` | type | `'trailing-bytes' \| 'token-table-index-out-of-range' \| 'count-out-of-range' \| 'extension-id-out-of-range' \| 'extension-v6-type' \| 'output-tree-not-reencodable'` |
 | `TxValidationError` | class | Typed validation error; `.code: TxValidationErrorCode`; `.location?: TxValidationLocation` |
 | `TxValidationErrorCode` | type | 21-variant union (see Error handling section) |
 | `TxValidationLocation` | type | `{ inputIndex?, outputIndex?, boxId? }` |
@@ -74,18 +74,21 @@ function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction
 
 Parse a complete `ErgoLikeTransaction` from sigma-serialized wire bytes.
 
-The bytes must contain exactly one transaction — trailing bytes throw `TxParseError('trailing-bytes')`. This is intentionally stricter than sigma-rust's `sigma_parse_bytes` (which tolerates trailing bytes), matching the JVM modifier-parse path and ergots' `parseTree` zero-trailing precedent.
+The bytes must contain exactly one transaction — trailing bytes throw `TxParseError('trailing-bytes')`. This is an envelope check of ergots' own, after its `parseTree` zero-trailing precedent, and stricter than both references: sigma-rust's `sigma_parse_bytes` and the JVM's `parseBytes` ignore bytes after the transaction.
 
-**Returns:** `ErgoLikeTransaction` satisfying all type invariants. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for all accepted inputs.
+Each output's ergoTree is parsed under the box rules (`parseErgoTreeBytes` from `@ergots/ergoscript`), on the transaction's reader, as the JVM parses a box's tree: its declared size is used only if it degrades, and rule 1001 applies. Once every output is parsed, `parseTransaction` re-encodes each output tree, as the JVM's eager transaction id does, and rejects the transaction if one cannot be written.
+
+**Returns:** `ErgoLikeTransaction` satisfying all type invariants. `serializeTransaction(parseTransaction(b))` is byte-equal to `b` for every accepted input that is canonically encoded and whose register and context-extension values can all be written. Non-canonical encodings re-serialize canonically, as the JVM's do, and an output tree whose declared size differs from its body re-serializes with its true size. Two encodings keep their received bytes where the JVM would normalize them: a Tuple-expression register and an AvlTree flags byte (`facts/transaction.md`, "Round-trip invariant" and Known residual 3). Each output's `ergoTreeBytes` keeps the tree's bytes as received.
 
 **Throws:**
 - `TxParseError('trailing-bytes')` — bytes remain after a complete transaction was parsed.
 - `TxParseError('token-table-index-out-of-range')` — an output candidate references a token-table index beyond the transaction's distinct-token table.
-- `TxParseError('count-out-of-range')` — an io count violates the `TxIoVec` / `get_u32` bounds (inputs `[1,32767]`, outputs `[1,32767]`, dataInputs `{0}∪[1,32767]`), or an input's context-extension entry-count byte is ≥ `0x80`.
+- `TxParseError('count-out-of-range')` — an io count violates the `TxIoVec` / `get_u32` bounds (inputs `[1,32767]`, outputs `[1,32767]`, dataInputs `{0}∪[1,32767]`), an input's proof is longer than `0xFFFF` bytes (the JVM's `getUShort`), or an input's context-extension entry-count byte is ≥ `0x80`.
 - `TxParseError('extension-id-out-of-range')` — an input's context-extension variable-id byte is ≥ `0x80` (see `SpendingProof`).
 - `TxParseError('extension-v6-type')` — an input's context-extension value has a type containing `Option`, `Header` or `UnsignedBigInt` (see `SpendingProof`).
+- `TxParseError('output-tree-not-reencodable')` — an output tree parses but cannot be written back, for example one holding a 1-item tuple type or a FuncValue argument id of 2^31 or more; the write error is the `cause`. The JVM rejects such a transaction at parse. This check runs once every output is parsed, before the `'trailing-bytes'` check.
 - `ReaderError` (from `@ergots/scorex`) for truncated / malformed VLQ bytes, or `'max-tree-depth-exceeded'` for a context-extension value nested deeper than the JVM allows.
-- Inner ergoscript parse errors if a candidate's ergoTree or register bytes are malformed.
+- Inner ergoscript errors if a candidate's ergoTree or register bytes are malformed or fail the box rules, unwrapped: for example `ErgoTreeParseError('soft-fork-without-size-bit')` for an unsized output tree whose root is not SigmaProp, or `ExprTpeError` for a root type the JVM cannot build.
 
 ---
 
@@ -97,9 +100,9 @@ function serializeTransaction(tx: ErgoLikeTransaction): Uint8Array
 
 Serialize an `ErgoLikeTransaction` to sigma wire bytes. Enforces all io-count bounds — it is safe to call on a programmatically-constructed transaction and rely on it to reject invalid counts.
 
-**Returns:** `Uint8Array` byte-equal to the JVM sigma-state serializer's output for the same transaction.
+**Returns:** `Uint8Array` byte-equal to the JVM sigma-state serializer's output for the same transaction. Each output's tree is written re-encoded (`reencodeTreeBytes` from `@ergots/ergoscript`), as the JVM's candidate serializer writes it: a parsed tree from its structure, with its true size, and an unparsed one as received.
 
-**Throws:** `TxParseError('count-out-of-range')` when io counts or the distinct-token table exceed their bounds, or an input's context extension holds more than 127 entries.
+**Throws:** `TxParseError('count-out-of-range')` when io counts or the distinct-token table exceed their bounds, an input's proof is longer than `0xFFFF` bytes, or an input's context extension holds more than 127 entries. The write errors of a value or tree that cannot be written propagate unwrapped. For an output tree that happens only for a constructed candidate, whose tree is parsed under the box rules on first use; a transaction from `parseTransaction` has re-encodable output trees. A register or context-extension value that cannot be written (for example of a 1-item tuple type) throws whether the transaction was parsed or constructed.
 
 ---
 
@@ -111,7 +114,7 @@ function signingMessage(tx: ErgoLikeTransaction): Uint8Array
 
 Produce the Fiat–Shamir signing message: the full transaction envelope with every input's proof replaced by an empty proof. The empty proof serializes as `VLQ(0)` (one zero byte for the length, then no proof bytes) — the field is NOT omitted; the explicit zero-length VLQ is load-bearing for the blake2b256 txId hash.
 
-This is the exact value sigma-rust's `bytes_to_sign` produces.
+This is the exact value sigma-rust's `bytes_to_sign` produces for canonical trees. Output trees are written re-encoded, as in `serializeTransaction` and as the JVM's `bytesToSign` writes them, so an output tree whose declared size differs from its body gives the same signing message, and the same transaction id, as its canonical twin.
 
 **Throws:** Same shape as `serializeTransaction`.
 
@@ -175,21 +178,21 @@ interface StateContext {
 ```
 
 **Rule set (in order):**
-1. Input/data-input box provisioning (count + computed box id).
+1. Input/data-input box provisioning: the count, and each box's id, `boxIdOf(box)` from `@ergots/ergoscript`, which hashes a parsed box's bytes as received, as the JVM's `ErgoBox.id` does.
 2. Input value sum no-overflow.
 3. Value conservation (`Σ inputs === Σ outputs`).
-4. Per-output well-formedness: dust, future height, monotonic height (post-v3), negative height (post-v1), box/script size ≤ 4096.
+4. Per-output well-formedness: dust, future height, monotonic height (post-v3), negative height (post-v1), box/script size ≤ 4096. The box size (for the dust minimum and the size cap) is the output box's serialization, with its tree re-encoded; the script size is the tree's bytes as received.
 5. Token conservation: amount overflow, not-conserved, invalid minted token.
 6. Init/structural cost (block units) seeds the cumulative block-cost accumulator (`runningBlock`); reject if it alone exceeds `maxBlockCost`.
 7. Per-input (block-cost, JVM-faithful), either:
-   - **Storage rent** (the rent branch of the JVM's `ErgoInterpreter.verify`, ergo v6.0.6). It applies when the box is at least 1,051,200 blocks old, the proof is empty, and the extension holds var 127. If var 127 is not a `Short` or does not index an output, the input falls back to the script path. Otherwise `checkExpiredBox`'s verdict is final: false throws `script-reduced-false` without consulting the script; true costs 50 block units (then `runningBlock > maxBlockCost` rejects). The recreation's registers are compared as the JVM compares stored register nodes: a Box-valued register by the nested box's id over its original bytes, and a `Tuple` expression never equal to a Constant. The storage fee is `storageFeeFactor × box bytes` as a 32-bit `Int` product, so it wraps for boxes of 1718 bytes and more at the default factor, as in the JVM.
-   - **Script:** parse → evaluate → `SigmaProp` check → accumulate `floor(evalJit/10) + floor(estimateCryptoCost(result.value)/10)` (reject if `runningBlock > maxBlockCost`) → `verifySignature`.
+   - **Storage rent** (the rent branch of the JVM's `ErgoInterpreter.verify`, ergo v6.0.6). It applies when the box is at least 1,051,200 blocks old, the proof is empty, and the extension holds var 127. If var 127 is not a `Short` or does not index an output, the input falls back to the script path. Otherwise `checkExpiredBox`'s verdict is final: false throws `script-reduced-false` without consulting the script; true costs 50 block units (then `runningBlock > maxBlockCost` rejects). The recreation's registers are compared as the JVM compares stored register nodes: a Box-valued register by the nested box's id over its original bytes, and a `Tuple` expression never equal to a Constant. The storage fee is `storageFeeFactor × box bytes` as a 32-bit `Int` product, so it wraps for boxes of 1718 bytes and more at the default factor, as in the JVM. The box bytes are `boxBytesOf(box)`: a parsed box's bytes as received, as the JVM's `ErgoBox.bytes`.
+   - **Script:** the box's tree under the box rules (`boxTreeOf(box.ergoTreeBytes)`, the tree its ingest parsed) → evaluate → `SigmaProp` check → accumulate `floor(evalJit/10) + floor(estimateCryptoCost(result.value)/10)` (reject if `runningBlock > maxBlockCost`) → `verifySignature`. A tree that degraded, for example one whose root rule 1001 failed, cannot be evaluated: the spend rejects with `EvalError('unparsed-ergotree')`, as in the JVM.
 
 **Errors surface unwrapped:** Only the validator's own structural verdicts are `TxValidationError`. `EvalError` (incl. `'cost-limit-exceeded'` fired during eval), `VerifyError`, and wire-parse errors propagate as-is. See the "Error handling" section.
 
 **Returns:** `undefined` on success.
 
-**Throws:** `TxValidationError` (structural); `EvalError` (script eval / cost overrun); `VerifyError` (crypto layer); `ReaderError` / ergoscript parse errors (malformed ergoTree bytes).
+**Throws:** `TxValidationError` (structural); `EvalError` (script eval / cost overrun, or `'unparsed-ergotree'`); `VerifyError` (crypto layer); `ReaderError` / ergoscript parse and serialize errors (malformed ergoTree bytes, or a value that cannot be written; see "Unwrapped errors").
 
 ---
 
@@ -215,7 +218,8 @@ for (const out of tx.outputCandidates) {
   console.log('  value:', out.value, 'nanoErg, tokens:', out.tokens.length);
 }
 
-// Re-serialize — byte-identical to txBytes.
+// Re-serialize — byte-identical to txBytes when they are canonically encoded
+// (an output tree whose declared size is wrong is written with its true size).
 const reBytes = serializeTransaction(tx);
 console.log('round-trip ok:', reBytes.every((b, i) => b === txBytes[i]));
 ```
@@ -355,7 +359,8 @@ export interface DataInput {
 ```ts
 export interface ErgoBoxCandidate {
   value: bigint;                // nanoErg; u64 on wire
-  ergoTreeBytes: Uint8Array;    // verbatim self-delimiting wire span
+  ergoTreeBytes: Uint8Array;    // the tree's bytes as received (R1, propositionBytes), declared size
+                                // included; serialization writes the tree re-encoded
   creationHeight: number;       // u32 on wire
   tokens: { id: Uint8Array; amount: bigint }[];  // id 32 bytes; amount u64
   registers: Record<number, { tpe: SType; value: SValue; opaqueBytes?: Uint8Array }>;
@@ -375,22 +380,25 @@ Typed parse / serialize error (phase 1).
 ```ts
 class TxParseError extends Error {
   readonly code: TxParseErrorCode;
+  // cause?: unknown — the standard Error.cause; set for 'output-tree-not-reencodable'
 }
 type TxParseErrorCode =
   | 'trailing-bytes'
   | 'token-table-index-out-of-range'
   | 'count-out-of-range'
   | 'extension-id-out-of-range'
-  | 'extension-v6-type';
+  | 'extension-v6-type'
+  | 'output-tree-not-reencodable';
 ```
 
 | Code | When |
 |---|---|
-| `'trailing-bytes'` | Bytes remain after a structurally complete transaction was parsed. Parse only. |
+| `'trailing-bytes'` | Bytes remain after a structurally complete transaction was parsed. An envelope check of ergots' own: the JVM and sigma-rust ignore trailing bytes. Parse only. |
 | `'token-table-index-out-of-range'` | An output candidate references a token-table index beyond the transaction's distinct-token table. Parse only. |
-| `'count-out-of-range'` | inputs/outputCandidates outside `[1, 32767]`; dataInputs outside `{0}∪[1, 32767]`; distinct-token count > 65535×255; a context-extension entry count ≥ 128 (count byte ≥ `0x80` on parse, more than 127 entries on serialize). Parse and serialize. |
+| `'count-out-of-range'` | inputs/outputCandidates outside `[1, 32767]`; dataInputs outside `{0}∪[1, 32767]`; distinct-token count > 65535×255; an input's proof longer than `0xFFFF` bytes; a context-extension entry count ≥ 128 (count byte ≥ `0x80` on parse, more than 127 entries on serialize). Parse and serialize. |
 | `'extension-id-out-of-range'` | A context-extension variable-id byte is ≥ `0x80`. Parse only. |
 | `'extension-v6-type'` | A context-extension value's type contains `Option`, `Header` or `UnsignedBigInt` (rule-1019 `CheckV6Type`). Parse only. |
+| `'output-tree-not-reencodable'` | An output tree parsed but cannot be written back; `cause` is the write error. The JVM rejects such a transaction at parse, since its transaction id writes every output tree. Parse only. |
 
 ```ts
 try {
@@ -412,6 +420,9 @@ try {
         break;
       case 'extension-v6-type':
         console.error('context-extension value of a v6-only type');
+        break;
+      case 'output-tree-not-reencodable':
+        console.error('an output tree cannot be written back:', e.cause);
         break;
     }
   }
@@ -469,10 +480,11 @@ type TxValidationErrorCode =
 
 | Error class | Source | When |
 |---|---|---|
-| `EvalError` | `@ergots/ergoscript` | Script evaluation failure; includes `'cost-limit-exceeded'` for per-input cost overrun |
+| `EvalError` | `@ergots/ergoscript` | Script evaluation failure; includes `'cost-limit-exceeded'` for per-input cost overrun, and `'unparsed-ergotree'` for an input box whose tree degraded |
 | `VerifyError` | `@ergots/ergoscript` | Sigma proof structure error (distinct from `script-reduced-false`) |
 | `ReaderError` | `@ergots/scorex` | Truncated / malformed VLQ in ergoTree bytes |
-| `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` | `@ergots/ergoscript` | Malformed ergoTree or register bytes in an input box |
+| `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` | `@ergots/ergoscript` | Malformed ergoTree or register bytes in a box whose tree `boxTreeOf` parses on a cache miss (a box not parsed by `@ergots/ergoscript`), including `ErgoTreeParseError('box-context-required')` and `'trailing-bytes'` |
+| `ErgoTreeSerializeError` / `ExprSerializeError` / `STypeSerializeError` / `SValueSerializeError` / `SigmaBooleanSerializeError` | `@ergots/ergoscript` | A tree or value that cannot be written: a constructed output's tree (the size checks, the signing message), a register or context-extension value of a parsed or constructed transaction, or the tree of an input box that carries no bytes as received |
 
 ---
 
@@ -482,7 +494,7 @@ type TxValidationErrorCode =
 - **`bigint` for `value` and token `amount`.** Both are u64 on the wire; JS `Number` cannot hold the full u64 range.
 - **No async surface.** Every function is synchronous.
 - **No I/O, no globals.** Pure functions: same inputs always produce the same output.
-- **Round-trip invariant.** `serializeTransaction(parseTransaction(b)) === b` (byte-equal) for all accepted inputs.
+- **Round-trip invariant.** `serializeTransaction(parseTransaction(b)) === b` (byte-equal) for every accepted input that is canonically encoded and whose register and context-extension values can all be written (see `parseTransaction`).
 
 ---
 

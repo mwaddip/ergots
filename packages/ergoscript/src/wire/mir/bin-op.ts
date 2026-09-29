@@ -12,18 +12,20 @@
  * sub-kind. The mapping is captured by {@link BIN_OP_OPCODE_TO_KIND} (parse)
  * and {@link binOpKindToOpcode} (serialize).
  *
- * Bool-pair packing optimization (sigma-rust `bin_op_sigma_serialize`):
- * when BOTH operands are `Const(SBoolean, _)`, sigma-rust emits a single
- * `OP_COLL_OF_BOOL_CONST` byte followed by 1 packed byte with 2 LSB-first
- * bits (rather than two full `Const` encodings, which would be
- * `0x01 [b0] 0x01 [b1]` = 4 bytes). On parse, after consuming the BinOp
- * opcode the parser peeks the next byte — if it's `OP_COLL_OF_BOOL_CONST`
- * it takes the fast path; otherwise the peeked byte is the first byte of
- * the left operand and is fed back into the central Expr dispatch via
- * {@link parseExprWithFirstByte}. We mirror this exactly to preserve
- * byte-for-byte round-trip equivalence with sigma-rust output (the
- * `regression_249` test in `mir/bin_op.rs` confirms `true && true`
- * encodes as `[0xed, 0x85, 0x03]`).
+ * Packed Boolean pair: only the JVM's nine Relation2 opcodes use it — GT, GE,
+ * LT, LE, EQ, NEQ, BinOr, BinAnd, BinXor (`ValueSerializer.scala:48-58`,
+ * `trees/Relation2Serializer.scala:21-52`), here the `Relation` and `Logical`
+ * kinds. When BOTH operands are `Const(SBoolean, _)`, Relation2 writes
+ * `OP_COLL_OF_BOOL_CONST` (0x85) and one byte carrying the two values as
+ * LSB-first bits, instead of two full `Const` encodings (`0x01 [b0] 0x01 [b1]`);
+ * `true && true` encodes as `[0xed, 0x85, 0x03]`. On parse, Relation2 peeks the
+ * next byte with no window check: on 0x85 it consumes it and reads the packed
+ * byte, otherwise it reads two full values. The `Arith` and `Bit` kinds use
+ * `TwoArgumentsSerializer` (`TwoArgumentsSerializer.scala:15-25`): no packing
+ * and no lookahead, so a 0x85 after one of their opcodes begins a
+ * `Coll[Boolean]` operand. sigma-rust packs and peeks for every BinOp kind
+ * (`bin_op_sigma_parse`); ergots follows the JVM, so do not align this with
+ * sigma-rust.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/bin_op.rs
@@ -41,11 +43,8 @@ import type {
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { ExprParseError, ExprSerializeError } from '../errors'
 import * as OP from '../../mir/opcodes'
-// Forward import for recursive descent — see comment in val-def.ts. Plus
-// `parseExprWithFirstByte` which is needed because the BinOp parser peeks
-// the next byte to detect the bool-pair fast path and must feed it back
-// into Expr dispatch when the fast path doesn't trigger.
-import { parseExpr, parseExprWithFirstByte } from '../parse'
+// Forward import for recursive descent — see comment in val-def.ts.
+import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 
 /**
@@ -145,17 +144,23 @@ export function binOpKindToOpcode(k: BinOpKind): number {
  * by the dispatcher and is passed in as `opcode` — it carries the kind
  * discriminator.
  *
- * After the opcode, sigma-rust peeks the NEXT byte:
- *   - if it's `OP_COLL_OF_BOOL_CONST` (0x85), the two operands are encoded
- *     as a 2-bit packed `Const(SBoolean)` pair (LSB-first).
- *   - otherwise the bytes encode two normal `Expr` nodes back-to-back, with
- *     the peeked byte being the first byte of the left operand.
+ * The operands are read as the serializer the JVM registers for the opcode
+ * reads them (`ValueSerializer.scala:48-75`):
+ *   - Relation2 (the `Relation` and `Logical` kinds,
+ *     `trees/Relation2Serializer.scala:40-52`) peeks the next byte with no
+ *     window check. On `OP_COLL_OF_BOOL_CONST` (0x85) it consumes that byte
+ *     and reads one packed byte: two `Const(SBoolean)` operands, bit 0 the
+ *     left, bit 1 the right. Otherwise it reads two full values.
+ *   - TwoArguments (the `Arith` and `Bit` kinds,
+ *     `TwoArgumentsSerializer.scala:21-25`) reads two full values, with no
+ *     lookahead.
  *
- * Mirrors sigma-rust's `bin_op_sigma_parse` in
- * `serialization/bin_op.rs:47-123` (minus the v3-Upcast-reinsertion logic
- * gated on `tree_version() < V3` — that's a higher-layer semantic mapping
- * concern, not a wire-format concern, and our package does not yet model
- * tree versions per-parse).
+ * For a pre-v3 tree the JVM's deserialization builder also inserts `Upcast`
+ * nodes when the two operands have different numeric types (`applyUpcast`,
+ * `SigmaBuilder.scala:674-683`, applied by the deserialization builder only
+ * below v3, `:750-764`). The parse does not; the evaluator coerces such
+ * operands instead (`eval/bin-op/arith.ts`, `eval/bin-op/relation.ts`), and the
+ * re-encoding does not write the inserted nodes (residual 11).
  */
 export function parseBinOpFromByte(
   opcode: number,
@@ -176,39 +181,18 @@ export function parseBinOpFromByte(
     )
   }
 
-  // Peek the next byte (sigma-rust: `let tag = r.get_u8()?` then conditional
-  // on COLL_OF_BOOL_CONST). We consume it unconditionally and either
-  // (a) take the bool-pair fast path, or (b) treat it as the first byte of
-  // the left operand and dispatch via parseExprWithFirstByte.
-  const tag = r.readU8()
-  if (tag === OP.OP_COLL_OF_BOOL_CONST) {
-    // LSB-first bit packing: bit 0 = left, bit 1 = right. Mirrors
-    // sigma-rust's `BitVec<u8, Lsb0>::from_vec` decode in `get_bits(2)`.
+  // Relation2Serializer (trees/Relation2Serializer.scala:40-52) serves only GT, GE, LT, LE, EQ, NEQ,
+  // BinOr, BinAnd, BinXor (ValueSerializer.scala:48-58): peek (no window check); on 0x85 skip it
+  // (getByte) and read a packed pair (getBits(2), one checked byte); else two full values.
+  if ((kind.kind === 'Relation' || kind.kind === 'Logical') && r.peekU8() === OP.OP_COLL_OF_BOOL_CONST) {
+    r.readU8()
     const packed = r.readU8()
-    const left: Expr = {
-      tag: 'Const',
-      tpe: { tag: 'SBoolean' },
-      value: { kind: 'Boolean', value: (packed & 0x01) !== 0 },
-    }
-    const right: Expr = {
-      tag: 'Const',
-      tpe: { tag: 'SBoolean' },
-      value: { kind: 'Boolean', value: (packed & 0x02) !== 0 },
-    }
+    const left: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: (packed & 0x01) !== 0 } }
+    const right: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: (packed & 0x02) !== 0 } }
     return { tag: 'BinOp', op: kind, left, right }
   }
-
-  // Not the bool-pair shape. The peeked byte is the first byte of the left
-  // operand — route it through the central Expr dispatch via
-  // parseExprWithFirstByte. Right operand follows as a normal Expr.
-  const left = parseExprWithFirstByte(
-    tag,
-    r,
-    constantTypes,
-    constantValues,
-    valDefTypes,
-    treeVersion
-  )
+  // TwoArgumentsSerializer (TwoArgumentsSerializer.scala:21-25), and Relation2's general case.
+  const left = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const right = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'BinOp', op: kind, left, right }
 }
@@ -216,14 +200,13 @@ export function parseBinOpFromByte(
 /**
  * Serialize a `BinOp`. Emits the BinOpKind-derived opcode byte first, then
  * either:
- *   (a) the bool-pair packed shape if BOTH operands are `Const(SBoolean)`:
+ *   (a) for the `Relation` and `Logical` kinds (the JVM's Relation2) when BOTH
+ *       operands are `Const(SBoolean)`, the packed pair:
  *       `[opcode][OP_COLL_OF_BOOL_CONST][packed byte]`, or
  *   (b) the two operands as full Expr encodings:
  *       `[opcode][left Expr][right Expr]`.
  *
- * Mirrors sigma-rust's combined `op_code.sigma_serialize` +
- * `bin_op_sigma_serialize` flow at `serialization/expr.rs:269-272`. Unlike
- * sigma-rust we do NOT consult a constant store / placeholder shape on
+ * We do NOT consult a constant store / placeholder shape on
  * either operand — our serializer doesn't model the constant-store-mutating
  * write path used by `SigmaByteWriter` with segregation enabled (see the
  * design spec's "no constant store on write" decision).
@@ -232,10 +215,12 @@ export function serializeBinOp(b: BinOp, w: ByteWriter, treeVersion: number): vo
   const opcode = binOpKindToOpcode(b.op)
   w.writeU8(opcode)
 
-  // Bool-pair packing: both operands are `Const(SBoolean, Boolean ...)`.
-  // Mirrors sigma-rust's `bin_op_sigma_serialize` (`serialization/bin_op.rs:24-39`):
-  // `match (*bin_op.clone().left, *bin_op.clone().right) { (Expr::Const(_:SBoolean), Expr::Const(_:SBoolean)) => ... }`.
+  // Packed Boolean pair, for Relation2's opcodes only (the `Relation` and `Logical` kinds):
+  // JVM Relation2Serializer.serialize (trees/Relation2Serializer.scala:21-37) packs when both
+  // operands are `Constant`s of type SBoolean. TwoArgumentsSerializer.serialize
+  // (TwoArgumentsSerializer.scala:15-19) always writes two full values.
   if (
+    (b.op.kind === 'Relation' || b.op.kind === 'Logical') &&
     b.left.tag === 'Const' &&
     b.left.tpe.tag === 'SBoolean' &&
     b.left.value.kind === 'Boolean' &&

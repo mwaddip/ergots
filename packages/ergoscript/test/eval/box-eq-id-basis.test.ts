@@ -35,8 +35,9 @@ import type { ErgoBox, SValue } from '../../src/mir/types'
 function identityGeBox(): ErgoBox {
   return {
     value: 1000000n,
-    // Minimal ErgoTree: header=0x00 (hasSize=false, no segregation), body = Height global (0xa3) — a minimal valid root Expr.
-    ergoTreeBytes: new Uint8Array([0x00, 0xa3]),
+    // Minimal box ErgoTree: header=0x00 (hasSize=false, no segregation), body = sigmaProp(true) (`08 d3`).
+    // The root must type as SigmaProp: box ingest applies rule 1001 (ErgoBoxCandidate.scala:194).
+    ergoTreeBytes: new Uint8Array([0x00, 0x08, 0xd3]),
     registers: {
       4: {
         tpe: { tag: 'SGroupElement' },

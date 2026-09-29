@@ -38,11 +38,21 @@ Inspect the dry-run tarball listing:
 
 `@ergots/ergoscript` declares `@ergots/avltree: "0.2.0"` as a runtime dependency. **Bumping avltree without simultaneously updating the dep range in ergoscript breaks the workspace alias.** Bump both together when the avltree API changes.
 
+**Release-time step, open as of 2026-09-29:** that pin is out of step. ergoscript still declares avltree `0.2.0`, while the workspace avltree is `0.4.0` (published), and ergoscript's tests run against the workspace's `0.4.0` through the root `node_modules` link. A published ergoscript would depend on avltree `0.2.0`, and a fresh `npm install` may resolve that version for it instead of the workspace link. Before releasing ergoscript, set the pin to exactly the avltree version its tests pass against, run `npm install`, and rerun the gates. The pin is left unchanged until then.
+
 `@ergots/transaction` pins `@ergots/ergoscript` and `@ergots/scorex` exactly, and tsup leaves both external, so the published transaction imports whatever the registry holds at those versions. When transaction starts using a new export of either, as it did with ergoscript's `violatesCheckV6Type` and `sValueStructuralEq` (2026-09-27), publishing transaction alone breaks it at module load. Release in dependency order:
 
 1. Bump the dependency (e.g. ergoscript: `package.json`, the `VERSION` constant in `src/index.ts`, `API.md`, the `facts/` version lines), build, test and publish it.
 2. Update transaction's pin to exactly that version and bump transaction itself. A new error code breaks consumers' exhaustive `switch`es, so it is a minor bump.
 3. `npm install` so the workspace link resolves again, then `npm run build`, `npm test`, `npm pack --dry-run --workspace @ergots/transaction`, and publish.
+
+The same holds between ergoscript and scorex: ergoscript pins `@ergots/scorex` exactly and imports it at module load. The sized-tree work (spec `docs/specs/2026-09-28-sized-tree-declared-size-design.md`) crosses all three packages, so release it in the order **scorex → ergoscript → transaction**:
+
+1. **scorex.** `ByteReader` gains `peekU8`, the `position` setter and the negative `readBytes` guard, `ReaderError` gains `'position-out-of-range'`, `parseHeader` takes the `validatePoint` option, and `parseAutolykosSolution` takes an optional `validatePoint` parameter. The new code makes it a minor bump. Build, test and publish it.
+2. **ergoscript.** Its tree parse calls `peekU8` and the `position` setter, so pin scorex to exactly the version from step 1. It gains exports (`boxTreeOf`, `reencodeTreeBytes`, `seedBoxTree`, `boxBytesOf`, `boxIdOf`, `ExprTpeError`, `MAX_PROPOSITION_SIZE`, the `ParseTreeOptions` type) and error codes, so it is a minor bump. Build, test and publish it.
+3. **transaction.** It imports `boxTreeOf`, `reencodeTreeBytes`, `boxIdOf` and `boxBytesOf` from ergoscript, and its context-extension read calls scorex's `peekU8`, so pin both to exactly the versions from steps 1 and 2. `TxParseError` gains `'output-tree-not-reencodable'`, so it is a minor bump. Then follow step 3 of the list above.
+
+`@ergots/nipopow` pins scorex too. It uses none of the new scorex surface (it calls `parseHeader` without `validatePoint`), but when scorex's version moves, its pin must move with it, as for avltree above.
 
 ## CI gate (future)
 
