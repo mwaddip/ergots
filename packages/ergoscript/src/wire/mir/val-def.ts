@@ -143,11 +143,13 @@ export function parseValDef(
  * (no `tpeArgs`) emits `id` then `rhs` directly — byte-identical to pre-P6.
  */
 export function serializeValDef(d: ValDef, w: ByteWriter, treeVersion: number): void {
-  // Symmetric to the parse bound (REL-WIRE-ID-01): locally-constructed MIR with
-  // id > Int.MaxValue would serialize to bytes the JVM rejects at getUIntExact.
-  if (d.id > 0x7fffffff) {
+  // Symmetric to the parse bound (REL-WIRE-ID-01): the id is a JVM Int that getUIntExact
+  // gave, in [0, Int.MaxValue]. Locally-constructed MIR with any other id (above
+  // Int.MaxValue, negative, or no integer) would serialize to bytes the JVM rejects, or not
+  // serialize at all.
+  if (!Number.isInteger(d.id) || d.id < 0 || d.id > 0x7fffffff) {
     throw new ExprSerializeError(
-      `ValDef(id=${d.id}): id exceeds Int.MaxValue (0x7fffffff) — JVM getUIntExact bound`,
+      `ValDef(id=${d.id}): id outside [0, Int.MaxValue (0x7fffffff)] — JVM getUIntExact bound`,
       'val-def-id-out-of-range'
     )
   }

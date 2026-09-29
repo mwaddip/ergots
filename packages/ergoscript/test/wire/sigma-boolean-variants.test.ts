@@ -223,6 +223,19 @@ describe('CTHRESHOLD in the JVM order (SigmaBoolean.scala:94-100, :223)', () => 
   it('more than 255 children rejects after the children', () => {
     expect(codeOf([0x98, 0x01, 0x80, 0x02, ...new Array(256).fill(0xd3)])).toBe('arity-out-of-range')
   })
+  it('255 children, the bound itself, parse and round-trip', () => {
+    const bytes = Uint8Array.from([0x98, 0x01, 0xff, 0x01, ...new Array(255).fill(0xd3)])
+    const sb = parseSigmaBoolean(new ByteReader(bytes))
+    expect(sb.tag === 'Cthreshold' && sb.items.length).toBe(255)
+    const w = new ByteWriter()
+    serializeSigmaBoolean(sb, w)
+    expect(Array.from(w.toBytes())).toEqual(Array.from(bytes))
+  })
+  it('a hand-built CTHRESHOLD with more than 255 children does not serialize (the JVM require, :223)', () => {
+    const items: SigmaBoolean[] = new Array(256).fill({ tag: 'TrivialProp', value: true })
+    expect(() => serializeSigmaBoolean({ tag: 'Cthreshold', k: 1, items }, new ByteWriter()))
+      .toThrow(expect.objectContaining({ name: 'SigmaBooleanSerializeError', code: 'arity-out-of-range' }))
+  })
 
   // Ruling (task-4B, "Context the brief cannot know", 2026-09-28): ergots' own
   // stricter-than-JVM k < 1 check is placed AFTER the children are read, not

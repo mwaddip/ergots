@@ -55,7 +55,9 @@ export class SigmaBooleanParseError extends Error {
  *
  * Error codes:
  *  - 'ec-point-length'            — ProveDlog.h or ProveDhTuple.{g,h,u,v} length ≠ 33 bytes
- *  - 'arity-out-of-range'         — Cand/Cor/Cthreshold items.length out of [1, 0xffff]
+ *  - 'arity-out-of-range'         — Cand/Cor/Cthreshold items.length out of [1, 0xffff], or a
+ *                                   Cthreshold's above 255 (the JVM's CTHRESHOLD require,
+ *                                   SigmaBoolean.scala:223, which a JVM node always passes)
  *  - 'cthreshold-k-out-of-range'  — Cthreshold k out of [1, items.length] or > 0xff
  *  - 'unreachable'                — exhaustiveness guard fired (should never happen in practice)
  */
@@ -75,7 +77,9 @@ export class SigmaBooleanSerializeError extends Error {
  *
  * Error codes:
  *  - 'unknown-opcode'                — opcode byte not in the sigma table
- *  - 'arity-out-of-range'            — items_count > u16 max
+ *  - 'arity-out-of-range'            — items_count > u16 max, checked as it is read; or a
+ *                                      Cthreshold with more than 255 children, checked after
+ *                                      them (the JVM's CTHRESHOLD require, SigmaBoolean.scala:223)
  *  - 'cthreshold-k-out-of-range'     — k outside [1, items.length]
  *  - 'sigma-conjecture-empty-items'  — items.length < 1 (BoundedVec lower bound)
  *  - 'ec-point-invalid'              — ProveDlog.h or ProveDhTuple.{g,h,u,v} is not a
@@ -263,7 +267,9 @@ export function serializeSigmaBoolean(sb: SigmaBoolean, w: ByteWriter): void {
       for (const item of sb.items) serializeSigmaBoolean(item, w)
       return
     case 'Cthreshold':
-      if (sb.items.length < 1 || sb.items.length > 0xffff) {
+      // CTHRESHOLD's require(children.length <= 255) (SigmaBoolean.scala:223): no JVM node has
+      // more, and the parse rejects more.
+      if (sb.items.length < 1 || sb.items.length > 255) {
         throw new SigmaBooleanSerializeError(
           `Cthreshold items.length=${sb.items.length} out of range`,
           'arity-out-of-range'

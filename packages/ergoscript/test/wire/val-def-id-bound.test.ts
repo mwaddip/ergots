@@ -81,4 +81,17 @@ describe('ValDef.id Int.MaxValue bound (REL-WIRE-ID-01)', () => {
   it('serializeExpr accepts a locally-built ValDef.id = 0x7fffffff', () => {
     expect(() => serializeExpr(block(0x7fffffff), new ByteWriter(), 0)).not.toThrow()
   })
+
+  it('serializeExpr rejects a locally-built ValDef.id that is negative or no integer, as a JVM Int getUIntExact cannot give', () => {
+    for (const id of [-1, 1.5]) {
+      let err: unknown
+      try {
+        serializeExpr(block(id), new ByteWriter(), 0)
+      } catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(ExprSerializeError)
+      expect((err as ExprSerializeError).code).toBe('val-def-id-out-of-range')
+    }
+  })
 })

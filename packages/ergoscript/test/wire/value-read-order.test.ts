@@ -21,6 +21,19 @@ describe('value reads: depth, then peek, then the checked read', () => {
     r.positionLimit = -1
     expect(codeOf(() => expr(r))).toBe('max-tree-depth-exceeded')
   })
+  it('at the depth cap with no input left, the depth error comes before the peek', () => {
+    const r = new ByteReader(new Uint8Array(0))
+    for (let i = 0; i < 110; i++) r.enterDepth()
+    expect(codeOf(() => expr(r))).toBe('max-tree-depth-exceeded')
+  })
+  it('one level below the cap: an arithmetic op reads its operand (depth error), Relation2 peeks first (truncated)', () => {
+    const plus = new ByteReader(hex('9a'))
+    for (let i = 0; i < 109; i++) plus.enterDepth()
+    expect(codeOf(() => expr(plus))).toBe('max-tree-depth-exceeded')
+    const eq = new ByteReader(hex('93'))
+    for (let i = 0; i < 109; i++) eq.enterDepth()
+    expect(codeOf(() => expr(eq))).toBe('truncated')
+  })
   it('at the end of the input past the window, the peek fails first (truncated)', () => {
     const r = new ByteReader(hex('04')); r.readU8(); r.positionLimit = 0
     expect(codeOf(() => expr(r))).toBe('truncated')
@@ -45,6 +58,15 @@ describe('the 0x85 lookahead belongs to Relation2 only', () => {
     const r = new ByteReader(hex('9a8502030402'))
     const e = expr(r) as unknown as { tag: string; left: { tag: string } }
     expect(e.tag).toBe('BinOp')
+    expect(e.left.tag).toBe('Collection')
+    expect(r.position).toBe(6)
+  })
+  it('BitXor then 0x85 reads a whole Coll[Boolean] operand', () => {
+    // f5 BitXor | 85 02 03 (Coll[Boolean] of 2: true, true) | 04 02 (Int 1)
+    const r = new ByteReader(hex('f58502030402'))
+    const e = expr(r) as unknown as { tag: string; op: { kind: string }; left: { tag: string } }
+    expect(e.tag).toBe('BinOp')
+    expect(e.op.kind).toBe('Bit')
     expect(e.left.tag).toBe('Collection')
     expect(r.position).toBe(6)
   })
