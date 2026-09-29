@@ -205,10 +205,7 @@ export class BatchAVLProver {
    * Build prover-specific callbacks for the shared mutation engine.
    * Closes over mutable prover state (directions, found, replayIndex, etc.).
    */
-  private buildCallbacks(
-    _op: Operation,
-    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
-  ): AvlTreeOpsCallbacks {
+  private buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
     const self = this
     return {
       // Ports batch_avl_prover.rs:440-477 @568e7c3 — next_direction_is_left
@@ -418,7 +415,7 @@ export class BatchAVLProver {
     this.replayIndex = this.directionsBitLength
 
     // Phase 1: modifyHelper (authenticated_tree_ops.rs:272-273 @568e7c3)
-    const callbacks = this.buildCallbacks(op, onLeaf)
+    const callbacks = this.buildCallbacks(onLeaf)
     const modifyResult = modifyHelper(this._root, op, callbacks)
     if (!modifyResult.ok) {
       // Rollback directions (batch_avl_prover.rs:127-139 @568e7c3)

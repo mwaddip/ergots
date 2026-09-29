@@ -172,8 +172,8 @@ describe('the neighbors are authenticated', () => {
     type Hooks = { keyMatchesLeaf(key: Uint8Array, leaf: LeafNode): { ok: boolean } }
     const seen: boolean[] = []
     const hooks = (
-      core as unknown as { buildCallbacks(op: Operation, onLeaf: (leaf: LeafNode, matches: boolean) => void): Hooks }
-    ).buildCallbacks({ tag: 'Lookup', key: keyOf(45) }, (_leaf, matches) => seen.push(matches))
+      core as unknown as { buildCallbacks(onLeaf: (leaf: LeafNode, matches: boolean) => void): Hooks }
+    ).buildCallbacks((_leaf, matches) => seen.push(matches))
     const leaf = newLeaf(keyOf(20), new Uint8Array([20]), keyOf(30))
     expect(hooks.keyMatchesLeaf(keyOf(45), leaf).ok).toBe(false) // 45 lies outside [20, 30)
     expect(seen).toEqual([])

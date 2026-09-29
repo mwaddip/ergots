@@ -176,10 +176,7 @@ export class VerifierCore {
    * so nextDirectionIsLeft ignores its `key` and `r` parameters. The prover's
    * implementation of the same callback WILL use them.
    */
-  private buildCallbacks(
-    _op: Operation,
-    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
-  ): AvlTreeOpsCallbacks {
+  private buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
     const proof = this.proof
     const state = this.state
     return {
@@ -343,7 +340,7 @@ export class VerifierCore {
     // Phase 1 — Rust lines 272-273 @568e7c3:
     //   let (new_root_node, _, height_increased, to_delete, old_value) =
     //       self.modify_helper(root_node, &key, operation)?;
-    const callbacks = this.buildCallbacks(op, onLeaf)
+    const callbacks = this.buildCallbacks(onLeaf)
     const modifyResult = modifyHelper(this.root, op, callbacks)
     if (!modifyResult.ok) {
       // Rust lines 205-208 @568e7c3: on Err from return_result_of_one_operation,
