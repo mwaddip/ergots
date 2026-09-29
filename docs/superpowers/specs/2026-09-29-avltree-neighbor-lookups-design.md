@@ -1,9 +1,12 @@
 # `@ergots/avltree` 0.5.0 — public step-by-step verifier and neighbor-reporting lookups
 
-**Date:** 2026-09-29 (rev 3). Rev 2 applied the adversarial spec review: no
+**Date:** 2026-09-29 (rev 4). Rev 2 applied the adversarial spec review: no
 critical findings, six important ones (I1–I6) and ten minor ones (M1–M10). Rev 3
 records the user's decision the same day to fix all three pre-existing defects
-(P1–P3) in this release.
+(P1–P3) in this release. Rev 4 applies the plan review:
+- P3 gains the height-before-root reorder. Without it, P3's "the root is still
+  the pre-operation state" is false for the height-check throw.
+- The path-leak gate is stated against the 0.4.0 baseline.
 **Source:** Notis main's prompt `~/projects/dagsocial/prompts/avltree-neighbour-lookups.md`
 (written 2026-09-27, routed by the user). The user approved this design direction
 in conversation on 2026-09-29.
@@ -565,6 +568,14 @@ exhaustion only).**
     still the pre-operation state: `digest()`, `unauthenticatedLookup`,
     `unauthenticatedLookupWithNeighbors`, `generateProofForOperations` (it clones
     the root) and the getters.
+  - **Atomic commit (rev 4).** `runOperation` assigned the new root before
+    `applyHeightDelta`, which throws on an engine inconsistency
+    (`batch-prover.ts:353-354`, `362-363` at `3d48cd1`). A throw at that check
+    therefore half-committed the operation. The plan reviewer's probe showed it:
+    `restoreRoot` of a 1-key tree with height 0, then `Remove`, throws, and
+    afterwards `root` and `digest()` have already moved.
+    The fix computes the height first, then assigns root and height together.
+    It makes the previous bullet true for every engine throw.
   - The wrapper's `generateProofAndUpdateStorage` fails through its inner
     `generateProof()` and, typically, the backend's `removedNodes()`.
 
@@ -778,5 +789,11 @@ splits the rename into code and comment commits for that reason.
 - `git diff` of `modify.ts`, `delete.ts` and `errors.ts`: comment lines only.
   `node.ts`: exactly P1's code line plus JSDoc.
 - The `dist/index.d.ts` additive gate (D6, as redefined).
-- `npm pack --dry-run --workspace @ergots/avltree`: LICENSE present, and no
-  `~/projects` paths leak.
+- `npm pack --dry-run --workspace @ergots/avltree`: LICENSE present.
+- **Path leaks (`RELEASING.md` / OPS-04).**
+  - The published 0.4.0 `dist/index.d.ts` already carries four
+    `@see ~/projects/ergo_avltree_rust/…` JSDoc lines, from the headers of
+    `node.ts`, `batch-prover.ts` and `verify.ts`. The plan review found them.
+  - The gate is no increase over that baseline.
+  - Fixing the leak rewrites those three header comments without the home path,
+    and brings the count to 0. That is the user's decision.
