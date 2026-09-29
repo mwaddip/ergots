@@ -36,6 +36,9 @@ export type ProverOperationResult =
   | { success: true; value: Uint8Array | null }
   | { success: false }
 
+/** The public proof-cycle entry points that honor the fail-stop (P3). */
+type CycleMethod = 'performOneOperation' | 'generateProof' | 'removedNodes'
+
 // ---------------------------------------------------------------------------
 // BatchAVLProver
 // ---------------------------------------------------------------------------
@@ -87,8 +90,8 @@ export class BatchAVLProver {
   private modifiedNodes: Set<AvlNode> = new Set()
 
   // Proof-cycle fail-stop (P3, 0.5.0). Set around each operation's engine
-  // run, and still set after one threw inside the engine: for example a
-  // key-less internal node, a RangeError, the delete-pass invariant throw, or
+  // run, and still set after one threw on an engine inconsistency: for example
+  // a key-less internal node, a RangeError, the delete-pass invariant throw, or
   // applyHeightDelta's. Such a throw leaves the aborted operation's direction
   // bits (partial after a mid-descent throw) and, after the modify pass (the
   // delete pass or applyHeightDelta), its recorded visits, which the next
@@ -134,6 +137,10 @@ export class BatchAVLProver {
    * Must be called after loading a tree from storage (startup resume, snapshot
    * bootstrap, recovery rollback). Without this, `oldTopNode` is a stale
    * sentinel and `generateProof` produces wrong proofs.
+   *
+   * Rebasing also clears the proof-cycle fail-stop (P3, 0.5.0): after an
+   * operation threw on an engine inconsistency, this is how the prover
+   * becomes usable again.
    *
    * Ports batch_avl_prover.rs `restore_root` (86-107 @568e7c3).
    */
@@ -302,7 +309,7 @@ export class BatchAVLProver {
   private perform(
     op: Operation,
     onLeaf?: (leaf: LeafNode, matches: boolean) => void,
-    method = 'performOneOperation',
+    method: CycleMethod = 'performOneOperation',
   ): ProverOperationResult {
     this.assertCycleUsable(method)
     this.validateShape(op)
@@ -323,11 +330,11 @@ export class BatchAVLProver {
     return result
   }
 
-  /** Throws when an earlier operation threw inside the engine (P3). */
-  private assertCycleUsable(method: string): void {
+  /** Throws when an earlier operation threw on an engine inconsistency (P3). */
+  private assertCycleUsable(method: CycleMethod): void {
     if (this.cycleIndeterminate) {
       throw new Error(
-        `BatchAVLProver.${method}: an earlier operation threw inside the engine, so this proof cycle is indeterminate — call restoreRoot() to rebase it, or discard the prover`,
+        `BatchAVLProver.${method}: an earlier operation threw on an engine inconsistency, so this proof cycle is indeterminate — call restoreRoot() to rebase it, or discard the prover`,
       )
     }
   }
@@ -594,7 +601,7 @@ export class BatchAVLProver {
    * of the modified subtree, directions bit-string, and end-of-tree marker.
    *
    * Throws a plain `Error` while the proof cycle is indeterminate — after an
-   * operation threw inside the engine (P3, 0.5.0); `restoreRoot()` clears that.
+   * operation threw on an engine inconsistency (P3, 0.5.0); `restoreRoot()` clears that.
    */
   generateProof(): Uint8Array {
     this.assertCycleUsable('generateProof')
@@ -748,7 +755,7 @@ export class BatchAVLProver {
    * tree; see facts/avltree.md's invariant-throws bullet.
    *
    * Throws a plain `Error` while the proof cycle is indeterminate — after an
-   * operation threw inside the engine (P3, 0.5.0); `restoreRoot()` clears that.
+   * operation threw on an engine inconsistency (P3, 0.5.0); `restoreRoot()` clears that.
    */
   removedNodes(): AvlNode[] {
     this.assertCycleUsable('removedNodes')

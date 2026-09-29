@@ -59,6 +59,8 @@ describe('P3 — the prover fails stop after an engine throw (0.5.0)', () => {
   it('refuses every proof-cycle method after the throw', () => {
     const { prover } = thrownProver()
     expect(() => prover.performOneOperation({ tag: 'Lookup', key: keyOf(FIRST) })).toThrow(/indeterminate/)
+    // The refusal comes before the shape gates: a shape-invalid op gets it too.
+    expect(() => prover.performOneOperation({ tag: 'Lookup', key: new Uint8Array(31).fill(1) })).toThrow(/indeterminate/)
     expect(() => prover.generateProof()).toThrow(/indeterminate/)
     expect(() => prover.removedNodes()).toThrow(/indeterminate/)
   })
@@ -67,6 +69,15 @@ describe('P3 — the prover fails stop after an engine throw (0.5.0)', () => {
     const { prover, base } = thrownProver()
     expect(prover.digest()).toEqual(base.digest())
     expect(prover.unauthenticatedLookup(keyOf(FIRST))).toEqual(new Uint8Array([FIRST]))
+    expect(prover.height).toBe(base.height)
+    expect(prover.oldTopNode).toBe(prover.root)
+    // generateProofForOperations runs on a clone, so the mark does not refuse it.
+    const op: Operation = { tag: 'Lookup', key: keyOf(FIRST) }
+    const r = prover.generateProofForOperations([op])
+    if (!r.success) throw new Error('generateProofForOperations should succeed on a marked prover')
+    expect(verifyAvlBatch(base.digest(), r.proof, { keyLength: 32, valueLengthOpt: null }, [op])?.newDigest).toEqual(
+      base.digest(),
+    )
   })
 
   it('restoreRoot rebases the cycle and clears the mark', () => {
@@ -131,7 +142,9 @@ describe('P3 — the prover fails stop after an engine throw (0.5.0)', () => {
     )
 
     expect(() => persistent.generateProofAndUpdateStorage([])).toThrow(/indeterminate/)
-    expect(seen).toEqual([saved.digest]) // update ran first, and saw the intact pre-operation root
+    // update ran before the refusal. It read the surgered tree, whose digest
+    // equals the intact tree's because internal keys are not hashed.
+    expect(seen).toEqual([saved.digest])
 
     persistent.rollback(saved.digest)
     expect(persistent.performOneOperation({ tag: 'Lookup', key: keyOf(FIRST) })).toEqual({
