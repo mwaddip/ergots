@@ -278,9 +278,12 @@ export class BatchAVLProver {
    * Apply a single operation (Insert, Update, Remove, Lookup, etc.) to the
    * in-memory tree. Records traversal directions for later proof generation.
    *
-   * Failure model is two-tier: shape-invalid ops (±inf key, wrong key/value
-   * length, out-of-range delta) THROW `AvlVerifyError`; engine-level op
-   * failure (e.g. Insert on an existing key) returns `{ success: false }`.
+   * Failure model: shape-invalid ops (±inf key, wrong key/value length,
+   * out-of-range delta) THROW `AvlVerifyError`; engine-level op failure (e.g.
+   * Insert on an existing key) returns `{ success: false }`. A throw from
+   * inside the engine (an invariant violation) propagates unchanged and
+   * leaves the proof cycle indeterminate: until restoreRoot(), this method,
+   * generateProof() and removedNodes() throw a plain `Error` (P3, 0.5.0).
    *
    * @returns ProverOperationResult — `{ success: true, value }` on success
    *   (value is the old value or null if the key was absent), or
@@ -293,7 +296,8 @@ export class BatchAVLProver {
   /**
    * performOneOperation's body, shared with the recorded neighbor lookup
    * (0.5.0). `onLeaf` observes the leaf the operation resolves at; it never
-   * alters the operation.
+   * alters the operation. `method` names the public entry point in the
+   * fail-stop error (P3).
    */
   private perform(
     op: Operation,
@@ -588,6 +592,9 @@ export class BatchAVLProver {
    * Serialize a proof covering all operations since the last call to
    * generateProof() (or since construction). Uses post-order traversal
    * of the modified subtree, directions bit-string, and end-of-tree marker.
+   *
+   * Throws a plain `Error` while the proof cycle is indeterminate — after an
+   * operation threw inside the engine (P3, 0.5.0); `restoreRoot()` clears that.
    */
   generateProof(): Uint8Array {
     this.assertCycleUsable('generateProof')

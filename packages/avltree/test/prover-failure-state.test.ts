@@ -3,6 +3,8 @@ import { BatchAVLProver } from '../src/batch-prover.js'
 import { AvlVerifyError } from '../src/errors.js'
 import { verifyAvlBatch } from '../src/verify.js'
 import type { Operation } from '../src/operation.js'
+import { PersistentBatchAVLProver } from '../src/persistent-prover.js'
+import type { VersionedAVLStorage } from '../src/versioned-storage.js'
 import { SEVEN_KEYS, keyOf, keylessRight, pivot, sevenKeyProver, stubRight } from './helpers/tree-surgery.js'
 
 const FIRST = SEVEN_KEYS[0]
@@ -93,5 +95,50 @@ describe('P3 — the prover fails stop after an engine throw (0.5.0)', () => {
     expect(() => prover.performOneOperation({ tag: 'Remove', key: keyOf(FIRST) })).toThrow(/negative/)
     expect(prover.digest()).toEqual(before)
     expect(prover.unauthenticatedLookup(keyOf(FIRST))).toEqual(new Uint8Array([FIRST]))
+  })
+
+  it('an engine throw at the height check on the no-delete path leaves root and height untouched', () => {
+    const seed = new BatchAVLProver(32, null)
+    seed.performOneOperation({ tag: 'Insert', key: keyOf(FIRST), value: new Uint8Array([FIRST]) })
+    const prover = new BatchAVLProver(32, null)
+    prover.restoreRoot(seed.root, -1) // a negative height: even an Update's zero delta trips the check
+    const rootBefore = prover.root
+    expect(() =>
+      prover.performOneOperation({ tag: 'Update', key: keyOf(FIRST), value: new Uint8Array([0x99]) }),
+    ).toThrow(/negative/)
+    expect(prover.root).toBe(rootBefore)
+    expect(prover.height).toBe(-1)
+  })
+
+  it('PersistentBatchAVLProver: storage.update runs before the refusal; rollback clears the mark', () => {
+    const base = sevenKeyProver()
+    const saved = { root: base.root, height: base.height, digest: base.digest() }
+    const seen: Uint8Array[] = []
+    const storage: VersionedAVLStorage = {
+      update: (prover) => {
+        seen.push(prover.digest()) // a root-only read
+      },
+      rollback: () => [saved.root, saved.height],
+      version: () => saved.digest,
+      rollbackVersions: () => [saved.digest],
+      flush: () => {},
+    }
+    const persistent = new PersistentBatchAVLProver(new BatchAVLProver(32, null), storage, [])
+    const p = pivot(saved.root, keyOf(FIRST))
+    persistent.prover.restoreRoot(keylessRight(saved.root, p), saved.height)
+    expect(() => persistent.performOneOperation({ tag: 'Lookup', key: keyOf(SEVEN_KEYS[4]) })).toThrow(
+      /InternalNode\.key is undefined/,
+    )
+
+    expect(() => persistent.generateProofAndUpdateStorage([])).toThrow(/indeterminate/)
+    expect(seen).toEqual([saved.digest]) // update ran first, and saw the intact pre-operation root
+
+    persistent.rollback(saved.digest)
+    expect(persistent.performOneOperation({ tag: 'Lookup', key: keyOf(FIRST) })).toEqual({
+      success: true,
+      value: new Uint8Array([FIRST]),
+    })
+    expect(() => persistent.generateProofAndUpdateStorage([])).not.toThrow()
+    expect(seen).toHaveLength(2)
   })
 })
