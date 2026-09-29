@@ -73,6 +73,10 @@ describe('BatchAVLVerifier — construction', () => {
       codeOf(() => new BatchAVLVerifier(digest, proof, { keyLength: KL, valueLengthOpt: null, maxNumOperations: 1, maxDeletes: 2 })),
     ).toBe('invalid-config-max-ops')
     expect(codeOf(() => new BatchAVLVerifier(digest.subarray(0, 32), proof, CONFIG))).toBe('invalid-starting-digest-length')
+    // Two faults at once: the config's code comes first, as in the batch functions.
+    expect(codeOf(() => new BatchAVLVerifier(digest.subarray(0, 32), proof, { keyLength: 0, valueLengthOpt: null }))).toBe(
+      'invalid-config-key-length',
+    )
   })
 
   it('a proof that fails to anchor leaves the verifier poisoned from birth', () => {
@@ -100,6 +104,29 @@ describe('BatchAVLVerifier — construction', () => {
     config.keyLength = 99
     expect(v.performOneOperation(ops[0]!)).toEqual({ success: true, value: new Uint8Array([20]) })
     expect(v.performOneOperation(ops[1]!)).toEqual({ success: true, value: new Uint8Array([40]) })
+    // A getter-backed config is read exactly once per field: no check-then-copy gap.
+    const reads = { keyLength: 0, valueLengthOpt: 0, maxNumOperations: 0, maxDeletes: 0 }
+    const getterConfig: AvlTreeConfig = {
+      get keyLength() {
+        reads.keyLength++
+        return reads.keyLength === 1 ? KL : 0 // a second read would see an invalid length
+      },
+      get valueLengthOpt() {
+        reads.valueLengthOpt++
+        return null
+      },
+      get maxNumOperations() {
+        reads.maxNumOperations++
+        return undefined
+      },
+      get maxDeletes() {
+        reads.maxDeletes++
+        return undefined
+      },
+    }
+    const g = new BatchAVLVerifier(digest, proof, getterConfig)
+    expect(reads).toEqual({ keyLength: 1, valueLengthOpt: 1, maxNumOperations: 1, maxDeletes: 1 })
+    expect(g.performOneOperation(ops[0]!)).toEqual({ success: true, value: new Uint8Array([20]) })
   })
 })
 

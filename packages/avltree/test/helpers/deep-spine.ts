@@ -46,13 +46,10 @@ export function buildSpineProof(depth: number, directionBytes = 0): Uint8Array {
 
 /**
  * Correct 33-byte starting digest for the same spine, built through the
- * public node constructors. Construction is iterative, and — since this
- * task's iterative `labelSubtree` port — so is the final `label()` call: it
- * no longer costs a native stack frame per level (pre-fix, callers had to
- * stay under the engine threshold; the 6c probe measured the overflow
- * boundary between depth 1e3 and 1e4 under plain Node). Depth 1000 here is
- * now just a convenient sub-threshold-proof-size control, not a value
- * chosen to dodge overflow.
+ * public node constructors. Construction is iterative, and so is the final
+ * `label()` call (the iterative `labelSubtree` port): it costs no native
+ * stack frame per level, so any depth works here. Operations that descend
+ * the spine still recurse, one frame per level (the recursion residual).
  * The height byte is unread on this config path: the digest check compares
  * only the first 32 bytes (proof-decode.ts::parseProofPackedTree's
  * digest-check comparison loop (first 32 bytes)), and without

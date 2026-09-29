@@ -3,8 +3,8 @@
  *
  * - `verifyAvlBatch` / `verifyAvlBatchPartial` (whole operation lists) and
  *   `verifyAvlLookup` (one key): shape validation (throws `AvlVerifyError` on
- *   programmer errors), then a clean null-on-failure return for every
- *   untrusted-input rejection.
+ *   programmer errors), then a non-throwing result for every untrusted-input
+ *   rejection: `null`, or `verifyAvlBatchPartial`'s partial result.
  * - `BatchAVLVerifier` (0.5.0) — the step-by-step verifier over the same
  *   internal `VerifierCore`: operations one at a time, as a state transition
  *   asks for them.
@@ -236,9 +236,11 @@ export function verifyAvlLookup(
  *   later operations.
  * - An engine throw (the recursion residual's RangeError, or an internal
  *   invariant Error) leaves the core's traversal cursors advanced with the
- *   root intact, so every later call throws: the instance is indeterminate
- *   and must be discarded. Never `{ success: false }` — an engine throw is
- *   not a verification verdict.
+ *   root intact, so every later operation and `digest()` throws: the
+ *   instance is indeterminate and must be discarded. Never
+ *   `{ success: false }` — an engine throw is not a verification verdict,
+ *   and it sets no fail reason: `getLastFailReason()` still answers, with
+ *   null unless an earlier operation failed verification.
  * - `performOneOperation` returns the prover's ProverOperationResult, so one
  *   interface can drive either side. They agree only while every operation
  *   succeeds: the prover omits a failed operation from its proof and carries
@@ -289,8 +291,10 @@ export class BatchAVLVerifier {
   }
 
   /**
-   * Why the verifier is poisoned — the first failure's reason — or null while
-   * healthy. AvlVerifyError throws set no reason.
+   * Why the verifier is poisoned — the first failure's reason — or null if no
+   * verification failure has occurred. Neither an AvlVerifyError nor an
+   * engine throw sets a reason, and this method answers even after an engine
+   * throw left the instance indeterminate.
    */
   getLastFailReason(): AvlVerifyFailReason | null {
     return this.core.lastFailReason
