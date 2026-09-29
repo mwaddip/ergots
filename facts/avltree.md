@@ -346,14 +346,14 @@ A neighbor-reporting lookup is a `Lookup` that also reports what the leaf it res
 It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. Both references expose generic walks — Rust `tree_walk` (`batch_avl_prover.rs:290`), `extract_nodes` / `extract_first_node` (`authenticated_tree_ops.rs:63,67`); scrypto `treeWalk`, `extractNodes`, `extractFirstNode` — but none of them is an authenticated lookup.
 
 - **Where.**
-  - Recorded, proof-consuming: `performLookupWithNeighbors(key)` on `BatchAVLVerifier`, `BatchAVLProver` and `PersistentBatchAVLProver`.
+  - Recorded (the verifier consumes the proof, the provers record it): `performLookupWithNeighbors(key)` on `BatchAVLVerifier`, `BatchAVLProver` and `PersistentBatchAVLProver`.
   - Unrecorded: `unauthenticatedLookupWithNeighbors(key)` on the two provers.
 - **A `Lookup` by construction.**
   - `BatchAVLProver` and `VerifierCore` (behind `BatchAVLVerifier`) run the recorded neighbor lookup (`performLookupWithNeighbors`) through the same private path as `performOneOperation({ tag: 'Lookup', key })`, and observe the leaf through the engine's single `keyMatchesLeaf` call (`modify.ts:149`), invoked at most once per operation and exactly once for a successful `Lookup`; `deleteHelper` never calls it. `PersistentBatchAVLProver` delegates to `BatchAVLProver`.
   - A recorded neighbor lookup therefore consumes or records exactly a `Lookup`'s direction bits and visits, with the same gates, failures and poisoning.
   - Its proof bytes are byte-identical to a plain `Lookup`'s, and `generateProofForOperations` over plain `Lookup`s yields the same bytes.
   - The shared engine's code is unchanged.
-  - A successful lookup that observed any number of leaves other than one throws a plain `Error` (an engine inconsistency; unreachable).
+  - A successful lookup that observed any number of leaves other than one throws a plain `Error` (an engine inconsistency; unreachable), and leaves the instance fail-stopped like any engine throw: the prover's proof-cycle mark (P3), the verifier's indeterminate state.
 - **Sentinels are `null`.**
   - `nextKey: null` means past the last key (the +inf sentinel); `prevKey: null` means below the first key (the −inf sentinel).
   - The mapping is exact, because no real key can equal a sentinel.

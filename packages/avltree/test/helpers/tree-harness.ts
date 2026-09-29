@@ -202,6 +202,7 @@ export function successfulBatch(
         model.set(k, v)
       }
     } else if (roll === 5 && p !== null) {
+      // Rolls 5 and 6 need a present key; on an empty model they fall through to the arms below.
       const v = randomValue(r, valueLengthOpt)
       push({ tag: 'Update', key: p, value: v })
       model.set(p, v)

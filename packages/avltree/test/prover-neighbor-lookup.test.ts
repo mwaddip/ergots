@@ -3,7 +3,7 @@ import { BatchAVLProver, type ProverOperationResult } from '../src/batch-prover.
 import { AvlVerifyError } from '../src/errors.js'
 import { newLeaf, type LeafNode } from '../src/node.js'
 import type { Operation } from '../src/operation.js'
-import { KEY_LENGTHS, lowKey, randomTree, reportOf, rng, successfulBatch } from './helpers/tree-harness.js'
+import { KEY_LENGTHS, lowKey, randomKey, randomTree, reportOf, rng, successfulBatch } from './helpers/tree-harness.js'
 import { SEVEN_KEYS, keyOf, keylessRight, pivot, sevenKeyProver, stubRight } from './helpers/tree-surgery.js'
 
 const SEEDS = 12
@@ -20,6 +20,9 @@ describe('a recorded neighbor lookup is a Lookup (prover)', () => {
         const batch = successfulBatch(r, model, 40)
         batch.ops.forEach((op, i) => {
           const where = `seed ${seed} op ${i} ${op.tag}`
+          // An unrecorded lookup of a key the next operation does not touch
+          // must leave A's proof untouched too.
+          a.unauthenticatedLookupWithNeighbors(randomKey(r, kl))
           if (op.tag === 'Lookup') {
             // Interleaved unrecorded lookups must leave A's proof untouched.
             const unrecorded = a.unauthenticatedLookupWithNeighbors(op.key)
@@ -108,15 +111,28 @@ describe('neighbor lookups on the tree edges (prover)', () => {
     })
   }
 
-  it('returned buffers are copies', () => {
+  it('returned buffers are copies, on both paths and both report shapes', () => {
     const p = sevenKeyProver()
-    const r = p.performLookupWithNeighbors(keyOf(20))
-    if (!r.success || !r.found || r.nextKey === null) throw new Error('expected a present key with a successor')
-    r.value.fill(0)
-    r.nextKey.fill(0)
+    const present = p.performLookupWithNeighbors(keyOf(20))
+    if (!present.success || !present.found || present.nextKey === null) throw new Error('expected a present key with a successor')
+    const absent = p.performLookupWithNeighbors(keyOf(25))
+    if (!absent.success || absent.found || absent.prevKey === null || absent.nextKey === null) {
+      throw new Error('expected an absent key between two real keys')
+    }
+    const unrecorded = [p.unauthenticatedLookupWithNeighbors(keyOf(20)), p.unauthenticatedLookupWithNeighbors(keyOf(25))]
+    for (const r of [present, absent, ...unrecorded]) {
+      if (r.found) r.value.fill(0)
+      else r.prevKey?.fill(0)
+      r.nextKey?.fill(0)
+    }
     expect(p.unauthenticatedLookupWithNeighbors(keyOf(20))).toEqual({
       found: true,
       value: new Uint8Array([20]),
+      nextKey: keyOf(30),
+    })
+    expect(p.unauthenticatedLookupWithNeighbors(keyOf(25))).toEqual({
+      found: false,
+      prevKey: keyOf(20),
       nextKey: keyOf(30),
     })
   })
@@ -130,6 +146,14 @@ describe('neighbor lookups on invariant-violating trees (prover)', () => {
     prover.restoreRoot(stubRight(base.root, p), base.height)
     expect(() => prover.unauthenticatedLookupWithNeighbors(p.key!)).toThrow(/label stub/)
     expect(prover.performLookupWithNeighbors(p.key!)).toEqual({ success: false })
+    // The failed recorded lookup left the prover's `found` set (the reset
+    // happens at the next operation's entry); the unrecorded walk must not
+    // read it.
+    expect(prover.unauthenticatedLookupWithNeighbors(keyOf(FIRST))).toEqual({
+      found: true,
+      value: new Uint8Array([FIRST]),
+      nextKey: keyOf(20),
+    })
   })
 
   it('a key-less internal node on the path throws, in either descent mode', () => {

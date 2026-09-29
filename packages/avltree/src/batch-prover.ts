@@ -610,7 +610,9 @@ export class BatchAVLProver {
    * performOneOperation's path — same key gates and throws, same direction
    * bits and visits, same `{ success: false }`, same proof-cycle fail-stop —
    * and reads the report off the leaf the engine's single keyMatchesLeaf call
-   * resolves at.
+   * resolves at. A successful run that observed other than one leaf is an
+   * engine inconsistency: it throws a plain `Error` and sets the fail-stop
+   * mark (P3).
    */
   performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
     const seen: { leaf: LeafNode | null; matches: boolean; calls: number } = {
