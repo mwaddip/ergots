@@ -191,7 +191,7 @@ The step-by-step verifier. It is the public face of `batch_avl_verifier.rs::Batc
   - Once poisoned, the FIRST failure's reason; later operations do not overwrite it.
   - `AvlVerifyError` throws set no reason.
   - It is not covered by the fail-stop below: it keeps answering on an indeterminate instance, and a `null` there does not mean the instance is usable, because after an engine throw the instance is indeterminate regardless.
-- **Fail-stop after an engine throw.** A throw that is not an `AvlVerifyError` can escape mid-operation: the recursion residual's `RangeError` (see "No throws on verification failures"), or an internal invariant `Error`. It leaves the core's traversal cursors advanced with the root intact. So the verifier sets a mark around each operation's core call. After such a throw, every later `performOneOperation`, `performLookupWithNeighbors` and `digest()` throws a plain `Error` saying the instance is indeterminate and must be discarded. It never returns `{ success: false }` for this, because an engine throw is not a rejection.
+- **Fail-stop after an engine throw.** A throw that is not an `AvlVerifyError` can escape mid-operation: the recursion residual's `RangeError` (see "Tier 2 — `null` return"), or an internal invariant `Error`. It leaves the core's traversal cursors advanced with the root intact. So the verifier sets a mark around each operation's core call. After such a throw, every later `performOneOperation`, `performLookupWithNeighbors` and `digest()` throws a plain `Error` saying the instance is indeterminate and must be discarded. It never returns `{ success: false }` for this, because an engine throw is not a rejection.
 - **One interface, two asymmetries.** `performOneOperation` returns the prover's `ProverOperationResult`, so one interface can drive either side: a producer's prover or a consumer's verifier. The two agree step for step only while every operation succeeds.
   1. The prover rolls a failed operation back, omits it from the proof, and carries on. The verifier fails and poisons on the same operation. A `{ success: false }` must therefore be fatal to the enclosing batch or block on both sides.
   2. A sentinel key throws `'operation-key-out-of-bounds'` on the prover, but fails and poisons on the verifier.
@@ -380,7 +380,7 @@ The package enforces a two-tier failure model.
 
 ### Tier 1 — `AvlVerifyError` thrown (programmer errors)
 
-Checked at the verifier's public entry points before any `VerifierCore` state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's `BatchAVLProver.performOneOperation` — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below. These errors indicate bugs in calling code, not malformed proof data.
+Checked at the verifier's public entry points before any `VerifierCore` state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's operations and neighbor lookups (`BatchAVLProver.performOneOperation`, `performLookupWithNeighbors` and `unauthenticatedLookupWithNeighbors`) — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below (its neighbor lookups take only a key, so they throw only `'operation-key-out-of-bounds'` and `'operation-key-length-mismatch'`). These errors indicate bugs in calling code, not malformed proof data.
 
 ```ts
 export class AvlVerifyError extends Error {
@@ -425,6 +425,23 @@ Eight reasons are produced somewhere. Three are never produced and stay in the u
 - `'tree-poisoned'`: it is assigned only through `??=`, and every `root = null` site also sets its own reason, so the `??=` never assigns and a poisoned verifier keeps its first reason.
 - `'empty-tree'`: it has no assignment site.
 - `'operation-required-but-not-allowed'`: reserved.
+
+The reasons (`AvlVerifyFailReason`, returned by `BatchAVLVerifier.getLastFailReason()`):
+
+```ts
+type AvlVerifyFailReason =               // exported since v0.5.0
+  | 'proof-truncated'                    // OOB read during tree decode
+  | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid, leaf value length > 4 MiB or > remaining proof (scrypto PR #117)
+  | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
+  | 'directions-exhausted'               // direction/replay bit read ran past proof.length
+  | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
+  | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
+  | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)
+  | 'key-out-of-bounds'                  // op key not STRICTLY inside the ±inf sentinels (0x00×kl / 0xFF×kl) — 6g
+  | 'tree-poisoned'                      // never produced: a poisoned verifier keeps its first reason
+  | 'empty-tree'                         // never produced: no assignment site
+  | 'operation-required-but-not-allowed' // reserved for ABI stability (currently unreachable)
+```
 
 ```ts
 // Pattern: handle both tiers explicitly.
@@ -595,7 +612,7 @@ On construction, either rolls back to the stored version (if one exists) or gene
 
 **`height()`** — returns the current tree height.
 
-**`generateProofAndUpdateStorage(additionalData)`** — commits the current state to storage, then generates and returns a proof. `additionalData` is key-value pairs to store alongside the tree state (e.g., metadata).
+**`generateProofAndUpdateStorage(additionalData)`** — commits the current state to storage, then generates and returns a proof. `additionalData` is key-value pairs to store alongside the tree state (e.g., metadata). While the fail-stop mark is set, `generateProofAndUpdateStorage` throws, but it runs `storage.update` first and the inner `generateProof()` second, so whether the exception arrives before the backend writes depends on the backend: an `update` that calls `removedNodes()` before writing throws before any write, while one that writes first, or never calls it, has already written when the exception arrives (from `removedNodes()` inside `update`, or from `generateProof()` after `update` returns). After such a throw, call `rollback(version)` to a known-good version rather than trust storage.
 
 **`rollback(version)`** — restores the prover's tree to a previously stored version.
 
@@ -631,7 +648,7 @@ type ProverOperationResult =
   | { success: false }
 ```
 
-Return type of `BatchAVLProver.performOneOperation` and (0.5.0) `BatchAVLVerifier.performOneOperation` — one type, so one interface can drive either side (see "One interface, two asymmetries" under `BatchAVLVerifier`). On success, `value` is the old value at the key (or `null` if absent). On failure, the caller should inspect the prover state to determine what precondition was violated.
+Return type of `BatchAVLProver.performOneOperation` and (0.5.0) `BatchAVLVerifier.performOneOperation` — one type, so one interface can drive either side (see "One interface, two asymmetries" under `BatchAVLVerifier`). On success, `value` is the old value at the key (or `null` if absent). On failure the prover reports no reason; on a `BatchAVLVerifier`, `getLastFailReason()` says which check failed.
 
 ---
 

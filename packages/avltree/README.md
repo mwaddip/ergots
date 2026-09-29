@@ -135,7 +135,7 @@ the first-cycle sentinel note.
 
 Runs unchanged in evergreen browsers and Node >= 20. No `Buffer`, no `node:crypto`, no dynamic Node built-ins, no WASM. ESM-only.
 
-The verifier is stateless: inputs in, structured result (or `null`) out. No I/O, no clock, no storage.
+The batch verify functions are stateless: inputs in, structured result (or `null`) out. `BatchAVLVerifier` holds one proof's state across its calls. No I/O, no clock, no storage.
 
 ## What this package does NOT do
 
