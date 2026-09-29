@@ -135,3 +135,33 @@ describe('output trees re-encode in the JVM canonical form', () => {
     expectAccepted(tx([{ tree }]), '5c12211a78a55fab1c2fce67c4ef31c223294ebf6721f1a49f42d15277cc87d0', ['P:' + tree])
   })
 })
+
+// A register value (and a register Tuple's item) is read with r.getValue(), which runs rule 1002
+// CheckValidOpCode on its first byte (ValueSerializer.scala:171-175): an opcode with no serializer is
+// a ValidationException, which degrades an enclosing sized tree. A known opcode that is not an
+// evaluated value fails the register's cast (ErgoBoxCandidate.scala:231), a hard reject.
+describe("a nested Box register's lead byte", () => {
+  const reg = (r4: string) => treeWithBox('18', boxData('0008d3', '01' + r4))
+  it('lead 0x84, no serializer: the enclosing tree degrades and the transaction is accepted', () => {
+    const tree = reg('84')
+    expectAccepted(tx([{ tree }]), 'e50e1868a7ed57ae3e5939330c16c84ea175f599728ea9f2a8105caa524b3634', ['U:' + tree])
+  })
+  it('lead 0xd3, reserved: the enclosing tree degrades and the transaction is accepted', () => {
+    const tree = reg('d3')
+    expectAccepted(tx([{ tree }]), '2592bbcb3fdbe6eb72e07531ca0351547f07f05dab17a2dd784b9fa03621be50', ['U:' + tree])
+  })
+  it('a Tuple item led by 0x84: the enclosing tree degrades and the transaction is accepted', () => {
+    const tree = reg('8602040084')
+    expectAccepted(tx([{ tree }]), '0bc7094581f520697aef29a35558e8a7eccaace1e479d8f76c496796e96eea4e', ['U:' + tree])
+  })
+  it('lead 0xa3, HEIGHT: rejected (the JVM ClassCastException)', () => {
+    expect(errorOf(() => parseTransaction(tx([{ tree: reg('a3') }])))).toMatchObject({ code: 'sbox-register-unsupported-expr' })
+  })
+  it('lead 0x84 in an unsized tree: rejected (the JVM SerializerException: no size bit)', () => {
+    const tree = '100163' + boxData('0008d3', '0184') + 'd191c173000500'
+    expect(errorOf(() => parseTransaction(tx([{ tree }])))).toMatchObject({ code: 'soft-fork-without-size-bit' })
+  })
+  it("lead 0x84 in a top-level output's register: rejected (rule 1002 outside any tree)", () => {
+    expect(errorOf(() => parseTransaction(tx([{ tree: '0008d3', regs: '0184' }])))).toMatchObject({ code: 'unknown-opcode' })
+  })
+})

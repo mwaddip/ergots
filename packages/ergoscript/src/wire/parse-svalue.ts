@@ -69,17 +69,13 @@ import { ByteReader, parseHeader, readVlqU32 } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { parseErgoTreeBytes } from './ergo-tree'
+import { exprParserFor, OPCODES_THE_JVM_PARSES } from './parse'
+// A value's first byte: at most LAST_CONSTANT_CODE (112) is a Constant's type code, above it an
+// opcode (ValueSerializer.scala:400-408).
+import { LAST_CONSTANT_CODE, OP_TUPLE } from '../mir/opcodes'
 import { canonicalGePayload } from './_ge-canonical'
 import { decodeUtf8Lossy } from './_utf8'
 
-// OpCode dispatch boundary in sigma-rust `Expr::parse_with_tag`
-// (`serialization/expr.rs:90`): tag ≤ LAST_CONSTANT_CODE → Constant Expr,
-// tag > LAST_CONSTANT_CODE → opcode-dispatched Expr.
-// LAST_CONSTANT_CODE = LAST_DATA_TYPE (111) + 1 = 112.
-const LAST_CONSTANT_CODE = 112
-// OP_TUPLE opcode value (sigma-rust `serialization/op_code.rs:184`):
-// `new_op_code(22)` = LAST_CONSTANT_CODE + 22 = 134 = 0x86.
-const OP_TUPLE = 134
 // JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024
 // (SigmaConstants.scala:24, surfaced at ErgoBox.scala:127). The SBox data
 // parse reads the candidate span (value → registers) under a lazy
@@ -168,9 +164,18 @@ function parseRegisterExpr(
       value: { kind: 'Tuple', items: itemValues },
     }
   } else {
+    // Any other lead is an opcode. `r.getValue()` looks up its serializer and runs rule 1002
+    // `CheckValidOpCode` on it (ValueSerializer.scala:171-175, 404-408): an opcode with no
+    // serializer throws parseExpr's soft code, 'opcode-reserved' or 'unknown-opcode', which degrades
+    // an enclosing sized tree. For a known opcode the JVM parses the node, which the register then
+    // casts to an evaluated value (ErgoBoxCandidate.scala:231): a hard reject for a node like HEIGHT
+    // (a ClassCastException). ergots rejects it on the lead byte, without reading its payload, and
+    // accepts no evaluated value but a constant or a tuple (residual 4). The six opcodes the JVM
+    // parses but parseExpr rejects stay hard as known opcodes (residual 5).
+    if (!OPCODES_THE_JVM_PARSES.has(tag)) exprParserFor(tag)
     throw new SValueParseError(
       `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
-        `(register must be a Constant or Tuple Expr per sigma-rust register.rs:140-162)`,
+        `(a register value is a Constant or a Tuple Expr here; residual 4)`,
       'sbox-register-unsupported-expr'
     )
   }

@@ -149,62 +149,75 @@ export function parseExpr(
   r.enterDepth()
   r.peekU8()
   const opcode = r.readU8()
-  const expr = parseExprBody(opcode, r, constantTypes, constantValues, valDefTypes, treeVersion)
+  // Inline-constant range: bytes in [0..LAST_CONSTANT_CODE] are SType codes for embedded
+  // `Constant` values, not opcodes (the JVM's `firstByte <= LastConstantCode` branch,
+  // ValueSerializer.scala:400-403). `parseConstFromByte` re-uses the byte as the first byte of the
+  // SType encoding before parsing the SValue payload.
+  const expr = opcode <= OP.LAST_CONSTANT_CODE
+    ? parseConstFromByte(opcode, treeVersion, r)
+    : exprParserFor(opcode)(r, constantTypes, constantValues, valDefTypes, treeVersion)
   r.exitDepth()
   return expr
 }
 
 /**
- * Body of {@link parseExpr}, run inside the reader-level depth
- * guard. Separated so the single enter/exit pair wraps every dispatch arm
- * (including the inline-constant branch and all early returns).
+ * The six opcodes the JVM registers a serializer for (ValueSerializer.scala:79-80, 97, 145-147) and
+ * parses, which `exprParserFor` rejects (residual 5, facts/ergoscript-wire.md): TrueLeaf and
+ * FalseLeaf, which the JVM builds as Boolean constants, TaggedVariable, and the three ModQ
+ * operations. The register value parse keeps them hard rejects (`parse-svalue.ts`).
  */
-function parseExprBody(
-  opcode: number,
+export const OPCODES_THE_JVM_PARSES: ReadonlySet<number> = new Set([
+  OP.OP_TRUE, OP.OP_FALSE, OP.OP_TAGGED_VARIABLE, OP.OP_MOD_Q, OP.OP_PLUS_MOD_Q, OP.OP_MINUS_MOD_Q,
+])
+
+/** The parser of one opcode's payload, after the opcode byte (the JVM's `ValueSerializer.parse`). */
+export type ExprParser = (
   r: ByteReader,
   constantTypes: SType[],
   constantValues: SValue[],
   valDefTypes: Map<number, SType>,
   treeVersion: number
-): Expr {
-  // Inline-constant range: bytes in [0..LAST_CONSTANT_CODE] are SType codes
-  // for embedded `Constant` values, not opcodes. Sigma-rust handles these in
-  // `Constant::parse_with_tag` (`serialization/expr.rs:88-93`). We route the
-  // opcode byte to `parseConstFromByte`, which re-uses it as the first byte
-  // of the SType encoding before parsing the SValue payload.
-  if (opcode <= OP.LAST_CONSTANT_CODE) {
-    return parseConstFromByte(opcode, treeVersion, r)
-  }
+) => Expr
 
-  // Opcode-based dispatch. Each `case` throws until its per-variant task
-  // ports the real parser; the comments name the upcoming task per variant.
+/**
+ * The JVM's `getSerializer(opCode)` with its rule-1002 `CheckValidOpCode`
+ * (ValueSerializer.scala:171-175): the payload parser for an opcode ergots dispatches. For an
+ * opcode with no parser it throws, before any payload byte is read: `'opcode-reserved'` for an
+ * opcode in sigma-rust's opcode table that no parser dispatches, `'unknown-opcode'` for any other
+ * byte. Both are in the degrade set, as the JVM's `ValidationException` is, except that the JVM
+ * has serializers for six of these opcodes (`OPCODES_THE_JVM_PARSES`, residual 5).
+ *
+ * `parseExpr` dispatches through it; the register value parse (`parse-svalue.ts`) uses it to
+ * classify a register's lead byte as `parseExpr` does.
+ */
+export function exprParserFor(opcode: number): ExprParser {
   switch (opcode) {
     case OP.OP_VAL_USE:
-      return parseValUse(r, valDefTypes)
+      return (r, _ct, _cv, valDefTypes) => parseValUse(r, valDefTypes)
     case OP.OP_CONSTANT_PLACEHOLDER:
-      return parseConstantPlaceholder(r, constantTypes)
+      return (r, constantTypes) => parseConstantPlaceholder(r, constantTypes)
     case OP.OP_SUBST_CONSTANTS:
-      return parseSubstConstants(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseSubstConstants
     case OP.OP_LONG_TO_BYTE_ARRAY:
-      return parseLongToByteArray(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseLongToByteArray
     case OP.OP_BYTE_ARRAY_TO_BIGINT:
-      return parseByteArrayToBigInt(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseByteArrayToBigInt
     case OP.OP_BYTE_ARRAY_TO_LONG:
-      return parseByteArrayToLong(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseByteArrayToLong
     case OP.OP_DOWNCAST:
-      return parseDowncast(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseDowncast
     case OP.OP_UPCAST:
-      return parseUpcast(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseUpcast
     case OP.OP_GROUP_GENERATOR:
-      return buildGlobalVarsFromOpcode(opcode)
+      return () => buildGlobalVarsFromOpcode(opcode)
     case OP.OP_COLL:
-      return parseCollection(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollection
     case OP.OP_COLL_OF_BOOL_CONST:
-      return parseCollectionOfBoolConst(r)
+      return parseCollectionOfBoolConst
     case OP.OP_TUPLE:
-      return parseTuple(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseTuple
     case OP.OP_SELECT_FIELD:
-      return parseSelectField(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseSelectField
     // ---- BinOp comparison opcodes (Task 13) ----
     // ~22 wire opcodes collapse onto a single `Expr.tag === 'BinOp'` with the
     // discriminator carried by `op: BinOpKind`. Dispatch is centralized in
@@ -218,53 +231,32 @@ function parseExprBody(
     case OP.OP_GE:
     case OP.OP_EQ:
     case OP.OP_NEQ:
-      return parseBinOpFromByte(
-        opcode,
-        r,
-        constantTypes,
-        constantValues,
-        valDefTypes,
-        treeVersion
-      )
+      return (r, ct, cv, vd, tv) => parseBinOpFromByte(opcode, r, ct, cv, vd, tv)
     case OP.OP_IF:
-      return parseIf(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseIf
     case OP.OP_AND:
-      return parseAnd(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseAnd
     case OP.OP_OR:
-      return parseOr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseOr
     case OP.OP_ATLEAST:
-      return parseAtleast(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseAtleast
     // BinOp arithmetic opcodes (Task 13) — see comment above on shared dispatch.
     case OP.OP_MINUS:
     case OP.OP_PLUS:
     case OP.OP_MULTIPLY:
     case OP.OP_DIVISION:
     case OP.OP_MODULO:
-      return parseBinOpFromByte(
-        opcode,
-        r,
-        constantTypes,
-        constantValues,
-        valDefTypes,
-        treeVersion
-      )
+      return (r, ct, cv, vd, tv) => parseBinOpFromByte(opcode, r, ct, cv, vd, tv)
     case OP.OP_XOR:
-      return parseXor(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseXor
     case OP.OP_EXPONENTIATE:
-      return parseExponentiate(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExponentiate
     case OP.OP_MULTIPLY_GROUP:
-      return parseMultiplyGroup(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseMultiplyGroup
     // BinOp arithmetic opcodes Min/Max (Task 13) — shared dispatch.
     case OP.OP_MIN:
     case OP.OP_MAX:
-      return parseBinOpFromByte(
-        opcode,
-        r,
-        constantTypes,
-        constantValues,
-        valDefTypes,
-        treeVersion
-      )
+      return (r, ct, cv, vd, tv) => parseBinOpFromByte(opcode, r, ct, cv, vd, tv)
     case OP.OP_HEIGHT:
     case OP.OP_INPUTS:
     case OP.OP_OUTPUTS:
@@ -274,106 +266,99 @@ function parseExprBody(
       // `Expr.tag === 'GlobalVars'` node with a `kind` discriminator (Task 17).
       // GROUP_GENERATOR (0x82) is dispatched separately above because it lives
       // in a different opcode region. Centralized in `buildGlobalVarsFromOpcode`.
-      return buildGlobalVarsFromOpcode(opcode)
+      return () => buildGlobalVarsFromOpcode(opcode)
     case OP.OP_MAP:
-      return parseCollMap(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollMap
     case OP.OP_EXISTS:
-      return parseCollExists(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollExists
     case OP.OP_FOR_ALL:
-      return parseCollForall(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollForall
     case OP.OP_FOLD:
-      return parseCollFold(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollFold
     case OP.OP_SIZE_OF:
-      return parseCollSize(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollSize
     case OP.OP_BY_INDEX:
-      return parseCollByIndex(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollByIndex
     case OP.OP_APPEND:
-      return parseCollAppend(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollAppend
     case OP.OP_SLICE:
-      return parseCollSlice(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollSlice
     case OP.OP_FILTER:
-      return parseCollFilter(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCollFilter
     case OP.OP_AVL_TREE:
-      return parseCreateAvlTree(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCreateAvlTree
     case OP.OP_AVL_TREE_GET:
-      return parseTreeLookup(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseTreeLookup
     case OP.OP_EXTRACT_AMOUNT:
-      return parseExtractAmount(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractAmount
     case OP.OP_EXTRACT_SCRIPT_BYTES:
-      return parseExtractScriptBytes(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractScriptBytes
     case OP.OP_EXTRACT_BYTES:
-      return parseExtractBytes(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractBytes
     case OP.OP_EXTRACT_BYTES_WITH_NO_REF:
-      return parseExtractBytesWithNoRef(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractBytesWithNoRef
     case OP.OP_EXTRACT_ID:
-      return parseExtractId(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractId
     case OP.OP_EXTRACT_REGISTER_AS:
-      return parseExtractRegisterAs(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractRegisterAs
     case OP.OP_EXTRACT_CREATION_INFO:
-      return parseExtractCreationInfo(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseExtractCreationInfo
     case OP.OP_CALC_BLAKE2B256:
-      return parseCalcBlake2b256(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCalcBlake2b256
     case OP.OP_CALC_SHA256:
-      return parseCalcSha256(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCalcSha256
     case OP.OP_PROVE_DLOG:
-      return parseCreateProveDlog(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCreateProveDlog
     case OP.OP_PROVE_DIFFIE_HELLMAN_TUPLE:
-      return parseCreateProveDhTuple(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseCreateProveDhTuple
     case OP.OP_SIGMA_PROP_IS_PROVEN:
-      return parseSigmaPropIsProven(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseSigmaPropIsProven
     case OP.OP_SIGMA_PROP_BYTES:
-      return parseSigmaPropBytes(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseSigmaPropBytes
     case OP.OP_BOOL_TO_SIGMA_PROP:
-      return parseBoolToSigmaProp(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseBoolToSigmaProp
     case OP.OP_DESERIALIZE_CONTEXT:
-      return parseDeserializeContext(r)
+      return parseDeserializeContext
     case OP.OP_DESERIALIZE_REGISTER:
-      return parseDeserializeRegister(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseDeserializeRegister
     case OP.OP_VAL_DEF:
-      return parseValDef(r, constantTypes, constantValues, valDefTypes, false, treeVersion)
+      return (r, ct, cv, vd, tv) => parseValDef(r, ct, cv, vd, false, tv)
     case OP.OP_BLOCK_VALUE:
-      return parseBlockValue(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseBlockValue
     case OP.OP_FUNC_VALUE:
-      return parseFuncValue(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseFuncValue
     case OP.OP_APPLY:
-      return parseApply(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseApply
     case OP.OP_PROPERTY_CALL:
-      return parsePropertyCall(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parsePropertyCall
     case OP.OP_METHOD_CALL:
-      return parseMethodCall(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseMethodCall
     case OP.OP_GLOBAL:
-      return parseGlobal()
+      return parseGlobal
     case OP.OP_GET_VAR:
-      return parseGetVar(r)
+      return parseGetVar
     case OP.OP_OPTION_GET:
-      return parseOptionGet(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseOptionGet
     case OP.OP_OPTION_GET_OR_ELSE:
-      return parseOptionGetOrElse(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseOptionGetOrElse
     case OP.OP_OPTION_IS_DEFINED:
-      return parseOptionIsDefined(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseOptionIsDefined
     case OP.OP_SIGMA_AND:
-      return parseSigmaAnd(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseSigmaAnd
     case OP.OP_SIGMA_OR:
-      return parseSigmaOr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseSigmaOr
     // BinOp logical opcodes (Task 13) — shared dispatch.
     case OP.OP_BIN_OR:
     case OP.OP_BIN_AND:
-      return parseBinOpFromByte(
-        opcode,
-        r,
-        constantTypes,
-        constantValues,
-        valDefTypes,
-        treeVersion
-      )
+      return (r, ct, cv, vd, tv) => parseBinOpFromByte(opcode, r, ct, cv, vd, tv)
     case OP.OP_DECODE_POINT:
-      return parseDecodePoint(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseDecodePoint
     case OP.OP_LOGICAL_NOT:
-      return parseLogicalNot(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseLogicalNot
     case OP.OP_NEGATION:
-      return parseNegation(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseNegation
     case OP.OP_BIT_INVERSION:
-      return parseBitInversion(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseBitInversion
     // BinOp bitwise + remaining logical XOR opcodes (Task 13) — shared dispatch.
     // Note: OP_BIN_XOR (0xf4) is the *logical* XOR (LogicalOp::Xor); OP_BIT_XOR
     // (0xf5) is the *bitwise* XOR (BitOp::BitXor). They occupy adjacent opcode
@@ -386,16 +371,9 @@ function parseExprBody(
     case OP.OP_BIT_SHIFT_RIGHT:
     case OP.OP_BIT_SHIFT_LEFT:
     case OP.OP_BIT_SHIFT_RIGHT_ZEROED:
-      return parseBinOpFromByte(
-        opcode,
-        r,
-        constantTypes,
-        constantValues,
-        valDefTypes,
-        treeVersion
-      )
+      return (r, ct, cv, vd, tv) => parseBinOpFromByte(opcode, r, ct, cv, vd, tv)
     case OP.OP_CONTEXT:
-      return parseContext()
+      return parseContext
     case OP.OP_LAST_BLOCK_UTXO_ROOT_HASH:
       // F5 batch 4 (Ask-13): the bare op-form of CONTEXT.LastBlockUtxoRootHash.
       // JVM dispatches it as its own case object (values.scala:1490, opcode
@@ -403,9 +381,9 @@ function parseExprBody(
       // MIR variant, no serializer arm) — JVM is canonical, so we parse it.
       // Distinct wire shape from the PropertyCall form (101:9); cost differs
       // by shape (op FixedCost 15 vs PropertyCall 20).
-      return parseLastBlockUtxoRootHash()
+      return parseLastBlockUtxoRootHash
     case OP.OP_XOR_OF:
-      return parseXorOf(r, constantTypes, constantValues, valDefTypes, treeVersion)
+      return parseXorOf
     // Wire opcodes with no top-level Expr dispatch — all parse-reject via
     //   - 'opcode-reserved' (21 sites; was 18 until FlatMap/TrivialPropFalse/
     //     TrivialPropTrue joined, and 19 until FunDef left in v6 P6) —
@@ -484,7 +462,7 @@ function parseExprBody(
       // type-arg list. Parsed onto the ValDef MIR node with `isFunDef = true`
       // (reads nTpeArgs + type args before rhs). The JVM evaluates it as a
       // ValDef. Was previously parse-rejected ('opcode-reserved').
-      return parseValDef(r, constantTypes, constantValues, valDefTypes, true, treeVersion)
+      return (r, ct, cv, vd, tv) => parseValDef(r, ct, cv, vd, true, tv)
     case OP.OP_SOME_VALUE:
       throw new ExprParseError(
         'SomeValue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
