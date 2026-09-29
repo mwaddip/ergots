@@ -634,9 +634,10 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // --- transaction_id (32 raw bytes) ---
       const txId = r.readBytes(32).slice()
 
-      // --- index (VLQ u16 via sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE;
-      //     rejects > u16 to match sigma-rust `r.get_u16()` at
-      //     chain/ergo_box.rs:220, mirroring the serializer's own u16 cap) ---
+      // --- index (a VLQ, NOT raw 2-byte BE: the JVM's getUShort, ErgoBox.scala:218, so the parse
+      //     bound is 0xFFFF. The JVM holds the index as a Short (:224) and writes it with putUShort
+      //     (:211), which rejects the negative Short that 0x8000-0xFFFF parse to, so the SBox write
+      //     bound is 0x7FFF: Round-trip Carve-out 9 in facts/ergoscript-wire.md) ---
       const index = r.readVlqU()
       if (index > 0xffff) {
         throw new SValueParseError(
