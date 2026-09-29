@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
+import { VerifierCore } from '../src/batch-verifier.js'
 import { newLeaf, type LeafNode } from '../src/node.js'
 import type { Operation } from '../src/operation.js'
 import { BatchAVLVerifier, verifyAvlBatch } from '../src/verify.js'
@@ -158,6 +159,27 @@ describe('the neighbors are authenticated', () => {
       expect(v.digest()).toBeNull()
     })
   }
+
+  it('the verifier observer sees a leaf only after the range check approved it', () => {
+    // Not observable through the public API: a failed check fails the lookup
+    // before the report is read. Pinned here so a report's authentication
+    // stays local to keyMatchesLeaf's range check.
+    const p = fiveKeyProver()
+    const before = p.digest()
+    const oneGo = p.generateProofForOperations([{ tag: 'Lookup', key: keyOf(20) }])
+    if (!oneGo.success) throw new Error('prover lookup failed')
+    const core = new VerifierCore(before, oneGo.proof, CONFIG)
+    type Hooks = { keyMatchesLeaf(key: Uint8Array, leaf: LeafNode): { ok: boolean } }
+    const seen: boolean[] = []
+    const hooks = (
+      core as unknown as { buildCallbacks(op: Operation, onLeaf: (leaf: LeafNode, matches: boolean) => void): Hooks }
+    ).buildCallbacks({ tag: 'Lookup', key: keyOf(45) }, (_leaf, matches) => seen.push(matches))
+    const leaf = newLeaf(keyOf(20), new Uint8Array([20]), keyOf(30))
+    expect(hooks.keyMatchesLeaf(keyOf(45), leaf).ok).toBe(false) // 45 lies outside [20, 30)
+    expect(seen).toEqual([])
+    expect(hooks.keyMatchesLeaf(keyOf(25), leaf).ok).toBe(true) // 25 lies inside, and is absent
+    expect(seen).toEqual([false])
+  })
 })
 
 describe('verifier neighbor reports are copies', () => {
