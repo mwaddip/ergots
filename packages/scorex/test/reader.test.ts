@@ -180,9 +180,9 @@ describe('ByteReader — position setter, peekU8, negative readBytes', () => {
     expect(r.isExhausted).toBe(true);
   });
 
-  it('set position rejects a value outside [0, length]', () => {
+  it('set position rejects a value outside [0, length], and one that is no integer', () => {
     const r = new ByteReader(new Uint8Array([1, 2, 3]));
-    for (const p of [-1, 4, 1.5]) {
+    for (const p of [-1, 4, 1.5, NaN]) {
       let err: unknown;
       try { r.position = p; } catch (e) { err = e; }
       expect(err).toBeInstanceOf(ReaderError);
@@ -218,6 +218,10 @@ describe('ByteReader — position setter, peekU8, negative readBytes', () => {
     let err: unknown;
     try { r.readBytes(-1); } catch (e) { err = e; }
     expect((err as ReaderError).code).toBe('position-out-of-range');
+    expect(r.position).toBe(0);
+    let errNaN: unknown;
+    try { r.readBytes(NaN); } catch (e) { errNaN = e; }
+    expect((errNaN as ReaderError).code).toBe('position-out-of-range');
     expect(r.position).toBe(0);
 
     const w = new ByteReader(new Uint8Array([1, 2, 3]));

@@ -81,7 +81,7 @@ export class ByteReader {
   }
 
   /**
-   * The JVM `position_=` (`CoreByteReader.scala`, delegating to the buffer): a plain
+   * The JVM `position_=` (`CoreByteReader.scala:114`, delegating to the buffer): a plain
    * assignment. ergoscript's tree parse uses it to re-read a degraded tree from its start
    * (`ErgoTreeSerializer.scala:200-202`).
    */
@@ -133,9 +133,8 @@ export class ByteReader {
    * Fork a sub-reader over `bytes` that INHERITS this reader's current
    * recursion depth and cap, for a parser that reads an inner region from its
    * own buffer yet must keep counting depth: a naive `new ByteReader(slice)`
-   * would reset level to 0 and under-count depth. It stays public, but
-   * `@ergots/ergoscript` no longer uses it: it parses a size-flagged ErgoTree
-   * body on the reader the tree arrives on, as the JVM does
+   * would reset level to 0 and under-count depth. It is not how the JVM reads a
+   * size-flagged ErgoTree body, which it parses on the reader the tree arrives on
    * (`ErgoTreeSerializer.scala:141-215`). The level flows INTO the fork only: a
    * caller that goes on reading the parent must carry the fork's final level
    * back itself (levels a caught error left inside the region).
