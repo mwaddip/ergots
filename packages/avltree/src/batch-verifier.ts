@@ -16,9 +16,10 @@
  * reference exactly. Off-by-one in the directions/replay indices or skipping
  * the needsDelete handoff would silently diverge downstream digests.
  *
- * Per the design spec (docs/specs/2026-05-18-ergots-avltree-package-design.md),
- * this class is INTERNAL on v0.4.0 — consumers use `verifyAvlBatch` /
- * `verifyAvlLookup` (T18+T19) which wrap this. Key/value LENGTH validation
+ * This class is INTERNAL. Consumers use the verify.ts functions and, since
+ * 0.5.0, the public BatchAVLVerifier wrapper (verify.ts), which owns
+ * validation, input and output copies, and the engine-throw fail-stop.
+ * Key/value LENGTH validation
  * lives in those wrappers (throws — kept deliberately: converting the shipped
  * 'operation-key-length-mismatch' throw to a per-op failure would be a
  * breaking API change, and the eval path routes around it via savltree's
@@ -44,6 +45,7 @@ import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
 import { compareBytes } from './compare-bytes.js'
+import { neighborLookupOf, type NeighborLookup } from './neighbors.js'
 
 /**
  * Constants — mirrors `DIGEST_LENGTH` from the Rust source.
@@ -71,10 +73,9 @@ const DIGEST_LENGTH = 32
  *          (Uint8Array if the key existed, `null` if absent).
  *   3. `digest()` — computes the current 33-byte digest, or null if poisoned.
  *
- * `lastFailReason` is set on any failure path (proof decode, modifyHelper,
- * deleteHelper, or tree-poisoned re-entry). Tracked publicly as a debugging
- * aid; the design spec defers exposing it on the v0.1.0 public surface
- * (option-3 decision; see errors.ts § AvlVerifyFailReason).
+ * `lastFailReason` is set on every failure path (proof decode, modifyHelper,
+ * deleteHelper, or the ±inf gate) and kept once set. Exposed since 0.5.0
+ * through BatchAVLVerifier.getLastFailReason() (errors.ts § AvlVerifyFailReason).
  */
 export class VerifierCore {
   /** The serialized AD proof (packed post-order tree + directions bit-string). */
@@ -91,12 +92,13 @@ export class VerifierCore {
    */
   height: number
   /**
-   * Internal failure reason (option-3: not exposed publicly on v0.1.0 per the
-   * design spec — to be promoted to a getter when/if this class is exposed).
-   * Set on:
+   * The first failure's reason — exposed since 0.5.0 through
+   * BatchAVLVerifier.getLastFailReason(). Set on:
    *   - construction-time proof-decode failure (reason from parseProofPackedTree)
-   *   - performOneOperation failure (reason from modifyHelper / deleteHelper)
-   *   - re-entry on a poisoned tree ('tree-poisoned')
+   *   - performOneOperation failure (reason from modifyHelper / deleteHelper,
+   *     or 'key-out-of-bounds' from the ±inf gate)
+   * Re-entry on a poisoned tree keeps it: the `??=` 'tree-poisoned' never
+   * lands, because every poisoning path also sets its own reason.
    */
   lastFailReason: AvlVerifyFailReason | null = null
 
@@ -174,7 +176,10 @@ export class VerifierCore {
    * so nextDirectionIsLeft ignores its `key` and `r` parameters. The prover's
    * implementation of the same callback WILL use them.
    */
-  private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
+  private buildCallbacks(
+    _op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): AvlTreeOpsCallbacks {
     const proof = this.proof
     const state = this.state
     return {
@@ -182,7 +187,13 @@ export class VerifierCore {
         return nextDirectionIsLeft(proof, state)
       },
       keyMatchesLeaf: (key: Uint8Array, leaf: LeafNode) => {
-        return keyMatchesLeaf(key, leaf)
+        const m = keyMatchesLeaf(key, leaf)
+        // The engine calls this at most once per operation (modify.ts:149;
+        // deleteHelper never does), and exactly once for a successful Lookup.
+        // `onLeaf` sees the leaf only after the range check approved it — the
+        // check that authenticates a neighbor report (0.5.0).
+        if (m.ok) onLeaf?.(leaf, m.matches)
+        return m
       },
       replayComparison: () => {
         return replayComparison(proof, state)
@@ -253,6 +264,40 @@ export class VerifierCore {
    *     defensive.
    */
   performOneOperation(op: Operation): Uint8Array | null | { failed: true } {
+    return this.perform(op)
+  }
+
+  /**
+   * A Lookup that reports its neighbors (0.5.0): exactly
+   * performOneOperation({ tag: 'Lookup', key }) — same gates, same proof bits
+   * consumed, same poisoning — with the report read off the leaf the lookup
+   * resolved at. Buffers in the report are fresh copies.
+   */
+  lookupWithNeighbors(key: Uint8Array): NeighborLookup | { failed: true } {
+    const seen: { leaf: LeafNode | null; matches: boolean; calls: number } = {
+      leaf: null,
+      matches: false,
+      calls: 0,
+    }
+    const r = this.perform({ tag: 'Lookup', key }, (leaf, matches) => {
+      seen.leaf = leaf
+      seen.matches = matches
+      seen.calls++
+    })
+    if (r !== null && 'failed' in r) return r
+    if (seen.calls !== 1 || seen.leaf === null) {
+      throw new Error(
+        `VerifierCore.lookupWithNeighbors: a successful Lookup observed ${seen.calls} leaves, not 1 — the shared engine is in an inconsistent state`,
+      )
+    }
+    return neighborLookupOf(seen.leaf, seen.matches, this.negInfKey, this.posInfKey)
+  }
+
+  /** performOneOperation's body; `onLeaf` observes the leaf the operation resolves at. */
+  private perform(
+    op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): Uint8Array | null | { failed: true } {
     // Rust lines 197-203 @568e7c3: empty-tree / already-poisoned guard.
     // The Rust uses `ok_or(anyhow!("Empty tree"))?` (line 202 @568e7c3): the
     // `?` returns Err immediately when root is already None — root simply
@@ -298,7 +343,7 @@ export class VerifierCore {
     // Phase 1 — Rust lines 272-273 @568e7c3:
     //   let (new_root_node, _, height_increased, to_delete, old_value) =
     //       self.modify_helper(root_node, &key, operation)?;
-    const callbacks = this.buildCallbacks(op)
+    const callbacks = this.buildCallbacks(op, onLeaf)
     const modifyResult = modifyHelper(this.root, op, callbacks)
     if (!modifyResult.ok) {
       // Rust lines 205-208 @568e7c3: on Err from return_result_of_one_operation,
