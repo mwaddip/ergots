@@ -152,14 +152,15 @@ Three whole-tree passes run in `dispatchTreeBody` (`eval/evaluate.ts`) on the **
 
 Separately, when `tree.header.constantSegregation` is true, `dispatchTreeBody` runs `substituteConstants(tree.body, tree.constants, tree.constantTypes)` BEFORE `substituteDeserialize`, mirroring sigma-rust `eval.rs:206` (`tree.proposition()` → `substitute_constants` → `substitute_deserialize`, `eval.rs:203`). This matters for cost faithfulness: a segregated deserialize tree's `ConstantPlaceholder`s reach `evalExpr` as inlined `Const` nodes charging `Fixed(5)` (the eager-substitute basis), not the lazy `ConstantPlaceholder = Fixed(1)` of the `ctx.constants`-lookup path. The non-deserialize path stays on lazy resolution (sigma-rust's `with_constants` branch, `eval.rs:259`), which intentionally charges 1 per CP.
 
-## `EvalError` taxonomy (85 codes)
+## `EvalError` taxonomy (86 codes)
 
-`EvalError` carries a `code: string` distinct from the wire-layer error classes (`ExprParseError`, `SerializeError`), the sigma-verifier classes (`facts/ergoscript-sigma.md`), and the scorex `ReaderError` (`'truncated'`, `'max-tree-depth-exceeded'`) — all of which can surface unwrapped when their layers are called from an eval arm. The 85 live codes follow, grouped by area. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those are contract violations and bugs, not eval-input issues.
+`EvalError` carries a `code: string` distinct from the wire-layer error classes (`ExprParseError`, `SerializeError`), the sigma-verifier classes (`facts/ergoscript-sigma.md`), and the scorex `ReaderError` (`'truncated'`, `'max-tree-depth-exceeded'`) — all of which can surface unwrapped when their layers are called from an eval arm. The 86 live codes follow, grouped by area; they are the `EvalErrorCode` union in `eval/errors.ts`. Internal panics (e.g. a bug in a wire-layer helper called from an arm) bubble up as their typed error class — those are contract violations and bugs, not eval-input issues.
 
 ### Infrastructure / cross-cutting
 
 - **`'not-implemented-yet'`** — central dispatch (`eval/eval.ts`) hit an `Expr` variant or eval path with no arm yet. Message includes the offending `tag`. (Replaced the older wire placeholder `'not-implemented-phase-2a'` on the SHeader parse path.)
 - **`'cost-limit-exceeded'`** — `EvalContext.addCost` (and therefore `addPerItemCost`) detected `ctx.jitCost > ctx.jitCostLimit` after a charge. Only raised when the caller set `jitCostLimit`.
+- **`'unparsed-ergotree'`** — `evaluate` / `evaluateWith` was given an `UnparsedErgoTree` (a size-flagged tree that degraded; `facts/ergoscript-wire.md`, "ErgoTree union + the soft-fork degrade set"). Thrown before any context or cost work, nothing charged: such a tree cannot be reduced, and the JVM's interpreter rejects it too unless the current validation settings mark its error's rule as soft-forked, when it reads the tree as `TrueSigmaProp` (`interpreter/.../Interpreter.scala:131-141`); ergots does not model that case (a follow-up of `docs/specs/2026-09-28-sized-tree-declared-size-design.md`). This is how a spend of a box whose tree rule 1001 degraded rejects (`@ergots/transaction`'s script path).
 
 ### Const / Block / Val
 
@@ -244,10 +245,12 @@ Separately, when `tree.header.constantSegregation` is true, `dispatchTreeBody` r
 
 - **`'method-not-implemented'`** — `MethodCall` / `PropertyCall` dispatcher: the `(typeId, methodId)` pair has no registered handler. Also reused for defensive shape mismatches inside registered handlers (compact taxonomy: covers both "dispatch miss" and "handler shape mismatch"). All non-SContext handlers reuse it for obj-kind defensive throws.
 - **`'context-obj-not-context'`** — `SContext.dataInputs` / `SContext.preHeader` handler: the `obj` argument evaluated to an `SValue` whose `kind !== 'Context'`. Unreachable for parser-produced trees.
+- **`'method-call-empty-args'`** — the `validateMethodCallArity` pre-eval pass (see "Pre-eval validation gates"): a `MethodCall`-opcode node with no arguments in a tree of version 3 or later. The JVM asserts `args.nonEmpty` while parsing such a node (`MethodCallSerializer.scala:53-55`); ergots rejects it before evaluation, with no cost charged.
 
 ### AVL-tree
 
 - **`'avl-tree-obj-not-avl-tree'`** — defensive receiver check on all `SAvlTree.*` handlers when `obj.kind !== 'AvlTree'`. Unreachable for parser-produced trees.
+- **`'unsupported-eval-node'`** — the `TreeLookup` (opcode 0xb7) and `CreateAvlTree` (opcode 0xb6) Expr arms reject unconditionally with this code. The JVM has NO eval override for either node (`costKind = Value.notSupportedError`, `trees.scala:1322-1338`/`trees.scala:1334-1337` TreeLookup, `trees.scala:79-91` CreateAvlTree; CreateAvlTree carries `// TODO v6.0: implement eval`, issue #907) and the default `Value.eval` fires `sys.error` (`values.scala:102`). Every evaluation throws JVM-side, so both arms reject: nothing charged, no operand evaluated. Both nodes still PARSE. Mainnet history is JVM-validated ⇒ no block ever evaluated either node ⇒ the reject cannot fork against chain history. The previous evaluating arms were sigma-rust ports (eni convergently over-accepts both).
 - **`'avl-tree-proof-failed'`** — thrown when a Tier-2 verification op fails AND the method's JVM contract calls for a throw on that path. **JVM-canonical construct-fail routing:** the JVM `BatchAVLVerifier` wraps construction in `Try{…}.toOption`, `CAvlTreeVerifier.logError` is a no-op, so a bad proof yields `topNode = None`, not a throw. Observable routing per method:
   - `contains` (100:9) — construct-fail → **`false`** (never throws); per-op fail → `false`.
   - `get` (100:10) — construct-fail → throws (charged: createVerifier + 1 lookup first); per-op fail → throws; key-absent → `None`.
@@ -320,7 +323,6 @@ These tokens appear in the source/history but are NOT live EvalError codes. List
 - **`'deserialize-context-key-not-found'`** — removed. An absent/wrong-typed `DeserializeContext` var now leaves the node unchanged (JVM-faithful failure-tolerant substitution); a LIVE such node errors via `'deserialize-not-substituted'`.
 - **`'create-avl-tree-shape-mismatch'`** — removed. The `CreateAvlTree` arm became an unconditional `'unsupported-eval-node'` reject (no JVM eval override), orphaning its 3 shape-mismatch throw paths.
 - **`'avl-tree-bad-digest-length'`** — retired. JVM `CAvlTree.scala:31-34` has no length require on `updateDigest`; any `Coll[Byte]` length is accepted verbatim. The 33-byte gate mirrored sigma-rust's `ADDigest::try_from`, a convergent over-reject.
-- **`'unsupported-eval-node'`** — the `TreeLookup` (opcode 0xb7) and `CreateAvlTree` (opcode 0xb6) Expr arms reject unconditionally with this code. The JVM has NO eval override for either node (`costKind = Value.notSupportedError`, `trees.scala:1322-1338`/`trees.scala:1334-1337` TreeLookup, `trees.scala:79-91` CreateAvlTree; CreateAvlTree carries `// TODO v6.0: implement eval`, issue #907) and the default `Value.eval` fires `sys.error` (`values.scala:102`). Every evaluation throws JVM-side, so both arms reject: nothing charged, no operand evaluated. Both nodes still PARSE. Mainnet history is JVM-validated ⇒ no block ever evaluated either node ⇒ the reject cannot fork against chain history. The previous evaluating arms were sigma-rust ports (eni convergently over-accepts both).
 - **`'unsigned-bigint-negative'`** — an invented code, never emitted (the wire layer rejects negative UBI structurally); kept here as a defensive-code-convention precedent reference.
 
 ## Eval-arm cost reference

@@ -289,8 +289,9 @@ export function deriveHeaderId(header: Header): Uint8Array  // 32 bytes
 // read (`minerPk` always; v1's `powOnetimePk` too) and must return the bytes to store —
 // letting a caller curve-validate/normalize a point before the next field is read (JVM
 // `GroupElementSerializer.parse`, `ErgoHeader.scala:73-74, 90`). Omitted: bytes pass through
-// unvalidated.
-export type ValidatePointFn = (bytes: Uint8Array, field: 'minerPk' | 'powOnetimePk') => Uint8Array
+// unvalidated. The alias `ValidatePointFn` is declared in `autolykos-solution.ts` and is NOT
+// exported from the package root: callers pass a function of this shape.
+type ValidatePointFn = (bytes: Uint8Array, field: 'minerPk' | 'powOnetimePk') => Uint8Array
 export function parseAutolykosSolution(reader: ByteReader, version: number, validatePoint?: ValidatePointFn): AutolykosSolution
 export function serializeAutolykosSolution(s: AutolykosSolution, version: number): Uint8Array
 
