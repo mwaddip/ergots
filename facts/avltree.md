@@ -321,7 +321,7 @@ Root installation is consolidated: `PersistentBatchAVLProver.rollback` (Phase B)
 
 #### `PersistentBatchAVLProver`
 
-Wraps a `BatchAVLProver` with a `VersionedAVLStorage` implementation. On construction, it either rolls back to the stored version (if one exists) or generates an initial proof and writes the new version to storage. All tree-modifying operations are delegated to the inner `BatchAVLProver`; the storage layer is updated on each `generateProofAndUpdateStorage` call. It mirrors both neighbor lookups (v0.5.0). `rollback` routes through `restoreRoot`, so it also clears the proof-cycle fail-stop. While the fail-stop mark is set, `generateProofAndUpdateStorage` throws, but it runs `storage.update` first and the inner `generateProof()` second, so whether the exception arrives before the backend writes depends on the backend: an `update` that calls `removedNodes()` before writing throws first, while one that does not completes and writes, and only then does `generateProof()` throw. After such a throw, call `rollback(version)` to a known-good version rather than trust storage.
+Wraps a `BatchAVLProver` with a `VersionedAVLStorage` implementation. On construction, it either rolls back to the stored version (if one exists) or generates an initial proof and writes the new version to storage. All tree-modifying operations are delegated to the inner `BatchAVLProver`; the storage layer is updated on each `generateProofAndUpdateStorage` call. It mirrors both neighbor lookups (v0.5.0). `rollback` routes through `restoreRoot`, so it also clears the proof-cycle fail-stop. While the fail-stop mark is set, `generateProofAndUpdateStorage` throws, but it runs `storage.update` first and the inner `generateProof()` second, so whether the exception arrives before the backend writes depends on the backend: an `update` that calls `removedNodes()` before writing throws before any write, while one that writes first, or never calls it, has already written when the exception arrives (from `removedNodes()` inside `update`, or from `generateProof()` after `update` returns). After such a throw, call `rollback(version)` to a known-good version rather than trust storage.
 
 #### `VersionedAVLStorage`
 
@@ -375,7 +375,7 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
 
 ## Failure model overview
 
-The package enforces a strict two-tier failure model for verification outcomes. Separately, a plain `Error` means an indeterminate instance or an invariant-violating tree, never a rejection; see "Fail-stop after an engine throw" under `BatchAVLVerifier`, "Proof-cycle fail-stop" under `BatchAVLProver`, and the invariant throws under `removedNodes()` and "Neighbor lookups".
+The package enforces a strict two-tier failure model for verification outcomes. Separately, a plain `Error` is never a rejection: it signals, for example, an indeterminate instance, an invariant-violating tree, or an internal panic in `@noble/hashes`; see "Fail-stop after an engine throw" under `BatchAVLVerifier`, "Proof-cycle fail-stop" under `BatchAVLProver`, the invariant throws under `removedNodes()` and "Neighbor lookups", and invariant 3 below.
 
 **Tier 1 — `AvlVerifyError` thrown (8 codes; programmer errors only)**
 
