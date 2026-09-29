@@ -59,7 +59,7 @@ import type { AvlVerifyFailReason } from './errors.js'
  * `needsDelete` mirrors Rust's `to_delete` flag (authenticated_tree_ops.rs lines
  * 328, 397, 423 @568e7c3). When true, the leaf at the matching key must be removed
  * by the caller via `deleteHelper` (T16). The caller (`return_result_of_one_operation`
- * in T17/BatchAvlVerifier) handles this two-phase dispatch:
+ * in T17/VerifierCore) handles this two-phase dispatch:
  *   1. modifyHelper returns needsDelete=true (UpdateLongBy result=0 case)
  *   2. caller calls deleteHelper on the returned newSubtreeRoot
  * The flag propagates upward through internal nodes in the !changeHappened path
@@ -223,7 +223,7 @@ function handleLeafMatch(leaf: LeafNode, op: Operation, callbacks: AvlTreeOpsCal
   //     (r_node.clone(), false, false, true, Some(r.value))
   //   }
   // We return the leaf unchanged (newSubtreeRoot=leaf, changeHappened=false)
-  // and signal needsDelete=true. The caller (BatchAvlVerifier T17) routes this
+  // and signal needsDelete=true. The caller (VerifierCore T17) routes this
   // to deleteHelper (T16) after modifyHelper completes.
   // Note: Remove/RemoveIfExists DO reach this function on their first pass —
   // updateFn returns null, the needsDelete branch below fires, and the caller
