@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
 import { VerifierCore } from '../src/batch-verifier.js'
+import { AvlVerifyError } from '../src/errors.js'
 import { newLeaf, type LeafNode } from '../src/node.js'
 import type { Operation } from '../src/operation.js'
 import { BatchAVLVerifier, verifyAvlBatch } from '../src/verify.js'
@@ -79,7 +80,15 @@ describe('a verifier neighbor lookup consumes the proof exactly as a Lookup', ()
     const oneGo = p.generateProofForOperations([{ tag: 'Lookup', key: keyOf(20) }])
     if (!oneGo.success) throw new Error('prover lookup failed')
     const v = new BatchAVLVerifier(before, oneGo.proof, CONFIG)
-    expect(() => v.performLookupWithNeighbors(new Uint8Array(KL - 1).fill(1))).toThrow(/key\.length/)
+    // Same shape gate, and same code, as performOneOperation.
+    let shapeError: unknown
+    try {
+      v.performLookupWithNeighbors(new Uint8Array(KL - 1).fill(1))
+    } catch (e) {
+      shapeError = e
+    }
+    expect(shapeError).toBeInstanceOf(AvlVerifyError)
+    expect((shapeError as AvlVerifyError).code).toBe('operation-key-length-mismatch')
     expect(v.getLastFailReason()).toBeNull()
     expect(v.performLookupWithNeighbors(new Uint8Array(KL))).toEqual({ success: false })
     expect(v.getLastFailReason()).toBe('key-out-of-bounds')

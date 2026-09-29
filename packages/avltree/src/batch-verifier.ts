@@ -18,7 +18,8 @@
  *
  * This class is INTERNAL. Consumers use the verify.ts functions and, since
  * 0.5.0, the public BatchAVLVerifier wrapper (verify.ts), which owns
- * validation, input and output copies, and the engine-throw fail-stop.
+ * validation, input copies, copies of returned values, and the engine-throw
+ * fail-stop. Digests and neighbor reports leave this class already fresh.
  * Key/value LENGTH validation
  * lives in those wrappers (throws — kept deliberately: converting the shipped
  * 'operation-key-length-mismatch' throw to a per-op failure would be a
@@ -26,9 +27,10 @@
  * shape pre-scan; see facts/avltree.md invariant #1). The references'
  * two strict ±inf bounds requires (Rust `ensure!`s at
  * authenticated_tree_ops.rs:267-268 @568e7c3; scrypto's identical requires)
- * are enforced HERE at the top of performOneOperation as fail-and-poison
- * ('key-out-of-bounds') — task 6g. Beyond those per-op gates, once
- * construction finishes this class trusts the inputs and operates on bytes.
+ * are enforced HERE at the top of perform (the body performOneOperation and
+ * lookupWithNeighbors share) as fail-and-poison ('key-out-of-bounds') —
+ * task 6g. Beyond those per-op gates, once construction finishes this class
+ * trusts the inputs and operates on bytes.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
  * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (261-288 @568e7c3; ±inf ensure!s :267-268 @568e7c3)
@@ -56,7 +58,8 @@ const DIGEST_LENGTH = 32
 /**
  * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl), the integration
  * layer of the AVL+ verifier. Holds the proof bytes and the reconstructed
- * tree state, and exposes `performOneOperation` for the caller.
+ * tree state, and exposes `performOneOperation` and (0.5.0)
+ * `lookupWithNeighbors` for the caller.
  *
  * Lifecycle:
  *   1. `new VerifierCore(startingDigest, proof, config)` — runs
@@ -95,8 +98,9 @@ export class VerifierCore {
    * The first failure's reason — exposed since 0.5.0 through
    * BatchAVLVerifier.getLastFailReason(). Set on:
    *   - construction-time proof-decode failure (reason from parseProofPackedTree)
-   *   - performOneOperation failure (reason from modifyHelper / deleteHelper,
-   *     or 'key-out-of-bounds' from the ±inf gate)
+   *   - operation failure, in performOneOperation or lookupWithNeighbors
+   *     (reason from modifyHelper / deleteHelper, or 'key-out-of-bounds'
+   *     from the ±inf gate)
    * Re-entry on a poisoned tree keeps it: the `??=` 'tree-poisoned' never
    * lands, because every poisoning path also sets its own reason.
    */
@@ -290,7 +294,11 @@ export class VerifierCore {
     return neighborLookupOf(seen.leaf, seen.matches, this.negInfKey, this.posInfKey)
   }
 
-  /** performOneOperation's body; `onLeaf` observes the leaf the operation resolves at. */
+  /**
+   * performOneOperation's body, shared with lookupWithNeighbors. `onLeaf`
+   * observes the leaf the operation resolves at, and only once
+   * keyMatchesLeaf's range check approved it.
+   */
   private perform(
     op: Operation,
     onLeaf?: (leaf: LeafNode, matches: boolean) => void,
