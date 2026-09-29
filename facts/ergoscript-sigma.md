@@ -92,6 +92,7 @@ It is consumed by `verifySignature` (this slice) and by the eval-side `SigmaProp
 - `Cand.items.length >= 1`
 - `Cor.items.length >= 1`
 - `Cthreshold.items.length >= 1` (mirrors sigma-rust's `BoundedVec<T, 1, 255>`)
+- `Cthreshold.items.length <= 255` (the JVM's `CTHRESHOLD` `require`, `core/.../sigma/data/SigmaBoolean.scala:223`, checked after the children are read; since 2026-09-28)
 - `Cthreshold.k in [1, items.length]`
 
 ## `VerifyError` taxonomy (9 codes)
