@@ -37,7 +37,7 @@ describe('Transaction synthetic data-input round-trip', () => {
       outputCandidates: [
         {
           value: 1_000_000n,
-          // canonical P2PK ergoTree (valid, self-delimiting via header)
+          // canonical P2PK ergoTree (valid; a v0 tree without the size flag, delimited by its body parse)
           ergoTreeBytes: hexToBytes('0008cd' + '02'.repeat(33)),
           creationHeight: 100,
           tokens: [{ id: tokenId, amount: 5n }],
