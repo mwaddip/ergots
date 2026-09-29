@@ -8,7 +8,7 @@
  * iterative walk that keeps label()'s Internal arm off the native call
  * stack (deep-spine hardening; ports the reference's `b785d0d` fix).
  *
- * @see ~/projects/ergo_avltree_rust/src/batch_node.rs
+ * @see ergo_avltree_rust src/batch_node.rs (pin 568e7c3)
  */
 
 import { blake2b } from '@noble/hashes/blake2.js'

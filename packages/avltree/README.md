@@ -1,6 +1,6 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 374 tests.
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 441 tests.
 
 **Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
@@ -34,6 +34,26 @@ if (result === null) {
   console.log(result.results);   // (Uint8Array | null)[]
 }
 ```
+
+### Step by step, with neighbors (0.5.0)
+
+`BatchAVLVerifier` performs operations one at a time, as a state transition asks
+for them. `performLookupWithNeighbors` also reports the neighbors: a present key's
+value and next key, or an absent key's two neighbors, with `null` at either end of
+the tree. That is enough to walk a key range and see that nothing was left out.
+The provers have the same method, recorded and unrecorded.
+
+```ts
+import { BatchAVLVerifier } from '@ergots/avltree';
+
+const v = new BatchAVLVerifier(startingDigest, proof, config);
+const r = v.performLookupWithNeighbors(key);
+if (!r.success) throw new Error(`proof rejected: ${v.getLastFailReason()}`);
+if (r.found) console.log(r.value, r.nextKey);   // nextKey null = last key
+else console.log(r.prevKey, r.nextKey);         // null = end of the tree
+```
+
+A `{ success: false }` poisons the verifier, and the prover leaves a failed operation out of its proof. So treat any failure as fatal to the whole batch, on both sides. See [API.md](./API.md) for the contract and a range-walk example.
 
 ### Prover
 

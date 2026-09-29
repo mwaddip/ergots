@@ -8,7 +8,7 @@
  *
  * Ports ergo_avltree_rust/src/batch_avl_prover.rs (537 lines).
  *
- * @see ~/projects/ergo_avltree_rust/src/batch_avl_prover.rs
+ * @see ergo_avltree_rust src/batch_avl_prover.rs (pin 568e7c3)
  */
 
 import { newLeaf, newInternal, label, type AvlNode, type InternalNode, type LeafNode } from './node.js'
