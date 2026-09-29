@@ -30,14 +30,15 @@
  * Subsequent tasks (T9-T10) extend this with phase-specific codes:
  *
  *   - 'byte-roundtrip-mismatch'        (output-roundtrip phase, T9)
- *     — reencodeTreeBytes(ergoTreeBytes) !== ergoTreeBytes (the box-rules
- *       re-encoding, since spec 2026-09-28 §12)
+ *     — the box re-serialized as the JVM does (its tree re-encoded under the
+ *       box rules) !== the chain's box bytes, which hash to the box id
  *   - 'tree-version-derivation-failed' (output-roundtrip phase, T9)
  *     — treeVersionFn threw / returned an out-of-range value
  *   - 'sbox-parse-failed'              (output-roundtrip phase, T9)
  *     — parseSValue(SBox, ...) threw / returned non-Box kind
- *   - 'tree-serialize-failed'          (output-roundtrip phase, T9)
- *     — reencodeTreeBytes threw on the extracted ergoTreeBytes
+ *   - 'box-serialize-failed'           (output-roundtrip phase, T9)
+ *     — re-serializing the parsed box threw (its tree's re-encoding, a
+ *       register, or an index the JVM cannot write)
  *   - 'tree-parse-failed'              (evaluate phase, T10)
  *     — boxTreeOf threw on a spent box's ergoTreeBytes
  *   - 'evaluate-mismatch'              (evaluate phase, T10) — exact set TBD

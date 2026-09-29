@@ -122,7 +122,7 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 | `phase` | Source | Typical `errorCode` values |
 |---|---|---|
 | `header` | `validate-block.ts` header pass | `byte-roundtrip-mismatch`, `autolykos-v2-verify-false`, `v1-header-after-v2-activation`, `parent-link-mismatch` |
-| `output-roundtrip` | `validate-block.ts` per-output pass (the tree's box-rules re-encoding against its bytes as received) | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-serialize-failed` |
+| `output-roundtrip` | `validate-block.ts` per-output pass (the box re-serialized as the JVM does, its tree re-encoded under the box rules, against the chain's box bytes, which hash to the box id) | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `box-serialize-failed` |
 | `census` | `degrade-census.ts`, from the per-output pass (`--census`) | `census-unexpected-degrade`, `census-expected-degrade-missing`, `census-expected-position-missing`, `census-log-write-failed` (at startup, stderr only: `census-dir-unwritable`, `census-file-unreadable`, `census-file-malformed`) |
 | `ids` | `validate-tx-ids.ts` (`--mode ids`) | `tx-id-mismatch`, `output-count-mismatch`, `output-bytes-mismatch`, `ids-tx-bytes-missing`, `ids-parse-failed`, `ids-tx-id-failed`, `ids-output-serialize-failed` |
 | `lib-validate` | `validate-tx-lib.ts` (`--mode lib`) | `lib-tx-bytes-missing`, `lib-parse-failed`, `lib-deps-failed`, `lib-validate-rejected` |

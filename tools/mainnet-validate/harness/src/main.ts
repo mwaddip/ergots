@@ -12,8 +12,9 @@
  *      BlockBundle from node REST fragments + indexer-served box bytes
  *      + WASM cost-oracle results.
  *   2. validateBlock(bundle, walkerState, treeVersionFn, txValidator, census)
- *      — runs the header and output-roundtrip passes (checking each output
- *      tree against the degrade census, when `--census` is given), then the
+ *      — runs the header and output-roundtrip passes (each output box
+ *      re-serialized against the chain's box bytes, and its tree checked
+ *      against the degrade census, when `--census` is given), then the
  *      per-tx pass of the `--mode`: evaluate + verify-signature (oracle),
  *      `validateStateful` (lib), or the tx and output box ids (ids).
  *   3. Update + persist checkpoint; advance the rolling-headers window.

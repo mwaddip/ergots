@@ -1,13 +1,14 @@
 /**
  * Unit tests for `validate-block.ts` output round-trip pass (PLAN.md T9).
- * Since spec 2026-09-28 §12 the check is the JVM's box-rules re-encoding:
- * `reencodeTreeBytes(ergoTreeBytes)` must equal the tree's bytes as received.
+ * Since spec 2026-09-28 §12 the check is the JVM's box serialization: the box,
+ * re-serialized with its tree re-encoded under the box rules, must equal the
+ * chain's box bytes, which are the JVM's own serialization of it.
  *
  * Covers the four PLAN-required cases plus a few defensive checks:
  *
  *   1. Happy path: known-good output bytes across multiple txs → no throw.
  *   2. Empty bundle: zero txs / zero outputs → no throw, returns void.
- *   3. Tampered output: a tree whose re-encoding differs from its bytes
+ *   3. Tampered output: a box whose re-serialization differs from its bytes
  *      → throws `byte-roundtrip-mismatch` with `location.{txIndex, outputIndex}`.
  *   4. First-failure halt: tampered output AFTER a good one → reports the
  *      tampered location only (does not iterate past the first failure).
@@ -16,6 +17,10 @@
  *   7. Box rules: the mainnet burn box's tree degrades (rule 1001) and
  *      re-encodes to itself, and every output tree reaches the degrade census,
  *      through `validateBlock` too.
+ *   8. The chain's box bytes: a register or an index the JVM writes back
+ *      differently halts, and so do honest encodings the JVM rewrites (a
+ *      Boolean-constant collection read as 0x83, a method call without
+ *      arguments read as 0xdc), whose canonical twins pass.
  *
  * # Fixture sourcing
  *
@@ -397,6 +402,51 @@ describe('validateOutputRoundtrips: box-rules re-encoding', () => {
         expect(he.code).toBe('byte-roundtrip-mismatch');
         expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
     });
+});
+
+// ─── The chain's box bytes (spec 2026-09-28 §12, final review I1) ────────
+
+/** A box around `treeHex` with the given registers and index: value 1, creation height 0, no tokens, zero txId. */
+function boxWith(treeHex: string, regsHex: string, indexHex: string): Uint8Array {
+    return hexToBytes(`01${treeHex}0000${regsHex}${'00'.repeat(32)}${indexHex}`);
+}
+
+describe('validateOutputRoundtrips: the re-serialized box must equal the chain\'s box bytes', () => {
+    // The chain's box bytes are the JVM's own serialization of the box: they hash to the box id,
+    // which the indexer client checks. So they are a fixed point of the JVM's re-encoding, and
+    // ergots, which re-serializes the box it parsed from them as the JVM does, must reproduce them.
+    it('a register the JVM writes back differently halts: an identity GroupElement with a non-zero tail', () => {
+        // R4: SGroupElement (07), a 0x00-lead point with a 0x11 tail. The JVM, and ergots, read any
+        // 0x00-lead point as the identity and write it as 33 zeros (GroupElementSerializer.scala:20-42),
+        // so no chain box carries this encoding. The tree alone re-encodes to itself.
+        const box = boxWith('0008d3', `0107` + '00' + '11'.repeat(32), '00');
+        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), alwaysVersion0));
+        expect(he.phase).toBe('output-roundtrip');
+        expect(he.code).toBe('byte-roundtrip-mismatch');
+        expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
+    });
+
+    it('an index the JVM cannot write halts: 0x8000, a negative Short', () => {
+        // ErgoBox.scala:211, 218, 224: parsed as getUShort().toShort, written with putUShort.
+        const box = boxWith('0008d3', '00', '808002');
+        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), alwaysVersion0));
+        expect(he.phase).toBe('output-roundtrip');
+        expect(he.code).toBe('box-serialize-failed');
+        expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
+    });
+
+    for (const [name, wire, canonical] of [
+        // The JVM writes a ConcreteCollection of Boolean constants as 0x85 (values.scala:871-875).
+        ['a Boolean-constant collection read as 0x83', '00d19683020101010100', '00d196850201'],
+        // The JVM writes a MethodCall without arguments as a PropertyCall, 0xdb (values.scala:1351).
+        ['a MethodCall without arguments read as 0xdc', '00d191dc6301a7000500', '00d191db6301a70500'],
+    ] as const) {
+        it(`${name} halts: the JVM's box bytes carry the canonical form, which passes`, () => {
+            const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(wire)])]), alwaysVersion0));
+            expect(he.code).toBe('byte-roundtrip-mismatch');
+            expect(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(canonical)])]), alwaysVersion0)).not.toThrow();
+        });
+    }
 });
 
 describe('validateOutputRoundtrips: degrade census', () => {

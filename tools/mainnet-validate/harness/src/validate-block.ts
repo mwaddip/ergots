@@ -40,14 +40,15 @@
 import type { Header } from '@ergots/scorex';
 import {
     ByteReader,
+    ByteWriter,
     parseHeader,
     serializeHeader,
     verifyAutolykosV2,
     AutolykosV1NotSupportedError,
 } from '@ergots/scorex';
 import {
-    reencodeTreeBytes,
     parseSValue,
+    serializeSValue,
     type SValue,
 } from '@ergots/ergoscript';
 
@@ -226,13 +227,21 @@ export function validateHeader(bundle: BlockBundle, state: WalkerState): void {
  *      rules and seeds the box-tree cache with it, keyed by the span it returns.
  *   2. Extract `.ergoTreeBytes` from the parsed `ErgoBox`: the tree's bytes as
  *      received, the instance the cache holds.
- *   3. `reencodeTreeBytes(ergoTreeBytes)`: the bytes the JVM's candidate
- *      serializer writes for the tree (`ErgoBoxCandidate.scala:142`).
+ *   3. Re-serialize the box as the JVM does (`serializeSValue(SBox)`, the JVM's
+ *      `ErgoBox.sigmaSerializer`), which writes the tree re-encoded
+ *      (`ErgoBoxCandidate.scala:142`) and every register from its value.
  *   4. With a `census`, the tree is checked against the degrade census
  *      (`degrade-census.ts`), which halts on any difference from the expected set.
- *   5. The re-encoding must equal the bytes as received. An honest tree
- *      re-encodes to itself; a tree that degraded re-encodes as received
- *      (`ErgoTreeSerializer.scala:112`).
+ *   5. The re-serialized box must equal the chain's box bytes. Those bytes are
+ *      the JVM's own serialization of the box: they hash to the box id, which
+ *      the indexer client checks against the block. So they are a fixed point of
+ *      the JVM's re-encoding, and ergots must reproduce them. The premise is the
+ *      JVM's, not that a tree re-encodes to itself: the JVM rewrites some honest
+ *      encodings (a Boolean-constant collection read as 0x83 is written 0x85, a
+ *      method call without arguments read as 0xdc is written 0xdb), which the
+ *      chain's bytes therefore never carry. A tree that degraded re-encodes as
+ *      received (`ErgoTreeSerializer.scala:112`), as the burn box at mainnet
+ *      h=545,684 does.
  *
  * After the block's outputs, a census also checks that each of its entries at
  * this height names an output the block has.
@@ -358,21 +367,23 @@ export function validateOutputRoundtrips(
             // standalone, without the bytes after the tree in its box.
             const ergoTreeBytes = sbox.value.ergoTreeBytes;
 
-            // Step 3: the JVM re-encodes a box's tree under the box rules
-            // (ErgoBoxCandidate.scala:142); an honest tree re-encodes to itself.
-            // A degraded tree re-encodes to its raw bytes
-            // (ErgoTreeSerializer.scala:112), such as the burn box at mainnet
-            // h=545,684 tx 1 output 0, whose root rule 1001 rejects. The tree
-            // is the ingest parse (a cache hit), so only the write can throw.
-            let reencoded: Uint8Array;
+            // Step 3: re-serialize the box as the JVM does: the tree re-encoded
+            // under the box rules (ErgoBoxCandidate.scala:142; a degraded tree, such
+            // as the burn box at mainnet h=545,684 tx 1 output 0, as received,
+            // ErgoTreeSerializer.scala:112), and every register from its value. The
+            // tree is the ingest parse (a cache hit), so only the writes can throw,
+            // where the JVM's would too (e.g. an index it holds as a negative Short).
+            let reserialized: Uint8Array;
             try {
-                reencoded = reencodeTreeBytes(ergoTreeBytes);
+                const w = new ByteWriter();
+                serializeSValue({ tag: 'SBox' }, sbox, treeVersion, w);
+                reserialized = w.toBytes();
             } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
                 throw new HarnessError(
                     'output-roundtrip',
-                    'tree-serialize-failed',
-                    `reencodeTreeBytes failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
+                    'box-serialize-failed',
+                    `re-serializing the box failed at tx ${txIndex}, output ${outputIndex}: ${message}`,
                     { txIndex, outputIndex },
                 );
             }
@@ -380,14 +391,16 @@ export function validateOutputRoundtrips(
             // Step 4: the degrade census, when one is kept.
             census?.record(bundle.height, txIndex, outputIndex, ergoTreeBytes);
 
-            // Step 5: byte-compare. The headline check — any disagreement here
-            // is a real validation finding (parser drops info, serializer
-            // reorders, version-gating mishandles a flag).
-            if (!bytesEqual(reencoded, ergoTreeBytes)) {
+            // Step 5: byte-compare against the chain's box bytes. The headline
+            // check: any disagreement is a real validation finding (the parser
+            // drops information, or the writer departs from the JVM's).
+            if (!bytesEqual(reserialized, boxBytes)) {
                 throw new HarnessError(
                     'output-roundtrip',
                     'byte-roundtrip-mismatch',
-                    `reencodeTreeBytes(ergoTreeBytes) !== ergoTreeBytes at tx ${txIndex}, output ${outputIndex}`,
+                    `the re-serialized box differs from the chain's box bytes at tx ${txIndex}, output ${outputIndex} ` +
+                        `(first difference at byte ${firstDifference(reserialized, boxBytes)}; ` +
+                        `${reserialized.length} bytes against ${boxBytes.length})`,
                     { txIndex, outputIndex },
                 );
             }
@@ -447,6 +460,17 @@ export function validateBlock(
     for (let txIndex = 0; txIndex < bundle.transactions.length; txIndex++) {
         txValidator(bundle.transactions[txIndex]!, bundle, state, txIndex);
     }
+}
+
+/** The offset of the first byte at which `a` and `b` differ (the shorter length if one is a prefix). */
+function firstDifference(a: Uint8Array, b: Uint8Array): number {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+        if (a[i] !== b[i]) {
+            return i;
+        }
+    }
+    return n;
 }
 
 /**
