@@ -95,3 +95,43 @@ describe('a Box value with index 0x8000 cannot be re-encoded', () => {
     expect(errorOf(() => transactionId(parsed))).toMatchObject({ code: 'sbox-index-out-of-range' })
   })
 })
+
+// The JVM writes each output tree from its structure, each node through its companion's
+// serializer: a ConcreteCollection of Boolean constants as 0x85 (values.scala:871-875), a MethodCall
+// without arguments as a PropertyCall, 0xdb (values.scala:1351). The signing message, and so the
+// id, carries those bytes.
+describe('output trees re-encode in the JVM canonical form', () => {
+  it('AND(Coll(true, false)) written 0x83: the id is over 0x85', () => {
+    expectAccepted(tx([{ tree: '00d19683020101010100' }]),
+      '457d3558feed43bcb869634ae97e2151552e5a3c2c4ffef47fa2418741aab5d3', ['P:00d196850201'])
+  })
+  it('AND(Coll()) written 0x83: the id is over 0x85', () => {
+    expectAccepted(tx([{ tree: '00d196830001' }]),
+      '7acfc260481515bb8c16a48f421b606a268d191f4ffb01197f1e75c133b9fa36', ['P:00d1968500'])
+  })
+  it('nine Boolean constants written 0x83: the id is over the packed bits', () => {
+    expectAccepted(tx([{ tree: '00d196830901' + '0101'.repeat(4) + '0100'.repeat(4) + '0101' }]),
+      '9479f25c797424e8e2182731b0a0fd507d0f10d023157c9146d7e06bd6824ba2', ['P:00d19685090f01'])
+  })
+  it('a Coll[Boolean] holding a placeholder stays 0x83', () => {
+    const tree = '10010101d19683020173000100'
+    expectAccepted(tx([{ tree }]), '0202d67d519d4969da9af03dfafbeb96ec1c023d339d32b19bdf756a606ec9ad', ['P:' + tree])
+  })
+  it("a Coll[Boolean] holding an Int constant rejects (the JVM asserts item types at parse): 'output-tree-not-reencodable'", () => {
+    const err = errorOf(() => parseTransaction(tx([{ tree: '00d1968301010400' }])))
+    expect(err).toMatchObject({ code: 'output-tree-not-reencodable' })
+    expect(err?.cause).toMatchObject({ code: 'collection-item-not-boolean-constant' })
+  })
+  it('SELF.value > 0L as a MethodCall without arguments: the id is over the PropertyCall', () => {
+    expectAccepted(tx([{ tree: '00d191dc6301a7000500' }]),
+      '364b80a44fcd09e86b31e36392c2b0f4934061673f373485350f5417caf66ad5', ['P:00d191db6301a70500'])
+  })
+  it('the same in a sized v1 tree: the id is over the PropertyCall and the recomputed size', () => {
+    expectAccepted(tx([{ tree: '0909d191dc6301a7000500' }]),
+      'dc149d41f97e4fed0ae36ce65272381412092bce0f32abcf6a0795e14831e016', ['P:0908d191db6301a70500'])
+  })
+  it('Coll.indexOf with arguments stays a MethodCall', () => {
+    const tree = '00d193dc0c1a10010202040204000400'
+    expectAccepted(tx([{ tree }]), '5c12211a78a55fab1c2fce67c4ef31c223294ebf6721f1a49f42d15277cc87d0', ['P:' + tree])
+  })
+})
