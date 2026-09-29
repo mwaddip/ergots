@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -104,11 +104,77 @@ describe('DegradeCensus', () => {
     });
 
     it('rejects an expected file that is not an array of justified entries', () => {
-        writeExpected({ height: 545684 });
-        expect(() => new DegradeCensus(expectedPath)).toThrow(/JSON array/);
-        writeExpected([{ height: 545684, txIndex: 1, outputIndex: 0 }]);
-        expect(() => new DegradeCensus(expectedPath)).toThrow(/reason/);
-        writeExpected([{ height: '545684', txIndex: 1, outputIndex: 0, reason: 'burn box' }]);
-        expect(() => new DegradeCensus(expectedPath)).toThrow(/height/);
+        const cases: Array<[string, RegExp]> = [
+            ['[{"height": 545684,', /JSON/],
+            [JSON.stringify({ height: 545684 }), /JSON array/],
+            [JSON.stringify([{ height: 545684, txIndex: 1, outputIndex: 0 }]), /reason/],
+            [JSON.stringify([{ height: '545684', txIndex: 1, outputIndex: 0, reason: 'burn box' }]), /height/],
+        ];
+        for (const [text, message] of cases) {
+            writeFileSync(expectedPath, text);
+            const he = harnessErrorOf(() => new DegradeCensus(expectedPath));
+            expect(he.phase).toBe('census');
+            expect(he.code).toBe('census-file-malformed');
+            expect(he.message).toMatch(message);
+        }
+    });
+
+    it('counts the expected entries (reported when a walk starts)', () => {
+        expect(new DegradeCensus(expectedPath).expectedCount).toBe(0);
+        writeExpected([{ height: 545684, txIndex: 1, outputIndex: 0, reason: 'burn box: rule 1001' }]);
+        expect(new DegradeCensus(expectedPath).expectedCount).toBe(1);
+    });
+
+    it('logs each degrade once: halt, add the entry, resume', () => {
+        const first = new DegradeCensus(expectedPath);
+        expect(harnessErrorOf(() => first.record(545684, 1, 0, hexToBytes(BURN_TREE))).code)
+            .toBe('census-unexpected-degrade');
+        writeExpected([{ height: 545684, txIndex: 1, outputIndex: 0, reason: 'burn box: rule 1001' }]);
+        // The resumed walk re-validates the block the first run halted in, and a crash
+        // mid-block or a later walk visits it again.
+        const resumed = new DegradeCensus(expectedPath);
+        resumed.record(545684, 1, 0, hexToBytes(BURN_TREE));
+        resumed.record(545684, 1, 0, hexToBytes(BURN_TREE));
+        new DegradeCensus(expectedPath).record(545684, 1, 0, hexToBytes(BURN_TREE));
+        expect(observed()).toHaveLength(1);
+    });
+
+    it('halts when an entry at this height names an output the block does not have', () => {
+        writeExpected([{ height: 545684, txIndex: 1, outputIndex: 0, reason: 'burn box: rule 1001' }]);
+        const census = new DegradeCensus(expectedPath);
+        // Output counts per transaction; entries at other heights are not this block's.
+        expect(() => census.checkExpectedPositions(545684, [3, 1])).not.toThrow();
+        expect(() => census.checkExpectedPositions(545683, [])).not.toThrow();
+        for (const counts of [[3], [3, 0]]) {
+            const he = harnessErrorOf(() => census.checkExpectedPositions(545684, counts));
+            expect(he.phase).toBe('census');
+            expect(he.code).toBe('census-expected-position-missing');
+            expect(he.location).toEqual({ txIndex: 1, outputIndex: 0 });
+        }
+    });
+
+    it('fails at once when the census directory is missing or not writable', () => {
+        const missing = harnessErrorOf(() => new DegradeCensus(join(dir, 'no-such-dir', 'census.json')));
+        expect(missing.phase).toBe('census');
+        expect(missing.code).toBe('census-dir-unwritable');
+        if (process.getuid?.() === 0) return; // root ignores the mode bits
+        const readOnly = join(dir, 'read-only');
+        mkdirSync(readOnly);
+        chmodSync(readOnly, 0o555);
+        try {
+            expect(harnessErrorOf(() => new DegradeCensus(join(readOnly, 'census.json'))).code)
+                .toBe('census-dir-unwritable');
+        } finally {
+            chmodSync(readOnly, 0o755);
+        }
+    });
+
+    it('wraps a failed log write as a census error', () => {
+        const census = new DegradeCensus(expectedPath);
+        mkdirSync(`${expectedPath}.observed.jsonl`); // the log path is now a directory
+        const he = harnessErrorOf(() => census.record(545684, 1, 0, hexToBytes(BURN_TREE)));
+        expect(he.phase).toBe('census');
+        expect(he.code).toBe('census-log-write-failed');
+        expect(he.location).toEqual({ txIndex: 1, outputIndex: 0, ergoTreeHex: BURN_TREE });
     });
 });

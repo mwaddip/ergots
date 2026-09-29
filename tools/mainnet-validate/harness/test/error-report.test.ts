@@ -1,7 +1,7 @@
 /**
  * Unit tests for `error-report.ts`. Covers:
  *   1. Write happy path; file on disk matches the in-memory shape.
- *   2. All 5 `phase` values write cleanly.
+ *   2. Every `phase` value writes cleanly (the list is checked against `ErrorPhase`).
  *   3. Minimal report (empty location + bundleExcerpt) writes cleanly.
  *   4. `deleteErrorReport` removes the file and is idempotent.
  *   5. Optional fields (errorCode, stack) survive when present.
@@ -72,18 +72,25 @@ describe('error-report', () => {
         expect(raw.split('\n').length).toBeGreaterThan(5);
     });
 
-    it('writes cleanly for all 8 phase values', () => {
-        const phases: ErrorPhase[] = [
-            'header',
-            'output-roundtrip',
-            'evaluate',
-            'verify-signature',
-            'node-rest',
-            'indexer-rest',
-            'wasm-oracle',
-            'evaluate-cost',
-            'evaluate-oracle-mismatch',
-        ];
+    it('writes cleanly for every phase value', () => {
+        // A record keyed by the union: the typecheck fails when a phase is added
+        // to (or removed from) `ErrorPhase` without this list following.
+        const every: Record<ErrorPhase, true> = {
+            'header': true,
+            'output-roundtrip': true,
+            'evaluate': true,
+            'verify-signature': true,
+            'node-rest': true,
+            'indexer-rest': true,
+            'wasm-oracle': true,
+            'evaluate-cost': true,
+            'evaluate-oracle-mismatch': true,
+            'lib-validate': true,
+            'ids': true,
+            'census': true,
+        };
+        const phases = Object.keys(every) as ErrorPhase[];
+        expect(phases).toHaveLength(12);
         for (const phase of phases) {
             const r: ErrorReport = {
                 timestamp: '2026-05-22T12:00:00.000Z',

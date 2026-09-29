@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { parseCliArgs, CLI_DEFAULTS } from '../src/cli.js';
+import { parseCliArgs, CLI_DEFAULTS, defaultStartHeight } from '../src/cli.js';
 
 describe('parseCliArgs', () => {
     it('applies REST URL defaults when neither flag provided', () => {
@@ -140,8 +140,18 @@ describe('parseCliArgs', () => {
     });
 
     it('parses --mode ids', () => {
-        const args = parseCliArgs(['--mode', 'ids']);
+        const args = parseCliArgs(['--mode', 'ids', '--census', '/tmp/x.json']);
         expect(args.mode).toBe('ids');
+    });
+
+    it('refuses --mode ids without --census: the census is its only degrade detector', () => {
+        expect(() => parseCliArgs(['--mode', 'ids'])).toThrow(/--mode ids requires --census/);
+    });
+
+    it('starts a new walk at h=1 in ids mode and at h=2 otherwise', () => {
+        expect(defaultStartHeight('ids')).toBe(1);
+        expect(defaultStartHeight('oracle')).toBe(2);
+        expect(defaultStartHeight('lib')).toBe(2);
     });
 
     it('rejects an invalid --mode value', () => {

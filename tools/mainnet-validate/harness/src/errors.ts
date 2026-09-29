@@ -59,7 +59,10 @@
  *
  * The degrade census and the ids mode (spec 2026-09-28 §12) add two more:
  *
- *   - 'census' — 'census-unexpected-degrade', 'census-expected-degrade-missing'
+ *   - 'census' — 'census-unexpected-degrade', 'census-expected-degrade-missing',
+ *                'census-expected-position-missing', 'census-log-write-failed';
+ *                at startup 'census-dir-unwritable', 'census-file-unreadable',
+ *                'census-file-malformed'
  *   - 'ids'    — 'tx-id-mismatch', 'output-count-mismatch',
  *                'output-bytes-mismatch', 'ids-tx-bytes-missing',
  *                'ids-parse-failed', 'ids-tx-id-failed',

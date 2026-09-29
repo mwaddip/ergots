@@ -19,6 +19,8 @@ import {
     writeCheckpoint,
     deleteCheckpoint,
     currentLibraryVersions,
+    walkOf,
+    assertCheckpointUsable,
     type Checkpoint,
 } from '../src/checkpoint.js';
 
@@ -130,6 +132,71 @@ describe('checkpoint', () => {
             stats: { totalBlocks: 100, totalTxs: 100, totalBoxesValidated: 200, totalSpendsValidated: 100, startedAt: '2026-05-23T00:00:00.000Z', elapsedMs: 1000 },
         }), 'utf8');
         expect(() => readCheckpoint(path)).toThrow(/pre-REST checkpoint/);
+    });
+
+    it('reads a checkpoint written without mode and census as an oracle walk with no census', () => {
+        writeCheckpoint(path, makeSampleCheckpoint()); // the shape written before 2026-09-29
+        expect(walkOf(readCheckpoint(path)!)).toEqual({ mode: 'oracle', census: null });
+    });
+
+    it('round-trips the walk mode and census path', () => {
+        const ids: Checkpoint = { ...makeSampleCheckpoint(), mode: 'ids', census: '/walks/census-expected.json' };
+        writeCheckpoint(path, ids);
+        expect(readCheckpoint(path)).toEqual(ids);
+        expect(walkOf(readCheckpoint(path)!)).toEqual({ mode: 'ids', census: '/walks/census-expected.json' });
+        writeCheckpoint(path, { ...makeSampleCheckpoint(), mode: 'lib', census: null });
+        expect(walkOf(readCheckpoint(path)!)).toEqual({ mode: 'lib', census: null });
+    });
+
+    it('rejects an unknown mode, or a census that is not a path', () => {
+        writeFileSync(path, JSON.stringify({ ...makeSampleCheckpoint(), mode: 'fast' }), 'utf8');
+        expect(() => readCheckpoint(path)).toThrow(/mode/);
+        writeFileSync(path, JSON.stringify({ ...makeSampleCheckpoint(), census: 7 }), 'utf8');
+        expect(() => readCheckpoint(path)).toThrow(/census/);
+    });
+});
+
+describe('assertCheckpointUsable', () => {
+    const PATH = '/walks/checkpoint.json';
+    const CENSUS = '/walks/census-expected.json';
+    const idsWalk = (): Checkpoint => ({ ...makeSampleCheckpoint(), mode: 'ids', census: CENSUS });
+    const legacy = makeSampleCheckpoint;
+
+    it('lets any run start a walk where no checkpoint exists', () => {
+        expect(() => assertCheckpointUsable(null, PATH, { startHeight: 1, mode: 'ids', census: CENSUS })).not.toThrow();
+        expect(() => assertCheckpointUsable(null, PATH, { mode: 'oracle', census: null })).not.toThrow();
+    });
+
+    it('resumes a walk with the same mode and census', () => {
+        expect(() => assertCheckpointUsable(idsWalk(), PATH, { mode: 'ids', census: CENSUS })).not.toThrow();
+    });
+
+    it('refuses a resume with another mode', () => {
+        expect(() => assertCheckpointUsable(idsWalk(), PATH, { mode: 'lib', census: CENSUS }))
+            .toThrow(/--mode ids.*--mode lib/);
+    });
+
+    it('refuses a resume that drops, adds or moves the census', () => {
+        const oracleWithCensus: Checkpoint = { ...makeSampleCheckpoint(), mode: 'oracle', census: CENSUS };
+        expect(() => assertCheckpointUsable(oracleWithCensus, PATH, { mode: 'oracle', census: null }))
+            .toThrow(/census .*census-expected\.json.*census none/);
+        expect(() => assertCheckpointUsable(legacy(), PATH, { mode: 'oracle', census: CENSUS }))
+            .toThrow(/census none.*census .*census-expected\.json/);
+        expect(() => assertCheckpointUsable(idsWalk(), PATH, { mode: 'ids', census: '/elsewhere/census.json' }))
+            .toThrow(/census \/elsewhere\/census\.json/);
+    });
+
+    it('treats a legacy checkpoint as an oracle walk with no census', () => {
+        expect(() => assertCheckpointUsable(legacy(), PATH, { mode: 'oracle', census: null })).not.toThrow();
+        expect(() => assertCheckpointUsable(legacy(), PATH, { mode: 'ids', census: CENSUS }))
+            .toThrow(/--mode oracle.*--mode ids/);
+    });
+
+    it('never overwrites a checkpoint: --start-height needs a path with none on it', () => {
+        for (const existing of [legacy(), idsWalk()]) {
+            expect(() => assertCheckpointUsable(existing, PATH, { startHeight: 1, mode: 'ids', census: CENSUS }))
+                .toThrow(/--start-height.*--checkpoint-path/);
+        }
     });
 });
 

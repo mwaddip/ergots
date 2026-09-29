@@ -234,6 +234,9 @@ export function validateHeader(bundle: BlockBundle, state: WalkerState): void {
  *      re-encodes to itself; a tree that degraded re-encodes as received
  *      (`ErgoTreeSerializer.scala:112`).
  *
+ * After the block's outputs, a census also checks that each of its entries at
+ * this height names an output the block has.
+ *
  * On the first failure the function throws a `HarnessError` carrying
  * `phase: 'output-roundtrip'` (or `'census'`), code = the specific reason, and
  * `location = { txIndex, outputIndex }`. The walk loop (T11) catches and
@@ -390,6 +393,13 @@ export function validateOutputRoundtrips(
             }
         }
     }
+
+    // Every census entry at this height must name an output the block has:
+    // the per-output check above sees only outputs that exist.
+    census?.checkExpectedPositions(
+        bundle.height,
+        bundle.transactions.map((tx) => tx.outputs.length),
+    );
 }
 
 /**

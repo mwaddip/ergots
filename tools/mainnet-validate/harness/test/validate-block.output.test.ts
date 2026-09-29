@@ -428,6 +428,17 @@ describe('validateOutputRoundtrips: degrade census', () => {
         expect(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath))).not.toThrow();
     });
 
+    it('halts after the output pass when a census entry names an output the block lacks', () => {
+        writeFileSync(censusPath, JSON.stringify([
+            { height: 100_000, txIndex: 2, outputIndex: 0, reason: 'no such transaction in this block' },
+        ]));
+        const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([SBOX_MINIMAL_BYTES])]);
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath)));
+        expect(he.phase).toBe('census');
+        expect(he.code).toBe('census-expected-position-missing');
+        expect(he.location).toEqual({ txIndex: 2, outputIndex: 0 });
+    });
+
     it('validateBlock threads the census to the output pass', () => {
         const bundle: BlockBundle = {
             ...makeBundle([makeTx([BURN_BOX_BYTES])]),

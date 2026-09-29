@@ -64,11 +64,13 @@
  * `validateTx` skips per-tx evaluation when `rollingHeaders.length <= 1`
  * (mirrors sigma-rust at height 1). For a resume mid-chain we always
  * have a full preceding window, so the skip branch is only relevant
- * to the genesis range (`startHeight ∈ {0, 1}` — extremely rare for
- * smoke tests, and the default startHeight is 2 per spec §2).
+ * to the genesis range (`startHeight ∈ {0, 1}`: the ids mode's default
+ * start is h=1, while the oracle and lib modes default to h=2).
  */
 
-import { parseCliArgs, USAGE, type CliArgs } from './cli.js';
+import { resolve } from 'node:path';
+
+import { parseCliArgs, defaultStartHeight, USAGE, type CliArgs } from './cli.js';
 import { NodeClient, NodeRestError } from './rest/node-client.js';
 import { IndexerClient, IndexerRestError } from './rest/indexer-client.js';
 import { WasmCostOracle, WasmCostOracleError } from './wasm-oracle.js';
@@ -78,6 +80,7 @@ import {
     readCheckpoint,
     writeCheckpoint,
     currentLibraryVersions,
+    assertCheckpointUsable,
     type Checkpoint,
 } from './checkpoint.js';
 import {
@@ -171,10 +174,10 @@ function hexDecode(s: string): Uint8Array {
  * and assemble a `WalkerState` ready for `validateBlock(startHeight)`.
  *
  * Behaviour:
- *   - If `startHeight <= 2`: return a fresh-empty `WalkerState`. The
- *     default startHeight is 2 per spec §2 (h=1 deferred), so this is
- *     the common fresh-run case. `validateHeader`'s parent-link check
- *     skips when `lastHeader === null`.
+ *   - If `startHeight <= 2`: return a fresh-empty `WalkerState`. A new
+ *     walk starts at h=1 (ids) or h=2 (oracle, lib) by default
+ *     (`defaultStartHeight`), so this is the common fresh-run case.
+ *     `validateHeader`'s parent-link check skips when `lastHeader === null`.
  *   - Otherwise: fetch headers from `max(2, startHeight - 10)` up to
  *     `startHeight - 1` via the node REST API. For each height, look
  *     up the canonical header id via `getHeaderIdsAtHeight`, then read
@@ -427,15 +430,21 @@ export function updateCheckpointStats(
 }
 
 /**
- * Build the initial in-memory checkpoint for a fresh run (no on-disk
- * checkpoint, OR an explicit `--start-height` override that we treat as
- * "fresh starting point" rather than "resume from checkpoint").
+ * Build the initial in-memory checkpoint for a new walk: no checkpoint on
+ * disk at `--checkpoint-path` (`assertCheckpointUsable` refuses to replace
+ * one). It records the walk's mode and census (`census`: the expected file
+ * as an absolute path, or `null`), which every resume must keep.
  *
  * `lastValidatedHeight` is set to `startHeight - 1` so the resume math
  * (`startHeight = checkpoint.lastValidatedHeight + 1`) round-trips
  * correctly on a subsequent invocation without `--start-height`.
  */
-function createInitialCheckpoint(args: CliArgs, startHeight: number, tipHeight: number): Checkpoint {
+function createInitialCheckpoint(
+    args: CliArgs,
+    census: string | null,
+    startHeight: number,
+    tipHeight: number,
+): Checkpoint {
     const now = new Date().toISOString();
     return {
         lastValidatedHeight: startHeight - 1,
@@ -452,6 +461,8 @@ function createInitialCheckpoint(args: CliArgs, startHeight: number, tipHeight: 
             startedAt: now,
             elapsedMs: 0,
         },
+        mode: args.mode,
+        census,
     };
 }
 
@@ -514,24 +525,32 @@ export async function main(argv: readonly string[]): Promise<number> {
         const info = await node.getInfo();
         const tipHeight = info.fullHeight;
 
-        // Step 2: load (or initialise) checkpoint.
+        // Step 2: load the checkpoint, and refuse a run that would change
+        // its walk's mode or census, or replace it (setup failures, outer
+        // catch). The census is compared as an absolute path.
         const existingCheckpoint = readCheckpoint(args.checkpointPath);
+        const censusPath = args.census !== undefined ? resolve(args.census) : null;
+        assertCheckpointUsable(existingCheckpoint, args.checkpointPath, {
+            mode: args.mode,
+            census: censusPath,
+            startHeight: args.startHeight,
+        });
 
         // Step 2b: the degrade census, when one is kept. A malformed expected
-        // file is a setup failure, reported like the others (outer catch).
-        const census = args.census !== undefined ? new DegradeCensus(args.census) : undefined;
+        // file, or a census directory that is missing or not writable, is a
+        // setup failure too.
+        const census = censusPath !== null ? new DegradeCensus(censusPath) : undefined;
 
-        // Step 3: resolve start/end heights.
+        // Step 3: resolve start/end heights. A new walk starts at
+        // `--start-height`, or at the mode's default (`defaultStartHeight`:
+        // h=1 in ids mode, h=2 otherwise); a resume continues its checkpoint.
         let startHeight: number;
         if (args.startHeight !== undefined) {
             startHeight = args.startHeight;
         } else if (existingCheckpoint !== null) {
             startHeight = existingCheckpoint.lastValidatedHeight + 1;
         } else {
-            // Default startHeight is 2 per spec §2 (h=1 deferred to a
-            // follow-up — genesis-block fetch requires special-case
-            // handling in BundleAssembler that's out of scope for v1).
-            startHeight = 2;
+            startHeight = defaultStartHeight(args.mode);
         }
         const requestedEnd = args.maxHeight ?? tipHeight;
         const endHeight = Math.min(requestedEnd, tipHeight);
@@ -557,13 +576,15 @@ export async function main(argv: readonly string[]): Promise<number> {
             }
         }
 
-        // Step 5: choose the in-memory checkpoint. If there's an existing
-        // one AND we're not overriding the start height, reuse it (so
-        // stats accumulate across runs). Otherwise start fresh.
+        // Step 5: choose the in-memory checkpoint. An existing one is a
+        // resume (step 2 refused anything else), so it is continued and its
+        // stats accumulate; its walk identity is written explicitly, which
+        // upgrades a checkpoint from before the fields existed. Otherwise a
+        // new walk starts.
         const checkpoint: Checkpoint =
-            existingCheckpoint !== null && args.startHeight === undefined
-                ? existingCheckpoint
-                : createInitialCheckpoint(args, startHeight, tipHeight);
+            existingCheckpoint ?? createInitialCheckpoint(args, censusPath, startHeight, tipHeight);
+        checkpoint.mode = args.mode;
+        checkpoint.census = censusPath;
 
         // Step 6: rebuild the rolling-window walker state.
         const { state: walkerState, initialRollingHeaderBytes } =
@@ -581,8 +602,11 @@ export async function main(argv: readonly string[]): Promise<number> {
         // path via `sigma_parse_bytes` handles every chain version.
         let rollingHeaderBytes: Uint8Array[] = initialRollingHeaderBytes.slice();
 
+        const censusNote = census !== undefined
+            ? `${censusPath} (${census.expectedCount} expected)`
+            : 'none';
         process.stdout.write(
-            `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network}, mode=${args.mode})\n`,
+            `Walking ${startHeight}..${endHeight} (tip=${tipHeight}, network=${args.network}, mode=${args.mode}, census=${censusNote})\n`,
         );
         // Heartbeat startup line — load-bearing for the 2j-b orchestrator's
         // tip-reach disambiguation: the `tip=` value here is what the loop

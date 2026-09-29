@@ -17,11 +17,22 @@
  * failures (parse error, shape error) throw — a corrupted checkpoint must
  * not be silently masked as "no progress yet" because that would re-validate
  * already-validated blocks and discard previous progress.
+ *
+ * # The walk a checkpoint belongs to
+ *
+ * A checkpoint records its walk's `--mode` and `--census` (`mode`, `census`),
+ * and `assertCheckpointUsable` keeps a run from silently changing either: a
+ * checkpoint is only ever continued, by a resume with the same mode and
+ * census, and never replaced. So the checks a walk ran are the same from its
+ * first block to its last. Checkpoints written before these fields existed
+ * count as an oracle walk with no census (`walkOf`).
  */
 
 import { readFileSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+import type { HarnessMode } from './cli.js';
 
 /** Persisted progress record. Shape updated in 2j-rest (T9): shimPath/storePath → nodeUrl/indexerUrl. */
 export interface Checkpoint {
@@ -54,6 +65,17 @@ export interface Checkpoint {
     };
     /** Set when the harness catches up to `tipHeightAtStart`; absent until then. */
     tipReachedAt?: string;
+    /**
+     * The walk's `--mode`. Absent in a checkpoint written before 2026-09-29, which counts as
+     * `'oracle'` (`walkOf`). The harness always writes it.
+     */
+    mode?: HarnessMode;
+    /**
+     * The walk's `--census` expected file as an absolute path, or `null` for a walk without a
+     * census. Absent in a checkpoint written before 2026-09-29, which counts as `null`
+     * (`walkOf`). The harness always writes it.
+     */
+    census?: string | null;
 }
 
 /**
@@ -103,6 +125,62 @@ export function deleteCheckpoint(path: string): void {
             return;
         }
         throw err;
+    }
+}
+
+/** The walk a checkpoint belongs to: its `--mode`, and its census as an absolute path or `null`. */
+export interface Walk {
+    mode: HarnessMode;
+    census: string | null;
+}
+
+/**
+ * The walk `c` belongs to. A checkpoint written before `mode` and `census` existed counts as an
+ * oracle walk with no census.
+ */
+export function walkOf(c: Checkpoint): Walk {
+    return { mode: c.mode ?? 'oracle', census: c.census ?? null };
+}
+
+/**
+ * Refuses a run that would silently change a walk's checks or replace its checkpoint. A
+ * checkpoint is only ever continued:
+ *   - `--start-height` starts a new walk, so it needs a checkpoint path with no checkpoint on it
+ *     (a fresh `--checkpoint-path`, or the old file removed by hand);
+ *   - a resume (no `--start-height`) must keep the walk's `--mode` and `--census`, so the checks
+ *     a walk ran are the same from its first block to its last.
+ *
+ * `run.census` is the run's census as an absolute path, or `null`. Throws an `Error` that says
+ * how to proceed; `main` treats it as a setup failure.
+ */
+export function assertCheckpointUsable(
+    existing: Checkpoint | null,
+    path: string,
+    run: Walk & { startHeight?: number },
+): void {
+    if (existing === null) return;
+    const walk = walkOf(existing);
+    const theWalk =
+        `the walk checkpointed at ${path} (--mode ${walk.mode}, census ${walk.census ?? 'none'}, ` +
+        `last validated h=${existing.lastValidatedHeight})`;
+    const startNew = 'to start a new walk, pass a fresh --checkpoint-path with --start-height';
+    if (run.startHeight !== undefined) {
+        throw new Error(
+            `--start-height starts a new walk, which would overwrite ${theWalk}: pass a fresh ` +
+                `--checkpoint-path (or remove ${path}), or omit --start-height to resume that walk`,
+        );
+    }
+    if (run.mode !== walk.mode) {
+        throw new Error(
+            `a resume keeps its walk's mode: ${theWalk} ran --mode ${walk.mode}, and this run asks ` +
+                `for --mode ${run.mode}; ${startNew}`,
+        );
+    }
+    if (run.census !== walk.census) {
+        throw new Error(
+            `a resume keeps its walk's census: ${theWalk} ran with census ${walk.census ?? 'none'}, ` +
+                `and this run asks for census ${run.census ?? 'none'}; ${startNew}`,
+        );
     }
 }
 
@@ -176,7 +254,7 @@ function validateCheckpoint(raw: unknown, sourcePath: string): Checkpoint {
         throw new Error(
             `${ctx}: pre-REST checkpoint detected (shimPath/storePath fields present). ` +
             `This harness is the REST-based 2j-rest architecture. Delete the checkpoint ` +
-            `file or pass --start-height to start fresh.`,
+            `file, or pass a fresh --checkpoint-path.`,
         );
     }
 
@@ -219,6 +297,17 @@ function validateCheckpoint(raw: unknown, sourcePath: string): Checkpoint {
     const tipReachedRaw = r['tipReachedAt'];
     if (tipReachedRaw !== undefined) {
         out.tipReachedAt = requireString(tipReachedRaw, `${ctx}.tipReachedAt`);
+    }
+    const modeRaw = r['mode'];
+    if (modeRaw !== undefined) {
+        if (modeRaw !== 'oracle' && modeRaw !== 'lib' && modeRaw !== 'ids') {
+            throw new Error(`${ctx}.mode: expected "oracle", "lib" or "ids", got ${String(modeRaw)}`);
+        }
+        out.mode = modeRaw;
+    }
+    const censusRaw = r['census'];
+    if (censusRaw !== undefined) {
+        out.census = censusRaw === null ? null : requireString(censusRaw, `${ctx}.census`);
     }
     return out;
 }

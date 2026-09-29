@@ -32,7 +32,7 @@
  * the signing message as `bytes`. `tamperTxIdAt` makes the block at that
  * height report a different transaction id, so only an ids check halts.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { createServer, Server } from 'node:http';
 import { readFileSync, mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -218,5 +218,98 @@ describe('mock-REST walk h=2..h=10', () => {
                 errorCode: 'census-expected-degrade-missing',
             });
         }, 60_000);
+
+        describe('resume safety: a walk keeps its mode and census, and its checkpoint', () => {
+            /** Runs `main` against the mock server with `dir`'s checkpoint and error report. */
+            function run(dir: string, args: string[]): Promise<number> {
+                return main([
+                    '--node-url', `http://127.0.0.1:${port}`,
+                    '--indexer-url', `http://127.0.0.1:${port}`,
+                    '--checkpoint-path', join(dir, 'checkpoint.json'),
+                    '--error-report-path', join(dir, 'error-report.json'),
+                    ...args,
+                ]);
+            }
+
+            /** A fresh directory holding a census expected file with `entries`. */
+            function walkDir(entries: unknown[] = []): { dir: string; census: string } {
+                const dir = mkdtempSync(join(tmpDir, 'resume-'));
+                const census = join(dir, 'census-expected.json');
+                writeFileSync(census, JSON.stringify(entries));
+                return { dir, census };
+            }
+
+            /** A checkpoint as the T7 oracle walk left one: written before `mode` and `census` existed. */
+            const LEGACY_CHECKPOINT = `${JSON.stringify({
+                lastValidatedHeight: 5,
+                tipHeightAtStart: 10,
+                lastValidatedAt: '2026-05-31T15:40:03.844Z',
+                nodeUrl: 'http://localhost:9052',
+                indexerUrl: 'http://localhost:9054',
+                libraryVersions: { scorex: '0.1.0', nipopow: '0.2.0', avltree: '0.2.0', ergoscript: '0.2.0' },
+                stats: {
+                    totalBlocks: 4, totalTxs: 4, totalBoxesValidated: 12, totalSpendsValidated: 4,
+                    startedAt: '2026-05-27T15:45:00.000Z', elapsedMs: 1000,
+                },
+                tipReachedAt: '2026-05-31T15:40:03.844Z',
+            }, null, 2)}\n`;
+
+            it('refuses to resume a legacy checkpoint (an oracle walk) in ids mode', async () => {
+                const { dir, census } = walkDir();
+                writeFileSync(join(dir, 'checkpoint.json'), LEGACY_CHECKPOINT);
+                expect(await run(dir, ['--mode', 'ids', '--census', census])).toBe(1);
+                expect(readFileSync(join(dir, 'checkpoint.json'), 'utf8')).toBe(LEGACY_CHECKPOINT);
+                expect(existsSync(join(dir, 'error-report.json'))).toBe(false);
+            }, 60_000);
+
+            it('refuses to start a new walk over an existing checkpoint', async () => {
+                const { dir, census } = walkDir();
+                writeFileSync(join(dir, 'checkpoint.json'), LEGACY_CHECKPOINT);
+                const code = await run(dir, ['--start-height', '2', '--max-height', '10', '--mode', 'ids', '--census', census]);
+                expect(code).toBe(1);
+                expect(readFileSync(join(dir, 'checkpoint.json'), 'utf8')).toBe(LEGACY_CHECKPOINT);
+            }, 60_000);
+
+            it('records the walk in its checkpoint, and a resume must keep its mode and census', async () => {
+                const { dir, census } = walkDir();
+                const checkpointPath = join(dir, 'checkpoint.json');
+                expect(await run(dir, ['--start-height', '2', '--max-height', '5', '--mode', 'ids', '--census', census])).toBe(0);
+                const walked = readFileSync(checkpointPath, 'utf8');
+                expect(JSON.parse(walked)).toMatchObject({ lastValidatedHeight: 5, mode: 'ids', census });
+
+                // Halt → edit → resume must not change the walk's checks: another
+                // census, another mode (these two runs change one each), or both.
+                const otherCensus = join(dir, 'other-census.json');
+                writeFileSync(otherCensus, '[]');
+                expect(await run(dir, ['--max-height', '10', '--mode', 'ids', '--census', otherCensus])).toBe(1);
+                expect(await run(dir, ['--max-height', '10', '--mode', 'oracle', '--census', census])).toBe(1);
+                expect(await run(dir, ['--max-height', '10', '--mode', 'lib'])).toBe(1);
+                expect(await run(dir, ['--max-height', '10'])).toBe(1); // oracle, no census
+                // Nor may a new walk replace it, even one with the same mode and census.
+                expect(await run(dir, ['--start-height', '2', '--max-height', '10', '--mode', 'ids', '--census', census])).toBe(1);
+                expect(readFileSync(checkpointPath, 'utf8')).toBe(walked);
+
+                // The same mode and census resume the walk where it stopped.
+                expect(await run(dir, ['--max-height', '10', '--mode', 'ids', '--census', census])).toBe(0);
+                expect(JSON.parse(readFileSync(checkpointPath, 'utf8'))).toMatchObject({ lastValidatedHeight: 10, mode: 'ids', census });
+            }, 60_000);
+
+            it('names the census and its size when a walk starts', async () => {
+                const { dir, census } = walkDir([{ height: 100_000, txIndex: 0, outputIndex: 0, reason: 'outside this walk' }]);
+                const written: string[] = [];
+                const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+                    written.push(String(chunk));
+                    return true;
+                }) as typeof process.stdout.write);
+                let code: number;
+                try {
+                    code = await run(dir, ['--start-height', '2', '--max-height', '3', '--mode', 'ids', '--census', census]);
+                } finally {
+                    spy.mockRestore();
+                }
+                expect(code).toBe(0);
+                expect(written.join('')).toContain(`Walking 2..3 (tip=10, network=mainnet, mode=ids, census=${census} (1 expected))`);
+            }, 60_000);
+        });
     });
 });
