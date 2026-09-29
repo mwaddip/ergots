@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { BatchAVLProver } from '../src/batch-prover.js'
+import { BatchAVLProver, type ProverOperationResult } from '../src/batch-prover.js'
 import { AvlVerifyError } from '../src/errors.js'
+import { newLeaf, type LeafNode } from '../src/node.js'
+import type { Operation } from '../src/operation.js'
 import { KEY_LENGTHS, lowKey, randomTree, reportOf, rng, successfulBatch } from './helpers/tree-harness.js'
 import { SEVEN_KEYS, keyOf, keylessRight, pivot, sevenKeyProver, stubRight } from './helpers/tree-surgery.js'
 
@@ -152,5 +154,21 @@ describe('neighbor lookups on invariant-violating trees (prover)', () => {
     expect(() => prover.performLookupWithNeighbors(keyOf(SEVEN_KEYS[4]))).toThrow(/InternalNode\.key is undefined/)
     expect(() => prover.performLookupWithNeighbors(keyOf(FIRST))).toThrow(/performLookupWithNeighbors.*indeterminate/)
     expect(prover.unauthenticatedLookupWithNeighbors(keyOf(FIRST)).found).toBe(true)
+  })
+
+  it('a successful Lookup that observed other than one leaf throws and fails stop', () => {
+    // Unreachable with the real engine, which calls keyMatchesLeaf exactly once
+    // for a successful Lookup; a stubbed perform drives the guard both ways.
+    const leaf = newLeaf(keyOf(FIRST), new Uint8Array([FIRST]), keyOf(20))
+    for (const calls of [0, 2]) {
+      const prover = sevenKeyProver()
+      const perform = (_op: Operation, onLeaf?: (leaf: LeafNode, matches: boolean) => void): ProverOperationResult => {
+        for (let i = 0; i < calls; i++) onLeaf?.(leaf, true)
+        return { success: true, value: null }
+      }
+      Object.assign(prover, { perform }) // shadows the private method on this instance
+      expect(() => prover.performLookupWithNeighbors(keyOf(FIRST))).toThrow(`observed ${calls} leaves, not 1`)
+      expect(() => prover.generateProof()).toThrow(/indeterminate/)
+    }
   })
 })

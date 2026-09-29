@@ -349,7 +349,7 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
   - Recorded, proof-consuming: `performLookupWithNeighbors(key)` on `BatchAVLVerifier`, `BatchAVLProver` and `PersistentBatchAVLProver`.
   - Unrecorded: `unauthenticatedLookupWithNeighbors(key)` on the two provers.
 - **A `Lookup` by construction.**
-  - `BatchAVLProver` and `VerifierCore` (behind `BatchAVLVerifier`) run the recorded neighbor lookup (`performLookupWithNeighbors`) through the same private path as `performOneOperation({ tag: 'Lookup', key })`, and observe the leaf through the engine's single `keyMatchesLeaf` call (`modify.ts:149`), invoked once per descent; `deleteHelper` never calls it. `PersistentBatchAVLProver` delegates to `BatchAVLProver`.
+  - `BatchAVLProver` and `VerifierCore` (behind `BatchAVLVerifier`) run the recorded neighbor lookup (`performLookupWithNeighbors`) through the same private path as `performOneOperation({ tag: 'Lookup', key })`, and observe the leaf through the engine's single `keyMatchesLeaf` call (`modify.ts:149`), invoked at most once per operation and exactly once for a successful `Lookup`; `deleteHelper` never calls it. `PersistentBatchAVLProver` delegates to `BatchAVLProver`.
   - A recorded neighbor lookup therefore consumes or records exactly a `Lookup`'s direction bits and visits, with the same gates, failures and poisoning.
   - Its proof bytes are byte-identical to a plain `Lookup`'s, and `generateProofForOperations` over plain `Lookup`s yields the same bytes.
   - The shared engine's code is unchanged.

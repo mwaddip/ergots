@@ -296,7 +296,8 @@ export class BatchAVLProver {
    * Insert on an existing key) returns `{ success: false }`. A throw from
    * inside the engine (an invariant violation) propagates unchanged and
    * leaves the proof cycle indeterminate: until restoreRoot(), this method,
-   * generateProof() and removedNodes() throw a plain `Error` (P3, 0.5.0).
+   * performLookupWithNeighbors, generateProof() and removedNodes() throw a
+   * plain `Error` (P3, 0.5.0).
    *
    * @returns ProverOperationResult — `{ success: true, value }` on success
    *   (value is the old value or null if the key was absent), or
