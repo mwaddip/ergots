@@ -86,6 +86,17 @@ export class BatchAVLProver {
   // objects and Set uses SameValueZero.
   private modifiedNodes: Set<AvlNode> = new Set()
 
+  // Proof-cycle fail-stop (P3, 0.5.0). Set around each operation's engine
+  // run, and still set after one threw inside the engine: for example a
+  // key-less internal node, a RangeError, the delete-pass invariant throw, or
+  // applyHeightDelta's. Such a throw leaves the aborted operation's direction
+  // bits (partial after a mid-descent throw) and, after the modify pass (the
+  // delete pass or applyHeightDelta), its recorded visits, which the next
+  // generateProof() would encode. restoreRoot() rebases the whole cycle and
+  // clears the mark. A flag around the call, not a try/catch: nothing is
+  // swallowed; the engine's throw propagates to the caller unchanged.
+  private cycleIndeterminate = false
+
   // -------------------------------------------------------------------------
   // Constructor — ports batch_avl_prover.rs:54-76 @568e7c3
   // -------------------------------------------------------------------------
@@ -139,6 +150,9 @@ export class BatchAVLProver {
     // Clear accumulated directions from any prior (possibly failed) cycle.
     this.directions = []
     this.directionsBitLength = 0
+
+    // A rebased cycle is determinate again (P3).
+    this.cycleIndeterminate = false
   }
 
   // -------------------------------------------------------------------------
@@ -284,7 +298,9 @@ export class BatchAVLProver {
   private perform(
     op: Operation,
     onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+    method = 'performOneOperation',
   ): ProverOperationResult {
+    this.assertCycleUsable(method)
     this.validateShape(op)
     // Every operation starts its descent with no pending key match (P2,
     // 0.5.0). Like the reference, this port cleared `found` only inside
@@ -297,7 +313,19 @@ export class BatchAVLProver {
     // port, because nextDirectionIsLeft checks the key before `found`
     // (facts/avltree.md).
     this.found = false
-    return this.runOperation(op, onLeaf)
+    this.cycleIndeterminate = true
+    const result = this.runOperation(op, onLeaf)
+    this.cycleIndeterminate = false
+    return result
+  }
+
+  /** Throws when an earlier operation threw inside the engine (P3). */
+  private assertCycleUsable(method: string): void {
+    if (this.cycleIndeterminate) {
+      throw new Error(
+        `BatchAVLProver.${method}: an earlier operation threw inside the engine, so this proof cycle is indeterminate — call restoreRoot() to rebase it, or discard the prover`,
+      )
+    }
   }
 
   /**
@@ -404,8 +432,12 @@ export class BatchAVLProver {
           `BatchAVLProver: deleteHelper reported failure (${deleteResult.reason}), which cannot happen for a prover — the shared engine is in an inconsistent state`,
         )
       }
+      // Height first: applyHeightDelta throws on an engine inconsistency, and
+      // an engine throw must leave root and height at the pre-operation state
+      // (P3's root-only reads rely on it).
+      const height = this.applyHeightDelta(deleteResult.heightDelta)
       this._root = deleteResult.newSubtreeRoot
-      this._height = this.applyHeightDelta(deleteResult.heightDelta)
+      this._height = height
       // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
       // label input); handing it out uncopied lets a caller corrupt cached labels
       // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
@@ -413,8 +445,10 @@ export class BatchAVLProver {
     }
 
     // No delete
+    // Height first, as on the delete path.
+    const height = this.applyHeightDelta(modifyResult.heightDelta)
     this._root = modifyResult.newSubtreeRoot
-    this._height = this.applyHeightDelta(modifyResult.heightDelta)
+    this._height = height
     // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
     // label input); handing it out uncopied lets a caller corrupt cached labels
     // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
@@ -556,6 +590,7 @@ export class BatchAVLProver {
    * of the modified subtree, directions bit-string, and end-of-tree marker.
    */
   generateProof(): Uint8Array {
+    this.assertCycleUsable('generateProof')
     // NOTE: Do NOT clear modifiedNodes here — packTree relies on it for
     // wasModified checks. Clear only after packTree (batch_avl_prover.rs:251 @568e7c3:
     // self.base.modified_nodes.clear() after pack_tree, not before).
@@ -704,8 +739,12 @@ export class BatchAVLProver {
    * Throws a plain `Error` (not `AvlVerifyError`) on a key-less candidate or
    * descent node — reachable only via an invariant-violating `restoreRoot`
    * tree; see facts/avltree.md's invariant-throws bullet.
+   *
+   * Throws a plain `Error` while the proof cycle is indeterminate — after an
+   * operation threw inside the engine (P3, 0.5.0); `restoreRoot()` clears that.
    */
   removedNodes(): AvlNode[] {
+    this.assertCycleUsable('removedNodes')
     const out: AvlNode[] = []
     const walk = (node: AvlNode): void => {
       // Unvisited ⇒ subtree untouched this cycle ⇒ shared with the current
