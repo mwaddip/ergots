@@ -41,6 +41,17 @@ describe('reencodeTreeBytes', () => {
     expect(isUnparsedTree(t)).toBe(true)
     if (isUnparsedTree(t)) expect(Array.from(t.unparsedBytes)).toEqual([0x09, 0x01, 0xd1])
   })
+  it('a miss on a sized tree whose own reads run out throws when the bytes are not its declared span', () => {
+    // In its box such a tree degraded, so box ingest kept exactly [0, bodyPos + declared)
+    // (ErgoTreeSerializer.scala:200-202). Bytes of another length are no box span.
+    for (const h of [
+      '0905d1',           // declared 5 over 3 bytes: the span would be 7 bytes
+      '0900d1',           // declared 0: the span would be 2 bytes
+      '09feffffff0fd1',   // declared toInt -2: the span would be 4 bytes, ending inside the size
+    ]) {
+      expect(codeOf(() => boxTreeOf(hex(h)))).toBe('truncated')
+    }
+  })
   it('a miss whose nested tree runs out needs box context', () => {
     // sized outer, nested Box whose sized tree reads past the outer end
     expect(codeOf(() => boxTreeOf(hex('0b08' + '63c0843d' + '097f' + 'd1')))).toBe('box-context-required')
