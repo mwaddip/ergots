@@ -11,8 +11,11 @@
  *   1. assembler.assemble(h, rollingHeadersJson) — composes a
  *      BlockBundle from node REST fragments + indexer-served box bytes
  *      + WASM cost-oracle results.
- *   2. validateBlock(bundle, walkerState, treeVersionFn) — runs the
- *      header / output-roundtrip / evaluate / verify-signature passes.
+ *   2. validateBlock(bundle, walkerState, treeVersionFn, txValidator, census)
+ *      — runs the header and output-roundtrip passes (checking each output
+ *      tree against the degrade census, when `--census` is given), then the
+ *      per-tx pass of the `--mode`: evaluate + verify-signature (oracle),
+ *      `validateStateful` (lib), or the tx and output box ids (ids).
  *   3. Update + persist checkpoint; advance the rolling-headers window.
  *
  * The walk loop is straight-line — no retries, no skip-and-continue,
@@ -20,11 +23,13 @@
  *
  * # On the `treeVersionFn` we inject into `validateBlock`
  *
- * Per `validate-block.ts` `# treeVersionFn injection` doc: each output
- * box's relevant `treeVersion` is the low 3 bits of the box's own
- * ErgoTree header byte. The ErgoTree section starts right after the
- * leading VLQ-encoded `value` field in the canonical box bytes. We
- * implement the derivation by skipping the leading VLQ then reading
+ * We pass the low 3 bits of each output box's own ErgoTree header byte.
+ * Per `validate-block.ts` `# treeVersionFn injection` doc, that choice is
+ * verdict-neutral: the JVM reads a box's registers under the enclosing
+ * context, not the box tree's version, and at top level any v6-typed
+ * register rejects at every version. The ErgoTree section starts right
+ * after the leading VLQ-encoded `value` field in the canonical box bytes.
+ * We implement the derivation by skipping the leading VLQ then reading
  * one byte. Failures (truncated input, missing tree byte) are surfaced
  * to the operator via the wrapping `HarnessError` machinery in
  * `validateOutputRoundtrips`.
@@ -88,6 +93,8 @@ import {
 } from './validate-block.js';
 import { validateTx } from './validate-tx.js';
 import { validateTxLib } from './validate-tx-lib.js';
+import { validateTxIds } from './validate-tx-ids.js';
+import { DegradeCensus } from './degrade-census.js';
 import {
     ByteReader,
     parseHeader,
@@ -494,8 +501,11 @@ export async function main(argv: readonly string[]): Promise<number> {
         await indexer.close();
         return 1;
     }
-    const assembler = new BundleAssembler(node, indexer, oracle, args.mode === 'lib');
-    const txValidator = args.mode === 'lib' ? validateTxLib : validateTx;
+    // The lib and ids modes parse each transaction from the node's bytes and never consult the
+    // cost oracle: the assembler's `attachTxBytes` attaches those bytes and stubs the oracle.
+    const assembler = new BundleAssembler(node, indexer, oracle, args.mode !== 'oracle');
+    const txValidator =
+        args.mode === 'lib' ? validateTxLib : args.mode === 'ids' ? validateTxIds : validateTx;
 
     try {
         // Step 1: node tip query — also the implicit "did /info respond"
@@ -506,6 +516,10 @@ export async function main(argv: readonly string[]): Promise<number> {
 
         // Step 2: load (or initialise) checkpoint.
         const existingCheckpoint = readCheckpoint(args.checkpointPath);
+
+        // Step 2b: the degrade census, when one is kept. A malformed expected
+        // file is a setup failure, reported like the others (outer catch).
+        const census = args.census !== undefined ? new DegradeCensus(args.census) : undefined;
 
         // Step 3: resolve start/end heights.
         let startHeight: number;
@@ -606,7 +620,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 
             // 7b: validate.
             try {
-                validateBlock(currentBundle, walkerState, deriveTreeVersionFromBoxBytes, txValidator);
+                validateBlock(currentBundle, walkerState, deriveTreeVersionFromBoxBytes, txValidator, census);
             } catch (err) {
                 const report = classifyError(err, h, currentBundle);
                 writeErrorReport(args.errorReportPath, report);

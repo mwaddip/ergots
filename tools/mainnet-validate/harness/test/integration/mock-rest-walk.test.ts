@@ -22,10 +22,19 @@
  * the caller. We pass `--indexer-url http://127.0.0.1:${port}` (bare
  * host+port), and the client constructs `${port}/api/v1/boxes/{id}/bytes`,
  * matching the route pattern below.
+ *
+ * # The ids mode (`--mode ids`)
+ *
+ * The ids mode parses each transaction from the validation-fragments `bytes`,
+ * which the captured fixtures predate. Every input at h=2..h=10 spends the
+ * emission box with an empty proof and no extension, so each transaction's
+ * bytes equal its signing message: with `serveTxBytes` set, the mock serves
+ * the signing message as `bytes`. `tamperTxIdAt` makes the block at that
+ * height report a different transaction id, so only an ids check halts.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { createServer, Server } from 'node:http';
-import { readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -39,6 +48,10 @@ describe('mock-REST walk h=2..h=10', () => {
     let server: Server;
     let port: number;
     let tmpDir: string;
+    /** Serve each transaction's signing message as its `bytes` (see the ids-mode note). */
+    let serveTxBytes = false;
+    /** Report a different transaction id for the block at this height. */
+    let tamperTxIdAt: number | null = null;
 
     beforeAll(async () => {
         tmpDir = mkdtempSync(join(tmpdir(), 'ergots-mock-rest-'));
@@ -72,7 +85,12 @@ describe('mock-REST walk h=2..h=10', () => {
                     if (!existsSync(idsPath)) continue;
                     const ids = JSON.parse(readFileSync(idsPath, 'utf8')) as string[];
                     if (ids[0] === headerId) {
-                        return void res.end(readFileSync(join(fixtures, `h${h}-validation-fragments.json`), 'utf8'));
+                        const text = readFileSync(join(fixtures, `h${h}-validation-fragments.json`), 'utf8');
+                        if (!serveTxBytes) return void res.end(text);
+                        // Only hex strings and small integers here, so a JSON round-trip is lossless.
+                        const frags = JSON.parse(text) as { transactions: Array<{ signingMessage: string; bytes?: string }> };
+                        for (const t of frags.transactions) t.bytes = t.signingMessage;
+                        return void res.end(JSON.stringify(frags));
                     }
                 }
                 res.statusCode = 404;
@@ -88,7 +106,17 @@ describe('mock-REST walk h=2..h=10', () => {
                     if (!existsSync(idsPath)) continue;
                     const ids = JSON.parse(readFileSync(idsPath, 'utf8')) as string[];
                     if (ids[0] === headerId) {
-                        return void res.end(readFileSync(join(fixtures, `h${h}-block.json`), 'utf8'));
+                        const text = readFileSync(join(fixtures, `h${h}-block.json`), 'utf8');
+                        if (tamperTxIdAt !== h) return void res.end(text);
+                        // A text edit, not a JSON round-trip: box values exceed 2^53. The
+                        // outputs name their transaction in "transactionId", which the
+                        // pattern does not match, so only the transaction's own id changes.
+                        const txId = (JSON.parse(text) as { blockTransactions: { transactions: Array<{ id: string }> } })
+                            .blockTransactions.transactions[0]!.id;
+                        const other = `${txId[0] === '0' ? '1' : '0'}${txId.slice(1)}`;
+                        const tampered = text.replace(`"id":"${txId}"`, `"id":"${other}"`);
+                        if (tampered === text) throw new Error(`no "id":"${txId}" in h${h}-block.json`);
+                        return void res.end(tampered);
                     }
                 }
                 res.statusCode = 404;
@@ -132,4 +160,63 @@ describe('mock-REST walk h=2..h=10', () => {
         ]);
         expect(code).toBe(0);
     }, 60_000);  // generous timeout — WASM init takes a few seconds on first call
+
+    describe('--mode ids', () => {
+        beforeEach(() => {
+            serveTxBytes = true;
+            tamperTxIdAt = null;
+        });
+
+        afterEach(() => {
+            serveTxBytes = false;
+            tamperTxIdAt = null;
+        });
+
+        /** Runs an ids-mode walk of h=2..h=10 in a fresh directory with a census file. */
+        async function idsWalk(expected: unknown[]): Promise<{ code: number; dir: string; census: string }> {
+            const dir = mkdtempSync(join(tmpDir, 'ids-'));
+            const census = join(dir, 'census-expected.json');
+            writeFileSync(census, JSON.stringify(expected));
+            const code = await main([
+                '--node-url', `http://127.0.0.1:${port}`,
+                '--indexer-url', `http://127.0.0.1:${port}`,
+                '--checkpoint-path', join(dir, 'checkpoint.json'),
+                '--error-report-path', join(dir, 'error-report.json'),
+                '--start-height', '2',
+                '--max-height', '10',
+                '--mode', 'ids',
+                '--census', census,
+            ]);
+            return { code, dir, census };
+        }
+
+        function errorReportIn(dir: string): { height: number; phase: string; errorCode?: string } {
+            return JSON.parse(readFileSync(join(dir, 'error-report.json'), 'utf8'));
+        }
+
+        it('walks h=2..h=10: every tx id and output box matches, no tree degrades', async () => {
+            const { code, census } = await idsWalk([]);
+            expect(code).toBe(0);
+            expect(existsSync(`${census}.observed.jsonl`)).toBe(false);
+        }, 60_000);
+
+        it('checks the transaction id: a block reporting another id halts', async () => {
+            tamperTxIdAt = 5;
+            const { code, dir } = await idsWalk([]);
+            expect(code).toBe(1);
+            expect(errorReportIn(dir)).toMatchObject({ height: 5, phase: 'ids', errorCode: 'tx-id-mismatch' });
+        }, 60_000);
+
+        it('keeps the census: a listed degrade that does not happen halts', async () => {
+            const { code, dir } = await idsWalk([
+                { height: 3, txIndex: 0, outputIndex: 0, reason: 'none: this output is honest' },
+            ]);
+            expect(code).toBe(1);
+            expect(errorReportIn(dir)).toMatchObject({
+                height: 3,
+                phase: 'census',
+                errorCode: 'census-expected-degrade-missing',
+            });
+        }, 60_000);
+    });
 });

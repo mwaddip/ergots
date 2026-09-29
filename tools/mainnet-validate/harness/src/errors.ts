@@ -30,15 +30,16 @@
  * Subsequent tasks (T9-T10) extend this with phase-specific codes:
  *
  *   - 'byte-roundtrip-mismatch'        (output-roundtrip phase, T9)
- *     — serializeTree(parseTree(ergoTreeBytes)) !== ergoTreeBytes
+ *     — reencodeTreeBytes(ergoTreeBytes) !== ergoTreeBytes (the box-rules
+ *       re-encoding, since spec 2026-09-28 §12)
  *   - 'tree-version-derivation-failed' (output-roundtrip phase, T9)
  *     — treeVersionFn threw / returned an out-of-range value
  *   - 'sbox-parse-failed'              (output-roundtrip phase, T9)
  *     — parseSValue(SBox, ...) threw / returned non-Box kind
- *   - 'tree-parse-failed'              (output-roundtrip phase, T9)
- *     — parseTree threw on extracted ergoTreeBytes
  *   - 'tree-serialize-failed'          (output-roundtrip phase, T9)
- *     — serializeTree threw on the parsed tree
+ *     — reencodeTreeBytes threw on the extracted ergoTreeBytes
+ *   - 'tree-parse-failed'              (evaluate phase, T10)
+ *     — boxTreeOf threw on a spent box's ergoTreeBytes
  *   - 'evaluate-mismatch'              (evaluate phase, T10) — exact set TBD
  *   - 'verify-signature-failed'        (verify-signature phase, T10) — exact set TBD
  *
@@ -55,6 +56,14 @@
  *
  * These phases carry structured payload via `HarnessErrorOptions`
  * (see below).
+ *
+ * The degrade census and the ids mode (spec 2026-09-28 §12) add two more:
+ *
+ *   - 'census' — 'census-unexpected-degrade', 'census-expected-degrade-missing'
+ *   - 'ids'    — 'tx-id-mismatch', 'output-count-mismatch',
+ *                'output-bytes-mismatch', 'ids-tx-bytes-missing',
+ *                'ids-parse-failed', 'ids-tx-id-failed',
+ *                'ids-output-serialize-failed'
  *
  * The union is NOT typed at the class level because each phase's catch
  * site only needs to dispatch on `code` against its own known values; an

@@ -1,7 +1,7 @@
 /**
  * CLI argument parser for the mainnet-validate harness.
  *
- * Hand-rolled flag parser — the harness has 8 flags total, no positional
+ * Hand-rolled flag parser — the harness has 10 flags total, no positional
  * args, no sub-commands; pulling in `commander`/`yargs` for that surface
  * is unjustified weight and a transitive-WASM-audit liability.
  *
@@ -21,6 +21,15 @@
  * Documented in the T14 README.
  */
 
+/**
+ * Per-tx validator mode:
+ *   - 'oracle' evaluates each input and compares its cost with the WASM cost oracle's;
+ *   - 'lib' routes each transaction through `@ergots/transaction`'s `validateStateful`;
+ *   - 'ids' evaluates no script: it checks each transaction id and output box against the
+ *     chain's (spec 2026-09-28 §12).
+ */
+export type HarnessMode = 'oracle' | 'lib' | 'ids';
+
 /** Parsed CLI flags. See class-doc above for default semantics. */
 export interface CliArgs {
     /** ergo-node REST base URL (e.g. http://localhost:9052). */
@@ -39,8 +48,13 @@ export interface CliArgs {
     maxHeight?: number;
     /** Sleep between blocks in ms. 0 = no rate limit. */
     sleepMs: number;
-    /** Per-tx validator mode: 'oracle' uses the WASM cost oracle path; 'lib' routes through validateStateful. */
-    mode: 'oracle' | 'lib';
+    /** Per-tx validator mode; see `HarnessMode`. */
+    mode: HarnessMode;
+    /**
+     * Degrade-census expected file (`degrade-census.ts`). Unset = no census. Observed degrades
+     * are appended to `<census>.observed.jsonl`.
+     */
+    census?: string;
 }
 
 /**
@@ -75,7 +89,8 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     let checkpointPath: string | undefined;
     let errorReportPath: string | undefined;
     let network: 'mainnet' | 'testnet' | undefined;
-    let mode: 'oracle' | 'lib' | undefined;
+    let mode: HarnessMode | undefined;
+    let census: string | undefined;
     let startHeight: number | undefined;
     let maxHeight: number | undefined;
     let sleepMs: number | undefined;
@@ -130,15 +145,19 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
             }
             case '--mode': {
                 const v = requireValue();
-                if (v !== 'oracle' && v !== 'lib') {
+                if (v !== 'oracle' && v !== 'lib' && v !== 'ids') {
                     throw new Error(
-                        `flag --mode requires "oracle" or "lib", got "${v}"`,
+                        `flag --mode requires "oracle", "lib" or "ids", got "${v}"`,
                     );
                 }
                 mode = v;
                 i++;
                 break;
             }
+            case '--census':
+                census = requireValue();
+                i++;
+                break;
             case '--start-height':
                 startHeight = requireNonNegInt();
                 i++;
@@ -171,6 +190,9 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     if (maxHeight !== undefined) {
         out.maxHeight = maxHeight;
     }
+    if (census !== undefined) {
+        out.census = census;
+    }
     return out;
 }
 
@@ -183,7 +205,10 @@ options:
   --checkpoint-path PATH        checkpoint JSON (default: ${CLI_DEFAULTS.checkpointPath})
   --error-report-path PATH      error report JSON (default: ${CLI_DEFAULTS.errorReportPath})
   --network mainnet|testnet     network identifier (default: ${CLI_DEFAULTS.network})
-  --mode oracle|lib             validator mode (default: ${CLI_DEFAULTS.mode})
+  --mode oracle|lib|ids         validator mode (default: ${CLI_DEFAULTS.mode}); ids checks
+                                tx ids and output boxes only, with no script evaluation
+  --census PATH                 degrade-census expected file (JSON array); halts on any
+                                difference, logs observed degrades to PATH.observed.jsonl
   --start-height N              override checkpoint's resume height (min 2 for v1)
   --max-height M                cap on end height (default: tip)
   --sleep-ms N                  ms to sleep between blocks (default: ${CLI_DEFAULTS.sleepMs})

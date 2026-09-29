@@ -52,6 +52,8 @@ Defaults assume invocation from the repo root.
 | `--checkpoint-path PATH` | no | `./tools/mainnet-validate/checkpoint.json` | resume state |
 | `--error-report-path PATH` | no | `./tools/mainnet-validate/error-report.json` | structured halt report |
 | `--network mainnet\|testnet` | no | `mainnet` | network identifier |
+| `--mode oracle\|lib\|ids` | no | `oracle` | per-tx validator: `oracle` evaluates each input and compares its cost with the WASM oracle's; `lib` runs `@ergots/transaction`'s `validateStateful`; `ids` evaluates no script and checks each transaction id and output box against the chain's (spec 2026-09-28 §12) |
+| `--census PATH` | no | none | degrade census: a JSON array of `{height, txIndex, outputIndex, reason}`, one per output tree expected to degrade to an unparsed tree; halts on a degrade it does not list and on a listed degrade that does not happen; every observed degrade is appended to `PATH.observed.jsonl` |
 | `--start-height N` | no | resume from checkpoint or 2 | override resume; **minimum h=2 for v1** (genesis-state-box validation is deferred follow-up per spec §11) |
 | `--max-height M` | no | tip | end-of-walk cap |
 | `--sleep-ms N` | no | `0` | rate-limit pause between blocks |
@@ -100,7 +102,10 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 | `phase` | Source | Typical `errorCode` values |
 |---|---|---|
 | `header` | `validate-block.ts` header pass | `byte-roundtrip-mismatch`, `autolykos-v2-verify-false`, `v1-header-after-v2-activation`, `parent-link-mismatch` |
-| `output-roundtrip` | `validate-block.ts` per-output pass | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-parse-failed`, `tree-serialize-failed` |
+| `output-roundtrip` | `validate-block.ts` per-output pass (the tree's box-rules re-encoding against its bytes as received) | `byte-roundtrip-mismatch`, `tree-version-derivation-failed`, `sbox-parse-failed`, `tree-serialize-failed` |
+| `census` | `degrade-census.ts`, from the per-output pass (`--census`) | `census-unexpected-degrade`, `census-expected-degrade-missing` |
+| `ids` | `validate-tx-ids.ts` (`--mode ids`) | `tx-id-mismatch`, `output-count-mismatch`, `output-bytes-mismatch`, `ids-tx-bytes-missing`, `ids-parse-failed`, `ids-tx-id-failed`, `ids-output-serialize-failed` |
+| `lib-validate` | `validate-tx-lib.ts` (`--mode lib`) | `lib-tx-bytes-missing`, `lib-parse-failed`, `lib-deps-failed`, `lib-validate-rejected` |
 | `evaluate` | `validate-tx.ts` evaluate pass | per-`EvalError` code (see `facts/ergoscript-eval.md`) |
 | `evaluate-cost` | `validate-tx.ts` cost-equivalence sub-step | `cost-drift`, `cost-overflow` |
 | `evaluate-oracle-mismatch` | `validate-tx.ts` cost-equivalence | `ours-succeeded-oracle-errored`, `ours-errored-oracle-succeeded` |
@@ -112,7 +117,7 @@ The harness halts on the **first** divergence and writes a structured `error-rep
 ### Two halt-vs-error distinctions
 
 - **Validation halts write `error-report.json`.** Caught around `NodeClient.getBlock` and `validateBlock` in the per-block try blocks; the report's `phase` field tells you which side surfaced the divergence.
-- **Startup halts write stderr only — no sidecar.** Failures BEFORE the per-block walk loop (WASM load failure, `getTipHeight` failure, `readCheckpoint` parse error, rejected pre-REST checkpoint) are operational and surface to stderr without a structured report. If you don't see an `error-report.json` after a halt, check stderr.
+- **Startup halts write stderr only — no sidecar.** Failures BEFORE the per-block walk loop (WASM load failure, `getTipHeight` failure, `readCheckpoint` parse error, rejected pre-REST checkpoint, malformed `--census` file) are operational and surface to stderr without a structured report. If you don't see an `error-report.json` after a halt, check stderr.
 
 ### Triage flow
 

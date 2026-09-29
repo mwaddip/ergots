@@ -52,6 +52,8 @@ import {
     checkStorageRent,
 } from '../src/validate-tx.js';
 import type { ErgoBox, ContextExtension } from '@ergots/ergoscript';
+import { boxBytesOf, parseSValue, reencodeTreeBytes } from '@ergots/ergoscript';
+import { ByteReader } from '@ergots/scorex';
 import {
     validateBlock,
     type WalkerState,
@@ -426,22 +428,23 @@ describe('validateTx — spent-box parse failures', () => {
     });
 });
 
-describe('validateTx — non-SigmaProp result', () => {
-    it('throws non-sigmaprop-result when the tree evaluates to a Boolean', () => {
+describe('validateTx — the spend evaluates the box-rules tree', () => {
+    it('rejects the spend of a tree rule 1001 degraded (unparsed-ergotree)', () => {
         // Boolean body: header 0x08 (v0 + hasSize), bodySize VLQ 2, body
         // 0x01 0x01 — SType byte 0x01 = SBoolean (inline Const), value
-        // byte 0x01 = true. Evaluates to {kind:'Boolean', value:true},
-        // which is NOT SigmaProp → harness halts with non-sigmaprop-result.
-        // `evalConst` charges 5 (Fixed(5)); we set oracleCost: 5n so the
-        // phase-2j-a cost-diff sub-step passes through and the SigmaProp
-        // kind check fires as the test asserts.
+        // byte 0x01 = true. The root does not type as SigmaProp, so under
+        // the box rules (rule 1001) the sized tree degrades to an
+        // UnparsedErgoTree. The JVM rejects its spend (Interpreter.scala:131-141:
+        // rule 1001 is not a soft fork), and so does ergots' evaluateWith. The
+        // lenient parseTree the spend used before would evaluate it to a Boolean.
         const boolErgoTree = new Uint8Array([0x08, 0x02, 0x01, 0x01]);
         const sbox = sboxBytes(boolErgoTree);
         const tx = makeTx([
             makeInput({
                 spentBoxBytes: sbox,
                 signatureBytes: SIGNATURE_BYTES,
-                oracleCost: 5n,
+                oracleSucceeded: false,
+                oracleError: 'simulated: the reference rejects the spend',
             }),
         ]);
         const block = makeBundle(tx);
@@ -456,7 +459,8 @@ describe('validateTx — non-SigmaProp result', () => {
         expect(captured).toBeInstanceOf(HarnessError);
         const he = captured as HarnessError;
         expect(he.phase).toBe('evaluate');
-        expect(he.code).toBe('non-sigmaprop-result');
+        expect(he.code).toBe('evaluate-eval-error');
+        expect(he.ourError).toMatch(/unparsed-ergotree/);
     });
 });
 
@@ -706,6 +710,23 @@ describe('checkStorageRent (rule branches)', () => {
         idx === undefined
             ? { values: new Map() }
             : { values: new Map([[127, { tpe: { tag: 'SShort' }, value: { kind: 'Short', value: idx } }]]) };
+
+    it('charges the fee on the box bytes as received, not on the re-encoding', () => {
+        // The JVM's fee is storageFeeFactor × box.bytes.length (ErgoInterpreter.scala:43), and
+        // a parsed box's bytes are the ones it arrived as (ErgoBox.scala:214-226). Its tree
+        // 09 82 00 08 d3 is sigmaProp(true) with the size 2 as an over-long VLQ, so it
+        // re-encodes one byte shorter (09 02 08 d3). Value 42 at factor 1 equals the fee on
+        // the 42 bytes as received (dust: spendable) and exceeds the fee on the 41-byte
+        // re-encoding by one (not dust, and the output does not recreate the box).
+        const bytes = hexToBytes(`2a09820008d3000000${'00'.repeat(32)}00`);
+        const parsed = parseSValue({ tag: 'SBox' }, 0, new ByteReader(bytes));
+        if (parsed.kind !== 'Box') throw new Error(`expected a Box, got ${parsed.kind}`);
+        const self = parsed.value;
+        expect(self.value).toBe(42n);
+        expect(boxBytesOf(self).length).toBe(42);
+        expect(reencodeTreeBytes(self.ergoTreeBytes).length).toBe(self.ergoTreeBytes.length - 1);
+        expect(checkStorageRent(self, HEIGHT, ext(0), [mkBox()], 0, 1)).toBe(true);
+    });
 
     it('dust: value ≤ fee → true (no output/register checks)', () => {
         // factor large → fee ≫ value → dust short-circuit.

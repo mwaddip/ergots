@@ -9,6 +9,7 @@
  *   6. `--network` accepts the documented variants and rejects others.
  *   7. Numeric flags reject non-integer / negative values.
  *   8. A flag at end-of-argv without a value throws.
+ *   9. `--mode` accepts oracle, lib and ids; `--census PATH` is carried through.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -33,6 +34,7 @@ describe('parseCliArgs', () => {
         expect(args.mode).toBe('oracle');
         expect(args.startHeight).toBeUndefined();
         expect(args.maxHeight).toBeUndefined();
+        expect(args.census).toBeUndefined();
     });
 
     it('parses --node-url + --indexer-url', () => {
@@ -137,9 +139,24 @@ describe('parseCliArgs', () => {
         expect(args.mode).toBe('oracle');
     });
 
+    it('parses --mode ids', () => {
+        const args = parseCliArgs(['--mode', 'ids']);
+        expect(args.mode).toBe('ids');
+    });
+
     it('rejects an invalid --mode value', () => {
         expect(() =>
             parseCliArgs(['--mode', 'bogus']),
-        ).toThrow(/flag --mode requires "oracle" or "lib", got "bogus"/);
+        ).toThrow(/flag --mode requires "oracle", "lib" or "ids", got "bogus"/);
+    });
+
+    it('carries --census PATH into CliArgs', () => {
+        const args = parseCliArgs(['--mode', 'ids', '--census', '/tmp/x.json']);
+        expect(args.census).toBe('/tmp/x.json');
+        expect(args.mode).toBe('ids');
+    });
+
+    it('throws on --census at end of argv with no value', () => {
+        expect(() => parseCliArgs(['--census'])).toThrow(/requires a value/);
     });
 });
