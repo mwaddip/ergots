@@ -27,6 +27,10 @@ const tx = (outs: { tree: string; regs?: string }[], ext = '00'): Uint8Array =>
   hex('01' + '00'.repeat(32) + '00' + ext + '00' + '00' + vlq(outs.length) +
     outs.map((o) => 'e807' + o.tree + '64' + '00' + (o.regs ?? '00')).join(''))
 const sized = (header: string, inner: string) => header + vlq(inner.length / 2) + inner
+const errorOf = (f: () => unknown): { code?: string; cause?: unknown } | undefined => {
+  try { f() } catch (x) { return x as { code?: string; cause?: unknown } }
+  return undefined
+}
 /** Box data: value 1, the tree, creation height 0, no tokens, the registers, a 0x11 tx id, the index. */
 const boxData = (tree: string, regs = '00', index = '00') => '01' + tree + '0000' + regs + '11'.repeat(32) + index
 /** A sized, segregated tree over one SBox constant: BoolToSigmaProp(GT(ExtractAmount(placeholder 0), 0L)). */
@@ -64,5 +68,30 @@ describe('ByIndex over a tuple: the JVM types it SAny', () => {
   it('a ValDef whose rhs is ByIndex(tuple): the output tree parses', () => {
     const tree = sized('08', 'd801d601' + BY_INDEX_TUPLE + '08d3')
     expectAccepted(tx([{ tree }]), 'e2f56ff75bee11b92ecd26e457619bae87ada1eea7fdbc2a9132c2f5c404b406', ['P:' + tree])
+  })
+})
+
+// A Box value's index is a JVM Short (ErgoBox.scala:56, 218, 224), written back with putUShort (:211),
+// which rejects 0x8000-0xFFFF: "Value -32768 is out of unsigned short range". The JVM's eager id
+// writes the whole signing message, so it rejects each placement at parse. ergots forces the output
+// trees' re-encoding at parse, and writes registers and extension values when it computes the id.
+describe('a Box value with index 0x8000 cannot be re-encoded', () => {
+  const box = (indexVlq: string) => boxData('0008d3', '00', indexVlq)
+  it('index 0x7FFF, a Box constant in the output tree: accepted', () => {
+    const tree = treeWithBox('18', box('ffff01'))
+    expectAccepted(tx([{ tree }]), '95f4a88304fe57128fcd44cc51a38af094098d18f3474e203af2d8ec6b5d262b', ['P:' + tree])
+  })
+  it("a Box constant in the output tree: parseTransaction rejects 'output-tree-not-reencodable'", () => {
+    const err = errorOf(() => parseTransaction(tx([{ tree: treeWithBox('18', box('808002')) }])))
+    expect(err).toMatchObject({ code: 'output-tree-not-reencodable' })
+    expect(err?.cause).toMatchObject({ code: 'sbox-index-out-of-range' })
+  })
+  it('the Box in output R4: transactionId throws', () => {
+    const parsed = parseTransaction(tx([{ tree: '0008d3', regs: '0163' + box('808002') }]))
+    expect(errorOf(() => transactionId(parsed))).toMatchObject({ code: 'sbox-index-out-of-range' })
+  })
+  it("the Box in an input's context extension: transactionId throws", () => {
+    const parsed = parseTransaction(tx([{ tree: '0008d3' }], '010063' + box('808002')))
+    expect(errorOf(() => transactionId(parsed))).toMatchObject({ code: 'sbox-index-out-of-range' })
   })
 })
