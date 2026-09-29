@@ -76,7 +76,7 @@ See `docs/specs/` for test-strategy detail.
 |---|---|
 | Wire format | 100% of MIR variants parse + serialize byte-identically; full wire-error taxonomy coverage; single-byte mutation tests across the whole corpus |
 | Evaluator | 68 of 68 implementable `Expr` arms wired; the 21 opcodes the reference reserves but never executes parse-reject via `'opcode-reserved'`; 134-entry method-handler registry spanning the v5 language and the v6 (ErgoTree V3) additions; 86 `EvalError` codes; a substitute-pre-pass (`_substitute-deserialize.ts`) for the `DeserializeContext`/`DeserializeRegister` arms and a `validateV6Types` pre-eval pass for `SUnsignedBigInt`/`SFunc` type gating |
-| Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 9 `VerifyError` codes (4 reserved for ABI stability) |
+| Sigma verifier | Full `SigmaBoolean` 6-variant surface (leaf + Cand/Cor/Cthreshold conjecture walk); 9 `VerifyError` codes (5 reserved for ABI stability) |
 | AVL+ | Integrated via `@ergots/avltree`: all 16 `SAvlTree.*` method handlers wired (accessors, verification/update operations, and the V3-gated `insertOrUpdate`) |
 | Cost-equivalence | Execution cost (`ctx.jitCost` after `evaluateWith`) is reference-equivalent: the evaluator has been walked from genesis to the chain tip, comparing every transaction input's cost against `sigma-rust`, with zero unresolved divergences. Per-arm cost charges are documented in the eval slice. |
 

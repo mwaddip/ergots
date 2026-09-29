@@ -32,8 +32,9 @@ type SigmaBoolean = ... // see Types section
   - **`Cthreshold`** → reads `(n-k)*24` polynomial coefficient bytes (no length prefix — count derived from tree structure); reconstructs `Gf2_192Poly` with constant = parent challenge as `Gf2_192Element`; each child i (0-based array index) gets challenge = `polynomial.evaluate(i+1).toBytes()` (1-based eval point, per `sig_serializer.rs:215-245`); returns `true` iff all children verify.
 
 - **Postcondition (failure):** Throws `VerifyError` in these cases (see VerifyError taxonomy section for full details):
-  - Thrown by the current verifier: `'empty-signature'`, `'truncated-signature'`, `'point-not-on-curve'`, `'cthreshold-polynomial-bytes-mismatch'`, `'invalid-sigma-tree'`.
-  - Other declared codes (`'conjecture-not-implemented'`, `'scalar-out-of-range'`, `'cor-derived-challenge-mismatch'`, `'cthreshold-derived-challenge-mismatch'`) are reserved but currently unreachable; see taxonomy section.
+  - Thrown by the current verifier: `'empty-signature'`, `'truncated-signature'`, `'cthreshold-polynomial-bytes-mismatch'`, `'invalid-sigma-tree'`.
+  - Other declared codes (`'conjecture-not-implemented'`, `'point-not-on-curve'`, `'scalar-out-of-range'`, `'cor-derived-challenge-mismatch'`, `'cthreshold-derived-challenge-mismatch'`) are reserved but currently unreachable; see taxonomy section.
+  - A leaf point that fails secp256k1 decompression, in a hand-built `SigmaBoolean`, throws `@noble/curves`' plain `Error` from `decodePoint` (`crypto/secp256k1.ts:89`), not a `VerifyError`. A parsed `SigmaBoolean` cannot carry one: the wire parse validates each leaf point (`SigmaBooleanParseError('ec-point-invalid')`).
 
 - **No tree-version gating.** The verifier does not read `treeVersion`; sigma-protocol verification is tree-version-independent.
 
@@ -97,7 +98,7 @@ It is consumed by `verifySignature` (this slice) and by the eval-side `SigmaProp
 
 ## `VerifyError` taxonomy (9 codes)
 
-`VerifyError` is distinct from `EvalError`: it is thrown by `verifySignature` only, not by the recursive evaluator. The two surfaces don't interact — a caller composing `evaluateWith` + `verifySignature` may encounter both, but they carry separate `code` namespaces. Of the 9 declared codes, 5 are thrown by the current verifier and 4 are reserved — declared in `VerifyErrorCode` for ABI stability and future strict-check passes, never thrown today.
+`VerifyError` is distinct from `EvalError`: it is thrown by `verifySignature` only, not by the recursive evaluator. The two surfaces don't interact — a caller composing `evaluateWith` + `verifySignature` may encounter both, but they carry separate `code` namespaces. Of the 9 declared codes, 4 are thrown by the current verifier and 5 are reserved — declared in `VerifyErrorCode` for ABI stability and future strict-check passes, never thrown today.
 
 ### Leaf and signature-read codes
 
@@ -105,7 +106,7 @@ It is consumed by `verifySignature` (this slice) and by the eval-side `SigmaProp
 
 - **`'truncated-signature'`** — the signature ran out of bytes during a STRICT read in the tree-walk. Cases: a 24-byte challenge could not be read in full (`ProofBytesReader.readChallenge` underrun); OR Cthreshold polynomial bytes were shorter than `(n-k)*24` (no length prefix — the count is derived from the SigmaBoolean tree structure; `ProofBytesReader.readBytes(n)` underrun). Mirrors sigma-rust's `SigParsingError::ChallengeRead` and `SigParsingError::CthresholdCoeffRead`. **Scalar reads are lenient** (left-pad with zeros up to 32) and never throw this code — they instead return a near-zero scalar that fails downstream Fiat-Shamir comparison, surfacing as `returns false`.
 
-- **`'point-not-on-curve'`** — a pubkey or point-component byte-array on a `ProveDlog` or `ProveDhTuple` leaf failed secp256k1 decompression. Causes: off-curve coordinates, malformed encoding tag, or identity point where prohibited. `@noble/curves`'s `Point.fromBytes` rejects off-curve inputs by default.
+- **`'point-not-on-curve'`** — **reserved; not thrown** (listed as thrown until 2026-09-29). Declared for a leaf point that fails secp256k1 decompression, but the verifier calls `decodePoint` (`crypto/secp256k1.ts`) without wrapping it, so such a point in a hand-built `SigmaBoolean` throws `@noble/curves`' plain `Error` from `Point.fromBytes` (`:89`). A parsed `SigmaBoolean` cannot carry one: the wire parse validates each leaf point (`SigmaBooleanParseError('ec-point-invalid')`).
 
 - **`'scalar-out-of-range'`** — **reserved; currently not thrown.** `scalarFromBytes` reduces mod n silently, mirroring sigma-rust's `Scalar::reduce_bytes` at `wscalar.rs:60-67`. The code is declared in `VerifyErrorCode` for a future slice that chooses to surface raw-bytes-≥-group-order-n as a typed throw per Decision #6 in the design spec.
 
@@ -143,7 +144,7 @@ Full `SigmaBoolean` verifier surface shipped:
 - **Leaf variants:** `TrivialProp(true|false)`, `ProveDlog`, `ProveDhTuple`.
 - **Conjecture variants:** `Cand` (parent challenge inherited), `Cor` (XOR-derived last challenge), `Cthreshold` (GF(2^192) polynomial Lagrange interpolation).
 
-9 `VerifyError` codes declared (4 reserved/unreachable in current code but kept for ABI stability).
+9 `VerifyError` codes declared (5 reserved/unreachable in current code but kept for ABI stability).
 
 ## Cross-references
 

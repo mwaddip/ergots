@@ -79,14 +79,16 @@ type TxParseErrorCode =
 
 ## Count bounds
 
-These mirror the sigma-rust / JVM bounds exactly and are enforced on both parse AND serialize.
+ergots enforces these bounds on both parse AND serialize. They are sigma-rust's, or the JVM's where a row says so, and they differ from the JVM's parse in two ways:
+- **The io counts** are a `getUShort` in the JVM's parse (at most 0xFFFF, `ErgoLikeTransaction.scala:148, 155, 172`). The JVM rejects zero inputs or outputs, and more than 32767 of any kind, at stateless validation (ergo-core `ErgoTransaction.scala:93-97`; outputs also when the transaction is constructed, `ErgoLikeTransaction.scala:98`). ergots rejects these counts at parse: the same verdict, at another stage.
+- **The distinct token table diverges.** The JVM reads its count with `getUIntExact` and rejects anything above 100000 at parse (`ErgoLikeTransaction.scala:162-166`, `safeNewArray`, `core/.../sigma/util/package.scala:7-13`); ergots' parse accepts up to 16,711,425, sigma-rust's bound. So ergots accepts a count in (100000, 16,711,425] that the JVM rejects: a follow-up of `docs/specs/2026-09-28-sized-tree-declared-size-design.md`.
 
 | Field | Range | Reference |
 |---|---|---|
 | `inputs.length` | `[1, 32767]` | `TxIoVec = BoundedVec<1, i16::MAX>` (`ergotree-ir/src/chain/context.rs:23`) |
 | `outputCandidates.length` | `[1, 32767]` | same `TxIoVec` bound |
 | `dataInputs.length` | `{0} ∪ [1, 32767]` | `opt_empty_vec`: 0 = None (allowed); otherwise `TxIoVec` |
-| distinct token table | `≤ 65535 × 255 = 16,711,425` | `MAX_OUTPUTS_COUNT × ErgoBox.MAX_TOKENS_COUNT` (`transaction.rs:~308-312`) |
+| distinct token table | `≤ 65535 × 255 = 16,711,425` | `MAX_OUTPUTS_COUNT × ErgoBox.MAX_TOKENS_COUNT` (`transaction.rs:~308-312`). Laxer than the JVM, whose parse rejects above 100000 (`getUIntExact`, then `safeNewArray`; see above) |
 | token count wire field | `≤ u32::MAX` | `get_u32` (`vlq_encode.rs:267`) narrows the VLQ-u64 read |
 | context-extension entries (per input) | `[0, 127]` | JVM `ContextExtension.scala:53-55` (parse) / `:46-47` (serialize), sigma-state v6.0.6 |
 | proof length (per input) | `[0, 65535]` | JVM `ProverResult.scala:40` `getUShort` (parse) / `:34` `putUShort` (serialize), sigma-state v6.0.6. The JVM's `getUShort` reads `getULong().toInt` before its range check, so it also takes an over-long VLQ whose low 32 bits are in range, which ergots rejects: the `getUShort` follow-up |
@@ -488,7 +490,7 @@ The SBox serializer (`@ergots/ergoscript`) rejects `creationHeight ≥ 2³¹` (J
 Two cases where the rent check's register comparison finds registers unequal that the JVM finds equal. The verdict is then false where the JVM's is true: a valid spend is rejected. Both are adversarial-only and established from source, not from a JVM-blessed vector.
 
 - **Tuple expressions compare by bytes.** The JVM compares a Tuple expression item by item as nodes, so two different encodings of equal items are equal. An example is an identity `GroupElement` written with a non-zero tail after its `0x00` lead. ergots keeps a Tuple-expression register as its wire bytes (`opaqueBytes`) and compares those. Equal bytes imply JVM-equal, so this can only reject.
-- **AvlTree flags are compared unmasked.** The JVM builds `AvlTreeFlags` from the low 3 bits of the flags byte (`AvlTreeData.scala:21-25`). ergots' AvlTree value keeps the raw byte, so flags `0x01` and `0x09` compare unequal. This lives in `@ergots/ergoscript`'s value model and affects its script `==` and re-serialized box bytes as well, so it is not fixed here. It reaches ids too: the JVM writes the flags back masked (`serializeFlags`, `AvlTreeData.scala:28-34, 74`), in a register and in an AvlTree constant of a tree alike, since the candidate serializer re-encodes an output's tree from its structure (`ErgoBoxCandidate.scala:142`). So an output whose registers or tree carry an AvlTree value with bits 3–7 set gets a different transaction id and different output box ids in ergots, whose `serializeSValue` writes the flags byte as received.
+- **AvlTree flags are compared unmasked.** The JVM builds `AvlTreeFlags` from the low 3 bits of the flags byte (`AvlTreeData.scala:21-25`). ergots' AvlTree value keeps the raw byte, so flags `0x01` and `0x09` compare unequal. This lives in `@ergots/ergoscript`'s value model and affects its script `==` and re-serialized box bytes as well, so it is not fixed here. It reaches the signing message too: the JVM writes the flags back masked (`serializeFlags`, `AvlTreeData.scala:28-34, 74`) wherever it writes an AvlTree value from its structure, which covers an output's registers, an AvlTree constant in an output's tree (the candidate serializer re-encodes the tree, `ErgoBoxCandidate.scala:142`), and an input's context-extension values (`ContextExtension.scala:49`, kept in the signed input, `Input.scala:50`). ergots writes the flags byte as received in all three (`serializeSValue`; the extension through `serializeContextExtension`, `wire/_envelope.ts`). So an AvlTree value with bits 3–7 set in an output's registers or tree, or in an input's context extension, gives ergots a different signing message, and with it a different transaction id and different output box ids. An input's proof signs the JVM's message and does not verify against ergots', so whenever an input needs a proof, ergots rejects a transaction the JVM accepts.
 
 ## Source mapping (phase 2)
 
