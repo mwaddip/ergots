@@ -13,6 +13,8 @@ After the first pass the user decided two points: the method catalog becomes a r
 
 **Amended in the final fix's second round** (2026-09-29), each change checked against a live sigma-state 6.0.6 probe: §4 (`exprTpe` throws where the JVM's `tpe` casts or requires the JVM's `SAny`; `NOTYPE_JVM`), §8 (a span inside the size VLQ, decided exactly), the behavior matrix, residual 1, the node-construction follow-up, a new follow-up for the `DeserializeRegister` default check, and the vectors wanted.
 
+**Shipped with open findings** (2026-09-29, the user's decision). The second round's re-review found that the spend-time substitution follows neither the JVM nor master (the new residual 12), and that `Upcast` and `Downcast` belong to the node-construction class. Both close with the next spec, the JVM's construction-time type reads at parse and after substitution (Follow-ups). §4, the residuals, the follow-ups and the vectors wanted are corrected to match.
+
 **Scope:**
 - items 1–3 of `HANDOFF.md` "NEXT TASK";
 - the unsized-tree error translation (item 5, third bullet);
@@ -238,9 +240,9 @@ The two `SAny`s are told apart by identity (added after review, 2026-09-28). `SA
 - **Arms the JVM types** keep typing both: `If`, `BlockValue`, `ValDef`, `Fold`, arithmetic (no cast; the pre-v3 builder upcasts only numeric pairs), `Tuple` and `FuncValue` (wrapped), and the fixed types of `SizeOf`, `Exists`, `ForAll`, `OptionIsDefined`, the relations and the logical operators. ergots' own `SAny` passes every arm.
 - **Only where the JVM reads a type.** A `PropertyCall` with explicit type arguments (`Global.none[T]`) is typed from those alone, since the JVM never reads its object's type (`PropertyCallSerializer.scala:36-50`).
 
-A live probe fixed every verdict: 21 arms over the JVM's `SAny` (ByIndex over a tuple; type code 97 through `GetVar` and `DeserializeContext`) and its `NoType`, at a sized root, an unsized root, a root parsed without `checkType`, and a ValDef's right-hand side. The JVM checks these arms wherever they sit, ergots only where it types a node: the rest is the node-construction follow-up.
+A live probe fixed every verdict: 21 arms over the JVM's `SAny` (ByIndex over a tuple; type code 97 through `GetVar` and `DeserializeContext`) and its `NoType`, at a sized root, an unsized root, a root parsed without `checkType`, and a ValDef's right-hand side. The JVM checks these arms wherever they sit, ergots only where it types a node: the rest is the node-construction follow-up. `Upcast` and `Downcast` are outside the change. The JVM requires a numeric input while it builds them (`sigma/ast/trees.scala:398, 431`), which its `SAny`, its `NoType` and any other non-numeric type fail, where `exprTpe` types them from their target without reading the input. So ergots accepts or degrades those shapes wherever they sit (70 probed; the node-construction follow-up).
 
-`ExprTpeError` is exported so callers can classify it. The evaluator also calls `exprTpe`, in eight places. For those callers the collection case is also the JVM's type, and a non-function still throws. Since the second round they can also see the new throws; each call reads a type the JVM reads at parse or at the same point of evaluation, except the `DeserializeRegister` default check (see the follow-ups).
+`ExprTpeError` is exported so callers can classify it. The evaluator also calls `exprTpe`, in eight places. For those callers the collection case is also the JVM's type, and a non-function still throws. Since the second round they can also see the new throws. That matches the JVM where the evaluator reads a type the JVM reads at parse or at the same point of evaluation. It does not match on the spend-time substitution path, where the JVM swallows a `ClassCastException`, never types a register's default, and runs `check2` only at parse (residual 12).
 
 ### 5. ergoscript: the count bounds inside a tree
 
@@ -455,6 +457,28 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
     - `00 d1 b2 0d 01 01 7d a3 02 00` → `00 d1 b2 0d 01 01 7e 7d a3 02 04 00`.
 
     The transaction id, output ids, `Global.serialize` and the serialize cost follow the re-encoding. Modelling it needs `exprTpe` to type arithmetic as the JVM's builder does (the `Plus(Int, Long)` follow-up), a broad change. A JVM-compiled tree, and the chain's served bytes, are already written as the builder leaves them; a tree from another encoder may not be.
+12. **The spend-time substitution** (the final fix's second re-review, 2026-09-29; shipped open by the user's decision). The JVM substitutes `DeserializeContext` and `DeserializeRegister` with `everywherebu(strategy { substDeserialize })` (`sigmastate/interpreter/Interpreter.scala:149-156`; `org/ergoplatform/ErgoLikeInterpreter.scala:18-38`):
+    - Kiama's `strategy` catches a `ClassCastException` and treats it as no rewrite (`core/.../sigma/kiama/rewriting/Rewriter.scala:180-190`). A cast failure while decoding the script, while reading its type, or on a register that is not `Coll[Byte]` (`eba.value.toArray`) therefore leaves the node in place: a dead branch accepts, a live one rejects. An `IllegalArgumentException` from a `require` is not caught, and rejects.
+    - A register's default is taken untyped (`.orElse(d.default)`).
+    - The ancestors of a substituted node are rebuilt by Kiama's `dup`, which runs their constructors: the casts, the requires, and the type reads of building an `If` (all three children), arithmetic, `OptionIsDefined` and `SigmaPropBytes`. It does not run the builder's `check2`. `toValidScriptTypeJITC` then checks the root's type.
+
+    ergots differs at four places (`eval/_substitute-deserialize.ts`, `eval/evaluate.ts`):
+    - it types a decoded script and throws;
+    - it types a default against the declared type (sigma-rust's `mir/expr.rs:486-491`);
+    - it throws on a register that is not `Coll[Byte]`;
+    - it runs `validateBinOpTypes` on the substituted body.
+
+    A sigma-state 6.0.6 probe of 44 spends found divergences in both directions:
+    - **Six spends that the JVM and master accept and this branch rejects.** In each, the JVM's `SAny` of type code 97 sits inside a `Filter` or an `OptionGet` in a dead branch; these are the second round's casting arms, where master passed that `SAny` through. The six shapes: a default for an absent register, under `SizeOf` and under `==`; a present register decoding to such a script; and a `DeserializeContext` decoding to one.
+    - **Rejects the JVM does not make, on every version:**
+      - a default whose type differs from the declared one and that no rebuilt ancestor reads;
+      - a decoded script whose type read fails where the JVM swallows the cast;
+      - a `DeserializeRegister` over a register that is not `Coll[Byte]`, in a dead branch.
+    - **Accepts the JVM does not make:**
+      - A live register script whose own construction fails in the JVM: `If(true, 1, SizeOf(OptionGet(ByIndex(tuple))))`. The JVM swallows the cast, keeps the node and rejects the live branch; ergots substitutes and accepts.
+      - A decoded script typed `NoType` against a declared `SAny`. ergots' structural comparison passes it, since `NOTYPE_JVM` equals `SAny` structurally; the JVM rejects it.
+
+    Every partial fix leaves a probed case wrong. For example, dropping the default check opens accepts wherever a rebuilt `Negation`, `OptionGet`, arithmetic node or `If` reads the substituted default. Closing it needs the construction-time type reads of the rebuilt ancestors, the same model as the node-construction follow-up, together with Kiama's cast swallow. That is the next spec.
 
 ## Tests (TDD, contracts first)
 
@@ -520,6 +544,7 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
 - a sized tree rooted at `ByIndex` over a tuple (degraded), its unsized twin (rejected), and a ValDef bound to it (parsed);
 - the cascade family (final fix round 2): a sized root `OptionGet(ByIndex(tuple))` (rejected), a ValDef bound to one (rejected), the same through `Filter`, `Slice`, `Append`, `Negation`, `BitInversion` and `BitOp` (rejected), `Negation(Apply(ByIndex(tuple), [0]))` (a sized root degraded, a ValDef parsed), and `OptionGet(Global.none[SigmaProp])` on a `Filter` of the JVM's `SAny` in a v3 tree (parsed);
 - spans that end inside the size VLQ (final fix round 2): output trees `09 fe ff ff` and `09 fc ff ff ff`, each read from a tree whose negative size ends there (accepted, Unparsed).
+- residual 12, as spends: a cast swallowed while decoding or typing a substituted script; a `DeserializeRegister` over a register that is not `Coll[Byte]` in a dead branch; an untyped default under `==` (accepted) and under a rebuilt `If`, `Negation` or arithmetic node (rejected); and `Upcast` and `Downcast` over a non-numeric input at a sized root (rejected).
 
 ## Faithfulness risks
 
@@ -543,14 +568,21 @@ No mainnet id should move. The proof (Tests §4) targets what can actually chang
   - a BlockValue item that is not a ValDef, which the JVM rejects at parse (`asInstanceOf[BlockItem]`, `BlockValueSerializer.scala:39`; `ValDef` is the only `BlockItem`, `sigma/ast/values.scala:924, 945-948`), where ergots accepts any Expr;
   - the CAND/COR/CTHRESHOLD `< 1` rejects, which are stricter than the JVM; dropping them needs SANTA vectors and the verifier's handling of empty conjectures first;
   - the transaction's token-table count, which the JVM reads with `getUIntExact` and bounds with `safeNewArray` at 100000 (`ErgoLikeTransaction.scala:162-166`), where ergots accepts up to 65535 × 255 = 16,711,425, sigma-rust's bound (`facts/transaction.md`, "Count bounds").
-- **The JVM's node-construction checks at parse**, one class, narrowed by the final fix's second round: ergots now makes the check for the JVM's `SAny` (and `NoType`) where it types a node, the root under `checkType`, a ValDef's right-hand side and the arms `exprTpe` descends from there (§4). What remains:
+- **The JVM's node-construction checks, at parse and after substitution: the next spec** (the user's decision, 2026-09-29). One class, narrowed by the final fix's second round: ergots now makes the check for the JVM's `SAny` (and `NoType`) where it types a node, meaning the root under `checkType`, a ValDef's right-hand side, and the arms `exprTpe` descends from there (§4). The same model closes residual 12, where Kiama's `dup` rebuilds the ancestors of a substituted script. What remains:
+  - `Upcast` and `Downcast`, whose constructors require a numeric input (`sigma/ast/trees.scala:398, 431`). `exprTpe` types them from their target, so ergots makes no check for any input, the JVM's `SAny` and `NoType` included. The probe had 70 shapes the JVM rejects; ergots degrades them at a sized root, parses them at a ValDef's right-hand side or a root parsed without `checkType`, and rejects only at an unsized root;
+  - the type reads made while building an `If` (all three children, `Quadruple.opType`, `sigma/ast/trees.scala:1313`), arithmetic (both operands), `OptionIsDefined` and `SigmaPropBytes` (`transformers.scala:336`). These reject a `Filter` over the JVM's `SAny` in those places, where `exprTpe` reads only an `If`'s true branch and arithmetic's left operand;
   - the positions ergots does not type at parse, where the JVM still checks while it builds the node (and, for `Filter`, wherever its type is read): a MethodCall's object, a Relation's `check2` (`SigmaBuilder.scala:691, 699, 702`; ergots runs it only before evaluation), a ConcreteCollection item's assert (residual 9), the pre-v3 arithmetic upcast (residual 11), a root parsed without `checkType` (`00 b4 b2 86 02 04 00 04 00 04 00 00 04 00 04 02`, `Slice` over `ByIndex(tuple)`), and a node whose type no enclosing node reads (`08 10 b1 b4 b2 86 02 04 00 04 00 04 00 00 04 00 04 02`, the same `Slice` under `SizeOf`, which ergots degrades and the JVM rejects);
   - wrong concrete input types: a `ClassCastException` in `ByIndex`, `SelectField`, `MapCollection`, `OptionGet`, `OptionGetOrElse`, `Slice`, `Append` and `Filter` (`sigma/ast/transformers.scala:254, 294, 38, 600-601, 625-626, 89, 62, 121`), and a failed require in `Negation`, `BitInversion` and `BitOp` (`sigma/ast/trees.scala:882, 900, 913`) for a concrete type that is not numeric, where `exprTpe` checks the first five for a type that is no collection, option, tuple or function but passes the others' input type through;
   - a `NumericCast` to a non-numeric type (`NumericCastSerializer.scala:22-23`);
   - a pre-v3 `ByIndex` whose index is wider than an Int, which `upcastTo(SInt)` rejects with an `AssertionError` (`ByIndexSerializer.scala:29-33`; `00 d1 b2 0d 01 01 05 00 00`, final review).
 
   The JVM rejects these shapes while it builds the node, where ergots can accept, or degrade, the tree. The `apply-func-no-type` throw stands in for the JVM's `NoType` of an `Apply` of a concrete non-function (residual 8), so a cast of it propagates to rule 1001 as a degrade where the JVM rejects (`08 0a b2 da 04 00 01 04 00 04 00 00`, `ByIndex` over `Apply(Int 0, [0])`, which the JVM rejects): modelling that `NoType` as a type, as `NOTYPE_JVM` models the one from the JVM's `SAny`, closes it and residual 8 together, but moves an `Apply` of a concrete non-function as a method's object into residual 1.
-- **The `DeserializeRegister` default check** (final fix round 2, open for a ruling). The substitute pass types a `DeserializeRegister`'s default and requires the declared type (`eval/_substitute-deserialize.ts`, sigma-rust's `mir/expr.rs:486-491`); the JVM takes the default unchecked and untyped (`ErgoLikeInterpreter.scala:37`, `.orElse(d.default)`). So ergots rejects a spend where the default's type differs from the declared one and nothing reads it, which the JVM accepts; and since the second round a default typed through a `Filter` of the JVM's `SAny` throws there too: `00 d1 95 01 00 91 b1 d5 04 61 01 b5 b2 86 02 04 00 04 00 04 00 00 d9 01 01 04 01 01 04 00 01 01` (the default in an `If`'s dead branch, R4 absent) reduces to `TrueProp` in the JVM and in ergots at 9c87a5a, and rejects in ergots now. Faithful options: keep the check with the typing it had before the round, or drop it and re-run the ancestors' construction checks after the substitution, as the JVM's rewrite rebuilds each ancestor (sigma `kiama` `Rewriter.dup`).
+- **The spend-time substitution** (residual 12) closes with the construction-time spec above. It also needs:
+  - Kiama's cast swallow: a `ClassCastException` while decoding or typing a substituted script, or on a register that is not `Coll[Byte]`, leaves the node in place;
+  - the untyped default;
+  - `check2` only at parse and inside decoded scripts.
+
+  Keeping the default check with its pre-round typing is not faithful: it fixes only the `SizeOf` case.
 - **`exprTpe` of `Plus(Int, Long)`** is `SInt`, where the JVM's builder upcasts both operands to `Long` (`SigmaBuilder.scala:674-683, 707-712`). Verdict-neutral for rule 1001, since neither is SigmaProp; `exprTpe`'s other callers need a check for mixed-width arithmetic. It is also what modelling residual 11's rewrites needs.
 - **A register's known-opcode lead** (residual 4): the JVM parses the node's payload before its cast rejects it, so a soft failure there degrades an enclosing sized tree, where ergots rejects on the lead byte. Parsing the payload needs the reader's constant and ValDef stores (residuals 5 and 10), and the six opcodes of residual 5 would still need parsers.
 - **`boxTreeOf`'s nested miss rule is conservative** (final review): some nested run-outs are decidable from the bytes alone, for example under an enclosing tree without the size flag, which cannot have degraded; the miss still throws `'box-context-required'`. That is the safe direction, and box ingest seeds every parsed tree.

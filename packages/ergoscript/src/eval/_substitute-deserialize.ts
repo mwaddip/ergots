@@ -258,22 +258,16 @@ function substituteDeserializeRegister(
   }
   const entry = ctx.selfBox.registers[e.reg]
   if (entry !== undefined) {
-    // Wrong-typed register: EAGER throw is correct here — DR semantics DIFFER
-    // from the DC arm above (which leaves the node). F1 verified that BOTH
-    // references error eagerly at substitution for a present-but-not-Coll[Byte]
-    // register:
-    //   - JVM ErgoLikeInterpreter.substDeserialize matches with
-    //     `case eba: EvaluatedValue[SByteArray]@unchecked` (type param erased —
-    //     `@unchecked` precisely because it matches ANY register), then
-    //     `eba.value.toArray` throws ClassCastException for a non-Coll value
-    //     (ErgoLikeInterpreter.scala:21-22; its `case _ => None` is documented
-    //     as never-reached, :29-36).
-    //   - sigma-rust eni: `constant.try_extract_into::<Vec<u8>>()?` (expr.rs:482)
-    //     propagates SubstDeserializeError via `.transpose()?` (:492).
-    // The JVM throws inside the WHOLE-TREE everywherebu pass, so even a DEAD-
-    // branch DR with a wrong-typed register is rejected — `return e` here would
-    // FORK (ergots would accept a dead branch the JVM rejects). No blessed
-    // vector covers this shape; the eager throw is the confirmed-faithful path.
+    // Wrong-typed register: ergots throws eagerly here, as sigma-rust eni does
+    // (`constant.try_extract_into::<Vec<u8>>()?`, expr.rs:482, propagated via
+    // `.transpose()?`, :492). The JVM does not. Its substDeserialize matches
+    // any register with `case eba: EvaluatedValue[SByteArray]@unchecked`, and
+    // `eba.value.toArray` throws a ClassCastException for a non-Coll value
+    // (ErgoLikeInterpreter.scala:21-22). Kiama's `strategy` catches that and
+    // treats it as no rewrite (core/.../sigma/kiama/rewriting/Rewriter.scala:180-190),
+    // so the node stays and a dead branch accepts (sigma-state 6.0.6 probe),
+    // where ergots rejects. See residual 12 of
+    // docs/specs/2026-09-28-sized-tree-declared-size-design.md.
     if (entry.tpe.tag !== 'SColl' || entry.tpe.elem.tag !== 'SByte') {
       throw new EvalError(
         `DeserializeRegister: selfBox.registers[${e.reg}].tpe must be Coll[Byte], got ${entry.tpe.tag}`,
