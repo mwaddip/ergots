@@ -13,7 +13,8 @@
  *   per-token       — 32-byte id (raw) + VLQ u64 amount
  *   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
  *   [full only] transaction_id — 32 raw bytes
- *   [full only] index          — VLQ u16 (sigma-ser `put_u16` = VLQ, NOT raw BE)
+ *   [full only] index          — VLQ, the JVM's putUShort of a Short: [0, 0x7FFF]
+ *                                (`writeBoxRef`, serialize-svalue.ts)
  *
  * `serializeBoxBytesWithoutRef` matches sigma-rust's `ErgoBoxCandidate`
  * serialization (body without tx_id + index). Used by `ExtractBytesWithNoRef`
@@ -31,7 +32,7 @@
 
 import type { ErgoBox } from '../mir/types'
 import { ByteWriter } from '@ergots/scorex'
-import { SValueSerializeError, writeBoxBodyWithoutRef } from './serialize-svalue'
+import { writeBoxBodyWithoutRef, writeBoxRef } from './serialize-svalue'
 
 /**
  * Serialize a full `ErgoBox` to bytes (with tx_id + index).
@@ -47,25 +48,7 @@ export function serializeBoxBytes(box: ErgoBox): Uint8Array {
   // at register ingress), so v6-typed register values are rejected at parse time
   // and this pinned-v0 path is unreachable from well-formed input.
   writeBoxBodyWithoutRef(box, w, 0)
-
-  // transaction_id (32 raw bytes)
-  if (box.txId.length !== 32) {
-    throw new SValueSerializeError(
-      `SBox txId length ${box.txId.length} must be 32`,
-      'txid-length'
-    )
-  }
-  w.writeBytes(box.txId)
-
-  // index (VLQ u16 — sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE)
-  if (box.index < 0 || box.index > 0xffff) {
-    throw new SValueSerializeError(
-      `SBox index ${box.index} out of u16 range`,
-      'sbox-index-out-of-range'
-    )
-  }
-  w.writeVlqU(box.index)
-
+  writeBoxRef(box, w)
   return w.toBytes()
 }
 

@@ -120,6 +120,16 @@ const fixture: BoxBytesFixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
 
 describe('serializeBoxBytes (full: with tx_id + index)', () => {
   for (const entry of fixture.entries) {
+    // The JVM writes a box's index, a Short, with putUShort (ErgoBox.scala:56, 211), which
+    // rejects 0x8000-0xFFFF, where sigma-rust's u16 writes them (sigma-state 6.0.6 probe, index
+    // 0xFFFF: "Value -1 is out of unsigned short range").
+    if (entry.box_json.index > 0x7fff) {
+      it(`rejects ${entry.name}, whose index the JVM cannot write: ${entry.description}`, () => {
+        expect(() => serializeBoxBytes(reconstructErgoBox(entry.box_json)))
+          .toThrow(expect.objectContaining({ code: 'sbox-index-out-of-range' }))
+      })
+      continue
+    }
     it(`matches sigma-rust for ${entry.name}: ${entry.description}`, () => {
       const box = reconstructErgoBox(entry.box_json)
       const expected = hexToBytes(entry.full_hex)

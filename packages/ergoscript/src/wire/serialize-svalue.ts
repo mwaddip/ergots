@@ -65,8 +65,7 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   // bound. The JVM SERIALIZER writes via `putUInt` (accepts full u32; only the
   // READER `getUIntExact` throws on > 0x7fffffff), but a box can never arrive
   // from a JVM-faithful parse with a height > 2^31-1, and we keep the
-  // parse/serialize bounds identical so round-trips stay stable — same
-  // serialize-symmetry rationale as the `index`/u16 cap below. (Prior bound was
+  // parse/serialize bounds identical so round-trips stay stable. (Prior bound was
   // u32, mirroring non-canonical sigma-rust `get_u32`; re-anchored to the JVM
   // `getUIntExact`, ErgoBoxCandidate.scala:195.)
   if (
@@ -138,6 +137,34 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
       serializeSValue(entry.tpe, entry.value, treeVersion, w)
     }
   }
+}
+
+/**
+ * Write the box reference that follows the body in the full `ErgoBox` format: the transaction id
+ * (32 raw bytes), then the index (`ErgoBox.sigmaSerializer.serialize`, ErgoBox.scala:204-212).
+ *
+ * The index is a JVM Short: the parser reads `getUShort()` and stores `index.toShort`
+ * (ErgoBox.scala:218, 224; `index: Short`, :56), so 0x8000-0xFFFF parse to a negative Short, and
+ * the write, `putUShort(obj.index)` (:211), rejects a negative value (scorex-util 0.2.1
+ * VLQWriter.scala:36-39). The write therefore takes [0, 0x7FFF], where the parse takes [0, 0xFFFF]:
+ * a box whose index parsed from 0x8000-0xFFFF keeps its bytes as received (`boxBytesOf`) but
+ * cannot be re-encoded. Shared by the SBox arm below and `serializeBoxBytes`.
+ */
+export function writeBoxRef(box: ErgoBox, w: ByteWriter): void {
+  if (box.txId.length !== 32) {
+    throw new SValueSerializeError(
+      `SBox txId length ${box.txId.length} must be 32`,
+      'txid-length'
+    )
+  }
+  w.writeBytes(box.txId)
+  if (!Number.isInteger(box.index) || box.index < 0 || box.index > 0x7fff) {
+    throw new SValueSerializeError(
+      `SBox index ${box.index} is outside [0, 0x7FFF], the JVM Short that putUShort writes`,
+      'sbox-index-out-of-range'
+    )
+  }
+  w.writeVlqU(box.index)
 }
 
 /**
@@ -388,33 +415,15 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       //   per-token       — 32-byte id (raw) + VLQ u64 amount
       //   additional_regs — raw u8 count + per-register: SType bytes + SValue bytes
       //   transaction_id  — 32 raw bytes
-      //   index           — VLQ u16 (sigma-ser `put_u16` = VLQ, NOT raw BE)
+      //   index           — VLQ, the JVM's putUShort of a Short: [0, 0x7FFF] (see `writeBoxRef`)
       //
       // The first 5 fields are shared with `serializeBoxBytesWithoutRef`
-      // (used by ExtractBytesWithNoRef) via `writeBoxBodyWithoutRef`.
+      // (used by ExtractBytesWithNoRef) via `writeBoxBodyWithoutRef`, and the last two with
+      // `serializeBoxBytes` via `writeBoxRef`.
       assertKind(t, v, 'Box')
       const box = v.value
-
-      // Body fields (value + ergoTree + creation_height + tokens + registers)
       writeBoxBodyWithoutRef(box, w, treeVersion)
-
-      // transaction_id (32 raw bytes)
-      if (box.txId.length !== 32) {
-        throw new SValueSerializeError(
-          `SBox txId length ${box.txId.length} must be 32`,
-          'txid-length'
-        )
-      }
-      w.writeBytes(box.txId)
-
-      // index (VLQ u16 — sigma-ser `put_u16` = VLQ, NOT raw 2-byte BE)
-      if (box.index < 0 || box.index > 0xffff) {
-        throw new SValueSerializeError(
-          `SBox index ${box.index} out of u16 range`,
-          'sbox-index-out-of-range'
-        )
-      }
-      w.writeVlqU(box.index)
+      writeBoxRef(box, w)
       return
     }
 

@@ -74,8 +74,28 @@ function makeMinimalBox(overrides: Partial<ErgoBox> = {}): ErgoBox {
   }
 }
 
+/** The index of the box in `bytesHex`, as parsed. */
+function parsedIndex(bytesHex: string): number {
+  const v = parseSValue({ tag: 'SBox' }, 0, new ByteReader(hexToBytes(bytesHex)))
+  return v.kind === 'Box' ? v.value.index : -1
+}
+
 describe('SBox wire round-trip', () => {
   for (const entry of fixture.entries) {
+    // The JVM stores a box's index as a Short (ErgoBox.scala:56, 218, 224) and writes it with
+    // putUShort (:211), which rejects 0x8000-0xFFFF, where sigma-rust's u16 round-trips them:
+    // such a box parses but cannot be re-encoded (sigma-state 6.0.6 probe, index 0xFFFF:
+    // "Value -1 is out of unsigned short range").
+    if (parsedIndex(entry.bytes_hex) > 0x7fff) {
+      it(`parses ${entry.name}, whose index the JVM cannot write back: ${entry.description}`, () => {
+        const reader = new ByteReader(hexToBytes(entry.bytes_hex))
+        const v = parseSValue({ tag: 'SBox' }, 0, reader)
+        expect(reader.isExhausted).toBe(true)
+        expect(() => serializeSValue({ tag: 'SBox' }, v, 0, new ByteWriter()))
+          .toThrow(expect.objectContaining({ code: 'sbox-index-out-of-range' }))
+      })
+      continue
+    }
     it(`round-trips ${entry.name}: ${entry.description}`, () => {
       const original = hexToBytes(entry.bytes_hex)
 
