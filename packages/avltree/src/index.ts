@@ -1,6 +1,7 @@
 // Public surface of @ergots/avltree.
 
 export {
+  BatchAVLVerifier,
   verifyAvlBatch,
   verifyAvlBatchPartial,
   verifyAvlLookup,
@@ -9,7 +10,8 @@ export {
 } from './verify.js'
 export type { AvlTreeConfig, OperationResult } from './types.js'
 export type { Operation } from './operation.js'
-export { AvlVerifyError, type AvlVerifyErrorCode } from './errors.js'
+export { AvlVerifyError, type AvlVerifyErrorCode, type AvlVerifyFailReason } from './errors.js'
+export type { NeighborLookup, NeighborLookupResult } from './neighbors.js'
 
 export { BatchAVLProver, type ProverOperationResult } from './batch-prover.js'
 export { PersistentBatchAVLProver } from './persistent-prover.js'
@@ -35,6 +37,7 @@ export {
 // proof encoding.
 export { serializeNode, deserializeNode } from './serialize.js'
 
-// Internal types (NOT exported): VerifierCore, modify/delete helpers,
-// rotation primitives, tree-traversal state, compare-bytes.ts's byte comparator.
-// These are implementation detail and may change without notice.
+// Internal (NOT exported): VerifierCore, modify/delete helpers, rotation
+// primitives, tree-traversal state, compare-bytes.ts's byte comparator,
+// neighbors.ts's neighborLookupOf. These are implementation detail and may
+// change without notice.

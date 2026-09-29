@@ -2,7 +2,7 @@
  * Eight-variant string union of programmer-error codes.
  * TS-only: Rust uses anyhow::Result throughout (no typed error codes).
  * Each code corresponds to a shape-validation precondition on a public entry
- * point (verifyAvlBatch / verifyAvlLookup / BatchAVLProver.performOneOperation).
+ * point (the verify functions, BatchAVLVerifier, and BatchAVLProver's operations and neighbor lookups).
  * See facts/avltree.md § Failure model overview.
  */
 export type AvlVerifyErrorCode =
@@ -17,8 +17,8 @@ export type AvlVerifyErrorCode =
 
 /**
  * Programmer-error rejection class. Thrown (never returned) by the public
- * verify wrappers (verifyAvlBatch / verifyAvlLookup) and by
- * BatchAVLProver.performOneOperation, for invalid shapes in calling code:
+ * verify wrappers (verifyAvlBatch* / verifyAvlLookup), by BatchAVLVerifier,
+ * and by BatchAVLProver's operations and neighbor lookups, for invalid shapes in calling code:
  * bad config, wrong digest length, or key/value length mismatches. TS-only:
  * Rust uses anyhow::Result.
  */
@@ -33,10 +33,12 @@ export class AvlVerifyError extends Error {
 }
 
 /**
- * Internal verification-failure reason taxonomy (11 reasons). Tracked by
- * VerifierCore.lastFailReason but NOT exposed in the public API on v0.4.0.
- * Promoted to a getLastFailReason() method if/when the internal class is
- * promoted to public surface (deferred per design spec's option-3 decision).
+ * Verification-failure reason taxonomy (11 reasons). Tracked by
+ * VerifierCore.lastFailReason; public since 0.5.0 through
+ * BatchAVLVerifier.getLastFailReason(). Three members are never produced and
+ * stay for stability: 'tree-poisoned' (every poisoning path also sets its
+ * own reason, and a poisoned verifier keeps it), 'empty-tree' (no
+ * assignment site), and 'operation-required-but-not-allowed' (reserved).
  */
 export type AvlVerifyFailReason =
   | 'proof-truncated'
@@ -47,6 +49,8 @@ export type AvlVerifyFailReason =
   | 'max-nodes-exceeded'
   | 'operation-precondition-failed'
   | 'key-out-of-bounds'  // op key not strictly inside the ±inf sentinels (references' entry requires)
+  // never produced: a poisoned verifier keeps its first reason
   | 'tree-poisoned'
+  // never produced: no assignment site
   | 'empty-tree'
   | 'operation-required-but-not-allowed'  // reserved for ABI stability
