@@ -8,7 +8,7 @@
  * iterative walk that keeps label()'s Internal arm off the native call
  * stack (deep-spine hardening; ports the reference's `b785d0d` fix).
  *
- * @see ~/projects/ergo_avltree_rust/src/batch_node.rs
+ * @see ergo_avltree_rust src/batch_node.rs (pin 568e7c3)
  */
 
 import { blake2b } from '@noble/hashes/blake2.js'
@@ -118,6 +118,12 @@ export function newLeaf(key: ADKey, value: ADValue, nextLeafKey: ADKey): LeafNod
  * pointer wrapper). TS returns the plain InternalNode value — no ref-
  * counting needed; the GC handles reference lifecycle.
  *
+ * `key` is defensively copied, as newLeaf copies its byte arguments (0.5.0):
+ * the prover navigates by it and serializeNode persists it, so a retained
+ * caller buffer — an Insert's own key (modify.ts::addNode), or a Buffer view
+ * handed over by deserializeNode — would let caller-side mutation rewrite the
+ * tree. `new Uint8Array(key)`, not `.slice()`: a Buffer's slice is a view.
+ *
  * left and right are AvlNode references (object references; no defensive
  * copy needed). balance is a primitive (Balance = -1 | 0 | 1).
  */
@@ -127,7 +133,7 @@ export function newInternal(
   balance: Balance,
   key?: Uint8Array,
 ): InternalNode {
-  return { kind: 'internal', key, left, right, balance, labelCache: null }
+  return { kind: 'internal', key: key === undefined ? undefined : new Uint8Array(key), left, right, balance, labelCache: null }
 }
 
 /**

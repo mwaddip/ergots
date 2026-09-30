@@ -1,5 +1,5 @@
 /**
- * BatchAvlVerifier — internal orchestrator that ties together proof decoding,
+ * VerifierCore — internal orchestrator that ties together proof decoding,
  * per-operation modification (modify.ts), and structural deletion (delete.ts).
  *
  * Ports ergo_avltree_rust/src/batch_avl_verifier.rs::BatchAVLVerifier:
@@ -16,18 +16,21 @@
  * reference exactly. Off-by-one in the directions/replay indices or skipping
  * the needsDelete handoff would silently diverge downstream digests.
  *
- * Per the design spec (docs/specs/2026-05-18-ergots-avltree-package-design.md),
- * this class is INTERNAL on v0.4.0 — consumers use `verifyAvlBatch` /
- * `verifyAvlLookup` (T18+T19) which wrap this. Key/value LENGTH validation
+ * This class is INTERNAL. Consumers use the verify.ts functions and, since
+ * 0.5.0, the public BatchAVLVerifier wrapper (verify.ts), which owns
+ * validation, input copies, copies of returned values, and the engine-throw
+ * fail-stop. Digests and neighbor reports leave this class already fresh.
+ * Key/value LENGTH validation
  * lives in those wrappers (throws — kept deliberately: converting the shipped
  * 'operation-key-length-mismatch' throw to a per-op failure would be a
  * breaking API change, and the eval path routes around it via savltree's
  * shape pre-scan; see facts/avltree.md invariant #1). The references'
  * two strict ±inf bounds requires (Rust `ensure!`s at
  * authenticated_tree_ops.rs:267-268 @568e7c3; scrypto's identical requires)
- * are enforced HERE at the top of performOneOperation as fail-and-poison
- * ('key-out-of-bounds') — task 6g. Beyond those per-op gates, once
- * construction finishes this class trusts the inputs and operates on bytes.
+ * are enforced HERE at the top of perform (the body performOneOperation and
+ * lookupWithNeighbors share) as fail-and-poison ('key-out-of-bounds') —
+ * task 6g. Beyond those per-op gates, once construction finishes this class
+ * trusts the inputs and operates on bytes.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
  * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (261-288 @568e7c3; ±inf ensure!s :267-268 @568e7c3)
@@ -44,6 +47,7 @@ import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
 import { compareBytes } from './compare-bytes.js'
+import { neighborLookupOf, type NeighborLookup } from './neighbors.js'
 
 /**
  * Constants — mirrors `DIGEST_LENGTH` from the Rust source.
@@ -53,14 +57,16 @@ const DIGEST_LENGTH = 32
 
 /**
  * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl), the integration
- * layer of the AVL+ verifier. Holds the proof-bytes + config + reconstructed
- * tree state, and exposes `performOneOperation` for the caller.
+ * layer of the AVL+ verifier. Holds the proof bytes and the reconstructed
+ * tree state, and exposes `performOneOperation` and (0.5.0)
+ * `lookupWithNeighbors` for the caller.
  *
  * Lifecycle:
- *   1. `new BatchAvlVerifier(startingDigest, proof, config)` — runs
+ *   1. `new VerifierCore(startingDigest, proof, config)` — runs
  *      proof-decode to reconstruct the tree. On failure `root === null` and
  *      `lastFailReason` is set; `isValid` returns false.
- *   2. `performOneOperation(op)` — applies one operation:
+ *   2. `performOneOperation(op)`, or (0.5.0) `lookupWithNeighbors(key)`
+ *      (both run the private `perform`) — applies one operation:
  *        - If the tree is already poisoned (`root === null`), returns
  *          `{ failed: true }` without touching state.
  *        - Otherwise dispatches modify_helper → (optional) delete_helper per
@@ -68,19 +74,17 @@ const DIGEST_LENGTH = 32
  *        - On failure, sets `root = null` (poisoning), records
  *          `lastFailReason`, returns `{ failed: true }`.
  *        - On success, updates `root` and `height`, returns the old value
- *          (Uint8Array if the key existed, `null` if absent).
+ *          (Uint8Array if the key existed, `null` if absent);
+ *          `lookupWithNeighbors` returns its neighbor report instead.
  *   3. `digest()` — computes the current 33-byte digest, or null if poisoned.
  *
- * `lastFailReason` is set on any failure path (proof decode, modifyHelper,
- * deleteHelper, or tree-poisoned re-entry). Tracked publicly as a debugging
- * aid; the design spec defers exposing it on the v0.1.0 public surface
- * (option-3 decision; see errors.ts § AvlVerifyFailReason).
+ * `lastFailReason` is set on every failure path (proof decode, modifyHelper,
+ * deleteHelper, or the ±inf gate) and kept once set. Exposed since 0.5.0
+ * through BatchAVLVerifier.getLastFailReason() (errors.ts § AvlVerifyFailReason).
  */
-export class BatchAvlVerifier {
+export class VerifierCore {
   /** The serialized AD proof (packed post-order tree + directions bit-string). */
   readonly proof: Uint8Array
-  /** Tree config (keyLength, valueLengthOpt, DoS bounds). */
-  readonly config: AvlTreeConfig
   /**
    * The current root node, or `null` after a verification failure (poisoned).
    * Mirrors `self.base.tree.root` in Rust (line 206 @568e7c3: set to None on failure).
@@ -88,17 +92,20 @@ export class BatchAvlVerifier {
   root: AvlNode | null
   /**
    * The current tree height. Set from `startingDigest[32]` on construction
-   * (Rust line 83 @568e7c3) and updated by `performOneOperation` via
-   * `heightDelta` from modify/delete results.
+   * (Rust line 83 @568e7c3) and updated by the private `perform` (behind
+   * `performOneOperation` and `lookupWithNeighbors`) via `heightDelta` from
+   * modify/delete results.
    */
   height: number
   /**
-   * Internal failure reason (option-3: not exposed publicly on v0.1.0 per the
-   * design spec — to be promoted to a getter when/if this class is exposed).
-   * Set on:
+   * The first failure's reason — exposed since 0.5.0 through
+   * BatchAVLVerifier.getLastFailReason(). Set on:
    *   - construction-time proof-decode failure (reason from parseProofPackedTree)
-   *   - performOneOperation failure (reason from modifyHelper / deleteHelper)
-   *   - re-entry on a poisoned tree ('tree-poisoned')
+   *   - operation failure, in performOneOperation or lookupWithNeighbors
+   *     (reason from modifyHelper / deleteHelper, or 'key-out-of-bounds'
+   *     from the ±inf gate)
+   * Re-entry on a poisoned tree keeps it: the `??=` 'tree-poisoned' never
+   * lands, because every poisoning path also sets its own reason.
    */
   lastFailReason: AvlVerifyFailReason | null = null
 
@@ -130,11 +137,11 @@ export class BatchAvlVerifier {
    * Failure handling: on parseProofPackedTree failure, `root` stays null,
    * `lastFailReason` is set, and `isValid` returns false. Callers (verifyAvlBatch)
    * MUST check `isValid` (or equivalently `root !== null`) before issuing
-   * operations — otherwise performOneOperation returns `{ failed: true }`.
+   * operations — otherwise performOneOperation and lookupWithNeighbors
+   * return `{ failed: true }`.
    */
   constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
     this.proof = proof
-    this.config = config
     this.negInfKey = new Uint8Array(config.keyLength)
     this.posInfKey = new Uint8Array(config.keyLength).fill(0xff)
     // Rust struct init (lines 66-74 @568e7c3): directions_index=0, last_right_step=0,
@@ -177,7 +184,7 @@ export class BatchAvlVerifier {
    * so nextDirectionIsLeft ignores its `key` and `r` parameters. The prover's
    * implementation of the same callback WILL use them.
    */
-  private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
+  private buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
     const proof = this.proof
     const state = this.state
     return {
@@ -185,7 +192,14 @@ export class BatchAvlVerifier {
         return nextDirectionIsLeft(proof, state)
       },
       keyMatchesLeaf: (key: Uint8Array, leaf: LeafNode) => {
-        return keyMatchesLeaf(key, leaf)
+        const m = keyMatchesLeaf(key, leaf)
+        // The engine calls this at most once per operation (modify.ts:149;
+        // deleteHelper never does), and exactly once for a successful Lookup.
+        // `onLeaf` sees the leaf only after that check approved it — the
+        // leaf-position check a neighbor report relies on (for a present key,
+        // only key == leaf.key; 0.5.0).
+        if (m.ok) onLeaf?.(leaf, m.matches)
+        return m
       },
       replayComparison: () => {
         return replayComparison(proof, state)
@@ -256,6 +270,44 @@ export class BatchAvlVerifier {
    *     defensive.
    */
   performOneOperation(op: Operation): Uint8Array | null | { failed: true } {
+    return this.perform(op)
+  }
+
+  /**
+   * A Lookup that reports its neighbors (0.5.0): exactly
+   * performOneOperation({ tag: 'Lookup', key }) — same gates, same proof bits
+   * consumed, same poisoning — with the report read off the leaf the lookup
+   * resolved at. Buffers in the report are fresh copies.
+   */
+  lookupWithNeighbors(key: Uint8Array): NeighborLookup | { failed: true } {
+    const seen: { leaf: LeafNode | null; matches: boolean; calls: number } = {
+      leaf: null,
+      matches: false,
+      calls: 0,
+    }
+    const r = this.perform({ tag: 'Lookup', key }, (leaf, matches) => {
+      seen.leaf = leaf
+      seen.matches = matches
+      seen.calls++
+    })
+    if (r !== null && 'failed' in r) return r
+    if (seen.calls !== 1 || seen.leaf === null) {
+      throw new Error(
+        `VerifierCore.lookupWithNeighbors: a successful Lookup observed ${seen.calls} leaves, not 1 — the shared engine is in an inconsistent state`,
+      )
+    }
+    return neighborLookupOf(seen.leaf, seen.matches, this.negInfKey, this.posInfKey)
+  }
+
+  /**
+   * performOneOperation's body, shared with lookupWithNeighbors. `onLeaf`
+   * observes the leaf the operation resolves at, and only once
+   * keyMatchesLeaf's range check approved it.
+   */
+  private perform(
+    op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): Uint8Array | null | { failed: true } {
     // Rust lines 197-203 @568e7c3: empty-tree / already-poisoned guard.
     // The Rust uses `ok_or(anyhow!("Empty tree"))?` (line 202 @568e7c3): the
     // `?` returns Err immediately when root is already None — root simply
@@ -301,7 +353,7 @@ export class BatchAvlVerifier {
     // Phase 1 — Rust lines 272-273 @568e7c3:
     //   let (new_root_node, _, height_increased, to_delete, old_value) =
     //       self.modify_helper(root_node, &key, operation)?;
-    const callbacks = this.buildCallbacks(op)
+    const callbacks = this.buildCallbacks(onLeaf)
     const modifyResult = modifyHelper(this.root, op, callbacks)
     if (!modifyResult.ok) {
       // Rust lines 205-208 @568e7c3: on Err from return_result_of_one_operation,

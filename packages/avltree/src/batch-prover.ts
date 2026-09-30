@@ -8,7 +8,7 @@
  *
  * Ports ergo_avltree_rust/src/batch_avl_prover.rs (537 lines).
  *
- * @see ~/projects/ergo_avltree_rust/src/batch_avl_prover.rs
+ * @see ergo_avltree_rust src/batch_avl_prover.rs (pin 568e7c3)
  */
 
 import { newLeaf, newInternal, label, type AvlNode, type InternalNode, type LeafNode } from './node.js'
@@ -18,6 +18,7 @@ import { deleteHelper } from './delete.js'
 import { I64_MAX, I64_MIN, type Operation } from './operation.js'
 import { AvlVerifyError } from './errors.js'
 import { compareBytes } from './compare-bytes.js'
+import { neighborLookupOf, type NeighborLookup, type NeighborLookupResult } from './neighbors.js'
 
 // ---------------------------------------------------------------------------
 // Token constants for packed proof format (batch_node.rs:14-16 @568e7c3)
@@ -35,6 +36,9 @@ const DIGEST_LENGTH = 32
 export type ProverOperationResult =
   | { success: true; value: Uint8Array | null }
   | { success: false }
+
+/** The public proof-cycle entry points that honor the fail-stop (P3). */
+type CycleMethod = 'performOneOperation' | 'performLookupWithNeighbors' | 'generateProof' | 'removedNodes'
 
 // ---------------------------------------------------------------------------
 // BatchAVLProver
@@ -86,6 +90,19 @@ export class BatchAVLProver {
   // objects and Set uses SameValueZero.
   private modifiedNodes: Set<AvlNode> = new Set()
 
+  // Proof-cycle fail-stop (P3, 0.5.0). Set around each operation's engine
+  // run, and still set after one threw on an engine inconsistency: for example
+  // a key-less internal node, a RangeError, the delete-pass invariant throw, or
+  // applyHeightDelta's. Such a throw leaves the aborted operation's direction
+  // bits (partial after a mid-descent throw) and, after the modify pass (the
+  // delete pass or applyHeightDelta), its recorded visits, which the next
+  // generateProof() would encode. performLookupWithNeighbors also sets it when
+  // a successful run observed other than one leaf, an engine inconsistency
+  // found after the engine returned. restoreRoot() rebases the whole cycle and
+  // clears the mark. A flag around the call, not a try/catch: nothing is
+  // swallowed; the engine's throw propagates to the caller unchanged.
+  private cycleIndeterminate = false
+
   // -------------------------------------------------------------------------
   // Constructor — ports batch_avl_prover.rs:54-76 @568e7c3
   // -------------------------------------------------------------------------
@@ -124,6 +141,10 @@ export class BatchAVLProver {
    * bootstrap, recovery rollback). Without this, `oldTopNode` is a stale
    * sentinel and `generateProof` produces wrong proofs.
    *
+   * Rebasing also clears the proof-cycle fail-stop (P3, 0.5.0): after an
+   * operation threw on an engine inconsistency, this is how the prover
+   * becomes usable again.
+   *
    * Ports batch_avl_prover.rs `restore_root` (86-107 @568e7c3).
    */
   restoreRoot(root: AvlNode, height: number): void {
@@ -139,6 +160,9 @@ export class BatchAVLProver {
     // Clear accumulated directions from any prior (possibly failed) cycle.
     this.directions = []
     this.directionsBitLength = 0
+
+    // A rebased cycle is determinate again (P3).
+    this.cycleIndeterminate = false
   }
 
   // -------------------------------------------------------------------------
@@ -181,7 +205,7 @@ export class BatchAVLProver {
    * Build prover-specific callbacks for the shared mutation engine.
    * Closes over mutable prover state (directions, found, replayIndex, etc.).
    */
-  private buildCallbacks(_op: Operation): AvlTreeOpsCallbacks {
+  private buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
     const self = this
     return {
       // Ports batch_avl_prover.rs:440-477 @568e7c3 — next_direction_is_left
@@ -218,10 +242,17 @@ export class BatchAVLProver {
         return ret
       },
 
-      // Ports batch_avl_prover.rs:486-493 @568e7c3 — key_matches_leaf
-      keyMatchesLeaf: (_key: Uint8Array, _leaf: LeafNode) => {
+      // Ports batch_avl_prover.rs:486-493 @568e7c3 — key_matches_leaf.
+      // `onLeaf` observes the leaf the operation resolves at. The engine calls
+      // this callback at most once per operation (modify.ts:149; deleteHelper
+      // never does), and exactly once for a successful Lookup. The neighbor
+      // lookups read their report from it (0.5.0). An observer only records:
+      // a throw from it would unwind like any engine throw, after the
+      // direction bits were written, and leave the fail-stop mark set (P3).
+      keyMatchesLeaf: (_key: Uint8Array, leaf: LeafNode) => {
         const matches = self.found
         self.found = false // reset for next operation
+        onLeaf?.(leaf, matches)
         return { ok: true, matches }
       },
 
@@ -257,40 +288,67 @@ export class BatchAVLProver {
    * Apply a single operation (Insert, Update, Remove, Lookup, etc.) to the
    * in-memory tree. Records traversal directions for later proof generation.
    *
-   * Failure model is two-tier: shape-invalid ops (±inf key, wrong key/value
-   * length, out-of-range delta) THROW `AvlVerifyError`; engine-level op
-   * failure (e.g. Insert on an existing key) returns `{ success: false }`.
+   * Failure model: shape-invalid ops (±inf key, wrong key/value length,
+   * out-of-range delta) THROW `AvlVerifyError`; engine-level op failure (e.g.
+   * Insert on an existing key) returns `{ success: false }`. A throw from
+   * inside the engine (an invariant violation) propagates unchanged and
+   * leaves the proof cycle indeterminate: until restoreRoot(), this method,
+   * performLookupWithNeighbors, generateProof() and removedNodes() throw a
+   * plain `Error` (P3, 0.5.0).
    *
    * @returns ProverOperationResult — `{ success: true, value }` on success
    *   (value is the old value or null if the key was absent), or
    *   `{ success: false }` on engine-level operation failure.
    */
   performOneOperation(op: Operation): ProverOperationResult {
-    const key = op.key
+    return this.perform(op)
+  }
 
-    // Precondition checks (authenticated_tree_ops.rs:267-269 @568e7c3)
-    // Reference check order: −inf, +inf, then length (authenticated_tree_ops.rs
-    // entry requires). compareBytes length-tiebreaks, so a SHORT all-zero key
-    // is < −inf and fires here — same caller mistake, different code than the
-    // length gate below. Faithful to both references; do not reorder.
-    if (compareBytes(key, this.negInfKey) <= 0) {
-      throw new AvlVerifyError(
-        'Key is less than or equal to negative infinity',
-        'operation-key-out-of-bounds',
+  /**
+   * performOneOperation's body, shared with the recorded neighbor lookup
+   * (0.5.0). `onLeaf` observes the leaf the operation resolves at; it never
+   * alters the operation. `method` names the public entry point in the
+   * fail-stop error (P3).
+   */
+  private perform(
+    op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+    method: CycleMethod = 'performOneOperation',
+  ): ProverOperationResult {
+    this.assertCycleUsable(method)
+    this.validateShape(op)
+    // Every operation starts its descent with no pending key match (P2,
+    // 0.5.0). Like the reference, this port cleared `found` only inside
+    // keyMatchesLeaf (batch_avl_prover.rs:486-493 @568e7c3), so an operation
+    // that failed or threw after an equality step left it set, and the next
+    // operation descended all-left to the wrong leaf. Only a tree installed
+    // through restoreRoot can do that. A label stub on the found-mode path
+    // fails the reference the same way, so this reset is a deliberate
+    // divergence there. A key-less internal node there throws only in this
+    // port, because nextDirectionIsLeft checks the key before `found`
+    // (facts/avltree.md).
+    this.found = false
+    this.cycleIndeterminate = true
+    const result = this.runOperation(op, onLeaf)
+    this.cycleIndeterminate = false
+    return result
+  }
+
+  /** Throws when an earlier operation threw on an engine inconsistency (P3). */
+  private assertCycleUsable(method: CycleMethod): void {
+    if (this.cycleIndeterminate) {
+      throw new Error(
+        `BatchAVLProver.${method}: an earlier operation threw on an engine inconsistency, so this proof cycle is indeterminate — call restoreRoot() to rebase it, or discard the prover`,
       )
     }
-    if (compareBytes(key, this.posInfKey) >= 0) {
-      throw new AvlVerifyError(
-        'Key is greater than or equal to positive infinity',
-        'operation-key-out-of-bounds',
-      )
-    }
-    if (key.length !== this.keyLength) {
-      throw new AvlVerifyError(
-        'Key length does not match tree key length',
-        'operation-key-length-mismatch',
-      )
-    }
+  }
+
+  /**
+   * The thrown shape gates (AvlVerifyError), checked before any state
+   * changes: the key gates, then value length, then delta range.
+   */
+  private validateShape(op: Operation): void {
+    this.validateKey(op.key)
     // Value length check
     if (
       this.valueLengthOpt !== null &&
@@ -313,12 +371,51 @@ export class BatchAVLProver {
         'operation-delta-out-of-range',
       )
     }
+  }
 
+  /**
+   * Precondition checks (authenticated_tree_ops.rs:267-269 @568e7c3).
+   * Reference check order: −inf, +inf, then length (authenticated_tree_ops.rs
+   * entry requires). compareBytes length-tiebreaks, so a SHORT all-zero key
+   * is < −inf and fires here — same caller mistake, different code than the
+   * length gate below. Faithful to both references; do not reorder.
+   */
+  private validateKey(key: Uint8Array): void {
+    if (compareBytes(key, this.negInfKey) <= 0) {
+      throw new AvlVerifyError(
+        'Key is less than or equal to negative infinity',
+        'operation-key-out-of-bounds',
+      )
+    }
+    if (compareBytes(key, this.posInfKey) >= 0) {
+      throw new AvlVerifyError(
+        'Key is greater than or equal to positive infinity',
+        'operation-key-out-of-bounds',
+      )
+    }
+    if (key.length !== this.keyLength) {
+      throw new AvlVerifyError(
+        'Key length does not match tree key length',
+        'operation-key-length-mismatch',
+      )
+    }
+  }
+
+  /**
+   * The engine half of an operation: modify pass, optional delete pass,
+   * direction rollback on failure, height bookkeeping. Ports
+   * batch_avl_prover.rs::perform_one_operation (120-141 @568e7c3) +
+   * authenticated_tree_ops.rs::return_result_of_one_operation (270-287 @568e7c3).
+   */
+  private runOperation(
+    op: Operation,
+    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+  ): ProverOperationResult {
     // Snapshot replay index (batch_avl_prover.rs:125 @568e7c3)
     this.replayIndex = this.directionsBitLength
 
     // Phase 1: modifyHelper (authenticated_tree_ops.rs:272-273 @568e7c3)
-    const callbacks = this.buildCallbacks(op)
+    const callbacks = this.buildCallbacks(onLeaf)
     const modifyResult = modifyHelper(this._root, op, callbacks)
     if (!modifyResult.ok) {
       // Rollback directions (batch_avl_prover.rs:127-139 @568e7c3)
@@ -350,8 +447,12 @@ export class BatchAVLProver {
           `BatchAVLProver: deleteHelper reported failure (${deleteResult.reason}), which cannot happen for a prover — the shared engine is in an inconsistent state`,
         )
       }
+      // Height first: applyHeightDelta throws on an engine inconsistency, and
+      // an engine throw must leave root and height at the pre-operation state
+      // (P3's root-only reads rely on it).
+      const height = this.applyHeightDelta(deleteResult.heightDelta)
       this._root = deleteResult.newSubtreeRoot
-      this._height = this.applyHeightDelta(deleteResult.heightDelta)
+      this._height = height
       // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
       // label input); handing it out uncopied lets a caller corrupt cached labels
       // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
@@ -359,8 +460,10 @@ export class BatchAVLProver {
     }
 
     // No delete
+    // Height first, as on the delete path.
+    const height = this.applyHeightDelta(modifyResult.heightDelta)
     this._root = modifyResult.newSubtreeRoot
-    this._height = this.applyHeightDelta(modifyResult.heightDelta)
+    this._height = height
     // Defensive copy: the engine returns the leaf's LIVE value buffer (a blake2b
     // label input); handing it out uncopied lets a caller corrupt cached labels
     // and the next proof's packTree bytes. modify.ts stays alias-internal (C7).
@@ -493,6 +596,88 @@ export class BatchAVLProver {
   }
 
   // -------------------------------------------------------------------------
+  // Neighbor-reporting lookups (0.5.0; TS-only — no counterpart in either
+  // reference). See facts/avltree.md § Neighbor lookups.
+  // -------------------------------------------------------------------------
+
+  /**
+   * A Lookup that also reports its neighbors: a present key → its value and
+   * the next leaf's key; an absent key → the keys of the leaves either side;
+   * `null` for a sentinel. Runs `{ tag: 'Lookup', key }` through exactly
+   * performOneOperation's path — same key gates and throws, same direction
+   * bits and visits, same `{ success: false }`, same proof-cycle fail-stop —
+   * and reads the report off the leaf the engine's single keyMatchesLeaf call
+   * resolves at. A successful run that observed other than one leaf is an
+   * engine inconsistency: it throws a plain `Error` and sets the fail-stop
+   * mark (P3).
+   */
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
+    const seen: { leaf: LeafNode | null; matches: boolean; calls: number } = {
+      leaf: null,
+      matches: false,
+      calls: 0,
+    }
+    const result = this.perform(
+      { tag: 'Lookup', key },
+      (leaf, matches) => {
+        seen.leaf = leaf
+        seen.matches = matches
+        seen.calls++
+      },
+      'performLookupWithNeighbors',
+    )
+    if (!result.success) return { success: false }
+    if (seen.calls !== 1 || seen.leaf === null) {
+      // An engine inconsistency: fail stop, as for any engine throw (P3).
+      this.cycleIndeterminate = true
+      throw new Error(
+        `BatchAVLProver.performLookupWithNeighbors: a successful Lookup observed ${seen.calls} leaves, not 1 — the shared engine is in an inconsistent state`,
+      )
+    }
+    return { success: true, ...neighborLookupOf(seen.leaf, seen.matches, this.negInfKey, this.posInfKey) }
+  }
+
+  /**
+   * performLookupWithNeighbors without recording: no directions, no visits,
+   * no proof-cycle effect; reads only the root. Validates the key with
+   * performOneOperation's three gates — unlike unauthenticatedLookup, which
+   * validates nothing and returns null — so a sentinel key throws here as on
+   * the recorded path. Walks the recorded path's descent: compare with the
+   * internal node's key; on equal, right once, then left to the leaf. A label
+   * stub or key-less internal node on the walk is an invariant violation
+   * (reachable only via restoreRoot) and throws rather than guess.
+   */
+  unauthenticatedLookupWithNeighbors(key: Uint8Array): NeighborLookup {
+    this.validateKey(key)
+    let node: AvlNode = this._root
+    let found = false
+    while (node.kind === 'internal') {
+      if (node.key === undefined) {
+        throw new Error(
+          'BatchAVLProver.unauthenticatedLookupWithNeighbors: internal node without key on the lookup path — tree invariant violated (restoreRoot)',
+        )
+      }
+      if (found) {
+        node = node.left
+        continue
+      }
+      const cmp = compareBytes(key, node.key)
+      if (cmp === 0) {
+        found = true
+        node = node.right
+      } else {
+        node = cmp < 0 ? node.left : node.right
+      }
+    }
+    if (node.kind === 'label') {
+      throw new Error(
+        'BatchAVLProver.unauthenticatedLookupWithNeighbors: label stub on the lookup path — tree invariant violated (restoreRoot)',
+      )
+    }
+    return neighborLookupOf(node, found, this.negInfKey, this.posInfKey)
+  }
+
+  // -------------------------------------------------------------------------
   // generateProof — ports batch_avl_prover.rs:186-258 @568e7c3
   // -------------------------------------------------------------------------
 
@@ -500,8 +685,12 @@ export class BatchAVLProver {
    * Serialize a proof covering all operations since the last call to
    * generateProof() (or since construction). Uses post-order traversal
    * of the modified subtree, directions bit-string, and end-of-tree marker.
+   *
+   * Throws a plain `Error` while the proof cycle is indeterminate — after an
+   * operation threw on an engine inconsistency (P3, 0.5.0); `restoreRoot()` clears that.
    */
   generateProof(): Uint8Array {
+    this.assertCycleUsable('generateProof')
     // NOTE: Do NOT clear modifiedNodes here — packTree relies on it for
     // wasModified checks. Clear only after packTree (batch_avl_prover.rs:251 @568e7c3:
     // self.base.modified_nodes.clear() after pack_tree, not before).
@@ -650,8 +839,12 @@ export class BatchAVLProver {
    * Throws a plain `Error` (not `AvlVerifyError`) on a key-less candidate or
    * descent node — reachable only via an invariant-violating `restoreRoot`
    * tree; see facts/avltree.md's invariant-throws bullet.
+   *
+   * Throws a plain `Error` while the proof cycle is indeterminate — after an
+   * operation threw on an engine inconsistency (P3, 0.5.0); `restoreRoot()` clears that.
    */
   removedNodes(): AvlNode[] {
+    this.assertCycleUsable('removedNodes')
     const out: AvlNode[] = []
     const walk = (node: AvlNode): void => {
       // Unvisited ⇒ subtree untouched this cycle ⇒ shared with the current

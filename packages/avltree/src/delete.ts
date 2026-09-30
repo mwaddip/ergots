@@ -23,8 +23,9 @@
  *
  * The Rust orchestration is at `return_result_of_one_operation`
  * (authenticated_tree_ops.rs 261-288 @568e7c3): modify_helper first, then
- * delete_helper if to_delete=true. The same dispatch pattern lives in T17's
- * BatchAvlVerifier::performOneOperation.
+ * delete_helper if to_delete=true. The same dispatch pattern lives in
+ * `VerifierCore`'s private `perform` (the body `performOneOperation` and
+ * `lookupWithNeighbors` share).
  *
  * `deleteHelper` does NOT invoke `updateFn` — modifyHelper already did the
  * per-operation precondition check (Remove on absent key already failed; the
@@ -100,7 +101,7 @@ type SavedNodeRef = { node: LeafNode | null }
 /**
  * Ports authenticated_tree_ops.rs::delete_helper (492-699 @568e7c3), public entry
  * variant. Begins the second-pass descent at `node` and returns a
- * ModifyResult for uniform consumption by T17's BatchAvlVerifier.
+ * ModifyResult for uniform consumption by T17's VerifierCore.
  *
  * Preconditions (caller-enforced):
  *   - The callbacks' replayComparison replays the same directions used during

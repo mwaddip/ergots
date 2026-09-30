@@ -7,6 +7,7 @@ import { BatchAVLProver } from './batch-prover.js'
 import type { VersionedAVLStorage } from './versioned-storage.js'
 import type { Operation } from './operation.js'
 import type { ProverOperationResult } from './batch-prover.js'
+import type { NeighborLookup, NeighborLookupResult } from './neighbors.js'
 import { compareBytes } from './compare-bytes.js'
 
 export class PersistentBatchAVLProver {
@@ -42,6 +43,15 @@ export class PersistentBatchAVLProver {
 
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null {
     return this.prover.unauthenticatedLookup(key)
+  }
+
+  // Neighbor-reporting lookups (0.5.0; TS-only — neither reference has one).
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
+    return this.prover.performLookupWithNeighbors(key)
+  }
+
+  unauthenticatedLookupWithNeighbors(key: Uint8Array): NeighborLookup {
+    return this.prover.unauthenticatedLookupWithNeighbors(key)
   }
 
   digest(): Uint8Array {

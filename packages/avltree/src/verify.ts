@@ -1,22 +1,26 @@
 /**
- * Public verifier entry point.
+ * Public verifier entry points.
  *
- * `verifyAvlBatch` wraps `BatchAvlVerifier` with:
- *   - shape validation (throws `AvlVerifyError` on programmer errors)
- *   - a clean null-on-failure return for all untrusted-input rejections
+ * - `verifyAvlBatch` / `verifyAvlBatchPartial` (whole operation lists) and
+ *   `verifyAvlLookup` (one key): shape validation (throws `AvlVerifyError` on
+ *   programmer errors), then a non-throwing result for every untrusted-input
+ *   rejection: `null`, or `verifyAvlBatchPartial`'s partial result.
+ * - `BatchAVLVerifier` (0.5.0) — the step-by-step verifier over the same
+ *   internal `VerifierCore`: operations one at a time, as a state transition
+ *   asks for them.
  *
- * Per the design spec, this is the primary public surface on v0.1.0.
- * `BatchAvlVerifier` itself is intentionally not exported until the API
- * is promoted in a later version.
+ * `VerifierCore` itself stays internal.
  *
- * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
- * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs
+ * @see ergo_avltree_rust src/batch_avl_verifier.rs (pin 568e7c3)
+ * @see ergo_avltree_rust src/authenticated_tree_ops.rs (pin 568e7c3)
  */
 
-import { BatchAvlVerifier } from './batch-verifier.js'
-import { AvlVerifyError } from './errors.js'
+import { VerifierCore } from './batch-verifier.js'
+import type { ProverOperationResult } from './batch-prover.js'
+import { AvlVerifyError, type AvlVerifyFailReason } from './errors.js'
 import type { AvlTreeConfig } from './types.js'
 import type { Operation } from './operation.js'
+import type { NeighborLookupResult } from './neighbors.js'
 
 /**
  * Successful batch-verify result.
@@ -88,7 +92,7 @@ export function verifyAvlBatchPartial(
   for (const op of operations) validateOperationShape(op, config)
 
   // 2. Construct verifier — proof decoding inside the constructor.
-  const v = new BatchAvlVerifier(startingDigest, proof, config)
+  const v = new VerifierCore(startingDigest, proof, config)
   if (!v.isValid) return null
 
   // Initial digest snapshot — the state before any op. Used when op 0 fails
@@ -96,7 +100,7 @@ export function verifyAvlBatchPartial(
   let lastGoodDigest = v.digest()
   // Constructor success implies root !== null, so digest() returns non-null.
   // Guard for the type-checker; promote to a verification failure if ever
-  // hit (would indicate a logic bug in BatchAvlVerifier).
+  // hit (would indicate a logic bug in VerifierCore).
   if (lastGoodDigest === null) return null
 
   // 3. Apply operations one at a time, snapshotting digest BEFORE each op so
@@ -207,6 +211,125 @@ export function verifyAvlLookup(
   const result = verifyAvlBatch(startingDigest, proof, config, [{ tag: 'Lookup', key }])
   if (result === null) return null
   return { value: result.results[0] ?? null }
+}
+
+// ---------------------------------------------------------------------------
+// BatchAVLVerifier — the step-by-step verifier (0.5.0)
+// ---------------------------------------------------------------------------
+
+/**
+ * The step-by-step AVL+ verifier: construct over a starting digest, a proof
+ * and a config, then perform operations one at a time. The public face of
+ * batch_avl_verifier.rs::BatchAVLVerifier (new 59-77, perform_one_operation
+ * 195-210, the trait's digest authenticated_tree_ops.rs:133-149, all
+ * @568e7c3), wrapping the internal VerifierCore.
+ *
+ * - Construction copies `config` (its four fields) and validates the copy,
+ *   validates `startingDigest`, and copies `proof` with `new Uint8Array` —
+ *   the core reads direction bits from it lazily, op by op, and a Buffer's
+ *   `.slice()` is a view. A proof that fails to decode or anchor does not
+ *   throw (scrypto 3.0.0's shape): the verifier is poisoned from birth —
+ *   `digest()` null, `getLastFailReason()` says why, every operation fails.
+ * - A failed operation poisons: every later one fails; the first failure's
+ *   reason is kept.
+ * - Returned values are fresh copies: this verifier's tree outlives the
+ *   call, and an aliased leaf buffer mutated by the caller would flow into
+ *   later operations.
+ * - An engine throw (the recursion residual's RangeError, or an internal
+ *   invariant Error) leaves the core's traversal cursors advanced with the
+ *   root intact, so every later operation and `digest()` throws: the
+ *   instance is indeterminate and must be discarded. Never
+ *   `{ success: false }` — an engine throw is not a verification verdict,
+ *   and it sets no fail reason: `getLastFailReason()` still answers, with
+ *   null unless an earlier operation failed verification.
+ * - `performOneOperation` returns the prover's ProverOperationResult, so one
+ *   interface can drive either side. They agree only while every operation
+ *   succeeds: the prover omits a failed operation from its proof and carries
+ *   on, while the verifier poisons on it — so a `{ success: false }` must be
+ *   fatal to the enclosing batch on both sides.
+ */
+export class BatchAVLVerifier {
+  private readonly config: AvlTreeConfig
+  private readonly core: VerifierCore
+  /** Set while a call is inside the core; still set after one threw. */
+  private indeterminate = false
+
+  constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
+    // Copy first, then validate the copy: no check-then-copy gap on a
+    // getter-backed config object.
+    const own: AvlTreeConfig = {
+      keyLength: config.keyLength,
+      valueLengthOpt: config.valueLengthOpt,
+      maxNumOperations: config.maxNumOperations,
+      maxDeletes: config.maxDeletes,
+    }
+    validateConfig(own)
+    validateStartingDigest(startingDigest)
+    this.config = own
+    this.core = new VerifierCore(startingDigest, new Uint8Array(proof), own)
+  }
+
+  /**
+   * Applies one operation. Shape errors throw AvlVerifyError and change no
+   * state. Success → `{ success: true, value }` (the old value, a fresh copy,
+   * or null when absent); verification failure → `{ success: false }`, and
+   * the verifier is poisoned.
+   */
+  performOneOperation(op: Operation): ProverOperationResult {
+    this.assertUsable('performOneOperation')
+    validateOperationShape(op, this.config)
+    this.indeterminate = true
+    const r = this.core.performOneOperation(op)
+    this.indeterminate = false
+    if (r !== null && 'failed' in r) return { success: false }
+    return { success: true, value: r === null ? null : new Uint8Array(r) }
+  }
+
+  /**
+   * A Lookup that also reports its neighbors (0.5.0; TS-only). Consumes the
+   * proof exactly as `performOneOperation({ tag: 'Lookup', key })` does —
+   * same key validation, same bits, same poisoning — and reports, for a
+   * present key, its value and the next leaf's key, or for an absent key the
+   * keys of the leaves either side; `null` for a sentinel. The leaf is
+   * authenticated: it is in the tree this verifier's digest commits to. An
+   * absent key is also checked to lie strictly between leaf.key and
+   * leaf.nextLeafKey; a present key is only checked to equal leaf.key, so its
+   * nextKey > key is not checked (as in both references). See facts/avltree.md
+   * § Neighbor lookups: the rest of the report rests on the digest's provenance.
+   */
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
+    this.assertUsable('performLookupWithNeighbors')
+    validateOperationShape({ tag: 'Lookup', key }, this.config)
+    this.indeterminate = true
+    const r = this.core.lookupWithNeighbors(key)
+    this.indeterminate = false
+    if ('failed' in r) return { success: false }
+    return { success: true, ...r }
+  }
+
+  /** The current 33-byte digest (a fresh buffer), or null once poisoned. */
+  digest(): Uint8Array | null {
+    this.assertUsable('digest')
+    return this.core.digest()
+  }
+
+  /**
+   * Why the verifier is poisoned — the first failure's reason — or null if no
+   * verification failure has occurred. Neither an AvlVerifyError nor an
+   * engine throw sets a reason, and this method answers even after an engine
+   * throw left the instance indeterminate.
+   */
+  getLastFailReason(): AvlVerifyFailReason | null {
+    return this.core.lastFailReason
+  }
+
+  private assertUsable(method: string): void {
+    if (this.indeterminate) {
+      throw new Error(
+        `BatchAVLVerifier.${method}: an earlier call threw mid-operation, so this verifier is indeterminate — discard it (an engine throw is never a verification verdict)`,
+      )
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

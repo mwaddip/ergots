@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
-import { BatchAvlVerifier } from '../src/batch-verifier.js'
+import { VerifierCore } from '../src/batch-verifier.js'
 import { verifyAvlBatchPartial, type AvlTreeConfig } from '../src/index.js'
 
 /**
@@ -87,7 +87,7 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
     // never reach the walk at all: the op dies at the entry requires. Pin
     // the gate (not an incidental deep failure) via the failure reason.
     const { digest, proof } = treeWithSentinelPathProof(32)
-    const v = new BatchAvlVerifier(digest, proof, config32)
+    const v = new VerifierCore(digest, proof, config32)
 
     const r = v.performOneOperation({ tag: 'Remove', key: new Uint8Array(32) })
 
@@ -113,7 +113,7 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
     // hardcoded 32-byte +inf sentinel lets this key sail past the gate and
     // die deeper as 'leaf-key-out-of-order'; the config-derived sentinel
     // rejects it AT THE GATE.
-    const v = new BatchAvlVerifier(digest, proof, config8)
+    const v = new VerifierCore(digest, proof, config8)
     const rf = v.performOneOperation({
       tag: 'Lookup',
       key: new Uint8Array(8).fill(0xff),
@@ -124,7 +124,7 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
 
   it('Lookup at the +inf sentinel key fails at the bounds gate, not on leaf ordering', () => {
     const { digest, proof } = treeWithSentinelPathProof(32)
-    const v = new BatchAvlVerifier(digest, proof, config32)
+    const v = new VerifierCore(digest, proof, config32)
     expect(v.isValid).toBe(true)
 
     const r = v.performOneOperation({
@@ -144,7 +144,7 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
     // empty key sorts below −inf, so the −inf gate catches it exactly where
     // the references fail it.
     const { digest, proof } = treeWithSentinelPathProof(32)
-    const v = new BatchAvlVerifier(digest, proof, config32)
+    const v = new VerifierCore(digest, proof, config32)
 
     const r = v.performOneOperation({ tag: 'Lookup', key: new Uint8Array(0) })
 
@@ -154,7 +154,7 @@ describe('verifier ±inf key gates (authenticated_tree_ops.rs:267-268)', () => {
 
   it('a bounds failure poisons the verifier like any op failure', () => {
     const { digest, proof, k1 } = treeWithSentinelPathProof(32)
-    const v = new BatchAvlVerifier(digest, proof, config32)
+    const v = new VerifierCore(digest, proof, config32)
 
     const first = v.performOneOperation({ tag: 'Lookup', key: new Uint8Array(32) })
     expect(isFailed(first)).toBe(true)

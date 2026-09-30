@@ -13,6 +13,7 @@ import {
   verifyAvlBatch,
   verifyAvlBatchPartial,
   verifyAvlLookup,
+  BatchAVLVerifier,
   type VerifyAvlBatchResult,
   type VerifyAvlBatchPartialResult,
   type AvlTreeConfig,
@@ -20,8 +21,11 @@ import {
   type OperationResult,
   AvlVerifyError,
   type AvlVerifyErrorCode,
+  type AvlVerifyFailReason,
   BatchAVLProver,
   type ProverOperationResult,
+  type NeighborLookup,
+  type NeighborLookupResult,
   PersistentBatchAVLProver,
   type VersionedAVLStorage,
   type AvlNode,
@@ -66,7 +70,7 @@ Reconstructs the tree from `proof`, replays each operation in `operations` order
 
 **Returns:** `VerifyAvlBatchResult | null`. Returns `null` on any verification failure: malformed proof, digest mismatch, or operation precondition violation. Returns a `VerifyAvlBatchResult` on success.
 
-**Throws:** `AvlVerifyError` (8 codes) on programmer-error input — invalid config, wrong digest length, key/value length mismatch, or an out-of-bounds operation key. These are bugs in calling code, not proof-data failures. This function's own shape-validation wrapper throws 7 of the 8 codes; the 8th, `operation-key-out-of-bounds`, is thrown only by `BatchAVLProver.performOneOperation` — see "Error handling" below for the full code list.
+**Throws:** `AvlVerifyError` (8 codes) on programmer-error input — invalid config, wrong digest length, key/value length mismatch, or an out-of-bounds operation key. These are bugs in calling code, not proof-data failures. This function's own shape-validation wrapper throws 7 of the 8 codes; the 8th, `operation-key-out-of-bounds`, is thrown only by `BatchAVLProver`'s operations and neighbor lookups — see "Error handling" below for the full code list.
 
 **Example:**
 
@@ -143,6 +147,138 @@ if (result === null) {
 } else {
   console.log('token data:', result.value);
 }
+```
+
+---
+
+### BatchAVLVerifier (0.5.0)
+
+```ts
+class BatchAVLVerifier {
+  // Anchors the proof at startingDigest. A proof that does not anchor poisons the verifier; it does not throw.
+  constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig)
+  // One operation, as a state transition asks for it. A { success: false } poisons the verifier.
+  performOneOperation(op: Operation): ProverOperationResult
+  // A Lookup that also reports the neighbors (see "Neighbor lookups").
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult
+  // The current 33-byte digest, or null once poisoned.
+  digest(): Uint8Array | null
+  // The first failure's reason, or null while healthy.
+  getLastFailReason(): AvlVerifyFailReason | null
+}
+```
+
+The step-by-step verifier. It is the public face of `batch_avl_verifier.rs::BatchAVLVerifier` (`new`, `perform_one_operation`, plus the `AuthenticatedTreeOps` trait's `digest`). A proof that fails to decode or anchor does not make construction throw, following scrypto 3.0.0: its constructor sets `topNode` from `reconstructedTree`, which is `None` on failure. Shape errors (the config, the starting digest's length) still throw `AvlVerifyError`, as in the batch functions; scrypto folds those into the same `Try`. Rust's `new` rejects only two of them, `key_length == 0` and a wrong digest length, with the same `Err` it returns for a decode failure (`reconstruct_tree`'s `ensure!`s, `batch_avl_verifier.rs:81-82` @568e7c3); the value-length and max-operations checks are ergots-side.
+
+- **Construction.**
+  - Copies the four `config` fields, validates the copy (`validateConfig`), validates `startingDigest`, then copies `proof` with `new Uint8Array(proof)`. Never `.slice()`: `Buffer#slice` is a view.
+  - Throws `AvlVerifyError` with `verifyAvlBatchPartial`'s codes for a bad config or digest length.
+  - The copies matter because the verifier outlives the call. The core reads direction bits from `proof` lazily, one operation at a time.
+- **Poisoned from birth.** A proof that fails to decode or anchor does not throw.
+  - `digest()` is `null`.
+  - `getLastFailReason()` is `'proof-truncated'`, `'proof-malformed'`, `'digest-mismatch'` or `'max-nodes-exceeded'`.
+  - Every operation returns `{ success: false }`.
+- **`performOneOperation(op)`.**
+  - It validates the operation's shape first (`validateOperationShape`: key length, value length, delta range). A violation throws `AvlVerifyError` and changes no state.
+  - It then applies the operation exactly as `verifyAvlBatchPartial` does.
+  - Success returns `{ success: true, value }`, with `value` a fresh copy, or `null` when the key was absent.
+  - A verification failure returns `{ success: false }` and poisons the verifier: every later operation fails (the references' rule).
+  - A key at or beyond a sentinel fails and poisons with `'key-out-of-bounds'`.
+- **`performLookupWithNeighbors(key)`.** A `Lookup`, with the same key validation, proof consumption and poisoning, that also reports the neighbors (see "Neighbor lookups").
+- **`digest()`.** A fresh 33-byte buffer, or `null` once poisoned.
+- **`getLastFailReason()`.**
+  - `null` while healthy.
+  - Once poisoned, the FIRST failure's reason; later operations do not overwrite it.
+  - `AvlVerifyError` throws set no reason.
+  - It is not covered by the fail-stop below: it keeps answering on an indeterminate instance, and a `null` there does not mean the instance is usable, because after an engine throw the instance is indeterminate regardless.
+- **Fail-stop after an engine throw.** A throw that is not an `AvlVerifyError` can escape mid-operation: the recursion residual's `RangeError` (see "Tier 2 — `null` return"), or an internal invariant `Error`. It leaves the core's traversal cursors advanced with the root intact. So the verifier sets a mark around each operation's core call. After such a throw, every later `performOneOperation`, `performLookupWithNeighbors` and `digest()` throws a plain `Error` saying the instance is indeterminate and must be discarded. It never returns `{ success: false }` for this, because an engine throw is not a rejection.
+- **One interface, two asymmetries.** `performOneOperation` returns the prover's `ProverOperationResult`, so one interface can drive either side: a producer's prover or a consumer's verifier. The two agree step for step only while every operation succeeds.
+  1. The prover rolls a failed operation back, omits it from the proof, and carries on. The verifier fails and poisons on the same operation. A `{ success: false }` must therefore be fatal to the enclosing batch or block on both sides.
+  2. A sentinel key throws `'operation-key-out-of-bounds'` on the prover, but fails and poisons on the verifier.
+- **Invariant.** The same determinism as the functions: no I/O, no clock, no PRNG. Driven step by step over the 50-fixture corpus and the partial fixture, it reproduces every expected result, digest and failure index.
+
+**Example:**
+
+```ts
+const v = new BatchAVLVerifier(parentDigest, blockProof, config)
+if (v.digest() === null) reject(v.getLastFailReason()) // the proof does not anchor
+const r = v.performOneOperation({ tag: 'Lookup', key })
+if (!r.success) reject(v.getLastFailReason())          // fatal to the block
+// ...further operations, as the state transition asks for them...
+if (!bytesEqual(v.digest()!, claimedPostDigest)) reject('post-state mismatch')
+```
+
+---
+
+### Neighbor lookups (0.5.0)
+
+```ts
+type NeighborLookup =
+  | { found: true; value: Uint8Array; nextKey: Uint8Array | null }
+  | { found: false; prevKey: Uint8Array | null; nextKey: Uint8Array | null }
+
+type NeighborLookupResult =
+  | ({ success: true } & NeighborLookup)
+  | { success: false }
+```
+
+A neighbor-reporting lookup is a `Lookup` that also reports what the leaf it resolves at already carries.
+- A present key reports its value and the next leaf's key.
+- An absent key reports the keys of the leaves on either side.
+
+It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. Both references expose generic walks — Rust `tree_walk` (`batch_avl_prover.rs:290`), `extract_nodes` / `extract_first_node` (`authenticated_tree_ops.rs:63,67`); scrypto `treeWalk`, `extractNodes`, `extractFirstNode` — but none of them is an authenticated lookup.
+
+- **Where.**
+  - Recorded (the verifier consumes the proof, the provers record it): `performLookupWithNeighbors(key)` on `BatchAVLVerifier`, `BatchAVLProver` and `PersistentBatchAVLProver`.
+  - Unrecorded: `unauthenticatedLookupWithNeighbors(key)` on the two provers.
+- **A `Lookup` by construction.**
+  - `BatchAVLProver` and `VerifierCore` (behind `BatchAVLVerifier`) run the recorded neighbor lookup (`performLookupWithNeighbors`) through the same private path as `performOneOperation({ tag: 'Lookup', key })`, and observe the leaf through the engine's single `keyMatchesLeaf` call (`modify.ts:149`), invoked at most once per operation and exactly once for a successful `Lookup`; `deleteHelper` never calls it. `PersistentBatchAVLProver` delegates to `BatchAVLProver`.
+  - A recorded neighbor lookup therefore consumes or records exactly a `Lookup`'s direction bits and visits, with the same gates, failures and poisoning.
+  - Its proof bytes are byte-identical to a plain `Lookup`'s, and `generateProofForOperations` over plain `Lookup`s yields the same bytes.
+  - The shared engine's code is unchanged.
+  - A successful lookup that observed any number of leaves other than one throws a plain `Error` (an engine inconsistency; unreachable), and leaves the instance fail-stopped like any engine throw: the prover's proof-cycle mark (P3), the verifier's indeterminate state.
+- **Sentinels are `null`.**
+  - `nextKey: null` means past the last key (the +inf sentinel); `prevKey: null` means below the first key (the −inf sentinel).
+  - The mapping is exact, because no real key can equal a sentinel.
+  - The empty tree reports `{ found: false, prevKey: null, nextKey: null }`.
+  - Every returned buffer is a fresh copy.
+- **Key validation.**
+  - Recorded: exactly `performOneOperation`'s. On the prover, the −inf and +inf `'operation-key-out-of-bounds'` gates, then `'operation-key-length-mismatch'`. On the verifier, the key-length throw, and fail-and-poison for a sentinel.
+  - Unrecorded: the prover's three gates.
+- **The guarantee.**
+  - On the verifier, success means the leaf is in the tree the current digest commits to, and one local check passed (`keyMatchesLeaf`, `tree-traversal.ts:115-123`). For an absent key, `leaf.key < key < leaf.nextLeafKey`. For a present key, only `key == leaf.key`: like both references, the verifier does not check `nextLeafKey` on a match, so a present key's `nextKey > key` rests on the digest's provenance, as adjacency does.
+  - "No key lies between the reported neighbors" is the tree's sorted-linked-list invariant: each leaf's `nextLeafKey` is its successor's key. The digest commits to that list, and every valid operation preserves it, starting from the empty tree. The verifier cannot re-check the global shape.
+  - Both therefore hold for digests with honest provenance, such as consensus-agreed state roots. On a digest of unknown provenance, a range walk must guard its own progress.
+- **Range walk.**
+  1. Look up the range's lower bound, clamped to `0x00…01`: the all-zero key throws on the prover and poisons the verifier.
+  2. Reject any reported `nextKey` that is not strictly greater than the key just looked up; it can occur only on a digest without honest provenance. Look up each `nextKey` while it lies inside the range.
+  3. Stop at `nextKey === null`, or at the first key past the range.
+
+  Every step is a `Lookup` in the proof, so the producer and the verifier must issue the same keys in the same order.
+
+**Example:**
+
+```ts
+// Every key with tag 0x07, walked on a BatchAVLVerifier. A prover's performLookupWithNeighbors walks the same way, but it reports no fail reason.
+// compareBytes: your lexicographic byte comparator (the package does not export one).
+const lower = new Uint8Array(65); lower[0] = 0x07        // keyLength 65; 0x07 00…00 (≥ 0x00…01)
+const entries: [Uint8Array, Uint8Array][] = []
+let r = v.performLookupWithNeighbors(lower)
+if (!r.success) reject(v.getLastFailReason())
+if (r.found) entries.push([lower, r.value])
+let prev: Uint8Array = lower
+let next = r.nextKey
+while (next !== null) {
+  if (compareBytes(next, prev) <= 0) reject('no progress: nextKey is not above the key looked up') // only without honest provenance
+  if (next[0] !== 0x07) break                              // the first key past the range
+  const step = v.performLookupWithNeighbors(next)
+  if (!step.success) reject(v.getLastFailReason())
+  if (!step.found) reject('a key reported as next is absent') // cannot happen for a digest with honest provenance
+  entries.push([next, step.value])
+  prev = next
+  next = step.nextKey
+}
+// next === null: end of tree; otherwise next is the first key past the range. For a digest with honest provenance, nothing was left out.
 ```
 
 ---
@@ -250,7 +386,7 @@ The package enforces a two-tier failure model.
 
 ### Tier 1 — `AvlVerifyError` thrown (programmer errors)
 
-Checked at the verifier's public entry point before any `BatchAvlVerifier` state is constructed, and at the prover's `BatchAVLProver.performOneOperation` — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below. These errors indicate bugs in calling code, not malformed proof data.
+Checked at the verifier's public entry points before any `VerifierCore` (internal; not exported) state is constructed (the batch functions and `BatchAVLVerifier`'s constructor), per operation on `BatchAVLVerifier`, and at the prover's operations and neighbor lookups (`BatchAVLProver.performOneOperation`, `performLookupWithNeighbors` and `unauthenticatedLookupWithNeighbors`) — `AvlVerifyError` is no longer wrapper-only; the prover throws it directly for the op-shape codes below (its neighbor lookups take only a key, so they throw only `'operation-key-out-of-bounds'` and `'operation-key-length-mismatch'`). These errors indicate bugs in calling code, not malformed proof data.
 
 ```ts
 export class AvlVerifyError extends Error {
@@ -279,17 +415,39 @@ export type AvlVerifyErrorCode =
 | `'operation-key-length-mismatch'` | `op.key.length !== config.keyLength` for some operation `op` |
 | `'operation-value-length-mismatch'` | `op.value.length !== config.valueLengthOpt` for some operation `op` with a `value` field, when `valueLengthOpt` is not `null` |
 | `'operation-delta-out-of-range'` | `UpdateLongBy.delta` outside signed i64 range (audit AVL-03) |
-| `'operation-key-out-of-bounds'` | `op.key` is at or beyond the ±infinity sentinel (all-`0x00` / all-`0xFF` × `keyLength`) — thrown only by `BatchAVLProver.performOneOperation`, never by the verify-side wrappers |
+| `'operation-key-out-of-bounds'` | `op.key` is at or beyond the ±infinity sentinel (all-`0x00` / all-`0xFF` × `keyLength`) — thrown only by `BatchAVLProver` (`performOneOperation` and the neighbor lookups), never by the verify side — `BatchAVLVerifier` fails and poisons instead |
 
 ### Tier 2 — `null` return (verification failures)
 
-Any failure inside the verifier — malformed proof bytes, digest mismatch, operation precondition violation, an op key at or beyond the ±infinity sentinels (all-`0x00` / all-`0xFF` × keyLength; both references reject these at op entry), DoS-bound exceeded — causes `verifyAvlBatch` / `verifyAvlLookup` to return `null`. No exception is thrown (one engine-level carve-out, below). The distinction allows callers to handle "bad proof from peer" (return `null`) separately from "bad arguments from my own code" (throw).
+Any failure inside the verifier — malformed proof bytes, digest mismatch, operation precondition violation, an op key at or beyond the ±infinity sentinels (all-`0x00` / all-`0xFF` × keyLength; both references reject these at op entry), DoS-bound exceeded — causes `verifyAvlBatch` / `verifyAvlLookup` to return `null`, and a `BatchAVLVerifier` operation to return `{ success: false }` and poison the verifier. No exception is thrown (one engine-level carve-out, below). The distinction allows callers to handle "bad proof from peer" (return `null`) separately from "bad arguments from my own code" (throw).
 
 This guarantee holds on the adversarial path too. A crafted proof that places a non-`Internal` node (a `LABEL` token, or a `LEAF` under a crafted balance byte) where a delete- or insert-path double rotation must descend into a real subtree is rejected with `null`, not an escaping `TypeError`. The `ergo_avltree_rust` reference `panic!`s on these inputs; matching the JVM `BatchAVLVerifier`, which wraps replay in a `Try` and poisons the tree, is a deliberate divergence — see the `double_*_rotate` / `modify_helper` / `delete_helper` rows in `facts/avltree.md`.
 
 One engine-level carve-out remains, narrower than before this package's `0.4.0` line: `modifyHelper` / `deleteHelper`'s per-operation descent (`modify.ts` / `delete.ts`) is independently recursive, so a pathologically deep proof spine combined with an operation that descends deep into it can still overflow the call stack and escape as a `RangeError` ("Maximum call stack size exceeded") — resource exhaustion, not a verification verdict. The digest-check-time carve-out this paragraph used to describe — `label()` recursing once per tree level while computing the constructor's starting-digest comparison — is now CLOSED: `label()`'s Internal arm labels children iteratively (an explicit heap-allocated stack, `labelSubtree`), so a deep spine decodes cleanly and, absent a matching digest, returns an ordinary `null`. Both references share whatever exposure remains on the per-operation path (the Rust reference's own `label` fix was likewise label-only; the JVM's `Try` does not catch `StackOverflowError`, and its script-eval verifier sets no node bound), so no reference-corroborated cap exists to reject such proofs earlier without risking an accept/reject divergence. Callers verifying untrusted proofs can either set `config.maxNumOperations` — reconstruction then enforces a node-count bound before any recursion — or catch `RangeError` at their own boundary. A caught `RangeError` is **indeterminate** — abort or propagate it; never map it to a rejection verdict, which would reintroduce exactly the accept/reject fork this carve-out exists to prevent. Documented by `verifier-adversarial-recursion.test.ts`; detail in `facts/avltree.md`.
 
-Internal failure reasons (malformed token, digest mismatch, leaf out-of-order, etc.) are tracked by the internal `BatchAvlVerifier` class but are not exposed in the public v0.4.0 surface. This avoids locking the internal taxonomy prematurely; diagnostic reasons may be exposed via a `getLastFailReason()` accessor in a later release.
+Tracked by `VerifierCore.lastFailReason` and exposed through `BatchAVLVerifier.getLastFailReason()` (v0.5.0); the type is exported. The batch functions still return a bare `null`.
+
+Eight reasons are produced somewhere. Three are never produced and stay in the union for stability:
+- `'tree-poisoned'`: it is assigned only through `??=`, and every `root = null` site also sets its own reason, so the `??=` never assigns and a poisoned verifier keeps its first reason.
+- `'empty-tree'`: it has no assignment site.
+- `'operation-required-but-not-allowed'`: reserved.
+
+The reasons (`AvlVerifyFailReason`, returned by `BatchAVLVerifier.getLastFailReason()`):
+
+```ts
+type AvlVerifyFailReason =               // exported since v0.5.0
+  | 'proof-truncated'                    // OOB read during tree decode
+  | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid, leaf value length > 4 MiB or > remaining proof (scrypto PR #117)
+  | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
+  | 'directions-exhausted'               // direction/replay bit read ran past proof.length
+  | 'leaf-key-out-of-order'              // key below leaf.key, or unequal to it and not below leaf.nextLeafKey (a key equal to leaf.key is not checked against nextLeafKey)
+  | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
+  | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)
+  | 'key-out-of-bounds'                  // op key not STRICTLY inside the ±inf sentinels (0x00×kl / 0xFF×kl) — 6g
+  | 'tree-poisoned'                      // never produced: a poisoned verifier keeps its first reason
+  | 'empty-tree'                         // never produced: no assignment site
+  | 'operation-required-but-not-allowed' // reserved for ABI stability (currently unreachable)
+```
 
 ```ts
 // Pattern: handle both tiers explicitly.
@@ -310,6 +468,7 @@ try {
     // construction-time digest-check recursion this used to also cover is
     // closed as of this package's 0.4.0 line — see "No throws on
     // verification failures" in facts/avltree.md.)
+    // A BatchAVLVerifier that threw this is unusable afterwards: discard it.
   }
   throw e; // rethrow either way — neither is a verification verdict
 }
@@ -333,6 +492,8 @@ class BatchAVLProver {
   performOneOperation(op: Operation): ProverOperationResult
   generateProof(): Uint8Array
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult
+  unauthenticatedLookupWithNeighbors(key: Uint8Array): NeighborLookup
   digest(): Uint8Array
   generateProofForOperations(operations: Operation[]):
     { success: true; proof: Uint8Array; digest: Uint8Array } | { success: false }
@@ -342,7 +503,7 @@ class BatchAVLProver {
 
 In-memory AVL+ tree prover. Ports `ergo_avltree_rust/src/batch_avl_prover.rs`.
 
-**Constructor:** `new BatchAVLProver(keyLength, valueLengthOpt)` creates an empty tree seeded with -inf / +inf sentinel leaves. `keyLength` must be > 0. `valueLengthOpt` is `null` for variable-length values or a positive integer for fixed-length.
+**Constructor:** `new BatchAVLProver(keyLength, valueLengthOpt)` creates an empty tree holding one −inf sentinel leaf, whose `nextLeafKey` is the +inf key. `keyLength` must be > 0. `valueLengthOpt` is `null` for variable-length values or a positive integer for fixed-length.
 
 **`performOneOperation(op)`** — applies a single operation to the tree, recording traversal directions for proof generation. Returns:
 - `{ success: true, value }` — operation succeeded. `value` is the old value at the key (`Uint8Array`) or `null` if the key was absent.
@@ -352,9 +513,31 @@ Throws `AvlVerifyError` on programmer errors (key length mismatch, out-of-bounds
 
 Checks run in reference order — −inf, then +inf, then key length — and must not be reordered. Because byte comparison length-tiebreaks, a *short all-zero* key fires the −inf gate (`operation-key-out-of-bounds`) before the length check ever runs, while a short non-zero key falls through to the length gate (`operation-key-length-mismatch`) — the same caller mistake (a too-short key) surfaces under two different codes depending on the key's byte content.
 
+An internal node without a key on the operation's descent throws a plain `Error`, after a key match too. The reference reads the key only while still comparing (`batch_avl_prover.rs:441-444` @568e7c3), so this is a deliberate widening, as in `removedNodes()`' descent; both are reachable only through an invariant-violating `restoreRoot` tree.
+
 **`generateProof()`** — serializes a proof covering all operations since the last call (or since construction). Returns a `Uint8Array` in the packed proof format. Resets direction tracking after generation; subsequent operations start a fresh cycle.
 
 **`unauthenticatedLookup(key)`** — walks the tree without recording state. Returns the value at `key`, or `null` if absent. Does not affect proof generation.
+
+- **`performLookupWithNeighbors(key)`** (v0.5.0) — a recorded `Lookup` that also reports its neighbors (see "Neighbor lookups"). It runs through exactly `performOneOperation`'s path:
+  - the same key gates and throws;
+  - the same direction bits and visits;
+  - `{ success: false }` exactly when `performOneOperation` would.
+- **`unauthenticatedLookupWithNeighbors(key)`** (v0.5.0) — the same report, unrecorded.
+  - It writes no prover state (no directions, no visits, no proof-cycle effect) and reads only the root.
+  - It validates the key with `performOneOperation`'s three gates, in the same order and with the same codes. `unauthenticatedLookup` validates nothing and returns `null` instead.
+  - A label stub, or an internal node without a key, on its walk throws a plain `Error`. Either is an invariant violation, reachable only via `restoreRoot`.
+- **No inherited `found` (v0.5.0, P2).**
+  - Each operation starts its descent with the prover's `found` flag cleared. The reference clears it only inside `key_matches_leaf` (`batch_avl_prover.rs:486-493` @568e7c3).
+  - Otherwise an operation that fails or throws after an equality step leaves the flag set, and the next operation descends all-left to the wrong leaf. The triggers are a label stub or a key-less internal node on its found-mode path, or a `RangeError` after the equality step.
+  - A deliberate divergence, observable only on invariant-violating trees installed with `restoreRoot`.
+- **Proof-cycle fail-stop (v0.5.0, P3).**
+  - A mark is set around each operation's engine run, after the shape gates; an `AvlVerifyError` never sets it. Both normal returns clear it, success and `{ success: false }`.
+  - Any engine throw leaves it set, for example a key-less internal node, a `RangeError`, the delete-pass invariant throw, or `applyHeightDelta`'s engine-inconsistency throw. Such a throw leaves the aborted operation's direction bits (partial after a mid-descent throw) and, for a throw after the modify pass (the delete pass, or `applyHeightDelta`), its recorded visits too, that the next proof would encode. `performLookupWithNeighbors` also sets it when a successful run observed other than one leaf, an engine inconsistency found after the engine returned.
+  - While the mark is set, `performOneOperation`, `performLookupWithNeighbors`, `generateProof()` and `removedNodes()` throw a plain `Error`: the proof cycle is indeterminate; call `restoreRoot()` or discard the prover.
+  - `restoreRoot()` clears the mark.
+  - The engine run assigns root and height only after computing the new height. `applyHeightDelta` can throw on an engine inconsistency, and an engine throw must never half-commit an operation.
+  - Root-only reads keep working, since the root is still the pre-operation state: `digest()`, both unauthenticated lookups, `generateProofForOperations` and the getters.
 
 **`digest()`** — returns the current 33-byte digest (32-byte root label + 1-byte height). The return type is `Uint8Array` — not `Uint8Array | null` — because a prover built through this API always has a root: the constructor's direct assignment gives TypeScript definite-assignment proof, and no reachable code path un-sets it afterward. This is a deliberate prover-side tightening, not a divergence from the reference: Rust's `digest()` returns `Option` only because prover and verifier share one `AVLTree` struct there; ergots splits them into separate classes, so the non-null prover type is the behavior-faithful shape. The **verifier's** digest stays nullable — poisoning on failure is real on that side.
 
@@ -367,7 +550,12 @@ All three are unreachable through this API's own operations alone. The height an
 
 **`generateProofForOperations(operations)`** — clones the tree and applies all operations on the clone; the original tree is NOT mutated. Failure model is two-tier: shape-invalid ops (±inf key, wrong key/value length, out-of-range delta) **throw** `AvlVerifyError`, propagated from `performOneOperation`; engine-level op failure (e.g. `Insert` on an existing key) returns `{ success: false }`. On success, returns `{ success: true, proof, digest }`. This is the primary entry point for producing proofs verifiable by `verifyAvlBatch`.
 
-**`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs.
+- **Step-by-step equivalence.** Starting from a proof-cycle boundary, over operations that all succeed, `performOneOperation` × N followed by `generateProof()` produces the same bytes and digest as `generateProofForOperations` over the same list.
+  - `generateProofForOperations` clones the *current* root and bails at the first failure.
+  - `generateProof()` covers everything since the last cycle boundary.
+  - The step route skips a failed operation.
+
+**`restoreRoot(root, height)`** — installs a storage-loaded root and height, then rebases the proof cycle: clears modified-node bookkeeping and accumulated directions, and sets `oldTopNode` to the restored root. Call this after loading a tree from storage — startup resume, snapshot bootstrap, or recovery rollback — before performing further operations or generating a proof; without it, `oldTopNode` is left at its stale in-memory value and `generateProof()` produces incorrect proofs. Since 0.5.0 it also clears the proof-cycle fail-stop mark.
 
 **`removedNodes()`** — returns `AvlNode[]`: the nodes of the previous cycle's tree (leaves and internals) whose labels are no longer reachable from the current root. This is exactly the set difference {nodes reachable from the previous cycle's root} − {nodes whose label is reachable from the current root} — the rows a `VersionedAVLStorage` backend should delete.
 
@@ -376,10 +564,14 @@ All three are unreachable through this API's own operations alone. The height an
 - **Live nodes — do not mutate:** the returned nodes are the prover's own tree objects, not copies. Derive storage keys via the exported `label()` function rather than reading a node field directly.
 - **First-cycle sentinel:** the never-persisted sentinel leaf of a freshly constructed prover is reported as removed on the first mutating cycle (reference parity). Storage backends must tolerate deleting rows that were never written.
 - **Throws:** a plain `Error` (not `AvlVerifyError`) on a key-less candidate or descent node — reachable only via an invariant-violating `restoreRoot` tree; see `facts/avltree.md`'s invariant-throws bullet.
+- **Proof-cycle fail-stop (v0.5.0, P3):** throws a plain `Error` while the
+  proof cycle is indeterminate, that is, after an operation's engine run threw
+  and left the fail-stop mark set. `restoreRoot()` clears the mark. See the
+  `BatchAVLProver` bullet "Proof-cycle fail-stop" above.
 
 See `facts/avltree.md`'s `removedNodes()` divergence table for the deliberate differences from `ergo_avltree_rust`'s `removed_nodes`.
 
-`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies — mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) follow the same rule: they alias only the verifier's internal reconstruction, which is unreachable after the call returns. One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. Node **fields** reached via the public `root` / `oldTopNode` are the exception, not the rule — see "Do not mutate nodes" below, which documents the opposite for those.
+`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies — mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) follow the same rule: they alias only the verifier's internal reconstruction, which is unreachable after the call returns. `BatchAVLVerifier`, whose tree outlives each call, returns fresh copies of values, neighbor keys and digests (0.5.0). One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. Node **fields** reached via the public `root` / `oldTopNode` are the exception, not the rule — see "Do not mutate nodes" below, which documents the opposite for those.
 
 **Example:**
 
@@ -413,6 +605,8 @@ class PersistentBatchAVLProver {
   )
   performOneOperation(operation: Operation): ProverOperationResult
   unauthenticatedLookup(key: Uint8Array): Uint8Array | null
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult
+  unauthenticatedLookupWithNeighbors(key: Uint8Array): NeighborLookup
   digest(): Uint8Array
   height(): number
   generateProofAndUpdateStorage(additionalData: [Uint8Array, Uint8Array][]): Uint8Array
@@ -424,11 +618,11 @@ Wraps a `BatchAVLProver` with a `VersionedAVLStorage` backend. Ports `ergo_avltr
 
 On construction, either rolls back to the stored version (if one exists) or generates an initial proof and writes the new version to storage. All tree-modifying ops are delegated to the inner `BatchAVLProver`; the storage layer is synced on each `generateProofAndUpdateStorage` call.
 
-**`performOneOperation`, `unauthenticatedLookup`, `digest`** — delegated to the inner `BatchAVLProver`.
+**`performOneOperation`, `unauthenticatedLookup`, `performLookupWithNeighbors`, `unauthenticatedLookupWithNeighbors`, `digest`** — delegated to the inner `BatchAVLProver`. `rollback` routes through `restoreRoot`, so it also clears the proof-cycle fail-stop.
 
 **`height()`** — returns the current tree height.
 
-**`generateProofAndUpdateStorage(additionalData)`** — commits the current state to storage, then generates and returns a proof. `additionalData` is key-value pairs to store alongside the tree state (e.g., metadata).
+**`generateProofAndUpdateStorage(additionalData)`** — commits the current state to storage, then generates and returns a proof. `additionalData` is key-value pairs to store alongside the tree state (e.g., metadata). While the fail-stop mark is set, `generateProofAndUpdateStorage` throws, but it runs `storage.update` first and the inner `generateProof()` second, so whether the exception arrives before the backend writes depends on the backend: an `update` that calls `removedNodes()` before writing throws before any write, while one that writes first, or never calls it, has already written when the exception arrives (from `removedNodes()` inside `update`, or from `generateProof()` after `update` returns). After such a throw, call `rollback(version)` to a known-good version rather than trust storage.
 
 **`rollback(version)`** — restores the prover's tree to a previously stored version.
 
@@ -464,7 +658,7 @@ type ProverOperationResult =
   | { success: false }
 ```
 
-Return type of `BatchAVLProver.performOneOperation`. On success, `value` is the old value at the key (or `null` if absent). On failure, the caller should inspect the prover state to determine what precondition was violated.
+Return type of `BatchAVLProver.performOneOperation` and (0.5.0) `BatchAVLVerifier.performOneOperation` — one type, so one interface can drive either side (see "One interface, two asymmetries" under `BatchAVLVerifier`). On success, `value` is the old value at the key (or `null` if absent). On failure the prover reports no reason; on a `BatchAVLVerifier`, `getLastFailReason()` says which check failed.
 
 ---
 
@@ -517,7 +711,7 @@ A discriminated union on `kind`. `LeafNode` holds a real key/value/next-leaf-key
 
 ### `Balance`
 
-The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in the Storage codec section below for why the TS type is narrower and why both encode and decode check it (encode additionally requires an integer, since a hand-built value can be `NaN` or fractional in a way an `i8` cannot).
+The literal union `-1 | 0 | 1`. Rust's equivalent (`batch_node.rs`'s `pub type Balance = i8`) is an unchecked `i8` — see "Deliberate divergences from the reference" in `facts/avltree.md`'s Storage codec section for why the TS type is narrower and why both encode and decode check it (encode additionally requires an integer, since a hand-built value can be `NaN` or fractional in a way an `i8` cannot).
 
 ### `newLeaf(key, value, nextLeafKey)`
 
@@ -525,7 +719,9 @@ Constructs a `LeafNode`. Defensively copies all three byte arguments so caller-s
 
 ### `newInternal(left, right, balance, key?)`
 
-Constructs an `InternalNode`. `key` is optional (see `AvlNode` above); `left`/`right` are stored by reference, not defensively copied.
+Constructs an `InternalNode`. `key` is optional (see `AvlNode` above) and, when given, defensively copied (0.5.0); `left`/`right` are stored by reference, not defensively copied.
+
+**Upgrade note (P1).** Before 0.5.0, a caller that reused a key buffer after an `Insert` silently rewrote an internal node's key. Internal keys are not hashed, so digests cannot show it. Trees persisted through `serializeNode` from such a prover keep the wrong keys, and 0.5.0 does not repair them.
 
 ### `newLabel(label)`
 
@@ -620,7 +816,7 @@ rebases the prover's proof cycle onto the loaded root.
 
 ## Conventions
 
-- **All byte sequences are `Uint8Array`.** Never `Buffer`. Keys, values, digests, and proof bytes all use the same type.
+- **All byte sequences are `Uint8Array`.** The package never creates a `Buffer`; a Node `Buffer` passed in is accepted (it is a `Uint8Array`). The constructors and operations copy the caller buffers they keep with `new Uint8Array(...)` — never `.slice()`, which is a view on a `Buffer` — so reusing such a buffer after a call is safe. `restoreRoot` is the exception: it keeps the caller's node objects, and their buffers, by reference.
 - **`keyLength`, `valueLengthOpt`, heights, and counts are `number`.** JS `Number` is safe up to 2^53; all values here fit comfortably.
 - **`bigint` for `UpdateLongBy.delta`.** Represents a signed 64-bit integer (i64 equivalent).
 - **No async surface.** Every function is synchronous. Blake2b-256 runs in tight inner loops; an async boundary would only add overhead.

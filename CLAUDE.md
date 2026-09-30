@@ -71,10 +71,10 @@ inside a package silently scopes it to that package — a plausible-looking coun
 Note the two root-level commands measure DIFFERENT scopes: `npm test` delegates
 to workspace scripts (packages/* only), while a bare `npx vitest run` at the
 repo root has no root config and default-globs the whole repo — additionally
-picking up `tools/mainnet-validate/harness/test/` (~140 tests, including the
+picking up `tools/mainnet-validate/harness/test/` (~194 tests, including the
 one standing skip). The session ledgers' gate figures (e.g. "7461 passed + 1
 skipped") come from the bare root run, the superset; comparing them against
-`npm test` output will show a ~140-test "discrepancy" that is scope, not
+`npm test` output will show a ~194-test "discrepancy" that is scope, not
 staleness (this misled a reviewer on 2026-08-03).
 
 If `cargo run` produces a diff against committed fixtures, **stop and investigate** — that's a determinism regression and the entire byte-equality testing strategy depends on stability.
@@ -99,6 +99,12 @@ The verifier MUST run unchanged in a browser. These rules are enforced by the te
 - **Never reach across package boundaries inside the monorepo** with relative imports (`../../proof/src/...`). Cross-package use goes through published package names so the dependency graph stays explicit.
 - **Never use `--no-verify`, `--no-gpg-sign`, or any hook-bypassing flag** on git operations.
 - **Never refactor `packages/nipopow/src/` for "future flexibility"** to accommodate ergoscript or wallet needs that haven't been spec'd yet. Wait until those packages exist.
+- **Never commit a local filesystem path.** No home-relative or absolute home-directory path may appear in an added line or in a commit message. This covers code, comments, docs, specs, facts, tests, config and fixtures. Name a sibling repo by its name (`ergo_avltree_rust`, `sigma-rust`, `dagsocial`) and pin it by commit (`@568e7c3`). Existing occurrences stay as they are (the user, 2026-09-30); the rule is for new lines. **Before every commit, grep the staged diff and the message**; both must print nothing:
+  ```bash
+  git diff --cached -U0 | grep -E '^\+' | grep -vE '^\+\+\+ ' | grep -nE '[~]/|/[h]ome/'
+  printf '%s\n' "$MSG" | grep -nE '[~]/|/[h]ome/'   # or grep the -F message file
+  ```
+  The `[~]` and `[h]` brackets keep this rule's own text from matching. Subagent dispatches carry this check with their commit commands.
 
 ## Confidence escalation (extra-strict on the crypto path)
 
@@ -159,3 +165,4 @@ Rules that follow from the Iron Law in this project:
 - **Some wire counts are signed single bytes, not VLQ.** The JVM reads a context extension's entry count and each variable id with `getByte()` and rejects a negative one (≥ `0x80`). scorex's `readVlqU` accepts over-long encodings (`80 00` = 0), so reading such a field as a VLQ silently admits bytes the JVM rejects. Check the JVM reader call (`getByte` / `getUByte` / `getUInt` / `getULong`) for every count before choosing the TS read.
 - **Storage rent follows the JVM, not sigma-rust's old code.** When the rent branch applies, `checkExpiredBox`'s verdict is final (a false never falls back to the script), the fee is `Int × Int` and wraps at 32 bits, and a rent input costs 50. Register equality is JVM node equality: a Box by its id over its retained bytes, not a re-serialization. `facts/transaction.md` Phase 2 §3a has the rule and its residuals.
 - **A size-flagged tree's declared size is used only on a degrade.** The JVM parses the body on the arriving reader under a 4096 window and re-encodes box trees with the true size. Every count read inside a tree needs its JVM bound, because a window trip degrades a sized tree (spec 2026-09-28).
+- **`Buffer#slice` is a view.** A Node `Buffer` type-checks as a `Uint8Array`, but its `slice` shares memory. A copy of a caller's buffer uses `new Uint8Array(x)`, never `.slice()`. The avltree 0.5.0 work found a `Buffer` storage record's view retained as a tree key (spec `docs/superpowers/specs/2026-09-29-avltree-neighbor-lookups-design.md`, P1).
