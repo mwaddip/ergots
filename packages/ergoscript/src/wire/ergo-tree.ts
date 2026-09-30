@@ -28,7 +28,7 @@
 
 import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
 import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../mir/types'
-import { exprTpe, ExprTpeError } from '../mir/expr-tpe'
+import { exprTpe } from '../mir/expr-tpe'
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
 import { parseSType } from './parse-stype'
 import { serializeSType } from './serialize-stype'
@@ -175,21 +175,18 @@ function assertHeaderSizeBit(version: number, hasSize: boolean): void {
 /** Trees currently open on a reader (1 = top level). ergots-only bookkeeping for boxTreeOf's miss rule. */
 const openTrees = new WeakMap<ByteReader, number>()
 
-/** Rule 1001 CheckDeserializedScriptIsSigmaProp (org/ergoplatform/validation/ValidationRules.scala:39-52). */
-function checkRootIsSigmaProp(body: Expr): void {
-  let tpe: SType
-  try {
-    tpe = exprTpe(body)
-  } catch (err) {
-    if (err instanceof ExprTpeError && err.code === 'apply-func-no-type') {
-      throw new ErgoTreeParseError('root types as NoType, not SigmaProp (rule 1001)', 'root-not-sigma-prop')
-    }
-    throw err
-  }
+/**
+ * Rule 1001 CheckDeserializedScriptIsSigmaProp (org/ergoplatform/validation/ValidationRules.scala:39-52),
+ * on the root's type as the JVM reads it under the tree's version. A throwing type read propagates
+ * as its own ExprTpeError, a hard reject.
+ */
+function checkRootIsSigmaProp(body: Expr, treeVersion: number): void {
+  const tpe = exprTpe(body, treeVersion)
   if (tpe.tag === 'SSigmaProp') return
   // The JVM's SAny (type code 97, or a tuple's element type; one object, carried through exprTpe)
-  // fails, as does its NoType from an Apply of one: the JVM fails a root typed SAny or NoType
-  // (isSigmaProp is isInstanceOf[SSigmaProp.type], core/.../sigma/ast/package.scala:121).
+  // fails, as does its NoType, an Apply of anything but a function or a collection: the JVM fails a
+  // root typed SAny or NoType (isSigmaProp is isInstanceOf[SSigmaProp.type],
+  // core/.../sigma/ast/package.scala:121).
   if (tpe === SANY_JVM || tpe === NOTYPE_JVM) {
     const what = tpe === SANY_JVM ? "the JVM's SAny" : "the JVM's NoType"
     throw new ErgoTreeParseError(`root types as ${what}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
@@ -245,7 +242,7 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
       }
     }
     const body = parseExpr(r, constantTypes, constants, new Map(), header.version)
-    if (opts.checkType) checkRootIsSigmaProp(body)
+    if (opts.checkType) checkRootIsSigmaProp(body, header.version)
     return { header, constantTypes, constants, body }
   } catch (err) {
     if (!isSoftForkableParseError(err)) {

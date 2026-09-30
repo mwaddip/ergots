@@ -44,7 +44,7 @@ describe('numeric v6 bitwise (fixed-width)', () => {
   })
 
   it('P0 engine: bitwise return type resolves to the receiver numeric type', () => {
-    expect(exprTpe(binary('Long', 9, 1n, 2n) as any)).toEqual({ tag: 'SLong' })
-    expect(exprTpe(unary('Int', 8, 5) as any)).toEqual({ tag: 'SInt' })
+    expect(exprTpe(binary('Long', 9, 1n, 2n) as any, 3)).toEqual({ tag: 'SLong' })
+    expect(exprTpe(unary('Int', 8, 5) as any, 3)).toEqual({ tag: 'SInt' })
   })
 })

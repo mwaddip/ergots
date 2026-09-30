@@ -53,17 +53,17 @@ const constCollSigma: Expr = {
 describe('exprTpe (phase 2j-pre fix-3 arms)', () => {
   it('Or returns SBoolean', () => {
     const e: Expr = { tag: 'Or', input: constCollBoolean }
-    expect(exprTpe(e)).toEqual({ tag: 'SBoolean' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SBoolean' })
   })
 
   it('Xor returns SColl[SByte]', () => {
     const e: Expr = { tag: 'Xor', left: constCollByte, right: constCollByte }
-    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
   it('Atleast returns SSigmaProp', () => {
     const e: Expr = { tag: 'Atleast', bound: constInt, input: constCollSigma }
-    expect(exprTpe(e)).toEqual({ tag: 'SSigmaProp' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SSigmaProp' })
   })
 })
 
@@ -86,12 +86,12 @@ describe('exprTpe (phase 2j-pre fix-3 arms)', () => {
 describe('exprTpe — GroupElement arithmetic arms', () => {
   it('MultiplyGroup returns SGroupElement', () => {
     const e: Expr = { tag: 'MultiplyGroup', left: constInt, right: constInt }
-    expect(exprTpe(e)).toEqual({ tag: 'SGroupElement' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SGroupElement' })
   })
 
   it('Exponentiate returns SGroupElement', () => {
     const e: Expr = { tag: 'Exponentiate', left: constInt, right: constInt }
-    expect(exprTpe(e)).toEqual({ tag: 'SGroupElement' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SGroupElement' })
   })
 })
 
@@ -121,13 +121,13 @@ describe('exprTpe — coverage completion arms', () => {
   ]
   for (const [tag, expected] of cases) {
     it(`${tag} returns ${expected.tag}`, () => {
-      expect(exprTpe(stub(tag))).toEqual(expected)
+      expect(exprTpe(stub(tag), 0)).toEqual(expected)
     })
   }
 
   it('BitInversion returns the operand type (recurses into input)', () => {
     const e: Expr = { tag: 'BitInversion', input: constInt }
-    expect(exprTpe(e)).toEqual({ tag: 'SInt' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SInt' })
   })
 })
 
@@ -161,15 +161,15 @@ describe('exprTpe — method-call return-type resolution (A3)', () => {
 
   it('PropertyCall getEncoded (7:2) returns Coll[SByte]', () => {
     const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 7, methodId: 2, explicitTypeArgs: {} }
-    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
   it('PropertyCall indices (12:14) returns Coll[SInt], ignoring the receiver elem', () => {
     const onLong: Expr = { tag: 'PropertyCall', obj: collLongConst, typeId: 12, methodId: 14, explicitTypeArgs: {} }
-    expect(exprTpe(onLong)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
+    expect(exprTpe(onLong, 0)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
     // indices' t_range is closed (Coll[Int] regardless of the receiver's T).
     const onByte: Expr = { tag: 'PropertyCall', obj: collByteConst, typeId: 12, methodId: 14, explicitTypeArgs: {} }
-    expect(exprTpe(onByte)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
+    expect(exprTpe(onByte, 0)).toEqual({ tag: 'SColl', elem: { tag: 'SInt' } })
   })
 
   it('MethodCall arm consults the same catalog (7:2 → Coll[SByte])', () => {
@@ -181,12 +181,12 @@ describe('exprTpe — method-call return-type resolution (A3)', () => {
       args: [],
       explicitTypeArgs: {},
     }
-    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
   it('unregistered (typeId, methodId) falls back to SAny (cascade guard)', () => {
     const e: Expr = { tag: 'PropertyCall', obj: groupElemConst, typeId: 999, methodId: 999, explicitTypeArgs: {} }
-    expect(exprTpe(e)).toEqual({ tag: 'SAny' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SAny' })
   })
 })
 
@@ -219,7 +219,7 @@ describe('exprTpe — generic method resolution (v6 P0)', () => {
       args: [intConst, collLongConst, intConst],
       explicitTypeArgs: {},
     }
-    expect(exprTpe(e)).toEqual({ tag: 'SColl', elem: { tag: 'SLong' } })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SColl', elem: { tag: 'SLong' } })
   })
 })
 
@@ -231,6 +231,6 @@ describe('exprTpe — generic method resolution (v6 P0)', () => {
 describe('exprTpe — LastBlockUtxoRootHash (F5 batch 4)', () => {
   it('LastBlockUtxoRootHash → SAvlTree', () => {
     const e: Expr = { tag: 'LastBlockUtxoRootHash' }
-    expect(exprTpe(e)).toEqual({ tag: 'SAvlTree' })
+    expect(exprTpe(e, 0)).toEqual({ tag: 'SAvlTree' })
   })
 })

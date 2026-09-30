@@ -51,7 +51,7 @@ describe('UBI bridge methods (v6)', () => {
     expectThrow(() => evalMethodCall(badS, Env.empty(), v3()), 'numeric-method-bad-operand')
   })
   it('exprTpe: bigint.toUnsigned → SUnsignedBigInt; ubi.toSigned → SBigInt', () => {
-    expect(exprTpe(toUnsigned(5n) as unknown as Expr)).toEqual(SUBI)
-    expect(exprTpe(toSigned(5n) as unknown as Expr)).toEqual(SBIGINT)
+    expect(exprTpe(toUnsigned(5n) as unknown as Expr, 3)).toEqual(SUBI)
+    expect(exprTpe(toSigned(5n) as unknown as Expr, 3)).toEqual(SBIGINT)
   })
 })

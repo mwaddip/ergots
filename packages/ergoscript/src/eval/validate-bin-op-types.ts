@@ -59,7 +59,7 @@ export function validateBinOpTypes(body: Expr, treeVersion: number): void {
 
 function walk(e: Expr, treeVersion: number): void {
   if (e.tag === 'BinOp' && e.op.kind === 'Relation') {
-    checkRelation(e.op.op, exprTpe(e.left), exprTpe(e.right), treeVersion)
+    checkRelation(e.op.op, exprTpe(e.left, treeVersion), exprTpe(e.right, treeVersion), treeVersion)
   }
   for (const child of childrenOf(e)) {
     walk(child, treeVersion)

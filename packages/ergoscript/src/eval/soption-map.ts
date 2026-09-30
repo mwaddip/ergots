@@ -74,7 +74,7 @@ export function evalSOptionMap(
 
   // Output Option elem = static type of the lambda body (flatMap convention).
   // Computed statically, so it is valid for the None case too.
-  const outElem: SType = exprTpe(closure.body)
+  const outElem: SType = exprTpe(closure.body, ctx.treeVersion ?? 0)
 
   // None → None (lambda NOT invoked). Some(t) → Some(lambda(t)).
   if (obj.value === null) {

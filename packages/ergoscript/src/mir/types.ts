@@ -76,14 +76,15 @@ export type SType =
 export const SANY_JVM: SType = Object.freeze({ tag: 'SAny' })
 
 /**
- * The JVM's `NoType`, where it comes from the JVM's `SAny`: `exprTpe` types an `Apply` whose function
- * types as `SANY_JVM` (or as this object) as this object, as the JVM's `Apply.tpe` gives `NoType` for
- * a function type that is neither an `SFunc` nor a collection (sigma/ast/values.scala:1247-1251).
- * The JVM treats `NoType` like its `SAny` in two places: a cast of it throws, and rule 1001 fails it.
- * It differs in one: `isNumTypeOrNoType` (core/.../sigma/ast/package.scala:139) passes it, so
- * `Negation`, `BitInversion` and `BitOp` accept it where they reject `SAny`. An `Apply` of a function
- * of any other type throws `ExprTpeError('apply-func-no-type')` instead (residual 8). Structurally it
- * is `{ tag: 'SAny' }`, so every check by tag treats it as `SAny`, as it treated `SANY_JVM` there.
+ * The JVM's `NoType`: `exprTpe` types an `Apply` as this object when its function types as anything
+ * but an `SFunc`, a collection or ergots' own `SAny` (`SANY_JVM`, this object, an `STuple`, or any
+ * other type), as the JVM's `Apply.tpe` gives `NoType` for a function type that is neither an `SFunc`
+ * nor a collection (sigma/ast/values.scala:1247-1251). The JVM treats `NoType` like its `SAny` in two
+ * places: a cast of it throws, and rule 1001 fails it. It differs in two: `isNumTypeOrNoType`
+ * (core/.../sigma/ast/package.scala:139) passes it, so `Negation`, `BitInversion` and `BitOp` accept
+ * it where they reject `SAny`; and type equality tells the two apart (`NoType != SAny`,
+ * `jvmTypeEquals` and `scriptTypeEquals` in mir/jvm-types.ts). Structurally it is `{ tag: 'SAny' }`,
+ * so every check by tag treats it as `SAny`, as it treats `SANY_JVM`.
  */
 export const NOTYPE_JVM: SType = Object.freeze({ tag: 'SAny' })
 

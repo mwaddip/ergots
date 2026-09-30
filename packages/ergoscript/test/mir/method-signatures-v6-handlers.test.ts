@@ -48,7 +48,7 @@ const insertOrUpdate: Expr = {
 
 describe('method-signatures: v6 handlers (audit V6-SIGNATURE-01)', () => {
   it('AvlTree.insertOrUpdate (100:16) exprTpe returns Option[AvlTree], not SAny', () => {
-    expect(exprTpe(insertOrUpdate)).toEqual({ tag: 'SOption', elem: { tag: 'SAvlTree' } })
+    expect(exprTpe(insertOrUpdate, 3)).toEqual({ tag: 'SOption', elem: { tag: 'SAvlTree' } })
   })
 
   it('Header.checkPow (104:16) as MethodCall returns SBoolean, not SAny', () => {
@@ -60,7 +60,7 @@ describe('method-signatures: v6 handlers (audit V6-SIGNATURE-01)', () => {
         obj: headerConst,
         args: [],
         explicitTypeArgs: {},
-      }),
+      }, 3),
     ).toEqual({ tag: 'SBoolean' })
   })
 
@@ -74,7 +74,7 @@ describe('method-signatures: v6 handlers (audit V6-SIGNATURE-01)', () => {
         methodId: 16,
         obj: headerConst,
         explicitTypeArgs: {},
-      }),
+      }, 3),
     ).toEqual({ tag: 'SBoolean' })
   })
 
@@ -101,7 +101,7 @@ describe('method-signatures: v6 handlers (audit V6-SIGNATURE-01)', () => {
         },
       },
     }
-    expect(exprTpe(mapExpr)).toEqual({
+    expect(exprTpe(mapExpr, 3)).toEqual({
       tag: 'SColl',
       elem: { tag: 'SOption', elem: { tag: 'SAvlTree' } },
     })

@@ -122,7 +122,7 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     }
     // Derive outElemTpe from exprTpe(e.mapper) — mirrors mapper_sfunc.t_range.
     // exprTpe(FuncValue) returns SFunc { args, result, tpeParams }; result = body type.
-    const mapperTpe = exprTpe(e.mapper)
+    const mapperTpe = exprTpe(e.mapper, ctx.treeVersion ?? 0)
     if (mapperTpe.tag === 'SFunc') {
       outElemTpe = mapperTpe.result
     }

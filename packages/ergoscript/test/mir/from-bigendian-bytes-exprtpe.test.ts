@@ -18,9 +18,9 @@ function fbeb(T: SType): MethodCall {
 
 describe('exprTpe — Global.fromBigEndianBytes (106:5)', () => {
   it('resolves the concrete return type from the explicit type arg', () => {
-    expect(exprTpe(fbeb({ tag: 'SInt' }))).toEqual({ tag: 'SInt' })
-    expect(exprTpe(fbeb({ tag: 'SLong' }))).toEqual({ tag: 'SLong' })
-    expect(exprTpe(fbeb({ tag: 'SBigInt' }))).toEqual({ tag: 'SBigInt' })
-    expect(exprTpe(fbeb({ tag: 'SUnsignedBigInt' }))).toEqual({ tag: 'SUnsignedBigInt' })
+    expect(exprTpe(fbeb({ tag: 'SInt' }), 3)).toEqual({ tag: 'SInt' })
+    expect(exprTpe(fbeb({ tag: 'SLong' }), 3)).toEqual({ tag: 'SLong' })
+    expect(exprTpe(fbeb({ tag: 'SBigInt' }), 3)).toEqual({ tag: 'SBigInt' })
+    expect(exprTpe(fbeb({ tag: 'SUnsignedBigInt' }), 3)).toEqual({ tag: 'SUnsignedBigInt' })
   })
 })

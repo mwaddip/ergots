@@ -64,7 +64,7 @@ export function evalTuple(e: Tuple, env: Env, ctx: EvalContext): SValue {
   // represent such a value). See eval/_check-type.ts.
   const items = e.items.map((item) => {
     const v = evalExpr(item, env, ctx)
-    assertValueTypeSupported(exprTpe(item))
+    assertValueTypeSupported(exprTpe(item, ctx.treeVersion ?? 0))
     return v
   })
   ctx.addCost(15) // Tuple = Fixed(15), charged AFTER both items (values.scala:806)

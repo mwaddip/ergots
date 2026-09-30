@@ -223,7 +223,7 @@ function substituteDeserializeContext(
       'deserialize-parse-failed',
     )
   }
-  const parsedTpe = exprTpe(parsed)
+  const parsedTpe = exprTpe(parsed, ctx.treeVersion ?? tree.header.version)
   if (!sTypeEquals(parsedTpe, e.tpe)) {
     throw new EvalError(
       `DeserializeContext: inner Expr tpe mismatch (expected ${e.tpe.tag}, got ${parsedTpe.tag})`,
@@ -295,7 +295,7 @@ function substituteDeserializeRegister(
         'deserialize-parse-failed',
       )
     }
-    const parsedTpe = exprTpe(parsed)
+    const parsedTpe = exprTpe(parsed, ctx.treeVersion ?? tree.header.version)
     if (!sTypeEquals(parsedTpe, e.tpe)) {
       throw new EvalError(
         `DeserializeRegister: inner Expr tpe mismatch (expected ${e.tpe.tag}, got ${parsedTpe.tag})`,
@@ -306,7 +306,7 @@ function substituteDeserializeRegister(
   }
   // Register absent.
   if (e.default !== null) {
-    const defaultTpe = exprTpe(e.default)
+    const defaultTpe = exprTpe(e.default, ctx.treeVersion ?? tree.header.version)
     if (!sTypeEquals(defaultTpe, e.tpe)) {
       throw new EvalError(
         `DeserializeRegister: default Expr tpe mismatch (expected ${e.tpe.tag}, got ${defaultTpe.tag})`,

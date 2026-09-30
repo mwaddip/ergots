@@ -116,7 +116,7 @@ export function evalSCollFlatMap(
   //    - SColl body type → use bodyTpe.elem (concrete path)
   //    - SAny body type  → set outElem = SAny pre-loop; refine post-iter-1
   //    - other body type → defensive throw
-  const bodyTpe = exprTpe(closure.body)
+  const bodyTpe = exprTpe(closure.body, ctx.treeVersion ?? 0)
   let outElem: SType
   if (bodyTpe.tag === 'SColl') {
     outElem = bodyTpe.elem

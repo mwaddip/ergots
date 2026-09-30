@@ -33,12 +33,12 @@ export function evalBlockValue(e: BlockValue, env: Env, ctx: EvalContext): SValu
     // checkType seam on the val-def rhs: a non-pair STuple / non-unary SFunc
     // declared type rejects (the JVM cannot represent such a value). The
     // declared type is the rhs's static type. See eval/_check-type.ts.
-    assertValueTypeSupported(exprTpe(item.rhs))
+    assertValueTypeSupported(exprTpe(item.rhs, ctx.treeVersion ?? 0))
     ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust block.rs:30
     scope = scope.extend(item.id, v)
   }
   const result = evalExpr(e.result, scope, ctx)
   // checkType seam on the block result (same representability check).
-  assertValueTypeSupported(exprTpe(e.result))
+  assertValueTypeSupported(exprTpe(e.result, ctx.treeVersion ?? 0))
   return result
 }

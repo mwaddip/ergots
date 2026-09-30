@@ -29,7 +29,7 @@ describe('Global.some / Global.none static return type (P0 via explicit type arg
       args: [{ tag: 'Const', tpe: SBYTE, value: { kind: 'Byte', value: 0 } } as Expr],
       explicitTypeArgs: { T: SBYTE },
     }
-    expect(exprTpe(node)).toEqual({ tag: 'SOption', elem: SBYTE })
+    expect(exprTpe(node, 3)).toEqual({ tag: 'SOption', elem: SBYTE })
   })
 
   it('none[Byte]() : Option[SByte]', () => {
@@ -40,7 +40,7 @@ describe('Global.some / Global.none static return type (P0 via explicit type arg
       methodId: 10,
       explicitTypeArgs: { T: SBYTE },
     }
-    expect(exprTpe(node)).toEqual({ tag: 'SOption', elem: SBYTE })
+    expect(exprTpe(node, 3)).toEqual({ tag: 'SOption', elem: SBYTE })
   })
 
   it('none[Coll[Byte]]() : Option[Coll[SByte]] (substitution not hard-coded to SByte)', () => {
@@ -51,6 +51,6 @@ describe('Global.some / Global.none static return type (P0 via explicit type arg
       methodId: 10,
       explicitTypeArgs: { T: SBYTECOLL },
     }
-    expect(exprTpe(node)).toEqual({ tag: 'SOption', elem: SBYTECOLL })
+    expect(exprTpe(node, 3)).toEqual({ tag: 'SOption', elem: SBYTECOLL })
   })
 })

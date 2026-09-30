@@ -70,7 +70,7 @@ describe('SUnsignedBigInt constant — exprTpe', () => {
       tpe: { tag: 'SUnsignedBigInt' },
       value: { kind: 'UnsignedBigInt', value: 5n },
     }
-    expect(exprTpe(c)).toEqual({ tag: 'SUnsignedBigInt' })
+    expect(exprTpe(c, 3)).toEqual({ tag: 'SUnsignedBigInt' })
   })
 
   it('returns SUnsignedBigInt for value 0n', () => {
@@ -79,7 +79,7 @@ describe('SUnsignedBigInt constant — exprTpe', () => {
       tpe: { tag: 'SUnsignedBigInt' },
       value: { kind: 'UnsignedBigInt', value: 0n },
     }
-    expect(exprTpe(c)).toEqual({ tag: 'SUnsignedBigInt' })
+    expect(exprTpe(c, 3)).toEqual({ tag: 'SUnsignedBigInt' })
   })
 })
 

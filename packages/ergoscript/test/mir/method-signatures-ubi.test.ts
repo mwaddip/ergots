@@ -41,14 +41,14 @@ function mc(methodId: number, args: Expr[] = []): Expr {
 
 describe('method-signatures: SUnsignedBigInt (typeId 9)', () => {
   it('bitwiseInverse (8) returns SUnsignedBigInt, not SAny', () => {
-    expect(exprTpe(mc(8))).toEqual({ tag: 'SUnsignedBigInt' })
+    expect(exprTpe(mc(8), 3)).toEqual({ tag: 'SUnsignedBigInt' })
   })
 
   it('toBytes (6) returns Coll[SByte]', () => {
-    expect(exprTpe(mc(6))).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
+    expect(exprTpe(mc(6), 3)).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
   it('toBits (7) returns Coll[SBoolean]', () => {
-    expect(exprTpe(mc(7))).toEqual({ tag: 'SColl', elem: { tag: 'SBoolean' } })
+    expect(exprTpe(mc(7), 3)).toEqual({ tag: 'SColl', elem: { tag: 'SBoolean' } })
   })
 })

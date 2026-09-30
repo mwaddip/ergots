@@ -115,16 +115,10 @@ export function parseValDef(
   const rhs = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   // Side effect: register the binding for the scope. Sigma-rust uses
   // HashMap::insert which silently overwrites; we mirror that semantic.
-  try {
-    valDefTypes.set(id, exprTpe(rhs))
-  } catch (e) {
-    // exprTpe throws when rhs is a yet-unimplemented variant. Surface
-    // the error as an ExprParseError so callers see a single taxonomy.
-    throw new ExprParseError(
-      `ValDef(id=${id}): cannot determine rhs type — ${(e as Error).message}`,
-      'val-def-rhs-tpe'
-    )
-  }
+  // JVM ValDefSerializer.scala:47-49: `valDefTypeStore(id) = rhs.tpe`, a type read after the rhs is
+  // read. A read that throws (a cast of an input's type) propagates as its own ExprTpeError, the
+  // JVM's exception class; an Apply of a non-function types as NOTYPE_JVM and parses on.
+  valDefTypes.set(id, exprTpe(rhs, treeVersion))
   // tpeArgs present + non-empty ⇒ FunDef; absent/[] ⇒ plain ValDef. We omit the
   // field entirely (rather than storing []) for an empty list so a FunDef with
   // zero declared type args round-trips identically to a plain ValDef — which
