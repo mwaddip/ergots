@@ -480,7 +480,10 @@ state roots, which is Notis's case. facts states this explicitly.
 **Range walk (API.md recipe):**
 1. Look up the range's lower bound. Clamp it to `0x00…01`: the all-zero key
    throws on the prover and poisons the verifier.
-2. Look up each reported `nextKey` while it is inside the range.
+2. Reject any reported `nextKey` that is not strictly greater than the key just
+   looked up; it can occur only on a digest without honest provenance. Look up
+   each `nextKey` while it is inside the range. (Progress check added in the
+   whole-branch review.)
 3. Stop at `nextKey === null` (end of tree) or at the first key past the range.
 
 Every step is a `Lookup` in the proof. The producer's recorded walk and the
