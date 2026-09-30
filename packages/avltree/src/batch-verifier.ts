@@ -195,8 +195,9 @@ export class VerifierCore {
         const m = keyMatchesLeaf(key, leaf)
         // The engine calls this at most once per operation (modify.ts:149;
         // deleteHelper never does), and exactly once for a successful Lookup.
-        // `onLeaf` sees the leaf only after the range check approved it — the
-        // check that authenticates a neighbor report (0.5.0).
+        // `onLeaf` sees the leaf only after that check approved it — the
+        // leaf-position check a neighbor report relies on (for a present key,
+        // only key == leaf.key; 0.5.0).
         if (m.ok) onLeaf?.(leaf, m.matches)
         return m
       },

@@ -171,8 +171,10 @@ describe('the neighbors are authenticated', () => {
 
   it('the verifier observer sees a leaf only after the range check approved it', () => {
     // Not observable through the public API: a failed check fails the lookup
-    // before the report is read. Pinned here so a report's authentication
-    // stays local to keyMatchesLeaf's range check.
+    // before the report is read. Pinned here so a report is read only from a
+    // leaf that keyMatchesLeaf's leaf-position check approved (for a present
+    // key, only key == leaf.key). The rest of the report rests on the digest's
+    // provenance.
     const p = fiveKeyProver()
     const before = p.digest()
     const oneGo = p.generateProofForOperations([{ tag: 'Lookup', key: keyOf(20) }])
