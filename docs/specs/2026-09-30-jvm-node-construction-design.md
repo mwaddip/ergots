@@ -167,6 +167,7 @@ These are the controller's calls, 2026-09-30.
 7. **A method call's type is fixed when the call is built** (review B1). The JVM's `MethodCall.tpe` is a `val` over the `SMethod` specialized at parse (`values.scala:1355`), and Kiama's `dup` passes the same `SMethod` to the rebuilt node, so a substitution never changes a call's type. ergots records it at parse and carries it through rebuilds (§1).
 8. **The untyped default, the spend root wrap and the JVM's eval-time type discipline are the next spec** (the controller's ruling after review 3). The JVM takes a default untyped, and then rejects a value that does not fit a type fixed at parse wherever that value is checked or stored: `checkType` at 17 sites, typed array stores, `stypeToRType`, all over the JVM's own value classes. Reviews 2 and 3 showed that the stores depend on the JVM's runtime collection representations (primitive arrays, pair collections stored component by component, `append`'s array-class check), so a faithful mirror is a design of its own. Until it lands, an untyped default would open over-accepts that `master` does not have. Keeping `master`'s default check, with its exact structural comparison (review R4-B1), the class-cast exception of Decision 5, and the JVM's type reads at the `checkType` sites (§5 item 5, review R4-B2), opens none, and it fixes the six regressions. The price is residual 7.
 9. **Before v3, a Byte or Short `ByIndex` index evaluates through the Upcast the JVM's parse inserted** (review m5, §8).
+10. **ergots raises the JVM's soft failures at a method lookup and a type read, at the JVM's byte** (§4a; the controller's ruling after Task 3's review, I1 and I2, and the audit that followed). The construction checks are hard, and a sized tree's verdict is its first failure in byte order. So a JVM soft failure that ergots does not raise turns any later hard check into a fork: the JVM degrades the tree, ergots rejects it. `master` made no construction check, so it did not have this fork. The two families are the June spec's "B-full" remainder.
 
 Rejected alternatives:
 - **Keep the default check with 9c87a5a's typing (option b):** fixes S1 and G1 only.
@@ -240,9 +241,64 @@ In the parse arms, at the JVM's position:
 
 ### 4. The parse hook
 
-`parseExpr` (`wire/parse.ts:136-161`) calls `checkBuild(expr, 'parse', treeVersion)` after the arm or constant returns and before `exitDepth`. A failure propagates with the depth level raised, as every hard parse error does (`facts/ergoscript-wire.md`, "Reader depth after a degrade").
+`parseExpr` (`wire/parse.ts:136-161`) calls `checkBuild(expr, 'parse', treeVersion)` after an arm returns and before `exitDepth`. A constant has no construction check. A failure propagates with the depth level raised, as every hard parse error does (`facts/ergoscript-wire.md`, "Reader depth after a degrade").
 
-The degrade set (`wire/ergo-tree.ts:140-146`) is unchanged: no construction code enters it.
+No construction code enters the degrade set (`wire/ergo-tree.ts:135-146`). §4a adds to it the JVM's soft failures at a type read and a method lookup, which must come first wherever the JVM raises them first.
+
+### 4a. The JVM's soft failures at a type read and a method lookup
+
+A sized tree's verdict is its first failure in byte order: a `ValidationException` degrades it to an `UnparsedErgoTree` (the box is accepted, and a spend of it fails), and anything else rejects it (`ErgoTreeSerializer.scala:196-209`). The construction checks are faithful only if ergots raises every earlier JVM soft failure at the same byte. It did not for two families, rules 1010/1016 (a method lookup) and 1017/1018 (a type read). Task 3's review probed the fork: `sigmaProp(1.toBytes > 0)` at sized v0 (the JVM degrades on 1016; ergots rejected `relation-operand-not-numeric`), and `Upcast(true, UnsignedBigInt)` (the JVM degrades on 1017 at the type byte; ergots rejected the input). The audit, `bfull-audit.md` in the plan's ledger directory, pins each claim below with a probe line (`W:n` there).
+
+**The version.** The JVM decides both families with `isV3OrLaterErgoTreeVersion` of the `VersionContext` at the read (`TypeSerializer.scala:211, 257-263`; `methods.scala:79-111, 175-189`). The activated version changes only the rule id (1007, 1008 and 1011 before 6.0 activation; 1017, 1018 and 1016 after), and all of them are `ValidationException`s. The version at each read site:
+
+| Site | The version the JVM reads under |
+|---|---|
+| A tree's segregated constants and its body | the tree's header version (`ErgoTreeSerializer.scala:154`) |
+| A nested box's registers (an SBox constant's data) | the **enclosing** tree's. The nested tree's own `withVersions` is scoped and restored before the registers are read (`VersionContext.scala:99-100`; `W:126`, `W:129`) |
+| A nested box's own tree | its own header version |
+| A script decoded at spend | the spent tree's version (`Interpreter.scala:207, 245`) |
+| A SubstConstants template's constants, at eval | the spent tree's version |
+| Top-level box registers and the context extension | 3: the ergo node parses a block's transactions at (3, 3) since 6.0. This cannot change a verdict: every version-dependent kind rejects there under (1, 1) and (3, 3) alike (`W:111-115`) |
+
+**Type reads (rules 1017 and 1018).** `parseSType(r, treeVersion)` and `parseSTypeWithFirstByte(c, r, treeVersion)` take the version, and pass it down the recursion. Each failure is raised at the byte where the JVM checks (`TypeSerializer.scala:16-25, 132-233`):
+- **Rule 1017.** An embeddable primitive id outside 1..8, or 9 below v3, is `STypeParseError('type-code-primitive-unknown')`.
+  - This includes an id embedded in a container code (21–23, 33–35, …, 93–95).
+  - A Pair1 or Pair2 primitive id is checked before the next type is read (`TypeSerializer.scala:160, 170-171`).
+- **Rule 1018.** A code the JVM does not match (107–111, 113–255, and 112 below v3) is `STypeParseError('type-code-unknown')`.
+- **Code 0 stays hard.** It is `InvalidTypePrefix`, renamed `'type-prefix-invalid'`, and the window check still comes first. SFunc's type-parameter check and a truncated STypeVar name stay hard too.
+- **The map** of all 256 first bytes at v0 and v3 is the audit's §2. 83 codes agree today; 173 diverge at v0 and 164 at v3.
+
+**SFunc data (rule 1009).** Data of an SFunc type is `CheckSerializableTypeCode`'s soft failure (`CoreDataSerializer.scala:144-146`: code 112 is above `LastDataType`, 111). That covers a constant or a register value. It is reachable from v3, since below v3 the type read fails first. ergots' SFunc data arm throws `SValueParseError('data-type-not-serializable')`, soft. The other types with no data form, codes 111 and below, stay hard, as the JVM's `SerializerException` is.
+
+**Method lookups (rules 1010 and 1016).** `SMethod.fromIds` (`SMethod.scala:344-349`) runs `CheckTypeWithMethods` (1010: the typeId has no methods container), then `CheckAndGetMethodV6` (1016: an unknown method id). Each runs against its version class's table.
+- **The table** is the JVM's own, dumped with the probe's `methods` mode over every (typeId, methodId).
+  - v0, v1 and v2 are identical: 20 typeIds, 96 pairs. v3 has 21 typeIds and 199 pairs; no pair disappears at v3.
+  - TypeIds 1, 96, 97, 98 and 102 have a container and no method, as 2–6 do below v3: every id gives 1016. TypeId 9 has no container below v3, so it gives 1010.
+  - ergots commits the dump as a fixture with its provenance, and a test asserts that the TS table equals it.
+- **Where.**
+  - `parseMethodCall` looks the pair up after the object, the arguments and the v3 empty-arguments assert (§3, which the JVM makes first: `MethodCallSerializer.scala:53-56`; `W:134`), and before the explicit type arguments.
+  - `parsePropertyCall` looks it up after the object, before the type arguments (`PropertyCallSerializer.scala:33-36`).
+  - A soft failure inside an argument comes first (`W:143`).
+  - A failure is `ExprParseError('method-type-no-methods')` (1010) or `ExprParseError('method-unknown')` (1016), both soft.
+- **The explicit type arguments** keep their six-pair registry. With the lookup first, they are read only for a pair the JVM knows at that version, as in the JVM.
+- **`checkBuild` is unchanged.** A pair the JVM does not know at the tree's version never reaches it (Task 3 review, I1).
+
+**The degrade set.** The five codes join `SOFT_FORKABLE_PARSE_CODES`, and `isSoftForkableParseError` also accepts an `STypeParseError`.
+- A soft failure inside a decoded script is not a class cast, so it rejects the spend (`deserialize-parse-failed`). The JVM rethrows it too, since the rule is enabled (`Interpreter.scala:249`; `W:116-119`).
+- A soft failure in a SubstConstants template at eval rejects the spend (`W:138`).
+
+**`validate-v6-types.ts` is deleted.** Every type it walked now comes from a versioned read, so it is dead for parsed input. A sized pre-v3 tree with a v6 type degrades, and its spend fails with `'unparsed-ergotree'`, as in the JVM (`W:123-124`). An unsized one rejects at parse (`W:25`). Its calls in `dispatchTreeBody` go, and its tests move to parse-level expectations.
+
+**The public API.** The exported `parseSType` gains a required version argument. That is a breaking change for a 0.x minor release, and `API.md` records it.
+
+**What this closes** (all probed; audit §5):
+- the fork of I1 and I2, at every type-read site and for both call kinds;
+- the over-accept of an unsized v0 tree with such a failure: at box creation, in a nested tree, and through `parseTransaction` (`W:4, 25, 105-106, 108-109`);
+- the spend over-accepts through a dead-branch unknown method, a decoded script, and a SubstConstants template (`W:116-117, 121-122, 138`);
+- the id divergence of a tree the JVM degrades and ergots re-encoded (`R:1`);
+- ergots' hard reject of the codes the JVM degrades on (the June residual's type-code conflation).
+
+**Not closed: a soft failure inside a nested register payload that starts with an opcode** (`W:130-131`, residual 8).
 
 ### 5. The substitution (`eval/_substitute-deserialize.ts`)
 
@@ -367,6 +423,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
 **Mainnet risk.** `checkBuild` runs on every node of every tree. An honest tree passes by construction, because the JVM built and serialized it through the same checks. Two places could still hurt:
 - a mistyped honest node in `exprTpe` would reject an honest box;
 - the pre-v3 arithmetic type moves `exprTpe`'s result for mixed-width arithmetic. Honest pre-v3 trees can carry that shape (review m2): the pre-v3 writer drops an `Upcast` of a constant (`ValueSerializer.scala:157-169, 362-373`) and the builder puts it back at parse, so a compiler that left `Upcast(Int 1, Long)` in a tree would put `Plus(Int 1, Long)` on the wire. Whether a mainnet tree does is not known (review R2-m5); the ids walk shows it. The version-aware type is therefore required, since without it the new item check would reject an honest `Coll[Long](1 + x)`. It also moves eval-visible types (a `map`'s output element type, for one) to the JVM's for such trees.
+- §4a changes the table every type read and method lookup uses. The change touches honest trees only where the JVM itself degrades a mainnet tree: a pre-v3 tree with a v6 type or method, or a code the JVM does not know. There, ergots now degrades too and keeps the tree's bytes, where before it parsed and re-encoded them. The ids walk shows any such tree.
 
 **Gates.**
 - **Parse:** a fresh mainnet ids walk from h=1 (`tools/mainnet-validate`, `--mode ids`, a new `--checkpoint-path`). It also stands in for the walk the shipped head still owes (HANDOFF decision 1).
@@ -381,7 +438,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
 
 ## Residuals (documented, not closed)
 
-1. **The method catalog (residual 1).** ergots' own SAny is unknown, and every parse-time check passes it: equality and the numeric tests. The substitution's comparisons keep `master`'s structural equality, under which a script or default typed as ergots' own SAny equals only a declared SAny: an over-reject for an honest script of an uncatalogued type, and an over-accept for a declared SAny. A call ergots does not catalogue reads nothing at parse, where the JVM, when it knows the method, reads the object and argument types (a missed class cast), and, when it does not, degrades a sized tree on rule 1016 (ergots parses it). A pre-v3 `ByIndex` index typed as ergots' own SAny passes the Int check the JVM may fail.
+1. **The method catalog (residual 1).** ergots' own SAny is unknown, and every parse-time check passes it: equality and the numeric tests. The substitution's comparisons keep `master`'s structural equality, under which a script or default typed as ergots' own SAny equals only a declared SAny: an over-reject for an honest script of an uncatalogued type, and an over-accept for a declared SAny. A call ergots does not catalogue reads nothing at parse, where the JVM, when it knows the method, reads the object and argument types (a missed class cast), and, when it does not, degrades a sized tree on rule 1016, as ergots now does too (§4a). A pre-v3 `ByIndex` index typed as ergots' own SAny passes the Int check the JVM may fail.
 2. **Register and extension values (residual 4, SANTA's evaluated values).** A Tuple-expression register kept as `opaqueBytes` is never built, so its items' construction checks do not run. The JVM builds them with `getValue`.
 3. **The pre-v3 builder rewrites (residual 11).** Only their type is modelled. The bytes and ids still differ. The JVM's parse-time upcasts also survive a rebuild (`dup` bypasses the builder), while ergots widens by the kinds it meets at eval, so a default of another width that reaches mixed-width arithmetic, a relation, or a pre-v3 `ByIndex` index (§8, review R2-m1) can evaluate differently (review m4).
 4. **Soft-forked rules in substitution.** A `ValidationException` during substitution becomes `TrueSigmaProp` when the settings mark its rule soft-forked (`trySoftForkable`, `Interpreter.scala:249`). ergots rejects. This belongs with B-full.
@@ -397,6 +454,10 @@ The probe's reduction costs also include the deserialization charge the Follow-u
      - `stypeToRType`'s failures;
      - ergots' own `coll-elem-tpe-mismatch` checks, which the JVM does not make (`Filter(Coll[Int](), (x: Long) => true)`).
    - The draft: `.superpowers/sdd/2026-09-30-jvm-node-construction/next-spec-eval-discipline-draft.md`.
+8. **A soft failure inside a nested register payload that starts with an opcode** (§4a; audit `W:130-131`).
+   - The JVM builds such a payload with `getValue` before its `EvaluatedValue` cast (`ErgoBoxCandidate.scala:231`), so a soft failure inside the payload degrades the enclosing sized tree.
+   - ergots rejects on the lead byte (`parse-svalue.ts:166-181`, residual 4 of the register grammar): an over-reject.
+   - It is pre-existing, and it closes with residual 4, SANTA's evaluated values.
 
 ## Tests (TDD, contracts first)
 
@@ -411,7 +472,16 @@ The probe's reduction costs also include the deserialization charge the Follow-u
    - the review's witnesses B1a, B1b, B1c, M1, M2, M3, M4, R4-B1 and R4-B2 (probe verdicts in the matrix);
    - §5 item 5's type read at each site, with a node whose type read throws (a class-cast default substituted untyped), and `scriptTypeEquals`' `NoType` leaf at depth;
    - B1c with the argument as a segregated constant, and without;
-   - §8's Byte and Short index, value and cost, against the probe.
+   - §8's Byte and Short index, value and cost, against the probe;
+   - §4a: the audit's 143 witnesses (`bfull/witness.*` in the scratchpad), each with its JVM verdict. ergots must equal the JVM on every one except the residual 8 pair, `W:130-131`. They include:
+     - the type-code sweep's divergent codes at v0 and v3;
+     - every type-read site, at each of its versions;
+     - both call kinds, rules 1010 and 1016, at v0 and v3;
+     - the order cases (`W:133-134, 141-143`);
+     - the nested-register versions (`W:126-129`);
+     - the spend cases (`W:116-124, 138`);
+     - the id case (`R:1`);
+   - the method table's fixture against the TS table.
 4. **Mutation checks** on the hook call, each in-arm check, the rebuild check, the swallow, and the default's class-cast exception.
 5. **Existing expectations that change:**
    - `rule-1001-jvm-sany-arms.test.ts` (codes, not verdicts);
