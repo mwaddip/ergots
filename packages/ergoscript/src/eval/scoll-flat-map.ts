@@ -18,7 +18,7 @@
  *   (a) Elem-type check uses MIR-node lambda's static arg type — skipped when
  *       the lambda Expr is not an inline FuncValue (Closure SValue has no
  *       argTpes). Mirrors coll-map.ts:94-108 convention.
- *   (b) Output elem type from exprTpe(closure.body) — returns SAny for
+ *   (b) Output elem type from exprTpe(closure.body, ctx.treeVersion ?? 0) — returns SAny for
  *       PropertyCall/MethodCall body (SMethod resolver not yet online).
  *       Handler tolerates SAny pre-loop, refines from itemRes.elem on first
  *       iter. Empty input returns Coll[SAny].
@@ -49,7 +49,7 @@ const FLATMAP_OUTER_CHUNK_SIZE = 8
  *         restriction fires (MethodCall body with non-empty args).
  * @throws EvalError `'coll-elem-tpe-mismatch'` if mc.args[0] is FuncValue and
  *         its arg tpe differs from input.elem (R3(a) skip otherwise).
- * @throws EvalError `'lambda-result-type-mismatch'` if exprTpe(closure.body)
+ * @throws EvalError `'lambda-result-type-mismatch'` if exprTpe(closure.body, ctx.treeVersion ?? 0)
  *         is neither SColl nor SAny, or itemRes is not Coll, or sub-coll
  *         elem mismatch (when outElem is concrete post-refinement).
  * @throws EvalError `'cost-limit-exceeded'` if the outer cost charge trips it.

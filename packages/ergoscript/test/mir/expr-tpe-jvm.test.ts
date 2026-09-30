@@ -18,8 +18,8 @@ import type { Expr, SType } from '../../src/mir/types'
 import { parseTree } from '../../src/wire/ergo-tree'
 import {
   Append, Apply, BI, BitOr, Block, ByIndex, Coll, Ctx, DC, DR, EQ, Filter, GetVar, If, MC, OptionGet, PC, Plus,
-  SelectField, SigmaAnd, SizeOf, Slice, T, Tuple, Upcast, ValDef, bin, bool, bytes, collInt, hex, int, lambdaTrue,
-  long, sp, treeBytes, Negation,
+  SelectField, SigmaAnd, SizeOf, Slice, T, Tuple, Upcast, ValDef, bin, bool, bytes, collInt, exprBytes, hex, int,
+  lambdaTrue, long, sp, treeBytes, Negation,
 } from '../_helpers/mir-build'
 
 const codeOf = (f: () => unknown): string | undefined => {
@@ -64,17 +64,29 @@ describe('arithmetic before v3: the builder upcasts to the wider operand (SigmaB
     }
   })
   it('the wider type is the larger numericTypeIndex (Byte 0 … UnsignedBigInt 5)', () => {
+    // The probe, decode mode at tree version 0 (the script's .tpe): 9a02010302 (Plus(Byte 1, Short 1))
+    // and 9a03020201 (Plus(Short 1, Byte 1)) type SShort; 9a0601010502 (Plus(BigInt 1, Long 1)) and
+    // 9a0502060101 (Plus(Long 1, BigInt 1)) type SBigInt.
     const c = (tag: SType['tag'], value: object): Expr => ({ tag: 'Const', tpe: { tag } as SType, value } as Expr)
     const byte = c('SByte', { kind: 'Byte', value: 1 })
     const short = c('SShort', { kind: 'Short', value: 1 })
     const big = c('SBigInt', { kind: 'BigInt', value: 1n })
+    expect([Plus(byte, short), Plus(short, byte), Plus(big, long(1)), Plus(long(1), big)].map((e) => hex(exprBytes(e))))
+      .toEqual(['9a02010302', '9a03020201', '9a0601010502', '9a0502060101'])
     expect(exprTpe(Plus(byte, short), 0)).toEqual({ tag: 'SShort' })
     expect(exprTpe(Plus(short, byte), 0)).toEqual({ tag: 'SShort' })
     expect(exprTpe(Plus(big, long(1)), 0)).toEqual({ tag: 'SBigInt' })
     expect(exprTpe(Plus(long(1), big), 0)).toEqual({ tag: 'SBigInt' })
   })
   it('versions 1 and 2 widen as 0 does; versions 4 to 7 read the left operand as 3 does', () => {
+    // The probe, decode mode: 9a04020504 (Plus(Int 1, Long 2)) types SLong at tree versions 0, 1 and
+    // 2, and SInt at 3. It cannot run versions 4 to 7: sigma-state 6.0.6 requires the tree version not
+    // to exceed the activated version, 3 (VersionContext.scala:20-21; the probe's decode fails that
+    // require). For them the rule is the source's: no upcast from isV3OrLaterErgoTreeVersion,
+    // `ergoTreeVersion >= 3` (VersionContext.scala:29; DeserializationSigmaBuilder.applyUpcast,
+    // SigmaBuilder.scala:757-763).
     const e = Plus(int(1), long(2))
+    expect(hex(exprBytes(e))).toBe('9a04020504')
     for (const v of [1, 2]) expect(exprTpe(e, v)).toEqual(SLONG)
     for (const v of [4, 5, 6, 7]) expect(exprTpe(e, v)).toEqual(SINT)
   })
@@ -97,8 +109,14 @@ describe('arithmetic before v3: the builder upcasts to the wider operand (SigmaB
     expect(hex(treeBytes(inColl(T.Any, Plus(APPLY_NO, TS)), 0x00))).toBe('00d193b18301619ada0400010400db6903db6503fe0402')
     expect(exprTpe(Plus(BI, TS), 0)).toBe(SANY_JVM)
     expect(exprTpe(Plus(APPLY_NO, TS), 0)).toBe(NOTYPE_JVM)
+    // The probe, decode mode at tree version 0: 9a0101db6903db6503fe (Plus(true, timestamp)) types SBoolean.
+    expect(hex(exprBytes(Plus(bool(true), TS)))).toBe('9a0101db6903db6503fe')
     expect(exprTpe(Plus(bool(true), TS), 0)).toEqual({ tag: 'SBoolean' })
-    // An own-SAny left operand is unknown, whatever the right one.
+    // An own-SAny left operand is unknown, whatever the right one: the JVM types both of these SLong,
+    // the timestamp's type (the probe, decode mode at version 0: 9adb6903db6503fe0502 and
+    // 9adb6903db6503feb2860204000400040000), which ergots cannot compute (residual 1).
+    expect(hex(exprBytes(Plus(TS, long(1))))).toBe('9adb6903db6503fe0502')
+    expect(hex(exprBytes(Plus(TS, BI)))).toBe('9adb6903db6503feb2860204000400040000')
     expect(isOwnSAny(exprTpe(Plus(TS, long(1)), 0))).toBe(true)
     expect(isOwnSAny(exprTpe(Plus(TS, BI), 0))).toBe(true)
   })
@@ -231,6 +249,42 @@ describe("SelectField: the JVM's signed Byte index (SelectFieldSerializer.scala:
     expect(codeOf(() => exprTpe(SelectField(int(0), 0), 0))).toBe('select-field-input-not-stuple')
     expect(codeOf(() => exprTpe(SelectField(BI, 0), 0))).toBe('select-field-input-class-cast')
   })
+
+  describe("over ergots' own SAny", () => {
+    // CONTEXT.dataInputs (101:1) is not in ergots' catalog, so ergots types it as its own SAny
+    // (residual 1); the JVM types it Coll[Box]. The JVM rejects an index of 0, or 128 and more,
+    // whatever the input's real type: a ClassCastException for a non-tuple, an
+    // ArrayIndexOutOfBoundsException for any tuple (the probe below).
+    const DATA_INPUTS = PC(101, 1, Ctx)
+    /** `{ val v1 = SelectField(CONTEXT.dataInputs, i); sigmaProp(true) }` at v0. */
+    const tree = (i: number) => treeBytes(Block([ValDef(1, SelectField(DATA_INPUTS, i))], sp(bool(true))), 0x00)
+    it('an index of 0, or 128 and more, is out of range', () => {
+      for (const i of [0x00, 0x80, 0xc8, 0xff]) {
+        expect(codeOf(() => exprTpe(SelectField(DATA_INPUTS, i), 0))).toBe('select-field-out-of-range')
+      }
+    })
+    it('an index of 1 to 127 passes the own SAny through', () => {
+      for (const i of [0x01, 0x7f]) expect(isOwnSAny(exprTpe(SelectField(DATA_INPUTS, i), 0))).toBe(true)
+    })
+    it('the ValDef tree at 0x80 and at 0 rejects, as in the JVM', () => {
+      // The probe (tree mode, checkType = true, v0): 00d801d6018cdb6501fe80d10101 and
+      // 00d801d6018cdb6501fe00d10101 each reject with a ClassCastException (SCollectionType cannot be
+      // cast to STuple). SELF.creationInfo (99:6), a pair in the JVM and ergots' own SAny too, rejects
+      // at 0x80 and 0 with ArrayIndexOutOfBoundsException (index -129, -1) and parses at index 1.
+      expect(hex(tree(0x80))).toBe('00d801d6018cdb6501fe80d10101')
+      expect(codeOf(() => parseTree(tree(0x80), { checkType: true }))).toBe('select-field-out-of-range')
+      // The writer refuses index 0, so the probed bytes are given as read. The parse arm's own index
+      // check rejects them first today; when it goes (spec §3), the ValDef's type read above does.
+      const index0 = Uint8Array.from('00d801d6018cdb6501fe00d10101'.match(/../g)!.map((b) => parseInt(b, 16)))
+      expect(codeOf(() => parseTree(index0, { checkType: true }))).toBe('select-field-index-out-of-range')
+    })
+    it('the ValDef tree at 0x7f parses in ergots only (residual 1)', () => {
+      // The probe rejects 00d801d6018cdb6501fe7fd10101 with a ClassCastException: dataInputs is no
+      // tuple. ergots cannot type dataInputs, so it cannot see that (residual 1, the method catalog).
+      expect(hex(tree(0x7f))).toBe('00d801d6018cdb6501fe7fd10101')
+      expect(isUnparsedTree(parseTree(tree(0x7f), { checkType: true }))).toBe(false)
+    })
+  })
 })
 
 describe('memoization per node and version class', () => {
@@ -302,12 +356,17 @@ describe('the recorded call type (values.scala:1355: a MethodCall is typed when 
     recordCallType(mc, OPTION_INT)
     expect(exprTpe(mc, 3)).toBe(OPTION_INT)
   })
-  it('a record wins over an earlier read of the node', () => {
+  it('a record made after a read wins for the node itself only; an ancestor keeps the type it saw', () => {
+    // Hence recordCallType's ordering rule: record a call before any ancestor's type is read. The
+    // parse records a call in its own construction hook, and a rewrite copies the record before the
+    // rebuilt call reaches its parent, so neither records late.
     const mc = MC(12, 33, collInt([1]), [int(0)])
-    expect(exprTpe(mc, 3)).toEqual(OPTION_INT)
+    const parent = Tuple(mc, int(0))
+    expect(exprTpe(parent, 3)).toEqual(T.Tuple(OPTION_INT, T.Int))
     const rec: SType = { tag: 'SLong' }
     recordCallType(mc, rec)
     expect(exprTpe(mc, 3)).toBe(rec)
+    expect(exprTpe(parent, 3)).toEqual(T.Tuple(OPTION_INT, T.Int))
   })
   it('a PropertyCall takes its record the same way', () => {
     const pc = PC(12, 200, Filter(BI)) // uncatalogued: ergots' own SAny, nothing read

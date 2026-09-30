@@ -67,7 +67,7 @@
  *      removed 'deserialize-context-key-not-found', see note below):
  *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
  *        - 'deserialize-parse-failed' (both: inner Expr bytes malformed)
- *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed) !== e.tpe)
+ *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed, treeVersion) !== e.tpe)
  *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
  *          for DR with register absent + default null OR recursive-Deserialize
  *          OR — post-F1 — a LIVE DC over an absent/wrong-typed var)
@@ -680,7 +680,7 @@ export type EvalErrorCode =
   | 'deserialize-parse-failed'
   /**
    * `DeserializeContext` / `DeserializeRegister` substitute pass: the parsed
-   * inner Expr's `exprTpe()` doesn't match the arm's declared `e.tpe`. The
+   * inner Expr's `exprTpe(inner, treeVersion)` doesn't match the arm's declared `e.tpe`. The
    * check runs on BOTH the register-decoded inner Expr AND the `default`
    * fallback Expr (per sigma-rust `expr.rs:486-491`). Mirrors
    * `SubstDeserializeError::ExprTpeError { expected, actual }` at line 727.

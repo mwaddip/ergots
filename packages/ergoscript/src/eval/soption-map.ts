@@ -14,7 +14,7 @@
  * Some-path lambda invocation additionally charges ADD_TO_ENV_COST(5) before the
  * body eval (F3.5). None path uncharged — lambda is never invoked.
  *
- * Output Option elem type = `exprTpe(closure.body)` — same convention as flatMap.
+ * Output Option elem type = `exprTpe(closure.body, ctx.treeVersion ?? 0)` — same convention as flatMap.
  * The walker only checks cost (the oracle returns no value), so the elem only
  * matters for the offline byte-equality fixtures, which use BinOp bodies whose
  * exprTpe resolves concretely.

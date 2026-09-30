@@ -24,7 +24,7 @@
  * sys.errors for a declared non-pair STuple ("Unsupported tuple type",
  * SType.scala:200-202) and non-unary SFunc types — e.g. a pair Tuple whose
  * item is an inline constant of type (Bool,Bool,Bool) eval-rejects on the JVM.
- * This arm now mirrors it via `assertValueTypeSupported(exprTpe(item))` after
+ * This arm now mirrors it via `assertValueTypeSupported(exprTpe(item, ctx.treeVersion ?? 0))` after
  * each item eval (covers W1 `008602480101010101010402`); the companion seams
  * live in const-placeholder.ts (covers W2), collection.ts, block-value.ts, and
  * val-use.ts. See eval/_check-type.ts.

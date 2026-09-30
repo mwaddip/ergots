@@ -16,7 +16,7 @@
  * The arms without a JVM citation mirror sigma-rust's `Expr::tpe` (`ergotree-ir/src/mir/expr.rs:252-325`).
  */
 
-import type { Expr, SType, STypeVar } from './types'
+import type { Expr, MethodCall, PropertyCall, SType, STypeVar } from './types'
 import { NOTYPE_JVM, SANY_JVM } from './types'
 import { isJvmNumeric, isOwnSAny, numericTypeIndex } from './jvm-types'
 import { methodSignature, resolveReturnTpe } from './method-signatures'
@@ -40,8 +40,16 @@ export class ExprTpeError extends Error {
  */
 const callTypes = new WeakMap<Expr, SType>()
 
-/** Record the type `e`, a `MethodCall` or `PropertyCall`, was built with. `exprTpe` of `e` returns it. */
-export function recordCallType(e: Expr, t: SType): void {
+/**
+ * Record the type the call `e` was built with; `exprTpe` of `e` returns it from then on.
+ *
+ * Ordering: record a call's type before any ancestor's type is read. `exprTpe` checks the record
+ * first for the call itself only; an ancestor's memo entry keeps the type it saw, so an ancestor read
+ * before the record keeps the unrecorded type. The parse records a call in its own construction hook,
+ * before any ancestor is built (`checkBuild`), and a rewrite copies the record to a rebuilt call inside
+ * `mapChildren`, before the rebuilt node is returned to its parent.
+ */
+export function recordCallType(e: MethodCall | PropertyCall, t: SType): void {
   callTypes.set(e, t)
 }
 
@@ -290,13 +298,29 @@ function computeTpe(e: Expr, v: number): SType {
     }
     case 'SelectField': {
       // JVM SelectField.tpe = input.tpe.items(fieldIndex - 1), a val (sigma/ast/transformers.scala:294):
-      // built with the node, it casts the input's type to STuple (1-based index). The JVM's SAny and
-      // NoType fail the cast; ergots' own SAny passes through (the ByIndex arm).
+      // built with the node, it casts the input's type to STuple (1-based index), then indexes it. The
+      // JVM's SAny and NoType fail the cast. The index is the JVM's signed Byte
+      // (SelectFieldSerializer.scala:22), so 128 and more are negative there: items(fieldIndex - 1)
+      // throws IndexOutOfBoundsException for them, for 0, and past the arity. For a known type the
+      // cast comes first, then the index.
       const it = exprTpe(e.input, v)
       if (it === SANY_JVM || it === NOTYPE_JVM) {
         throw classCast('SelectField', it, 'select-field-input-class-cast')
       }
-      if (it.tag === 'SAny') {
+      const inByteRange = e.fieldIndex >= 1 && e.fieldIndex <= 127
+      if (isOwnSAny(it)) {
+        // ergots' own SAny (residual 1) passes through for an index of 1 to 127 (the ByIndex arm). An
+        // index of 0, or 128 and more, the JVM rejects whatever the real type: a ClassCastException for
+        // a non-tuple, an IndexOutOfBoundsException for any tuple (a local sigma-state 6.0.6 probe:
+        // CONTEXT.dataInputs gives the first, SELF.creationInfo the second). Inside a decoded script
+        // that class matters, since the substitution swallows a class cast (Rewriter.scala:180-191),
+        // and ergots cannot know the real type (residual 1).
+        if (!inByteRange) {
+          throw new ExprTpeError(
+            `SelectField.fieldIndex ${e.fieldIndex} is out of range for any tuple (the JVM's signed Byte index)`,
+            'select-field-out-of-range'
+          )
+        }
         return it
       }
       if (it.tag !== 'STuple') {
@@ -305,17 +329,13 @@ function computeTpe(e: Expr, v: number): SType {
           'select-field-input-not-stuple'
         )
       }
-      // The index is the JVM's signed Byte (SelectFieldSerializer.scala:22), so 128 and more are
-      // negative there: items(fieldIndex - 1) throws IndexOutOfBoundsException for them, for 0, and
-      // past the arity.
-      const zeroBased = e.fieldIndex - 1
-      if (zeroBased < 0 || e.fieldIndex > 127 || zeroBased >= it.items.length) {
+      if (!inByteRange || e.fieldIndex > it.items.length) {
         throw new ExprTpeError(
           `SelectField.fieldIndex ${e.fieldIndex} out of range for tuple of arity ${it.items.length}`,
           'select-field-out-of-range'
         )
       }
-      return it.items[zeroBased]!
+      return it.items[e.fieldIndex - 1]!
     }
     case 'Upcast':
       // sigma-rust `mir/upcast.rs::Upcast::tpe` (line 51-53): the type is the

@@ -38,7 +38,7 @@
  *   the extractFuncValue guard still catches non-callable values at runtime.
  *
  * Output elem type (sigma-rust coll_map.rs:78 via CollKind::from_collection):
- *   We use exprTpe(e.mapper) to derive the mapper's declared return type when
+ *   We use exprTpe(e.mapper, ctx.treeVersion ?? 0) to derive the mapper's declared return type when
  *   the mapper is a FuncValue. If the mapper's type is SFunc, we use sfunc.result
  *   as outElemTpe and check each per-item result against it, throwing
  *   'lambda-result-type-mismatch' on mismatch. When outElemTpe is not derivable
@@ -120,8 +120,8 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
         'coll-elem-tpe-mismatch'
       )
     }
-    // Derive outElemTpe from exprTpe(e.mapper) — mirrors mapper_sfunc.t_range.
-    // exprTpe(FuncValue) returns SFunc { args, result, tpeParams }; result = body type.
+    // Derive outElemTpe from exprTpe(e.mapper, v) — mirrors mapper_sfunc.t_range.
+    // exprTpe(FuncValue, v) returns SFunc { args, result, tpeParams }; result = body type.
     const mapperTpe = exprTpe(e.mapper, ctx.treeVersion ?? 0)
     if (mapperTpe.tag === 'SFunc') {
       outElemTpe = mapperTpe.result
