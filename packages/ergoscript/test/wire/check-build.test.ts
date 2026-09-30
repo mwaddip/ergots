@@ -362,7 +362,7 @@ describe("ergots' own SAny passes the numeric checks (residual 1)", () => {
   }
 })
 
-describe("a call's reads, gated on ergots' method catalog (MethodCallSerializer.scala:77-97)", () => {
+describe("a call's reads, once the JVM's method lookup has found the pair (MethodCallSerializer.scala:77-97, PropertyCallSerializer.scala:36-47)", () => {
   it('T3-uncat-pair-FilterBI-sized: a pair the JVM does not know fails its lookup before any read, so the tree degrades (the JVM: unparsed, rule 1016)', () => {
     // Collection method 200 (12:200): SMethod.fromIds fails (rule 1016) before the object's type is read.
     const b = probed('T3-uncat-pair-FilterBI-sized', sp(EQ(PC(12, 200, Filter(BI)), int(0))), 0x08,
@@ -373,17 +373,38 @@ describe("a call's reads, gated on ergots' method catalog (MethodCallSerializer.
     expect(o.error).toBeInstanceOf(ExprParseError)
     expect((o.error as ExprParseError).code).toBe('method-unknown')
   })
-  it("T9-uncat-known-pair-FilterBI-sized: a pair the JVM knows and ergots does not catalogue reads nothing, so ergots parses (residual 1; the JVM: ClassCastException)", () => {
-    // Option.get (36:3): fromIds finds it, and specializeFor reads the object's type
-    // (PropertyCallSerializer.scala:47), a Filter over the JVM's SAny, whose type read casts.
+  it('T9-uncat-known-pair-FilterBI-sized: a pair the JVM knows reads its object, catalogued in ergots or not (the JVM: ClassCastException)', () => {
+    // Option.get (36:3), which ergots' catalog lacks: fromIds finds it, and specializeFor reads the
+    // object's type (PropertyCallSerializer.scala:47), a Filter over the JVM's SAny, whose type read casts.
     const b = probed('T9-uncat-known-pair-FilterBI-sized', sp(EQ(PC(36, 3, Filter(BI)), int(0))), 0x08,
       '0818d193db2403b5b2860204000400040000d901010401010400')
+    expectRejected(parseBox(b), ExprTpeError, 'filter-input-class-cast')
+  })
+  it("T9-uncat-known-mc-zip-FilterBI-arg-v3: an uncatalogued MethodCall the JVM knows reads its arguments' types (the JVM: ClassCastException)", () => {
+    // Coll.zip (12:29), which ergots' catalog lacks: getSpecializedMethodFor reads each argument's type,
+    // then the object's (MethodCallSerializer.scala:86-96); the argument is a Filter over the JVM's SAny.
+    const b = probed('T9-uncat-known-mc-zip-FilterBI-arg-v3', inVal(MC(12, 29, collInt([1]), [Filter(BI)])), 0x0b,
+      '0b1fd801d601dc0c1d10010201b5b2860204000400040000d90101040101d10101')
+    expectRejected(parseBox(b), ExprTpeError, 'filter-input-class-cast')
+  })
+  it("T9-uncat-known-mc-zip-control-v3: the same call over plain collections parses, typed as ergots' own SAny (residual 1; the JVM: parsed)", () => {
+    // The catalog decides only the type the call is recorded with: ergots' own SAny for a pair it lacks.
+    const b = probed('T9-uncat-known-mc-zip-control-v3', inVal(MC(12, 29, collInt([1]), [collInt([2])])), 0x0b,
+      '0b11d801d601dc0c1d10010201100104d10101')
     const t = expectParsed(parseBox(b))
-    // The call is recorded as ergots' own SAny.
-    const call = (t.body as { input: { left: Expr } }).input.left
+    const call = ((t.body as { items: Expr[] }).items[0] as { rhs: Expr }).rhs
+    expect(call.tag).toBe('MethodCall')
     const recorded = recordedCallType(call)
     expect(recorded).toBeDefined()
     expect(isOwnSAny(recorded!)).toBe(true)
+  })
+  it('T9-pc-explicit-typeargs-FilterBI-obj-v3: a PropertyCall with explicit type arguments does not read its object (the JVM: parsed)', () => {
+    // Global.deserializeTo[Int] (106:4) as a PropertyCall over a Filter of the JVM's SAny: with explicit type
+    // arguments the JVM substitutes them alone and never reads the object's type (PropertyCallSerializer.scala:36-45).
+    const pc: Expr = { ...PC(106, 4, Filter(BI)), explicitTypeArgs: { T: T.Int } }
+    const b = probed('T9-pc-explicit-typeargs-FilterBI-obj-v3', inVal(pc), 0x0b,
+      '0b1cd801d601db6a04b5b2860204000400040000d9010104010104d10101')
+    expectParsed(parseBox(b))
   })
   it('T3-cat-get-FilterBI-v3: a catalogued pair reads its object (the JVM: ClassCastException)', () => {
     const b = probed('T3-cat-get-FilterBI-v3', inVal(MC(12, 33, Filter(BI), [int(0)])), 0x0b,

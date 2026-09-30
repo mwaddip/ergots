@@ -24,7 +24,6 @@ import type { Expr, SType } from '../mir/types'
 import { NOTYPE_JVM } from '../mir/types'
 import { exprTpe, recordCallType } from '../mir/expr-tpe'
 import { isJvmNumeric, isOwnSAny, jvmTypeEquals } from '../mir/jvm-types'
-import { methodSignature } from '../mir/method-signatures'
 import { ExprParseError } from './errors'
 
 export type BuildSite = 'parse' | 'rebuild'
@@ -165,16 +164,14 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
       return
     case 'MethodCall':
     case 'PropertyCall': {
-      // The serializer's reads (MethodCallSerializer.scala:77-97, PropertyCallSerializer.scala:30-52)
-      // come after SMethod.fromIds accepts the pair. A pair the JVM does not know at the tree's version
-      // never reaches this site: the parse arm's lookup throws its soft failure first (rule 1010 or
-      // 1016, wire/jvm-method-table.ts). For a pair the JVM knows and ergots does not catalogue,
-      // nothing is read (residual 1).
+      // The serializer's reads (MethodCallSerializer.scala:77-97, PropertyCallSerializer.scala:36-47)
+      // come after SMethod.fromIds accepts the pair. The gate is the lookup in the parse arm
+      // (wire/jvm-method-table.ts): a pair the JVM does not know at the tree's version failed there first,
+      // softly (rule 1010 or 1016), so every call that reaches this site is one the JVM knows, and the JVM
+      // reads its types whether ergots catalogues the pair or not. specializeFor never throws
+      // (SMethod.scala:193-199): an operand that does not unify leaves the method unspecialized. The
+      // catalog decides only the type recorded below (residual 1).
       if (site !== 'parse') return
-      if (methodSignature(e.typeId, e.methodId) === undefined) {
-        recordCallType(e, { tag: 'SAny' })
-        return
-      }
       if (e.tag === 'MethodCall') {
         // getSpecializedMethodFor: each argument's type, then the object's (in specializeFor).
         for (const a of e.args) exprTpe(a, v)
@@ -184,7 +181,8 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
         exprTpe(e.obj, v)
       }
       // MethodCall.tpe is a val over the method specialized here (values.scala:1355), and Kiama's dup
-      // passes that method to a rebuilt node, so the call's type is fixed now.
+      // passes that method to a rebuilt node, so the call's type is fixed now: resolveReturnTpe for a
+      // catalogued pair, ergots' own SAny for any other (exprTpe's call arms).
       recordCallType(e, exprTpe(e, v))
       return
     }
