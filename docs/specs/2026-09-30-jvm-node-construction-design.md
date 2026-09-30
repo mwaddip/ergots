@@ -127,7 +127,7 @@ These run when a node is parsed, including inside a script decoded at spend time
 
 **`DeserializeContext`** (`Interpreter.scala:110-129`):
 - The extension must have the id and its value's `tpe` must equal `SByteArray`; otherwise the result is `None` and the node stays.
-- `deserializeMeasured` (`:79-87`) decodes with `ValueSerializer.deserialize` on a fresh reader (no constant store; trailing bytes ignored) and charges `len × 2` into the context's `initCost`.
+- `deserializeMeasured` (`:99-107`) decodes with `ValueSerializer.deserialize` on a fresh reader (no constant store; trailing bytes ignored) and charges `len × 2` into the context's `initCost`.
 - Then `CheckDeserializedScriptType` (rule 1000, `data/shared/src/main/scala/org/ergoplatform/validation/ValidationRules.scala:24-37`) compares with `d.tpe != script.tpe`, throwing a ValidationException on a mismatch.
 
 **`DeserializeRegister`** (`ErgoLikeInterpreter.scala:17-37`):
