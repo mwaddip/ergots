@@ -29,12 +29,9 @@
  * import-by-test-file pattern is rejected by the project's
  * "no cross-package relative paths" rule from CLAUDE.md).
  *
- * For the "tree-version-derivation" inline closure: the SBox wire layout is
- * `<value VLQ> <ergoTree header byte> <...>`. After consuming the VLQ value
- * prefix, the next byte's low 3 bits give the tree version. The test uses
- * an even simpler stub that always returns 0 — parseSValue(SBox)'s
- * treeVersion gates only register data (SHeader, SOption), and the fixtures
- * carry no registers, so 0 is safe for them.
+ * The `treeVersionFn` stub returns 3, the ergo node's version, as `main.ts`'s
+ * `topLevelTreeVersion` does. The version passed to `parseSValue(SBox)`
+ * decides how the box's registers are read, types and data.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -87,16 +84,13 @@ const SBOX_MINIMAL_HEX =
 const SBOX_MINIMAL_BYTES = hexToBytes(SBOX_MINIMAL_HEX);
 
 /**
- * `treeVersionFn` stub used by every test. Returns 0 (the literal version
- * of the `sbox_minimal` ergoTree is 1, but `parseSValue(SBox, ...)`'s
- * `treeVersion` parameter only matters for SHeader register values which
- * the fixture does not contain — 0 is observationally indistinguishable
- * from 1 for this fixture). Mirroring the PLAN's split-out function design
- * so T11's main.ts can swap in a real derivation later without changing
- * the validate-block.ts signature.
+ * `treeVersionFn` stub used by every test. Returns 3, the version `main.ts`
+ * passes (`topLevelTreeVersion`): the ergo node reads a block's boxes under
+ * (3, 3) since 6.0, whatever a box's own tree version, and the version passed
+ * to `parseSValue(SBox, ...)` decides how the box's registers are read.
  */
-function alwaysVersion0(_boxBytes: Uint8Array): number {
-    return 0;
+function nodeVersion3(_boxBytes: Uint8Array): number {
+    return 3;
 }
 
 /** Build a `TxBundle` with the provided outputs. Other fields are zeroed. */
@@ -128,7 +122,7 @@ function makeBundle(transactions: TxBundle[]): BlockBundle {
 describe('validateOutputRoundtrips: happy path', () => {
     it('returns void on a single known-good output', () => {
         const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES])]);
-        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0)).not.toThrow();
+        expect(() => validateOutputRoundtrips(bundle, nodeVersion3)).not.toThrow();
     });
 
     it('returns void on multiple txs each with multiple good outputs', () => {
@@ -137,17 +131,17 @@ describe('validateOutputRoundtrips: happy path', () => {
             makeTx([SBOX_MINIMAL_BYTES]),
             makeTx([SBOX_MINIMAL_BYTES, SBOX_MINIMAL_BYTES, SBOX_MINIMAL_BYTES]),
         ]);
-        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0)).not.toThrow();
+        expect(() => validateOutputRoundtrips(bundle, nodeVersion3)).not.toThrow();
     });
 
     it('returns void on an empty bundle (no txs)', () => {
         const bundle = makeBundle([]);
-        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0)).not.toThrow();
+        expect(() => validateOutputRoundtrips(bundle, nodeVersion3)).not.toThrow();
     });
 
     it('returns void on a bundle of txs each with zero outputs', () => {
         const bundle = makeBundle([makeTx([]), makeTx([])]);
-        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0)).not.toThrow();
+        expect(() => validateOutputRoundtrips(bundle, nodeVersion3)).not.toThrow();
     });
 });
 
@@ -201,7 +195,7 @@ describe('validateOutputRoundtrips: byte-roundtrip-mismatch', () => {
         const bundle = makeBundle([makeTx([TAMPERED_SBOX_BYTES])]);
 
         try {
-            validateOutputRoundtrips(bundle, alwaysVersion0);
+            validateOutputRoundtrips(bundle, nodeVersion3);
             throw new Error('expected validateOutputRoundtrips to throw');
         } catch (err) {
             expect(err).toBeInstanceOf(HarnessError);
@@ -226,7 +220,7 @@ describe('validateOutputRoundtrips: byte-roundtrip-mismatch', () => {
         ]);
 
         try {
-            validateOutputRoundtrips(bundle, alwaysVersion0);
+            validateOutputRoundtrips(bundle, nodeVersion3);
             throw new Error('expected validateOutputRoundtrips to throw');
         } catch (err) {
             expect(err).toBeInstanceOf(HarnessError);
@@ -246,7 +240,7 @@ describe('validateOutputRoundtrips: byte-roundtrip-mismatch', () => {
         ]);
 
         try {
-            validateOutputRoundtrips(bundle, alwaysVersion0);
+            validateOutputRoundtrips(bundle, nodeVersion3);
             throw new Error('expected validateOutputRoundtrips to throw');
         } catch (err) {
             expect(err).toBeInstanceOf(HarnessError);
@@ -315,7 +309,7 @@ describe('validateOutputRoundtrips: sbox-parse-failed', () => {
         const bundle = makeBundle([makeTx([truncated])]);
 
         try {
-            validateOutputRoundtrips(bundle, alwaysVersion0);
+            validateOutputRoundtrips(bundle, nodeVersion3);
             throw new Error('expected throw');
         } catch (err) {
             expect(err).toBeInstanceOf(HarnessError);
@@ -337,7 +331,7 @@ describe('validateOutputRoundtrips: sbox-parse-failed', () => {
         const bundle = makeBundle([makeTx([padded])]);
 
         try {
-            validateOutputRoundtrips(bundle, alwaysVersion0);
+            validateOutputRoundtrips(bundle, nodeVersion3);
             throw new Error('expected throw');
         } catch (err) {
             expect(err).toBeInstanceOf(HarnessError);
@@ -392,12 +386,12 @@ const MAINNET_H420000_BYTES = hexToBytes(
 describe('validateOutputRoundtrips: box-rules re-encoding', () => {
     it('passes the burn box: rule 1001 degrades its tree, which re-encodes as received', () => {
         const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([BURN_BOX_BYTES])]);
-        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0)).not.toThrow();
+        expect(() => validateOutputRoundtrips(bundle, nodeVersion3)).not.toThrow();
     });
 
     it('fails a tree that declares 3 bytes for its 2-byte body: it re-encodes with size 2', () => {
         const bundle = makeBundle([makeTx([boxAround('090308d3')])]);
-        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0));
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, nodeVersion3));
         expect(he.phase).toBe('output-roundtrip');
         expect(he.code).toBe('byte-roundtrip-mismatch');
         expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
@@ -420,7 +414,7 @@ describe('validateOutputRoundtrips: the re-serialized box must equal the chain\'
         // 0x00-lead point as the identity and write it as 33 zeros (GroupElementSerializer.scala:20-42),
         // so no chain box carries this encoding. The tree alone re-encodes to itself.
         const box = boxWith('0008d3', `0107` + '00' + '11'.repeat(32), '00');
-        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), alwaysVersion0));
+        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), nodeVersion3));
         expect(he.phase).toBe('output-roundtrip');
         expect(he.code).toBe('byte-roundtrip-mismatch');
         expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
@@ -429,7 +423,7 @@ describe('validateOutputRoundtrips: the re-serialized box must equal the chain\'
     it('an index the JVM cannot write halts: 0x8000, a negative Short', () => {
         // ErgoBox.scala:211, 218, 224: parsed as getUShort().toShort, written with putUShort.
         const box = boxWith('0008d3', '00', '808002');
-        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), alwaysVersion0));
+        const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([box])]), nodeVersion3));
         expect(he.phase).toBe('output-roundtrip');
         expect(he.code).toBe('box-serialize-failed');
         expect(he.location).toEqual({ txIndex: 0, outputIndex: 0 });
@@ -442,9 +436,9 @@ describe('validateOutputRoundtrips: the re-serialized box must equal the chain\'
         ['a MethodCall without arguments read as 0xdc', '00d191dc6301a7000500', '00d191db6301a70500'],
     ] as const) {
         it(`${name} halts: the JVM's box bytes carry the canonical form, which passes`, () => {
-            const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(wire)])]), alwaysVersion0));
+            const he = harnessErrorOf(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(wire)])]), nodeVersion3));
             expect(he.code).toBe('byte-roundtrip-mismatch');
-            expect(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(canonical)])]), alwaysVersion0)).not.toThrow();
+            expect(() => validateOutputRoundtrips(makeBundle([makeTx([boxAround(canonical)])]), nodeVersion3)).not.toThrow();
         });
     }
 });
@@ -464,7 +458,7 @@ describe('validateOutputRoundtrips: degrade census', () => {
 
     it('sends every output tree to the census: the burn box halts when unlisted', () => {
         const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([BURN_BOX_BYTES])]);
-        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath)));
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, nodeVersion3, new DegradeCensus(censusPath)));
         expect(he.phase).toBe('census');
         expect(he.code).toBe('census-unexpected-degrade');
         expect(he.location).toEqual({ txIndex: 1, outputIndex: 0, ergoTreeHex: BURN_TREE_HEX });
@@ -475,7 +469,7 @@ describe('validateOutputRoundtrips: degrade census', () => {
             { height: 100_000, txIndex: 1, outputIndex: 0, reason: 'burn box: rule 1001' },
         ]));
         const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([BURN_BOX_BYTES])]);
-        expect(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath))).not.toThrow();
+        expect(() => validateOutputRoundtrips(bundle, nodeVersion3, new DegradeCensus(censusPath))).not.toThrow();
     });
 
     it('halts after the output pass when a census entry names an output the block lacks', () => {
@@ -483,7 +477,7 @@ describe('validateOutputRoundtrips: degrade census', () => {
             { height: 100_000, txIndex: 2, outputIndex: 0, reason: 'no such transaction in this block' },
         ]));
         const bundle = makeBundle([makeTx([SBOX_MINIMAL_BYTES]), makeTx([SBOX_MINIMAL_BYTES])]);
-        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, alwaysVersion0, new DegradeCensus(censusPath)));
+        const he = harnessErrorOf(() => validateOutputRoundtrips(bundle, nodeVersion3, new DegradeCensus(censusPath)));
         expect(he.phase).toBe('census');
         expect(he.code).toBe('census-expected-position-missing');
         expect(he.location).toEqual({ txIndex: 2, outputIndex: 0 });
@@ -503,7 +497,7 @@ describe('validateOutputRoundtrips: degrade census', () => {
         };
         const noTxValidation = (): void => {};
         const he = harnessErrorOf(() =>
-            validateBlock(bundle, state, alwaysVersion0, noTxValidation, new DegradeCensus(censusPath)),
+            validateBlock(bundle, state, nodeVersion3, noTxValidation, new DegradeCensus(censusPath)),
         );
         expect(he.code).toBe('census-unexpected-degrade');
     });

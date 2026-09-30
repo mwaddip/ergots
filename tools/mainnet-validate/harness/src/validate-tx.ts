@@ -81,8 +81,8 @@
  * Each `(varId, valueBytes)` entry's `valueBytes` is the shim's
  * `Constant::sigma_serialize` output = `SType || SValue` (no length
  * prefix). We mirror sigma-rust's
- * `Constant::sigma_parse`: read SType at tree version 3, then read SValue
- * with that type + the box-derived treeVersion.
+ * `Constant::sigma_parse`: read the SType, then the SValue of that type,
+ * both at tree version 3.
  *
  * # `treeVersion` per input
  *
@@ -91,12 +91,12 @@
  * the input's ContextExtension Constants at transaction parse instead,
  * under the ergo node's (3, 3) since 6.0, and rejects any v6-typed value
  * there through rule 1019 (`ContextExtension.scala:62`). The harness reads
- * each Constant's type at 3, as the node does: the version decides the type
- * read (below 3 an SFunc type code is no type, so an empty
- * `Coll[Int => Int]` would fail). The data keeps the box's version, which
- * gates only SHeader and SOption data, that rule 1019 keeps out of an
- * extension. The spent box's registers are parsed at 3 too (see
- * `parseSpentBox`).
+ * each Constant at 3, type and data, as the node does. The version decides
+ * the type read: below 3 an SFunc type code is no type, so an empty
+ * `Coll[Int => Int]` would fail. The version passed for the data decides a
+ * nested Box's register type reads too, so a Box whose R4 is an empty
+ * `Coll[Int => Int]` would fail below 3 as well. The spent box's registers
+ * are parsed at 3 too (see `parseSpentBox`).
  *
  * # `jitCostLimit`
  *
@@ -317,8 +317,10 @@ function buildHeadersArray(preceding: readonly Header[]): Header[] | null {
 /**
  * Parse one `ContextExtension` `(varId, valueBytes)` blob. Each blob
  * is `Constant::sigma_serialize` = `SType || SValue` (mirrors
- * sigma-rust `Constant::sigma_parse`). The reader MUST consume the
- * whole blob — trailing bytes indicate a wire-shape disagreement.
+ * sigma-rust `Constant::sigma_parse`). Both reads are at tree version 3,
+ * the ergo node's version for a context extension, whatever the spent
+ * tree's version. The reader MUST consume the whole blob — trailing
+ * bytes indicate a wire-shape disagreement.
  *
  * Returns the `{tpe, value}` pair the harness drops into
  * `ContextExtension.values`. Throws a regular `Error` on failure;
@@ -326,11 +328,10 @@ function buildHeadersArray(preceding: readonly Header[]): Header[] | null {
  */
 function parseContextExtensionEntry(
     valueBytes: Uint8Array,
-    treeVersion: number,
 ): { tpe: SType; value: SValue } {
     const reader = new ByteReader(valueBytes);
     const tpe = parseSType(reader, 3);
-    const value = parseSValue(tpe, treeVersion, reader);
+    const value = parseSValue(tpe, 3, reader);
     if (!reader.isExhausted) {
         throw new Error(
             `${reader.remaining} trailing byte(s) after Constant; ` +
@@ -348,17 +349,13 @@ function parseContextExtensionEntry(
  */
 function buildContextExtension(
     input: InputBundle,
-    treeVersion: number,
     txIndex: number,
     inputIndex: number,
 ): ContextExtension {
     const values: ContextExtension['values'] = new Map();
     for (const entry of input.contextExtension) {
         try {
-            values.set(entry.varId, parseContextExtensionEntry(
-                entry.valueBytes,
-                treeVersion,
-            ));
+            values.set(entry.varId, parseContextExtensionEntry(entry.valueBytes));
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
@@ -669,12 +666,7 @@ export function validateTx(
         // 5a — build ContextExtension from per-input Constant blobs. Built
         // BEFORE the storage-rent check + tree parse: it needs no parsed tree,
         // and the storage-rent check (5b-bis) consumes it.
-        const extension = buildContextExtension(
-            input,
-            treeVersion,
-            txIndex,
-            inputIndex,
-        );
+        const extension = buildContextExtension(input, txIndex, inputIndex);
 
         // 5b-bis — storage-rent (expired-box) spend. Tried FIRST, mirroring
         // sigma-rust `try_spend_storage_rent`: only when the spending proof is

@@ -8,9 +8,9 @@
  *   2. Bad signature: same setup, signature_bytes mutated → harness
  *      throws `HarnessError` phase=`verify-signature` code=`verifier-false`
  *      (or `verifier-threw` if the verifier raises VerifyError).
- *   3. Tree-version derivation: spent box with a v3 ergoTree → harness
- *      threads treeVersion=3 through ContextExtension parsing without
- *      throwing (low-bit derivation works as documented).
+ *   3. Context extension at the node's version: under a v0 spent tree,
+ *      an extension Box whose R4 is an empty `Coll[Int => Int]` is read
+ *      at 3, type and data, and accepted, as the ergo node does.
  *   4. H<10 padding: BlockBundle for height 5 with only 4 preceding
  *      headers → harness pads the headers array to 10 entries (oldest
  *      replication) without throwing. We verify by spying on a fake
@@ -338,6 +338,36 @@ describe('validateTx — bad signature', () => {
         const he = captured as HarnessError;
         expect(he.phase).toBe('verify-signature');
         expect(['verifier-false', 'verifier-threw']).toContain(he.code);
+    });
+});
+
+describe("validateTx — a context extension at the node's version, 3", () => {
+    it('accepts an extension Box whose R4 is an empty Coll[Int => Int] under a v0 spent tree', () => {
+        // Var 1 is an SBox constant (type 0x63): value 1, tree 00d10101
+        // (v0, sigmaProp(true)), creation height 0, no tokens, one register,
+        // a zero transaction id and index 0. R4 is an empty Coll[Int => Int]:
+        // type 0c 70 01 04 04 00, then length 00. The ergo node reads a
+        // context extension at (3, 3) since 6.0. The version passed for the
+        // Box's data also decides its registers' type reads, and below 3 the
+        // SFunc code 112 fails rule 1018. Rule 1019 checks only the
+        // constant's own type, SBox. A local sigma-state 6.0.6 probe, spend
+        // mode with this spent tree and this var 1: at 3 it reduces; at 0 it
+        // rejects at the var-1 parse with rule 1018 (code 112).
+        const extensionBox = hexToBytes(
+            '630100d101010000010c700104040000' + '00'.repeat(32) + '00',
+        );
+        const ergoTree = p2pkErgoTreeBytes(PK_BYTES); // header 0x08: v0
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sboxBytes(ergoTree),
+                signatureBytes: SIGNATURE_BYTES,
+                contextExtension: [{ varId: 1, valueBytes: extensionBox }],
+            }),
+        ]);
+        const block = makeBundle(tx);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        expect(() => validateTx(tx, block, state, 0)).not.toThrow();
     });
 });
 
@@ -719,7 +749,7 @@ describe('checkStorageRent (rule branches)', () => {
         // the 42 bytes as received (dust: spendable) and exceeds the fee on the 41-byte
         // re-encoding by one (not dust, and the output does not recreate the box).
         const bytes = hexToBytes(`2a09820008d3000000${'00'.repeat(32)}00`);
-        const parsed = parseSValue({ tag: 'SBox' }, 0, new ByteReader(bytes));
+        const parsed = parseSValue({ tag: 'SBox' }, 3, new ByteReader(bytes));
         if (parsed.kind !== 'Box') throw new Error(`expected a Box, got ${parsed.kind}`);
         const self = parsed.value;
         expect(self.value).toBe(42n);
