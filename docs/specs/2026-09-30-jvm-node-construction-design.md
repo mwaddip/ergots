@@ -418,6 +418,8 @@ The ModQ family and TaggedVariable are in the same class, but ergots rejects the
 
 **`Apply` with other than one argument** (the final review, M2; the user's "fold it in" covers this kind of fix). The JVM's `Apply.eval` charges its cost, then throws "Function application must have 1 argument" before it evaluates the function or any argument (`values.scala:1262-1272`). ergots applied a two-argument lambda, an over-accept that `master` has. For example, `00d193dad902020403049a720272030204060408040e`, a two-argument lambda applied directly, is rejected by the JVM. ergots now makes the same check, at the same point.
 
+**A `FuncValue` with other than one argument.** This came up in the final fix round and was folded in the same way. The JVM's `FuncValue.eval` charges its cost (5), then throws "Function must have 1 argument" for a lambda with 0, 2 or more parameters (`values.scala:1070-1085`). Evaluating such a node therefore rejects the spend wherever it is evaluated: passed to `map`, `exists`, `forall` or `filter`, compared with `==`, or bound. ergots built a closure for it, an over-accept that `master` has. ergots now makes the same check, at the same point.
+
 ## Behavior matrix (JVM = ergots after this change)
 
 "Rej" is a hard reject; "deg" is a soft-fork degrade.
