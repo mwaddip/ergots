@@ -19,7 +19,6 @@ import {
   substituteDeserialize,
   treeHasDeserialize,
 } from './_substitute-deserialize'
-import { validateBinOpTypes } from './validate-bin-op-types'
 import { validateMethodCallArity } from './validate-method-call-arity'
 import { validateV6Types } from './validate-v6-types'
 
@@ -155,12 +154,9 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
       }
     }
   }
-  // JVM-align #2: mirror the deserializer's check2(SameType)/(OnlyNumeric) on
-  // comparison/equality — a WHOLE-TREE pre-eval pass run before any cost is
-  // charged, so a mismatched node (even in a never-evaluated branch) rejects the
-  // tree with zero JIT cost, matching the JVM's deserialize-time rejection. Runs
-  // on the post-substitution body so substituted-in Deserialize* subtrees are
-  // checked too. See eval/validate-bin-op-types.ts.
+  // The relations' check2 (SameType, OnlyNumeric) is made at parse, as the JVM's builder makes it
+  // when each node is built (wire/check-build.ts); a relation rebuilt around a substituted script is
+  // not re-checked, as Kiama's dup bypasses the builder.
   const treeVersion = ctx.treeVersion ?? 0
   if (treeHasDeserialize(tree)) {
     const constSubstituted = tree.header.constantSegregation
@@ -173,7 +169,6 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
     // eval/validate-v6-types.ts. Walks rewrittenBody so attacker-controlled
     // Deserialize* sub-trees are covered.
     validateV6Types(tree, rewrittenBody, treeVersion)
-    validateBinOpTypes(rewrittenBody, treeVersion)
     // JVM-align: reject a V3+ MethodCall-opcode node with empty args (honest
     // trees use PropertyCall for zero args). Closes the none/groupGenerator
     // over-accept. Pre-V3 grandfathered. See eval/validate-method-call-arity.ts.
@@ -181,7 +176,6 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
   validateV6Types(tree, tree.body, treeVersion)
-  validateBinOpTypes(tree.body, treeVersion)
   validateMethodCallArity(tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }

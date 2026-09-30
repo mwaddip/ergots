@@ -1,141 +1,114 @@
 /**
- * BinOp comparison/equality SameType + OnlyNumeric strictness — pre-eval pass.
+ * BinOp comparison/equality SameType + OnlyNumeric strictness, at parse.
  *
- * JVM-align #2: the JVM deserializer runs check2(SameType) on equality and
- * check2(OnlyNumeric)+check2(SameType) on comparison (SigmaBuilder.scala
- * equalityOp:679 / comparisonOp:689; ConstraintFailed at :287), rejecting the
- * WHOLE tree at deserialize — including never-evaluated branches. ergots mirrors
- * this with a pre-eval whole-tree pass (validateBinOpTypes) so an adversary's
- * hand-crafted box proposition can't make ergots over-accept a spend the JVM
- * rejects.
+ * The JVM's deserializing builder runs check2(SameType) on equality, and check2(OnlyNumeric) then
+ * check2(SameType) on comparison (SigmaBuilder.scala:686-704; ConstraintFailed, :286-295), as each
+ * node is built. So a mismatched relation rejects the whole tree at parse, a never-evaluated branch
+ * included. ergots makes the same checks at parse (wire/check-build.ts; facts/ergoscript-wire.md,
+ * "Node construction"). Until 2026-09-30 it made them in a pre-eval pass over the tree
+ * (validateBinOpTypes), with the EvalError codes 'bin-op-kind-mismatch' and 'bin-op-not-numeric';
+ * each case below is one of that pass's, moved to the parse with the same tree. Every verdict is a
+ * local sigma-state 6.0.6 probe's (tree mode, checkType = false; the relation is the root).
  *
- * Rule (via exprTpe; SAny operand → SKIP, per the no-false-positive policy):
- *  - Eq/NEq: differing operand types reject unless both numeric AND treeVersion<3
- *    (where #1's eval-time coercion legitimately handles them).
- *  - Lt/Le/Gt/Ge: non-numeric operand rejects (OnlyNumeric); numeric-mismatch
- *    rejects at treeVersion>=3.
- * Error codes reused: 'bin-op-kind-mismatch' (SameType), 'bin-op-not-numeric'
- * (OnlyNumeric). No cost charged — rejection is pre-eval.
- *
- * Spec: docs/specs/2026-06-02-ergoscript-binop-sametype-strictness-design.md
+ * Specs: docs/specs/2026-06-02-ergoscript-binop-sametype-strictness-design.md,
+ * docs/specs/2026-09-30-jvm-node-construction-design.md §3.
  */
 import { describe, it, expect } from 'vitest'
 
-import { validateBinOpTypes } from '../../src/eval/validate-bin-op-types'
-import { evaluateWith } from '../../src/eval/evaluate'
-import { makeContext } from '../../src/eval/eval-context'
-import type { Expr, ErgoTree } from '../../src/mir/types'
-import { captureEvalError } from '../_helpers'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
+import { isUnparsedTree } from '../../src/mir/types'
+import type { Expr } from '../../src/mir/types'
+import { PC, Ctx, If, bool, hex, int, long, treeBytes } from '../_helpers/mir-build'
 
-function intConst(v: number): Expr {
-  return { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: v } }
-}
-function longConst(v: bigint): Expr {
-  return { tag: 'Const', tpe: { tag: 'SLong' }, value: { kind: 'Long', value: v } }
-}
-function boolConst(v: boolean): Expr {
-  return { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: v } }
-}
-function rel(op: 'Eq' | 'NEq' | 'Lt' | 'Le' | 'Gt' | 'Ge', left: Expr, right: Expr): Expr {
+type RelationOp = 'Eq' | 'NEq' | 'Lt' | 'Le' | 'Gt' | 'Ge'
+function rel(op: RelationOp, left: Expr, right: Expr): Expr {
   return { tag: 'BinOp', op: { kind: 'Relation', op }, left, right }
 }
 const eq = (l: Expr, r: Expr): Expr => rel('Eq', l, r)
 
-describe('validateBinOpTypes — equality SameType strictness', () => {
-  it('rejects EQ(Int, Boolean) — non-numeric mismatch, any version', () => {
-    const err = captureEvalError(() => validateBinOpTypes(eq(intConst(5), boolConst(true)), 0))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-  })
+/** The tree's bytes, checked against the bytes the probe was given. */
+function probed(body: Expr, header: number, probedHex: string): Uint8Array {
+  const b = treeBytes(body, header)
+  expect(hex(b)).toBe(probedHex)
+  return b
+}
 
-  it('rejects EQ(Int, Long) at treeVersion 3 — numeric mismatch, V3+', () => {
-    const err = captureEvalError(() => validateBinOpTypes(eq(intConst(5), longConst(5n)), 3))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-  })
-
-  it('rejects NEq(Int, Boolean)', () => {
-    const err = captureEvalError(() => validateBinOpTypes(rel('NEq', intConst(5), boolConst(true)), 0))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-  })
-
-  it('ALLOWS EQ(Int, Long) at treeVersion 0 — #1 coerces pre-V3 (must not reject)', () => {
-    expect(() => validateBinOpTypes(eq(intConst(5), longConst(5n)), 0)).not.toThrow()
-  })
-
-  it('ALLOWS EQ(Bool, Bool) — same type', () => {
-    expect(() => validateBinOpTypes(eq(boolConst(true), boolConst(false)), 3)).not.toThrow()
-  })
-
-  it('ALLOWS EQ(Int, Int) — same type', () => {
-    expect(() => validateBinOpTypes(eq(intConst(1), intConst(2)), 3)).not.toThrow()
-  })
-})
-
-describe('validateBinOpTypes — ordering OnlyNumeric + SameType', () => {
-  it('rejects Lt(Int, Boolean) — OnlyNumeric', () => {
-    const err = captureEvalError(() => validateBinOpTypes(rel('Lt', intConst(5), boolConst(true)), 0))
-    expect(err.code).toBe('bin-op-not-numeric')
-  })
-
-  it('rejects Gt(Int, Long) at treeVersion 3 — numeric mismatch, V3+', () => {
-    const err = captureEvalError(() => validateBinOpTypes(rel('Gt', intConst(5), longConst(5n)), 3))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-  })
-
-  it('ALLOWS Le(Int, Long) at treeVersion 0 — #1 coerces pre-V3', () => {
-    expect(() => validateBinOpTypes(rel('Le', intConst(5), longConst(5n)), 0)).not.toThrow()
-  })
-
-  it('ALLOWS Ge(Int, Int) — same type', () => {
-    expect(() => validateBinOpTypes(rel('Ge', intConst(1), intConst(2)), 3)).not.toThrow()
-  })
-})
-
-describe('validateBinOpTypes — whole-tree walk + SAny skip', () => {
-  it('rejects a mismatched EQ nested inside another relation (dead-branch reach)', () => {
-    // Outer EQ(Boolean, Boolean) is same-type OK, but the walk recurses into the
-    // inner EQ(Int, Boolean) and rejects it — proving non-top-level nodes are checked.
-    const inner = eq(intConst(5), boolConst(true))
-    const err = captureEvalError(() => validateBinOpTypes(eq(inner, boolConst(false)), 3))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-  })
-
-  it('SKIPS EQ when an operand type is SAny (no false positive)', () => {
-    // exprTpe → SAny operand is a wildcard: not rejected (the eval arm handles it
-    // at runtime if the node is ever evaluated).
-    const anyOperand: Expr = { tag: 'Const', tpe: { tag: 'SAny' }, value: { kind: 'Int', value: 5 } }
-    expect(() => validateBinOpTypes(eq(anyOperand, longConst(5n)), 3)).not.toThrow()
-  })
-})
-
-describe('validateBinOpTypes — wired into evaluate (pre-eval, zero cost, dead branches)', () => {
-  function treeV3(body: Expr): ErgoTree {
-    return {
-      header: { version: 3, hasSize: false, constantSegregation: false, rawHeader: 0x03 },
-      constantTypes: [],
-      constants: [],
-      body,
-    }
+function expectRejects(b: Uint8Array, code: string): void {
+  let err: unknown
+  try {
+    parseTree(b)
+  } catch (e) {
+    err = e
   }
-  function ifExpr(condition: Expr, trueBranch: Expr, falseBranch: Expr): Expr {
-    return { tag: 'If', condition, trueBranch, falseBranch }
-  }
+  expect(err).toBeInstanceOf(ExprParseError)
+  expect((err as ExprParseError).code).toBe(code)
+}
 
-  it('evaluateWith rejects a top-level mismatched EQ tree with zero JIT cost', () => {
-    const ctx = makeContext({ treeVersion: 3 })
-    const err = captureEvalError(() => evaluateWith(treeV3(eq(intConst(5), longConst(5n))), ctx))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-    expect(ctx.jitCost).toBe(0)
+function expectParses(b: Uint8Array): void {
+  expect(isUnparsedTree(parseTree(b))).toBe(false)
+}
+
+describe('equality: check2(SameType)', () => {
+  it('rejects EQ(Int, Boolean): a non-numeric mismatch, any version (the JVM: ConstraintFailed)', () => {
+    expectRejects(probed(eq(int(5), bool(true)), 0x00, '0093040a0101'), 'relation-operand-type-mismatch')
   })
 
-  it('rejects the whole tree for a mismatch in a NEVER-evaluated branch', () => {
-    // condition=true → lazy eval would take trueBranch and return Boolean true,
-    // never touching the mismatched falseBranch (if.ts is lazy). The pre-eval
-    // pass rejects the whole tree anyway — matching the JVM's deserialize-time
-    // rejection of dead branches. Zero cost (pass runs before any eval).
-    const ctx = makeContext({ treeVersion: 3 })
-    const body = ifExpr(boolConst(true), boolConst(true), eq(intConst(5), longConst(5n)))
-    const err = captureEvalError(() => evaluateWith(treeV3(body), ctx))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-    expect(ctx.jitCost).toBe(0)
+  it('rejects EQ(Int, Long) at tree version 3: a numeric mismatch, v3 and later (the JVM: ConstraintFailed)', () => {
+    expectRejects(probed(eq(int(5), long(5)), 0x0b, '0b0593040a050a'), 'relation-operand-type-mismatch')
+  })
+
+  it('rejects NEq(Int, Boolean) (the JVM: ConstraintFailed)', () => {
+    expectRejects(probed(rel('NEq', int(5), bool(true)), 0x00, '0094040a0101'), 'relation-operand-type-mismatch')
+  })
+
+  it('allows EQ(Int, Long) at tree version 0: the builder upcasts before v3 (the JVM: parsed)', () => {
+    expectParses(probed(eq(int(5), long(5)), 0x00, '0093040a050a'))
+  })
+
+  it('allows EQ(Bool, Bool): the same type, written as the packed pair (the JVM: parsed)', () => {
+    expectParses(probed(eq(bool(true), bool(false)), 0x0b, '0b03938501'))
+  })
+
+  it('allows EQ(Int, Int): the same type (the JVM: parsed)', () => {
+    expectParses(probed(eq(int(1), int(2)), 0x0b, '0b059304020404'))
+  })
+})
+
+describe('ordering: check2(OnlyNumeric), then check2(SameType)', () => {
+  it('rejects Lt(Int, Boolean): OnlyNumeric (the JVM: ConstraintFailed)', () => {
+    expectRejects(probed(rel('Lt', int(5), bool(true)), 0x00, '008f040a0101'), 'relation-operand-not-numeric')
+  })
+
+  it('rejects Gt(Int, Long) at tree version 3: a numeric mismatch (the JVM: ConstraintFailed)', () => {
+    expectRejects(probed(rel('Gt', int(5), long(5)), 0x0b, '0b0591040a050a'), 'relation-operand-type-mismatch')
+  })
+
+  it('allows Le(Int, Long) at tree version 0: the builder upcasts before v3 (the JVM: parsed)', () => {
+    expectParses(probed(rel('Le', int(5), long(5)), 0x00, '0090040a050a'))
+  })
+
+  it('allows Ge(Int, Int): the same type (the JVM: parsed)', () => {
+    expectParses(probed(rel('Ge', int(1), int(2)), 0x0b, '0b059204020404'))
+  })
+})
+
+describe('every relation is checked where it sits', () => {
+  it('rejects a mismatched EQ nested inside another relation (the JVM: ConstraintFailed)', () => {
+    // The outer EQ(Boolean, Boolean) is well-typed; the inner EQ(Int, Boolean) is built first, and fails.
+    expectRejects(probed(eq(eq(int(5), bool(true)), bool(false)), 0x0b, '0b089393040a01010100'), 'relation-operand-type-mismatch')
+  })
+
+  it("passes an operand typed as ergots' own SAny (residual 1; the JVM types the timestamp Long: parsed)", () => {
+    // CONTEXT.preHeader.timestamp: a method ergots' catalog lacks, so its type is unknown to ergots.
+    const ts = PC(105, 3, PC(101, 3, Ctx))
+    expectParses(probed(eq(ts, long(5)), 0x0b, '0b0a93db6903db6503fe050a'))
+  })
+
+  it('rejects the whole tree for a mismatch in a never-evaluated branch (the JVM: ConstraintFailed)', () => {
+    // condition = true: evaluation would take the true branch and never reach the false one. The
+    // parse rejects the tree first, as the JVM does, so it is never evaluated.
+    const body = If(bool(true), bool(true), eq(int(5), long(5)))
+    expectRejects(probed(body, 0x0b, '0b0a950101010193040a050a'), 'relation-operand-type-mismatch')
   })
 })

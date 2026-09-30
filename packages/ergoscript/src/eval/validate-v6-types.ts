@@ -1,9 +1,9 @@
 /**
  * Pre-eval whole-tree rejection of v3+-only type constructs (SUnsignedBigInt,
- * SFunc) in pre-V3 trees — the version gate for v6 types. Mirrors
- * validate-bin-op-types.ts: a zero-cost reject before any eval, keyed on the
- * authoritative ctx.treeVersion. Walks BOTH tree.constantTypes[] (segregated
- * constants the JVM deserializes eagerly — incl. dead/empty ones) AND the body
+ * SFunc) in pre-V3 trees — the version gate for v6 types: a zero-cost reject
+ * before any eval, keyed on the authoritative ctx.treeVersion. Walks BOTH
+ * tree.constantTypes[] (segregated constants the JVM deserializes eagerly —
+ * incl. dead/empty ones) AND the body
  * (every wire-serialized type annotation, NOT computed exprTpe). See P2a spec
  * §4.1/§4.2.
  *

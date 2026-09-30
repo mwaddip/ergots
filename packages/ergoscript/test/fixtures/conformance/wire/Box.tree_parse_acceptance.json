@@ -1,0 +1,295 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Box.tree_parse_acceptance",
+  "blessed_by" : "jvm:sigma-state-6.0.6",
+  "entries" : [
+    {
+      "name" : "box-c1-exists-on-int-accept#0",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose unsized v0 tree is BoolToSigmaProp(Exists(Int 1, (x: Int) => true)): Exists over an Int. The JVM builds the node with an erased cast and checks nothing, so the tree parses. Round-trip identity. An impl that type-checks the operand at parse rejects it: the over-reject.",
+      "bytes_hex" : "c0843d00d1ae0402d901010401010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-c2-logicalnot-on-int-accept#1",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(LogicalNot(Int 1)). The JVM builds the node with an erased cast and checks nothing, so the tree parses. Round-trip identity. An impl that type-checks the operand at parse rejects it: the over-reject.",
+      "bytes_hex" : "c0843d00d1ef04020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-c3-trueleaf-opcode-accept#2",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(TrueLeaf) with TrueLeaf as its own opcode 7f (CaseObjectSerialization, ValueSerializer.scala:79). It parses. NON-IDENTITY: TrueLeaf is the Boolean constant true (values.scala:771) and the box serializer writes a parsed tree back from its structure (ErgoBoxCandidate.scala:142), so the tree comes back as 00 d1 01 01. A transaction's id and its output boxes' ids are computed over those bytes. An impl that keeps the 7f, or does not parse it, diverges.",
+      "bytes_hex" : "c0843d00d17f0100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "expected_bytes_hex" : "c0843d00d101010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-c3-falseleaf-opcode-accept#3",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(FalseLeaf), opcode 80 (ValueSerializer.scala:80). It parses and, like #2, comes back as the Boolean constant: 00 d1 01 00. NON-IDENTITY.",
+      "bytes_hex" : "c0843d00d1800100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "expected_bytes_hex" : "c0843d00d101000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-c4-property-call-on-wrong-type-accept#4",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(EQ(PropertyCall(SBox.value) on Int 1, Long 1)) (db 63 01). SMethod.specializeFor finds no unification of SBox with SInt and keeps the method as it is (SMethod.scala:193-199), typed Long, so the EQ is well-typed and the tree parses. Round-trip identity. An impl that fails the unification rejects it: the over-reject.",
+      "bytes_hex" : "c0843d00d193db6301040205020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-c5-apply-non-function-accept#5",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(Apply(Int 1, [])). Apply's tpe is a lazy val, NoType for a non-function, and nothing reads it at parse (values.scala:1247-1251). The JVM builds the node with an erased cast and checks nothing, so the tree parses. Round-trip identity. An impl that type-checks the operand at parse rejects it: the over-reject.",
+      "bytes_hex" : "c0843d00d1da0402000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-e1-append-on-int-reject#6",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(EQ(SizeOf(Append(Int 1, Int 2)), Int 0)). Append holds `val tpe = input.tpe` (transformers.scala:62), a strict val whose checkcast to SCollection throws ClassCastException when the node is built: the JVM rejects.",
+      "bytes_hex" : "c0843d00d193b1b30402040404000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-e1-append-on-int-sized-reject#7",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is the same, size-flagged: a ClassCastException is not a ValidationException, so the tree does not degrade and the JVM rejects.",
+      "bytes_hex" : "c0843d080ad193b1b30402040404000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-e2-slice-on-int-reject#8",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(EQ(SizeOf(Slice(Int 1, 0, 1)), Int 0)). Slice holds `val tpe = input.tpe` too (transformers.scala:89): ClassCastException, a reject.",
+      "bytes_hex" : "c0843d00d193b1b404020400040204000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-e2-slice-on-int-sized-reject#9",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is the same, size-flagged: rejected as well.",
+      "bytes_hex" : "c0843d080cd193b1b404020400040204000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-e3-option-isdefined-on-int-accept#10",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(OptionIsDefined(Int 1)). Its opType is SFunc(input.tpe, SBoolean) (transformers.scala:656), which takes any type with no cast to SOption, and its tpe is SBoolean. The JVM builds the node with an erased cast and checks nothing, so the tree parses. Round-trip identity. An impl that type-checks the operand at parse rejects it: the over-reject.",
+      "bytes_hex" : "c0843d00d1e604020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l1-eq-int-long-v3-reject#11",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose size-flagged v3 tree (0b) is BoolToSigmaProp(EQ(Int 1, Long 1)). From tree v3 the deserializing builder does not upcast (SigmaBuilder.scala:757-758), so the same-type check throws ConstraintFailed (:691), which is not a ValidationException: the JVM rejects. An impl without the check parses it: the over-accept.",
+      "bytes_hex" : "c0843d0b06d193040205020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l1-eq-int-long-v0-upcast-accept#12",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "The twin: A bare box whose tree is the same EQ in an unsized v0 tree. Below v3 the builder upcasts the Int to Long first, so the tree parses. Round-trip identity.",
+      "bytes_hex" : "c0843d00d193040205020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l1-eq-int-int-v3-accept#13",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "The other twin: A bare box whose v3 tree is BoolToSigmaProp(EQ(Int 1, Int 1)): the same types, so it parses. Round-trip identity.",
+      "bytes_hex" : "c0843d0b06d193040204020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l2-gt-boolean-reject#14",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(GT(true, true)). The builder's comparison check requires numeric operands (SigmaBuilder.scala:699): ConstraintFailed, a reject. An impl without the check parses it.",
+      "bytes_hex" : "c0843d00d191010101010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l2-gt-boolean-sized-reject#15",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is the same, size-flagged: ConstraintFailed does not degrade, so rejected as well.",
+      "bytes_hex" : "c0843d0806d191010101010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l2-gt-int-accept#16",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "The twin: A bare box whose tree is BoolToSigmaProp(GT(Int 1, Int 1)). It parses. Round-trip identity.",
+      "bytes_hex" : "c0843d00d191040204020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l3-bitor-boolean-reject#17",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(EQ(BitOr(true, true), Int 0)). BitOp requires numeric operands (trees.scala:913): an IllegalArgumentException, which deserializeErgoTree rethrows as a SerializerException reading 'Tree version (0) is above activated script version (3)': the JVM rejects.",
+      "bytes_hex" : "c0843d00d193f20101010104000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l3-bitor-boolean-sized-reject#18",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is the same, size-flagged: the SerializerException does not degrade, so rejected as well.",
+      "bytes_hex" : "c0843d0809d193f20101010104000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-l3-bitor-int-accept#19",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "The twin: A bare box whose tree is BoolToSigmaProp(EQ(BitOr(Int 1, Int 1), Int 0)). It parses. Round-trip identity.",
+      "bytes_hex" : "c0843d00d193f20402040204000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-coll-item-wrong-type-reject#20",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(EQ(SizeOf(Coll[Int](Long 1)), Int 1)): a ConcreteCollection (83) declaring Int items (04) whose item is Long 1 (05 02). ConcreteCollectionSerializer asserts each item's type (ConcreteCollectionSerializer.scala:38), and the build does not elide the assert: an AssertionError, which no handler in deserializeErgoTree catches: the JVM rejects. An impl that does not compare the item types parses it: the over-accept.",
+      "bytes_hex" : "c0843d00d193b1830104050204020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-coll-item-wrong-type-sized-reject#21",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is the same, size-flagged: an AssertionError is not a ValidationException, so the tree does not degrade and the JVM rejects.",
+      "bytes_hex" : "c0843d080ad193b1830104050204020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-coll-item-right-type-accept#22",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "The twin: A bare box whose tree is BoolToSigmaProp(EQ(SizeOf(Coll[Int](Int 1)), Int 1)). It parses. Round-trip identity.",
+      "bytes_hex" : "c0843d00d193b1830104040204020100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-context-getvar-v5-method-accept#23",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is BoolToSigmaProp(OptionIsDefined(MethodCall(CONTEXT, SContext method 11, [Byte 0]))) (dc 65 0b fe 01 02 00). Method 11 is getVarV5Method, declared with info but no IR builder or Java method (methods.scala:1750-1753) and listed for v5 and v6 (:1766-1774): it resolves, and its type variable is left unbound, so the tree parses. Round-trip identity. Evaluating it fails (NoSuchMethodException for Context.getVar(byte); see the transaction vector evaluated-values-spend).",
+      "bytes_hex" : "c0843d00d1e6dc650bfe0102000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "box-context-getvar-v5-method-sized-accept#24",
+      "kind" : "Box",
+      "source" : "santa:authored-box-tree-parse",
+      "description" : "A bare box whose tree is the same, size-flagged: it parses as well. Round-trip identity.",
+      "bytes_hex" : "c0843d0809d1e6dc650bfe0102000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}

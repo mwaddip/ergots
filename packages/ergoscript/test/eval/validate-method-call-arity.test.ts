@@ -13,8 +13,8 @@
  * The exact rule: for treeVersion >= 3, reject any `tag === 'MethodCall'` node
  * whose `args.length === 0`. Method-agnostic (the JVM asserts before method
  * lookup). Pre-V3 is grandfathered (the JVM does not assert there). PropertyCall
- * nodes are exempt (the legit zero-arg form). Mirrors validate-bin-op-types.ts /
- * validate-v6-types.ts (a zero-cost reject at the dispatchTreeBody chokepoint).
+ * nodes are exempt (the legit zero-arg form). Mirrors validate-v6-types.ts (a
+ * zero-cost reject at the dispatchTreeBody chokepoint).
  *
  * Spec: docs/specs (P4) — closes the none/groupGenerator over-accept.
  */

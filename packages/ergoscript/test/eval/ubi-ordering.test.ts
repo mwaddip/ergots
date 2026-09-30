@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { validateBinOpTypes } from '../../src/eval/validate-bin-op-types'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
+import { isUnparsedTree } from '../../src/mir/types'
 import type { SType, SValue, Expr, BinOp, RelationOp } from '../../src/mir/types'
+import { hex, treeBytes } from '../_helpers/mir-build'
 
 const SUBI: SType = { tag: 'SUnsignedBigInt' }
 const SINT: SType = { tag: 'SInt' }
@@ -40,13 +43,25 @@ describe('UBI ordering BinOps (v6)', () => {
     expectThrow(() => evalExpr(e, Env.empty(), v3()), 'bin-op-kind-mismatch')
   })
 
-  it('C1: validateBinOpTypes ACCEPTS a V3 LT(ubi, ubi) (the fork the review caught)', () => {
-    const body = R('Lt', 3n, 5n)
-    expect(() => validateBinOpTypes(body, 3)).not.toThrow()
+  // The relations' check2 is made at parse (wire/check-build.ts), as the JVM's builder makes it
+  // (SigmaBuilder.scala:696-704). Each verdict is a local sigma-state 6.0.6 probe's (tree mode).
+  it('C1: a V3 LT(ubi, ubi) parses: UnsignedBigInt is an SNumericType (the fork the review caught; the JVM: parsed)', () => {
+    const b = treeBytes(R('Lt', 3n, 5n), 0x0b)
+    expect(hex(b)).toBe('0b078f090103090105')
+    expect(isUnparsedTree(parseTree(b))).toBe(false)
   })
 
-  it('C1: validateBinOpTypes REJECTS a V3 LT(Int, ubi) via SameType', () => {
+  it('C1: a V3 LT(Int, ubi) rejects at parse via SameType (the JVM: ConstraintFailed)', () => {
     const body = rel('Lt', constOf(SINT, { kind: 'Int', value: 1 }), constOf(SUBI, ubi(2n))) as unknown as Expr
-    expectThrow(() => validateBinOpTypes(body, 3), 'bin-op-kind-mismatch')
+    const b = treeBytes(body, 0x0b)
+    expect(hex(b)).toBe('0b068f0402090102')
+    let err: unknown
+    try {
+      parseTree(b)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ExprParseError)
+    expect((err as ExprParseError).code).toBe('relation-operand-type-mismatch')
   })
 })

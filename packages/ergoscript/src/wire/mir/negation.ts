@@ -12,9 +12,10 @@
  * Expr is parsed / serialized after the opcode byte.
  *
  * Sigma-rust's `try_build` for Negation rejects non-numeric inputs (`if
- * !post_eval_tpe.is_numeric()` — `mir/negation.rs:40-47`). We do NOT enforce
- * that on the wire side — type-shape checks belong to a later pass; the
- * wire layer accepts whatever the bytes encode.
+ * !post_eval_tpe.is_numeric()` — `mir/negation.rs:40-47`). The JVM requires a
+ * numeric input or NoType (trees.scala:882) when it builds the node, and so
+ * does ergots, when `parseExpr` builds it (`checkBuild`, wire/check-build.ts).
+ * This arm only reads the bytes.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/negation.rs

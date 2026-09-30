@@ -37,6 +37,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
 import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
@@ -60,8 +61,31 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: EvalFixture[]
 }
 
+// Entries whose tree the JVM rejects at parse, as ergots does since 2026-09-30 (check2's OnlyNumeric,
+// SigmaBuilder.scala:696-704; wire/check-build.ts). Their expected_error_code is sigma-rust's, which
+// evaluates the tree. A local sigma-state 6.0.6 probe rejects each at parse, with and without
+// checkType: ConstraintFailed.
+const PARSE_REJECTS: Record<string, string> = {
+  lt_not_numeric_bool: 'relation-operand-not-numeric',
+  gt_not_numeric_bool: 'relation-operand-not-numeric',
+}
+
 describe('BinOp.Relation family — fixture-driven', () => {
   for (const entry of fixture.entries) {
+    const atParse = PARSE_REJECTS[entry.name]
+    if (atParse !== undefined) {
+      it(`${entry.name}: ${atParse} at parse`, () => {
+        let err: unknown
+        try {
+          parseTree(hexToBytes(entry.tree_bytes_hex))
+        } catch (e) {
+          err = e
+        }
+        expect(err).toBeInstanceOf(ExprParseError)
+        expect((err as ExprParseError).code).toBe(atParse)
+      })
+      continue
+    }
     it(`${entry.name}: ${entry.expected_error_code ?? 'value + cost'}`, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext({ jitCostLimit: entry.opts_json.jitCostLimit })

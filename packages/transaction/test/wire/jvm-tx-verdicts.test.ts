@@ -169,9 +169,10 @@ describe("a nested Box register's lead byte", () => {
 // exprTpe mirrors the JVM node's tpe, including where that tpe throws. The JVM casts an input's type
 // while it builds or types ByIndex, OptionGet, SelectField, Map (its mapper), OptionGetOrElse, Filter,
 // Slice and Append (a ClassCastException, for its SAny and for NoType), and requires a numeric type or
-// NoType while it builds Negation, BitInversion and BitOp (isNumTypeOrNoType): at an output's root or
-// a ValDef's right-hand side each rejects the transaction at parse. An Apply of the JVM's SAny is
-// NoType, which passes the require. ergots accepted each rejected one at 9c87a5a, as the id given.
+// NoType while it builds Negation, BitInversion and BitOp (isNumTypeOrNoType; ergots' checkBuild, since
+// 2026-09-30): at an output's root or a ValDef's right-hand side each rejects the transaction at parse.
+// An Apply of the JVM's SAny is NoType, which passes the require. ergots accepted each rejected one at
+// 9c87a5a, as the id given.
 describe("the JVM's SAny through an arm that casts or requires its input's type", () => {
   const GETVAR_SANY = 'e4e30161' // OptionGet(GetVar(1, SAny)): type code 97
   const FUNC = 'd9010104' + '0101' // FuncValue((1: Int) => true)
@@ -184,8 +185,8 @@ describe("the JVM's SAny through an arm that casts or requires its input's type"
     ['a sized root OptionGet(OptionGet(GetVar(1, SAny))) (a56f4793…)', sized('08', 'e4' + GETVAR_SANY), 'option-get-input-class-cast'],
     ['a sized root Filter(ByIndex(tuple), f) (406c2804…)', sized('08', 'b5' + BY_INDEX_TUPLE + FUNC), 'filter-input-class-cast'],
     ['a sized tree, a ValDef bound to Slice(OptionGet(GetVar(1, SAny)), 0, 1) (582aa003…)', sized('08', 'd801d601b4' + GETVAR_SANY + '04000402' + '08d3'), 'slice-input-class-cast'],
-    ['a sized root Negation(ByIndex(tuple)) (fed18955…)', sized('08', 'f0' + BY_INDEX_TUPLE), 'negation-input-jvm-sany'],
-    ['a sized tree, a ValDef bound to BitOr(0, ByIndex(tuple)) (4bfb20e2…)', sized('08', 'd801d601f20400' + BY_INDEX_TUPLE + '08d3'), 'bit-op-operand-jvm-sany'],
+    ['a sized root Negation(ByIndex(tuple)) (fed18955…)', sized('08', 'f0' + BY_INDEX_TUPLE), 'negation-input-not-numeric'],
+    ['a sized tree, a ValDef bound to BitOr(0, ByIndex(tuple)) (4bfb20e2…)', sized('08', 'd801d601f20400' + BY_INDEX_TUPLE + '08d3'), 'bit-op-operand-not-numeric'],
     ['a sized root ByIndex(Apply(ByIndex(tuple), [0]), 0), the JVM NoType (e9d88fa6…)', sized('08', 'b2' + applyOf(BY_INDEX_TUPLE) + '040000'), 'by-index-input-class-cast'],
   ]
   for (const [name, tree, code] of rejected) {

@@ -65,10 +65,11 @@ export type SType =
  *     (core/.../sigma/ast/SType.scala:838-841), so `exprTpe` types `ByIndex` over a tuple as this
  *     object (`ByIndex.tpe = input.tpe.elemType`, sigma/ast/transformers.scala:254).
  * `exprTpe` mirrors the JVM node's `tpe`: it passes this object through, unchanged, where the JVM
- * types the node, and throws where the JVM casts it (a `ClassCastException`) or requires a numeric
- * type (`isNumTypeOrNoType`). It is told apart by identity from ergots' own `SAny`, a fresh object
- * that ergots' method typing makes (residual 1: an unregistered method's return, a result type
- * variable left unbound, a tuple's element type met by unification), which passes everywhere. Rule
+ * types the node, and throws where the JVM casts it (a `ClassCastException`); where a constructor
+ * requires a numeric type (`isNumTypeOrNoType`), `checkBuild` rejects it (wire/check-build.ts). It is
+ * told apart by identity from ergots' own `SAny`, a fresh object that ergots' method typing makes
+ * (residual 1: an unregistered method's return, a result type variable left unbound, a tuple's
+ * element type met by unification), which passes everywhere. Rule
  * 1001 fails a root typed as this object, as the JVM fails a root whose type is `SAny`
  * (`isSigmaProp`, core/.../sigma/ast/package.scala:121). Structurally it is `{ tag: 'SAny' }`, so
  * equality checks and `serializeSType` treat it as any `SAny`.

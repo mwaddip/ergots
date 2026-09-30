@@ -2,10 +2,11 @@
  * LastBlockUtxoRootHash — the bare dedicated-opcode form (0xa6) of the
  * CONTEXT.LastBlockUtxoRootHash property (F5 batch 4, Ask-13).
  *
- * Also: type-gate interplay with validateBinOpTypes (F5 batch 4, Ask-13 T4.5
- * minor). exprTpe returns SAvlTree for 0xa6 nodes; the pre-eval pass therefore
- * accepts EQ(0xa6, AvlTree-const) and rejects EQ(0xa6, Int-const) with zero
- * cost, matching the JVM's deserialize-time SameType gate.
+ * Also: type-gate interplay with the relations' SameType check (F5 batch 4,
+ * Ask-13 T4.5 minor). exprTpe returns SAvlTree for 0xa6 nodes, so EQ(0xa6,
+ * AvlTree-const) evaluates, and EQ(0xa6, Int-const) rejects at parse, as the
+ * JVM's deserialize-time SameType gate does (wire/check-build.ts; until
+ * 2026-09-30 a pre-eval pass, validateBinOpTypes, made the check).
  *
  * JVM (canonical): `sigma.ast.LastBlockUtxoRootHash` case object,
  * values.scala:1490-1501 — `costKind = FixedCost(JitCost(15))` (line 1495),
@@ -21,7 +22,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
+import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { hexToBytes, captureEvalError } from '../_helpers'
 import type { AvlTreeData, Expr, ErgoTree } from '../../src/mir/types'
@@ -62,8 +64,7 @@ describe('LastBlockUtxoRootHash op-form — field absent', () => {
 })
 
 describe('LastBlockUtxoRootHash op-form — type-gate interplay', () => {
-  // Helpers to build an ErgoTree directly without going through the wire parser
-  // (mirrors the bin-op-sametype-strictness.test.ts pattern).
+  // Helpers to build an ErgoTree directly; the parse-time check runs on its bytes.
   function treeV0(body: Expr): ErgoTree {
     return {
       header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
@@ -84,19 +85,26 @@ describe('LastBlockUtxoRootHash op-form — type-gate interplay', () => {
   }
 
   it('EQ(0xa6, AvlTree-const) evaluates (boolean) with the field set', () => {
-    // exprTpe(LastBlockUtxoRootHash, v) = SAvlTree = exprTpe(Const{SAvlTree}, v) →
-    // validateBinOpTypes passes; eval runs and returns Boolean.
+    // exprTpe(LastBlockUtxoRootHash, v) = SAvlTree = exprTpe(Const{SAvlTree}, v), so the
+    // relation's SameType check passes; eval runs and returns Boolean.
     const ctx = makeContext({ lastBlockUtxoRootHash: sampleField })
     const value = evaluateWith(treeV0(eq(opNode, avlConst(sampleField))), ctx)
     expect(value).toEqual({ kind: 'Boolean', value: true })
   })
 
-  it('EQ(0xa6, Int-const) throws bin-op-kind-mismatch with zero cost', () => {
-    // SAvlTree vs SInt — SameType gate fires in the pre-eval pass before any
-    // cost is charged (mirrors the JVM's deserialize-time ConstraintFailed).
-    const ctx = makeContext({ lastBlockUtxoRootHash: sampleField })
-    const err = captureEvalError(() => evaluateWith(treeV0(eq(opNode, intConst(0))), ctx))
-    expect(err.code).toBe('bin-op-kind-mismatch')
-    expect(ctx.jitCost).toBe(0)
+  it('EQ(0xa6, Int-const) rejects at parse (relation-operand-type-mismatch)', () => {
+    // SAvlTree vs SInt: the SameType check fails as the node is built, before any evaluation (the
+    // JVM's deserialize-time ConstraintFailed; a local sigma-state 6.0.6 probe of 0093a60400, tree
+    // mode: ConstraintFailed).
+    const bytes = serializeTree(treeV0(eq(opNode, intConst(0))))
+    expect(Array.from(bytes, (x) => x.toString(16).padStart(2, '0')).join('')).toBe('0093a60400')
+    let err: unknown
+    try {
+      parseTree(bytes)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ExprParseError)
+    expect((err as ExprParseError).code).toBe('relation-operand-type-mismatch')
   })
 })

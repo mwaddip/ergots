@@ -105,20 +105,6 @@ function classCast(node: string, t: SType, code: string): ExprTpeError {
 }
 
 /**
- * The type of an input the JVM requires, while it builds the node, to be numeric or `NoType`
- * (`isNumTypeOrNoType`, core/.../sigma/ast/package.scala:139; `Negation`, `BitInversion`, `BitOp`).
- * The JVM's `SAny` fails the require (an `IllegalArgumentException`, a hard reject): throws `code`.
- * `NoType`, `NOTYPE_JVM`, passes it.
- */
-function requireNumTypeOrNoType(input: Expr, v: number, node: string, code: string): SType {
-  const t = exprTpe(input, v)
-  if (t === SANY_JVM) {
-    throw new ExprTpeError(`${node}: an input types as the JVM's SAny, which fails require(isNumTypeOrNoType)`, code)
-  }
-  return t
-}
-
-/**
  * The type of an arithmetic node (`ArithOp`, sigma/ast/trees.scala:704-708). From v3 it is the left
  * operand's (`tpe = left.tpe`), and the right operand is not read. Before v3 the parse builds it
  * through `DeserializationSigmaBuilder.arithOp`, whose `applyUpcast` reads both operand types and,
@@ -353,16 +339,11 @@ function computeTpe(e: Expr, v: number): SType {
           return { tag: 'SBoolean' }
         case 'Arith':
           return arithTpe(e.left, e.right, v)
-        case 'Bit': {
-          // JVM BitOp: require(left.tpe.isNumTypeOrNoType && right.tpe.isNumTypeOrNoType) in the
-          // constructor (sigma/ast/trees.scala:913), which reads the left operand's type and then
-          // the right's; tpe = left.tpe (:915). The JVM's SAny in either fails the require. mkBitOr
-          // and its siblings build BitOp with no applyUpcast (SigmaBuilder.scala:637-653), so the
-          // type is the left operand's at every version.
-          const lt = requireNumTypeOrNoType(e.left, v, 'BitOp', 'bit-op-operand-jvm-sany')
-          requireNumTypeOrNoType(e.right, v, 'BitOp', 'bit-op-operand-jvm-sany')
-          return lt
-        }
+        case 'Bit':
+          // JVM BitOp.tpe = left.tpe (sigma/ast/trees.scala:915). mkBitOr and its siblings build
+          // BitOp with no applyUpcast (SigmaBuilder.scala:637-653), so the type is the left operand's
+          // at every version. The constructor's require (:913) is checkBuild's (wire/check-build.ts).
+          return exprTpe(e.left, v)
         default: {
           const _exhaust: never = e.op
           throw new ExprTpeError(
@@ -427,9 +408,9 @@ function computeTpe(e: Expr, v: number): SType {
     case 'BitInversion':
       // mir/bit_inversion.rs::BitInversion::tpe → input.post_eval_tpe()
       // (bitwise NOT preserves the numeric operand type).
-      // JVM BitInversion: require(input.tpe.isNumTypeOrNoType) in the constructor, tpe = input.tpe
-      // (sigma/ast/trees.scala:900-902). The JVM's SAny fails the require; NoType passes it.
-      return requireNumTypeOrNoType(e.input, v, 'BitInversion', 'bit-inversion-input-jvm-sany')
+      // JVM BitInversion.tpe = input.tpe (sigma/ast/trees.scala:902). The constructor's require
+      // (:900) is checkBuild's (wire/check-build.ts).
+      return exprTpe(e.input, v)
     case 'CreateAvlTree':
       // mir/create_avl_tree.rs::CreateAvlTree::tpe → SAvlTree.
       return { tag: 'SAvlTree' }
@@ -621,9 +602,9 @@ function computeTpe(e: Expr, v: number): SType {
       // sigma-rust `mir/negation.rs::Negation::tpe` (line 20-22): the
       // input's type (negation preserves the numeric type — SByte/SShort/
       // SInt/SLong/SBigInt). Negation::try_build validates is_numeric.
-      // JVM Negation: require(input.tpe.isNumTypeOrNoType) in the constructor, tpe = input.tpe
-      // (sigma/ast/trees.scala:882-884). The JVM's SAny fails the require; NoType passes it.
-      return requireNumTypeOrNoType(e.input, v, 'Negation', 'negation-input-jvm-sany')
+      // JVM Negation.tpe = input.tpe (sigma/ast/trees.scala:884). The constructor's require (:882) is
+      // checkBuild's (wire/check-build.ts).
+      return exprTpe(e.input, v)
     case 'ExtractCreationInfo':
       // sigma-rust `mir/extract_creation_info.rs::ExtractCreationInfo::tpe`
       // (line 23-25): STuple(SInt, SColl[SByte]) — the (block_height,

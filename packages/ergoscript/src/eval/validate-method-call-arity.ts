@@ -18,8 +18,7 @@
  * Method-agnostic (the JVM asserts before `SMethod.from_ids` — any
  * typeId/methodId). Pre-V3 is grandfathered (the JVM does NOT assert there, so
  * ergots must NOT reject pre-V3). `PropertyCall` nodes are exempt (the legit
- * zero-arg form). Mirrors eval/validate-bin-op-types.ts and
- * eval/validate-v6-types.ts.
+ * zero-arg form). Mirrors eval/validate-v6-types.ts.
  */
 import type { Expr } from '../mir/types'
 import { EvalError } from './eval-context'

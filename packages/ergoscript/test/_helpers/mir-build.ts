@@ -44,6 +44,11 @@ export const collInt = (ns: number[]): M.Const => ({
   tpe: T.Coll(T.Int),
   value: { kind: 'Coll', elem: T.Int, items: ns.map((n) => ({ kind: 'Int', value: n })) },
 })
+export const collBool = (bs: boolean[]): M.Const => ({
+  tag: 'Const',
+  tpe: T.Coll(T.Bool),
+  value: { kind: 'Coll', elem: T.Bool, items: bs.map((b) => ({ kind: 'Boolean', value: b })) },
+})
 
 // ── Operators ──────────────────────────────────────────────────────────────
 export const bin = (op: M.BinOpKind, left: Expr, right: Expr): M.BinOp => ({ tag: 'BinOp', op, left, right })
@@ -52,7 +57,9 @@ export const GT = (l: Expr, r: Expr): M.BinOp => bin({ kind: 'Relation', op: 'Gt
 export const Plus = (l: Expr, r: Expr): M.BinOp => bin({ kind: 'Arith', op: 'Plus' }, l, r)
 export const BitOr = (l: Expr, r: Expr): M.BinOp => bin({ kind: 'Bit', op: 'BitOr' }, l, r)
 export const Negation = (input: Expr): M.Negation => ({ tag: 'Negation', input })
+export const BitInversion = (input: Expr): M.BitInversion => ({ tag: 'BitInversion', input })
 export const Upcast = (input: Expr, tpe: SType): M.Upcast => ({ tag: 'Upcast', input, tpe })
+export const Downcast = (input: Expr, tpe: SType): M.Downcast => ({ tag: 'Downcast', input, tpe })
 
 // ── Structure ──────────────────────────────────────────────────────────────
 export const sp = (input: Expr): M.BoolToSigmaProp => ({ tag: 'BoolToSigmaProp', input })
@@ -62,6 +69,8 @@ export const Coll = (elemTpe: SType, items: Expr[]): M.Collection => ({ tag: 'Co
 export const Apply = (func: Expr, args: Expr[]): M.Apply => ({ tag: 'Apply', func, args })
 export const Block = (items: Expr[], result: Expr): M.BlockValue => ({ tag: 'BlockValue', items, result })
 export const ValDef = (id: number, rhs: Expr): M.ValDef => ({ tag: 'ValDef', id, rhs })
+/** A ValUse. Only the id is written; the parse gives the node the type its ValDef stored. */
+export const ValUse = (id: number, tpe: SType): M.ValUse => ({ tag: 'ValUse', valId: id, tpe })
 export const SigmaAnd = (...items: Expr[]): M.SigmaAnd => ({ tag: 'SigmaAnd', items })
 /** `sigmaProp(if (false) e else true)`: `e` sits in a branch that is never evaluated. */
 export const dead = (e: Expr): M.BoolToSigmaProp => sp(If(bool(false), e, bool(true)))
@@ -79,6 +88,10 @@ export const Append = (input: Expr, col2: Expr): M.Append => ({ tag: 'Append', i
 export const SelectField = (input: Expr, fieldIndex: number): M.SelectField => ({ tag: 'SelectField', input, fieldIndex })
 export const GetVar = (id: number, t: SType): M.GetVar => ({ tag: 'GetVar', varId: id, varTpe: t })
 export const OptionGet = (input: Expr): M.OptionGet => ({ tag: 'OptionGet', input })
+export const OptionIsDefined = (input: Expr): M.OptionIsDefined => ({ tag: 'OptionIsDefined', input })
+export const SigmaPropBytes = (input: Expr): M.SigmaPropBytes => ({ tag: 'SigmaPropBytes', input })
+export const SigmaPropIsProven = (input: Expr): M.SigmaPropIsProven => ({ tag: 'SigmaPropIsProven', input })
+export const TreeLookup = (tree: Expr, key: Expr, proof: Expr): M.TreeLookup => ({ tag: 'TreeLookup', tree, key, proof })
 /** OptionGet(GetVar(1, SAny)): the JVM's SAny, type code 97. */
 export const GV: M.OptionGet = OptionGet(GetVar(1, T.Any))
 

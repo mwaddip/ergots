@@ -14,10 +14,11 @@
  * `<Upcast as SigmaSerializable>::sigma_serialize` (`mir/upcast.rs:60-66`).
  *
  * Sigma-rust's `Upcast::new` constructor rejects non-numeric source or
- * target types (`mir/upcast.rs:31-49`). We do NOT enforce that at the
- * wire layer — type-shape checks belong to a later pass. The wire-layer
- * parser is permissive (same convention as Negation / BitInversion /
- * BoolToSigmaProp).
+ * target types (`mir/upcast.rs:31-49`). The JVM checks a numeric target
+ * (`asNumType`, NumericCastSerializer.scala:22) and a numeric input
+ * (trees.scala:398) when it builds the node, and so does ergots, when
+ * `parseExpr` builds it (`checkBuild`, wire/check-build.ts). This arm only
+ * reads the bytes.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/upcast.rs

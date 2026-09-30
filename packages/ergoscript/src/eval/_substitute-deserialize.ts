@@ -73,6 +73,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { ByteReader } from '@ergots/scorex'
 import { parseExpr } from '../wire/parse'
+import { isJvmClassCast } from '../wire/jvm-exceptions'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals } from '../mir/stype-helpers'
 import { collByteToUint8Array } from './_byte-coll'
@@ -218,9 +219,14 @@ function substituteDeserializeContext(
       ctx.treeVersion ?? tree.header.version,
     )
   } catch (err) {
+    // The JVM decodes inside substDeserialize, under Kiama's strategy, which swallows a
+    // ClassCastException and leaves the node in place (core/.../sigma/kiama/rewriting/Rewriter.scala:180-191;
+    // Interpreter.scala:110-129): a dead node then accepts. Any other failure propagates.
+    if (isJvmClassCast(err)) return e
     throw new EvalError(
       `DeserializeContext: inner Expr parse failed — ${(err as Error).message}`,
       'deserialize-parse-failed',
+      { cause: err },
     )
   }
   const parsedTpe = exprTpe(parsed, ctx.treeVersion ?? tree.header.version)
@@ -290,9 +296,13 @@ function substituteDeserializeRegister(
         ctx.treeVersion ?? tree.header.version,
       )
     } catch (err) {
+      // A class cast while decoding leaves the node in place, as Kiama's strategy swallows it
+      // (Rewriter.scala:180-191; ErgoLikeInterpreter.scala:17-37). Any other failure propagates.
+      if (isJvmClassCast(err)) return e
       throw new EvalError(
         `DeserializeRegister: inner Expr parse failed — ${(err as Error).message}`,
         'deserialize-parse-failed',
+        { cause: err },
       )
     }
     const parsedTpe = exprTpe(parsed, ctx.treeVersion ?? tree.header.version)
@@ -834,9 +844,9 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr): Expr {
  * built by `Traversable::children` (mir/expr.rs:534-605) and the per-variant
  * `iter_from!` macro expansion.
  *
- * Used by {@link hasDeserializeWalk} and by `eval/validate-bin-op-types.ts`'s
- * whole-tree pass; the substitution walker uses {@link mapChildren} which
- * reconstructs the parent.
+ * Used by {@link hasDeserializeWalk} and by the whole-tree passes of
+ * `eval/validate-v6-types.ts` and `eval/validate-method-call-arity.ts`; the
+ * substitution walker uses {@link mapChildren} which reconstructs the parent.
  */
 export function* childrenOf(e: Expr): Generator<Expr, void, void> {
   switch (e.tag) {

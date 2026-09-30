@@ -110,14 +110,11 @@ describe('exprTpe over the JVM SAny and NoType: the verdicts of the JVM probe', 
         POSITIONS.forEach(([position, place], i) => {
           const jvm = verdicts[i] as Verdict
           const { mode, tree } = place(build(x))
-          // A root parsed without checkType is a position ergots does not type: the JVM rejects there
-          // only while it builds the node, a check ergots does not make at parse (the node-construction
-          // follow-up), so ergots parses it.
-          const residual = mode === 'lenient' && jvm === 'R'
-          const name = `${arm.replace(/X/g, source)} at ${position}: the JVM ${jvm}` +
-            (residual ? ', ergots P (the node-construction follow-up)' : '')
-          it(name, () => {
-            expect(verdictOf(mode, tree)).toBe(residual ? 'P' : jvm)
+          // At a root parsed without checkType the JVM rejects only while it builds the node. Since
+          // 2026-09-30 ergots makes those construction checks at parse too (wire/check-build.ts), so
+          // its verdict is the JVM's at every position; until then it parsed such a root.
+          it(`${arm.replace(/X/g, source)} at ${position}: the JVM ${jvm}`, () => {
+            expect(verdictOf(mode, tree)).toBe(jvm)
           })
         })
       }

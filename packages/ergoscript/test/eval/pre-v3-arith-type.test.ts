@@ -7,6 +7,8 @@
 // (spend mode, the tree as SELF, variable 1 as given).
 import { describe, it, expect } from 'vitest'
 import { evaluate } from '../../src/eval/evaluate'
+import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
 import type { Expr, SValue } from '../../src/mir/types'
 import { captureEvalError, parseParsedTree } from '../_helpers'
 import { ByIndex, DC, EQ, Plus, T, exprBytes, hex, int, long, sp, treeBytes } from '../_helpers/mir-build'
@@ -43,10 +45,17 @@ describe('a Map whose mapper is x => 1 + x over Coll[Long]', () => {
   })
   it('rejects at v3: the mapper types as Int, its left operand', () => {
     // The probe: 0b15d193b2ad11010ad90101059a04027201040000050c, rejected (ConstraintFailed: the
-    // EQ's operands are Int and Long). ergots makes that check before evaluation.
+    // EQ's operands are Int and Long). ergots makes that check at parse, as the JVM does.
     const bytes = treeBytes(root, 0x0b)
     expect(hex(bytes)).toBe('0b15d193b2ad11010ad90101059a04027201040000050c')
-    expect(captureEvalError(() => evaluate(parseParsedTree(bytes))).code).toBe('bin-op-kind-mismatch')
+    let err: unknown
+    try {
+      parseTree(bytes)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ExprParseError)
+    expect((err as ExprParseError).code).toBe('relation-operand-type-mismatch')
   })
 })
 

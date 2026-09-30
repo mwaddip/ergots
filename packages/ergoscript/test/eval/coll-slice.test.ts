@@ -55,6 +55,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprTpeError } from '../../src/mir/expr-tpe'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
 import { hexToBytes, hydrateSValue, captureEvalError, rehydrateEvalOpts } from '../_helpers'
@@ -78,8 +79,30 @@ interface CollSliceFixtureFile {
 const FIXTURE_PATH = join(__dirname, '../fixtures/eval/coll-slice.json')
 const fixture: CollSliceFixtureFile = JSON.parse(readFileSync(FIXTURE_PATH, 'utf-8'))
 
+// An entry whose tree the JVM rejects at parse, as ergots does since 2026-09-30: Slice casts its
+// input's type to SCollection as it is built (transformers.scala:89; wire/check-build.ts). Its
+// expected_error_code is sigma-rust's, which evaluates the tree. A local sigma-state 6.0.6 probe
+// rejects it at parse, with and without checkType: ClassCastException.
+const PARSE_REJECTS: Record<string, string> = {
+  coll_slice_not_coll: 'slice-input-not-scoll',
+}
+
 describe('Slice eval (phase 2f Coll HOFs Task 5)', () => {
   for (const entry of fixture.entries) {
+    const atParse = PARSE_REJECTS[entry.name]
+    if (atParse !== undefined) {
+      it(`${entry.name}: ${atParse} at parse`, () => {
+        let err: unknown
+        try {
+          parseTree(hexToBytes(entry.tree_bytes_hex))
+        } catch (e) {
+          err = e
+        }
+        expect(err).toBeInstanceOf(ExprTpeError)
+        expect((err as ExprTpeError).code).toBe(atParse)
+      })
+      continue
+    }
     it(entry.name, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const opts = rehydrateEvalOpts(entry.opts_json)

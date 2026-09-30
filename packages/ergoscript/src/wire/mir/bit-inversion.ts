@@ -12,8 +12,10 @@
  * is parsed / serialized after the opcode byte.
  *
  * Sigma-rust's `try_build` rejects non-numeric inputs
- * (`mir/bit_inversion.rs:40-47`); we do NOT enforce that at the wire layer
- * — see the comment in logical-not.ts.
+ * (`mir/bit_inversion.rs:40-47`). The JVM requires a numeric input or NoType
+ * (trees.scala:900) when it builds the node, and so does ergots, when
+ * `parseExpr` builds it (`checkBuild`, wire/check-build.ts). This arm only
+ * reads the bytes.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/bit_inversion.rs
