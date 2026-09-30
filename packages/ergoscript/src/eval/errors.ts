@@ -270,7 +270,12 @@ export type EvalErrorCode =
   | 'coll-elem-tpe-mismatch'
   /** ByIndex: index is OOB and no `default` branch was provided. */
   | 'coll-by-index-out-of-range'
-  /** ByIndex: index expression evaluated to a non-Int SValue (defensive). */
+  /**
+   * ByIndex: the index expression evaluated to a value that is not an Int. Before tree v3 a Byte or Short is not
+   * one of these: the JVM's parse upcasts it to Int, and the arm widens it and charges the Upcast
+   * (eval/coll-by-index.ts). From v3 the parse checks nothing, and any other kind fails here as it does in the JVM
+   * (a ClassCastException).
+   */
   | 'coll-by-index-index-not-int'
   /** Slice: `from` or `until` expression evaluated to a non-Int SValue. */
   | 'coll-slice-bound-not-int'
