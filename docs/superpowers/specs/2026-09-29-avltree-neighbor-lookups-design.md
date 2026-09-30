@@ -7,7 +7,7 @@ records the user's decision the same day to fix all three pre-existing defects
 - P3 gains the height-before-root reorder. Without it, P3's "the root is still
   the pre-operation state" is false for the height-check throw.
 - The path-leak gate is stated against the 0.4.0 baseline.
-**Source:** Notis main's prompt `~/projects/dagsocial/prompts/avltree-neighbour-lookups.md`
+**Source:** Notis main's prompt `prompts/avltree-neighbour-lookups.md` in the `dagsocial` repo
 (written 2026-09-27, routed by the user). The user approved this design direction
 in conversation on 2026-09-29.
 **Base:** `master` at `3d48cd1`. `packages/avltree` and `facts/avltree.md` are
@@ -69,7 +69,7 @@ should not lose compatibility with the ecosystem it's built for."*
 - **Contract first.** `facts/avltree.md` is updated first. `API.md`, `README.md`
   and the session documents close the work.
 - **TDD per `CLAUDE.md`.** No production code without a failing test first.
-- **Nothing is written to `~/projects/dagsocial`.** This session's record stays in
+- **Nothing is written to the `dagsocial` repo.** This session's record stays in
   this repo.
 
 ## Verified premises
@@ -805,7 +805,7 @@ splits the rename into code and comment commits for that reason.
 - `npm pack --dry-run --workspace @ergots/avltree`: LICENSE present.
 - **Path leaks (`RELEASING.md` / OPS-04).**
   - The published 0.4.0 `dist/index.d.ts` carries four
-    `@see ~/projects/ergo_avltree_rust/…` JSDoc lines, from the headers of
+    `@see` JSDoc lines naming the home-directory checkout of `ergo_avltree_rust`, from the headers of
     `node.ts`, `batch-prover.ts` and `verify.ts`. The plan review found them.
   - The user decided on 2026-09-29 to fix them in 0.5.0: the three header
     comments are rewritten without the home path, and the gate is a count of 0.

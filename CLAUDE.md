@@ -99,6 +99,12 @@ The verifier MUST run unchanged in a browser. These rules are enforced by the te
 - **Never reach across package boundaries inside the monorepo** with relative imports (`../../proof/src/...`). Cross-package use goes through published package names so the dependency graph stays explicit.
 - **Never use `--no-verify`, `--no-gpg-sign`, or any hook-bypassing flag** on git operations.
 - **Never refactor `packages/nipopow/src/` for "future flexibility"** to accommodate ergoscript or wallet needs that haven't been spec'd yet. Wait until those packages exist.
+- **Never commit a local filesystem path.** No home-relative or absolute home-directory path may appear in an added line or in a commit message. This covers code, comments, docs, specs, facts, tests, config and fixtures. Name a sibling repo by its name (`ergo_avltree_rust`, `sigma-rust`, `dagsocial`) and pin it by commit (`@568e7c3`). Existing occurrences stay as they are (the user, 2026-09-30); the rule is for new lines. **Before every commit, grep the staged diff and the message**; both must print nothing:
+  ```bash
+  git diff --cached -U0 | grep -E '^\+' | grep -vE '^\+\+\+ ' | grep -nE '[~]/|/[h]ome/'
+  printf '%s\n' "$MSG" | grep -nE '[~]/|/[h]ome/'   # or grep the -F message file
+  ```
+  The `[~]` and `[h]` brackets keep this rule's own text from matching. Subagent dispatches carry this check with their commit commands.
 
 ## Confidence escalation (extra-strict on the crypto path)
 
